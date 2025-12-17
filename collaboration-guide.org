@@ -1,0 +1,91 @@
+#+title: Collaboration Guide
+
+* Collaboration guide
+
+This is a that will serve as a guide to collaborate to the repository.
+
+** Core Principles
+- ~main~ is the stable branch
+- all work happens in ~feature branches~ (e.g. feature/login-system-encryption, feature/webRTC, bugfix/webRTC-no-discovery)
+- *NO ONE COMMITS DIRECTLY TO* ~main~
+** Branch structure
+#+BEGIN_SRC
+main
+ ├── feature/chat-webrtc
+ ├── feature/local-discovery
+ ├── bugfix/sync-duplication
+ └── chore/update-deps
+#+END_SRC
+*** Branch naming convention
+#+BEGIN_SRC
+feature/<short-description>
+bugfix/<short-description>
+chore/<short-description>
+#+END_SRC
+** Starting new work
+1. sync with main
+   #+BEGIN_SRC
+    git checkout main
+    git pull origin main
+   #+END_SRC
+2. create a new feature branch
+   #+BEGIN_SRC
+    git checkout -b feature/<feature-name>
+   #+END_SRC
+
+** Working on the feature
+*** Commit early and often
+Commit changes as soon as it can be commited to prevent large commits
+
+#+BEGIN_SRC
+git add .
+git commit -m "feat(chat): add peer discovery.
+
+Summary, notes, and/or changes of commit"
+#+END_SRC
+
+*** Commit message format
+#+BEGIN_SRC
+"type(scope): short summary.
+
+More detailed summary"
+#+END_SRC
+
+**** Types
+- ~feat~ - new feature
+- ~fix~ - bug fix
+- ~refactor~ - code restructuring
+- ~docs~ - documentation
+- ~chore~ - toolings, configs
+
+**** Example
+#+BEGIN_SRC
+"docs(collaboration-guide) Create collaboration guide.
+
+Created the GIT collaboration guide with the following:
+1. Core principles
+2. Branch structure
+3. Starting new work
+4. Working on the feature
+5. commit guide
+..."
+#+END_SRC
+
+** Keep the branch up to date
+Regularly update your feature branch to the main to avoid conflicts
+#+BEGIN_SRC base
+# while inside your feature branch
+git fetch origin
+git rebase origin main
+#+END_SRC
+
+** Pushing your branch for examination
+#+BEGIN_SRC
+git push -u origin feature/feature-name
+#+END_SRC
+
+** AVOID TO ALL COSTS!
+- no force-pushes at main
+- no direct commits to main, ever
+- no HUGE commits
+- test your code before pushing
