@@ -18,7 +18,8 @@ utilize the server if it is connected to it
     - LAN voice calls
     - LAN video calls
   - SQLite storage
-  - no accounts only serialization/unique hashes
+  - no accounts only serialization/unique hashes (possible if maggenenerate ng
+    unique identifier per device through libp2p)
   - push notifications
 - with server
   - WebRTC via server
@@ -28,20 +29,22 @@ utilize the server if it is connected to it
   - push notifications
   - assigns identity to users (through accounts)
   - server does not own keys (end-to-end communication)
-  -
+- database of server and local database will sync when connected
 
-**  Possible challenges to encounter:
+** Possible challenges to encounter:
 - local discovery of devices
 - encryption of payloads
 - keeping the privacy of users
 - analytics on the server
+- syncing of data
+- identity of users
 
 ** What will be used to build the mobile app?
 The following languages and frameworks will be used to create the application:
-1. React native
+1. React native +necessary libraries
 2. SQLite
 3. WebRTC
-4. TURN Server
+4. (server) STUN and TURN Server
 
 ** Core principles of communication
 The following principles should always be followed:
@@ -64,9 +67,25 @@ The following principles should always be followed:
 
 
 * Concept of the application
-** Decentralized architecture
-[[./READMEMEDIA/centralized-arch.png][Centralized Architecture]]
-[[./READMEMEDIA/centralized-specific.png][Centralized Specific]]
-** Decentralized specifics
-[[./READMEMEDIA/decentralized-arch.png][Decentralized Architecture]]
-[[./READMEMEDIA/decentralized-specific.png][Decentralized Specific]]
+** Centralized architecture
+[[file:./READMEMEDIA/centralized-arch.png]]
+** Centralized Specifics
+[[file:./READMEMEDIA/centralized-specific.png]]
+** Decentralized Architecture
+[[file:./READMEMEDIA/decentralized-arch.png]]
+** Decentralized Specifics
+[[file:./READMEMEDIA/decentralized-specific.png]]
+
+* TODO
+The following are the ordered breakdown of the things to accomplish for the completion
+of the mobile application:
+** Learn the following
+- [ ] getting started with react native
+- [ ] what is WebRTC and how to works
+- [ ] what is libp2p and it's role in our architecture
+- [ ] what is a STUN server
+- [ ] what is a TURN server
+- [ ] what is feature branch workflow (GIT) (read the collaboration guide)
+
+** Build the following
+- [ ]
