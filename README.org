@@ -17,7 +17,11 @@ SAPOT. The deliverables of this repository are the following:
 3. a server that can provide services to the network such as
    - GPS
 
-
+** NOTE
+Always use the flake.nix for downloading the dependencies during development
+** Mobile app
 [[./mobile-app-todo.org][MOBILE APP TODOs]]
+** Server
 [[./server-todo.org][SERVER TODOs]]
+** Web portal
 [[./web-portal-todo.org][WEB PORTAL TODOs]]
