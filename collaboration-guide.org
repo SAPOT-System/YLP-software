@@ -1,7 +1,5 @@
 #+title: Collaboration Guide
 
-* Collaboration guide
-
 This is a that will serve as a guide to collaborate to the repository.
 
 ** Core Principles
