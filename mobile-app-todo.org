@@ -79,13 +79,14 @@ The following principles should always be followed:
 * TODO
 The following are the ordered breakdown of the things to accomplish for the completion
 of the mobile application:
-** Learn the following
+** Learn the following (individual)
 - [ ] getting started with react native
 - [ ] what is WebRTC and how to works
 - [ ] what is libp2p and it's role in our architecture
 - [ ] what is a STUN server
 - [ ] what is a TURN server
-- [ ] what is feature branch workflow (GIT) (read the collaboration guide)
+- [ ] what is feature branch workflow (GIT) (read
+  [[./collaboration-guide.org][the collaboration guide]])
 
 ** Build the following
 - [ ]
