@@ -88,5 +88,18 @@ of the mobile application:
 - [ ] what is feature branch workflow (GIT) (read
   [[./collaboration-guide.org][the collaboration guide]])
 
-** Build the following
-- [ ]
+** Build the Decentralized version
+- [ ] add an option to switch to:
+  - [ ] decentralized
+  - [ ] centralized
+  - [ ] auto
+- [ ] decide for user identifier (with or without account)
+- [ ] set up libp2p
+- [ ] set up webRTC
+- [ ] create LAN messaging
+- [ ] create LAN audio and video call
+- [ ] create placeholder for SMS relay
+
+** Build the Centralized version (integrate with server after configuring it)
+- [ ] integrate libp2p and webRTC with TURN and STUN servers
+*goal is to make the app transition from decentralized to centralized seemlessly*
