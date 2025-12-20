@@ -18,12 +18,12 @@
       # Configure the Android SDK
       sdk = android-nixpkgs.sdk.${system} (sdkPkgs: with sdkPkgs; [
         cmdline-tools-latest
-        build-tools-34-0-0
+        build-tools-36-0-0
         platform-tools
-        platforms-android-34
+        platforms-android-36
         emulator
         # Optional: Add system-images for emulator (kung di accesible sainyo ang android phone)
-        # system-images-android-34-google-apis-x86-64
+        system-images-android-36-google-apis-x86-64
       ]);
     in
     {
