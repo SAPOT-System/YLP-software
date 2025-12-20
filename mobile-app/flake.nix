@@ -70,8 +70,8 @@
           echo "# reloadADB             - reload adb and scan for devices"
           echo "# magic-fix             - fix the sometimes not working renders in android phone"
           echo "# start-local-android   - start the server (must be inside the folder)"
-          echo "# bash create_avd.sh    - create the pixel4a VM
-          echo "# emulator -avd pixel4a - run the pixel4a VM
+          echo "# bash create_avd.sh    - create the pixel4a VM"
+          echo "# emulator -avd pixel4a - run the pixel4a VM"
           echo "# start-local-android   - start the server"
           echo "###############################################################################"
           echo ""
