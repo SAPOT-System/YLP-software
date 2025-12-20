@@ -4,13 +4,20 @@ Follow the following directions to run the environment.
 
 1. *DOWNLOAD NIX* with what applies to you
    - if on WSL: ~sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --daemon~
-   - if on linux-based native system: ~sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --daemon~
+   - if on Linux-based native system: ~sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --daemon~
+   - *Note:* you may need to restart your environment (e.g open a new shell or a new terminal) for nix to be recognized by your system.
+     - if after the restart and nix is still undefined in the CLI, enter the following command: ~source /etc/profile.d/nix.sh~
+
 
 2. *Run the script* ~configure_nix.sh~ with the command ~bash configure_nix.sh~. This script configures your Nix installation to process flakes (the tool we are using to keep things tight).
 
-3. *Build and install the environment* with the command below. This will fetch the tools and set up the environment we will work on
+3. *Build and install the environment* with the command below. This will fetch the tools and set up the environment we will work on. *Note:* you need to be in the ~/.../YLP/mobile-app/~ directory for this to work
+
+
    #+BEGIN_SRC bash
 nix develop -L
+cd sapot-mobile-app
+npm install
    #+END_SRC
 
 4. ~cd~ to the react project. You're all set up!
@@ -19,7 +26,7 @@ nix develop -L
 ** TIPS
 This section tackles the common errors that I encountered when running the react native environment.
 *** Running the Android virtual machine
-To run the android VM you need to create the virtual machine using the command ~bash create_avd.sh~. After this, you can run the VM with the command ~emulator -avd pixel4a~.
+To run the android VM you need to uncomment the ~line:26~ in flake.nix file. Then create the virtual machine using the command ~bash create_avd.sh~. After this, you can run the VM with the command ~emulator -avd pixel4a~.
 
 
 *** ADB cannot find the devices
@@ -32,7 +39,7 @@ start-local-android           # command to run the "npx expo start" locally and 
 #+END_SRC
 
 *** WSL not able to detect plugged in android devices
-Run the following commands in the powershell (note: not inside WSL)
+Run the following commands in the Powershell (note: not inside WSL)
 #+BEGIN_SRC powershell
 winget install --interactive --exact dorssel.usbipd-win
 usbipd list
@@ -58,5 +65,6 @@ reloadADB
 
 it should work now
 
-*** Note:
-you need to download EXPO GO in your phone for this to work
+*** Notes:
+- you need to download EXPO GO in your phone for this to work
+- if you are using VSCode you need to restart the language server to remove the erroneous errors ~control + shift + p~ then enter ~Typescript: Restart TS Server~
