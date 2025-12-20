@@ -1,0 +1,62 @@
+#+title: How to run the react native environment
+
+Follow the following directions to run the environment.
+
+1. *DOWNLOAD NIX* with what applies to you
+   - if on WSL: ~sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --daemon~
+   - if on linux-based native system: ~sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --daemon~
+
+2. *Run the script* ~configure_nix.sh~ with the command ~bash configure_nix.sh~. This script configures your Nix installation to process flakes (the tool we are using to keep things tight).
+
+3. *Build and install the environment* with the command below. This will fetch the tools and set up the environment we will work on
+   #+BEGIN_SRC bash
+nix develop -L
+   #+END_SRC
+
+4. ~cd~ to the react project. You're all set up!
+
+
+** TIPS
+This section tackles the common errors that I encountered when running the react native environment.
+*** Running the Android virtual machine
+To run the android VM you need to create the virtual machine using the command ~bash create_avd.sh~. After this, you can run the VM with the command ~emulator -avd pixel4a~.
+
+
+*** ADB cannot find the devices
+If after running the ~nix develop~ command and the command ~adb devices~ does not show your device run the following:
+#+BEGIN_SRC
+# run this after you've entered the "nix develop" command
+magic-fix                     # will make the phone think the server is running locally
+reloadADB                     # will reload the adb server and output the newly detected devices
+start-local-android           # command to run the "npx expo start" locally and in android mode
+#+END_SRC
+
+*** WSL not able to detect plugged in android devices
+Run the following commands in the powershell (note: not inside WSL)
+#+BEGIN_SRC powershell
+winget install --interactive --exact dorssel.usbipd-win
+usbipd list
+#+END_SRC
+The last command will output something like:
+#+BEGIN_SRC powershell
+BUSID  VID:PID    DEVICE                                                        STATE
+1-4    04e8:6860  SAMSUNG Android, USB Composite Device                         Not attached
+1-10   046d:c52b  Logitech USB Input Device                                     Not attached
+#+END_SRC
+Select the BUSID of your device and enter the command
+#+BEGIN_SRC
+sudo usbipd bind --busid 1-4
+usbipd attach --wsl --busid 1-4 --auto-attach
+#+END_SRC
+
+Go back to WSL and do the following
+#+BEGIN_SRC
+cd /path/to/flake.nix/directory
+nix develop
+reloadADB
+#+END_SRC
+
+it should work now
+
+*** Note:
+you need to download EXPO GO in your phone for this to work
