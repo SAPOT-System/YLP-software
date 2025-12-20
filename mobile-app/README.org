@@ -14,13 +14,12 @@ Follow the following directions to run the environment.
     cd sapot-mobile-app
     npm install
     #+END_SRC
-4. ~cd~ to the react project. You're all set up!
 
 
 ** TIPS
 This section tackles the common errors that I encountered when running the react native environment.
 *** Running the Android virtual machine
-To run the android VM you need to uncomment the ~line:26~ in flake.nix file. Then create the virtual machine using the command ~bash create_avd.sh~. After this, you can run the VM with the command ~emulator -avd pixel4a~.
+If you are using WSL2 it is better to install the Android studio natively in Windows then link it to WSL2. You can follow this guide [[https://reactnative.dev/docs/set-up-your-environment][Android studio + WSL2 guide]] (follow the *Android Development Environment*)
 
 
 *** ADB cannot find the devices
