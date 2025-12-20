@@ -47,13 +47,14 @@
           export ANDROID_HOME=${sdk}/share/android-sdk
           export ANDROID_SDK_ROOT=$ANDROID_HOME
           export JAVA_HOME=${pkgs.jdk17.home}
+          export PROJECTPATH=$(pwd)
 
           adb reverse tcp:8081 tcp:8081
 
           # aliases to make life easier
           alias reloadADB='adb kill-server && adb start-server && adb devices'
           alias magic-fix='adb reverse tcp:8081 tcp:8081'
-          alias start-local-android='npx expo start --localhost --android'
+          alias start-local-android='cd $PROJECTPATH/sapot-mobile-app && npx expo start --localhost --android'
 
 
           # Add SDK tools to PATH
@@ -71,7 +72,7 @@
           echo "# start-local-android   - start the server (must be inside the folder)"
           echo "# bash create_avd.sh    - create the pixel4a VM
           echo "# emulator -avd pixel4a - run the pixel4a VM
-          echo "# start-local-android   - start the server (must be inside the folder)"
+          echo "# start-local-android   - start the server"
           echo "###############################################################################"
           echo ""
         '';
