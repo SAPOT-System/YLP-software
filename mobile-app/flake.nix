@@ -55,7 +55,7 @@
           alias reloadADB='adb kill-server && adb start-server && adb devices'
           alias magic-fix='adb reverse tcp:8081 tcp:8081'
           alias start-local-android='cd $PROJECTPATH/sapot-mobile-app && npx expo start --localhost --android'
-
+          alias androidVM='emulator -avd pixel4a'
 
           # Add SDK tools to PATH
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
@@ -71,7 +71,7 @@
           echo "# magic-fix             - fix the sometimes not working renders in android phone"
           echo "# start-local-android   - start the server (must be inside the folder)"
           echo "# bash create_avd.sh    - create the pixel4a VM"
-          echo "# emulator -avd pixel4a - run the pixel4a VM"
+          echo "# androidVM             - run the pixel4a VM"
           echo "# start-local-android   - start the server"
           echo "###############################################################################"
           echo ""
