@@ -68,7 +68,8 @@
           # aliases to make life easier
           alias reloadADB='adb kill-server && adb start-server && adb devices'
           alias magic-fix='adb reverse tcp:8081 tcp:8081'
-          alias start-local-android='cd $PROJECTPATH/sapot-mobile-app && npx expo start --localhost --android'
+          alias start-expo-android='cd $PROJECTPATH/sapot-mobile-app && npx expo start --localhost --android'
+          alias run-android='cd $PROJECTPATH/sapot-mobile-app && npx expo run:android'
           alias androidVM='emulator -avd pixel4a'
 
           # Add SDK tools to PATH
