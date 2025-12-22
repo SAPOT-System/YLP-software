@@ -19,10 +19,15 @@
       sdk = android-nixpkgs.sdk.${system} (sdkPkgs: with sdkPkgs; [
         cmdline-tools-latest
         build-tools-36-0-0
+        build-tools-34-0-0 # <--- ADDED: React Native often looks for version 34.0.0 specifically
+        build-tools-35-0-0 # <--- ADDED: React Native often looks for version 34.0.0 specifically
+        build-tools-33-0-0 # <--- ADDED: React Native often looks for version 34.0.0 specifically
         platform-tools
         platforms-android-36
+        platforms-android-34 # <--- ADDED: Older APIs are often required for compatibility
+        platforms-android-35 # <--- ADDED: Older APIs are often required for compatibility
+        platforms-android-33 # <--- ADDED: Older APIs are often required for compatibility
         emulator
-        # Optional: Add system-images for emulator (kung di accesible sainyo ang android phone)
         system-images-android-36-google-apis-x86-64
       ]);
     in
@@ -49,7 +54,16 @@
           export JAVA_HOME=${pkgs.jdk17.home}
           export PROJECTPATH=$(pwd)
 
+          export ANDROID_HOME="$HOME/.android-sdk-nix-overlay"
+          mkdir -p "$ANDROID_HOME"
+
+          ln -sfn ${sdk}/share/android-sdk/* "$ANDROID_HOME/"
+
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          export JAVA_HOME=${pkgs.jdk17.home}
+
           adb reverse tcp:8081 tcp:8081
+
 
           # aliases to make life easier
           alias reloadADB='adb kill-server && adb start-server && adb devices'
