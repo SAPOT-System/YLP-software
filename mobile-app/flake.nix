@@ -83,10 +83,10 @@
           echo "# commands:"
           echo "# reloadADB             - reload adb and scan for devices"
           echo "# magic-fix             - fix the sometimes not working renders in android phone"
-          echo "# start-local-android   - start the server (must be inside the folder)"
           echo "# bash create_avd.sh    - create the pixel4a VM"
           echo "# androidVM             - run the pixel4a VM"
-          echo "# start-local-android   - start the server"
+          echo "# start-expo-android    - start the (expo) server"
+          echo "# run-android           - run the android server"
           echo "###############################################################################"
           echo ""
         '';
