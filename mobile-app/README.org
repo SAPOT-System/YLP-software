@@ -61,3 +61,9 @@ it should work now
 *** Notes:
 - you need to download EXPO GO in your phone for this to work
 - if you are using VSCode you need to restart the language server to remove the erroneous errors ~control + shift + p~ then enter ~Typescript: Restart TS Server~
+
+** Database schema
+*** Schema local
+[[https://dbdiagram.io/d/YLP-schema-694b2412dbf05578e66a7b9e][DB schema-local]]
+*** Schema server
+[[https://dbdiagram.io/d/YLP-schema-server-694b355ddbf05578e66af5c1][DB schema-server]]
