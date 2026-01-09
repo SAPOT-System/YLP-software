@@ -58,6 +58,34 @@ reloadADB
 
 it should work now
 
+** Getting Started
+
+Prerequisites: 
+  - Must download *Android Studio*
+  - Must have stable internet connection
+  - Must be in the folder ~/sapot-mobile-app/~
+
+*** Setup your device and android application
+1. *Download development application to your device*. Open this link to your device https://expo.dev/accounts/devamt/projects/sapot-mobile-app/builds/c18e7cb4-3231-435a-8d3b-5cc0bad38aa5 or scan qr code 
+  [[file:./qr-code.png]]
+  - Download the file just by clicking "Install"
+    
+2. To sync the downloaded application your react native environment, here is the options:
+
+  - *Connect device to your computer via WIFI*. Your device and computer must be connected to the same Wi-Fi
+    - *Open your device*. Navigate through *Settings > About Phone >  Software Information* and then tapping the "build number" row at the bottom seven times. Note that device should be notified that the phone is in developer mode.
+    - Then go to *Settings > Developer options* to enable "Wireless Debugging". Tap "Wireless Debugging", choose "Pair device with QR Code"
+    - Open the *Android Studio*. Click the three dots and select vitrual device manager. Find the wifi-like icon named "Pair devices using Wi-Fi".
+    - *Scan the QR code* using your device. Note that this step is successful if there is a device listed when running ~adb devices~ in terminal
+
+  - *Plugin your device via USB to your computer*. Follow the instruction below:
+    - Go to your device. Navigate through *Settings > About Phone >  Software Information* and then tapping the "build number" row at the bottom seven times. Note that device should be notified that the phone is in developer mode.
+    - Then go to *Settings > Developer options* to enable "USB debugging".
+    - Open terminal, run ~adb devices~, when you see a device listed then you are done 
+
+  - *Run the expo app*. Open the terminal and make sure the you are inside the folder ~/sapot-mobile-app/~. Note that your android phone and laptop are connected to the same Wi-Fi. Run ~npm run start~, and you may see QR Code. Using your device scan the QR code. Your device will automatically navigated to the app and you are done.
+
+
 *** Notes:
 - you need to download EXPO GO in your phone for this to work
 - if you are using VSCode you need to restart the language server to remove the erroneous errors ~control + shift + p~ then enter ~Typescript: Restart TS Server~
