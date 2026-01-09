@@ -66,11 +66,7 @@ Prerequisites:
   - Must be in the folder ~/sapot-mobile-app/~
 
 *** Setup your device and android application
-1. *Download development application to your device*. Open this link to your device https://expo.dev/accounts/devamt/projects/sapot-mobile-app/builds/c18e7cb4-3231-435a-8d3b-5cc0bad38aa5 or scan qr code 
-  [[file:./qr-code.png]]
-  - Download the file just by clicking "Install"
-    
-2. To sync the downloaded application your react native environment, here is the options:
+1. To download the application in your device, here is the options:
 
   - *Connect device to your computer via WIFI*. Your device and computer must be connected to the same Wi-Fi
     - *Open your device*. Navigate through *Settings > About Phone >  Software Information* and then tapping the "build number" row at the bottom seven times. Note that device should be notified that the phone is in developer mode.
@@ -83,8 +79,7 @@ Prerequisites:
     - Then go to *Settings > Developer options* to enable "USB debugging".
     - Open terminal, run ~adb devices~, when you see a device listed then you are done 
 
-  - *Run the expo app*. Open the terminal and make sure the you are inside the folder ~/sapot-mobile-app/~. Note that your android phone and laptop are connected to the same Wi-Fi. Run ~npm run start~, and you may see QR Code. Using your device scan the QR code. Your device will automatically navigated to the app and you are done.
-
+2. Open terminal, make sure you are inside of the folder ~/sapot-mobile-app~. Run ~npx expo start~ in the current terminal. Then create another terminal. On the new terminal, also in the same folder, run ~npx expo run:android~. This will take time to build the app and don't close the terminal. Once it is finished it will automatically install the app in your device. In the first terminal, you will see that the app is running.
 
 *** Notes:
 - you need to download EXPO GO in your phone for this to work
