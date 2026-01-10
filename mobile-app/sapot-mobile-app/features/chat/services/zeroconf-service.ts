@@ -1,14 +1,24 @@
-import Zeroconf from "react-native-zeroconf";
+import Zeroconf, { ImplType, Service } from "react-native-zeroconf";
+import {
+  getDeviceNameSync,
+  getUniqueIdSync,
+  getVersion,
+} from "react-native-device-info";
+import getUserUUID from "@/features/shared/utils/get-user-uuid";
 
 class ZeroconfService {
   private zeroconf;
+  private services: Service[];
+  private listeners: (() => void)[];
 
   constructor() {
     this.zeroconf = new Zeroconf();
+    this.services = [];
+    this.listeners = [];
     console.log("[ZeroconfService]: ZeroconfService initialized");
   }
 
-  startDiscovery() {
+  async startDiscovery() {
     try {
       if (!this.zeroconf) {
         console.warn("[ZeroconfService]: ZeroConf not initialized");
@@ -18,37 +28,51 @@ class ZeroconfService {
         console.log("[ZeroconfService]: ZeroConf scan started");
       });
 
-      this.zeroconf.on("found", (service) => {
-        console.log("[ZeroconfService]: Service found:", service);
+      this.zeroconf.on("stop", () => {
+        console.log("[ZeroconfService]: ZeroConf stopped");
+      });
+
+      this.zeroconf.on("update", () => {
+        console.log("[ZeroconfService]: ZeroConf updated");
+      });
+
+      this.zeroconf.on("found", (serviceName) => {
+        console.log("[ZeroconfService]: Service found:", serviceName);
       });
 
       this.zeroconf.on("resolved", (service) => {
         console.log("[ZeroconfService]: Service resolved:", service);
+        this.updateServices(service);
       });
 
       this.zeroconf.on("remove", (service) => {
         console.log("[ZeroconfService]: Service removed:", service);
       });
 
-      this.zeroconf.scan("lanchat", "tcp", "local.");
+      this.zeroconf.scan("lanchat", "tcp", "local.", "DNSSD");
     } catch (error) {
       console.error("[ZeroconfService]: Error starting discovery:", error);
     }
   }
 
-  publishService(serviceName: string = "service-name", port: number = 8080) {
+  async publishService(port: number = 8080) {
     try {
       const service = {
         type: "lanchat",
         protocol: "tcp",
         domain: "local.",
-        name: serviceName,
+        name: getDeviceNameSync(),
         port: port,
         txt: {
+          id: await getUserUUID(),
           platform: "react-native",
+          version: getVersion(),
+          username: getDeviceNameSync(),
         },
-        implType: "NSD" as const,
+        implType: "DNSSD" as ImplType,
       };
+
+      console.log(service.txt.id);
 
       if (!this.zeroconf) {
         console.warn("[ZeroconfService]: ZeroConf not initialized");
@@ -57,6 +81,13 @@ class ZeroconfService {
       this.zeroconf.on("published", (service) => {
         console.log(
           "[ZeroconfService]: Service published successfully:",
+          service
+        );
+      });
+
+      this.zeroconf.on("unpublished", (service) => {
+        console.log(
+          "[ZeroconfService]: Service unpublished successfully:",
           service
         );
       });
@@ -82,11 +113,39 @@ class ZeroconfService {
   close() {
     if (!this.zeroconf) return;
     try {
-      this.zeroconf.stop();
+      this.zeroconf.unpublishService(getDeviceNameSync(), "DNSSD");
+      this.zeroconf.stop("DNSSD");
       this.zeroconf.removeDeviceListeners();
-      this.zeroconf.unpublishService("service-name");
+      console.log("[ZeroconfService]: Zeroconf successfully unmount");
     } catch (error) {
       console.error("[ZeroconfService]: Error closing zeroconf:", error);
+    }
+  }
+
+  subscribe(listener: () => void) {
+    this.listeners = [...this.listeners, listener];
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
+  }
+
+  getSnapshot() {
+    return this.services;
+  }
+
+  updateServices(newService: Service) {
+    const index = this.services.findIndex(
+      (s) => s.txt.id === newService.txt.id
+    );
+
+    if (index !== -1) {
+      this.services[index] = newService;
+    } else {
+      this.services = [...this.services, newService];
+    }
+
+    for (const listener of this.listeners) {
+      listener();
     }
   }
 

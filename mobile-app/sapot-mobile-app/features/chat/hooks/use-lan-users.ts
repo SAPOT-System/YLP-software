@@ -1,21 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import zeroconf from "../services/zeroconf-service";
+import { Service } from "react-native-zeroconf";
 
 const useLanUsers = () => {
-  useEffect(() => {
-    zeroconf.publishService();
-    zeroconf.startDiscovery();
-
-    return () => {
-      zeroconf.close();
-    };
-  }, []);
+  const services = useSyncExternalStore(
+    (callback) => zeroconf.subscribe(callback),
+    () => zeroconf.getSnapshot()
+  );
 
   const getServices = () => {
-    console.log(zeroconf.getServices)
+    console.log(zeroconf.getSnapshot());
   };
 
-  return { getServices };
+  return { getServices, services };
 };
 
 export default useLanUsers;
