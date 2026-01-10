@@ -52,8 +52,9 @@ class ZeroconfService {
         this.updateServices(service);
       });
 
-      this.zeroconf.on("remove", (service) => {
-        console.log("[ZeroconfService]: Service removed:", service);
+      this.zeroconf.on("remove", (serviceName) => {
+        console.log("[ZeroconfService]: Service removed:", serviceName);
+        this.removeService(serviceName);
       });
 
       this.startScan();
@@ -165,7 +166,10 @@ class ZeroconfService {
     return this.services;
   }
 
-  updateServices(newService: Service) {
+  async updateServices(newService: Service) {
+    // Exclude the user published service
+    if (newService.txt.id === (await getUserUUID())) return;
+
     const index = this.services.findIndex(
       (s) => s.txt.id === newService.txt.id
     );
@@ -175,6 +179,21 @@ class ZeroconfService {
     } else {
       this.services = [...this.services, newService];
     }
+
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+
+  async removeService(serviceName: string) {
+    console.log("[ZeroconfService]: Before removing service:", this.services);
+
+    const updatedServices = this.services.filter(
+      (service) => service.name !== serviceName
+    );
+    console.log("[ZeroconfService]: Updated service:", updatedServices);
+
+    this.services = updatedServices;
 
     for (const listener of this.listeners) {
       listener();
