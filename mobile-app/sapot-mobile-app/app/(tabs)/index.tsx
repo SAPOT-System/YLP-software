@@ -5,9 +5,10 @@ import { Text, View } from "@/components/Themed";
 import useLanUsers from "@/features/chat";
 import zeroconf from "@/features/chat/services/zeroconf-service";
 import { useEffect } from "react";
+import ChatList from "@/features/chat/component/chat-list";
 
 export default function TabOneScreen() {
-  const { services } = useLanUsers();
+  const { lanUsers } = useLanUsers();
 
   useEffect(() => {
     zeroconf.publishService();
@@ -19,25 +20,12 @@ export default function TabOneScreen() {
   }, []);
 
   useEffect(() => {
-    console.log(services);
-  }, [services]);
+    console.log(lanUsers);
+  }, [lanUsers]);
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={services}
-        renderItem={({ item }) => (
-          <View>
-            <Text>
-              Name: {item.name}
-              IP Address: {item.addresses[0]}
-              Port: {item.port}
-              ID: {item.txt.id}
-            </Text>
-          </View>
-        )}
-        keyExtractor={(item) => item.txt.id}
-      />
+      <ChatList lanUsers={lanUsers} />
     </View>
   );
 }
