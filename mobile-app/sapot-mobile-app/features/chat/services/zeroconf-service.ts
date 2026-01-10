@@ -10,11 +10,17 @@ class ZeroconfService {
   private zeroconf;
   private services: Service[];
   private listeners: (() => void)[];
+  private isScanning: boolean;
+  private isPublish: boolean;
+  private publishServiceName: string;
 
   constructor() {
     this.zeroconf = new Zeroconf();
     this.services = [];
     this.listeners = [];
+    this.isScanning = false;
+    this.isPublish = false;
+    this.publishServiceName = "";
     console.log("[ZeroconfService]: ZeroconfService initialized");
   }
 
@@ -23,6 +29,7 @@ class ZeroconfService {
       if (!this.zeroconf) {
         console.warn("[ZeroconfService]: ZeroConf not initialized");
       }
+      if (this.isScanning) return;
 
       this.zeroconf.on("start", () => {
         console.log("[ZeroconfService]: ZeroConf scan started");
@@ -49,7 +56,7 @@ class ZeroconfService {
         console.log("[ZeroconfService]: Service removed:", service);
       });
 
-      this.zeroconf.scan("lanchat", "tcp", "local.", "DNSSD");
+      this.startScan();
     } catch (error) {
       console.error("[ZeroconfService]: Error starting discovery:", error);
     }
@@ -57,11 +64,22 @@ class ZeroconfService {
 
   async publishService(port: number = 8080) {
     try {
+      if (!this.zeroconf) {
+        console.warn("[ZeroconfService]: ZeroConf not initialized");
+        return;
+      }
+      if (this.isPublish) {
+        console.warn("[ZeroconfService]: Service is current publish");
+        return;
+      }
+
+      this.publishServiceName = `MyService-${Date.now()}`;
+      console.log(this.publishServiceName);
       const service = {
         type: "lanchat",
         protocol: "tcp",
         domain: "local.",
-        name: getDeviceNameSync(),
+        name: this.publishServiceName,
         port: port,
         txt: {
           id: await getUserUUID(),
@@ -69,14 +87,7 @@ class ZeroconfService {
           version: getVersion(),
           username: getDeviceNameSync(),
         },
-        implType: "DNSSD" as ImplType,
       };
-
-      console.log(service.txt.id);
-
-      if (!this.zeroconf) {
-        console.warn("[ZeroconfService]: ZeroConf not initialized");
-      }
 
       this.zeroconf.on("published", (service) => {
         console.log(
@@ -96,15 +107,17 @@ class ZeroconfService {
         console.error("[ZeroconfService]: Publish error:", err);
       });
 
-      this.zeroconf.publishService(
-        service.type,
-        service.protocol,
-        service.domain,
-        service.name,
-        service.port,
-        service.txt,
-        service.implType
-      );
+      setTimeout(() => {
+        this.zeroconf.publishService(
+          service.type,
+          service.protocol,
+          service.domain,
+          service.name,
+          service.port,
+          service.txt
+        );
+      }, 500);
+      this.isPublish = true;
     } catch (error) {
       console.error("[ZeroconfService]: Error publishing service:", error);
     }
@@ -112,14 +125,33 @@ class ZeroconfService {
 
   close() {
     if (!this.zeroconf) return;
+    if (!this.isScanning) return;
+
     try {
-      this.zeroconf.unpublishService(getDeviceNameSync(), "DNSSD");
-      this.zeroconf.stop("DNSSD");
+      console.log("Unpublish service:", this.publishServiceName);
+      this.zeroconf.unpublishService(this.publishServiceName);
+      this.stopScan();
       this.zeroconf.removeDeviceListeners();
-      console.log("[ZeroconfService]: Zeroconf successfully unmount");
+
+      this.isPublish = false;
+      console.log("[ZeroconfService]: Zeroconf successfully cleanup");
     } catch (error) {
       console.error("[ZeroconfService]: Error closing zeroconf:", error);
     }
+  }
+
+  stopScan() {
+    if (!this.isScanning) return;
+    console.log("[ZeroconfService]: Stop scanning...");
+    this.isScanning = false;
+    this.zeroconf.stop();
+  }
+
+  startScan() {
+    if (this.isScanning) return;
+    this.isScanning = true;
+    console.log("[ZeroconfService]: Start scanning...");
+    this.zeroconf.scan("lanchat", "tcp", "local.");
   }
 
   subscribe(listener: () => void) {
