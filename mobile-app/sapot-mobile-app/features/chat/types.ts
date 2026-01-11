@@ -3,5 +3,6 @@ export interface Peer {
   username: string;
   port: number;
   ipAddress: string;
-  serviceName: string;
+  serviceName?: string;
+  online?: boolean;
 }

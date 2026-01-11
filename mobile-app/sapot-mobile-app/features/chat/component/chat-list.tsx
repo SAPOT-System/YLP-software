@@ -31,6 +31,7 @@ const ChatListItem = ({ peer }: ChatListItemProps) => {
         Port: {peer.port}
         ID: {peer.id}
         Service Name: {peer.serviceName}
+        Status: {peer.online ? "Online" : "Offline"}
       </Text>
     </View>
   );
