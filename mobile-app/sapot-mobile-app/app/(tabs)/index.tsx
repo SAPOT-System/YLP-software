@@ -2,10 +2,8 @@ import { FlatList, Pressable, StyleSheet } from "react-native";
 
 import EditScreenInfo from "@/components/EditScreenInfo";
 import { Text, View } from "@/components/Themed";
-import useLanUsers from "@/features/chat";
-import zeroconf from "@/features/chat/services/zeroconf-service";
+import { useLanUsers, ChatList, zeroconf } from "@/features/chat";
 import { useEffect } from "react";
-import ChatList from "@/features/chat/component/chat-list";
 
 export default function TabOneScreen() {
   const { lanUsers } = useLanUsers();

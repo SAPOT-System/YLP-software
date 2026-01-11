@@ -4,8 +4,7 @@ import {
   getUniqueIdSync,
   getVersion,
 } from "react-native-device-info";
-import getUserUUID from "@/features/shared/utils/get-user-uuid";
-
+import { getUserUUID } from "@/features/shared";
 class ZeroconfService {
   private zeroconf;
   private services: Service[];
