@@ -1,8 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import zeroconf from "../services/zeroconf-service";
 
-const useLanUsers = () => {
-  const lanUsers = useSyncExternalStore(
+const usePeers = () => {
+  const peers = useSyncExternalStore(
     (callback) => zeroconf.subscribe(callback),
     () => zeroconf.getSnapshot()
   );
@@ -11,7 +11,7 @@ const useLanUsers = () => {
     console.log(zeroconf.getSnapshot());
   };
 
-  return { getServices, lanUsers };
+  return { getServices, peers };
 };
 
-export default useLanUsers;
+export default usePeers;

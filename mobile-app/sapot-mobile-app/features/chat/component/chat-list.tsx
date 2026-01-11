@@ -1,35 +1,36 @@
 import { View, Text, FlatList } from "react-native";
 import React from "react";
-import { Service } from "react-native-zeroconf";
+import { Peer } from "../types";
 
 interface ChatListProps {
-  lanUsers: Service[];
+  peers: Peer[];
 }
 
 interface ChatListItemProps {
-  item: Service;
+  peer: Peer;
 }
 
-const ChatList = ({ lanUsers }: ChatListProps) => {
+const ChatList = ({ peers }: ChatListProps) => {
   return (
     <View>
       <FlatList
-        data={lanUsers}
-        renderItem={({ item }) => <ChatListItem item={item} />}
-        keyExtractor={(item) => item.txt.id}
+        data={peers}
+        renderItem={({ item }) => <ChatListItem peer={item} />}
+        keyExtractor={(peer) => peer.id}
       />
     </View>
   );
 };
 
-const ChatListItem = ({ item }: ChatListItemProps) => {
+const ChatListItem = ({ peer }: ChatListItemProps) => {
   return (
     <View>
       <Text>
-        Name: {item.txt.username}
-        IP Address: {item.addresses[0]}
-        Port: {item.port}
-        ID: {item.txt.id}
+        Name: {peer.username}
+        IP Address: {peer.ipAddress}
+        Port: {peer.port}
+        ID: {peer.id}
+        Service Name: {peer.serviceName}
       </Text>
     </View>
   );

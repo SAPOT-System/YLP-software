@@ -6,7 +6,7 @@ import { useLanUsers, ChatList, zeroconf } from "@/features/chat";
 import { useEffect } from "react";
 
 export default function TabOneScreen() {
-  const { lanUsers } = useLanUsers();
+  const { peers } = useLanUsers();
 
   useEffect(() => {
     zeroconf.publishService();
@@ -18,12 +18,12 @@ export default function TabOneScreen() {
   }, []);
 
   useEffect(() => {
-    console.log(lanUsers);
-  }, [lanUsers]);
+    console.log(peers);
+  }, [peers]);
 
   return (
     <View style={styles.container}>
-      <ChatList lanUsers={lanUsers} />
+      <ChatList peers={peers} />
     </View>
   );
 }

@@ -5,9 +5,10 @@ import {
   getVersion,
 } from "react-native-device-info";
 import { getUserUUID } from "@/features/shared";
+import { Peer } from "../types";
 class ZeroconfService {
   private zeroconf;
-  private services: Service[];
+  private peers: Peer[];
   private listeners: (() => void)[];
   private isScanning: boolean;
   private isPublish: boolean;
@@ -15,7 +16,7 @@ class ZeroconfService {
 
   constructor() {
     this.zeroconf = new Zeroconf();
-    this.services = [];
+    this.peers = [];
     this.listeners = [];
     this.isScanning = false;
     this.isPublish = false;
@@ -74,7 +75,7 @@ class ZeroconfService {
       }
 
       this.publishServiceName = `MyService-${Date.now()}`;
-      console.log(this.publishServiceName);
+
       const service = {
         type: "lanchat",
         protocol: "tcp",
@@ -162,21 +163,27 @@ class ZeroconfService {
   }
 
   getSnapshot() {
-    return this.services;
+    return this.peers;
   }
 
   async updateServices(newService: Service) {
     // Exclude the user published service
     if (newService.txt.id === (await getUserUUID())) return;
 
-    const index = this.services.findIndex(
-      (s) => s.txt.id === newService.txt.id
-    );
+    const formattedService: Peer = {
+      id: newService.txt.id,
+      username: newService.txt.username,
+      port: newService.port,
+      ipAddress: newService.addresses[0],
+      serviceName: newService.name,
+    };
+
+    const index = this.peers.findIndex((s) => s.id === formattedService.id);
 
     if (index !== -1) {
-      this.services[index] = newService;
+      this.peers[index] = formattedService;
     } else {
-      this.services = [...this.services, newService];
+      this.peers = [...this.peers, formattedService];
     }
 
     for (const listener of this.listeners) {
@@ -185,14 +192,14 @@ class ZeroconfService {
   }
 
   async removeService(serviceName: string) {
-    console.log("[ZeroconfService]: Before removing service:", this.services);
+    console.log("[ZeroconfService]: Before removing peer:", this.peers);
 
-    const updatedServices = this.services.filter(
-      (service) => service.name !== serviceName
+    const updatedServices = this.peers.filter(
+      (peer) => peer.serviceName !== serviceName
     );
-    console.log("[ZeroconfService]: Updated service:", updatedServices);
+    console.log("[ZeroconfService]: Updated peers:", updatedServices);
 
-    this.services = updatedServices;
+    this.peers = updatedServices;
 
     for (const listener of this.listeners) {
       listener();
