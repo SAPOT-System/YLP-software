@@ -18,19 +18,21 @@ const useDatabase = () => {
         });
         return peer;
       });
-      console.log(`[useDatabase]: New peer created \n ${createdPeer}`);
+      console.log(
+        `[useDatabase]: New peer created: \nName: ${createdPeer.username} ID: ${createdPeer.id} Port: ${createdPeer.port} IP Address: ${createdPeer.ip_address}`
+      );
     } catch (error) {
-      console.error("Error creating a peer:", error);
+      console.error("[useDatabase]: Error creating a peer:", error);
     }
   };
 
   const showPeers = async () => {
     try {
       const allPeers = await database.get<Peer>("peers").query().fetch();
-      console.log("All stored peers:", allPeers);
+      console.log("[useDatabase]: All stored peers:", allPeers);
       return allPeers;
     } catch (error) {
-      console.error("Error showing peers:", error);
+      console.error("[useDatabase]: Error showing peers:", error);
     }
   };
 
@@ -44,7 +46,7 @@ const useDatabase = () => {
         await database.batch(...ops);
       });
     } catch (error) {
-      console.error("Error deleting peers:", error);
+      console.error("[useDatabase]: Error deleting peers:", error);
     }
   };
 
@@ -54,7 +56,7 @@ const useDatabase = () => {
         await database.unsafeResetDatabase();
       });
     } catch (error) {
-      console.error("Error deleting database:", error);
+      console.error("[useDatabase] Error deleting database:", error);
     }
   };
 
