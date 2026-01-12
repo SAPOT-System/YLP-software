@@ -1,7 +1,7 @@
 import { StyleSheet } from "react-native";
 
 import { View } from "@/components/Themed";
-import { useLanUsers, ChatList, zeroconf } from "@/features/chat";
+import { useLanUsers, zeroconf, PeerList } from "@/features/chat";
 import { useEffect } from "react";
 
 export default function Chat() {
@@ -18,7 +18,7 @@ export default function Chat() {
 
   return (
     <View style={styles.container}>
-      <ChatList peers={peers} />
+      <PeerList peers={peers} />
     </View>
   );
 }
@@ -26,8 +26,6 @@ export default function Chat() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
   },
   title: {
     fontSize: 20,
