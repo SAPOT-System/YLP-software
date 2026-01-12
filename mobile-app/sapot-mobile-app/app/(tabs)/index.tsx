@@ -4,7 +4,7 @@ import { View } from "@/components/Themed";
 import { useLanUsers, ChatList, zeroconf } from "@/features/chat";
 import { useEffect } from "react";
 
-export default function TabOneScreen() {
+export default function Chat() {
   const { peers } = useLanUsers();
 
   useEffect(() => {
