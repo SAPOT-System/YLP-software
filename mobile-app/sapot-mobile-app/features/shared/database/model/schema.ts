@@ -9,6 +9,7 @@ export default appSchema({
         { name: "username", type: "string" },
         { name: "port", type: "number" },
         { name: "ip_address", type: "string" },
+        { name: "is_online", type: "boolean" },
       ],
     }),
   ],
