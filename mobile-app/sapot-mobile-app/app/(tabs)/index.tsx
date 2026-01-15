@@ -1,20 +1,10 @@
 import { StyleSheet } from "react-native";
 
 import { View } from "@/components/Themed";
-import { useLanUsers, zeroconf, PeerList } from "@/features/chat";
-import { useEffect } from "react";
+import { PeerList, usePeers } from "@/features/chat";
 
 export default function Chat() {
-  const { peers } = useLanUsers();
-
-  useEffect(() => {
-    zeroconf.publishService();
-    zeroconf.startDiscovery();
-
-    return () => {
-      zeroconf.close();
-    };
-  }, []);
+  const { peers } = usePeers();
 
   return (
     <View style={styles.container}>

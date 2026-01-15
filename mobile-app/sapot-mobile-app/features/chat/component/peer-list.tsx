@@ -1,16 +1,10 @@
 import { View, Text, FlatList, Pressable } from "react-native";
 import React from "react";
-import { Peer } from "../types";
+import { Peer } from "@/features/shared";
+import { withObservables } from "@nozbe/watermelondb/react";
 
-interface PeerListProps {
-  peers: Peer[];
-}
-
-interface PeerListItemProps {
-  peer: Peer;
-}
-
-const PeerList = ({ peers }: PeerListProps) => {
+const PeerList = ({ peers }: { peers: Peer[] }) => {
+  console.log(peers[0]);
   return (
     <View>
       <Text style={{ fontSize: 16 }}>Peer List</Text>
@@ -19,18 +13,18 @@ const PeerList = ({ peers }: PeerListProps) => {
         horizontal
         contentContainerStyle={{ gap: 5, paddingHorizontal: 4 }}
         data={peers}
-        renderItem={({ item }) => <PeerListItem peer={item} />}
+        renderItem={({ item }) => <EnhancedPeerListItem peer={item} />}
         keyExtractor={(peer) => peer.id}
       />
     </View>
   );
 };
 
-const PeerListItem = ({ peer }: PeerListItemProps) => {
+const PeerListItem = ({ peer }: { peer: Peer }) => {
   return (
     <Pressable
       style={{
-        backgroundColor: `${peer.online ? "green" : "grey"}`,
+        backgroundColor: `${peer.isOnline ? "green" : "grey"}`,
         paddingVertical: 5,
         paddingHorizontal: 10,
         borderRadius: 4,
@@ -40,5 +34,11 @@ const PeerListItem = ({ peer }: PeerListItemProps) => {
     </Pressable>
   );
 };
+
+const enhance = withObservables(["peer"], ({ peer }: { peer: Peer }) => ({
+  peer,
+}));
+
+const EnhancedPeerListItem = enhance(PeerListItem);
 
 export default PeerList;

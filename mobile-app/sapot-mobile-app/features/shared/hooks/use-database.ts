@@ -14,12 +14,12 @@ const useDatabase = () => {
           peer.username = newPeer.username;
           peer._raw.id = newPeer.id;
           peer.port = newPeer.port;
-          peer.ip_address = newPeer.ipAddress;
+          peer.ipAddress = newPeer.ipAddress;
         });
         return peer;
       });
       console.log(
-        `[useDatabase]: New peer created: \nName: ${createdPeer.username} ID: ${createdPeer.id} Port: ${createdPeer.port} IP Address: ${createdPeer.ip_address}`
+        `[useDatabase]: New peer created: \nName: ${createdPeer.username} ID: ${createdPeer.id} Port: ${createdPeer.port} IP Address: ${createdPeer.ipAddress}`
       );
     } catch (error) {
       console.error("[useDatabase]: Error creating a peer:", error);
