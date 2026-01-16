@@ -5,6 +5,11 @@ export {
   useDiscoveryService,
   usePeerDatabaseService,
   usePeers,
+  useChatService,
+  useConnectionService,
+  useMessageService,
 } from "./hooks";
 
-export { DiscoveryService } from "./services/discovery-service";
+export { DiscoveryService, ConnectionService, ChatService } from "./services";
+
+export { TcpClientAdapter, TcpServerAdapter, ZeroconfAdapter } from "./adapter";

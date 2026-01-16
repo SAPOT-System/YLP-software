@@ -6,3 +6,8 @@ export interface Peer {
   serviceName?: string;
   online?: boolean;
 }
+
+export interface TcpMessage<T> {
+  type: string;
+  data: T;
+}
