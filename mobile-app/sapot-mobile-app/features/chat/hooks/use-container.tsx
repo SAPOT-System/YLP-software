@@ -38,3 +38,15 @@ export function useDiscoveryService() {
 export function usePeerDatabaseService() {
   return useContainer().peerDatabaseService;
 }
+
+export function useConnectionService() {
+  return useContainer().connectionService;
+}
+
+export function useChatService() {
+  return useContainer().chatService;
+}
+
+export function useMessageService() {
+  return useContainer().messageService;
+}
