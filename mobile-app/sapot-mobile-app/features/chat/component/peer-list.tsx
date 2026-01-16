@@ -2,6 +2,7 @@ import { View, Text, FlatList, Pressable } from "react-native";
 import React from "react";
 import { Peer } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
+import { useRouter } from "expo-router";
 
 const PeerList = ({ peers }: { peers: Peer[] }) => {
   console.log(peers[0]);
@@ -21,8 +22,12 @@ const PeerList = ({ peers }: { peers: Peer[] }) => {
 };
 
 const PeerListItem = ({ peer }: { peer: Peer }) => {
+  const router = useRouter();
   return (
     <Pressable
+      onPress={() =>
+        router.push({ pathname: "/chat/[id]", params: { id: peer.id } })
+      }
       style={{
         backgroundColor: `${peer.isOnline ? "green" : "grey"}`,
         paddingVertical: 5,
