@@ -33,7 +33,9 @@
     "plugins": [
       [
         "@lovesworking/watermelondb-expo-plugin-sdk-52-plus",
-        { "disableJsi": true }
+        {
+          "disableJsi": true
+        }
       ],
       "expo-router",
       "expo-secure-store",
