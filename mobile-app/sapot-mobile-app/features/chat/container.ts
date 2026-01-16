@@ -8,8 +8,9 @@ import {
   UserStore,
 } from "../shared";
 
-import { ZeroconfAdapter } from "./adapter/zeroconf-adapter";
-import { DiscoveryService } from "./services/discovery-service";
+import { ZeroconfAdapter, TcpClientAdapter, TcpServerAdapter } from "./adapter";
+import { DiscoveryService, ConnectionService, ChatService } from "./services";
+import { MessageService } from "./services/message-service";
 
 export class AppContainer {
   readonly zeroconfAdapter: ZeroconfAdapter;
@@ -20,6 +21,11 @@ export class AppContainer {
   readonly peerDatabaseService: PeerDatabaseService;
   readonly discoveryService: DiscoveryService;
   readonly userService: UserService;
+  readonly tcpClientAdapter: TcpClientAdapter;
+  readonly tcpServerAdapter: TcpServerAdapter;
+  readonly connectionService: ConnectionService;
+  readonly chatService: ChatService;
+  readonly messageService: MessageService;
 
   private initPromise?: Promise<void>;
 
@@ -40,6 +46,19 @@ export class AppContainer {
       this.sessionStore,
       this.networkConfig,
       this.userStore
+    );
+
+    this.tcpClientAdapter = new TcpClientAdapter();
+    this.connectionService = new ConnectionService(
+      this.tcpClientAdapter,
+      this.peerDatabaseService
+    );
+    this.chatService = new ChatService(this.connectionService);
+
+    this.tcpServerAdapter = new TcpServerAdapter();
+    this.messageService = new MessageService(
+      this.tcpServerAdapter,
+      this.networkConfig
     );
   }
 
