@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Peer } from "@/features/shared";
-import { usePeerDatabaseService } from "./use-container";
+import { usePeerService } from "./use-container";
 
 const usePeers = () => {
-  const peerDatabaseService = usePeerDatabaseService();
+  const peerService = usePeerService();
   const [peers, setPeers] = useState<Peer[]>([]);
 
   useEffect(() => {
     const init = async () => {
-      setPeers(await peerDatabaseService.queryAll());
+      setPeers(await peerService.getAllPeers());
     };
     init();
   }, []);

@@ -6,6 +6,7 @@ export {
   useChatService,
   useConnectionService,
   useMessageService,
+  usePeerService
 } from "./use-container";
 
 export { default as usePeers } from "./use-peers";

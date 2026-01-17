@@ -16,6 +16,8 @@ import {
 } from "./adapter";
 import { DiscoveryService, ConnectionService, ChatService } from "./services";
 import { MessageService } from "./services/message-service";
+import { PeerRepository } from "./services/peer-repository";
+import { PeerService } from "./services/peer-service";
 
 export class AppContainer {
   readonly zeroconfAdapter: ZeroconfAdapter;
@@ -32,6 +34,8 @@ export class AppContainer {
   readonly chatService: ChatService;
   readonly messageService: MessageService;
   readonly webrtcAdapter: WebrtcAdapter;
+  readonly peerService: PeerService;
+  readonly peerRepository: PeerRepository;
 
   private initPromise?: Promise<void>;
 
@@ -46,12 +50,14 @@ export class AppContainer {
 
     this.peerDatabaseService = new PeerDatabaseService(database);
     this.zeroconfAdapter = new ZeroconfAdapter();
+    this.peerRepository = new PeerRepository(database);
+    this.peerService = new PeerService(this.peerRepository);
     this.discoveryService = new DiscoveryService(
       this.zeroconfAdapter,
-      this.peerDatabaseService,
       this.sessionStore,
       this.networkConfig,
-      this.userStore
+      this.userStore,
+      this.peerService
     );
 
     this.webrtcAdapter = new WebrtcAdapter();

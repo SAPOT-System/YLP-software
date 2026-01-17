@@ -8,6 +8,7 @@ export {
   useChatService,
   useConnectionService,
   useMessageService,
+  usePeerService,
 } from "./hooks";
 
 export { DiscoveryService, ConnectionService, ChatService } from "./services";
