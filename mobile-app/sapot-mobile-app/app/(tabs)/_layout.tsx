@@ -6,7 +6,11 @@ import { Pressable } from "react-native";
 import Colors from "@/constants/Colors";
 import { useColorScheme } from "@/components/useColorScheme";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
-import { useDiscoveryService, useMessageService } from "@/features/chat";
+import {
+  useConnectionService,
+  useDiscoveryService,
+  useMessageService,
+} from "@/features/chat";
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>["name"];
@@ -20,15 +24,19 @@ export default function TabLayout() {
 
   const discoveryService = useDiscoveryService();
   const messageService = useMessageService();
+  const connectionService = useConnectionService();
 
   useEffect(() => {
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
     messageService.start();
+    connectionService.start();
 
     return () => {
       discoveryService.destroy();
       messageService.stop();
+      connectionService.stop();
+      connectionService.disconnect();
     };
   }, []);
   return (
