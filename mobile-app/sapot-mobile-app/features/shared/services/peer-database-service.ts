@@ -91,6 +91,7 @@ export class PeerDatabaseService {
       return peer;
     } catch (error) {
       console.error("[DatabaseService]: Error finding id:", error);
+      throw error;
     }
   }
 

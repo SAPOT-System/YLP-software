@@ -79,7 +79,6 @@ export class AppContainer {
       console.log("Initializing...");
       await this.sessionService.initialize();
       await this.userService.initialize();
-      this.networkConfig.initialize();
     })();
 
     return this.initPromise;
