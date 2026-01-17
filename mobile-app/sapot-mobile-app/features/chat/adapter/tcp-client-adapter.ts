@@ -1,6 +1,6 @@
 import TcpSocket from "react-native-tcp-socket";
 import EventEmitter from "events";
-import { TcpMessage } from "../types";
+import { NetworkConfig } from "@/features/shared";
 
 export class TcpClientAdapter extends EventEmitter {
   private socket?: TcpSocket.Socket;
@@ -46,10 +46,10 @@ export class TcpClientAdapter extends EventEmitter {
     });
   }
 
-  sendMessage(message: TcpMessage<any>) {
+  sendMessage(message: any) {
     if (!this.socket) throw new Error("TCP not connected");
     try {
-      const data = JSON.stringify(message);
+      const data = JSON.stringify(message) + "\n";
       this.socket.write(data);
     } catch (error) {
       console.error("[TcpClientAdapter]: Error sending message:", error);
