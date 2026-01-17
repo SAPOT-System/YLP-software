@@ -2,12 +2,15 @@ import { Pressable, StyleSheet } from "react-native";
 
 import { Text, View } from "@/components/Themed";
 import { useDatabase } from "@/features/shared";
+import { usePeerService } from "@/features/chat";
 
 export default function Debug() {
   const { createPeer, showPeers, deletePeers, deleteDatabase } = useDatabase();
+  const peerService = usePeerService();
+
   return (
     <View style={styles.container}>
-      <Text style={{fontSize: 15}}>Use Database Hook</Text>
+      <Text style={{ fontSize: 15 }}>Use Database Hook</Text>
       <View
         style={{
           flexDirection: "row",
@@ -29,7 +32,10 @@ export default function Debug() {
         >
           <Text style={styles.buttonText}>Create Peer</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={showPeers}>
+        <Pressable
+          style={styles.button}
+          onPress={async () => console.log(await peerService.getAllPeers())}
+        >
           <Text style={styles.buttonText}>Show Peer</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={deletePeers}>
@@ -46,7 +52,7 @@ export default function Debug() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 4
+    padding: 4,
   },
   button: {
     backgroundColor: "#4F46E5",

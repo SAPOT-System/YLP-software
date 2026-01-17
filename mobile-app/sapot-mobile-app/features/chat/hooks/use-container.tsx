@@ -50,3 +50,7 @@ export function useChatService() {
 export function useMessageService() {
   return useContainer().messageService;
 }
+
+export function usePeerService() {
+  return useContainer().peerService;
+}
