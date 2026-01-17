@@ -8,7 +8,12 @@ import {
   UserStore,
 } from "../shared";
 
-import { ZeroconfAdapter, TcpClientAdapter, TcpServerAdapter } from "./adapter";
+import {
+  ZeroconfAdapter,
+  TcpClientAdapter,
+  TcpServerAdapter,
+  WebrtcAdapter,
+} from "./adapter";
 import { DiscoveryService, ConnectionService, ChatService } from "./services";
 import { MessageService } from "./services/message-service";
 
@@ -26,6 +31,7 @@ export class AppContainer {
   readonly connectionService: ConnectionService;
   readonly chatService: ChatService;
   readonly messageService: MessageService;
+  readonly webrtcAdapter: WebrtcAdapter;
 
   private initPromise?: Promise<void>;
 
@@ -48,17 +54,21 @@ export class AppContainer {
       this.userStore
     );
 
+    this.webrtcAdapter = new WebrtcAdapter();
     this.tcpClientAdapter = new TcpClientAdapter();
     this.connectionService = new ConnectionService(
       this.tcpClientAdapter,
-      this.peerDatabaseService
+      this.peerDatabaseService,
+      this.webrtcAdapter,
+      this.networkConfig
     );
     this.chatService = new ChatService(this.connectionService);
 
     this.tcpServerAdapter = new TcpServerAdapter();
     this.messageService = new MessageService(
       this.tcpServerAdapter,
-      this.networkConfig
+      this.networkConfig,
+      this.connectionService
     );
   }
 
@@ -66,8 +76,10 @@ export class AppContainer {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
+      console.log("Initializing...");
       await this.sessionService.initialize();
       await this.userService.initialize();
+      this.networkConfig.initialize();
     })();
 
     return this.initPromise;

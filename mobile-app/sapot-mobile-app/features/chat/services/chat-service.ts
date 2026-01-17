@@ -8,6 +8,6 @@ export class ChatService {
     if (!this.connectionService.isConnected)
       throw new Error("Not connected to peer");
 
-    this.connectionService.sendMessage(message);
+    this.connectionService.sendChatMessage(message);
   }
 }
