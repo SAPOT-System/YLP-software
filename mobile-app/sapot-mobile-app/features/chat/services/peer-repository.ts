@@ -92,7 +92,7 @@ export class PeerRepository {
       const peer = await this.peersCollection.find(id);
       return peer;
     } catch (error) {
-      console.error("[DatabaseService]: Error finding id:", error);
+      console.error("[PeerRepository]: Error finding id:", error);
       throw error;
     }
   }
@@ -100,10 +100,10 @@ export class PeerRepository {
   async queryAllPeers() {
     try {
       const allPeers = await this.peersCollection.query().fetch();
-      //   console.log("[DatabaseService]: All stored peers:", allPeers);
+      //   console.log("[PeerRepository]: All stored peers:", allPeers);
       return allPeers;
     } catch (error) {
-      console.error("[DatabaseService]: Error showing peers:", error);
+      console.error("[PeerRepository]: Error showing peers:", error);
       throw error;
     }
   }
@@ -119,7 +119,7 @@ export class PeerRepository {
         await this.db.batch(...ops);
       });
     } catch (error) {
-      console.error("[DatabaseService]: Error deleting peers:", error);
+      console.error("[PeerRepository]: Error deleting peers:", error);
     }
   }
 }

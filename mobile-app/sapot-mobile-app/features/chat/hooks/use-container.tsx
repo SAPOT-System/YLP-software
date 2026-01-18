@@ -46,3 +46,7 @@ export function useChatService() {
 export function usePeerService() {
   return useContainer().peerService;
 }
+
+export function useMessageRepository() {
+  return useContainer().messageRepository;
+}
