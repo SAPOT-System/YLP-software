@@ -7,7 +7,6 @@ export class ConnectionService {
   constructor(
     private tcpClientAdapter: TcpClientAdapter,
     private tcpServerAdapter: TcpServerAdapter,
-    private peerService: PeerService,
     private webrtcAdapter: WebrtcAdapter,
     private networkConfig: NetworkConfig
   ) {
@@ -34,8 +33,7 @@ export class ConnectionService {
     this.webrtcAdapter.createPeerConnection();
   }
 
-  async connectToPeer(id: string) {
-    const { ipAddress, port } = await this.peerService.findPeerById(id);
+  async connectToPeer(ipAddress: string, port: number) {
     await this.tcpClientAdapter.connect(ipAddress, port);
     this.sendMessage({
       type: "handshake",
@@ -93,7 +91,7 @@ export class ConnectionService {
   }
 
   sendChatMessage(message: any) {
-    this.webrtcAdapter.sendDataMessage(message);
+    this.webrtcAdapter.sendDataMessage({ type: "chat", message: message });
   }
 
   disconnect() {
