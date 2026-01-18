@@ -17,7 +17,7 @@ interface RTCIceCandidateInit {
 export class WebrtcAdapter extends EventEmitter {
   private peerConnection: RTCPeerConnection | null;
   private localStream: MediaStream | null;
-  // remoteStream and dataChannel have a type of any because there is a conflict on datachannel type
+  // remoteStream and dataChannel have a type of any because there is a conflict on its type
   //   private remoteStream: any | null;
   private dataChannel: any | null; 
   private configuration: RTCConfiguration | undefined;
