@@ -9,7 +9,6 @@ export class TcpClientAdapter extends EventEmitter {
   }
 
   connect(host: string, port: number) {
-    // if (host === "10.0.2.16") host = "10.0.2.2";
     return new Promise<void>((resolve, reject) => {
       try {
         console.log(
