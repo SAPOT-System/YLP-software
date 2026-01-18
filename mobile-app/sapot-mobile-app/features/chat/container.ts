@@ -2,7 +2,6 @@ import {
   database,
   NetworkConfig,
   SessionService,
-  PeerDatabaseService,
   SessionStore,
   UserService,
   UserStore,
@@ -25,7 +24,6 @@ export class AppContainer {
   readonly networkConfig: NetworkConfig;
   readonly userStore: UserStore;
   readonly sessionService: SessionService;
-  readonly peerDatabaseService: PeerDatabaseService;
   readonly discoveryService: DiscoveryService;
   readonly userService: UserService;
   readonly tcpClientAdapter: TcpClientAdapter;
@@ -47,7 +45,6 @@ export class AppContainer {
     this.userStore = new UserStore();
     this.userService = new UserService(this.userStore);
 
-    this.peerDatabaseService = new PeerDatabaseService(database);
     this.zeroconfAdapter = new ZeroconfAdapter();
     this.peerRepository = new PeerRepository(database);
     this.peerService = new PeerService(this.peerRepository);
@@ -65,7 +62,7 @@ export class AppContainer {
     this.connectionService = new ConnectionService(
       this.tcpClientAdapter,
       this.tcpServerAdapter,
-      this.peerDatabaseService,
+      this.peerService,
       this.webrtcAdapter,
       this.networkConfig
     );

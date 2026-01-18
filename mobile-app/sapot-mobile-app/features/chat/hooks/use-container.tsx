@@ -35,10 +35,6 @@ export function useDiscoveryService() {
   return useContainer().discoveryService;
 }
 
-export function usePeerDatabaseService() {
-  return useContainer().peerDatabaseService;
-}
-
 export function useConnectionService() {
   return useContainer().connectionService;
 }

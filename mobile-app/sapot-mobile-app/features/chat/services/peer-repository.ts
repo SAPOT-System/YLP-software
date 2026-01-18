@@ -93,13 +93,14 @@ export class PeerRepository {
       return peer;
     } catch (error) {
       console.error("[DatabaseService]: Error finding id:", error);
+      throw error;
     }
   }
 
   async queryAllPeers() {
     try {
       const allPeers = await this.peersCollection.query().fetch();
-    //   console.log("[DatabaseService]: All stored peers:", allPeers);
+      //   console.log("[DatabaseService]: All stored peers:", allPeers);
       return allPeers;
     } catch (error) {
       console.error("[DatabaseService]: Error showing peers:", error);

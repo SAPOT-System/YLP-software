@@ -1,13 +1,14 @@
 import { NetworkConfig, PeerDatabaseService } from "@/features/shared";
 import { TcpServerAdapter, WebrtcAdapter } from "../adapter";
 import { TcpClientAdapter } from "../adapter/tcp-client-adapter";
+import { PeerService } from "./peer-service";
 
 // This class will handle connection to peers. This will be the one who will send and receive data from peers.
 export class ConnectionService {
   constructor(
     private tcpClientAdapter: TcpClientAdapter,
     private tcpServerAdapter: TcpServerAdapter,
-    private database: PeerDatabaseService,
+    private peerService: PeerService,
     private webrtcAdapter: WebrtcAdapter,
     private networkConfig: NetworkConfig
   ) {
@@ -35,7 +36,7 @@ export class ConnectionService {
   }
 
   async connectToPeer(id: string) {
-    const { ipAddress, port } = await this.database.findById(id);
+    const { ipAddress, port } = await this.peerService.findPeerById(id);
     await this.tcpClientAdapter.connect(ipAddress, port);
     this.sendMessage({
       type: "handshake",

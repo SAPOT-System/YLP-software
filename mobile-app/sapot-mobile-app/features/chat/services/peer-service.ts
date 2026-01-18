@@ -1,7 +1,7 @@
 import { Service } from "react-native-zeroconf";
 import { PeerRepository } from "./peer-repository";
 
-// This class will have a logic of deciding what would happen to the peers 
+// This class will have a logic of deciding what would happen to the peers
 export class PeerService {
   private peerServices: Service[] = [];
 
@@ -45,6 +45,11 @@ export class PeerService {
   async getAllPeers() {
     const peers = await this.peerRepository.queryAllPeers();
     return peers;
+  }
+
+  async findPeerById(id: string) {
+    const peer = await this.peerRepository.findPeerById(id);
+    return peer;
   }
 
   cleanUp() {
