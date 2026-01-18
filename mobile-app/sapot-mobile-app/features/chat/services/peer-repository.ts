@@ -1,6 +1,7 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { Peer } from "@/features/shared";
 
+// This class will communicate to the peers table in the database
 export class PeerRepository {
   private db: Database;
   private peersCollection: Collection<Peer>;

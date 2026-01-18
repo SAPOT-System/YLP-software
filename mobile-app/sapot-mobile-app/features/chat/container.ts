@@ -18,6 +18,7 @@ import { DiscoveryService, ConnectionService, ChatService } from "./services";
 import { PeerRepository } from "./services/peer-repository";
 import { PeerService } from "./services/peer-service";
 
+// This class will be used for initializing mobile app by initializing classes.
 export class AppContainer {
   readonly zeroconfAdapter: ZeroconfAdapter;
   readonly sessionStore: SessionStore;

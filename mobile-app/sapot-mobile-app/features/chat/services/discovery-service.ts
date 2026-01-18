@@ -5,6 +5,7 @@ import { NetworkConfig } from "@/features/shared/stores/network-config";
 import { UserStore } from "@/features/shared/stores/user-store";
 import { PeerService } from "./peer-service";
 
+// This class will discover devices and make the device discovered by others.
 export class DiscoveryService {
   private publishDeviceName: string = "";
   private intervalId: number = 0;
