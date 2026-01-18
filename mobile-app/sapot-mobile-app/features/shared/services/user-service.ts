@@ -1,4 +1,4 @@
-import { UserStore } from "../stores/user-store";
+import { UserStore } from "../stores";
 
 export class UserService {
   constructor(private userStore: UserStore) {}

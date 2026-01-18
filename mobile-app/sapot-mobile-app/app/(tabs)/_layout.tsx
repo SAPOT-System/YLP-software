@@ -9,7 +9,6 @@ import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import {
   useConnectionService,
   useDiscoveryService,
-  useMessageService,
 } from "@/features/chat";
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -23,18 +22,15 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
 
   const discoveryService = useDiscoveryService();
-  const messageService = useMessageService();
   const connectionService = useConnectionService();
 
   useEffect(() => {
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
-    messageService.start();
     connectionService.start();
 
     return () => {
       discoveryService.destroy();
-      messageService.stop();
       connectionService.stop();
       connectionService.disconnect();
     };

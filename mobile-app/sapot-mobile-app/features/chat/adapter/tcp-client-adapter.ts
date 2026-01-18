@@ -1,6 +1,5 @@
 import TcpSocket from "react-native-tcp-socket";
 import EventEmitter from "events";
-import { NetworkConfig } from "@/features/shared";
 
 export class TcpClientAdapter extends EventEmitter {
   private socket?: TcpSocket.Socket;

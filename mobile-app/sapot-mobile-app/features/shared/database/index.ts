@@ -28,3 +28,6 @@ export const database = new Database({
   adapter,
   modelClasses: [Peer],
 });
+
+export { default as Peer } from "./model/Peer";
+export { default as Message } from "./model/Message";

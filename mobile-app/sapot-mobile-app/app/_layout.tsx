@@ -11,10 +11,7 @@ import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
-import {
-  ContainerProvider,
-  useDiscoveryService,
-} from "@/features/chat/hooks/use-container";
+import { ContainerProvider } from "@/features/chat";
 
 export {
   // Catch any errors thrown by the Layout component.
