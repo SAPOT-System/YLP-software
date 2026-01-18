@@ -14,7 +14,16 @@ import {
   WebrtcAdapter,
 } from "./adapter";
 
-import { DiscoveryService, ConnectionService, ChatService,PeerRepository, PeerService } from "./services";
+import {
+  DiscoveryService,
+  ConnectionService,
+  ChatService,
+  PeerRepository,
+  PeerService,
+  MessageRepository,
+  ChatRepository,
+  ParticipantRepository,
+} from "./services";
 
 // This class will be used for initializing mobile app by initializing classes.
 export class AppContainer {
@@ -32,6 +41,9 @@ export class AppContainer {
   readonly webrtcAdapter: WebrtcAdapter;
   readonly peerService: PeerService;
   readonly peerRepository: PeerRepository;
+  readonly messageRepository: MessageRepository;
+  readonly chatRepository: ChatRepository;
+  readonly participantRepository: ParticipantRepository;
 
   private initPromise?: Promise<void>;
 
@@ -61,11 +73,22 @@ export class AppContainer {
     this.connectionService = new ConnectionService(
       this.tcpClientAdapter,
       this.tcpServerAdapter,
-      this.peerService,
       this.webrtcAdapter,
       this.networkConfig
     );
-    this.chatService = new ChatService(this.connectionService);
+
+    this.messageRepository = new MessageRepository(database);
+    this.chatRepository = new ChatRepository(database);
+    this.participantRepository = new ParticipantRepository(database);
+
+    this.chatService = new ChatService(
+      this.connectionService,
+      this.chatRepository,
+      this.participantRepository,
+      this.messageRepository,
+      this.peerService,
+      this.sessionStore
+    );
   }
 
   async initialize() {
