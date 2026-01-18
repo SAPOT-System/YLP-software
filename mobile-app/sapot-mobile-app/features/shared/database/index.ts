@@ -30,4 +30,6 @@ export const database = new Database({
 });
 
 export { default as Peer } from "./model/Peer";
-export { default as Message } from "./model/Message";
+export { default as Message, Status } from "./model/Message";
+export { default as Chat, ChatType } from "./model/Chat";
+export { default as Participant, ParticipantRole } from "./model/Participant";

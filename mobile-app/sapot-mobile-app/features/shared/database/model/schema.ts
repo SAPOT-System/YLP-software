@@ -15,9 +15,31 @@ export default appSchema({
     tableSchema({
       name: "messages",
       columns: [
-        { name: "peer_id", type: "string" },
+        { name: "chat_id", type: "string" },
+        { name: "sender_id", type: "string" },
         { name: "message", type: "string" },
-        { name: "timestamp", type: "number" },
+        { name: "status", type: "string" },
+        { name: "created_at", type: "number" },
+      ],
+    }),
+    tableSchema({
+      name: "chats",
+      columns: [
+        { name: "type", type: "string" },
+        // { name: "name", type: "string", isOptional: true },
+        // { name: "unreadCount", type: "number" },
+        { name: "created_at", type: "number" },
+        { name: "updated_at", type: "number" },
+      ],
+    }),
+    tableSchema({
+      name: "participants",
+      columns: [
+        { name: "chat_id", type: "string" },
+        { name: "peer_id", type: "string" },
+        { name: "role", type: "string" },
+        { name: "joined_at", type: "number" },
+        { name: "created_at", type: "number" },
       ],
     }),
   ],
