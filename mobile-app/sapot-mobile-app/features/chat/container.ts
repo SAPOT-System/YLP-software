@@ -15,7 +15,6 @@ import {
   WebrtcAdapter,
 } from "./adapter";
 import { DiscoveryService, ConnectionService, ChatService } from "./services";
-import { MessageService } from "./services/message-service";
 import { PeerRepository } from "./services/peer-repository";
 import { PeerService } from "./services/peer-service";
 
@@ -32,7 +31,6 @@ export class AppContainer {
   readonly tcpServerAdapter: TcpServerAdapter;
   readonly connectionService: ConnectionService;
   readonly chatService: ChatService;
-  readonly messageService: MessageService;
   readonly webrtcAdapter: WebrtcAdapter;
   readonly peerService: PeerService;
   readonly peerRepository: PeerRepository;
@@ -60,22 +58,17 @@ export class AppContainer {
       this.peerService
     );
 
+    this.tcpServerAdapter = new TcpServerAdapter();
     this.webrtcAdapter = new WebrtcAdapter();
     this.tcpClientAdapter = new TcpClientAdapter();
     this.connectionService = new ConnectionService(
       this.tcpClientAdapter,
+      this.tcpServerAdapter,
       this.peerDatabaseService,
       this.webrtcAdapter,
       this.networkConfig
     );
     this.chatService = new ChatService(this.connectionService);
-
-    this.tcpServerAdapter = new TcpServerAdapter();
-    this.messageService = new MessageService(
-      this.tcpServerAdapter,
-      this.networkConfig,
-      this.connectionService
-    );
   }
 
   async initialize() {

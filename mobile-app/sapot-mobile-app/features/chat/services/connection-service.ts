@@ -1,21 +1,36 @@
 import { NetworkConfig, PeerDatabaseService } from "@/features/shared";
-import { WebrtcAdapter } from "../adapter";
+import { TcpServerAdapter, WebrtcAdapter } from "../adapter";
 import { TcpClientAdapter } from "../adapter/tcp-client-adapter";
 
+// This class will handle connection to peers. This will be the one who will send and receive data from peers.
 export class ConnectionService {
   constructor(
     private tcpClientAdapter: TcpClientAdapter,
+    private tcpServerAdapter: TcpServerAdapter,
     private database: PeerDatabaseService,
     private webrtcAdapter: WebrtcAdapter,
     private networkConfig: NetworkConfig
   ) {
-    this.webrtcAdapter.on("onicecandidate", (data) => {
+    webrtcAdapter.on("onicecandidate", (data) => {
       this.sendMessage(data);
+    });
+
+    tcpServerAdapter.on("data", (message) => {
+      // console.log("[MessageService]: Message recieved:", message);
+      if (
+        (message.type && message.type === "ice-candidate") ||
+        message.type === "offer" ||
+        message.type === "answer" ||
+        message.type === "handshake"
+      ) {
+        this.handleWebrtcConnection(message);
+      }
     });
   }
 
   start() {
     // await this.webrtcAdapter.initializeLocalStream();
+    this.tcpServerAdapter.start(this.networkConfig.port);
     this.webrtcAdapter.createPeerConnection();
   }
 
@@ -35,7 +50,7 @@ export class ConnectionService {
     this.sendMessage(offer);
   }
 
-  async handleWebrtcConnection(message: any) {
+  private async handleWebrtcConnection(message: any) {
     switch (message.type) {
       case "ice-candidate":
         console.log("[ConnectionService]: Handling ice candidate message...");
@@ -87,6 +102,7 @@ export class ConnectionService {
 
   stop() {
     this.webrtcAdapter.cleanup();
+    this.tcpServerAdapter.stop();
   }
 
   get isConnected() {
