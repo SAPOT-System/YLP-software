@@ -12,5 +12,13 @@ export default appSchema({
         { name: "is_online", type: "boolean" },
       ],
     }),
+    tableSchema({
+      name: "messages",
+      columns: [
+        { name: "peer_id", type: "string" },
+        { name: "message", type: "string" },
+        { name: "timestamp", type: "number" },
+      ],
+    }),
   ],
 });
