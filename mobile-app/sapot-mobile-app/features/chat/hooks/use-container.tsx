@@ -47,10 +47,6 @@ export function useChatService() {
   return useContainer().chatService;
 }
 
-export function useMessageService() {
-  return useContainer().messageService;
-}
-
 export function usePeerService() {
   return useContainer().peerService;
 }

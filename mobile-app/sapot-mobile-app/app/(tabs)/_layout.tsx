@@ -23,18 +23,15 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
 
   const discoveryService = useDiscoveryService();
-  const messageService = useMessageService();
   const connectionService = useConnectionService();
 
   useEffect(() => {
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
-    messageService.start();
     connectionService.start();
 
     return () => {
       discoveryService.destroy();
-      messageService.stop();
       connectionService.stop();
       connectionService.disconnect();
     };
