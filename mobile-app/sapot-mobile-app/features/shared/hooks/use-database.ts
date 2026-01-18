@@ -1,5 +1,4 @@
-import { database } from "../database";
-import Peer from "../database/model/Peer";
+import { database, Peer } from "../database";
 
 const useDatabase = () => {
   const createPeer = async (newPeer: {

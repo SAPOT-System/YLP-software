@@ -1,5 +1,5 @@
 import { getItemAsync, setItemAsync } from "expo-secure-store";
-import { SessionStore } from "../stores/session-store";
+import { SessionStore } from "../stores";
 import uuid from "react-native-uuid";
 
 export class SessionService {

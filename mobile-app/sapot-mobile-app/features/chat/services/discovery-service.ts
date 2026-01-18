@@ -1,5 +1,5 @@
 import { Service } from "react-native-zeroconf";
-import { ZeroconfAdapter } from "../adapter/zeroconf-adapter";
+import { ZeroconfAdapter } from "../adapter";
 import { SessionStore } from "@/features/shared/stores/session-store";
 import { NetworkConfig } from "@/features/shared/stores/network-config";
 import { UserStore } from "@/features/shared/stores/user-store";

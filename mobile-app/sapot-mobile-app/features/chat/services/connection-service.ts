@@ -1,6 +1,5 @@
-import { NetworkConfig, PeerDatabaseService } from "@/features/shared";
-import { TcpServerAdapter, WebrtcAdapter } from "../adapter";
-import { TcpClientAdapter } from "../adapter/tcp-client-adapter";
+import { NetworkConfig } from "@/features/shared";
+import { TcpServerAdapter, WebrtcAdapter, TcpClientAdapter } from "../adapter";
 import { PeerService } from "./peer-service";
 
 // This class will handle connection to peers. This will be the one who will send and receive data from peers.

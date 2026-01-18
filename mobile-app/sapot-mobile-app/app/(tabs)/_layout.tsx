@@ -9,7 +9,6 @@ import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import {
   useConnectionService,
   useDiscoveryService,
-  useMessageService,
 } from "@/features/chat";
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {

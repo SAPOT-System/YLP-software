@@ -13,9 +13,8 @@ import {
   TcpServerAdapter,
   WebrtcAdapter,
 } from "./adapter";
-import { DiscoveryService, ConnectionService, ChatService } from "./services";
-import { PeerRepository } from "./services/peer-repository";
-import { PeerService } from "./services/peer-service";
+
+import { DiscoveryService, ConnectionService, ChatService,PeerRepository, PeerService } from "./services";
 
 // This class will be used for initializing mobile app by initializing classes.
 export class AppContainer {
