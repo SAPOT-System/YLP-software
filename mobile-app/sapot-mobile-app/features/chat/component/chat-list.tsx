@@ -1,39 +1,45 @@
-import { View, Text, FlatList } from "react-native";
+import { View, Text, FlatList, Pressable } from "react-native";
 import React from "react";
-import { Peer } from "../types";
+import { Chat } from "@/features/shared";
+import { useRouter } from "expo-router";
+import { withObservables } from "@nozbe/watermelondb/react";
 
-interface ChatListProps {
-  peers: Peer[];
-}
-
-interface ChatListItemProps {
-  peer: Peer;
-}
-
-const ChatList = ({ peers }: ChatListProps) => {
+const ChatList = ({ chats }: { chats: Chat[] }) => {
   return (
     <View>
       <FlatList
-        data={peers}
-        renderItem={({ item }) => <ChatListItem peer={item} />}
-        keyExtractor={(peer) => peer.id}
+        data={chats}
+        renderItem={({ item }) => <EnhancedChatListItem chat={item} />}
+        keyExtractor={(chat) => chat.id}
       />
     </View>
   );
 };
 
-const ChatListItem = ({ peer }: ChatListItemProps) => {
+const ChatListItem = ({ chat }: { chat: Chat }) => {
+  const router = useRouter();
   return (
-    <View>
+    <Pressable
+      onPress={() =>
+        router.push({ pathname: "/chat/[id]", params: { id: chat.id } })
+      }
+      style={{
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        borderRadius: 4,
+      }}
+    >
       <Text>
-        Name: {peer.username}
-        IP Address: {peer.ipAddress}
-        Port: {peer.port}
-        ID: {peer.id}
-        Status: {peer.online ? "Online" : "Offline"}
+        {chat.id}^^^{chat.updatedAt.toLocaleString()}
       </Text>
-    </View>
+    </Pressable>
   );
 };
+
+const enhance = withObservables(["chat"], ({ chat }: { chat: Chat }) => ({
+  chat,
+}));
+
+const EnhancedChatListItem = enhance(ChatListItem);
 
 export default ChatList;

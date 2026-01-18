@@ -3,6 +3,7 @@ import React from "react";
 import { Peer } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
+import { ChatRoomType } from "@/app/chat/[id]";
 
 const PeerList = ({ peers }: { peers: Peer[] }) => {
   console.log(peers[0]);
@@ -26,7 +27,10 @@ const PeerListItem = ({ peer }: { peer: Peer }) => {
   return (
     <Pressable
       onPress={() =>
-        router.push({ pathname: "/chat/[id]", params: { id: peer.id } })
+        router.push({
+          pathname: "/chat/[id]",
+          params: { id: peer.id, type: ChatRoomType.PEER },
+        })
       }
       style={{
         backgroundColor: `${peer.isOnline ? "green" : "grey"}`,
