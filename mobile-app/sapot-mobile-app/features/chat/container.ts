@@ -1,7 +1,6 @@
 import {
   database,
   NetworkConfig,
-  SessionService,
   SessionStore,
   UserService,
   UserStore,
@@ -31,7 +30,6 @@ export class AppContainer {
   readonly sessionStore: SessionStore;
   readonly networkConfig: NetworkConfig;
   readonly userStore: UserStore;
-  readonly sessionService: SessionService;
   readonly discoveryService: DiscoveryService;
   readonly userService: UserService;
   readonly tcpClientAdapter: TcpClientAdapter;
@@ -49,16 +47,20 @@ export class AppContainer {
 
   constructor() {
     this.sessionStore = new SessionStore();
-    this.sessionService = new SessionService(this.sessionStore);
 
     this.networkConfig = new NetworkConfig();
 
-    this.userStore = new UserStore();
-    this.userService = new UserService(this.userStore);
-
-    this.zeroconfAdapter = new ZeroconfAdapter();
     this.peerRepository = new PeerRepository(database);
     this.peerService = new PeerService(this.peerRepository);
+
+    this.userStore = new UserStore();
+    this.userService = new UserService(
+      this.userStore,
+      this.peerService,
+      this.sessionStore
+    );
+
+    this.zeroconfAdapter = new ZeroconfAdapter();
     this.discoveryService = new DiscoveryService(
       this.zeroconfAdapter,
       this.sessionStore,
@@ -87,7 +89,7 @@ export class AppContainer {
       this.participantRepository,
       this.messageRepository,
       this.peerService,
-      this.sessionStore
+      this.userStore
     );
   }
 
@@ -96,7 +98,6 @@ export class AppContainer {
 
     this.initPromise = (async () => {
       console.log("Initializing...");
-      await this.sessionService.initialize();
       await this.userService.initialize();
     })();
 
