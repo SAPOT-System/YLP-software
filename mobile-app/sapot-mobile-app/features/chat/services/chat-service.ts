@@ -52,6 +52,7 @@ export class ChatService {
   }
 
   // TODO: make a transaction on this function to follow ACID principle
+  // TODO: make a logic where user can send chat even if the receiver is not online. Store the sent chat and wait for receiver to be online. 
   async sendChatMessage(message: string) {
     try {
       if (!this.connectionService.isConnected)
