@@ -1,12 +1,14 @@
-export class UserStore {
-  private _username?: string;
+import { Peer } from "../database";
 
-  get username(): string {
-    if (!this._username) throw new Error("Username not initialized");
-    return this._username;
+export class UserStore {
+  private _user?: Peer;
+
+  get user(): Peer {
+    if (!this._user) throw new Error("Current user not initialized");
+    return this._user;
   }
 
-  setUsername(name: string) {
-    this._username = name;
+  setUser(peer: Peer) {
+    this._user = peer;
   }
 }
