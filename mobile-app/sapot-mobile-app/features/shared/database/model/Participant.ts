@@ -1,5 +1,7 @@
-import { Model } from "@nozbe/watermelondb";
+import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
+import Chat from "./Chat";
+import Peer from "./Peer";
 
 export enum ParticipantRole {
   MEMBER = "member",
@@ -12,6 +14,6 @@ export default class Participant extends Model {
   @date("joined_at") joinedAt!: Date;
   @date("created_at") createdAt!: Date;
 
-  @relation("chats", "chat_id") chatId!: string;
-  @relation("peers", "peer_id") peerId!: string;
+  @relation("chats", "chat") chat!: Relation<Chat>;
+  @relation("peers", "peer") peer!: Relation<Peer>;
 }
