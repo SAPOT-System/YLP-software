@@ -5,7 +5,10 @@ import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
 import schema from "./model/schema";
 import migrations from "./model/migrations";
 import Peer from "./model/Peer";
-// import Post from './model/Post' // ⬅️ You'll import your Models here
+import Message from "./model/Message";
+import Participant from "./model/Participant";
+import Chat from "./model/Chat";
+// const EnhancedPeerListItem = enhancePeer(PeerListItem);
 
 // First, create the adapter to the underlying database:
 const adapter = new SQLiteAdapter({
@@ -26,10 +29,10 @@ const adapter = new SQLiteAdapter({
 // Then, make a Watermelon database from it!
 export const database = new Database({
   adapter,
-  modelClasses: [Peer],
+  modelClasses: [Peer, Message, Participant, Chat],
 });
 
 export { default as Peer } from "./model/Peer";
-export { default as Message, Status } from "./model/Message";
+export { default as Message, MessageStatus } from "./model/Message";
 export { default as Chat, ChatType } from "./model/Chat";
 export { default as Participant, ParticipantRole } from "./model/Participant";
