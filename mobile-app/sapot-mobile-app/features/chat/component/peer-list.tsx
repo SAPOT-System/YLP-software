@@ -1,12 +1,15 @@
 import { View, Text, FlatList, Pressable } from "react-native";
 import React from "react";
-import { Peer } from "@/features/shared";
+import { database, Peer } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
-import { ChatRoomType } from "@/app/chat/[id]";
+import { ChatRoomSource } from "@/app/chat/[id]";
 
-const PeerList = ({ peers }: { peers: Peer[] }) => {
-  console.log(peers[0]);
+const enhancePeers = withObservables([], () => ({
+  peers: database.get<Peer>("peers").query().observe(),
+}));
+
+const PeerList = enhancePeers(({ peers }: { peers: Peer[] }) => {
   return (
     <View>
       <Text style={{ fontSize: 16 }}>Peer List</Text>
@@ -15,21 +18,25 @@ const PeerList = ({ peers }: { peers: Peer[] }) => {
         horizontal
         contentContainerStyle={{ gap: 5, paddingHorizontal: 4 }}
         data={peers}
-        renderItem={({ item }) => <EnhancedPeerListItem peer={item} />}
+        renderItem={({ item }) => <PeerListItem peer={item} />}
         keyExtractor={(peer) => peer.id}
       />
     </View>
   );
-};
+});
 
-const PeerListItem = ({ peer }: { peer: Peer }) => {
+const enhancePeer = withObservables(["peer"], ({ peer }: { peer: Peer }) => ({
+  peer,
+}));
+
+const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
   const router = useRouter();
   return (
     <Pressable
       onPress={() =>
         router.push({
           pathname: "/chat/[id]",
-          params: { id: peer.id, type: ChatRoomType.PEER },
+          params: { id: peer.id, source: ChatRoomSource.PEER },
         })
       }
       style={{
@@ -42,12 +49,6 @@ const PeerListItem = ({ peer }: { peer: Peer }) => {
       <Text>{peer.username}</Text>
     </Pressable>
   );
-};
-
-const enhance = withObservables(["peer"], ({ peer }: { peer: Peer }) => ({
-  peer,
-}));
-
-const EnhancedPeerListItem = enhance(PeerListItem);
+});
 
 export default PeerList;

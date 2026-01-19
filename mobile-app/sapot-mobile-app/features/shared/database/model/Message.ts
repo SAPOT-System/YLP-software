@@ -1,7 +1,9 @@
-import { Model } from "@nozbe/watermelondb";
+import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
+import Chat from "./Chat";
+import Peer from "./Peer";
 
-export enum Status {
+export enum MessageStatus {
   SENT = "sent",
   DELIVERED = "delivered",
   READ = "read",
@@ -10,9 +12,9 @@ export default class Message extends Model {
   static table = "messages";
 
   @field("message") message!: string;
-  @field("status") status!: Status;
+  @field("status") status!: MessageStatus;
   @date("created_at") createdAt!: Date;
 
-  @relation("chats", "chat_id") chatId!: string;
-  @relation("peers", "sender_id") senderId!: string;
+  @relation("chats", "chat") chat!: Relation<Chat>;
+  @relation("peers", "sender") sender!: Relation<Peer>;
 }

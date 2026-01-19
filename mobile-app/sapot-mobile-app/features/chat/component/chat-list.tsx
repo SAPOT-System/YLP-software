@@ -1,27 +1,40 @@
 import { View, Text, FlatList, Pressable } from "react-native";
 import React from "react";
-import { Chat } from "@/features/shared";
+import { Chat, database } from "@/features/shared";
 import { useRouter } from "expo-router";
 import { withObservables } from "@nozbe/watermelondb/react";
+import { ChatRoomSource } from "@/app/chat/[id]";
 
-const ChatList = ({ chats }: { chats: Chat[] }) => {
+const enhanceChats = withObservables([], () => ({
+  chats: database.get<Chat>("chats").query().observe(),
+}));
+
+const ChatList = enhanceChats(({ chats }: { chats: Chat[] }) => {
   return (
     <View>
+      <Text style={{ fontSize: 16 }}>Chat List</Text>
       <FlatList
         data={chats}
-        renderItem={({ item }) => <EnhancedChatListItem chat={item} />}
+        renderItem={({ item }) => <ChatListItem chat={item} />}
         keyExtractor={(chat) => chat.id}
       />
     </View>
   );
-};
+});
 
-const ChatListItem = ({ chat }: { chat: Chat }) => {
+const enhanceChat = withObservables(["chat"], ({ chat }: { chat: Chat }) => ({
+  chat,
+}));
+
+const ChatListItem = enhanceChat(({ chat }: { chat: Chat }) => {
   const router = useRouter();
   return (
     <Pressable
       onPress={() =>
-        router.push({ pathname: "/chat/[id]", params: { id: chat.id } })
+        router.push({
+          pathname: "/chat/[id]",
+          params: { id: chat.id, source: ChatRoomSource.CHAT },
+        })
       }
       style={{
         paddingVertical: 5,
@@ -34,12 +47,6 @@ const ChatListItem = ({ chat }: { chat: Chat }) => {
       </Text>
     </Pressable>
   );
-};
-
-const enhance = withObservables(["chat"], ({ chat }: { chat: Chat }) => ({
-  chat,
-}));
-
-const EnhancedChatListItem = enhance(ChatListItem);
+});
 
 export default ChatList;

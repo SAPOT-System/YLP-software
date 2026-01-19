@@ -1,42 +1,62 @@
 import { Chat, ChatType } from "@/features/shared";
-import { Collection, Database } from "@nozbe/watermelondb";
+import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class ChatRepository {
-  private chatCollections: Collection<Chat>;
+  chatCollections: Collection<Chat>;
   constructor(private db: Database) {
     this.chatCollections = this.db.get<Chat>("chats");
   }
 
-  async createRepository(newChat: { type: ChatType }) {
+  async createRepository(newChat: { type: ChatType }, isInTransaction = false) {
     try {
-      return await this.chatCollections.create((chat) => {
-        chat.type = newChat.type;
-        chat.createdAt = new Date();
-        chat.updatedAt = new Date();
-        // chat.name = newChat.name;
-        // chat.updatedAt = newChat.unreadCount;
-      });
+      const action = async () => {
+        return await this.chatCollections.create((chat) => {
+          chat.type = newChat.type;
+          chat.createdAt = new Date();
+          chat.updatedAt = new Date();
+          // chat.name = newChat.name;
+          // chat.updatedAt = newChat.unreadCount;
+        });
+      };
+      if (isInTransaction) {
+        return action();
+      } else {
+        return this.chatCollections.database.write(action);
+      }
     } catch (error) {
       console.error("[ChatRepository]: Error creating chat:", error);
       throw error;
     }
   }
 
-  async isChatExist(peerIds: string[]) {
+// TODO: have a logic when the there is no result
+  async isDirectChat(chatId: string) {
     try {
-        
+      const result = await this.chatCollections.query(Q.where("id", chatId));
+
+      return result[0].type === ChatType.DIRECT ? true : false;
     } catch (error) {
       console.error("[ChatRepository]: Error finding if chat exist:", error);
       throw error;
     }
-    return true;
   }
 
-  async getChatById(chatId: string) {
+  async queryAllChats() {
     try {
-      // return await this.db.
+      return (await this.chatCollections.query().fetch()) || [];
     } catch (error) {
-      console.error("[ChatRepository]: Error querying chat messages:", error);
+      console.error("[ChatRepository]: Error finding if chat exist:", error);
+      throw error;
+    }
+  }
+
+  // Note: find method will return error if this chat id does not exist
+  // TODO: change find method into query method
+  async findChatById(chatId: string) {
+    try {
+      return await this.chatCollections.find(chatId);
+    } catch (error) {
+      console.error("[ChatRepository]: Error finding chat by id:", error);
       throw error;
     }
   }

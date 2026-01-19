@@ -11,24 +11,18 @@ export class PeerRepository {
     this.peersCollection = this.db.get<Peer>("peers");
   }
 
-  async addPeer(newPeer: {
-    id: string;
-    username: string;
-    port: number;
-    ipAddress: string;
-  }) {
+  async addPeer(newPeer: { id: string; username: string }) {
     try {
-      const createdPeer = await this.db.write(async () => {
+      return await this.db.write(async () => {
         const peer = await this.peersCollection.create((peer: Peer) => {
           peer.username = newPeer.username;
           peer._raw.id = newPeer.id;
-          peer.port = newPeer.port;
-          peer.ipAddress = newPeer.ipAddress;
         });
         return peer;
       });
     } catch (error) {
       console.error("[PeerRepository]: Error creating a peer:", error);
+      throw error;
     }
   }
 
@@ -89,7 +83,7 @@ export class PeerRepository {
 
   async findPeerById(id: string) {
     try {
-      const peer = await this.peersCollection.find(id);
+      const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
       return peer;
     } catch (error) {
       console.error("[PeerRepository]: Error finding id:", error);

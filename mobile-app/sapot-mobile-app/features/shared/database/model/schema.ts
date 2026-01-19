@@ -7,16 +7,14 @@ export default appSchema({
       name: "peers",
       columns: [
         { name: "username", type: "string" },
-        { name: "port", type: "number" },
-        { name: "ip_address", type: "string" },
         { name: "is_online", type: "boolean" },
       ],
     }),
     tableSchema({
       name: "messages",
       columns: [
-        { name: "chat_id", type: "string" },
-        { name: "sender_id", type: "string" },
+        { name: "chat", type: "string" },
+        { name: "sender", type: "string" },
         { name: "message", type: "string" },
         { name: "status", type: "string" },
         { name: "created_at", type: "number" },
@@ -35,8 +33,8 @@ export default appSchema({
     tableSchema({
       name: "participants",
       columns: [
-        { name: "chat_id", type: "string" },
-        { name: "peer_id", type: "string" },
+        { name: "chat", type: "string" },
+        { name: "peer", type: "string" },
         { name: "role", type: "string" },
         { name: "joined_at", type: "number" },
         { name: "created_at", type: "number" },

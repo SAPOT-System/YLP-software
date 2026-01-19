@@ -1,14 +1,17 @@
 import { StyleSheet } from "react-native";
 
 import { View } from "@/components/Themed";
-import { PeerList, usePeers } from "@/features/chat";
+import { ChatList, PeerList, usePeers } from "@/features/chat";
+import useChats from "@/features/chat/hooks/use-chats";
 
 export default function Chat() {
   const { peers } = usePeers();
+  const { chats } = useChats();
 
   return (
     <View style={styles.container}>
       <PeerList peers={peers} />
+      <ChatList chats={chats} />
     </View>
   );
 }

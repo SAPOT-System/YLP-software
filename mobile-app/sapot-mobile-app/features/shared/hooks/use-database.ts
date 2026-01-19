@@ -12,13 +12,11 @@ const useDatabase = () => {
         const peer = await database.get<Peer>("peers").create((peer: Peer) => {
           peer.username = newPeer.username;
           peer._raw.id = newPeer.id;
-          peer.port = newPeer.port;
-          peer.ipAddress = newPeer.ipAddress;
         });
         return peer;
       });
       console.log(
-        `[useDatabase]: New peer created: \nName: ${createdPeer.username} ID: ${createdPeer.id} Port: ${createdPeer.port} IP Address: ${createdPeer.ipAddress}`
+        `[useDatabase]: New peer created: \nName: ${createdPeer.username} ID: ${createdPeer.id}`
       );
     } catch (error) {
       console.error("[useDatabase]: Error creating a peer:", error);

@@ -12,9 +12,9 @@ export class DiscoveryService {
 
   constructor(
     private adapter: ZeroconfAdapter,
-    private session: SessionStore,
+    private sessionStore: SessionStore,
     private networkConfig: NetworkConfig,
-    private user: UserStore,
+    private userStore: UserStore,
     private peerService: PeerService
   ) {
     // Perform logic on the resolve device/service whether to include in the database or not
@@ -49,8 +49,8 @@ export class DiscoveryService {
       name: this.publishDeviceName,
       port: this.networkConfig.port,
       txt: {
-        id: this.session.userId,
-        username: this.user.username,
+        id: this.sessionStore.userId,
+        username: this.userStore.user.username,
       },
     });
   }

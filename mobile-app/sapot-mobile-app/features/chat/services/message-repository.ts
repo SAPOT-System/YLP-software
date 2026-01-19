@@ -1,4 +1,4 @@
-import { Message, Status } from "@/features/shared";
+import { Chat, Message, MessageStatus, Peer } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class MessageRepository {
@@ -9,19 +9,19 @@ export class MessageRepository {
   }
 
   async saveMessage(newMessage: {
-    senderId: string;
-    status: Status;
+    sender: Peer;
+    status: MessageStatus;
     message: string;
-    chatId: string;
+    chat: Chat;
   }) {
     try {
       const savedMessage = await this.db.write(async () => {
         const message = await this.messagesCollection.create(
           (message: Message) => {
-            message.senderId = newMessage.senderId;
+            message.sender.set(newMessage.sender);
+            message.chat.set(newMessage.chat);
             message.message = newMessage.message;
             message.status = newMessage.status;
-            message.chatId = newMessage.chatId;
             message.createdAt = new Date();
           }
         );
@@ -35,8 +35,6 @@ export class MessageRepository {
 
   async queryMessagesByChatId(chatId: string, limit = 50, offset = 0) {
     try {
-      // const allMessages = await this.messagesCollection.query().fetch();
-      // return allMessages;
       return await this.messagesCollection.query(
         Q.where("chat_id", chatId),
         Q.sortBy("created_at", Q.desc),

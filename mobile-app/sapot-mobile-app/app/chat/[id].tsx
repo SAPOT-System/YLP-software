@@ -10,13 +10,14 @@ import React, { useEffect, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useChatService } from "@/features/chat";
 
-export enum ChatRoomType {
-  PEER = "peer",
-  CHAT = "chat",
+// This is enum for determining where the chat room is triggered, it is either in peer list item or chat list item
+export enum ChatRoomSource {
+  PEER = "peer_list",
+  CHAT = "chat_list",
 }
 
 const ChatRoom = () => {
-  const { id, type } = useLocalSearchParams();
+  const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
   const [message, setMessage] = useState("");
   const chatService = useChatService();
@@ -25,15 +26,17 @@ const ChatRoom = () => {
     const connect = async () => {
       try {
         let peerId = "";
-        if (type === ChatRoomType.PEER) {
+        if (source === ChatRoomSource.PEER) {
           peerId = id as string;
-        } else if (type === ChatRoomType.CHAT) {
-          // TODO: Find the chat id by the peerId
+        } else if (source === ChatRoomSource.CHAT) {
+          peerId = await chatService.findPeerIdByChatId(id as string);
+          await chatService.initializePeerByChatId(id as string);
         } else {
-          throw Error("Error in passed type paramater");
+          throw Error("Error in passed source paramater");
         }
-        await chatService.connect(peerId as string);
+
         setIsConnected(true);
+        await chatService.connect(peerId as string);
       } catch (error) {
         console.error("Connection failed", error);
       }
@@ -52,7 +55,13 @@ const ChatRoom = () => {
 
   return (
     <View>
-      <Text>ChatRoom {id}</Text>
+      <Text>
+        ChatRoom:{" "}
+        {source === ChatRoomSource.PEER
+          ? "Peer list source"
+          : "Chat list source"}{" "}
+        {id}
+      </Text>
       <TextInput
         style={styles.input}
         onChangeText={setMessage}
