@@ -1,10 +1,23 @@
 import { Service } from "react-native-zeroconf";
 import { PeerRepository } from "./peer-repository";
 
+export interface DiscoveredService {
+  serviceName: string;
+  id: string;
+  port: number;
+  ipAddress: string;
+}
 // This class will have a logic of deciding what would happen to the peers
 export class PeerService {
-  private peerServices: Service[] = [];
-
+  discoveredPeerServices: DiscoveredService[] = [
+    // This commented data is for development phase
+    // {
+    //   serviceName: "Pixel4a2",
+    //   id: "124151251234235",
+    //   ipAddress: "10.0.2.2",
+    //   port: 8085,
+    // },
+  ];
   constructor(private peerRepository: PeerRepository) {}
 
   async register(peerService: Service) {
@@ -16,12 +29,15 @@ export class PeerService {
       await this.peerRepository.addPeer({
         id: peerService.txt.id,
         username: peerService.txt.username,
-        port: peerService.port,
-        ipAddress: peerService.addresses[0],
       });
     }
 
-    this.peerServices.push(peerService);
+    this.discoveredPeerServices.push({
+      serviceName: peerService.name,
+      id: peerService.txt.id,
+      port: peerService.port,
+      ipAddress: peerService.addresses[0],
+    });
   }
 
   async markOnline(id: string) {
@@ -29,17 +45,17 @@ export class PeerService {
   }
 
   async markOffline(serviceName: string) {
-    const removedService = this.peerServices.find(
-      (service) => service.name === serviceName
+    const removedService = this.discoveredPeerServices.find(
+      (service) => service.serviceName === serviceName
     );
 
     if (!removedService) return;
 
-    this.peerServices = this.peerServices.filter(
-      (service) => service.name !== serviceName
+    this.discoveredPeerServices = this.discoveredPeerServices.filter(
+      (service) => service.serviceName !== serviceName
     );
 
-    await this.peerRepository.markPeerOffline(removedService.txt.id);
+    await this.peerRepository.markPeerOffline(removedService.id);
   }
 
   async getAllPeers() {
@@ -52,7 +68,19 @@ export class PeerService {
     return peer;
   }
 
+  findDiscoveredPeerById(id: string) {
+    console.log(this.discoveredPeerServices);
+    const peer = this.discoveredPeerServices.find((peer) => peer.id === id);
+    return peer;
+  }
+
+  // This will be use by user service to identify the current user
+  // I chose this approach to minimize the task of the server soon as server needed to consider the user
+  async createUser(id: string, username: string) {
+    return await this.peerRepository.addPeer({ id, username });
+  }
+
   cleanUp() {
-    this.peerServices = [];
+    this.discoveredPeerServices = [];
   }
 }
