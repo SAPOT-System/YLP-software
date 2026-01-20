@@ -11,7 +11,7 @@ export class PeerRepository {
     this.peersCollection = this.db.get<Peer>("peers");
   }
 
-  async addPeer(newPeer: { id: string; username: string }) {
+  async savePeer(newPeer: { id: string; username: string }) {
     try {
       return await this.db.write(async () => {
         const peer = await this.peersCollection.create((peer: Peer) => {
@@ -81,7 +81,7 @@ export class PeerRepository {
     }
   }
 
-  async findPeerById(id: string) {
+  async queryPeerById(id: string) {
     try {
       const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
       return peer;

@@ -7,7 +7,7 @@ export class ConversationParticipantRepository {
     this.participantsCollection = this.db.get<Participant>("participants");
   }
 
-  async add(
+  async saveConversation(
     newParticipant: {
       role: ParticipantRole;
       chat: Chat;
@@ -40,7 +40,7 @@ export class ConversationParticipantRepository {
     }
   }
 
-  async addMultiple(
+  async saveMultipleConversation(
     peers: Peer[],
     chat: Chat,
     role: ParticipantRole = ParticipantRole.MEMBER,
@@ -49,7 +49,10 @@ export class ConversationParticipantRepository {
     try {
       await Promise.all(
         peers.map((peer) =>
-          this.add({ role: role, chat: chat, peer: peer }, isInTransaction)
+          this.saveConversation(
+            { role: role, chat: chat, peer: peer },
+            isInTransaction
+          )
         )
       );
     } catch (error) {
@@ -91,13 +94,13 @@ export class ConversationParticipantRepository {
     }
   }
 
-  async getAllParticipants() {
+  async queryAllParticipants() {
     return await this.participantsCollection.query().fetch();
   }
 
-  async getPeerByChatId(chatId: string, currentUserId: string) {
+  async queryPeerByChatId(chatId: string, currentUserId: string) {
     try {
-      console.log(this.getAllParticipants());
+      console.log(this.queryAllParticipants());
 
       const participants = await this.participantsCollection
         .query(Q.where("chat", chatId))

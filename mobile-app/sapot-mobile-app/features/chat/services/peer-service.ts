@@ -26,7 +26,7 @@ export class PeerService {
     if (peerExist) {
       await this.markOnline(peerService.txt.id);
     } else {
-      await this.peerRepository.addPeer({
+      await this.peerRepository.savePeer({
         id: peerService.txt.id,
         username: peerService.txt.username,
       });
@@ -69,7 +69,7 @@ export class PeerService {
   }
 
   async findPeerById(id: string) {
-    const peer = await this.peerRepository.findPeerById(id);
+    const peer = await this.peerRepository.queryPeerById(id);
     return peer;
   }
 
@@ -82,7 +82,7 @@ export class PeerService {
   // This will be use by user service to identify the current user
   // I chose this approach to minimize the task of the server soon as server needed to consider the user
   async createUser(id: string, username: string) {
-    return await this.peerRepository.addPeer({ id, username });
+    return await this.peerRepository.savePeer({ id, username });
   }
 
   cleanUp() {

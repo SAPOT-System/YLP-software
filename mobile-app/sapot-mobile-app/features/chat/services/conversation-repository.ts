@@ -7,7 +7,7 @@ export class ConversationRepository {
     this.chatCollections = this.db.get<Chat>("chats");
   }
 
-  async createRepository(newChat: { type: ChatType }, isInTransaction = false) {
+  async saveConversation(newChat: { type: ChatType }, isInTransaction = false) {
     try {
       const action = async () => {
         return await this.chatCollections.create((chat) => {
@@ -52,7 +52,7 @@ export class ConversationRepository {
 
   // Note: find method will return error if this chat id does not exist
   // TODO: change find method into query method
-  async findChatById(chatId: string) {
+  async queryChatById(chatId: string) {
     try {
       return await this.chatCollections.find(chatId);
     } catch (error) {

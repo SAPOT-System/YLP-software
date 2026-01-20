@@ -52,7 +52,7 @@ export class ChatService {
   }
 
   // TODO: make a transaction on this function to follow ACID principle
-  // TODO: make a logic where user can send chat even if the receiver is not online. Store the sent chat and wait for receiver to be online. 
+  // TODO: make a logic where user can send chat even if the receiver is not online. Store the sent chat and wait for receiver to be online.
   async sendChatMessage(message: string) {
     try {
       if (!this.connectionService.isConnected)
@@ -63,15 +63,16 @@ export class ChatService {
       // Make sure chat property is initialized
       if (!this.chat) {
         // Check if the direct chat state between current user and peer is created
-        const chatId = await this.conversationParticipantRepository.isDirectChatExists([
-          this.peer.id,
-          this.userStore.user.id,
-        ]);
-          
+        const chatId =
+          await this.conversationParticipantRepository.isDirectChatExists([
+            this.peer.id,
+            this.userStore.user.id,
+          ]);
+
         if (!chatId) {
-          this.chat = await this.createChatRoom()
+          this.chat = await this.createChatRoom();
         } else {
-          this.chat = await this.conversationRepository.findChatById(chatId);
+          this.chat = await this.conversationRepository.queryChatById(chatId);
         }
       }
 
@@ -91,13 +92,13 @@ export class ChatService {
   private async createChatRoom() {
     // Wrap into write method to ensure ACID for safety transaction
     return await database.write(async () => {
-      const chat = await this.conversationRepository.createRepository(
+      const chat = await this.conversationRepository.saveConversation(
         {
           type: ChatType.DIRECT,
         },
         true
       );
-      await this.conversationParticipantRepository.addMultiple(
+      await this.conversationParticipantRepository.saveMultipleConversation(
         [this.peer!, this.userStore.user],
         chat,
         ParticipantRole.MEMBER,
@@ -111,15 +112,16 @@ export class ChatService {
   // For now, I assume that we don't have group chat
   // This is used by chat room when the source is chat list.
   async findPeerIdByChatId(chatId: string) {
-    const participants = await this.conversationParticipantRepository.getPeerByChatId(
-      chatId,
-      this.userStore.user.id
-    );
+    const participants =
+      await this.conversationParticipantRepository.queryPeerByChatId(
+        chatId,
+        this.userStore.user.id
+      );
     return participants[0].peer.id;
   }
 
   async initializePeerByChatId(chatId: string) {
-    this.chat = await this.conversationRepository.findChatById(chatId);
+    this.chat = await this.conversationRepository.queryChatById(chatId);
   }
 
   async getAllPeers() {
