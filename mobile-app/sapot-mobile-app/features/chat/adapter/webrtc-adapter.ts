@@ -19,7 +19,7 @@ export class WebrtcAdapter extends EventEmitter {
   private localStream: MediaStream | null;
   // remoteStream and dataChannel have a type of any because there is a conflict on its type
   //   private remoteStream: any | null;
-  private dataChannel: any | null; 
+  private dataChannel: any | null;
   private configuration: RTCConfiguration | undefined;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet: boolean = false;
@@ -98,7 +98,6 @@ export class WebrtcAdapter extends EventEmitter {
       }
     };
 
-    // This will recieve message from peers webrtc's datachannel
     this.peerConnection.ondatachannel = (event) => {
       console.log(`Data channel received: ${event.channel}`);
       this.setDataChannel(event.channel);
@@ -255,10 +254,15 @@ export class WebrtcAdapter extends EventEmitter {
       console.log("[WebrtcAdapter]: Data channel opened");
     };
 
+    // This will recieve message from peers webrtc's datachannel
     channel.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
-      this.emit("onmessage", message);
+      try {
+        const message = JSON.parse(event.data);
+        console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
+        this.emit("receivedMessage", message);
+      } catch (error) {
+        console.error("Error parsing receive message:", error);
+      }
     };
 
     channel.onclose = () => {

@@ -23,6 +23,7 @@ const ChatRoom = () => {
   const chatService = useChatService();
 
   useEffect(() => {
+    // TODO: Allow user to chat even if not connected. 
     const connect = async () => {
       try {
         let peerId = "";

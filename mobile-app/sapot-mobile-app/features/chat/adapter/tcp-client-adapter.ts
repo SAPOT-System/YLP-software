@@ -15,30 +15,35 @@ export class TcpClientAdapter extends EventEmitter {
           `[TcpClientAdapter]: Trying to connect to the client: ${host}:${port}`
         );
 
-        this.socket = TcpSocket.createConnection(
+        const socket = TcpSocket.createConnection(
           {
             host: host,
             port: port,
           },
           () => {
             console.log("[TcpClientAdapter]: TCP connected");
+            this.socket = socket;
             resolve();
           }
         );
 
-        this.socket.on("error", (error) => {
+        const onError = (error: any) => {
           console.error(
             "[TcpClientAdapter]: Error on connection client:",
             error
           );
           reject(error);
-        });
+        };
 
-        this.socket.on("close", () => {
+        const onClose = () => {
           console.log("[TcpClientAdapter]: TCP connection closed");
-        });
+        };
+
+        socket.on("error", onError);
+        socket.on("close", onClose);
       } catch (error) {
         console.error("[TcpClientAdapter]: Error connecting to socket:", error);
+        this.socket = undefined;
         throw error;
       }
     });

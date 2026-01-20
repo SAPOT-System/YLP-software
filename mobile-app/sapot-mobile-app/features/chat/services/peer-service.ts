@@ -32,12 +32,17 @@ export class PeerService {
       });
     }
 
-    this.discoveredPeerServices.push({
-      serviceName: peerService.name,
-      id: peerService.txt.id,
-      port: peerService.port,
-      ipAddress: peerService.addresses[0],
-    });
+    const isServiceExist = this.discoveredPeerServices.find(
+      (peer) => peer.id === peerService.txt.id
+    );
+    if (!isServiceExist) {
+      this.discoveredPeerServices.push({
+        serviceName: peerService.name,
+        id: peerService.txt.id,
+        port: peerService.port,
+        ipAddress: peerService.addresses[0],
+      });
+    }
   }
 
   async markOnline(id: string) {

@@ -14,6 +14,10 @@ export class ConnectionService {
       this.sendMessage(data);
     });
 
+    // TODO: store the received message in the database
+    // TODO: listen to the acknowledge of the receiver. In chat service where the undelivered message stored, delete the specific message once sender receive acknowledgement
+    webrtcAdapter.on("receivedMessage", (message) => {});
+
     tcpServerAdapter.on("data", (message) => {
       // console.log("[MessageService]: Message recieved:", message);
       if (
@@ -24,6 +28,7 @@ export class ConnectionService {
       ) {
         this.handleWebrtcConnection(message);
       }
+      // TODO: soon, implement tcp for fallback of webrtc
     });
   }
 
@@ -35,11 +40,13 @@ export class ConnectionService {
 
   async connectToPeer(ipAddress: string, port: number) {
     await this.tcpClientAdapter.connect(ipAddress, port);
+
+    // Persuade peer to connect to the current user's tcp server by giving the ip address and port
     this.sendMessage({
       type: "handshake",
       data: {
         port: this.networkConfig.port,
-        ipAddress: "10.0.2.2",
+        ipAddress: this.networkConfig.ipAddress,
       },
     });
 
@@ -90,6 +97,7 @@ export class ConnectionService {
     this.tcpClientAdapter.sendMessage(message);
   }
 
+  // TODO: Make tcp as fallback once webrtc failed
   sendChatMessage(message: any) {
     this.webrtcAdapter.sendDataMessage({ type: "chat", message: message });
   }
