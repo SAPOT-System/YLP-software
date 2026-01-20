@@ -1,6 +1,5 @@
 import { NetworkConfig } from "@/features/shared";
 import { TcpServerAdapter, WebrtcAdapter, TcpClientAdapter } from "../adapter";
-import { PeerService } from "./peer-service";
 
 // This class will handle connection to peers. This will be the one who will send and receive data from peers.
 export class ConnectionService {
