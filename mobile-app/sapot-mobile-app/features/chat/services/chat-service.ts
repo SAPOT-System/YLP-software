@@ -1,26 +1,25 @@
 import {
-  Peer,
-  MessageStatus,
+  Conversation,
+  ConversationParticipantRole,
+  ConversationType,
   database,
+  Peer,
   UserStore,
-  ChatType,
-  ParticipantRole,
-  Chat,
 } from "@/features/shared";
 import { ConnectionService } from "./connection-service";
 import { MessageRepository } from "./message-repository";
 import { PeerService } from "./peer-service";
-import { ChatRepository } from "./chat-repository";
-import { ParticipantRepository } from "./participant-repository";
+import { ConversationParticipantRepository } from "./conversation-participant-repository";
+import { ConversationRepository } from "./conversation-repository";
 
-// This is class will be responsible of behavior and rules of the conversation/chat.
+// This is class will be responsible of behavior and rules of the conversation.
 export class ChatService {
   private peer?: Peer;
-  private chat?: Chat;
+  private conversation?: Conversation;
   constructor(
     private connectionService: ConnectionService,
-    private chatRepository: ChatRepository,
-    private participantRepository: ParticipantRepository,
+    private conversationRepository: ConversationRepository,
+    private conversationParticipantRepository: ConversationParticipantRepository,
     private messageRepository: MessageRepository,
     private peerService: PeerService,
     private userStore: UserStore
@@ -47,12 +46,12 @@ export class ChatService {
 
   disconnect() {
     this.connectionService.disconnect();
-    this.chat = undefined;
+    this.conversation = undefined;
     this.peer = undefined;
   }
 
   // TODO: make a transaction on this function to follow ACID principle
-  // TODO: make a logic where user can send chat even if the receiver is not online. Store the sent chat and wait for receiver to be online. 
+  // TODO: make a logic where user can send conversation even if the receiver is not online. Store the sent conversation and wait for receiver to be online.
   async sendChatMessage(message: string) {
     try {
       if (!this.connectionService.isConnected)
@@ -60,18 +59,21 @@ export class ChatService {
 
       if (!this.peer) throw new Error("No peer state stored");
 
-      // Make sure chat property is initialized
-      if (!this.chat) {
-        // Check if the direct chat state between current user and peer is created
-        const chatId = await this.participantRepository.isDirectChatExists([
-          this.peer.id,
-          this.userStore.user.id,
-        ]);
-          
-        if (!chatId) {
-          this.chat = await this.createChatRoom()
+      // Make sure conversation property is initialized
+      if (!this.conversation) {
+        // Check if the direct conversation state between current user and peer is created
+        const conversationId =
+          await this.conversationParticipantRepository.isDirectConversationExists(
+            [this.peer.id, this.userStore.user.id]
+          );
+
+        if (!conversationId) {
+          this.conversation = await this.createChatRoom();
         } else {
-          this.chat = await this.chatRepository.findChatById(chatId);
+          this.conversation =
+            await this.conversationRepository.queryConversationById(
+              conversationId
+            );
         }
       }
 
@@ -79,50 +81,53 @@ export class ChatService {
 
       this.messageRepository.saveMessage({
         sender: this.peer,
-        message: message,
-        status: MessageStatus.SENT,
-        chat: this.chat,
+        content: message,
+        conversation: this.conversation,
       });
+      // TODO: communicate to message status repository to add the message status for the message
     } catch (error) {
-      console.error("[ChatService]: Error sending chat message", error);
+      console.error("[ChatService]: Error sending conversation message", error);
     }
   }
 
   private async createChatRoom() {
     // Wrap into write method to ensure ACID for safety transaction
     return await database.write(async () => {
-      const chat = await this.chatRepository.createRepository(
+      const conversation = await this.conversationRepository.saveConversation(
         {
-          type: ChatType.DIRECT,
+          type: ConversationType.DIRECT,
         },
         true
       );
-      await this.participantRepository.addMultiple(
+      await this.conversationParticipantRepository.saveMultipleConversationParticipant(
         [this.peer!, this.userStore.user],
-        chat,
-        ParticipantRole.MEMBER,
+        conversation,
+        ConversationParticipantRole.MEMBER,
         true
       );
-      return chat;
+      return conversation;
     });
   }
 
-  // TODO: Determine if the chat is direct or group chat for integrating group chat soon
-  // For now, I assume that we don't have group chat
-  // This is used by chat room when the source is chat list.
+  // TODO: Determine if the conversation is direct or group conversation for integrating group conversation soon
+  // For now, I assume that we don't have group conversationt
+  // This is used by conversation room when the source is conversation list.
   async findPeerIdByChatId(chatId: string) {
-    const participants = await this.participantRepository.getPeerByChatId(
-      chatId,
-      this.userStore.user.id
-    );
-    return participants[0].peer.id;
+    const participants =
+      await this.conversationParticipantRepository.queryPeerByChatId(
+        chatId,
+        this.userStore.user.id
+      );
+    return participants[0].user.id;
   }
 
   async initializePeerByChatId(chatId: string) {
-    this.chat = await this.chatRepository.findChatById(chatId);
+    this.conversation = await this.conversationRepository.queryConversationById(
+      chatId
+    );
   }
 
   async getAllPeers() {
-    return await this.chatRepository.queryAllChats();
+    return await this.conversationRepository.queryAllConversation();
   }
 }

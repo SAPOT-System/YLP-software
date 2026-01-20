@@ -1,20 +1,25 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
-import Chat from "./Chat";
 import Peer from "./Peer";
+import Conversation from "./Conversation";
 
-export enum MessageStatus {
-  SENT = "sent",
-  DELIVERED = "delivered",
-  READ = "read",
+export enum MessageType {
+  TEXT = "text",
+  PHOTO = "photo",
+  VIDEO = "video",
+  FILE = "file",
 }
+
 export default class Message extends Model {
   static table = "messages";
 
-  @field("message") message!: string;
-  @field("status") status!: MessageStatus;
+  @field("message_type") messageType!: MessageType;
+  @field("content") content!: string;
   @date("created_at") createdAt!: Date;
+  @date("edited_at") editedAt!: Date;
+  @date("is_deleted") isDeleted!: boolean;
 
-  @relation("chats", "chat") chat!: Relation<Chat>;
+  @relation("conversations", "conversation")
+  conversation!: Relation<Conversation>;
   @relation("peers", "sender") sender!: Relation<Peer>;
 }

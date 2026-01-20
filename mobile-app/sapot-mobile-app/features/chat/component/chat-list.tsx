@@ -1,15 +1,15 @@
 import { View, Text, FlatList, Pressable } from "react-native";
 import React from "react";
-import { Chat, database } from "@/features/shared";
+import { Conversation, database } from "@/features/shared";
 import { useRouter } from "expo-router";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { ChatRoomSource } from "@/app/chat/[id]";
 
 const enhanceChats = withObservables([], () => ({
-  chats: database.get<Chat>("chats").query().observe(),
+  chats: database.get<Conversation>("conversations").query().observe(),
 }));
 
-const ChatList = enhanceChats(({ chats }: { chats: Chat[] }) => {
+const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
   return (
     <View>
       <Text style={{ fontSize: 16 }}>Chat List</Text>
@@ -22,11 +22,14 @@ const ChatList = enhanceChats(({ chats }: { chats: Chat[] }) => {
   );
 });
 
-const enhanceChat = withObservables(["chat"], ({ chat }: { chat: Chat }) => ({
-  chat,
-}));
+const enhanceChat = withObservables(
+  ["chat"],
+  ({ chat }: { chat: Conversation }) => ({
+    chat,
+  })
+);
 
-const ChatListItem = enhanceChat(({ chat }: { chat: Chat }) => {
+const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
   const router = useRouter();
   return (
     <Pressable
@@ -43,7 +46,7 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Chat }) => {
       }}
     >
       <Text>
-        {chat.id}^^^{chat.updatedAt.toLocaleString()}
+        {chat.id}^^^{chat.createdAt.toLocaleString()}
       </Text>
     </Pressable>
   );

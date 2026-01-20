@@ -8,14 +8,15 @@ export class PeerRepository {
 
   constructor(db: Database) {
     this.db = db;
-    this.peersCollection = this.db.get<Peer>("peers");
+    this.peersCollection = this.db.get<Peer>(Peer.table);
   }
 
-  async addPeer(newPeer: { id: string; username: string }) {
+  async savePeer(newPeer: { id: string; username: string }) {
     try {
       return await this.db.write(async () => {
         const peer = await this.peersCollection.create((peer: Peer) => {
           peer.username = newPeer.username;
+          peer.isOnline = false;
           peer._raw.id = newPeer.id;
         });
         return peer;
@@ -81,7 +82,7 @@ export class PeerRepository {
     }
   }
 
-  async findPeerById(id: string) {
+  async queryPeerById(id: string) {
     try {
       const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
       return peer;
