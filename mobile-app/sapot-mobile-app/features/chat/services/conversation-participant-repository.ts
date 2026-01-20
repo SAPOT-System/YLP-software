@@ -1,7 +1,7 @@
 import { Chat, Participant, ParticipantRole, Peer } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
-export class ParticipantRepository {
+export class ConversationParticipantRepository {
   private participantsCollection: Collection<Participant>;
   constructor(private db: Database) {
     this.participantsCollection = this.db.get<Participant>("participants");
@@ -33,7 +33,7 @@ export class ParticipantRepository {
       }
     } catch (error) {
       console.error(
-        "[ParticipantRepository]: Error creating chat participant:",
+        "[ConversationParticipantRepository]: Error creating chat participant:",
         error
       );
       throw error;
@@ -54,7 +54,7 @@ export class ParticipantRepository {
       );
     } catch (error) {
       console.error(
-        "[ParticipantRepository]: Error creating multiple chat participant:",
+        "[ConversationParticipantRepository]: Error creating multiple chat participant:",
         error
       );
       throw error;
@@ -84,7 +84,7 @@ export class ParticipantRepository {
       return directChatId;
     } catch (error) {
       console.error(
-        "[ParticipantRepository]: Error finding if chat exist between peers:"
+        "[ConversationParticipantRepository]: Error finding if chat exist between peers:"
       );
       error;
       throw error;
@@ -109,7 +109,7 @@ export class ParticipantRepository {
       return peer;
     } catch (error) {
       console.error(
-        "[ParticipantRepository]: Error finding peer by chat id:",
+        "[ConversationParticipantRepository]: Error finding peer by chat id:",
         error
       );
       throw error;

@@ -10,8 +10,8 @@ import {
 import { ConnectionService } from "./connection-service";
 import { MessageRepository } from "./message-repository";
 import { PeerService } from "./peer-service";
-import { ChatRepository } from "./chat-repository";
-import { ParticipantRepository } from "./participant-repository";
+import { ConversationRepository } from "./conversation-repository";
+import { ConversationParticipantRepository } from "./conversation-participant-repository";
 
 // This is class will be responsible of behavior and rules of the conversation/chat.
 export class ChatService {
@@ -19,8 +19,8 @@ export class ChatService {
   private chat?: Chat;
   constructor(
     private connectionService: ConnectionService,
-    private chatRepository: ChatRepository,
-    private participantRepository: ParticipantRepository,
+    private conversationRepository: ConversationRepository,
+    private conversationParticipantRepository: ConversationParticipantRepository,
     private messageRepository: MessageRepository,
     private peerService: PeerService,
     private userStore: UserStore
@@ -63,7 +63,7 @@ export class ChatService {
       // Make sure chat property is initialized
       if (!this.chat) {
         // Check if the direct chat state between current user and peer is created
-        const chatId = await this.participantRepository.isDirectChatExists([
+        const chatId = await this.conversationParticipantRepository.isDirectChatExists([
           this.peer.id,
           this.userStore.user.id,
         ]);
@@ -71,7 +71,7 @@ export class ChatService {
         if (!chatId) {
           this.chat = await this.createChatRoom()
         } else {
-          this.chat = await this.chatRepository.findChatById(chatId);
+          this.chat = await this.conversationRepository.findChatById(chatId);
         }
       }
 
@@ -91,13 +91,13 @@ export class ChatService {
   private async createChatRoom() {
     // Wrap into write method to ensure ACID for safety transaction
     return await database.write(async () => {
-      const chat = await this.chatRepository.createRepository(
+      const chat = await this.conversationRepository.createRepository(
         {
           type: ChatType.DIRECT,
         },
         true
       );
-      await this.participantRepository.addMultiple(
+      await this.conversationParticipantRepository.addMultiple(
         [this.peer!, this.userStore.user],
         chat,
         ParticipantRole.MEMBER,
@@ -111,7 +111,7 @@ export class ChatService {
   // For now, I assume that we don't have group chat
   // This is used by chat room when the source is chat list.
   async findPeerIdByChatId(chatId: string) {
-    const participants = await this.participantRepository.getPeerByChatId(
+    const participants = await this.conversationParticipantRepository.getPeerByChatId(
       chatId,
       this.userStore.user.id
     );
@@ -119,10 +119,10 @@ export class ChatService {
   }
 
   async initializePeerByChatId(chatId: string) {
-    this.chat = await this.chatRepository.findChatById(chatId);
+    this.chat = await this.conversationRepository.findChatById(chatId);
   }
 
   async getAllPeers() {
-    return await this.chatRepository.queryAllChats();
+    return await this.conversationRepository.queryAllChats();
   }
 }

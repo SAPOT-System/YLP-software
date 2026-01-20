@@ -1,7 +1,7 @@
 import { Chat, ChatType } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
-export class ChatRepository {
+export class ConversationRepository {
   chatCollections: Collection<Chat>;
   constructor(private db: Database) {
     this.chatCollections = this.db.get<Chat>("chats");
@@ -24,7 +24,7 @@ export class ChatRepository {
         return this.chatCollections.database.write(action);
       }
     } catch (error) {
-      console.error("[ChatRepository]: Error creating chat:", error);
+      console.error("[ConversationRepository]: Error creating chat:", error);
       throw error;
     }
   }
@@ -36,7 +36,7 @@ export class ChatRepository {
 
       return result[0].type === ChatType.DIRECT ? true : false;
     } catch (error) {
-      console.error("[ChatRepository]: Error finding if chat exist:", error);
+      console.error("[ConversationRepository]: Error finding if chat exist:", error);
       throw error;
     }
   }
@@ -45,7 +45,7 @@ export class ChatRepository {
     try {
       return (await this.chatCollections.query().fetch()) || [];
     } catch (error) {
-      console.error("[ChatRepository]: Error finding if chat exist:", error);
+      console.error("[ConversationRepository]: Error finding if chat exist:", error);
       throw error;
     }
   }
@@ -56,7 +56,7 @@ export class ChatRepository {
     try {
       return await this.chatCollections.find(chatId);
     } catch (error) {
-      console.error("[ChatRepository]: Error finding chat by id:", error);
+      console.error("[ConversationRepository]: Error finding chat by id:", error);
       throw error;
     }
   }
