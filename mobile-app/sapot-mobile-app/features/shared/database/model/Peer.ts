@@ -1,7 +1,7 @@
 import { Model } from "@nozbe/watermelondb";
 import { date, field } from "@nozbe/watermelondb/decorators";
 
-export default class Peer extends Model {
+export class Peer extends Model {
   static table = "peers";
 
   @field("username") username!: string;

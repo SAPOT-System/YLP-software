@@ -1,14 +1,14 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
-import Conversation from "./Conversation";
-import Peer from "./Peer";
+import { Conversation } from "./Conversation";
+import { Peer } from "./Peer";
 
 export enum ConversationParticipantRole {
   MEMBER = "member",
   ADMIN = "admin",
 }
 
-export default class ConversationParticipant extends Model {
+export class ConversationParticipant extends Model {
   static table = "conversation_participants";
 
   @field("role") role!: ConversationParticipantRole;
