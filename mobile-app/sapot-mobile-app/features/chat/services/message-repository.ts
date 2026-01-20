@@ -1,27 +1,26 @@
-import { Chat, Message, MessageStatus, Peer } from "@/features/shared";
+import { Conversation, Message, MessageStatus, Peer } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class MessageRepository {
   private messagesCollection: Collection<Message>;
 
   constructor(private db: Database) {
-    this.messagesCollection = db.get<Message>("messages");
+    this.messagesCollection = db.get<Message>(Message.table);
   }
 
+  // TODO: make the content type flexible for other type of messages
   async saveMessage(newMessage: {
     sender: Peer;
-    status: MessageStatus;
-    message: string;
-    chat: Chat;
+    content: string;
+    conversation: Conversation;
   }) {
     try {
       const savedMessage = await this.db.write(async () => {
         const message = await this.messagesCollection.create(
           (message: Message) => {
             message.sender.set(newMessage.sender);
-            message.chat.set(newMessage.chat);
-            message.message = newMessage.message;
-            message.status = newMessage.status;
+            message.conversation.set(newMessage.conversation);
+            message.content = newMessage.content;
             message.createdAt = new Date();
           }
         );

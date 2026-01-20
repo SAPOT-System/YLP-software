@@ -8,7 +8,7 @@ export class PeerRepository {
 
   constructor(db: Database) {
     this.db = db;
-    this.peersCollection = this.db.get<Peer>("peers");
+    this.peersCollection = this.db.get<Peer>(Peer.table);
   }
 
   async savePeer(newPeer: { id: string; username: string }) {
@@ -16,6 +16,7 @@ export class PeerRepository {
       return await this.db.write(async () => {
         const peer = await this.peersCollection.create((peer: Peer) => {
           peer.username = newPeer.username;
+          peer.isOnline = false;
           peer._raw.id = newPeer.id;
         });
         return peer;

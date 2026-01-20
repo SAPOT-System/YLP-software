@@ -1,93 +1,101 @@
-import { Chat, Participant, ParticipantRole, Peer } from "@/features/shared";
+import {
+  Conversation,
+  ConversationParticipantRole,
+  ConversationParticipant,
+  Peer,
+} from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class ConversationParticipantRepository {
-  private participantsCollection: Collection<Participant>;
+  private conversationParticipantsCollection: Collection<ConversationParticipant>;
   constructor(private db: Database) {
-    this.participantsCollection = this.db.get<Participant>("participants");
+    this.conversationParticipantsCollection =
+      this.db.get<ConversationParticipant>(ConversationParticipant.table);
   }
 
-  async saveConversation(
+  async saveConversationParticipant(
     newParticipant: {
-      role: ParticipantRole;
-      chat: Chat;
-      peer: Peer;
+      role: ConversationParticipantRole;
+      conversation: Conversation;
+      user: Peer;
     },
     isInTransaction = false
   ) {
     try {
       const action = async () => {
-        return await this.participantsCollection.create((participant) => {
-          participant.role = newParticipant.role;
-          participant.chat.set(newParticipant.chat);
-          participant.peer.set(newParticipant.peer);
-          participant.joinedAt = new Date();
-          participant.createdAt = new Date();
-        });
+        return await this.conversationParticipantsCollection.create(
+          (participant) => {
+            participant.role = newParticipant.role;
+            participant.conversation.set(newParticipant.conversation);
+            participant.user.set(newParticipant.user);
+            participant.joinedAt = new Date();
+            participant.isDeleted = false; // TODO: find way to make the false as default for isDeleted columns
+          }
+        );
       };
 
       if (isInTransaction) {
         return action();
       } else {
-        return this.participantsCollection.database.write(action);
+        return this.conversationParticipantsCollection.database.write(action);
       }
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error creating chat participant:",
+        "[ConversationParticipantRepository]: Error creating conversation participant:",
         error
       );
       throw error;
     }
   }
 
-  async saveMultipleConversation(
-    peers: Peer[],
-    chat: Chat,
-    role: ParticipantRole = ParticipantRole.MEMBER,
+  async saveMultipleConversationParticipant(
+    users: Peer[],
+    conversation: Conversation,
+    role: ConversationParticipantRole = ConversationParticipantRole.MEMBER,
     isInTransaction = false
   ) {
     try {
       await Promise.all(
-        peers.map((peer) =>
-          this.saveConversation(
-            { role: role, chat: chat, peer: peer },
+        users.map((user) =>
+          this.saveConversationParticipant(
+            { role: role, conversation: conversation, user: user },
             isInTransaction
           )
         )
       );
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error creating multiple chat participant:",
+        "[ConversationParticipantRepository]: Error creating multiple conversation participant:",
         error
       );
       throw error;
     }
   }
 
-  async isDirectChatExists(peerIds: string[]) {
+  async isDirectConversationExists(userIds: string[]) {
     try {
-      // Find all participants with peerIds in the list
-      const participants = await this.participantsCollection
-        .query(Q.where("peer", Q.oneOf(peerIds)))
+      // Find all participants with userIds in the list
+      const participants = await this.conversationParticipantsCollection
+        .query(Q.where("user", Q.oneOf(userIds)))
         .fetch();
 
-      // Group by chat id and count participants per chat
+      // Group by conversation id and count participants per conversation
       const chatIdCount: Record<string, number> = {};
       for (const participant of participants) {
-        chatIdCount[participant.chat.id] =
-          (chatIdCount[participant.chat.id] || 0) + 1;
+        chatIdCount[participant.conversation.id] =
+          (chatIdCount[participant.conversation.id] || 0) + 1;
       }
 
       // Find a chatId where the count matches the peerIds length
       const directChatId =
         Object.entries(chatIdCount).find(
-          ([, count]) => count === peerIds.length
+          ([, count]) => count === userIds.length
         )?.[0] || undefined;
 
       return directChatId;
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error finding if chat exist between peers:"
+        "[ConversationParticipantRepository]: Error finding if conversation exist between users:"
       );
       error;
       throw error;
@@ -95,24 +103,24 @@ export class ConversationParticipantRepository {
   }
 
   async queryAllParticipants() {
-    return await this.participantsCollection.query().fetch();
+    return await this.conversationParticipantsCollection.query().fetch();
   }
 
-  async queryPeerByChatId(chatId: string, currentUserId: string) {
+  async queryPeerByChatId(conversationId: string, currentUserId: string) {
     try {
       console.log(this.queryAllParticipants());
 
-      const participants = await this.participantsCollection
-        .query(Q.where("chat", chatId))
+      const participants = await this.conversationParticipantsCollection
+        .query(Q.where("conversation", conversationId))
         .fetch();
 
       // Exclude the user
-      const peer = participants.filter((p) => p.peer.id !== currentUserId);
+      const peer = participants.filter((p) => p.user.id !== currentUserId);
 
       return peer;
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error finding peer by chat id:",
+        "[ConversationParticipantRepository]: Error finding peer by conversation id:",
         error
       );
       throw error;

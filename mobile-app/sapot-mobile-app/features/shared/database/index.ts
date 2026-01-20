@@ -1,38 +1,45 @@
 import { Database } from "@nozbe/watermelondb";
 import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
 
-import Chat from "./model/Conversation";
+import Conversation from "./model/Conversation";
+import ConversationParticipant from "./model/ConversationParticipant";
 import Message from "./model/Message";
 import migrations from "./model/migrations";
-import Participant from "./model/ConversationParticipant";
 import Peer from "./model/Peer";
 import schema from "./model/schema";
-// const EnhancedPeerListItem = enhancePeer(PeerListItem);
+import MessageStatus from "./model/MessageStatus";
 
-// First, create the adapter to the underlying database:
 const adapter = new SQLiteAdapter({
   schema,
-  // (You might want to comment it out for development purposes -- see Migrations documentation)
   migrations,
-  // (optional database name or file system path)
-  // dbName: 'myapp',
-  // (recommended option, should work flawlessly out of the box on iOS. On Android,
-  // additional installation steps have to be taken - disable if you run into issues...)
-  jsi: true /* Platform.OS === 'ios' */,
-  // (optional, but you should implement this method)
+  jsi: true ,
   onSetUpError: (error) => {
     // Database failed to load -- offer the user to reload the app or log out
   },
 });
 
-// Then, make a Watermelon database from it!
 export const database = new Database({
   adapter,
-  modelClasses: [Peer, Message, Participant, Chat],
+  modelClasses: [
+    Peer,
+    Message,
+    ConversationParticipant,
+    Conversation,
+    MessageStatus,
+  ],
 });
 
-export { default as Chat, ChatType } from "./model/Conversation";
-export { default as Message, MessageStatus } from "./model/Message";
-export { default as Participant, ParticipantRole } from "./model/ConversationParticipant";
+export {
+  default as Conversation,
+  ConversationType,
+} from "./model/Conversation";
+export {
+  default as ConversationParticipant,
+  ConversationParticipantRole,
+} from "./model/ConversationParticipant";
+export { default as Message } from "./model/Message";
 export { default as Peer } from "./model/Peer";
-
+export {
+  default as MessageStatus,
+  MessageStatusType,
+} from "./model/MessageStatus";

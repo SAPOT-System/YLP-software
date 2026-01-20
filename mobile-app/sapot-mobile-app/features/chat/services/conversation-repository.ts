@@ -1,62 +1,79 @@
-import { Chat, ChatType } from "@/features/shared";
+import { Conversation, ConversationType } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class ConversationRepository {
-  chatCollections: Collection<Chat>;
+  conversationCollections: Collection<Conversation>;
   constructor(private db: Database) {
-    this.chatCollections = this.db.get<Chat>("chats");
+    this.conversationCollections = this.db.get<Conversation>(Conversation.table);
   }
 
-  async saveConversation(newChat: { type: ChatType }, isInTransaction = false) {
+  async saveConversation(
+    newConversation: { type: ConversationType },
+    isInTransaction = false
+  ) {
     try {
       const action = async () => {
-        return await this.chatCollections.create((chat) => {
-          chat.type = newChat.type;
-          chat.createdAt = new Date();
-          chat.updatedAt = new Date();
-          // chat.name = newChat.name;
-          // chat.updatedAt = newChat.unreadCount;
+        return await this.conversationCollections.create((conversation) => {
+          conversation.type = newConversation.type;
+          conversation.createdAt = new Date();
+          conversation.isDeleted = false;
+          // conversation.name = newConversation.name;
+          // conversation.updatedAt = newConversation.unreadCount;
         });
       };
       if (isInTransaction) {
         return action();
       } else {
-        return this.chatCollections.database.write(action);
+        return this.conversationCollections.database.write(action);
       }
     } catch (error) {
-      console.error("[ConversationRepository]: Error creating chat:", error);
+      console.error(
+        "[ConversationRepository]: Error creating conversation:",
+        error
+      );
       throw error;
     }
   }
 
-// TODO: have a logic when the there is no result
-  async isDirectChat(chatId: string) {
+  // TODO: have a logic when the there is no result
+  async isDirectConversation(chatId: string) {
     try {
-      const result = await this.chatCollections.query(Q.where("id", chatId));
+      const result = await this.conversationCollections.query(
+        Q.where("id", chatId)
+      );
 
-      return result[0].type === ChatType.DIRECT ? true : false;
+      return result[0].type === ConversationType.DIRECT ? true : false;
     } catch (error) {
-      console.error("[ConversationRepository]: Error finding if chat exist:", error);
+      console.error(
+        "[ConversationRepository]: Error finding if conversation exist:",
+        error
+      );
       throw error;
     }
   }
 
-  async queryAllChats() {
+  async queryAllConversation() {
     try {
-      return (await this.chatCollections.query().fetch()) || [];
+      return (await this.conversationCollections.query().fetch()) || [];
     } catch (error) {
-      console.error("[ConversationRepository]: Error finding if chat exist:", error);
+      console.error(
+        "[ConversationRepository]: Error finding if conversation exist:",
+        error
+      );
       throw error;
     }
   }
 
-  // Note: find method will return error if this chat id does not exist
+  // Note: find method will return error if this conversation id does not exist
   // TODO: change find method into query method
-  async queryChatById(chatId: string) {
+  async queryConversationById(chatId: string) {
     try {
-      return await this.chatCollections.find(chatId);
+      return await this.conversationCollections.find(chatId);
     } catch (error) {
-      console.error("[ConversationRepository]: Error finding chat by id:", error);
+      console.error(
+        "[ConversationRepository]: Error finding conversation by id:",
+        error
+      );
       throw error;
     }
   }
