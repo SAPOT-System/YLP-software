@@ -6,11 +6,9 @@ import {
   Peer,
   UserStore,
 } from "@/features/shared";
+import { ConversationParticipantRepository, ConversationRepository, MessageRepository } from "../repositories/";
 import { ConnectionService } from "./connection-service";
-import { MessageRepository } from "./message-repository";
 import { PeerService } from "./peer-service";
-import { ConversationParticipantRepository } from "./conversation-participant-repository";
-import { ConversationRepository } from "./conversation-repository";
 
 // This is class will be responsible of behavior and rules of the conversation.
 export class ChatService {
