@@ -1,13 +1,12 @@
-import { Platform } from "react-native";
 import { Database } from "@nozbe/watermelondb";
 import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
 
-import schema from "./model/schema";
-import migrations from "./model/migrations";
-import Peer from "./model/Peer";
+import Chat from "./model/Conversation";
 import Message from "./model/Message";
-import Participant from "./model/Participant";
-import Chat from "./model/Chat";
+import migrations from "./model/migrations";
+import Participant from "./model/ConversationParticipant";
+import Peer from "./model/Peer";
+import schema from "./model/schema";
 // const EnhancedPeerListItem = enhancePeer(PeerListItem);
 
 // First, create the adapter to the underlying database:
@@ -32,7 +31,8 @@ export const database = new Database({
   modelClasses: [Peer, Message, Participant, Chat],
 });
 
-export { default as Peer } from "./model/Peer";
+export { default as Chat, ChatType } from "./model/Conversation";
 export { default as Message, MessageStatus } from "./model/Message";
-export { default as Chat, ChatType } from "./model/Chat";
-export { default as Participant, ParticipantRole } from "./model/Participant";
+export { default as Participant, ParticipantRole } from "./model/ConversationParticipant";
+export { default as Peer } from "./model/Peer";
+

@@ -1,6 +1,6 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
-import Chat from "./Chat";
+import Chat from "./Conversation";
 import Peer from "./Peer";
 
 export enum MessageStatus {
