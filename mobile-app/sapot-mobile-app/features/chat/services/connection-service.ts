@@ -40,11 +40,13 @@ export class ConnectionService {
 
   async connectToPeer(ipAddress: string, port: number) {
     await this.tcpClientAdapter.connect(ipAddress, port);
+
+    // Persuade peer to connect to the current user's tcp server by giving the ip address and port
     this.sendMessage({
       type: "handshake",
       data: {
         port: this.networkConfig.port,
-        ipAddress: "10.0.2.2",
+        ipAddress: this.networkConfig.ipAddress,
       },
     });
 

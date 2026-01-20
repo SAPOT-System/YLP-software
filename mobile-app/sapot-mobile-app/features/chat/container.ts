@@ -99,6 +99,7 @@ export class AppContainer {
     this.initPromise = (async () => {
       console.log("Initializing...");
       await this.userService.initialize();
+      await this.networkConfig.initialize();
     })();
 
     return this.initPromise;
