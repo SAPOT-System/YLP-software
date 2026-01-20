@@ -29,6 +29,7 @@ export class MessageRepository {
       return savedMessage;
     } catch (error) {
       console.error("[MessageRepository]: Error creating a message:", error);
+      throw error;
     }
   }
 

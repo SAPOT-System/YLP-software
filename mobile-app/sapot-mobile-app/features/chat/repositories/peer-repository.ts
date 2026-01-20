@@ -115,6 +115,7 @@ export class PeerRepository {
       });
     } catch (error) {
       console.error("[PeerRepository]: Error deleting peers:", error);
+      throw error;
     }
   }
 }
