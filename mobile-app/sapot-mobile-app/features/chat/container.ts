@@ -52,7 +52,7 @@ export class AppContainer {
 
   constructor() {
     this.sessionStore = new SessionStore();
-    this.networkConfig = new NetworkConfig(this.sessionStore);
+    this.networkConfig = new NetworkConfig();
 
     this.peerRepository = new PeerRepository(database);
     this.peerService = new PeerService(this.peerRepository);
