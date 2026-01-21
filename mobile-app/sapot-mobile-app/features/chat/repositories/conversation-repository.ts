@@ -10,12 +10,16 @@ export class ConversationRepository {
   }
 
   async saveConversation(
-    newConversation: { type: ConversationType },
+    newConversation: { type: ConversationType; id?: string },
     isInTransaction = false
   ) {
     try {
       const action = async () => {
         return await this.conversationCollections.create((conversation) => {
+          if (newConversation.id) {
+            conversation._raw.id = newConversation.id;
+          }
+
           conversation.type = newConversation.type;
           conversation.createdAt = new Date();
           conversation.isDeleted = false;
@@ -88,7 +92,7 @@ export class ConversationRepository {
       const conversation = await this.conversationCollections
         .query(Q.where("id", id))
         .fetch();
-        // TODO: make a logic to return nothing if id is not exists
+      // TODO: make a logic to return nothing if id is not exists
       return conversation[0];
     } catch (error) {
       console.error(
@@ -101,7 +105,7 @@ export class ConversationRepository {
 
   // For debugging purposes
   async getConversationDestroyOps() {
-        const records = await this.conversationCollections.query().fetch();
+    const records = await this.conversationCollections.query().fetch();
     console.log(records);
 
     return records.map((r) => r.prepareDestroyPermanently());
