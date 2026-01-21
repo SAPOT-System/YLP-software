@@ -128,4 +128,18 @@ export class ChatService {
   async getAllPeers() {
     return await this.conversationRepository.queryAllConversation();
   }
+
+  async getMessagesFromConversation() {
+    if (!this.conversation) throw new Error("Conversation not initialized");
+
+    return await this.messageRepository.queryMessagesByConversation(
+      this.conversation.id
+    );
+  }
+
+  async getMessageStatus(messageId: string) {
+    return await this.messageStatusRepository.queryMessageStatusByMessage(
+      messageId
+    );
+  }
 }

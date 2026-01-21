@@ -1,4 +1,9 @@
-import { Conversation, Message, MessageStatus, Peer } from "@/features/shared";
+import {
+  Conversation,
+  Message,
+  MessageType,
+  Peer,
+} from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class MessageRepository {
@@ -20,6 +25,7 @@ export class MessageRepository {
           (message: Message) => {
             message.sender.set(newMessage.sender);
             message.conversation.set(newMessage.conversation);
+            message.messageType = MessageType.TEXT;
             message.content = newMessage.content;
             message.createdAt = new Date();
           }
@@ -33,10 +39,10 @@ export class MessageRepository {
     }
   }
 
-  async queryMessagesByChatId(chatId: string, limit = 50, offset = 0) {
+  async queryMessagesByConversation(conversationId: string, limit = 50, offset = 0) {
     try {
       return await this.messagesCollection.query(
-        Q.where("chat_id", chatId),
+        Q.where("conversation", conversationId),
         Q.sortBy("created_at", Q.desc),
         Q.skip(offset),
         Q.take(limit)
