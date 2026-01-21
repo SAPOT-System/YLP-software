@@ -126,4 +126,21 @@ export class ConversationParticipantRepository {
       throw error;
     }
   }
+
+  // For debugging purposes
+  async deleteAllParticipants() {
+    try {
+      await this.db.write(async () => {
+        const records = await this.conversationParticipantsCollection
+          .query()
+          .fetch();
+
+        const ops = records.map((r) => r.prepareDestroyPermanently());
+
+        await this.db.batch(...ops);
+      });
+    } catch (error) {
+      console.error("[ConversationParticipantRepository]: Error deleting all participants:", error);
+    }
+  }
 }

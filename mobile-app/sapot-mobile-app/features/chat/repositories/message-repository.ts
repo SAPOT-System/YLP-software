@@ -52,4 +52,19 @@ export class MessageRepository {
       throw error;
     }
   }
+
+  // For debugging purposes
+  async deleteAllMessages() {
+    try {
+      await this.db.write(async () => {
+        const records = await this.messagesCollection.query().fetch();
+
+        const ops = records.map((r) => r.prepareDestroyPermanently());
+
+        await this.db.batch(...ops);
+      });
+    } catch (error) {
+      console.error("[MessageRepository]: Error deleting all messages:", error);
+    }
+  }
 }

@@ -186,4 +186,16 @@ export class ChatService {
       messageId
     );
   }
+
+  // This is for debugging purposes
+  async deleteAllConversations() {
+    await database.action(async () => {
+      await database.batch(
+        await this.conversationRepository.deleteAllConversations(),
+        await this.messageRepository.deleteAllMessages(),
+        await this.messageStatusRepository.deleteAllStatuses(),
+        await this.conversationParticipantRepository.deleteAllParticipants()
+      );
+    });
+  }
 }

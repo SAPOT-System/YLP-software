@@ -66,6 +66,22 @@ export class ConversationRepository {
     }
   }
 
+  async isConversationExist(id: string) {
+    try {
+      const conversation = await this.conversationCollections
+        .query(Q.where("id", id))
+        .fetch();
+
+      return conversation.length > 0;
+    } catch (error) {
+      console.error(
+        "[ConversationRepository]: Error finding if conversation exists:",
+        error
+      );
+      throw error;
+    }
+  }
+
   // Note: find method will return error if this conversation id does not exist
   async queryConversationById(id: string) {
     try {
@@ -80,6 +96,24 @@ export class ConversationRepository {
         error
       );
       throw error;
+    }
+  }
+
+  // For debugging purposes
+  async deleteAllConversations() {
+    try {
+      await this.db.write(async () => {
+        const records = await this.conversationCollections.query().fetch();
+
+        const ops = records.map((r) => r.prepareDestroyPermanently());
+
+        await this.db.batch(...ops);
+      });
+    } catch (error) {
+      console.error(
+        "[ConversationParticipant]: Error deleting all conversations:",
+        error
+      );
     }
   }
 }
