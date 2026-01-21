@@ -23,12 +23,12 @@ export class UserService {
       // find the current user in the peers table
       const foundUser = await this.peerService.findPeerById(id);
       let user: Peer;
-      if (foundUser.length <= 0) {
+      if (!foundUser) {
         // if current user is not in the peers table, create current user
         const username = this.generateUsername();
         user = await this.peerService.createUser(id, username);
       } else {
-        user = foundUser[0];
+        user = foundUser;
       }
 
       // store the user's peer object

@@ -1,9 +1,4 @@
-import {
-  Conversation,
-  Message,
-  MessageType,
-  Peer,
-} from "@/features/shared";
+import { Conversation, Message, MessageType, Peer } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class MessageRepository {
@@ -14,15 +9,20 @@ export class MessageRepository {
   }
 
   // TODO: make the content type flexible for other type of messages
+  // TODO: make the parameter as destrcutured
   async saveMessage(newMessage: {
     sender: Peer;
     content: string;
     conversation: Conversation;
+    messageId?: string;
   }) {
     try {
       const savedMessage = await this.db.write(async () => {
         const message = await this.messagesCollection.create(
           (message: Message) => {
+            if (newMessage.messageId) {
+              message._raw.id = newMessage.messageId;
+            }
             message.sender.set(newMessage.sender);
             message.conversation.set(newMessage.conversation);
             message.messageType = MessageType.TEXT;
@@ -39,7 +39,11 @@ export class MessageRepository {
     }
   }
 
-  async queryMessagesByConversation(conversationId: string, limit = 50, offset = 0) {
+  async queryMessagesByConversation(
+    conversationId: string,
+    limit = 50,
+    offset = 0
+  ) {
     try {
       return await this.messagesCollection.query(
         Q.where("conversation", conversationId),
@@ -51,5 +55,12 @@ export class MessageRepository {
       console.error("[MessageRepository]: Error querying messages:", error);
       throw error;
     }
+  }
+
+  // For debugging purposes
+  async getAllMessageDestroyOps() {
+    const records = await this.messagesCollection.query().fetch();
+
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

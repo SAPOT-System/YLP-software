@@ -2,7 +2,7 @@ import { View, Text, FlatList } from "react-native";
 import React, { useEffect, useState } from "react";
 import { Message, MessageStatus, database } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
-import useMessage from "../hooks/use-message";
+import { Q } from "@nozbe/watermelondb";
 
 const enhanceMessages = withObservables([], () => ({
   messages: database.get<Message>(Message.table).query().observe(),
@@ -25,23 +25,35 @@ const enhanceMessage = withObservables(
   ["message"],
   ({ message }: { message: Message }) => ({
     message,
+    status: database
+      .get<MessageStatus>(MessageStatus.table)
+      .query(Q.where("message", message.id))
+      .observeWithColumns(["status"]),
   })
 );
 
-const MessageListItem = enhanceMessage(({ message }: { message: Message }) => {
-  const { getMessageStatus } = useMessage();
-  const [status, setStatus] = useState<MessageStatus | undefined>();
+const MessageListItem = enhanceMessage(
+  ({ message, status }: { message: Message; status: MessageStatus[] }) => {
+    console.log("[MessageListItem] messageId:", message.id);
+    console.log("[MessageListItem] status rows:", status.length);
+    const statusObj = status?.[0];
 
-  useEffect(() => {
-    getMessageStatus(message.id).then((s) => setStatus(s));
-  }, [message.id]);
-
-  return (
-    <Text>
-      Message: {message.content}, SentAt: {message.createdAt.toLocaleString()},
-      Status: {status?.status}
-    </Text>
-  );
-});
+    // For the peer message that don't need messgae status
+    if (!statusObj) {
+      return (
+        <Text>
+          Message: {message.content}, SentAt:{" "}
+          {message.createdAt.toLocaleString()}
+        </Text>
+      );
+    }
+    return (
+      <Text>
+        Message: {message.content}, SentAt: {message.createdAt.toLocaleString()}
+        , Status: {statusObj.status}
+      </Text>
+    );
+  }
+);
 
 export default MessageList;

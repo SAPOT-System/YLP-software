@@ -126,4 +126,13 @@ export class ConversationParticipantRepository {
       throw error;
     }
   }
+
+  // For debugging purposes
+  async getParticipantDestroyOps() {
+        const records = await this.conversationParticipantsCollection
+          .query()
+          .fetch();
+
+    return records.map((r) => r.prepareDestroyPermanently());
+  }
 }

@@ -15,6 +15,7 @@ import {
 } from "../repositories/";
 import { ConnectionService } from "./connection-service";
 import { PeerService } from "./peer-service";
+import { SentMessageI } from "../types";
 
 // This is class will be responsible of behavior and rules of the conversation.
 export class ChatService {
@@ -37,8 +38,9 @@ export class ChatService {
       if (!discoveredPeer) throw new Error("Peer not discovered");
 
       const foundUser = await this.peerService.findPeerById(id);
-      if (foundUser.length <= 0) throw new Error("Peer not found");
-      this.peer = foundUser[0];
+      if (!foundUser) throw new Error("Peer not found");
+      console.log("[ChatService]: foundUser:", foundUser);
+      this.peer = foundUser;
 
       await this.connectionService.connectToPeer(
         discoveredPeer.ipAddress,
@@ -53,6 +55,72 @@ export class ChatService {
     this.connectionService.disconnect();
     this.conversation = undefined;
     this.peer = undefined;
+  }
+
+  // TODO: Apply ACID principle and retry if failed
+  async handleIncomingChatMessage(data: SentMessageI) {
+    try {
+      // Check if the direct conversation state between current user and peer is created
+      console.log("[ChatService]: Handling incoming chat message");
+      const isConversationExist =
+        await this.conversationRepository.isConversationExist(
+          data.conversationId
+        );
+
+      console.log("[ChatService]: Conversation exist", isConversationExist);
+      // TODO: inform user if peer state is not initialize
+
+      const sender = await this.peerService.findPeerById(data.senderId);
+
+      // TODO: create sender if not exists in the database
+
+      console.log("[ChatService]: Sender:", sender.id);
+
+      // Initialize the conversation
+      let conversation: Conversation;
+      if (!isConversationExist)
+        conversation = await this.createChatRoom(sender, data.conversationId);
+      else
+        conversation = await this.conversationRepository.queryConversationById(
+          data.conversationId
+        );
+
+      console.log("[ChatService]: Conversation:", conversation.id);
+      // Create message without taking the message status
+      await this.messageRepository.saveMessage({
+        sender: sender,
+        content: data.message,
+        conversation: conversation,
+      });
+
+      console.log("[ChatService]: Message ID:", data.messageId);
+
+      // Send acknowledge
+      this.connectionService.sendAckMessage({ messageId: data.messageId });
+    } catch (error) {
+      console.error(
+        "[ChatService]: Error handling incoming chat message:",
+        error
+      );
+    }
+  }
+
+  async handleAckMessage(messageId: string) {
+    try {
+      console.log(
+        `[ChatService]: Handling acknowledge message with a message id of ${messageId}...`
+      );
+
+      await this.messageStatusRepository.updateMessageStatusByMessage(
+        messageId,
+        MessageStatusType.DELIVERED
+      );
+    } catch (error) {
+      console.error(
+        "[ChatService]: Error handling acknowledge message:",
+        error
+      );
+    }
   }
 
   // TODO: make a transaction on this function to follow ACID principle
@@ -73,7 +141,7 @@ export class ChatService {
           );
 
         if (!conversationId) {
-          this.conversation = await this.createChatRoom();
+          this.conversation = await this.createChatRoom(this.peer);
         } else {
           this.conversation =
             await this.conversationRepository.queryConversationById(
@@ -82,12 +150,15 @@ export class ChatService {
         }
       }
 
+      // Create the message and message status
       const { newMessage, newMessageStatus } = await this.createMessage({
-        sender: this.peer,
+        sender: this.userStore.user,
         message: message,
         conversation: this.conversation,
       });
 
+
+      // TODO: implement not sent message status if there is an error and create a throw in the statements. Probably trycatch in this part
       this.connectionService.sendChatMessage({
         message: message,
         conversationId: this.conversation.id,
@@ -97,12 +168,12 @@ export class ChatService {
         messageType: newMessage.messageType,
       });
 
-      await this.messageStatusRepository.updateMessageStatus(
+      // Update into sent
+      await this.messageStatusRepository.updateMessageStatusById(
         newMessageStatus.id,
         MessageStatusType.SENT
       );
     } catch (error) {
-      // TODO: implement not sent message status if there is an error and create a throw in the statements
       console.error("[ChatService]: Error sending conversation message", error);
     }
   }
@@ -132,17 +203,18 @@ export class ChatService {
     return { newMessage, newMessageStatus };
   }
 
-  private async createChatRoom() {
+  private async createChatRoom(peer: Peer, conversationId?: string) {
     // Wrap into write method to ensure ACID for safety transaction
     return await database.write(async () => {
       const conversation = await this.conversationRepository.saveConversation(
         {
           type: ConversationType.DIRECT,
+          id: conversationId,
         },
         true
       );
       await this.conversationParticipantRepository.saveMultipleConversationParticipant(
-        [this.peer!, this.userStore.user],
+        [peer, this.userStore.user],
         conversation,
         ConversationParticipantRole.MEMBER,
         true
@@ -185,5 +257,29 @@ export class ChatService {
     return await this.messageStatusRepository.queryMessageStatusByMessage(
       messageId
     );
+  }
+
+  async getAllParticipants() {
+    console.log(
+      await this.conversationParticipantRepository.queryAllParticipants()
+    );
+  }
+
+  async getAllStatus() {
+    console.log(await this.messageStatusRepository.queryAllStatuses());
+  }
+
+  // This is for debugging purposes
+  async deleteAllConversations() {
+    await database.write(async () => {
+      const convOps =
+        await this.conversationRepository.getConversationDestroyOps();
+      const msgOps = await this.messageRepository.getAllMessageDestroyOps();
+      const statusOps =
+        await this.messageStatusRepository.getStatusDestroyOps();
+      const partOps =
+        await this.conversationParticipantRepository.getParticipantDestroyOps();
+      await database.batch(...convOps, ...msgOps, ...statusOps, ...partOps);
+    });
   }
 }
