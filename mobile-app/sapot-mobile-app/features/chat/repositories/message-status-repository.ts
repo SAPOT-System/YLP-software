@@ -84,6 +84,10 @@ export class MessageStatusRepository {
     }
   }
 
+  async queryAllStatuses() {
+    return await this.messageStatusCollection.query().fetch();
+  }
+
   // For debugging purposes
   async getStatusDestroyOps() {
         const records = await this.messageStatusCollection.query().fetch();
