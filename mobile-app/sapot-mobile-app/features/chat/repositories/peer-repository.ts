@@ -85,7 +85,7 @@ export class PeerRepository {
   async queryPeerById(id: string) {
     try {
       const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
-      return peer;
+      return peer[0];
     } catch (error) {
       console.error("[PeerRepository]: Error finding id:", error);
       throw error;
