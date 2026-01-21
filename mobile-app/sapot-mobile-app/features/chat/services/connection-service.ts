@@ -127,17 +127,21 @@ export class ConnectionService {
     sentAt,
     messageType,
   }: SentMessageI) {
-    this.webrtcAdapter.sendDataMessage({
-      type: "chat",
-      data: {
-        message: message,
-        conversationId: conversationId,
-        messageId: messageId,
-        senderId: senderId,
-        sentAt: sentAt,
-        messageType: messageType,
-      },
-    });
+    try {
+      this.webrtcAdapter.sendDataMessage({
+        type: "chat",
+        data: {
+          message: message,
+          conversationId: conversationId,
+          messageId: messageId,
+          senderId: senderId,
+          sentAt: sentAt,
+          messageType: messageType,
+        },
+      });
+    } catch (error) {
+      throw error;
+    }
   }
 
   // TODO: make tcp as fallback

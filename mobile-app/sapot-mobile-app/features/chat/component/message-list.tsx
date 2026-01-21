@@ -4,9 +4,14 @@ import { Message, MessageStatus, database } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Q } from "@nozbe/watermelondb";
 
-const enhanceMessages = withObservables([], () => ({
-  messages: database.get<Message>(Message.table).query().observe(),
-}));
+const enhanceMessages = withObservables(
+  ["conversationId"],
+  ({ conversationId }: { conversationId: string }) => ({
+    messages: database
+      .get<Message>(Message.table)
+      .query(Q.where("conversation", conversationId)),
+  })
+);
 
 const MessageList = enhanceMessages(({ messages }: { messages: Message[] }) => {
   return (

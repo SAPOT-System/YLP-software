@@ -20,40 +20,44 @@ export enum ChatRoomSource {
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
+  const [isRendered, setIsRendered] = useState(false);
+  const [conversationId, setConversationId] = useState<string | undefined>();
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[] | undefined>();
   const chatService = useChatService();
 
   // This will initialize the connection to the peer and conversations by the id params
   useEffect(() => {
-    // TODO: Allow user to chat even if not connected.
     const connect = async () => {
       try {
         let peerId = "";
         if (source === ChatRoomSource.PEER) {
           peerId = id as string;
+          const chatId = await chatService.findChatByPeer(peerId);
+          if (chatId) setConversationId(chatId);
         } else if (source === ChatRoomSource.CHAT) {
           peerId = await chatService.findPeerIdByChatId(id as string);
-          await chatService.initializePeerByChatId(id as string);
-          const retreiveMessages =
-            await chatService.getMessagesFromConversation();
-          setMessages(retreiveMessages);
+          setConversationId(id as string);
         } else {
           throw Error("Error in passed source paramater");
         }
-
-        setIsConnected(true);
         await chatService.connect(peerId as string);
+        setIsConnected(true);
       } catch (error) {
-        console.error("Connection failed", error);
+        console.warn("Connection failed", error);
+        // TODO: try reconnect
+      } finally {
+        setIsRendered(true);
       }
     };
     connect();
 
-    return () => chatService.disconnect();
+    return () => {
+      chatService.disconnect();
+      chatService.cleanUp();
+    };
   }, []);
 
-  if (!isConnected) return <ActivityIndicator />;
+  if (!isRendered) return <ActivityIndicator />;
 
   const handleSendMessage = () => {
     chatService.sendChatMessage(message);
@@ -67,8 +71,9 @@ const ChatRoom = () => {
         {source === ChatRoomSource.PEER
           ? "Peer list source"
           : "Chat list source"}{" "}
-        {id}
+        {id}, ConversationID: {conversationId}
       </Text>
+      {!isConnected && <Text>Not connected</Text>}
       <TextInput
         style={styles.input}
         onChangeText={setMessage}
@@ -79,7 +84,11 @@ const ChatRoom = () => {
       <Pressable onPress={handleSendMessage}>
         <Text>Send Message</Text>
       </Pressable>
-      <MessageList messages={messages} />
+      {conversationId ? (
+        <MessageList conversationId={conversationId} />
+      ) : (
+        <Text>No message</Text>
+      )}
     </View>
   );
 };

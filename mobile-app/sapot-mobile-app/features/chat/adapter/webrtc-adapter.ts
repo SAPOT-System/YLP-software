@@ -277,7 +277,7 @@ export class WebrtcAdapter extends EventEmitter {
       console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
       this.dataChannel.send(JSON.stringify(payload));
     } else {
-      console.log(`[WebrtcAdapter]: Unable to send payload`);
+      throw new Error("[WebrtcAdapter]: Unable to send payload`");
     }
   }
 
