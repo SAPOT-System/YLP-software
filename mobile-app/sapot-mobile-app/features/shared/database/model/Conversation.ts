@@ -6,7 +6,7 @@ export enum ConversationType {
   GROUP = "group",
 }
 
-export default class Conversation extends Model {
+export class Conversation extends Model {
   static table = "conversations";
 
   @field("type") type!: ConversationType;

@@ -1,7 +1,7 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
-import Peer from "./Peer";
-import Conversation from "./Conversation";
+import {Peer} from "./Peer";
+import { Conversation } from "./Conversation";
 
 export enum MessageType {
   TEXT = "text",
@@ -10,7 +10,7 @@ export enum MessageType {
   FILE = "file",
 }
 
-export default class Message extends Model {
+export class Message extends Model {
   static table = "messages";
 
   @field("message_type") messageType!: MessageType;

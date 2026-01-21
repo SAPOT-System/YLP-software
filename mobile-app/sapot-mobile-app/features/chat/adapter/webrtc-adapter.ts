@@ -7,6 +7,7 @@ import {
 } from "react-native-webrtc";
 import { EventEmitter } from "events";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
+import { MessageI } from "../types";
 
 interface RTCIceCandidateInit {
   candidate: string;
@@ -35,14 +36,14 @@ export class WebrtcAdapter extends EventEmitter {
       iceServers: [
         // No turn server for physical devices
         // Just for development for android emulators. Note that the host computer needs to run turn server to make this work.
-        // {
-        //   urls: [
-        //     "turn:10.0.2.2:5349?transport=udp",
-        //     "turn:10.0.2.2:5349?transport=tcp",
-        //   ],
-        //   username: "test",
-        //   credential: "test",
-        // },
+        {
+          urls: [
+            "turn:10.0.2.2:5349?transport=udp",
+            "turn:10.0.2.2:5349?transport=tcp",
+          ],
+          username: "test",
+          credential: "test",
+        },
       ],
       iceTransportPolicy: "all",
     };
@@ -270,12 +271,13 @@ export class WebrtcAdapter extends EventEmitter {
     };
   }
 
-  sendDataMessage(message: any) {
+  // TODO: make a type interface for the payload paramater
+  sendDataMessage(payload: MessageI<any>) {
     if (this.dataChannel && this.dataChannel.readyState === "open") {
-      console.log(`[WebrtcAdapter]: Sending message: ${message}`);
-      this.dataChannel.send(JSON.stringify(message));
+      console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
+      this.dataChannel.send(JSON.stringify(payload));
     } else {
-      console.log(`[WebrtcAdapter]: Unable to send message`);
+      console.log(`[WebrtcAdapter]: Unable to send payload`);
     }
   }
 

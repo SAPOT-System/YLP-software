@@ -1,5 +1,5 @@
 import { Service } from "react-native-zeroconf";
-import { PeerRepository } from "./peer-repository";
+import { PeerRepository } from "../repositories/";
 
 export interface DiscoveredService {
   serviceName: string;

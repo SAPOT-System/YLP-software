@@ -4,7 +4,9 @@ import { Collection, Database, Q } from "@nozbe/watermelondb";
 export class ConversationRepository {
   conversationCollections: Collection<Conversation>;
   constructor(private db: Database) {
-    this.conversationCollections = this.db.get<Conversation>(Conversation.table);
+    this.conversationCollections = this.db.get<Conversation>(
+      Conversation.table
+    );
   }
 
   async saveConversation(
@@ -65,10 +67,13 @@ export class ConversationRepository {
   }
 
   // Note: find method will return error if this conversation id does not exist
-  // TODO: change find method into query method
-  async queryConversationById(chatId: string) {
+  async queryConversationById(id: string) {
     try {
-      return await this.conversationCollections.find(chatId);
+      const conversation = await this.conversationCollections
+        .query(Q.where("id", id))
+        .fetch();
+        // TODO: make a logic to return nothing if id is not exists
+      return conversation[0];
     } catch (error) {
       console.error(
         "[ConversationRepository]: Error finding conversation by id:",

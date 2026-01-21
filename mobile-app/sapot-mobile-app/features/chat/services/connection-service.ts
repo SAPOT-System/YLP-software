@@ -1,5 +1,8 @@
-import { NetworkConfig } from "@/features/shared";
+import {  NetworkConfig } from "@/features/shared";
 import { TcpServerAdapter, WebrtcAdapter, TcpClientAdapter } from "../adapter";
+import { MessageI, SentMessageI } from "../types";
+
+// This will include the types for both tcp and webrtc message
 
 // This class will handle connection to peers. This will be the one who will send and receive data from peers.
 export class ConnectionService {
@@ -15,7 +18,12 @@ export class ConnectionService {
 
     // TODO: store the received message in the database
     // TODO: listen to the acknowledge of the receiver. In chat service where the undelivered message stored, delete the specific message once sender receive acknowledgement
-    webrtcAdapter.on("receivedMessage", (message) => {});
+    webrtcAdapter.on("receivedMessage", (message: MessageI<SentMessageI>) => {
+      if (message.type === "chat" && message.data) {
+        console.log("Chat received");
+        this.handleReceivedChatMessage(message.data);
+      }
+    });
 
     tcpServerAdapter.on("data", (message) => {
       // console.log("[MessageService]: Message recieved:", message);
@@ -92,13 +100,35 @@ export class ConnectionService {
     }
   }
 
+  private handleReceivedChatMessage(message: SentMessageI) {
+    console.log("handleReceivedMessage");
+    console.log(message);
+  }
+
   sendMessage(message: any) {
     this.tcpClientAdapter.sendMessage(message);
   }
 
   // TODO: Make tcp as fallback once webrtc failed
-  sendChatMessage(message: any) {
-    this.webrtcAdapter.sendDataMessage({ type: "chat", message: message });
+  sendChatMessage({
+    message,
+    conversationId,
+    messageId,
+    senderId,
+    sentAt,
+    messageType,
+  }: SentMessageI) {
+    this.webrtcAdapter.sendDataMessage({
+      type: "chat",
+      data: {
+        message: message,
+        conversationId: conversationId,
+        messageId: messageId,
+        senderId: senderId,
+        sentAt: sentAt,
+        messageType: messageType,
+      },
+    });
   }
 
   disconnect() {

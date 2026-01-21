@@ -17,12 +17,16 @@ import {
   DiscoveryService,
   ConnectionService,
   ChatService,
-  PeerRepository,
   PeerService,
-  MessageRepository,
-  ConversationRepository,
-  ConversationParticipantRepository,
 } from "./services";
+
+import {
+  ConversationParticipantRepository,
+  ConversationRepository,
+  MessageRepository,
+  MessageStatusRepository,
+  PeerRepository,
+} from "./repositories";
 
 // This class will be used for initializing mobile app by initializing classes.
 export class AppContainer {
@@ -42,12 +46,12 @@ export class AppContainer {
   readonly messageRepository: MessageRepository;
   readonly conversationRepository: ConversationRepository;
   readonly conversationParticipantRepository: ConversationParticipantRepository;
+  readonly messageStatusRepository: MessageStatusRepository;
 
   private initPromise?: Promise<void>;
 
   constructor() {
     this.sessionStore = new SessionStore();
-
     this.networkConfig = new NetworkConfig();
 
     this.peerRepository = new PeerRepository(database);
@@ -81,13 +85,15 @@ export class AppContainer {
 
     this.messageRepository = new MessageRepository(database);
     this.conversationRepository = new ConversationRepository(database);
-    this.conversationParticipantRepository = new ConversationParticipantRepository(database);
-
+    this.conversationParticipantRepository =
+      new ConversationParticipantRepository(database);
+    this.messageStatusRepository = new MessageStatusRepository(database);
     this.chatService = new ChatService(
       this.connectionService,
       this.conversationRepository,
       this.conversationParticipantRepository,
       this.messageRepository,
+      this.messageStatusRepository,
       this.peerService,
       this.userStore
     );
