@@ -5,7 +5,9 @@ import { Message } from "./Message";
 
 // TODO: replace the name for better understanding
 export enum MessageStatusType {
+  SENDING = "sending",
   SENT = "sent",
+  NOT_SENT = "not_sent",
   DELIVERED = "delivered",
   READ = "read",
 }
