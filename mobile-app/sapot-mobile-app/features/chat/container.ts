@@ -97,6 +97,8 @@ export class AppContainer {
       this.peerService,
       this.userStore
     );
+
+    this.connectionService.setChatService(this.chatService);
   }
 
   async initialize() {

@@ -1,11 +1,14 @@
-import {  NetworkConfig } from "@/features/shared";
-import { TcpServerAdapter, WebrtcAdapter, TcpClientAdapter } from "../adapter";
+import { NetworkConfig } from "@/features/shared";
+import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapter";
 import { MessageI, SentMessageI } from "../types";
+import { ChatService } from "./chat-service";
 
+// TODO: handle edge cases when the data format is wrong
 // This will include the types for both tcp and webrtc message
 
 // This class will handle connection to peers. This will be the one who will send and receive data from peers.
 export class ConnectionService {
+  private chatService?: ChatService;
   constructor(
     private tcpClientAdapter: TcpClientAdapter,
     private tcpServerAdapter: TcpServerAdapter,
@@ -16,12 +19,19 @@ export class ConnectionService {
       this.sendMessage(data);
     });
 
-    // TODO: store the received message in the database
     // TODO: listen to the acknowledge of the receiver. In chat service where the undelivered message stored, delete the specific message once sender receive acknowledgement
     webrtcAdapter.on("receivedMessage", (message: MessageI<SentMessageI>) => {
+      if (!this.chatService) {
+        throw new Error("Chat service not initialize");
+      }
+
       if (message.type === "chat" && message.data) {
-        console.log("Chat received");
-        this.handleReceivedChatMessage(message.data);
+        this.sendAckMessage(message.data);
+        this.chatService.handleIncomingChatMessage(message.data);
+      }
+      if (message.type === "ack" && message.data) {
+        console.log("Ack received");
+        this.chatService.handleAckMessage(message.data.messageId);
       }
     });
 
@@ -37,6 +47,10 @@ export class ConnectionService {
       }
       // TODO: soon, implement tcp for fallback of webrtc
     });
+  }
+
+  setChatService(chatService: ChatService) {
+    this.chatService = chatService;
   }
 
   start() {
@@ -100,11 +114,6 @@ export class ConnectionService {
     }
   }
 
-  private handleReceivedChatMessage(message: SentMessageI) {
-    console.log("handleReceivedMessage");
-    console.log(message);
-  }
-
   sendMessage(message: any) {
     this.tcpClientAdapter.sendMessage(message);
   }
@@ -127,6 +136,18 @@ export class ConnectionService {
         senderId: senderId,
         sentAt: sentAt,
         messageType: messageType,
+      },
+    });
+  }
+
+  // TODO: make tcp as fallback
+  // ACK message will be used for the sender to know if the message is delivered or not
+  sendAckMessage({ messageId }: { messageId: string }) {
+    console.log("sending ack message");
+    this.webrtcAdapter.sendDataMessage({
+      type: "ack",
+      data: {
+        messageId: messageId,
       },
     });
   }

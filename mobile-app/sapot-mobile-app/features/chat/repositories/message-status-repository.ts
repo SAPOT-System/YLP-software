@@ -41,7 +41,33 @@ export class MessageStatusRepository {
     }
   }
 
-  async updateMessageStatus(
+  async updateMessageStatusByMessage(
+    messageId: string,
+    status: MessageStatusType
+  ) {
+    try {
+      return await this.db.write(async () => {
+        const messageStatus = await this.messageStatusCollection.query(
+          Q.where("message", messageId)
+        );
+
+        if (messageStatus.length > 0) {
+          console.log("[MessageStatusRepository]: updating message status...");
+          await messageStatus[0].update((messageStatus) => {
+            messageStatus.status = status;
+          });
+        }
+      });
+    } catch (error) {
+      console.error(
+        "[MessageStatusRepository]: Error updateing message status:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  async updateMessageStatusById(
     messageStatusId: string,
     status: MessageStatusType
   ) {
@@ -90,7 +116,7 @@ export class MessageStatusRepository {
 
   // For debugging purposes
   async getStatusDestroyOps() {
-        const records = await this.messageStatusCollection.query().fetch();
+    const records = await this.messageStatusCollection.query().fetch();
 
     return records.map((r) => r.prepareDestroyPermanently());
   }
