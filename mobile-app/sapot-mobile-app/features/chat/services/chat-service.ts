@@ -187,6 +187,16 @@ export class ChatService {
     );
   }
 
+  async getAllParticipants() {
+    console.log(
+      await this.conversationParticipantRepository.queryAllParticipants()
+    );
+  }
+
+  async getAllStatus() {
+    console.log(await this.messageStatusRepository.queryAllStatuses());
+  }
+
   // This is for debugging purposes
   async deleteAllConversations() {
     await database.write(async () => {
