@@ -83,7 +83,7 @@ export class ChatService {
       }
 
       const { newMessage, newMessageStatus } = await this.createMessage({
-        sender: this.peer,
+        sender: this.userStore.user,
         message: message,
         conversation: this.conversation,
       });
