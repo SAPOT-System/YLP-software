@@ -8,7 +8,7 @@ const useChats = () => {
 
   useEffect(() => {
     const init = async () => {
-      setChats(await chatService.getAllPeers());
+      setChats(await chatService.getAllConversations());
     };
     init();
   }, []);

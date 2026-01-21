@@ -46,13 +46,13 @@ export class AppContainer {
   readonly messageRepository: MessageRepository;
   readonly conversationRepository: ConversationRepository;
   readonly conversationParticipantRepository: ConversationParticipantRepository;
+  readonly messageStatusRepository: MessageStatusRepository;
 
   private initPromise?: Promise<void>;
 
   constructor() {
     this.sessionStore = new SessionStore();
-
-    this.networkConfig = new NetworkConfig();
+    this.networkConfig = new NetworkConfig(this.sessionStore);
 
     this.peerRepository = new PeerRepository(database);
     this.peerService = new PeerService(this.peerRepository);
@@ -87,12 +87,13 @@ export class AppContainer {
     this.conversationRepository = new ConversationRepository(database);
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(database);
-
+    this.messageStatusRepository = new MessageStatusRepository(database);
     this.chatService = new ChatService(
       this.connectionService,
       this.conversationRepository,
       this.conversationParticipantRepository,
       this.messageRepository,
+      this.messageStatusRepository,
       this.peerService,
       this.userStore
     );

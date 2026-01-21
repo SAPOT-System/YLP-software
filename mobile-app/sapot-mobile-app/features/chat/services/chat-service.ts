@@ -3,10 +3,16 @@ import {
   ConversationParticipantRole,
   ConversationType,
   database,
+  MessageStatusType,
   Peer,
   UserStore,
 } from "@/features/shared";
-import { ConversationParticipantRepository, ConversationRepository, MessageRepository } from "../repositories/";
+import {
+  ConversationParticipantRepository,
+  ConversationRepository,
+  MessageRepository,
+  MessageStatusRepository,
+} from "../repositories/";
 import { ConnectionService } from "./connection-service";
 import { PeerService } from "./peer-service";
 
@@ -19,6 +25,7 @@ export class ChatService {
     private conversationRepository: ConversationRepository,
     private conversationParticipantRepository: ConversationParticipantRepository,
     private messageRepository: MessageRepository,
+    private messageStatusRepository: MessageStatusRepository,
     private peerService: PeerService,
     private userStore: UserStore
   ) {}
@@ -75,17 +82,54 @@ export class ChatService {
         }
       }
 
-      this.connectionService.sendChatMessage(message);
-
-      this.messageRepository.saveMessage({
+      const { newMessage, newMessageStatus } = await this.createMessage({
         sender: this.peer,
-        content: message,
+        message: message,
         conversation: this.conversation,
       });
-      // TODO: communicate to message status repository to add the message status for the message
+
+      this.connectionService.sendChatMessage({
+        message: message,
+        conversationId: this.conversation.id,
+        messageId: newMessage.id,
+        senderId: newMessage.sender.id,
+        sentAt: newMessage.createdAt,
+        messageType: newMessage.messageType,
+      });
+
+      await this.messageStatusRepository.updateMessageStatus(
+        newMessageStatus.id,
+        MessageStatusType.SENT
+      );
     } catch (error) {
+      // TODO: implement not sent message status if there is an error and create a throw in the statements
       console.error("[ChatService]: Error sending conversation message", error);
     }
+  }
+
+  // TODO: Apply transaction
+  private async createMessage({
+    sender,
+    message,
+    conversation,
+  }: {
+    sender: Peer;
+    message: string;
+    conversation: Conversation;
+  }) {
+    const newMessage = await this.messageRepository.saveMessage({
+      sender: sender,
+      content: message,
+      conversation: conversation,
+    });
+    const newMessageStatus =
+      await this.messageStatusRepository.saveMessageStatus({
+        message: newMessage,
+        user: sender,
+        status: MessageStatusType.SENDING,
+      });
+
+    return { newMessage, newMessageStatus };
   }
 
   private async createChatRoom() {
@@ -125,7 +169,7 @@ export class ChatService {
     );
   }
 
-  async getAllPeers() {
+  async getAllConversations() {
     return await this.conversationRepository.queryAllConversation();
   }
 

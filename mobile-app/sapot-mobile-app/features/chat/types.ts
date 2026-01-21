@@ -1,3 +1,5 @@
+import { MessageType } from "../shared";
+
 export interface Peer {
   id: string;
   username: string;
@@ -7,7 +9,16 @@ export interface Peer {
   online?: boolean;
 }
 
-export interface TcpMessage<T> {
-  type: string;
+export interface MessageI<T> { 
+  type: string; // TODO: implement enum
   data: T;
+}
+
+export interface SentMessageI {
+  message: any; //TODO: implement enum
+  conversationId: string;
+  messageId: string;
+  senderId: string;
+  sentAt: Date;
+  messageType: MessageType;
 }
