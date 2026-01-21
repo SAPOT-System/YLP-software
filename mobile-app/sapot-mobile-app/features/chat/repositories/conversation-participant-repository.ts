@@ -128,19 +128,11 @@ export class ConversationParticipantRepository {
   }
 
   // For debugging purposes
-  async deleteAllParticipants() {
-    try {
-      await this.db.write(async () => {
+  async getParticipantDestroyOps() {
         const records = await this.conversationParticipantsCollection
           .query()
           .fetch();
 
-        const ops = records.map((r) => r.prepareDestroyPermanently());
-
-        await this.db.batch(...ops);
-      });
-    } catch (error) {
-      console.error("[ConversationParticipantRepository]: Error deleting all participants:", error);
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

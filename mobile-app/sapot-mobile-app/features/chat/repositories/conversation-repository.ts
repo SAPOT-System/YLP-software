@@ -100,20 +100,10 @@ export class ConversationRepository {
   }
 
   // For debugging purposes
-  async deleteAllConversations() {
-    try {
-      await this.db.write(async () => {
+  async getConversationDestroyOps() {
         const records = await this.conversationCollections.query().fetch();
+    console.log(records);
 
-        const ops = records.map((r) => r.prepareDestroyPermanently());
-
-        await this.db.batch(...ops);
-      });
-    } catch (error) {
-      console.error(
-        "[ConversationParticipant]: Error deleting all conversations:",
-        error
-      );
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

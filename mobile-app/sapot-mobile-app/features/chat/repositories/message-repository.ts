@@ -54,17 +54,9 @@ export class MessageRepository {
   }
 
   // For debugging purposes
-  async deleteAllMessages() {
-    try {
-      await this.db.write(async () => {
+  async getAllMessageDestroyOps() {
         const records = await this.messagesCollection.query().fetch();
 
-        const ops = records.map((r) => r.prepareDestroyPermanently());
-
-        await this.db.batch(...ops);
-      });
-    } catch (error) {
-      console.error("[MessageRepository]: Error deleting all messages:", error);
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

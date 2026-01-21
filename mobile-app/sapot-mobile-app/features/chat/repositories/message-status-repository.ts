@@ -85,17 +85,9 @@ export class MessageStatusRepository {
   }
 
   // For debugging purposes
-  async deleteAllStatuses() {
-    try {
-      await this.db.write(async () => {
+  async getStatusDestroyOps() {
         const records = await this.messageStatusCollection.query().fetch();
 
-        const ops = records.map((r) => r.prepareDestroyPermanently());
-
-        await this.db.batch(...ops);
-      });
-    } catch (error) {
-      console.error("[MessageStatusRepository]: Error deleting all statuses:", error);
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }
