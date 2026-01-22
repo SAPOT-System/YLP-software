@@ -24,8 +24,10 @@ export class WebrtcAdapter extends EventEmitter {
   private configuration: RTCConfiguration | undefined;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet: boolean = false;
-  constructor() {
+  readonly peerId: string;
+  constructor(peerId: string) {
     super();
+    this.peerId = peerId;
     this.peerConnection = null;
     this.localStream = null;
     // this.remoteStream = null;
@@ -91,24 +93,30 @@ export class WebrtcAdapter extends EventEmitter {
     };
 
     this.peerConnection.onconnectionstatechange = (event) => {
-      console.log(this.peerConnection?.connectionState);
+      // console.log(this.peerConnection?.connectionState);
       switch (this.peerConnection?.connectionState) {
         case "closed":
           console.log("[WebrtcAdapter]: Call being disconnected");
+          this.emit("connection-closed");
+          break;
+        case "connected":
+          if (this.dataChannel.readyState == "open") {
+            this.emit("connection-established");
+          }
           break;
       }
     };
 
     this.peerConnection.ondatachannel = (event) => {
-      console.log(`Data channel received: ${event.channel}`);
+      // console.log(`Data channel received: ${event.channel}`);
       this.setDataChannel(event.channel);
     };
 
     this.peerConnection.oniceconnectionstatechange = (event) => {
-      console.log(
-        "[WebrtcAdapter]: ICE Connection state:",
-        this.peerConnection?.iceConnectionState
-      );
+      // console.log(
+      //   "[WebrtcAdapter]: ICE Connection state:",
+      //   this.peerConnection?.iceConnectionState
+      // );
       switch (this.peerConnection?.iceConnectionState) {
         case "connected":
           console.log("[WebrtcAdapter]: ICE connection connected");
@@ -121,20 +129,17 @@ export class WebrtcAdapter extends EventEmitter {
 
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
-        this.emit("onicecandidate", {
-          type: "ice-candidate",
-          candidate: event.candidate,
-        });
+        // console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
+        this.emit("onicecandidate", event.candidate);
       }
     };
 
     // Create data channel for text chat
     this.dataChannel = this.peerConnection.createDataChannel("chat");
-    console.log(this.dataChannel ? "Data channel on" : "Data channel off");
+    // console.log(this.dataChannel ? "Data channel on" : "Data channel off");
     this.setupDataChannel(this.dataChannel);
 
-    console.log("Peer connection created:", this.peerConnection ? true : false);
+    // console.log("Peer connection created:", this.peerConnection ? true : false);
   }
 
   setDataChannel(channel: RTCDataChannel) {
@@ -151,9 +156,9 @@ export class WebrtcAdapter extends EventEmitter {
     }
 
     try {
-      console.log(`[WebrtcAdapter]: Creating offer...`);
+      // console.log(`[WebrtcAdapter]: Creating offer...`);
       const offer = await this.peerConnection!.createOffer();
-      console.log(`[WebrtcAdapter]: Setting local description...`);
+      // console.log(`[WebrtcAdapter]: Setting local description...`);
       await this.peerConnection!.setLocalDescription(offer);
 
       return {
@@ -175,14 +180,14 @@ export class WebrtcAdapter extends EventEmitter {
     }
 
     try {
-      console.log(`[WebrtcAdapter]: Setting remote description`);
+      // console.log(`[WebrtcAdapter]: Setting remote description`);
 
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(offer)
       );
 
       const answer = await this.peerConnection!.createAnswer();
-      console.log(`[WebrtcAdapter]: Setting local description`);
+      // console.log(`[WebrtcAdapter]: Setting local description`);
       await this.peerConnection!.setLocalDescription(answer);
 
       this.remoteDescriptionSet = true;
@@ -199,6 +204,7 @@ export class WebrtcAdapter extends EventEmitter {
       };
     } catch (error) {
       console.error("[WebrtcAdapter]: Error handling offer:", error);
+      throw error;
     }
   }
 
@@ -209,7 +215,7 @@ export class WebrtcAdapter extends EventEmitter {
     }
 
     try {
-      console.log(`[WebrtcAdapter]: Setting remote description`);
+      // console.log(`[WebrtcAdapter]: Setting remote description`);
 
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(answer)
@@ -233,13 +239,13 @@ export class WebrtcAdapter extends EventEmitter {
     }
 
     if (!this.remoteDescriptionSet) {
-      console.log("[WebrtcAdapter]: Queueing ICE candidate");
+      // console.log("[WebrtcAdapter]: Queueing ICE candidate");
       this.pendingIceCandidates.push(candidate);
       return;
     }
 
     try {
-      console.log(`[WebrtcAdapter]: Adding ice candidate`);
+      // console.log(`[WebrtcAdapter]: Adding ice candidate`);
 
       await this.peerConnection!.addIceCandidate(
         new RTCIceCandidate(candidate)
@@ -250,20 +256,28 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   setupDataChannel(channel: RTCDataChannel) {
-    console.log(`[WebrtcAdapter]: Setup data channel`);
+    // console.log(`[WebrtcAdapter]: Setup data channel`);
     channel.onopen = () => {
       console.log("[WebrtcAdapter]: Data channel opened");
+      this.emit("datachannel-open");
+
+      if (this.peerConnection?.connectionState === "connected")
+        this.emit("connection-established");
     };
 
     // This will recieve message from peers webrtc's datachannel
     channel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
+        // console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
         this.emit("receivedMessage", message);
       } catch (error) {
         console.error("Error parsing receive message:", error);
       }
+    };
+
+    channel.onerror = (error) => {
+      this.emit("connection-failed", error);
     };
 
     channel.onclose = () => {
@@ -273,12 +287,23 @@ export class WebrtcAdapter extends EventEmitter {
 
   // TODO: make a type interface for the payload paramater
   sendDataMessage(payload: MessageI<any>) {
-    if (this.dataChannel && this.dataChannel.readyState === "open") {
-      console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
+    if (
+      this.dataChannel &&
+      this.dataChannel.readyState === "open" &&
+      this.isConnected
+    ) {
+      // console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
       this.dataChannel.send(JSON.stringify(payload));
     } else {
       throw new Error("[WebrtcAdapter]: Unable to send payload`");
     }
+  }
+
+  get isConnected() {
+    return (
+      this.peerConnection?.connectionState === "connected" &&
+      this.dataChannel.readyState === "open"
+    );
   }
 
   cleanup() {
@@ -299,5 +324,3 @@ export class WebrtcAdapter extends EventEmitter {
     console.log("[WebrtcAdapter]: Cleanup");
   }
 }
-
-export default new WebrtcAdapter();

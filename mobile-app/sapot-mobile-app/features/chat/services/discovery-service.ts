@@ -4,9 +4,11 @@ import { SessionStore } from "@/features/shared/stores/session-store";
 import { NetworkConfig } from "@/features/shared/stores/network-config";
 import { UserStore } from "@/features/shared/stores/user-store";
 import { PeerService } from "./peer-service";
+import { ChatService } from "./chat-service";
 
 // This class will discover devices and make the device discovered by others.
 export class DiscoveryService {
+  private chatService?: ChatService;
   private publishDeviceName: string = "";
   private intervalId: number = 0;
 
@@ -19,8 +21,16 @@ export class DiscoveryService {
   ) {
     // Perform logic on the resolve device/service whether to include in the database or not
     this.adapter.on("serviceResolved", async (peerService: Service) => {
+      if (!this.chatService) throw new Error("Chat service not initialized");
       console.log("service resolved");
       await this.peerService.register(peerService);
+
+      // TODO: make the bottom ignore if not necessary to run
+      await this.performResendMessagesForPeer(
+        peerService.txt.id,
+        peerService.addresses[0],
+        peerService.port
+      );
     });
 
     // Perform logic to make the peer offline when the device/service is removed
@@ -28,6 +38,34 @@ export class DiscoveryService {
       console.log("service removed");
       await this.peerService.markOffline(peerServiceName);
     });
+  }
+
+  async performResendMessagesForPeer(
+    peerId: string,
+    ipAddress: string,
+    port: number
+  ) {
+    if (!this.chatService) throw new Error("Chat service not initialized");
+
+    const unsentMessages = await this.chatService.getAllNotSentMessageForPeer(
+      peerId
+    );
+
+    for (const msg of unsentMessages) {
+      try {
+        await this.chatService.tryResendMessage(msg, peerId, {
+          ipAddress: ipAddress,
+          port: port,
+        });
+      } catch (error) {
+        console.warn("Failed to resend the message:", msg);
+        console.warn("Error:", error);
+      }
+    }
+  }
+
+  setChatService(chatService: ChatService) {
+    this.chatService = chatService;
   }
 
   startDiscovery() {

@@ -40,8 +40,8 @@ const enhanceMessage = withObservables(
 
 const MessageListItem = enhanceMessage(
   ({ message, status }: { message: Message; status: MessageStatus[] }) => {
-    console.log("[MessageListItem] messageId:", message.id);
-    console.log("[MessageListItem] status rows:", status.length);
+    // console.log("[MessageListItem] messageId:", message.id);
+    // console.log("[MessageListItem] status rows:", status.length);
     const statusObj = status?.[0];
 
     // For the peer message that don't need messgae status

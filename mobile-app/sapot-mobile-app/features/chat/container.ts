@@ -64,6 +64,8 @@ export class AppContainer {
       this.sessionStore
     );
 
+    this.messageRepository = new MessageRepository(database);
+    this.messageStatusRepository = new MessageStatusRepository(database);
     this.zeroconfAdapter = new ZeroconfAdapter();
     this.discoveryService = new DiscoveryService(
       this.zeroconfAdapter,
@@ -79,8 +81,8 @@ export class AppContainer {
     this.connectionService = new ConnectionService(
       this.tcpClientAdapter,
       this.tcpServerAdapter,
-      this.webrtcAdapter,
-      this.networkConfig
+      this.networkConfig,
+      this.userStore,
     );
 
     this.messageRepository = new MessageRepository(database);
@@ -99,6 +101,7 @@ export class AppContainer {
     );
 
     this.connectionService.setChatService(this.chatService);
+    this.discoveryService.setChatService(this.chatService);
   }
 
   async initialize() {

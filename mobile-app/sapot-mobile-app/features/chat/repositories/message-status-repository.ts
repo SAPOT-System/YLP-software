@@ -110,6 +110,29 @@ export class MessageStatusRepository {
     }
   }
 
+  // This will query the message with the status of sent and not_sent
+  async queryNotSentByMessages(messageIds: string[]) {
+    try {
+      return await this.db.write(async () => {
+        const messageStatus = await this.messageStatusCollection.query(
+          Q.where(
+            "status",
+            Q.oneOf([MessageStatusType.NOT_SENT, MessageStatusType.SENT])
+          ),
+          Q.where("message", Q.oneOf(messageIds))
+        );
+
+        return messageStatus;
+      });
+    } catch (error) {
+      console.error(
+        "[MessageStatusRepository]: Error updateing message status:",
+        error
+      );
+      throw error;
+    }
+  }
+
   async queryAllStatuses() {
     return await this.messageStatusCollection.query().fetch();
   }
