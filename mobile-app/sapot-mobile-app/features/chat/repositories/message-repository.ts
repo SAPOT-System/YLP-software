@@ -45,12 +45,23 @@ export class MessageRepository {
     offset = 0
   ) {
     try {
-      return await this.messagesCollection.query(
-        Q.where("conversation", conversationId),
-        Q.sortBy("created_at", Q.desc),
-        Q.skip(offset),
-        Q.take(limit)
-      );
+      return await this.messagesCollection
+        .query(
+          Q.where("conversation", conversationId),
+          Q.sortBy("created_at", Q.desc),
+          Q.skip(offset),
+          Q.take(limit)
+        )
+        .fetch();
+    } catch (error) {
+      console.error("[MessageRepository]: Error querying messages:", error);
+      throw error;
+    }
+  }
+
+  async queryAllMessages() {
+    try {
+      return await this.messagesCollection.query().fetch();
     } catch (error) {
       console.error("[MessageRepository]: Error querying messages:", error);
       throw error;

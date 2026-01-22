@@ -3,9 +3,13 @@ import EventEmitter from "events";
 
 export class TcpClientAdapter extends EventEmitter {
   private socket?: TcpSocket.Socket;
+  private connectionState: "disconnected" | "connecting" | "connected" =
+    "disconnected";
+  readonly peerId: string;
 
-  constructor() {
+  constructor(peerId: string) {
     super();
+    this.peerId = peerId;
   }
 
   connect(host: string, port: number) {
@@ -15,6 +19,8 @@ export class TcpClientAdapter extends EventEmitter {
           `[TcpClientAdapter]: Trying to connect to the client: ${host}:${port}`
         );
 
+        this.connectionState = "connecting";
+
         const socket = TcpSocket.createConnection(
           {
             host: host,
@@ -23,6 +29,7 @@ export class TcpClientAdapter extends EventEmitter {
           () => {
             console.log("[TcpClientAdapter]: TCP connected");
             this.socket = socket;
+            this.connectionState = "connected";
             resolve();
           }
         );
@@ -32,11 +39,14 @@ export class TcpClientAdapter extends EventEmitter {
             "[TcpClientAdapter]: Error on connection client:",
             error
           );
+          this.connectionState = "disconnected";
           reject(error);
         };
 
         const onClose = () => {
           console.log("[TcpClientAdapter]: TCP connection closed");
+          this.connectionState = "disconnected";
+          this.socket = undefined;
         };
 
         socket.on("error", onError);
@@ -69,6 +79,6 @@ export class TcpClientAdapter extends EventEmitter {
   }
 
   get isConnected() {
-    return this.socket !== undefined;
+    return this.connectionState === "connected";
   }
 }

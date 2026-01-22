@@ -1,12 +1,18 @@
 import { View, Text, FlatList } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { memo } from "react";
 import { Message, MessageStatus, database } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Q } from "@nozbe/watermelondb";
 
-const enhanceMessages = withObservables([], () => ({
-  messages: database.get<Message>(Message.table).query().observe(),
-}));
+const enhanceMessages = withObservables(
+  ["conversationId"],
+  ({ conversationId }: { conversationId: string }) => ({
+    messages: database
+      .get<Message>(Message.table)
+      .query(Q.where("conversation", conversationId))
+      .observe(),
+  })
+);
 
 const MessageList = enhanceMessages(({ messages }: { messages: Message[] }) => {
   return (
@@ -34,8 +40,8 @@ const enhanceMessage = withObservables(
 
 const MessageListItem = enhanceMessage(
   ({ message, status }: { message: Message; status: MessageStatus[] }) => {
-    console.log("[MessageListItem] messageId:", message.id);
-    console.log("[MessageListItem] status rows:", status.length);
+    // console.log("[MessageListItem] messageId:", message.id);
+    // console.log("[MessageListItem] status rows:", status.length);
     const statusObj = status?.[0];
 
     // For the peer message that don't need messgae status
@@ -56,4 +62,4 @@ const MessageListItem = enhanceMessage(
   }
 );
 
-export default MessageList;
+export default memo(MessageList);

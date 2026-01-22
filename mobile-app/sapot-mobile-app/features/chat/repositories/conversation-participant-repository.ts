@@ -106,6 +106,27 @@ export class ConversationParticipantRepository {
     return await this.conversationParticipantsCollection.query().fetch();
   }
 
+  async queryConversationByPeer(peerId: string, currentUserId: string) {
+    try {
+      const participants = await this.conversationParticipantsCollection
+        .query(Q.where("user", peerId))
+        .fetch();
+
+      // Exclude the user
+      const conversation = participants.filter(
+        (p) => p.user.id !== currentUserId
+      );
+
+      return conversation;
+    } catch (error) {
+      console.error(
+        "[ConversationParticipantRepository]: Error finding peer by conversation id:",
+        error
+      );
+      throw error;
+    }
+  }
+
   async queryPeerByChatId(conversationId: string, currentUserId: string) {
     try {
       console.log(this.queryAllParticipants());
@@ -129,9 +150,9 @@ export class ConversationParticipantRepository {
 
   // For debugging purposes
   async getParticipantDestroyOps() {
-        const records = await this.conversationParticipantsCollection
-          .query()
-          .fetch();
+    const records = await this.conversationParticipantsCollection
+      .query()
+      .fetch();
 
     return records.map((r) => r.prepareDestroyPermanently());
   }

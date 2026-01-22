@@ -1,9 +1,10 @@
 import { View, Text, FlatList, Pressable } from "react-native";
-import React from "react";
+import React, { useCallback } from "react";
 import { Conversation, database } from "@/features/shared";
 import { useRouter } from "expo-router";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { ChatRoomSource } from "@/app/chat/[id]";
+import { useChatService, useDiscoveryService, usePeerService } from "../hooks";
 
 const enhanceChats = withObservables([], () => ({
   chats: database.get<Conversation>("conversations").query().observe(),
@@ -31,6 +32,27 @@ const enhanceChat = withObservables(
 
 const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
   const router = useRouter();
+  const chatService = useChatService();
+  const peerService = usePeerService();
+  const discoveryService = useDiscoveryService();
+
+  const handleResend = useCallback(
+    async (chatId: string) => {
+      const peerId = await chatService.findPeerIdByChatId(chatId);
+      const peer = peerService.findDiscoveredPeerById(peerId);
+
+      // TODO: catch
+      if (!peer) throw Error("Peer not found");
+
+      await discoveryService.performResendMessagesForPeer(
+        peerId,
+        peer.ipAddress,
+        peer.port
+      );
+    },
+    [chatService, peerService, discoveryService]
+  );
+
   return (
     <Pressable
       onPress={() =>
@@ -48,6 +70,9 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
       <Text>
         {chat.id}^^^{chat.createdAt.toLocaleString()}
       </Text>
+      <Pressable onPress={() => handleResend(chat.id)}>
+        <Text>Resend</Text>
+      </Pressable>
     </Pressable>
   );
 });

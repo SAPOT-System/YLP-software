@@ -3,6 +3,7 @@ import {
   ConversationParticipantRole,
   ConversationType,
   database,
+  Message,
   MessageStatusType,
   Peer,
   UserStore,
@@ -33,21 +34,21 @@ export class ChatService {
 
   async connect(id: string) {
     try {
+      const foundUser = await this.peerService.findPeerById(id);
+      if (!foundUser) throw new Error("Peer not found");
+      this.peer = foundUser;
+
       const discoveredPeer = this.peerService.findDiscoveredPeerById(id);
 
       if (!discoveredPeer) throw new Error("Peer not discovered");
 
-      const foundUser = await this.peerService.findPeerById(id);
-      if (!foundUser) throw new Error("Peer not found");
-      console.log("[ChatService]: foundUser:", foundUser);
-      this.peer = foundUser;
-
       await this.connectionService.connectToPeer(
+        discoveredPeer.id,
         discoveredPeer.ipAddress,
         discoveredPeer.port
       );
     } catch (error) {
-      console.error("[ChatService]: Error connecting to peer:", error);
+      console.warn("[ChatService]: Error connecting to peer:", error);
     }
   }
 
@@ -96,7 +97,9 @@ export class ChatService {
       console.log("[ChatService]: Message ID:", data.messageId);
 
       // Send acknowledge
-      this.connectionService.sendAckMessage({ messageId: data.messageId });
+      this.connectionService.sendAckMessage(sender.id, {
+        messageId: data.messageId,
+      });
     } catch (error) {
       console.error(
         "[ChatService]: Error handling incoming chat message:",
@@ -125,11 +128,9 @@ export class ChatService {
 
   // TODO: make a transaction on this function to follow ACID principle
   // TODO: make a logic where user can send conversation even if the receiver is not online. Store the sent conversation and wait for receiver to be online.
+  // This method will use the current class state about peer and conversation
   async sendChatMessage(message: string) {
     try {
-      if (!this.connectionService.isConnected)
-        throw new Error("Not connected to peer");
-
       if (!this.peer) throw new Error("No peer state stored");
 
       // Make sure conversation property is initialized
@@ -157,24 +158,31 @@ export class ChatService {
         conversation: this.conversation,
       });
 
+      try {
+        this.connectionService.sendChatMessage(this.peer.id, {
+          message: message,
+          conversationId: this.conversation.id,
+          messageId: newMessage.id,
+          senderId: newMessage.sender.id,
+          sentAt: newMessage.createdAt,
+          messageType: newMessage.messageType,
+        });
+        // Update into sent
+        await this.messageStatusRepository.updateMessageStatusById(
+          newMessageStatus.id,
+          MessageStatusType.SENT
+        );
+      } catch (error) {
+        await this.messageStatusRepository.updateMessageStatusById(
+          newMessageStatus.id,
+          MessageStatusType.NOT_SENT
+        );
+      }
 
-      // TODO: implement not sent message status if there is an error and create a throw in the statements. Probably trycatch in this part
-      this.connectionService.sendChatMessage({
-        message: message,
-        conversationId: this.conversation.id,
-        messageId: newMessage.id,
-        senderId: newMessage.sender.id,
-        sentAt: newMessage.createdAt,
-        messageType: newMessage.messageType,
-      });
-
-      // Update into sent
-      await this.messageStatusRepository.updateMessageStatusById(
-        newMessageStatus.id,
-        MessageStatusType.SENT
-      );
+      return this.conversation.id;
     } catch (error) {
       console.error("[ChatService]: Error sending conversation message", error);
+      throw error;
     }
   }
 
@@ -188,39 +196,49 @@ export class ChatService {
     message: string;
     conversation: Conversation;
   }) {
-    const newMessage = await this.messageRepository.saveMessage({
-      sender: sender,
-      content: message,
-      conversation: conversation,
-    });
-    const newMessageStatus =
-      await this.messageStatusRepository.saveMessageStatus({
-        message: newMessage,
-        user: sender,
-        status: MessageStatusType.SENDING,
+    try {
+      const newMessage = await this.messageRepository.saveMessage({
+        sender: sender,
+        content: message,
+        conversation: conversation,
       });
+      const newMessageStatus =
+        await this.messageStatusRepository.saveMessageStatus({
+          message: newMessage,
+          user: sender,
+          status: MessageStatusType.SENDING,
+        });
 
-    return { newMessage, newMessageStatus };
+      return { newMessage, newMessageStatus };
+    } catch (error) {
+      console.error("[ChatService]: Error creating message", error);
+      throw error;
+    }
   }
 
   private async createChatRoom(peer: Peer, conversationId?: string) {
     // Wrap into write method to ensure ACID for safety transaction
-    return await database.write(async () => {
-      const conversation = await this.conversationRepository.saveConversation(
-        {
-          type: ConversationType.DIRECT,
-          id: conversationId,
-        },
-        true
-      );
-      await this.conversationParticipantRepository.saveMultipleConversationParticipant(
-        [peer, this.userStore.user],
-        conversation,
-        ConversationParticipantRole.MEMBER,
-        true
-      );
-      return conversation;
-    });
+    try {
+      return await database.write(async () => {
+        const conversation = await this.conversationRepository.saveConversation(
+          {
+            type: ConversationType.DIRECT,
+            id: conversationId,
+          },
+          true
+        );
+        await this.conversationParticipantRepository.saveMultipleConversationParticipant(
+          [peer, this.userStore.user],
+          conversation,
+          ConversationParticipantRole.MEMBER,
+          true
+        );
+        return conversation;
+      });
+    } catch (error) {
+      console.error("[ChatService]: Error creating chat room", error);
+      throw error;
+    }
   }
 
   // TODO: Determine if the conversation is direct or group conversation for integrating group conversation soon
@@ -235,21 +253,29 @@ export class ChatService {
     return participants[0].user.id;
   }
 
-  async initializePeerByChatId(chatId: string) {
-    this.conversation = await this.conversationRepository.queryConversationById(
-      chatId
-    );
+  async findChatByPeer(peerId: string): Promise<string | undefined> {
+    try {
+      const chat =
+        await this.conversationParticipantRepository.queryConversationByPeer(
+          peerId,
+          this.userStore.user.id
+        );
+
+      if (chat.length <= 0) return undefined;
+
+      return chat[0].conversation.id;
+    } catch (error) {
+      console.warn("[ChatService]: Error finding chat by peer:", error);
+    }
   }
 
   async getAllConversations() {
     return await this.conversationRepository.queryAllConversation();
   }
 
-  async getMessagesFromConversation() {
-    if (!this.conversation) throw new Error("Conversation not initialized");
-
+  async getMessagesFromConversation(conversationId: string) {
     return await this.messageRepository.queryMessagesByConversation(
-      this.conversation.id
+      conversationId
     );
   }
 
@@ -267,6 +293,76 @@ export class ChatService {
 
   async getAllStatus() {
     console.log(await this.messageStatusRepository.queryAllStatuses());
+  }
+
+  async getAllNotSentMessageForPeer(peerId: string) {
+    // get the conversation between peer
+    try {
+      const conversation =
+        await this.conversationParticipantRepository.queryConversationByPeer(
+          peerId,
+          this.userStore.user.id
+        );
+
+      if (conversation.length <= 0) return [];
+
+      // get the all messages on the conversation
+      const messages = await this.messageRepository.queryMessagesByConversation(
+        conversation[0].conversation.id
+      );
+      const messageIds = messages.map((m) => m.id);
+      console.log(messageIds.length);
+
+      const unsentStatuses =
+        await this.messageStatusRepository.queryNotSentByMessages(messageIds);
+
+      const unsentStatusesIds: string[] = unsentStatuses.map(
+        (u) => u.message.id
+      );
+
+      if (!unsentStatusesIds) return [];
+      console.log(
+        "[ChatService]: unsent messages",
+        unsentStatusesIds.length - 1
+      );
+
+      return messages.filter((m) => unsentStatusesIds.includes(m.id));
+    } catch (error) {
+      console.error("[ChatService]: Error getting unsent messages:", error);
+      throw error;
+    }
+  }
+
+  async tryResendMessage(
+    message: Message,
+    peerId: string,
+    { ipAddress, port }: { ipAddress: string; port: number }
+  ) {
+    try {
+      await this.connectionService.connectToPeer(peerId, ipAddress, port);
+
+      this.connectionService.sendChatMessage(peerId, {
+        message: message.content,
+        conversationId: message.conversation.id,
+        messageId: message.id,
+        senderId: message.sender.id,
+        sentAt: message.createdAt,
+        messageType: message.messageType,
+      });
+
+      await this.messageStatusRepository.updateMessageStatusByMessage(
+        message.id,
+        MessageStatusType.SENT
+      );
+    } catch (error) {
+      console.warn("[ChatService]: Resending message failed");
+      throw error;
+    }
+  }
+
+  cleanUp() {
+    this.peer = undefined;
+    this.conversation = undefined;
   }
 
   // This is for debugging purposes
