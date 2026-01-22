@@ -36,14 +36,14 @@ export class WebrtcAdapter extends EventEmitter {
       iceServers: [
         // No turn server for physical devices
         // Just for development for android emulators. Note that the host computer needs to run turn server to make this work.
-        {
-          urls: [
-            "turn:10.0.2.2:5349?transport=udp",
-            "turn:10.0.2.2:5349?transport=tcp",
-          ],
-          username: "test",
-          credential: "test",
-        },
+        // {
+        //   urls: [
+        //     "turn:10.0.2.2:5349?transport=udp",
+        //     "turn:10.0.2.2:5349?transport=tcp",
+        //   ],
+        //   username: "test",
+        //   credential: "test",
+        // },
       ],
       iceTransportPolicy: "all",
     };
