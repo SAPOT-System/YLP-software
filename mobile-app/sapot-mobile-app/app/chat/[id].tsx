@@ -9,7 +9,6 @@ import {
 import React, { useEffect, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { MessageList, useChatService } from "@/features/chat";
-import { Message } from "@/features/shared";
 
 // This is enum for determining where the chat room is triggered, it is either in peer list item or chat list item
 export enum ChatRoomSource {
@@ -55,13 +54,23 @@ const ChatRoom = () => {
       chatService.disconnect();
       chatService.cleanUp();
     };
-  }, []);
+  }, [chatService, id, source]);
 
   if (!isRendered) return <ActivityIndicator />;
 
-  const handleSendMessage = () => {
-    chatService.sendChatMessage(message);
-    setMessage("");
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
+    try {
+      const chatId = await chatService.sendChatMessage(message);
+
+      if (!conversationId && chatId) {
+        setConversationId(chatId);
+      }
+
+      setMessage("");
+    } catch (error) {
+      console.error("[ChatRoom]: Error handling message:", error);
+    }
   };
 
   return (

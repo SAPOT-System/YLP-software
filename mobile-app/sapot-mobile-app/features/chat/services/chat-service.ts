@@ -173,8 +173,11 @@ export class ChatService {
           MessageStatusType.NOT_SENT
         );
       }
+
+      return this.conversation.id;
     } catch (error) {
       console.error("[ChatService]: Error sending conversation message", error);
+      throw error;
     }
   }
 

@@ -1,5 +1,5 @@
 import { View, Text, FlatList } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { memo } from "react";
 import { Message, MessageStatus, database } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Q } from "@nozbe/watermelondb";
@@ -9,7 +9,8 @@ const enhanceMessages = withObservables(
   ({ conversationId }: { conversationId: string }) => ({
     messages: database
       .get<Message>(Message.table)
-      .query(Q.where("conversation", conversationId)),
+      .query(Q.where("conversation", conversationId))
+      .observe(),
   })
 );
 
@@ -61,4 +62,4 @@ const MessageListItem = enhanceMessage(
   }
 );
 
-export default MessageList;
+export default memo(MessageList);
