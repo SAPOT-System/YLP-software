@@ -1,7 +1,8 @@
-import { NetworkConfig, UserStore } from "@/features/shared";
-import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapter";
-import { MessageI, SentMessageI } from "../types";
-import { ChatService } from "./chat-service";
+import { NetworkConfig, UserStore } from "../stores";
+import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapters";
+import { MessageI } from "../types";
+import { SentMessageI } from "@/features/chat/types";
+import { ChatService } from "@/features/chat";
 
 // TODO: handle edge cases when the data format is wrong
 // This will include the types for both tcp and webrtc message

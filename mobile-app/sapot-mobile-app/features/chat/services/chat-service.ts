@@ -7,15 +7,15 @@ import {
   MessageStatusType,
   Peer,
   UserStore,
+  ConnectionService,
+  PeerService,
 } from "@/features/shared";
 import {
   ConversationParticipantRepository,
   ConversationRepository,
   MessageRepository,
   MessageStatusRepository,
-} from "../repositories/";
-import { ConnectionService } from "./connection-service";
-import { PeerService } from "./peer-service";
+} from "../repositories";
 import { SentMessageI } from "../types";
 
 // This is class will be responsible of behavior and rules of the conversation.

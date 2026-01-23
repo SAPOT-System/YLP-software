@@ -1,8 +1,9 @@
 import { View, Text, FlatList } from "react-native";
 import React, { memo } from "react";
-import { Message, MessageStatus, database } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Q } from "@nozbe/watermelondb";
+
+import { Message, MessageStatus, database } from "@/features/shared";
 
 const enhanceMessages = withObservables(
   ["conversationId"],
@@ -17,7 +18,7 @@ const enhanceMessages = withObservables(
 const MessageList = enhanceMessages(({ messages }: { messages: Message[] }) => {
   return (
     <View>
-      <Text style={{ fontSize: 16 }}>Chat List</Text>
+      <Text style={{ fontSize: 16 }}>Message List</Text>
       <FlatList
         data={messages}
         renderItem={({ item }) => <MessageListItem message={item} />}

@@ -2,4 +2,3 @@ export { ConversationParticipantRepository } from "./conversation-participant-re
 export { ConversationRepository } from "./conversation-repository";
 export { MessageRepository } from "./message-repository";
 export { MessageStatusRepository } from "./message-status-repository";
-export { PeerRepository } from "./peer-repository";

@@ -1,10 +1,11 @@
+import { Collection, Database, Q } from "@nozbe/watermelondb";
+
 import {
   Conversation,
   ConversationParticipantRole,
   ConversationParticipant,
   Peer,
 } from "@/features/shared";
-import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class ConversationParticipantRepository {
   private conversationParticipantsCollection: Collection<ConversationParticipant>;

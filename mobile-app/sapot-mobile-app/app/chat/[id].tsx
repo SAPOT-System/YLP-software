@@ -8,13 +8,9 @@ import {
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
-import { MessageList, useChatService } from "@/features/chat";
-
-// This is enum for determining where the chat room is triggered, it is either in peer list item or chat list item
-export enum ChatRoomSource {
-  PEER = "peer_list",
-  CHAT = "chat_list",
-}
+import { ChatRoomSource } from "@/features/chat/types";
+import { useChatService } from "@/features/shared";
+import { MessageList } from "@/features/chat";
 
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
@@ -92,6 +88,9 @@ const ChatRoom = () => {
 
       <Pressable onPress={handleSendMessage}>
         <Text>Send Message</Text>
+      </Pressable>
+      <Pressable>
+        <Text>Voice call</Text>
       </Pressable>
       {conversationId ? (
         <MessageList conversationId={conversationId} />

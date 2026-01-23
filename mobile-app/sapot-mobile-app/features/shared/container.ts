@@ -1,32 +1,20 @@
+import { database } from "./database";
+import { NetworkConfig, SessionStore, UserStore } from "./stores";
+import { TcpServerAdapter, ZeroconfAdapter } from "./adapters";
 import {
-  database,
-  NetworkConfig,
-  SessionStore,
-  UserService,
-  UserStore,
-} from "../shared";
-
-import {
-  ZeroconfAdapter,
-  TcpClientAdapter,
-  TcpServerAdapter,
-  WebrtcAdapter,
-} from "./adapter";
-
-import {
-  DiscoveryService,
   ConnectionService,
-  ChatService,
+  DiscoveryService,
   PeerService,
+  UserService,
 } from "./services";
-
 import {
+  ChatService,
   ConversationParticipantRepository,
   ConversationRepository,
   MessageRepository,
   MessageStatusRepository,
-  PeerRepository,
-} from "./repositories";
+} from "@/features/chat";
+import { PeerRepository } from "./repositories";
 
 // This class will be used for initializing mobile app by initializing classes.
 export class AppContainer {
@@ -36,11 +24,9 @@ export class AppContainer {
   readonly userStore: UserStore;
   readonly discoveryService: DiscoveryService;
   readonly userService: UserService;
-  readonly tcpClientAdapter: TcpClientAdapter;
   readonly tcpServerAdapter: TcpServerAdapter;
   readonly connectionService: ConnectionService;
   readonly chatService: ChatService;
-  readonly webrtcAdapter: WebrtcAdapter;
   readonly peerService: PeerService;
   readonly peerRepository: PeerRepository;
   readonly messageRepository: MessageRepository;
@@ -76,13 +62,10 @@ export class AppContainer {
     );
 
     this.tcpServerAdapter = new TcpServerAdapter();
-    this.webrtcAdapter = new WebrtcAdapter();
-    this.tcpClientAdapter = new TcpClientAdapter();
     this.connectionService = new ConnectionService(
-      this.tcpClientAdapter,
       this.tcpServerAdapter,
       this.networkConfig,
-      this.userStore,
+      this.userStore
     );
 
     this.messageRepository = new MessageRepository(database);

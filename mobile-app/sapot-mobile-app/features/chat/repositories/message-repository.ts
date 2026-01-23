@@ -1,5 +1,5 @@
-import { Conversation, Message, MessageType, Peer } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
+import { Conversation, Message, MessageType, Peer } from "@/features/shared";
 
 export class MessageRepository {
   private messagesCollection: Collection<Message>;
