@@ -8,10 +8,12 @@ import { EventEmitter } from "events";
 // TODO: handle edge cases when the data format is wrong
 // This will include the types for both tcp and webrtc message
 
-// This class will handle connection to peers. This will be the one who will send and receive data from peers.
+/**
+ *  This class will handle connection to peers. This will be the one who will send and receive data from peers.
+ *  */
 export class ConnectionService extends EventEmitter {
-  private chatService?: ChatService;
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
+  private chatService?: ChatService;
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
   constructor(
     private tcpServerAdapter: TcpServerAdapter,
@@ -36,7 +38,7 @@ export class ConnectionService extends EventEmitter {
         message.type === "audio-call" &&
         message.data.senderId
       ) {
-        await this.initializeAudio(message.data.senderId);
+        await this.initializeStream(message.data.senderId);
         this.emit("audio-call", message.data.senderId);
       }
 
@@ -75,6 +77,10 @@ export class ConnectionService extends EventEmitter {
         console.log("Ack received");
         this.chatService.handleAckMessage(message.data.messageId);
       }
+    });
+
+    webrtcAdapter.on("remoteStream", (stream) => {
+      this.emit("remoteStream", stream);
     });
   }
 
@@ -272,11 +278,11 @@ export class ConnectionService extends EventEmitter {
     });
   }
 
-  async initializeAudio(peerId: string) {
+  async initializeStream(peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) throw new Error("Not connected");
-      await webrtcAdapter.initializeLocalStream(true);
+      await webrtcAdapter.initializeLocalStream(true, true);
     } catch (error) {
       throw error;
     }
@@ -287,6 +293,36 @@ export class ConnectionService extends EventEmitter {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) return;
       webrtcAdapter.terminateCall();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  toggleMic(peerId: string) {
+    try {
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
+      webrtcAdapter.toggleMic();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  toggleCamera(peerId: string) {
+    try {
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
+      webrtcAdapter.toggleCamera();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  getLocalStream(peerId: string) {
+    try {
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
+      return webrtcAdapter.getLocalStream();
     } catch (error) {
       throw error;
     }
