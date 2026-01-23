@@ -7,6 +7,7 @@ import {
   PeerService,
   UserService,
 } from "./services";
+import { CallService } from "@/features/call";
 import {
   ChatService,
   ConversationParticipantRepository,
@@ -33,6 +34,7 @@ export class AppContainer {
   readonly conversationRepository: ConversationRepository;
   readonly conversationParticipantRepository: ConversationParticipantRepository;
   readonly messageStatusRepository: MessageStatusRepository;
+  readonly callService: CallService;
 
   private initPromise?: Promise<void>;
 
@@ -80,6 +82,11 @@ export class AppContainer {
       this.messageRepository,
       this.messageStatusRepository,
       this.peerService,
+      this.userStore
+    );
+
+    this.callService = new CallService(
+      this.connectionService,
       this.userStore
     );
 

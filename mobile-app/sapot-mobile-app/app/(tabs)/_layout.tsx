@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Link, Tabs } from "expo-router";
+import { Link, Tabs, useRouter } from "expo-router";
 import { Pressable } from "react-native";
 
 import Colors from "@/constants/Colors";
@@ -17,7 +17,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-
+  const router = useRouter();
   const discoveryService = useDiscoveryService();
   const connectionService = useConnectionService();
 
@@ -25,11 +25,19 @@ export default function TabLayout() {
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
     connectionService.start();
+    const audioCallHandler = (peerId: string) =>
+      router.push({ pathname: "/call/[id]", params: { id: peerId } });
+    const callEndedHandler = () =>
+      router.back()
+    connectionService.on("audio-call", audioCallHandler);
+    connectionService.on("call-ended", callEndedHandler);
 
     return () => {
       discoveryService.destroy();
       connectionService.stop();
       connectionService.disconnect();
+      connectionService.off("audio-call", audioCallHandler);
+      connectionService.off("call-ended", callEndedHandler);
     };
   }, []);
   return (

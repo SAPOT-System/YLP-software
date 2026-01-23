@@ -3,12 +3,13 @@ import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapters";
 import { MessageI } from "../types";
 import { SentMessageI } from "@/features/chat/types";
 import { ChatService } from "@/features/chat";
+import { EventEmitter } from "events";
 
 // TODO: handle edge cases when the data format is wrong
 // This will include the types for both tcp and webrtc message
 
 // This class will handle connection to peers. This will be the one who will send and receive data from peers.
-export class ConnectionService {
+export class ConnectionService extends EventEmitter {
   private chatService?: ChatService;
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
@@ -17,7 +18,8 @@ export class ConnectionService {
     private networkConfig: NetworkConfig,
     private userStore: UserStore
   ) {
-    tcpServerAdapter.on("data", (message) => {
+    super();
+    tcpServerAdapter.on("data", async (message) => {
       // console.log("[MessageService]: Message recieved:", message);
       if (
         (message.type && message.type === "ice-candidate") ||
@@ -28,6 +30,26 @@ export class ConnectionService {
         this.handleWebrtcConnection(message);
       }
       // TODO: soon, implement tcp for fallback of webrtc
+
+      if (
+        message.type &&
+        message.type === "audio-call" &&
+        message.data.senderId
+      ) {
+        await this.initializeAudio(message.data.senderId);
+        this.emit("audio-call", message.data.senderId);
+      }
+
+      if (
+        message.type &&
+        message.type === "call-ended" &&
+        message.data.senderId
+      ) {
+        // TODO: check if needed to reinitialize local stream
+        // TODO: validate that the caller id is the sender
+        console.log("call ended");
+        this.emit("call-ended");
+      }
     });
   }
 
@@ -106,11 +128,11 @@ export class ConnectionService {
 
         const timeout = setTimeout(() => {
           reject(new Error("Connection timeout"));
-        }, 5000);
+        }, 20000);
 
-        webrtcAdapter.once("connection-established", () =>
-          clearTimeout(timeout)
-        );
+        webrtcAdapter.once("connection-established", () => {
+          clearTimeout(timeout);
+        });
 
         const { type, sdp } = await webrtcAdapter.createOffer();
 
@@ -134,6 +156,20 @@ export class ConnectionService {
     });
   }
 
+  // This method will assume that tcp and webrtc connection is good
+  async renegotiate(peerId: string) {
+    const tcpAdapter = this.getTcpClientAdapter(peerId);
+    const webrtcAdapter = this.getWebrtcAdapter(peerId);
+    if (!tcpAdapter.isConnected && !webrtcAdapter.isConnected)
+      throw new Error("Not connected");
+
+    const { type, sdp } = await webrtcAdapter.createOffer();
+    this.sendMessage(peerId, {
+      type: type,
+      data: { sdp: sdp, senderId: this.userStore.user.id },
+    });
+  }
+
   // This message is received from tcp client
   private async handleWebrtcConnection(message: any) {
     let webrtcAdapter = this.getWebrtcAdapter(message.data.senderId);
@@ -143,13 +179,10 @@ export class ConnectionService {
         if (webrtcAdapter.isConnected) return;
 
         console.log("[ConnectionService]: Handling ice candidate message...");
-        // console.log(message);
         webrtcAdapter.addIceCandidate(message.data.candidate);
         break;
       case "offer":
         console.log("[ConnectionService]: Handling offer message...");
-        // console.log(message);
-        if (webrtcAdapter.isConnected) return;
         const { type, sdp } = await webrtcAdapter.handleOffer({
           type: "offer",
           sdp: message.data.sdp,
@@ -161,8 +194,6 @@ export class ConnectionService {
         break;
       case "answer":
         console.log("[ConnectionService]: Handling answer message...");
-        // console.log(message);
-        if (webrtcAdapter.isConnected) return;
 
         await webrtcAdapter.handleAnswer({
           type: "answer",
@@ -175,12 +206,12 @@ export class ConnectionService {
         if (webrtcAdapter.isConnected) return;
 
         tcpClientAdapter = this.getTcpClientAdapter(message.data.senderId);
-        if (webrtcAdapter.isConnected) return;
-        if (!tcpClientAdapter.isConnected)
-          await tcpClientAdapter.connect(
-            message.data.ipAddress,
-            message.data.port
-          );
+        if (tcpClientAdapter.isConnected) return;
+
+        await tcpClientAdapter.connect(
+          message.data.ipAddress,
+          message.data.port
+        );
         break;
       default:
         console.log("default");
@@ -188,6 +219,7 @@ export class ConnectionService {
     }
   }
 
+  // TODO: Probably this method can insert the id of the sender/current user
   sendMessage(peerId: string, message: any) {
     const adapter = this.getTcpClientAdapter(peerId);
     if (adapter.isConnected) {
@@ -238,6 +270,26 @@ export class ConnectionService {
         messageId: messageId,
       },
     });
+  }
+
+  async initializeAudio(peerId: string) {
+    try {
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      if (!webrtcAdapter.isConnected) throw new Error("Not connected");
+      await webrtcAdapter.initializeLocalStream(true);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  terminateCallConnection(peerId: string) {
+    try {
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      if (!webrtcAdapter.isConnected) return;
+      webrtcAdapter.terminateCall();
+    } catch (error) {
+      throw error;
+    }
   }
 
   disconnect() {
