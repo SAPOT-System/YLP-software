@@ -19,7 +19,7 @@ export class WebrtcAdapter extends EventEmitter {
   private peerConnection: RTCPeerConnection | null;
   private localStream: MediaStream | null;
   // remoteStream and dataChannel have a type of any because there is a conflict on its type
-  //   private remoteStream: any | null;
+  private remoteStream: any | null;
   private dataChannel: any | null;
   private configuration: RTCConfiguration | undefined;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
@@ -30,7 +30,7 @@ export class WebrtcAdapter extends EventEmitter {
     this.peerId = peerId;
     this.peerConnection = null;
     this.localStream = null;
-    // this.remoteStream = null;
+    this.remoteStream = null;
     this.dataChannel = null;
     this.pendingIceCandidates = [];
     this.remoteDescriptionSet = false;
@@ -65,6 +65,19 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       this.localStream = await mediaDevices.getUserMedia(constraints);
+
+      // Add local stream to connection for audio calls and video calls
+      if (this.localStream) {
+        console.log("[WebrtcAdapter]: Adding local stream to connection");
+        this.localStream.getTracks().forEach((track) => {
+          console.log("[WebrtcAdapter]: Adding track: ", track.kind);
+          if (!this.peerConnection)
+            throw new Error("Peer connection not initialized");
+          this.peerConnection.addTrack(track, this.localStream!);
+        });
+      } else {
+        console.log("[WebrtcAdapter]: No local stream to connection");
+      }
     } catch (error) {
       console.error("Error accessing media devices:", error);
       throw error;
@@ -75,20 +88,9 @@ export class WebrtcAdapter extends EventEmitter {
     console.log("[WebrtcAdapter]: Creating peer connection...");
     this.peerConnection = new RTCPeerConnection(this.configuration);
 
-    // Add local stream to connection for audio calls and video calls
-    if (this.localStream) {
-      console.log("[WebrtcAdapter]: Adding local stream to connection");
-      this.localStream.getTracks().forEach((track) => {
-        console.log("[WebrtcAdapter]: Adding track: ", track.kind);
-        this.peerConnection!.addTrack(track, this.localStream!);
-      });
-    } else {
-      console.log("[WebrtcAdapter]: No local stream to connection");
-    }
-
     // This will receive media such as audio and video of peers
     this.peerConnection.ontrack = (event) => {
-      //   this.remoteStream = event.streams[0];
+      this.remoteStream = event.streams[0];
       console.log("remote audio playing");
     };
 
@@ -297,6 +299,29 @@ export class WebrtcAdapter extends EventEmitter {
     } else {
       throw new Error("[WebrtcAdapter]: Unable to send payload`");
     }
+  }
+
+  terminateCall() {
+    if (!this.localStream) {
+      console.log("local stream null");
+      return;
+    }
+    if (!this.peerConnection) {
+      console.log("peer connection null");
+      return;
+    }
+    // stop local media tracks
+    this.localStream.getTracks().forEach((track) => track.stop());
+
+    // remove tracks from connection
+    this.peerConnection.getSenders().forEach((sender) => {
+      if (
+        sender.track &&
+        (sender.track.kind === "audio" || sender.track.kind === "video")
+      ) {
+        this.peerConnection!.removeTrack(sender);
+      }
+    });
   }
 
   get isConnected() {

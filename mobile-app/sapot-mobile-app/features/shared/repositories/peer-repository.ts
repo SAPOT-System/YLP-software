@@ -1,5 +1,5 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
-import { Peer } from "@/features/shared";
+import { Peer } from "../database";
 
 // This class will communicate to the peers table in the database
 export class PeerRepository {

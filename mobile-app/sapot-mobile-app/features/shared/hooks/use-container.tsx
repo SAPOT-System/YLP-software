@@ -50,3 +50,7 @@ export function usePeerService() {
 export function useMessageRepository() {
   return useContainer().messageRepository;
 }
+
+export function useCallService() {
+  return useContainer().callService;
+}

@@ -7,46 +7,36 @@ import {
   StyleSheet,
 } from "react-native";
 import React, { useEffect, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
-import { MessageList, useChatService } from "@/features/chat";
-
-// This is enum for determining where the chat room is triggered, it is either in peer list item or chat list item
-export enum ChatRoomSource {
-  PEER = "peer_list",
-  CHAT = "chat_list",
-}
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { ChatRoomSource } from "@/features/chat/types";
+import { useCallService, useChatService } from "@/features/shared";
+import { MessageList } from "@/features/chat";
 
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
   const [isRendered, setIsRendered] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
+  const [peerId, setPeerId] = useState<string | undefined>();
   const [message, setMessage] = useState("");
   const chatService = useChatService();
+  const router = useRouter();
+  const callService = useCallService();
 
   // This will initialize the connection to the peer and conversations by the id params
   useEffect(() => {
     const connect = async () => {
-      try {
-        let peerId = "";
-        if (source === ChatRoomSource.PEER) {
-          peerId = id as string;
-          const chatId = await chatService.findChatByPeer(peerId);
-          if (chatId) setConversationId(chatId);
-        } else if (source === ChatRoomSource.CHAT) {
-          peerId = await chatService.findPeerIdByChatId(id as string);
-          setConversationId(id as string);
-        } else {
-          throw Error("Error in passed source paramater");
-        }
-        await chatService.connect(peerId as string);
-        setIsConnected(true);
-      } catch (error) {
-        console.warn("Connection failed", error);
-        // TODO: try reconnect
-      } finally {
-        setIsRendered(true);
+      if (source === ChatRoomSource.PEER) {
+        setPeerId(id as string);
+        const chatId = await chatService.findChatByPeer(id as string);
+        if (chatId) setConversationId(chatId);
+      } else if (source === ChatRoomSource.CHAT) {
+        setPeerId(await chatService.findPeerIdByChatId(id as string));
+        setConversationId(id as string);
+      } else {
+        throw Error("Error in passed source paramater");
       }
+      setIsRendered(true);
     };
     connect();
 
@@ -55,6 +45,27 @@ const ChatRoom = () => {
       chatService.cleanUp();
     };
   }, [chatService, id, source]);
+
+  useEffect(() => {
+    if (!peerId) return;
+
+    const connect = async () => {
+      try {
+        await chatService.connect(peerId);
+        setIsConnected(true);
+      } catch (error) {
+        console.warn("Connection failed", error);
+        // TODO: try reconnect
+      }
+    };
+
+    connect();
+
+    return () => {
+      chatService.disconnect();
+      chatService.cleanUp();
+    };
+  }, [peerId, chatService]);
 
   if (!isRendered) return <ActivityIndicator />;
 
@@ -71,6 +82,12 @@ const ChatRoom = () => {
     } catch (error) {
       console.error("[ChatRoom]: Error handling message:", error);
     }
+  };
+
+  const handleAudioCall = async (peerId: string) => {
+    callService.informPeerForIncomingAudioCall(peerId);
+    await callService.startAudioCall(peerId);
+    router.push({ pathname: "/call/[id]", params: { id: peerId! } });
   };
 
   return (
@@ -92,6 +109,9 @@ const ChatRoom = () => {
 
       <Pressable onPress={handleSendMessage}>
         <Text>Send Message</Text>
+      </Pressable>
+      <Pressable onPress={() => handleAudioCall(peerId!)}>
+        <Text>Voice call</Text>
       </Pressable>
       {conversationId ? (
         <MessageList conversationId={conversationId} />

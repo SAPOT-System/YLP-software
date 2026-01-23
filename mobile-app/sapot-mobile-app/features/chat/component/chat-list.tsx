@@ -1,10 +1,15 @@
 import { View, Text, FlatList, Pressable } from "react-native";
 import React, { useCallback } from "react";
-import { Conversation, database } from "@/features/shared";
 import { useRouter } from "expo-router";
 import { withObservables } from "@nozbe/watermelondb/react";
-import { ChatRoomSource } from "@/app/chat/[id]";
-import { useChatService, useDiscoveryService, usePeerService } from "../hooks";
+import {
+  Conversation,
+  database,
+  useChatService,
+  useDiscoveryService,
+  usePeerService,
+} from "@/features/shared";
+import { ChatRoomSource } from "@/features/chat/types";
 
 const enhanceChats = withObservables([], () => ({
   chats: database.get<Conversation>("conversations").query().observe(),

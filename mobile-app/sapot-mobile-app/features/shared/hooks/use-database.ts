@@ -4,8 +4,6 @@ const useDatabase = () => {
   const createPeer = async (newPeer: {
     id: string;
     username: string;
-    port: number;
-    ipAddress: string;
   }) => {
     try {
       const createdPeer = await database.write(async () => {

@@ -1,9 +1,9 @@
 import { View, Text, FlatList, Pressable } from "react-native";
 import React from "react";
-import { database, Peer } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
-import { ChatRoomSource } from "@/app/chat/[id]";
+import { database, Peer } from "../database";
+import { ChatRoomSource } from "@/features/chat/types";
 
 const enhancePeers = withObservables([], () => ({
   peers: database.get<Peer>("peers").query().observe(),

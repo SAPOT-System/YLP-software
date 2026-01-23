@@ -1,8 +1,8 @@
-import { PeerService } from "@/features/chat";
 import { getItemAsync, setItemAsync } from "expo-secure-store";
 import uuid from "react-native-uuid";
 import { Peer } from "../database";
 import { SessionStore, UserStore } from "../stores";
+import { PeerService } from "./peer-service";
 
 export class UserService {
   constructor(

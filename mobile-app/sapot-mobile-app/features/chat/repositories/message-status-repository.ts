@@ -1,10 +1,10 @@
+import { Collection, Database, Q } from "@nozbe/watermelondb";
 import {
   Message,
   MessageStatus,
   MessageStatusType,
   Peer,
 } from "@/features/shared";
-import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 export class MessageStatusRepository {
   private messageStatusCollection: Collection<MessageStatus>;

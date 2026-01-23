@@ -1,5 +1,5 @@
-import { Conversation, ConversationType } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
+import { Conversation, ConversationType } from "@/features/shared";
 
 export class ConversationRepository {
   conversationCollections: Collection<Conversation>;
