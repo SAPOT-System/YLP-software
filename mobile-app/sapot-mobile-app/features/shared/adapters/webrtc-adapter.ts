@@ -16,24 +16,51 @@ interface RTCIceCandidateInit {
 }
 
 export class WebrtcAdapter extends EventEmitter {
-  private peerConnection: RTCPeerConnection | null;
-  private localStream: MediaStream | null;
-  // remoteStream and dataChannel have a type of any because there is a conflict on its type
-  private remoteStream: any | null;
-  private dataChannel: any | null;
-  private configuration: RTCConfiguration | undefined;
+  /**
+   * This property holds the connection of webrtc
+   */
+  private peerConnection?: RTCPeerConnection;
+
+  /**
+   * This property stores the audio and video of the current user of the app
+   */
+  private localStream?: MediaStream;
+
+  // Note: remoteStream and dataChannel have a type of any because there is a conflict on its type
+
+  /**
+   * This property stores the audio and video of the peer that is currently interacting by the user
+   */
+  private remoteStream?: any;
+
+  /**
+   * This property manages the chat connection
+   */
+  private dataChannel?: any;
+
+  /**
+   * This property holds the information whether the app will use servers or not
+   */
+  private configuration: RTCConfiguration;
+
+  /**
+   * This property holds the array of data that is essential to the connection
+   */
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
+
+  /**
+   * This flag will be used to by the app to know if remote description is set which is useful on forming connection
+   */
   private remoteDescriptionSet: boolean = false;
+
+  /**
+   * This property holds the id of peer that holds this class state
+   */
   readonly peerId: string;
+
   constructor(peerId: string) {
     super();
     this.peerId = peerId;
-    this.peerConnection = null;
-    this.localStream = null;
-    this.remoteStream = null;
-    this.dataChannel = null;
-    this.pendingIceCandidates = [];
-    this.remoteDescriptionSet = false;
     this.configuration = {
       iceServers: [
         // No turn server for physical devices
@@ -334,16 +361,16 @@ export class WebrtcAdapter extends EventEmitter {
   cleanup() {
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => track.stop());
-      this.localStream = null;
+      this.localStream = undefined;
     }
 
     if (this.peerConnection) {
       this.peerConnection.close();
-      this.peerConnection = null;
+      this.peerConnection = undefined;
     }
 
-    // this.remoteStream = null;
-    this.dataChannel = null;
+    this.remoteStream = undefined;
+    this.dataChannel = undefined;
     this.pendingIceCandidates = [];
     this.remoteDescriptionSet = false;
     console.log("[WebrtcAdapter]: Cleanup");
