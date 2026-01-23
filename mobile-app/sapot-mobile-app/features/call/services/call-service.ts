@@ -1,28 +1,36 @@
-import {
-  ConnectionService,
-  Peer,
-  PeerService,
-  UserStore,
-} from "@/features/shared";
-
-export class CallService {
+import { ConnectionService, UserStore } from "@/features/shared";
+import { EventEmitter } from "events";
+// TODO: probably store the peerId state
+/**
+ * This class is capable of managing call connection
+ */
+export class CallService extends EventEmitter {
   constructor(
     private connectionService: ConnectionService,
     private userStore: UserStore
-  ) {}
+  ) {
+    super();
+  }
 
   // This method will assume that tcp and webrtc connection is good
-  async startAudioCall(peerId: string) {
+  async startCall(peerId: string) {
     try {
-      // Initialize local audio
-      await this.connectionService.initializeAudio(peerId);
+      this.listenToRemoteStream();
+      // Initialize local audio and video
+      await this.connectionService.initializeStream(peerId);
 
-      // Renegotiate the webrtc to include the audio
+      // Renegotiate the webrtc to include the audio and video
       await this.connectionService.renegotiate(peerId);
     } catch (error) {
       console.warn("[CallService]: Error starting audio call:", error);
       throw error;
     }
+  }
+
+  listenToRemoteStream() {
+    this.connectionService.on("remoteStream", (stream) => {
+      this.emit("remoteStream", stream);
+    });
   }
 
   // Inform peer for incoming call
@@ -40,5 +48,29 @@ export class CallService {
       type: "call-ended",
       data: { senderId: this.userStore.user.id },
     });
+  }
+
+  toggleMic(peerId: string) {
+    try {
+      this.connectionService.toggleMic(peerId);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  toggleCamera(peerId: string) {
+    try {
+      this.connectionService.toggleCamera(peerId);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  getLocalCam(peerId: string) {
+    try {
+      return this.connectionService.getLocalStream(peerId);
+    } catch (error) {
+      throw error;
+    }
   }
 }

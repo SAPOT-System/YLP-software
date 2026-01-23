@@ -8,6 +8,7 @@ import {
 import { EventEmitter } from "events";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { MessageI } from "../types";
+import { MediaStreamTrack } from "react-native-webrtc";
 
 interface RTCIceCandidateInit {
   candidate: string;
@@ -54,6 +55,16 @@ export class WebrtcAdapter extends EventEmitter {
   private remoteDescriptionSet: boolean = false;
 
   /**
+   * This property is capable of controlling microphone
+   */
+  private audioTrack?: MediaStreamTrack;
+
+  /**
+   * This property is capable of controlling camera visibility
+   */
+  private videoTrack?: MediaStreamTrack;
+
+  /**
    * This property holds the id of peer that holds this class state
    */
   readonly peerId: string;
@@ -93,6 +104,9 @@ export class WebrtcAdapter extends EventEmitter {
 
       this.localStream = await mediaDevices.getUserMedia(constraints);
 
+      this.audioTrack = this.localStream.getAudioTracks()[0];
+      this.videoTrack = this.localStream.getVideoTracks()[0];
+
       // Add local stream to connection for audio calls and video calls
       if (this.localStream) {
         console.log("[WebrtcAdapter]: Adding local stream to connection");
@@ -118,7 +132,7 @@ export class WebrtcAdapter extends EventEmitter {
     // This will receive media such as audio and video of peers
     this.peerConnection.ontrack = (event) => {
       this.remoteStream = event.streams[0];
-      console.log("remote audio playing");
+      this.emit("remoteStream", event.streams[0]);
     };
 
     this.peerConnection.onconnectionstatechange = (event) => {
@@ -351,11 +365,42 @@ export class WebrtcAdapter extends EventEmitter {
     });
   }
 
+  toggleMic() {
+    try {
+      if (!this.audioTrack) throw Error("Audio track not initialized");
+      this.audioTrack.enabled = this.audioTrack.enabled ? false : true;
+      console.log("toggling mic to", this.audioTrack.enabled);
+    } catch (error) {
+      console.warn("Error toggling mic");
+      throw error;
+    }
+  }
+
+  toggleCamera() {
+    try {
+      if (!this.videoTrack) throw Error("Video track not initialized");
+      this.videoTrack.enabled = this.videoTrack.enabled ? false : true;
+      console.log("toggling camera to", this.videoTrack.enabled);
+    } catch (error) {
+      console.warn("Error toggling camera");
+      throw error;
+    }
+  }
+
   get isConnected() {
     return (
       this.peerConnection?.connectionState === "connected" &&
       this.dataChannel.readyState === "open"
     );
+  }
+
+  getLocalStream() {
+    try {
+      if (!this.localStream) throw new Error("Local stream is undefined");
+      return this.localStream;
+    } catch (error) {
+      throw error;
+    }
   }
 
   cleanup() {

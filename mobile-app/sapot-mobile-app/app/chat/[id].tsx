@@ -84,9 +84,9 @@ const ChatRoom = () => {
     }
   };
 
-  const handleAudioCall = async (peerId: string) => {
+  const handleCall = async (peerId: string) => {
     callService.informPeerForIncomingAudioCall(peerId);
-    await callService.startAudioCall(peerId);
+    await callService.startCall(peerId);
     router.push({ pathname: "/call/[id]", params: { id: peerId! } });
   };
 
@@ -110,7 +110,7 @@ const ChatRoom = () => {
       <Pressable onPress={handleSendMessage}>
         <Text>Send Message</Text>
       </Pressable>
-      <Pressable onPress={() => handleAudioCall(peerId!)}>
+      <Pressable onPress={() => handleCall(peerId!)}>
         <Text>Voice call</Text>
       </Pressable>
       {conversationId ? (
