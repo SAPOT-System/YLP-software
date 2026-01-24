@@ -29,7 +29,7 @@ export class ConnectionService extends EventEmitter {
         message.type === "answer" ||
         message.type === "handshake"
       ) {
-        this.handleWebrtcConnection(message);
+        await this.handleWebrtcConnection(message);
       }
       // TODO: soon, implement tcp for fallback of webrtc
 
@@ -80,9 +80,7 @@ export class ConnectionService extends EventEmitter {
 
         if (message.type === "chat" && message.data) {
           try {
-            // TODO: remove send ack duplication
-            this.chatService.handleIncomingChatMessage(message.data);
-            this.sendAckMessage(peerId, { messageId: message.data.messageId });
+            await this.chatService.handleIncomingChatMessage(message.data);
           } catch (error) {
             `[ConnectionService]: Error handling incoming chat message\n${JSON.stringify(
               message,
@@ -94,7 +92,7 @@ export class ConnectionService extends EventEmitter {
         if (message.type === "ack" && message.data) {
           try {
             console.log("Ack received");
-            this.chatService.handleAckMessage(message.data.messageId);
+            await this.chatService.handleAckMessage(message.data.messageId);
           } catch (error) {
             `[ConnectionService]: Error handling acknowledge message\n${JSON.stringify(
               message,
