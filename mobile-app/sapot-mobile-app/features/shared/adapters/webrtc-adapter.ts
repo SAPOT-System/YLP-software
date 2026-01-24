@@ -120,109 +120,148 @@ export class WebrtcAdapter extends EventEmitter {
         console.log("[WebrtcAdapter]: No local stream to connection");
       }
     } catch (error) {
-      console.error("Error accessing media devices:", error);
+      console.error(
+        `[WebrtcAdapter]: Error initializing local stream\n${JSON.stringify(
+          { audio, video },
+          null,
+          2
+        )}`
+      );
       throw error;
     }
   }
 
   createPeerConnection() {
-    console.log("[WebrtcAdapter]: Creating peer connection...");
-    this.peerConnection = new RTCPeerConnection(this.configuration);
-
-    // This will receive media such as audio and video of peers
-    this.peerConnection.ontrack = (event) => {
-      this.remoteStream = event.streams[0];
-      this.emit("remoteStream", event.streams[0]);
-    };
-
-    this.peerConnection.onconnectionstatechange = (event) => {
-      // console.log(this.peerConnection?.connectionState);
-      switch (this.peerConnection?.connectionState) {
-        case "closed":
-          console.log("[WebrtcAdapter]: Call being disconnected");
-          this.emit("connection-closed");
-          break;
-        case "connected":
-          if (this.dataChannel.readyState == "open") {
-            this.emit("connection-established");
-          }
-          break;
-      }
-    };
-
-    this.peerConnection.ondatachannel = (event) => {
-      // console.log(`Data channel received: ${event.channel}`);
-      this.setDataChannel(event.channel);
-    };
-
-    this.peerConnection.oniceconnectionstatechange = (event) => {
-      // console.log(
-      //   "[WebrtcAdapter]: ICE Connection state:",
-      //   this.peerConnection?.iceConnectionState
-      // );
-      switch (this.peerConnection?.iceConnectionState) {
-        case "connected":
-          console.log("[WebrtcAdapter]: ICE connection connected");
-          break;
-        case "completed":
-          console.log("[WebrtcAdapter]: ICE connection completed");
-          break;
-      }
-    };
-
-    this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        // console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
-        this.emit("onicecandidate", event.candidate);
-      }
-    };
-
-    // Create data channel for text chat
-    this.dataChannel = this.peerConnection.createDataChannel("chat");
-    // console.log(this.dataChannel ? "Data channel on" : "Data channel off");
-    this.setupDataChannel(this.dataChannel);
-
-    // console.log("Peer connection created:", this.peerConnection ? true : false);
-  }
-
-  setDataChannel(channel: RTCDataChannel) {
-    this.dataChannel = channel;
-    this.setupDataChannel(channel);
-  }
-
-  async createOffer() {
-    if (!this.peerConnection) {
-      console.log(
-        "[WebrtcAdapter]: Creating peer connection in create offer method"
-      );
-      this.createPeerConnection();
-    }
-
     try {
-      // console.log(`[WebrtcAdapter]: Creating offer...`);
-      const offer = await this.peerConnection!.createOffer();
-      // console.log(`[WebrtcAdapter]: Setting local description...`);
-      await this.peerConnection!.setLocalDescription(offer);
+      console.log("[WebrtcAdapter]: Creating peer connection...");
+      this.peerConnection = new RTCPeerConnection(this.configuration);
 
-      return {
-        type: "offer",
-        sdp: offer.sdp,
+      // This will receive media such as audio and video of peers
+      this.peerConnection.ontrack = (event) => {
+        this.remoteStream = event.streams[0];
+        this.emit("remoteStream", event.streams[0]);
       };
+
+      this.peerConnection.onconnectionstatechange = (event) => {
+        // console.log(this.peerConnection?.connectionState);
+        switch (this.peerConnection?.connectionState) {
+          case "closed":
+            console.log("[WebrtcAdapter]: Call being disconnected");
+            this.emit("connection-closed");
+            break;
+          case "connected":
+            if (this.dataChannel.readyState == "open") {
+              this.emit("connection-established");
+            }
+            break;
+        }
+      };
+
+      this.peerConnection.ondatachannel = (event) => {
+        // console.log(`Data channel received: ${event.channel}`);
+        this.setDataChannel(event.channel);
+      };
+
+      this.peerConnection.oniceconnectionstatechange = (event) => {
+        // console.log(
+        //   "[WebrtcAdapter]: ICE Connection state:",
+        //   this.peerConnection?.iceConnectionState
+        // );
+        switch (this.peerConnection?.iceConnectionState) {
+          case "connected":
+            console.log("[WebrtcAdapter]: ICE connection connected");
+            break;
+          case "completed":
+            console.log("[WebrtcAdapter]: ICE connection completed");
+            break;
+        }
+      };
+
+      this.peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          // console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
+          this.emit("onicecandidate", event.candidate);
+        }
+      };
+
+      // Create data channel for text chat
+      this.dataChannel = this.peerConnection.createDataChannel("chat");
+      // console.log(this.dataChannel ? "Data channel on" : "Data channel off");
+      this.setupDataChannel(this.dataChannel);
+
+      // console.log("Peer connection created:", this.peerConnection ? true : false);
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error creating offer:", error);
+      console.error("[WebrtcAdapter]: Error creating peer connection:", error);
       throw error;
     }
   }
 
-  async handleOffer(offer: RTCSessionDescriptionInit | undefined) {
-    if (!this.peerConnection) {
-      console.log(
-        "[WebrtcAdapter]: Creating peer connection in handle offer method"
-      );
-      this.createPeerConnection();
-    }
-
+  setDataChannel(channel: RTCDataChannel) {
     try {
+      this.dataChannel = channel;
+      this.setupDataChannel(channel);
+    } catch (error) {
+      console.error("[WebrtcAdapter]: Error to set data channel:", error);
+      throw error;
+    }
+  }
+
+  async createOffer() {
+    return new Promise<{ type: string; sdp: any }>(async (resolve, reject) => {
+    try {
+      if (!this.peerConnection) {
+        console.log(
+          "[WebrtcAdapter]: Creating peer connection in create offer method"
+        );
+        this.createPeerConnection();
+      }
+      // console.log(`[WebrtcAdapter]: Creating offer...`);
+        if (this.peerConnection?.signalingState === "stable") {
+          console.log("stable");
+          const offer = await this.peerConnection!.createOffer();
+          // console.log(`[WebrtcAdapter]: Setting local description...`);
+          await this.peerConnection!.setLocalDescription(offer);
+
+          resolve({
+            type: "offer",
+            sdp: offer.sdp,
+          });
+        } else {
+          console.log("Not stable");
+          const onStable = async () => {
+            if (this.peerConnection?.signalingState === "stable") {
+              console.log("run");
+              this.peerConnection.onsignalingstatechange = () => null;
+      const offer = await this.peerConnection!.createOffer();
+      // console.log(`[WebrtcAdapter]: Setting local description...`);
+      await this.peerConnection!.setLocalDescription(offer);
+
+              resolve({
+        type: "offer",
+        sdp: offer.sdp,
+              });
+            }
+      };
+          this.peerConnection!.onsignalingstatechange = async () =>
+            await onStable();
+        }
+    } catch (error) {
+      console.error("[WebrtcAdapter]: Error creating offer:", error);
+        error;
+        reject(error);
+    }
+    });
+  }
+
+  async handleOffer(offer: RTCSessionDescriptionInit | undefined) {
+    try {
+      if (!this.peerConnection) {
+        console.log(
+          "[WebrtcAdapter]: Creating peer connection in handle offer method"
+        );
+        this.createPeerConnection();
+      }
+
       // console.log(`[WebrtcAdapter]: Setting remote description`);
 
       await this.peerConnection!.setRemoteDescription(
@@ -252,12 +291,12 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   async handleAnswer(answer: RTCSessionDescriptionInit | undefined) {
-    if (!this.peerConnection) {
-      console.log("[WebrtcAdapter]: No peer connection");
-      return;
-    }
-
     try {
+      if (!this.peerConnection) {
+        console.log("[WebrtcAdapter]: No peer connection");
+        return;
+      }
+
       // console.log(`[WebrtcAdapter]: Setting remote description`);
 
       await this.peerConnection!.setRemoteDescription(
@@ -276,18 +315,18 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit) {
-    if (!this.peerConnection) {
-      console.log("[WebrtcAdapter]: No peer connection");
-      return;
-    }
-
-    if (!this.remoteDescriptionSet) {
-      // console.log("[WebrtcAdapter]: Queueing ICE candidate");
-      this.pendingIceCandidates.push(candidate);
-      return;
-    }
-
     try {
+      if (!this.peerConnection) {
+        console.log("[WebrtcAdapter]: No peer connection");
+        return;
+      }
+
+      if (!this.remoteDescriptionSet) {
+        // console.log("[WebrtcAdapter]: Queueing ICE candidate");
+        this.pendingIceCandidates.push(candidate);
+        return;
+      }
+
       // console.log(`[WebrtcAdapter]: Adding ice candidate`);
 
       await this.peerConnection!.addIceCandidate(
@@ -295,74 +334,96 @@ export class WebrtcAdapter extends EventEmitter {
       );
     } catch (error) {
       console.error("[WebrtcAdapter]: Error adding ice candidate:", error);
+      throw error;
     }
   }
 
   setupDataChannel(channel: RTCDataChannel) {
-    // console.log(`[WebrtcAdapter]: Setup data channel`);
-    channel.onopen = () => {
-      console.log("[WebrtcAdapter]: Data channel opened");
-      this.emit("datachannel-open");
+    try {
+      // console.log(`[WebrtcAdapter]: Setup data channel`);
+      channel.onopen = () => {
+        console.log("[WebrtcAdapter]: Data channel opened");
+        this.emit("datachannel-open");
 
-      if (this.peerConnection?.connectionState === "connected")
-        this.emit("connection-established");
-    };
+        if (this.peerConnection?.connectionState === "connected")
+          this.emit("connection-established");
+      };
 
-    // This will recieve message from peers webrtc's datachannel
-    channel.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        // console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
-        this.emit("receivedMessage", message);
-      } catch (error) {
-        console.error("Error parsing receive message:", error);
-      }
-    };
+      // This will recieve message from peers webrtc's datachannel
+      channel.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          // console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
+          this.emit("receivedMessage", message);
+        } catch (error) {
+          console.error("Error parsing receive message:", error);
+        }
+      };
 
-    channel.onerror = (error) => {
-      this.emit("connection-failed", error);
-    };
+      channel.onerror = (error) => {
+        this.emit("connection-failed", error);
+      };
 
-    channel.onclose = () => {
-      console.log("[WebrtcAdapter]: Data channel closed");
-    };
+      channel.onclose = () => {
+        console.log("[WebrtcAdapter]: Data channel closed");
+      };
+    } catch (error) {
+      console.error("[WebrtcAdapter]: Error to setup data channel:", error);
+      throw error;
+    }
   }
 
   // TODO: make a type interface for the payload paramater
   sendDataMessage(payload: MessageI<any>) {
-    if (
-      this.dataChannel &&
-      this.dataChannel.readyState === "open" &&
-      this.isConnected
-    ) {
-      // console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
-      this.dataChannel.send(JSON.stringify(payload));
-    } else {
-      throw new Error("[WebrtcAdapter]: Unable to send payload`");
+    try {
+      if (
+        this.dataChannel &&
+        this.dataChannel.readyState === "open" &&
+        this.isConnected
+      ) {
+        // console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
+        this.dataChannel.send(JSON.stringify(payload));
+      } else {
+        throw new Error("Unable to send payload`");
+      }
+    } catch (error) {
+      console.error(
+        `[WebrtcAdapter]: Error sending data message\n${JSON.stringify(
+          payload,
+          null,
+          2
+        )}`
+      );
+      throw error;
     }
   }
 
   terminateCall() {
-    if (!this.localStream) {
-      console.log("local stream null");
-      return;
-    }
-    if (!this.peerConnection) {
-      console.log("peer connection null");
-      return;
-    }
-    // stop local media tracks
-    this.localStream.getTracks().forEach((track) => track.stop());
-
-    // remove tracks from connection
-    this.peerConnection.getSenders().forEach((sender) => {
-      if (
-        sender.track &&
-        (sender.track.kind === "audio" || sender.track.kind === "video")
-      ) {
-        this.peerConnection!.removeTrack(sender);
+    try {
+      if (!this.localStream) {
+        console.log("local stream null");
+        return;
       }
-    });
+      if (!this.peerConnection) {
+        console.log("peer connection null");
+        return;
+      }
+      // stop local media tracks
+      this.localStream.getTracks().forEach((track) => track.stop());
+
+      // remove tracks from connection
+      this.peerConnection.getSenders().forEach((sender) => {
+        if (
+          sender.track &&
+          (sender.track.kind === "audio" || sender.track.kind === "video")
+        ) {
+          this.peerConnection!.removeTrack(sender);
+        }
+      });
+    } catch (error) {
+      console.error("[WebrtcAdapter]: Error terminating the call:", error);
+      throw error;
+    }
   }
 
   toggleMic() {
@@ -371,7 +432,7 @@ export class WebrtcAdapter extends EventEmitter {
       this.audioTrack.enabled = this.audioTrack.enabled ? false : true;
       console.log("toggling mic to", this.audioTrack.enabled);
     } catch (error) {
-      console.warn("Error toggling mic");
+      console.error("[WebrtcAdapter]: Error toggling the microphone:", error);
       throw error;
     }
   }
@@ -382,16 +443,24 @@ export class WebrtcAdapter extends EventEmitter {
       this.videoTrack.enabled = this.videoTrack.enabled ? false : true;
       console.log("toggling camera to", this.videoTrack.enabled);
     } catch (error) {
-      console.warn("Error toggling camera");
+      console.error("[WebrtcAdapter]: Error toggling the camera:", error);
       throw error;
     }
   }
 
   get isConnected() {
-    return (
-      this.peerConnection?.connectionState === "connected" &&
-      this.dataChannel.readyState === "open"
-    );
+    try {
+      return (
+        this.peerConnection?.connectionState === "connected" &&
+        this.dataChannel.readyState === "open"
+      );
+    } catch (error) {
+      console.error(
+        "[WebrtcAdapter]: Error getting if webrtc is connected:",
+        error
+      );
+      throw error;
+    }
   }
 
   getLocalStream() {
@@ -399,25 +468,31 @@ export class WebrtcAdapter extends EventEmitter {
       if (!this.localStream) throw new Error("Local stream is undefined");
       return this.localStream;
     } catch (error) {
+      console.error("[WebrtcAdapter]: Error getting local stream:", error);
       throw error;
     }
   }
 
   cleanup() {
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => track.stop());
-      this.localStream = undefined;
-    }
+    try {
+      if (this.localStream) {
+        this.localStream.getTracks().forEach((track) => track.stop());
+        this.localStream = undefined;
+      }
 
-    if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = undefined;
-    }
+      if (this.peerConnection) {
+        this.peerConnection.close();
+        this.peerConnection = undefined;
+      }
 
-    this.remoteStream = undefined;
-    this.dataChannel = undefined;
-    this.pendingIceCandidates = [];
-    this.remoteDescriptionSet = false;
-    console.log("[WebrtcAdapter]: Cleanup");
+      this.remoteStream = undefined;
+      this.dataChannel = undefined;
+      this.pendingIceCandidates = [];
+      this.remoteDescriptionSet = false;
+      console.log("[WebrtcAdapter]: Cleanup");
+    } catch (error) {
+      console.error("[WebrtcAdapter]: Error getting local stream:", error);
+      throw error;
+    }
   }
 }

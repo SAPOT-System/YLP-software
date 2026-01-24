@@ -52,7 +52,12 @@ export class TcpClientAdapter extends EventEmitter {
         socket.on("error", onError);
         socket.on("close", onClose);
       } catch (error) {
-        console.error("[TcpClientAdapter]: Error connecting to socket:", error);
+        console.error(
+          `[TcpClientAdapter]: Error connecting\n${JSON.stringify({
+            host: host,
+            port: port,
+          })}\n${error}`
+        );
         this.socket = undefined;
         throw error;
       }
@@ -65,7 +70,12 @@ export class TcpClientAdapter extends EventEmitter {
       const data = JSON.stringify(message) + "\n";
       this.socket.write(data);
     } catch (error) {
-      console.error("[TcpClientAdapter]: Error sending message:", error);
+      console.error(
+        `[TcpClientAdapter]: Error sending message\n${JSON.stringify({
+          message: message,
+        })}\n${error}`
+      );
+      throw error;
     }
   }
 
@@ -75,10 +85,18 @@ export class TcpClientAdapter extends EventEmitter {
       this.socket = undefined;
     } catch (error) {
       console.error("[TcpClientAdapter]: Error socket disconnecting:", error);
+      throw error;
     }
   }
 
   get isConnected() {
-    return this.connectionState === "connected";
+    try {
+      return this.connectionState === "connected";
+    } catch (error) {
+      console.error(
+        "[TcpClientAdapter]: Error getting if tcp is connected:",
+        error
+      );
+    }
   }
 }

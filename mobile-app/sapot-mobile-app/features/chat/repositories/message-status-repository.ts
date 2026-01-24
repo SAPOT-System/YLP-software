@@ -34,8 +34,9 @@ export class MessageStatusRepository {
       });
     } catch (error) {
       console.error(
-        "[MessageStatusRepository]: Error creating a status:",
-        error
+        `[MessageStatusRepository]: Error saving message status\n${JSON.stringify(
+          { messageID: message.id, username: user.username, status: status }
+        )}\n${error}`
       );
       throw error;
     }
@@ -60,8 +61,9 @@ export class MessageStatusRepository {
       });
     } catch (error) {
       console.error(
-        "[MessageStatusRepository]: Error updateing message status:",
-        error
+        `[MessageStatusRepository]: Error updating message status by message\n${JSON.stringify(
+          { messageID: messageId, status: status }
+        )}\n${error}`
       );
       throw error;
     }
@@ -85,8 +87,9 @@ export class MessageStatusRepository {
       });
     } catch (error) {
       console.error(
-        "[MessageStatusRepository]: Error updateing message status:",
-        error
+        `[MessageStatusRepository]: Error updating message status by ID\n${JSON.stringify(
+          { messageID: messageStatusId, status: status }
+        )}\n${error}`
       );
       throw error;
     }
@@ -103,8 +106,9 @@ export class MessageStatusRepository {
       });
     } catch (error) {
       console.error(
-        "[MessageStatusRepository]: Error updateing message status:",
-        error
+        `[MessageStatusRepository]: Error querying message status by message\n${JSON.stringify(
+          { messageID: messageId }
+        )}\n${error}`
       );
       throw error;
     }
@@ -126,21 +130,30 @@ export class MessageStatusRepository {
       });
     } catch (error) {
       console.error(
-        "[MessageStatusRepository]: Error updateing message status:",
-        error
+        `[MessageStatusRepository]: Error querying not sent message by messages\n${JSON.stringify(
+          { messageIDs: messageIds }
+        )}\n${error}`
       );
       throw error;
     }
   }
 
   async queryAllStatuses() {
-    return await this.messageStatusCollection.query().fetch();
+    try {
+      return await this.messageStatusCollection.query().fetch();
+    } catch (error) {
+      throw error;
+    }
   }
 
   // For debugging purposes
   async getStatusDestroyOps() {
-    const records = await this.messageStatusCollection.query().fetch();
+    try {
+      const records = await this.messageStatusCollection.query().fetch();
 
-    return records.map((r) => r.prepareDestroyPermanently());
+      return records.map((r) => r.prepareDestroyPermanently());
+    } catch (error) {
+      throw error;
+    }
   }
 }

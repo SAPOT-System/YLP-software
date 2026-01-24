@@ -48,14 +48,22 @@ export class ChatService {
         discoveredPeer.port
       );
     } catch (error) {
-      console.warn("[ChatService]: Error connecting to peer:", error);
+      console.error(
+        `[ChatService]: Error connecting to peer id of ${id}: ${error}`
+      );
+      throw error;
     }
   }
 
   disconnect() {
-    this.connectionService.disconnect();
-    this.conversation = undefined;
-    this.peer = undefined;
+    try {
+      this.connectionService.disconnect();
+      this.conversation = undefined;
+      this.peer = undefined;
+    } catch (error) {
+      console.error(`[ChatService]: Error disconneting chat service: ${error}`);
+      throw error;
+    }
   }
 
   // TODO: Apply ACID principle and retry if failed
@@ -102,9 +110,13 @@ export class ChatService {
       });
     } catch (error) {
       console.error(
-        "[ChatService]: Error handling incoming chat message:",
-        error
+        `[ChatService]: Error handling incoming chat message of:\n${JSON.stringify(
+          data,
+          null,
+          2
+        )}\n${error}`
       );
+      throw error;
     }
   }
 
@@ -120,9 +132,9 @@ export class ChatService {
       );
     } catch (error) {
       console.error(
-        "[ChatService]: Error handling acknowledge message:",
-        error
+        `[ChatService]: Error handling acknowledge message for message id of ${messageId}: ${error}`
       );
+      throw error;
     }
   }
 
@@ -181,7 +193,9 @@ export class ChatService {
 
       return this.conversation.id;
     } catch (error) {
-      console.error("[ChatService]: Error sending conversation message", error);
+      console.error(
+        `[ChatService]: Error sending chat message "${message}": ${error}`
+      );
       throw error;
     }
   }
@@ -211,7 +225,9 @@ export class ChatService {
 
       return { newMessage, newMessageStatus };
     } catch (error) {
-      console.error("[ChatService]: Error creating message", error);
+      console.error(
+        `[ChatService]: Error sending creating message of "${message}" with the sender of ${sender.username} and conversation ID of ${conversation.id}: ${error}`
+      );
       throw error;
     }
   }
@@ -236,7 +252,9 @@ export class ChatService {
         return conversation;
       });
     } catch (error) {
-      console.error("[ChatService]: Error creating chat room", error);
+      console.error(
+        `[ChatService]: Error sending creating chat room of "${peer.username}" with the conversation ID of ${conversationId}: ${error}`
+      );
       throw error;
     }
   }
@@ -245,12 +263,19 @@ export class ChatService {
   // For now, I assume that we don't have group conversationt
   // This is used by conversation room when the source is conversation list.
   async findPeerIdByChatId(chatId: string) {
-    const participants =
-      await this.conversationParticipantRepository.queryPeerByChatId(
-        chatId,
-        this.userStore.user.id
+    try {
+      const participants =
+        await this.conversationParticipantRepository.queryPeerByChatId(
+          chatId,
+          this.userStore.user.id
+        );
+      return participants[0].user.id;
+    } catch (error) {
+      console.error(
+        `[ChatService]: Error finding peer ID by chat ID of ${chatId}: ${error}`
       );
-    return participants[0].user.id;
+      throw error;
+    }
   }
 
   async findChatByPeer(peerId: string): Promise<string | undefined> {
@@ -265,34 +290,66 @@ export class ChatService {
 
       return chat[0].conversation.id;
     } catch (error) {
-      console.warn("[ChatService]: Error finding chat by peer:", error);
+      console.error(
+        `[ChatService]: Error finding chat ID by peer ID of ${peerId}: ${error}`
+      );
+      throw error;
     }
   }
 
   async getAllConversations() {
-    return await this.conversationRepository.queryAllConversation();
+    try {
+      return await this.conversationRepository.queryAllConversation();
+    } catch (error) {
+      console.error("[ChatService]: Error getting all conversation:", error);
+      throw error;
+    }
   }
 
   async getMessagesFromConversation(conversationId: string) {
-    return await this.messageRepository.queryMessagesByConversation(
-      conversationId
-    );
+    try {
+      return await this.messageRepository.queryMessagesByConversation(
+        conversationId
+      );
+    } catch (error) {
+      console.error(
+        `[ChatService]: Error getting messages from conversation with the conversation ID of ${conversationId}: ${error}`
+      );
+      throw error;
+    }
   }
 
   async getMessageStatus(messageId: string) {
-    return await this.messageStatusRepository.queryMessageStatusByMessage(
-      messageId
-    );
+    try {
+      return await this.messageStatusRepository.queryMessageStatusByMessage(
+        messageId
+      );
+    } catch (error) {
+      console.error(
+        `[ChatService]: Error getting message status with the message ID of ${messageId}: ${error}`
+      );
+      throw error;
+    }
   }
 
   async getAllParticipants() {
-    console.log(
-      await this.conversationParticipantRepository.queryAllParticipants()
-    );
+    try {
+      console.log(
+        await this.conversationParticipantRepository.queryAllParticipants()
+      );
+    } catch (error) {
+      console.error(`[ChatService]: Error getting all participants: ${error}`);
+      throw error;
+    }
   }
 
   async getAllStatus() {
-    console.log(await this.messageStatusRepository.queryAllStatuses());
+    try {
+      console.log(await this.messageStatusRepository.queryAllStatuses());
+    } catch (error) {
+      console.error(`[ChatService]: Error getting all status: ${error}`);
+      throw error;
+    }
   }
 
   async getAllNotSentMessageForPeer(peerId: string) {
@@ -328,7 +385,9 @@ export class ChatService {
 
       return messages.filter((m) => unsentStatusesIds.includes(m.id));
     } catch (error) {
-      console.error("[ChatService]: Error getting unsent messages:", error);
+      console.error(
+        `[ChatService]: Error getting all not sent message for peer ${peerId}: ${error}`
+      );
       throw error;
     }
   }
@@ -355,7 +414,13 @@ export class ChatService {
         MessageStatusType.SENT
       );
     } catch (error) {
-      console.warn("[ChatService]: Resending message failed");
+      console.error(
+        `[ChatService]: Error trying to resend message\nMessage:\n${JSON.stringify(
+          message,
+          null,
+          2
+        )}\nIP Address: ${ipAddress}\nPort: ${port}\n${peerId}: ${error}`
+      );
       throw error;
     }
   }
@@ -367,15 +432,19 @@ export class ChatService {
 
   // This is for debugging purposes
   async deleteAllConversations() {
-    await database.write(async () => {
-      const convOps =
-        await this.conversationRepository.getConversationDestroyOps();
-      const msgOps = await this.messageRepository.getAllMessageDestroyOps();
-      const statusOps =
-        await this.messageStatusRepository.getStatusDestroyOps();
-      const partOps =
-        await this.conversationParticipantRepository.getParticipantDestroyOps();
-      await database.batch(...convOps, ...msgOps, ...statusOps, ...partOps);
-    });
+    try {
+      await database.write(async () => {
+        const convOps =
+          await this.conversationRepository.getConversationDestroyOps();
+        const msgOps = await this.messageRepository.getAllMessageDestroyOps();
+        const statusOps =
+          await this.messageStatusRepository.getStatusDestroyOps();
+        const partOps =
+          await this.conversationParticipantRepository.getParticipantDestroyOps();
+        await database.batch(...convOps, ...msgOps, ...statusOps, ...partOps);
+      });
+    } catch (error) {
+      throw error;
+    }
   }
 }

@@ -9,7 +9,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChatRoomSource } from "@/features/chat/types";
-import { useCallService, useChatService } from "@/features/shared";
+import { useCallService, useChatService } from "@/features/shared/hooks";
 import { MessageList } from "@/features/chat";
 
 const ChatRoom = () => {

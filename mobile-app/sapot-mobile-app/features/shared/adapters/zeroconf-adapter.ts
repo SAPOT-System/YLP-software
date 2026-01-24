@@ -50,6 +50,7 @@ export class ZeroconfAdapter extends EventEmitter {
       console.log("[ZeroconfAdapter]: Start scanning...");
     } catch (error) {
       console.error("[ZeroconfAdapter]: Error starting discovery:", error);
+      throw error;
     }
   }
 
@@ -59,6 +60,7 @@ export class ZeroconfAdapter extends EventEmitter {
       console.log("[ZeroconfService]: Stop scanning...");
     } catch (error) {
       console.error("[ZeroconfService]: Error stopping scan:", error);
+      throw error;
     }
   }
 
@@ -105,7 +107,14 @@ export class ZeroconfAdapter extends EventEmitter {
         );
       }, 500);
     } catch (error) {
-      console.error("[ZeroconfAdapter]: Error publishing service:", error);
+      console.error(
+        `[ZeroconfAdapter]: Error publishing service\n${JSON.stringify(
+          service,
+          null,
+          2
+        )}`
+      );
+      throw error;
     }
   }
 
@@ -125,6 +134,7 @@ export class ZeroconfAdapter extends EventEmitter {
       console.log("[ZeroConf]: Zeroconf successfully cleanup");
     } catch (error) {
       console.error("[ZeroConf]: Error closing zeroconf:", error);
+      throw error;
     }
   }
 }

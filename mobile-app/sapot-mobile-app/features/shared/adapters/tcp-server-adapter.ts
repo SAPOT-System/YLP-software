@@ -9,60 +9,79 @@ export class TcpServerAdapter extends EventEmitter {
 
   start(port: number) {
     return new Promise<void>((resolve, reject) => {
-      // TODO: store the socket connection
-      this.server = TcpSocket.createServer((socket) => {
-        let buffer = "";
-        socket.on("data", (data) => {
-          console.log("[TcpServerAdapter]: Data recieved");
-          const dataStr = typeof data === "string" ? data : data.toString();
-          buffer += dataStr;
+      try {
+        this.server = TcpSocket.createServer((socket) => {
+          let buffer = "";
+          socket.on("data", (data) => {
+            console.log("[TcpServerAdapter]: Data recieved");
+            const dataStr = typeof data === "string" ? data : data.toString();
+            buffer += dataStr;
 
-          const messages = buffer.split("\n");
+            const messages = buffer.split("\n");
 
-          buffer = messages.pop() || "";
+            buffer = messages.pop() || "";
 
-          for (const messageStr of messages) {
-            if (!messageStr.trim()) continue;
-            // console.log("[TcpServerAdapter]: ", messageStr, typeof messageStr);
-            let message;
-            try {
-              message = JSON.parse(messageStr);
-              this.emit("data", message);
-            } catch (error) {
-              console.error(
-                "[TcpServerAdapter]: Failed to parse message:",
-                error,
-                messageStr
-              );
+            for (const messageStr of messages) {
+              if (!messageStr.trim()) continue;
+              // console.log("[TcpServerAdapter]: ", messageStr, typeof messageStr);
+              let message;
+              try {
+                message = JSON.parse(messageStr);
+                this.emit("data", message);
+              } catch (error) {
+                console.error(
+                  "[TcpServerAdapter]: Failed to parse message:",
+                  error,
+                  messageStr
+                );
+              }
             }
-          }
+          });
+
+          socket.on("close", () => {
+            console.log("[TcpServerAdapter]: Client disconnected");
+          });
+
+          socket.on("error", (error) => {
+            console.error("[TcpServerAdapter]: Client error:", error);
+          });
         });
 
-        socket.on("close", () => {
-          console.log("[TcpServerAdapter]: Client disconnected");
+        this.server?.listen({ port, host: "0.0.0.0" }, () => {
+          console.log("[TcpServerAdapter]: TCP Server listening on port", port);
+          resolve();
         });
 
-        socket.on("error", (error) => {
-          console.error("[TcpServerAdapter]: Client error:", error);
+        this.server.on("error", (error) => {
+          console.error("[TcpServerAdapter]: TCP server error:", error);
+          reject(error);
         });
-      });
-
-      this.server?.listen({ port, host: "0.0.0.0" }, () => {
-        console.log("[TcpServerAdapter]: TCP Server listening on port", port);
-        resolve();
-      });
-
-      this.server.on("error", (error) => {
-        console.error("[TcpServerAdapter]: TCP server error:", error);
-        reject();
-      });
+      } catch (error) {
+        console.error(
+          `[TcpServerAdapter]: Error starting\n${JSON.stringify(
+            { port: port },
+            null,
+            2
+          )}`
+        );
+        reject(error);
+      }
+      // TODO: store the socket connection
     });
   }
 
   stop() {
-    if (this.server) {
-      this.server.close();
-      this.server = undefined;
+    try {
+      if (this.server) {
+        this.server.close();
+        this.server = undefined;
+      }
+    } catch (error) {
+      console.error(
+        "[TcpServerAdapter]: Error stopping the tcp server:",
+        error
+      );
+      throw error;
     }
   }
 }
