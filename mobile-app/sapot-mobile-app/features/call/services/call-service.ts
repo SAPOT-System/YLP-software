@@ -5,6 +5,7 @@ import { EventEmitter } from "events";
  * This class is capable of managing call connection
  */
 export class CallService extends EventEmitter {
+  private connectedState: "connected" | "disconnected" = "disconnected";
   constructor(
     private connectionService: ConnectionService,
     private userStore: UserStore
@@ -15,12 +16,14 @@ export class CallService extends EventEmitter {
   // This method will assume that tcp and webrtc connection is good
   async startCall(peerId: string) {
     try {
+      if (this.connectedState === "connected") return;
       this.listenToRemoteStream();
       // Initialize local audio and video
       await this.connectionService.initializeStream(peerId);
 
       // Renegotiate the webrtc to include the audio and video
       await this.connectionService.renegotiate(peerId);
+      this.connectedState = "connected";
     } catch (error) {
       console.error(
         `[CallService]: Error starting call for peer ID of ${peerId}: ${error}`
@@ -52,12 +55,14 @@ export class CallService extends EventEmitter {
 
   async terminateCallConnection(peerId: string) {
     try {
+      if (this.connectedState === "disconnected") return;
       this.connectionService.terminateCallConnection(peerId);
       await this.connectionService.renegotiate(peerId);
       this.connectionService.sendMessage(peerId, {
         type: "call-ended",
         data: { senderId: this.userStore.user.id },
       });
+      this.connectedState = "disconnected";
     } catch (error) {
       console.error(
         `[CallService]: Error terminating call for peer ID of ${peerId}: ${error}`

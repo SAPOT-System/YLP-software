@@ -207,6 +207,7 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   async createOffer() {
+    return new Promise<{ type: string; sdp: any }>(async (resolve, reject) => {
     try {
       if (!this.peerConnection) {
         console.log(
@@ -214,20 +215,42 @@ export class WebrtcAdapter extends EventEmitter {
         );
         this.createPeerConnection();
       }
-
       // console.log(`[WebrtcAdapter]: Creating offer...`);
+        if (this.peerConnection?.signalingState === "stable") {
+          console.log("stable");
+          const offer = await this.peerConnection!.createOffer();
+          // console.log(`[WebrtcAdapter]: Setting local description...`);
+          await this.peerConnection!.setLocalDescription(offer);
+
+          resolve({
+            type: "offer",
+            sdp: offer.sdp,
+          });
+        } else {
+          console.log("Not stable");
+          const onStable = async () => {
+            if (this.peerConnection?.signalingState === "stable") {
+              console.log("run");
+              this.peerConnection.onsignalingstatechange = () => null;
       const offer = await this.peerConnection!.createOffer();
       // console.log(`[WebrtcAdapter]: Setting local description...`);
       await this.peerConnection!.setLocalDescription(offer);
 
-      return {
+              resolve({
         type: "offer",
         sdp: offer.sdp,
+              });
+            }
       };
+          this.peerConnection!.onsignalingstatechange = async () =>
+            await onStable();
+        }
     } catch (error) {
       console.error("[WebrtcAdapter]: Error creating offer:", error);
-      throw error;
+        error;
+        reject(error);
     }
+    });
   }
 
   async handleOffer(offer: RTCSessionDescriptionInit | undefined) {
