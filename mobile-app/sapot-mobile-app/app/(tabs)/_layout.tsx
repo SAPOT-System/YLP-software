@@ -6,7 +6,10 @@ import { Pressable } from "react-native";
 import Colors from "@/constants/Colors";
 import { useColorScheme } from "@/components/useColorScheme";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
-import { useConnectionService, useDiscoveryService } from "@/features/shared";
+import {
+  useConnectionService,
+  useDiscoveryService,
+} from "@/features/shared/hooks";
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>["name"];
@@ -27,8 +30,7 @@ export default function TabLayout() {
     connectionService.start();
     const audioCallHandler = (peerId: string) =>
       router.push({ pathname: "/call/[id]", params: { id: peerId } });
-    const callEndedHandler = () =>
-      router.back()
+    const callEndedHandler = () => router.back();
     connectionService.on("audio-call", audioCallHandler);
     connectionService.on("call-ended", callEndedHandler);
 

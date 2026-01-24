@@ -7,15 +7,14 @@ import {
   PeerService,
   UserService,
 } from "./services";
-import { CallService } from "@/features/call";
-import {
-  ChatService,
-  ConversationParticipantRepository,
-  ConversationRepository,
-  MessageRepository,
-  MessageStatusRepository,
-} from "@/features/chat";
 import { PeerRepository } from "./repositories";
+
+import { CallService } from "@/features/call/services/call-service";
+import { ChatService } from "@/features/chat/services/chat-service";
+import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
+import { ConversationRepository } from "@/features/chat/repositories/conversation-repository";
+import { MessageRepository } from "@/features/chat/repositories/message-repository";
+import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 
 // This class will be used for initializing mobile app by initializing classes.
 export class AppContainer {
@@ -40,7 +39,7 @@ export class AppContainer {
 
   constructor() {
     this.sessionStore = new SessionStore();
-    this.networkConfig = new NetworkConfig();
+    this.networkConfig = new NetworkConfig(this.sessionStore);
 
     this.peerRepository = new PeerRepository(database);
     this.peerService = new PeerService(this.peerRepository);

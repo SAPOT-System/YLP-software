@@ -12,3 +12,9 @@ export interface MessageI<T> {
   data: T;
 }
 
+export interface DiscoveredService {
+  serviceName: string;
+  id: string;
+  port: number;
+  ipAddress: string;
+}

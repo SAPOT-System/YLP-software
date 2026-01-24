@@ -2,9 +2,8 @@ import { NetworkConfig, UserStore } from "../stores";
 import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapters";
 import { MessageI } from "../types";
 import { SentMessageI } from "@/features/chat/types";
-import { ChatService } from "@/features/chat";
+import { ChatService } from "@/features/chat/services/chat-service";
 import { EventEmitter } from "events";
-import { setEnvironmentData } from "worker_threads";
 
 // TODO: handle edge cases when the data format is wrong
 // This will include the types for both tcp and webrtc message

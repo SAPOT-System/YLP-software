@@ -2,7 +2,7 @@ import { Service } from "react-native-zeroconf";
 import { NetworkConfig, SessionStore, UserStore } from "../stores";
 import { ZeroconfAdapter } from "../adapters";
 import { PeerService } from "./peer-service";
-import { ChatService } from "@/features/chat";
+import { ChatService } from "@/features/chat/services/chat-service";
 
 // This class will discover devices and make the device discovered by others.
 export class DiscoveryService {

@@ -1,12 +1,7 @@
 import { Service } from "react-native-zeroconf";
 import { PeerRepository } from "../repositories";
+import { DiscoveredService } from "../types";
 
-export interface DiscoveredService {
-  serviceName: string;
-  id: string;
-  port: number;
-  ipAddress: string;
-}
 // This class will have a logic of deciding what would happen to the peers
 export class PeerService {
   discoveredPeerServices: DiscoveredService[] = [

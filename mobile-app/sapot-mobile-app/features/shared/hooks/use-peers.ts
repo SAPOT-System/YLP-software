@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Peer } from "@/features/shared";
+import { Peer } from "../database";
 import { usePeerService } from "./use-container";
 
 const usePeers = () => {
