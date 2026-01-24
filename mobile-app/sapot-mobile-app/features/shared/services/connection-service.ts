@@ -4,6 +4,7 @@ import { MessageI } from "../types";
 import { SentMessageI } from "@/features/chat/types";
 import { ChatService } from "@/features/chat";
 import { EventEmitter } from "events";
+import { setEnvironmentData } from "worker_threads";
 
 // TODO: handle edge cases when the data format is wrong
 // This will include the types for both tcp and webrtc message
@@ -58,26 +59,53 @@ export class ConnectionService extends EventEmitter {
   setupWebrtcEvents(webrtcAdapter: WebrtcAdapter, peerId: string) {
     console.log("Setupwebrtc events");
     webrtcAdapter.on("onicecandidate", (candidate) => {
-      this.sendMessage(peerId, {
-        type: "ice-candidate",
-        data: { senderId: this.userStore.user.id, candidate: candidate },
-      });
-    });
-
-    webrtcAdapter.on("receivedMessage", (message: MessageI<SentMessageI>) => {
-      if (!this.chatService) {
-        throw new Error("Chat service not initialize");
-      }
-
-      if (message.type === "chat" && message.data) {
-        this.sendAckMessage(peerId, message.data);
-        this.chatService.handleIncomingChatMessage(message.data);
-      }
-      if (message.type === "ack" && message.data) {
-        console.log("Ack received");
-        this.chatService.handleAckMessage(message.data.messageId);
+      try {
+        this.sendMessage(peerId, {
+          type: "ice-candidate",
+          data: { senderId: this.userStore.user.id, candidate: candidate },
+        });
+      } catch (error) {
+        console.error(
+          "[ConnectionService]: Error sending ice candidate:",
+          error
+        );
       }
     });
+
+    webrtcAdapter.on(
+      "receivedMessage",
+      async (message: MessageI<SentMessageI>) => {
+        if (!this.chatService) {
+          throw new Error("Chat service not initialize");
+        }
+
+        if (message.type === "chat" && message.data) {
+          try {
+            // TODO: remove send ack duplication
+            this.chatService.handleIncomingChatMessage(message.data);
+            this.sendAckMessage(peerId, { messageId: message.data.messageId });
+          } catch (error) {
+            `[ConnectionService]: Error handling incoming chat message\n${JSON.stringify(
+              message,
+              null,
+              2
+            )}\n${error}`;
+          }
+        }
+        if (message.type === "ack" && message.data) {
+          try {
+            console.log("Ack received");
+            this.chatService.handleAckMessage(message.data.messageId);
+          } catch (error) {
+            `[ConnectionService]: Error handling acknowledge message\n${JSON.stringify(
+              message,
+              null,
+              2
+            )}\n${error}`;
+          }
+        }
+      }
+    );
 
     webrtcAdapter.on("remoteStream", (stream) => {
       this.emit("remoteStream", stream);
@@ -85,24 +113,42 @@ export class ConnectionService extends EventEmitter {
   }
 
   getTcpClientAdapter(peerId: string) {
-    let adapter = this.tcpClientAdapters.get(peerId);
-    if (!adapter) {
-      adapter = new TcpClientAdapter(peerId);
-      this.tcpClientAdapters.set(peerId, adapter);
-      console.log("[ConnectionService] Created tcp client adapter");
+    try {
+      let adapter = this.tcpClientAdapters.get(peerId);
+      if (!adapter) {
+        adapter = new TcpClientAdapter(peerId);
+        this.tcpClientAdapters.set(peerId, adapter);
+        console.log("[ConnectionService] Created tcp client adapter");
+      }
+      return adapter;
+    } catch (error) {
+      `[ConnectionService]: Error getting tcp client adapter\n${JSON.stringify(
+        { peerId },
+        null,
+        2
+      )}\n${error}`;
+      throw error;
     }
-    return adapter;
   }
 
   getWebrtcAdapter(peerId: string) {
-    let adapter = this.webrtcAdapters.get(peerId);
-    if (!adapter) {
-      adapter = new WebrtcAdapter(peerId);
-      this.setupWebrtcEvents(adapter, peerId);
-      this.webrtcAdapters.set(peerId, adapter);
-      console.log("[ConnectionService] Created webrtc adater");
+    try {
+      let adapter = this.webrtcAdapters.get(peerId);
+      if (!adapter) {
+        adapter = new WebrtcAdapter(peerId);
+        this.setupWebrtcEvents(adapter, peerId);
+        this.webrtcAdapters.set(peerId, adapter);
+        console.log("[ConnectionService] Created webrtc adater");
+      }
+      return adapter;
+    } catch (error) {
+      `[ConnectionService]: Error getting webrtc adapter\n${JSON.stringify(
+        { peerId },
+        null,
+        2
+      )}\n${error}`;
+      throw error;
     }
-    return adapter;
   }
 
   setChatService(chatService: ChatService) {
@@ -110,8 +156,13 @@ export class ConnectionService extends EventEmitter {
   }
 
   start() {
-    // await this.webrtcAdapter.initializeLocalStream();
-    this.tcpServerAdapter.start(this.networkConfig.port);
+    try {
+      // await this.webrtcAdapter.initializeLocalStream();
+      this.tcpServerAdapter.start(this.networkConfig.port);
+    } catch (error) {
+      console.error("[ConnectionService]: Error starting connection:", error);
+      throw error;
+    }
   }
 
   async connectToPeer(peerId: string, ipAddress: string, port: number) {
@@ -157,6 +208,11 @@ export class ConnectionService extends EventEmitter {
           data: { sdp: sdp, senderId: this.userStore.user.id },
         });
       } catch (error) {
+        `[ConnectionService]: Error connecting to peer\n${JSON.stringify(
+          { peerId, ipAddress, port },
+          null,
+          2
+        )}\n${error}`;
         reject(error);
       }
     });
@@ -164,72 +220,99 @@ export class ConnectionService extends EventEmitter {
 
   // This method will assume that tcp and webrtc connection is good
   async renegotiate(peerId: string) {
-    const tcpAdapter = this.getTcpClientAdapter(peerId);
-    const webrtcAdapter = this.getWebrtcAdapter(peerId);
-    if (!tcpAdapter.isConnected && !webrtcAdapter.isConnected)
-      throw new Error("Not connected");
+    try {
+      const tcpAdapter = this.getTcpClientAdapter(peerId);
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      if (!tcpAdapter.isConnected && !webrtcAdapter.isConnected)
+        throw new Error("Not connected");
 
-    const { type, sdp } = await webrtcAdapter.createOffer();
-    this.sendMessage(peerId, {
-      type: type,
-      data: { sdp: sdp, senderId: this.userStore.user.id },
-    });
+      const { type, sdp } = await webrtcAdapter.createOffer();
+      this.sendMessage(peerId, {
+        type: type,
+        data: { sdp: sdp, senderId: this.userStore.user.id },
+      });
+    } catch (error) {
+      `[ConnectionService]: Error renegotiating\n${JSON.stringify(
+        { peerId },
+        null,
+        2
+      )}\n${error}`;
+      throw error;
+    }
   }
 
   // This message is received from tcp client
   private async handleWebrtcConnection(message: any) {
-    let webrtcAdapter = this.getWebrtcAdapter(message.data.senderId);
-    let tcpClientAdapter: TcpClientAdapter;
-    switch (message.type) {
-      case "ice-candidate":
-        if (webrtcAdapter.isConnected) return;
+    try {
+      let webrtcAdapter = this.getWebrtcAdapter(message.data.senderId);
+      let tcpClientAdapter: TcpClientAdapter;
+      switch (message.type) {
+        case "ice-candidate":
+          if (webrtcAdapter.isConnected) return;
 
-        console.log("[ConnectionService]: Handling ice candidate message...");
-        webrtcAdapter.addIceCandidate(message.data.candidate);
-        break;
-      case "offer":
-        console.log("[ConnectionService]: Handling offer message...");
-        const { type, sdp } = await webrtcAdapter.handleOffer({
-          type: "offer",
-          sdp: message.data.sdp,
-        });
-        this.sendMessage(message.data.senderId, {
-          type: type,
-          data: { sdp: sdp, senderId: this.userStore.user.id },
-        });
-        break;
-      case "answer":
-        console.log("[ConnectionService]: Handling answer message...");
+          console.log("[ConnectionService]: Handling ice candidate message...");
+          webrtcAdapter.addIceCandidate(message.data.candidate);
+          break;
+        case "offer":
+          console.log("[ConnectionService]: Handling offer message...");
+          const { type, sdp } = await webrtcAdapter.handleOffer({
+            type: "offer",
+            sdp: message.data.sdp,
+          });
+          this.sendMessage(message.data.senderId, {
+            type: type,
+            data: { sdp: sdp, senderId: this.userStore.user.id },
+          });
+          break;
+        case "answer":
+          console.log("[ConnectionService]: Handling answer message...");
 
-        await webrtcAdapter.handleAnswer({
-          type: "answer",
-          sdp: message.data.sdp,
-        });
-        break;
-      case "handshake":
-        console.log("[ConnectionService]: Handling handshake message...");
-        // console.log(message);
-        if (webrtcAdapter.isConnected) return;
+          await webrtcAdapter.handleAnswer({
+            type: "answer",
+            sdp: message.data.sdp,
+          });
+          break;
+        case "handshake":
+          console.log("[ConnectionService]: Handling handshake message...");
+          // console.log(message);
+          if (webrtcAdapter.isConnected) return;
 
-        tcpClientAdapter = this.getTcpClientAdapter(message.data.senderId);
-        if (tcpClientAdapter.isConnected) return;
+          tcpClientAdapter = this.getTcpClientAdapter(message.data.senderId);
+          if (tcpClientAdapter.isConnected) return;
 
-        await tcpClientAdapter.connect(
-          message.data.ipAddress,
-          message.data.port
-        );
-        break;
-      default:
-        console.log("default");
-        break;
+          await tcpClientAdapter.connect(
+            message.data.ipAddress,
+            message.data.port
+          );
+          break;
+        default:
+          console.log("default");
+          break;
+      }
+    } catch (error) {
+      `[ConnectionService]: Error handling webrtc connection\n${JSON.stringify(
+        message,
+        null,
+        2
+      )}\n${error}`;
+      throw error;
     }
   }
 
   // TODO: Probably this method can insert the id of the sender/current user
   sendMessage(peerId: string, message: any) {
-    const adapter = this.getTcpClientAdapter(peerId);
-    if (adapter.isConnected) {
-      adapter.sendMessage(message);
+    try {
+      const adapter = this.getTcpClientAdapter(peerId);
+      if (adapter.isConnected) {
+        adapter.sendMessage(message);
+      }
+    } catch (error) {
+      `[ConnectionService]: Error sending message\n${JSON.stringify(
+        { peerId, ...message },
+        null,
+        2
+      )}\n${error}`;
+      throw error;
     }
   }
 
@@ -260,6 +343,19 @@ export class ConnectionService extends EventEmitter {
         },
       });
     } catch (error) {
+      `[ConnectionService]: Error sending chat message\n${JSON.stringify(
+        {
+          peerId,
+          message,
+          conversationId,
+          messageId,
+          senderId,
+          sentAt,
+          messageType,
+        },
+        null,
+        2
+      )}\n${error}`;
       throw error;
     }
   }
@@ -267,15 +363,27 @@ export class ConnectionService extends EventEmitter {
   // TODO: make tcp as fallback
   // ACK message will be used for the sender to know if the message is delivered or not
   sendAckMessage(peerId: string, { messageId }: { messageId: string }) {
-    console.log("sending ack message");
+    try {
+      console.log("sending ack message");
 
-    const webrtcAdapter = this.getWebrtcAdapter(peerId);
-    webrtcAdapter.sendDataMessage({
-      type: "ack",
-      data: {
-        messageId: messageId,
-      },
-    });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: "ack",
+        data: {
+          messageId: messageId,
+        },
+      });
+    } catch (error) {
+      `[ConnectionService]: Error sending acknowledge message\n${JSON.stringify(
+        {
+          peerId,
+          messageId,
+        },
+        null,
+        2
+      )}\n${error}`;
+      throw error;
+    }
   }
 
   async initializeStream(peerId: string) {
@@ -284,6 +392,13 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Not connected");
       await webrtcAdapter.initializeLocalStream(true, true);
     } catch (error) {
+      `[ConnectionService]: Error initializing the stream\n${JSON.stringify(
+        {
+          peerId,
+        },
+        null,
+        2
+      )}\n${error}`;
       throw error;
     }
   }
@@ -294,6 +409,13 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) return;
       webrtcAdapter.terminateCall();
     } catch (error) {
+      `[ConnectionService]: Error terminating call connection\n${JSON.stringify(
+        {
+          peerId,
+        },
+        null,
+        2
+      )}\n${error}`;
       throw error;
     }
   }
@@ -304,6 +426,13 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       webrtcAdapter.toggleMic();
     } catch (error) {
+      `[ConnectionService]: Error toggling mic\n${JSON.stringify(
+        {
+          peerId,
+        },
+        null,
+        2
+      )}\n${error}`;
       throw error;
     }
   }
@@ -314,6 +443,13 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       webrtcAdapter.toggleCamera();
     } catch (error) {
+      `[ConnectionService]: Error toggling camera\n${JSON.stringify(
+        {
+          peerId,
+        },
+        null,
+        2
+      )}\n${error}`;
       throw error;
     }
   }
@@ -324,16 +460,36 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       return webrtcAdapter.getLocalStream();
     } catch (error) {
+      `[ConnectionService]: Error getting local stream\n${JSON.stringify(
+        {
+          peerId,
+        },
+        null,
+        2
+      )}\n${error}`;
       throw error;
     }
   }
 
   disconnect() {
-    this.tcpClientAdapters.forEach((client) => client.disconnect());
+    try {
+      this.tcpClientAdapters.forEach((client) => client.disconnect());
+    } catch (error) {
+      console.error(
+        "[ConnectionService]: Error performing disconnection:",
+        error
+      );
+      throw error;
+    }
   }
 
   stop() {
-    this.webrtcAdapters.forEach((webrtc) => webrtc.cleanup());
-    this.tcpServerAdapter.stop();
+    try {
+      this.webrtcAdapters.forEach((webrtc) => webrtc.cleanup());
+      this.tcpServerAdapter.stop();
+    } catch (error) {
+      console.error("[ConnectionService]: Error performing stop:", error);
+      throw error;
+    }
   }
 }

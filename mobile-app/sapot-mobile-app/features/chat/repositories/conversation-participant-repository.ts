@@ -42,8 +42,15 @@ export class ConversationParticipantRepository {
       }
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error creating conversation participant:",
-        error
+        `[ConversationParticipantRepository]: Error creating conversation participant:\nConversation Participant:\n${JSON.stringify(
+          {
+            name: newParticipant.user.username,
+            role: newParticipant.role,
+            isInTransaction,
+          },
+          null,
+          2
+        )}`
       );
       throw error;
     }
@@ -66,8 +73,15 @@ export class ConversationParticipantRepository {
       );
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error creating multiple conversation participant:",
-        error
+        `[ConversationParticipantRepository]: Error creating multiple conversation participant:\nConversation Participants:\n${JSON.stringify(
+          {
+            names: [...users.map((user) => user.username)],
+            role,
+            isInTransaction,
+          },
+          null,
+          2
+        )}`
       );
       throw error;
     }
@@ -96,9 +110,8 @@ export class ConversationParticipantRepository {
       return directChatId;
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error finding if conversation exist between users:"
+        `[ConversationParticipantRepository]: Error checking if there is a direct conversation between ${userIds}`
       );
-      error;
       throw error;
     }
   }
@@ -121,8 +134,7 @@ export class ConversationParticipantRepository {
       return conversation;
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error finding peer by conversation id:",
-        error
+        `[ConversationParticipantRepository]: Error querying conversation by the peer ID of ${peerId} and current user ID of ${currentUserId}`
       );
       throw error;
     }
@@ -142,8 +154,7 @@ export class ConversationParticipantRepository {
       return peer;
     } catch (error) {
       console.error(
-        "[ConversationParticipantRepository]: Error finding peer by conversation id:",
-        error
+        `[ConversationParticipantRepository]: Error querying peer by the conversation ID of ${conversationId} and current user ID of ${currentUserId}`
       );
       throw error;
     }
@@ -151,10 +162,14 @@ export class ConversationParticipantRepository {
 
   // For debugging purposes
   async getParticipantDestroyOps() {
-    const records = await this.conversationParticipantsCollection
-      .query()
-      .fetch();
+    try {
+      const records = await this.conversationParticipantsCollection
+        .query()
+        .fetch();
 
-    return records.map((r) => r.prepareDestroyPermanently());
+      return records.map((r) => r.prepareDestroyPermanently());
+    } catch (error) {
+      throw error;
+    }
   }
 }

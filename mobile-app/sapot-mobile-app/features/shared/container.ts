@@ -85,24 +85,29 @@ export class AppContainer {
       this.userStore
     );
 
-    this.callService = new CallService(
-      this.connectionService,
-      this.userStore
-    );
+    this.callService = new CallService(this.connectionService, this.userStore);
 
     this.connectionService.setChatService(this.chatService);
     this.discoveryService.setChatService(this.chatService);
   }
 
   async initialize() {
-    if (this.initPromise) return this.initPromise;
+    try {
+      if (this.initPromise) return this.initPromise;
 
-    this.initPromise = (async () => {
-      console.log("Initializing...");
-      await this.userService.initialize();
-      await this.networkConfig.initialize();
-    })();
+      this.initPromise = (async () => {
+        console.log("Initializing...");
+        await this.userService.initialize();
+        await this.networkConfig.initialize();
+      })();
 
-    return this.initPromise;
+      return this.initPromise;
+    } catch (error) {
+      console.error(
+        "[AppContainer]: Error initializing the application:",
+        error
+      );
+      throw error;
+    }
   }
 }

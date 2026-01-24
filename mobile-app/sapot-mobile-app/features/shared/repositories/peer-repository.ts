@@ -22,7 +22,14 @@ export class PeerRepository {
         return peer;
       });
     } catch (error) {
-      console.error("[PeerRepository]: Error creating a peer:", error);
+      console.error(
+        `[PeerRepository]: Error creating a peer\n${JSON.stringify(
+          newPeer,
+          null,
+          2
+        )}`,
+        error
+      );
       throw error;
     }
   }
@@ -42,7 +49,13 @@ export class PeerRepository {
         }
       });
     } catch (error) {
-      console.error("[PeerRepository]: Error marking offline:", error);
+      console.error(
+        `[PeerRepository]: Error marking peer offline\n${JSON.stringify(
+          { id },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -62,7 +75,13 @@ export class PeerRepository {
         }
       });
     } catch (error) {
-      console.error("[PeerRepository]: Error marking offline:", error);
+      console.error(
+        `[PeerRepository]: Error marking peer online\n${JSON.stringify(
+          { id },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -75,8 +94,11 @@ export class PeerRepository {
       return existing.length > 0;
     } catch (error) {
       console.error(
-        "[PeerRepository]: Error in finding peeer if exist:",
-        error
+        `[PeerRepository]: Error checking if peer exist\n${JSON.stringify(
+          { id },
+          null,
+          2
+        )}\n${error}`
       );
       throw error;
     }
@@ -87,7 +109,13 @@ export class PeerRepository {
       const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
       return peer[0];
     } catch (error) {
-      console.error("[PeerRepository]: Error finding id:", error);
+      console.error(
+        `[PeerRepository]: Error querying peer\n${JSON.stringify(
+          { id },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }

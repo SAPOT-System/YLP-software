@@ -34,13 +34,18 @@ export class UserService {
       // store the user's peer object
       this.userStore.setUser(user);
     } catch (error) {
-      console.error("Error initializing user:", error);
+      console.error("[UserService]: Error initializing user:", error);
       throw error;
     }
   }
 
   // Note that this will be edited soon when authentication feature is applied
   private generateUsername(): string {
-    return `User_${Math.random().toString(36).substring(7)}`;
+    try {
+      return `User_${Math.random().toString(36).substring(7)}`;
+    } catch (error) {
+      console.error("[UserService]: generating username:", error);
+      throw error;
+    }
   }
 }

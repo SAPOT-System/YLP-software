@@ -34,8 +34,11 @@ export class ConversationRepository {
       }
     } catch (error) {
       console.error(
-        "[ConversationRepository]: Error creating conversation:",
-        error
+        `[ConversationRepository]: Error saving conversation\nNew Conversation:\n${JSON.stringify(
+          newConversation,
+          null,
+          2
+        )}\nIs in transaction?${isInTransaction}`
       );
       throw error;
     }
@@ -51,8 +54,7 @@ export class ConversationRepository {
       return result[0].type === ConversationType.DIRECT ? true : false;
     } catch (error) {
       console.error(
-        "[ConversationRepository]: Error finding if conversation exist:",
-        error
+        `[ConversationRepository]: Error finding if direct conversation with the id of ${chatId} exists: ${error}`
       );
       throw error;
     }
@@ -79,8 +81,7 @@ export class ConversationRepository {
       return conversation.length > 0;
     } catch (error) {
       console.error(
-        "[ConversationRepository]: Error finding if conversation exists:",
-        error
+        `[ConversationRepository]: Error finding if conversation with the ID of ${id} exists: ${error}`
       );
       throw error;
     }
@@ -96,8 +97,7 @@ export class ConversationRepository {
       return conversation[0];
     } catch (error) {
       console.error(
-        "[ConversationRepository]: Error finding conversation by id:",
-        error
+        `[ConversationRepository]: Error querying conversation with the ID of ${id}: ${error}`
       );
       throw error;
     }
@@ -105,9 +105,13 @@ export class ConversationRepository {
 
   // For debugging purposes
   async getConversationDestroyOps() {
-    const records = await this.conversationCollections.query().fetch();
-    console.log(records);
+    try {
+      const records = await this.conversationCollections.query().fetch();
+      console.log(records);
 
-    return records.map((r) => r.prepareDestroyPermanently());
+      return records.map((r) => r.prepareDestroyPermanently());
+    } catch (error) {
+      throw error;
+    }
   }
 }

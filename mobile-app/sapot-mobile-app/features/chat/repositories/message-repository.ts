@@ -34,7 +34,18 @@ export class MessageRepository {
       });
       return savedMessage;
     } catch (error) {
-      console.error("[MessageRepository]: Error creating a message:", error);
+      console.error(
+        `[MessageRepository]: Error saving a message\n${JSON.stringify(
+          {
+            senderName: newMessage.sender.username,
+            content: newMessage.content,
+            conversationId: newMessage.conversation.id,
+            messageId: newMessage.messageId,
+          },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -54,7 +65,13 @@ export class MessageRepository {
         )
         .fetch();
     } catch (error) {
-      console.error("[MessageRepository]: Error querying messages:", error);
+      console.error(
+        `[MessageRepository]: Error querying messgae by conversation\n${JSON.stringify(
+          { conversationId, limit, offset },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -70,8 +87,12 @@ export class MessageRepository {
 
   // For debugging purposes
   async getAllMessageDestroyOps() {
-    const records = await this.messagesCollection.query().fetch();
+    try {
+      const records = await this.messagesCollection.query().fetch();
 
-    return records.map((r) => r.prepareDestroyPermanently());
+      return records.map((r) => r.prepareDestroyPermanently());
+    } catch (error) {
+      throw error;
+    }
   }
 }
