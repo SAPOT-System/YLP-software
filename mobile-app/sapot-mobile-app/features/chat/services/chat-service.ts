@@ -19,10 +19,23 @@ import {
 } from "../repositories";
 import { DataChatMessageI } from "../types";
 
-// This is class will be responsible of behavior and rules of the conversation.
+/**
+ * ChatService is responsible for managing chat/conversation logic, including peer connections, message sending/receiving,
+ * repository coordination, and state management. It encapsulates business rules for chat flows and ensures ACID principles where possible.
+ */
 export class ChatService {
   private peer?: Peer;
   private conversation?: Conversation;
+  /**
+   * Constructs a ChatService instance.
+   * @param connectionService Handles peer-to-peer network connections
+   * @param conversationRepository Repository for conversation data
+   * @param conversationParticipantRepository Repository for conversation participants
+   * @param messageRepository Repository for messages
+   * @param messageStatusRepository Repository for message statuses
+   * @param peerService Service for peer management
+   * @param userStore Store for user state
+   */
   constructor(
     private connectionService: ConnectionService,
     private conversationRepository: ConversationRepository,
@@ -34,8 +47,8 @@ export class ChatService {
   ) {}
 
   /**
-   * Connects to a peer by id.
-   * @param id - The peer id to connect to
+   * Connects to a peer by id, establishing a network connection for chat.
+   * @param id The peer id to connect to
    * @returns Promise<void>
    */
   async connect(id: string): Promise<void> {
@@ -62,7 +75,7 @@ export class ChatService {
   }
 
   /**
-   * Disconnects the current chat session.
+   * Disconnects the current chat session, clearing peer and conversation state.
    */
   disconnect(): void {
     try {
@@ -75,9 +88,10 @@ export class ChatService {
   }
 
   // TODO: Apply ACID principle and retry if failed
+
   /**
-   * Handles an incoming chat message.
-   * @param data - Incoming chat message data
+   * Handles an incoming chat message: finds/creates sender and conversation, saves the message, and sends an acknowledgment.
+   * @param data Incoming chat message data
    * @returns Promise<void>
    */
   async handleIncomingChatMessage(data: DataChatMessageI): Promise<void> {
@@ -104,7 +118,10 @@ export class ChatService {
   }
 
   /**
-   * Gets or creates a conversation for an incoming message.
+   * Gets or creates a conversation for an incoming message, ensuring the conversation exists in the repository.
+   * @param sender The sender peer
+   * @param conversationId The conversation id
+   * @returns Promise<Conversation>
    */
   private async getOrCreateConversationForIncoming(
     sender: Peer,
@@ -124,6 +141,10 @@ export class ChatService {
 
   /**
    * Saves an incoming message to the repository.
+   * @param sender The sender peer
+   * @param conversation The conversation
+   * @param data Incoming chat message data
+   * @returns Promise<void>
    */
   private async saveIncomingMessage(
     sender: Peer,
@@ -142,7 +163,9 @@ export class ChatService {
   }
 
   /**
-   * Sends an acknowledge for an incoming message.
+   * Sends an acknowledgment for an incoming message to the sender.
+   * @param senderId The sender's peer id
+   * @param messageId The message id to acknowledge
    */
   private acknowledgeIncomingMessage(
     senderId: string,
@@ -152,8 +175,8 @@ export class ChatService {
   }
 
   /**
-   * Handles an incoming acknowledge message for a given messageId.
-   * @param messageId - The message id to acknowledge
+   * Handles an incoming acknowledgment message for a given messageId, updating its status to DELIVERED.
+   * @param messageId The message id to acknowledge
    * @returns Promise<void>
    */
   async handleAckMessage(messageId: string): Promise<void> {
@@ -177,10 +200,11 @@ export class ChatService {
   // TODO: make a transaction on this function to follow ACID principle
   // TODO: make a logic where user can send conversation even if the receiver is not online. Store the sent conversation and wait for receiver to be online.
   // This method will use the current class state about peer and conversation
+
   /**
-   * Sends a chat message to the current peer.
-   * @param message - The message content
-   * @returns Promise<string> - The conversation id
+   * Sends a chat message to the current peer, ensuring conversation state and updating message status.
+   * @param message The message content
+   * @returns Promise<string> The conversation id
    */
   async sendChatMessage(message: string): Promise<string> {
     try {
@@ -206,7 +230,8 @@ export class ChatService {
   }
 
   /**
-   * Ensures the conversation property is initialized for sending a message.
+   * Ensures the conversation property is initialized for sending a message. Creates a new conversation if needed.
+   * @returns Promise<void>
    */
   private async ensureConversationInitialized(): Promise<void> {
     if (!this.conversation && this.peer) {
@@ -226,7 +251,11 @@ export class ChatService {
   }
 
   /**
-   * Sends a chat message and updates its status.
+   * Sends a chat message over the network and updates its status in the repository.
+   * @param newMessage The message object
+   * @param newMessageStatus The message status object
+   * @param message The message content
+   * @returns Promise<void>
    */
   private async sendAndTrackMessageStatus(
     newMessage: Message,
@@ -255,10 +284,11 @@ export class ChatService {
   }
 
   // TODO: Apply transaction
+
   /**
    * Creates a message and its status in a transaction.
-   * @param params - sender, message, conversation
-   * @returns Promise<{ newMessage: Message; newMessageStatus: any }>
+   * @param params Object containing sender, message, and conversation
+   * @returns Promise<{ newMessage: Message; newMessageStatus: MessageStatus }>
    */
   private async createMessage(params: {
     sender: Peer;
@@ -289,9 +319,9 @@ export class ChatService {
   }
 
   /**
-   * Creates a chat room (conversation) with the given peer.
-   * @param peer - The peer to create the chat room with
-   * @param conversationId - Optional conversation id
+   * Creates a chat room (conversation) with the given peer, and adds both users as participants.
+   * @param peer The peer to create the chat room with
+   * @param conversationId Optional conversation id
    * @returns Promise<Conversation>
    */
   private async createChatRoom(
@@ -327,9 +357,10 @@ export class ChatService {
   // TODO: Determine if the conversation is direct or group conversation for integrating group conversation soon
   // For now, I assume that we don't have group conversationt
   // This is used by conversation room when the source is conversation list.
+
   /**
-   * Finds the peer id by chat id.
-   * @param chatId - The chat id
+   * Finds the peer id by chat id. Used by conversation room when the source is conversation list.
+   * @param chatId The chat id
    * @returns Promise<string>
    */
   async findPeerIdByChatId(chatId: string): Promise<string> {
@@ -350,7 +381,7 @@ export class ChatService {
 
   /**
    * Finds the chat id by peer id.
-   * @param peerId - The peer id
+   * @param peerId The peer id
    * @returns Promise<string | undefined>
    */
   async findChatByPeer(peerId: string): Promise<string | undefined> {
@@ -373,7 +404,7 @@ export class ChatService {
   }
 
   /**
-   * Gets all conversations.
+   * Gets all conversations from the repository.
    * @returns Promise<Conversation[]>
    */
   async getAllConversations(): Promise<Conversation[]> {
@@ -387,7 +418,7 @@ export class ChatService {
 
   /**
    * Gets all messages from a conversation.
-   * @param conversationId - The conversation id
+   * @param conversationId The conversation id
    * @returns Promise<Message[]>
    */
   async getMessagesFromConversation(
@@ -407,8 +438,8 @@ export class ChatService {
 
   /**
    * Gets the status of a message by id.
-   * @param messageId - The message id
-   * @returns Promise<any>
+   * @param messageId The message id
+   * @returns Promise<MessageStatus>
    */
   async getMessageStatus(messageId: string): Promise<MessageStatus> {
     try {
@@ -424,7 +455,7 @@ export class ChatService {
   }
 
   /**
-   * Gets all participants in all conversations.
+   * Gets all participants in all conversations (for debugging/logging).
    * @returns Promise<void>
    */
   async getAllParticipants(): Promise<void> {
@@ -439,7 +470,7 @@ export class ChatService {
   }
 
   /**
-   * Gets all message statuses.
+   * Gets all message statuses (for debugging/logging).
    * @returns Promise<void>
    */
   async getAllStatus(): Promise<void> {
@@ -452,8 +483,8 @@ export class ChatService {
   }
 
   /**
-   * Gets all not sent messages for a given peer.
-   * @param peerId - The peer id
+   * Gets all not sent messages for a given peer by checking message statuses.
+   * @param peerId The peer id
    * @returns Promise<Message[]>
    */
   async getAllNotSentMessageForPeer(peerId: string): Promise<Message[]> {
@@ -497,10 +528,10 @@ export class ChatService {
   }
 
   /**
-   * Tries to resend a message to a peer.
-   * @param message - The message to resend
-   * @param peerId - The peer id
-   * @param param2 - The peer's ipAddress and port
+   * Tries to resend a message to a peer by reconnecting and sending the message again.
+   * @param message The message to resend
+   * @param peerId The peer id
+   * @param param2 The peer's ipAddress and port
    * @returns Promise<void>
    */
   async tryResendMessage(
@@ -537,7 +568,7 @@ export class ChatService {
   }
 
   /**
-   * Cleans up the chat service state.
+   * Cleans up the chat service state, clearing peer and conversation references.
    */
   cleanUp(): void {
     this.peer = undefined;
@@ -545,7 +576,7 @@ export class ChatService {
   }
 
   /**
-   * Deletes all conversations, messages, statuses, and participants (for debugging).
+   * Deletes all conversations, messages, statuses, and participants (for debugging/testing purposes).
    * @returns Promise<void>
    */
   async deleteAllConversations(): Promise<void> {

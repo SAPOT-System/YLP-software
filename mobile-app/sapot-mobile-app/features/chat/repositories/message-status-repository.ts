@@ -1,18 +1,30 @@
-import { Collection, Database, Q } from "@nozbe/watermelondb";
 import {
   Message,
   MessageStatus,
   MessageStatusType,
   Peer,
 } from "@/features/shared";
+import { Collection, Database, Q } from "@nozbe/watermelondb";
 
+/**
+ * MessageStatusRepository manages CRUD operations for message statuses in the database.
+ */
 export class MessageStatusRepository {
   private messageStatusCollection: Collection<MessageStatus>;
 
+  /**
+   * Constructs a MessageStatusRepository instance.
+   * @param db The WatermelonDB database instance
+   */
   constructor(private db: Database) {
     this.messageStatusCollection = db.get<MessageStatus>(MessageStatus.table);
   }
 
+  /**
+   * Saves a new message status to the database.
+   * @param params Object containing message, user, and status
+   * @returns Promise<MessageStatus> The saved message status
+   */
   async saveMessageStatus({
     message,
     user,
@@ -42,6 +54,12 @@ export class MessageStatusRepository {
     }
   }
 
+  /**
+   * Updates the status of a message by message id.
+   * @param messageId The message id
+   * @param status The new status
+   * @returns Promise<void>
+   */
   async updateMessageStatusByMessage(
     messageId: string,
     status: MessageStatusType
@@ -69,6 +87,12 @@ export class MessageStatusRepository {
     }
   }
 
+  /**
+   * Updates the status of a message status record by its id.
+   * @param messageStatusId The message status id
+   * @param status The new status
+   * @returns Promise<void>
+   */
   async updateMessageStatusById(
     messageStatusId: string,
     status: MessageStatusType
@@ -95,6 +119,11 @@ export class MessageStatusRepository {
     }
   }
 
+  /**
+   * Queries the message status for a given message id.
+   * @param messageId The message id
+   * @returns Promise<MessageStatus | undefined> The message status or undefined
+   */
   async queryMessageStatusByMessage(messageId: string) {
     try {
       return await this.db.write(async () => {
@@ -114,7 +143,11 @@ export class MessageStatusRepository {
     }
   }
 
-  // This will query the message with the status of sent and not_sent
+  /**
+   * Queries message statuses for messages that are not sent or sent.
+   * @param messageIds Array of message ids
+   * @returns Promise<MessageStatus[]> Array of message statuses
+   */
   async queryNotSentByMessages(messageIds: string[]) {
     try {
       return await this.db.write(async () => {
@@ -138,6 +171,10 @@ export class MessageStatusRepository {
     }
   }
 
+  /**
+   * Queries all message statuses in the database.
+   * @returns Promise<MessageStatus[]> Array of all message statuses
+   */
   async queryAllStatuses() {
     try {
       return await this.messageStatusCollection.query().fetch();
@@ -146,7 +183,10 @@ export class MessageStatusRepository {
     }
   }
 
-  // For debugging purposes
+  /**
+   * Gets destroy operations for all message statuses (for debugging/testing purposes).
+   * @returns Promise<any[]> Array of destroy operations
+   */
   async getStatusDestroyOps() {
     try {
       const records = await this.messageStatusCollection.query().fetch();

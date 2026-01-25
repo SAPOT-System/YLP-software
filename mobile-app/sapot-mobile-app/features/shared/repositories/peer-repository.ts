@@ -1,16 +1,27 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { Peer } from "../database";
 
-// This class will communicate to the peers table in the database
+/**
+ * PeerRepository communicates with the peers table in the database and manages CRUD operations for peers.
+ */
 export class PeerRepository {
   private db: Database;
   private peersCollection: Collection<Peer>;
 
+  /**
+   * Constructs a PeerRepository instance.
+   * @param db The WatermelonDB database instance
+   */
   constructor(db: Database) {
     this.db = db;
     this.peersCollection = this.db.get<Peer>(Peer.table);
   }
 
+  /**
+   * Saves a new peer to the database.
+   * @param newPeer The peer data (id, username)
+   * @returns Promise<Peer> The saved peer
+   */
   async savePeer(newPeer: { id: string; username: string }) {
     try {
       return await this.db.write(async () => {
@@ -34,6 +45,11 @@ export class PeerRepository {
     }
   }
 
+  /**
+   * Marks a peer as offline in the database.
+   * @param id The peer id
+   * @returns Promise<void>
+   */
   async markPeerOffline(id: string) {
     if (!id) {
       console.error("[PeerRepository]: id param is undefined:");
@@ -60,6 +76,11 @@ export class PeerRepository {
     }
   }
 
+  /**
+   * Marks a peer as online in the database.
+   * @param id The peer id
+   * @returns Promise<void>
+   */
   async markPeerOnline(id: string) {
     if (!id) {
       console.error("[PeerRepository]: id param is undefined:");
@@ -86,6 +107,11 @@ export class PeerRepository {
     }
   }
 
+  /**
+   * Checks if a peer exists in the database by id.
+   * @param id The peer id
+   * @returns Promise<boolean> True if exists, false otherwise
+   */
   async isPeerExist(id: string) {
     try {
       const existing = await this.peersCollection
@@ -104,6 +130,11 @@ export class PeerRepository {
     }
   }
 
+  /**
+   * Queries a peer by id from the database.
+   * @param id The peer id
+   * @returns Promise<Peer | undefined> The peer or undefined
+   */
   async queryPeerById(id: string) {
     try {
       const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
@@ -120,6 +151,10 @@ export class PeerRepository {
     }
   }
 
+  /**
+   * Queries all peers from the database.
+   * @returns Promise<Peer[]> Array of all peers
+   */
   async queryAllPeers() {
     try {
       const allPeers = await this.peersCollection.query().fetch();
@@ -132,6 +167,10 @@ export class PeerRepository {
   }
 
   // This is for debugging purposes
+  /**
+   * Deletes all peers from the database (for debugging/testing purposes).
+   * @returns Promise<void>
+   */
   async deleteAllPeers() {
     try {
       await this.db.write(async () => {

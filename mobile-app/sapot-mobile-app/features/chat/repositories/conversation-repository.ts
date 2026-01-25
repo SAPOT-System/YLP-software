@@ -1,14 +1,27 @@
-import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { Conversation, ConversationType } from "@/features/shared";
+import { Collection, Database, Q } from "@nozbe/watermelondb";
 
+/**
+ * ConversationRepository manages CRUD operations for conversations in the database.
+ */
 export class ConversationRepository {
   conversationCollections: Collection<Conversation>;
+  /**
+   * Constructs a ConversationRepository instance.
+   * @param db The WatermelonDB database instance
+   */
   constructor(private db: Database) {
     this.conversationCollections = this.db.get<Conversation>(
       Conversation.table
     );
   }
 
+  /**
+   * Saves a new conversation to the database.
+   * @param newConversation The conversation data (type, optional id)
+   * @param isInTransaction Whether to run in an existing transaction
+   * @returns Promise<Conversation> The saved conversation
+   */
   async saveConversation(
     newConversation: { type: ConversationType; id?: string },
     isInTransaction = false
@@ -45,6 +58,11 @@ export class ConversationRepository {
   }
 
   // TODO: have a logic when the there is no result
+  /**
+   * Checks if a conversation is a direct conversation by id.
+   * @param chatId The conversation id
+   * @returns Promise<boolean> True if direct, false otherwise
+   */
   async isDirectConversation(chatId: string) {
     try {
       const result = await this.conversationCollections.query(
@@ -60,6 +78,10 @@ export class ConversationRepository {
     }
   }
 
+  /**
+   * Queries all conversations in the database.
+   * @returns Promise<Conversation[]> Array of all conversations
+   */
   async queryAllConversation() {
     try {
       return (await this.conversationCollections.query().fetch()) || [];
@@ -72,6 +94,11 @@ export class ConversationRepository {
     }
   }
 
+  /**
+   * Checks if a conversation exists by id.
+   * @param id The conversation id
+   * @returns Promise<boolean> True if exists, false otherwise
+   */
   async isConversationExist(id: string) {
     try {
       const conversation = await this.conversationCollections
@@ -87,7 +114,11 @@ export class ConversationRepository {
     }
   }
 
-  // Note: find method will return error if this conversation id does not exist
+  /**
+   * Queries a conversation by id.
+   * @param id The conversation id
+   * @returns Promise<Conversation | undefined> The conversation or undefined
+   */
   async queryConversationById(id: string) {
     try {
       const conversation = await this.conversationCollections
@@ -103,7 +134,10 @@ export class ConversationRepository {
     }
   }
 
-  // For debugging purposes
+  /**
+   * Gets destroy operations for all conversations (for debugging/testing purposes).
+   * @returns Promise<any[]> Array of destroy operations
+   */
   async getConversationDestroyOps() {
     try {
       const records = await this.conversationCollections.query().fetch();

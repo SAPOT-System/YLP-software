@@ -1,15 +1,27 @@
-import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { Conversation, Message, MessageType, Peer } from "@/features/shared";
+import { Collection, Database, Q } from "@nozbe/watermelondb";
 
+/**
+ * MessageRepository handles CRUD operations for messages in the database.
+ */
 export class MessageRepository {
   private messagesCollection: Collection<Message>;
 
+  /**
+   * Constructs a MessageRepository instance.
+   * @param db The WatermelonDB database instance
+   */
   constructor(private db: Database) {
     this.messagesCollection = db.get<Message>(Message.table);
   }
 
   // TODO: make the content type flexible for other type of messages
   // TODO: make the parameter as destrcutured
+  /**
+   * Saves a new message to the database.
+   * @param newMessage The message data (sender, content, conversation, optional messageId)
+   * @returns Promise<Message> The saved message
+   */
   async saveMessage(newMessage: {
     sender: Peer;
     content: string;
@@ -50,6 +62,13 @@ export class MessageRepository {
     }
   }
 
+  /**
+   * Queries messages by conversation id, with pagination support.
+   * @param conversationId The conversation id
+   * @param limit Max number of messages to return (default 50)
+   * @param offset Number of messages to skip (default 0)
+   * @returns Promise<Message[]> Array of messages
+   */
   async queryMessagesByConversation(
     conversationId: string,
     limit = 50,
@@ -76,6 +95,10 @@ export class MessageRepository {
     }
   }
 
+  /**
+   * Queries all messages in the database.
+   * @returns Promise<Message[]> Array of all messages
+   */
   async queryAllMessages() {
     try {
       return await this.messagesCollection.query().fetch();
@@ -85,7 +108,10 @@ export class MessageRepository {
     }
   }
 
-  // For debugging purposes
+  /**
+   * Gets destroy operations for all messages (for debugging/testing purposes).
+   * @returns Promise<any[]> Array of destroy operations
+   */
   async getAllMessageDestroyOps() {
     try {
       const records = await this.messagesCollection.query().fetch();

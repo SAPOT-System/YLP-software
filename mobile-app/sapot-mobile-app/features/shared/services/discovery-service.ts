@@ -1,15 +1,26 @@
-import { Service } from "react-native-zeroconf";
-import { NetworkConfig, SessionStore, UserStore } from "../stores";
-import { ZeroconfAdapter } from "../adapters";
-import { PeerService } from "./peer-service";
 import { ChatService } from "@/features/chat/services/chat-service";
+import { Service } from "react-native-zeroconf";
+import { ZeroconfAdapter } from "../adapters";
+import { NetworkConfig, SessionStore, UserStore } from "../stores";
+import { PeerService } from "./peer-service";
 
-// This class will discover devices and make the device discovered by others.
+/**
+ * DiscoveryService is responsible for discovering devices on the local network and making this device discoverable to others.
+ * It manages peer registration, handles service resolution/removal, and coordinates message resending for peers that come online.
+ */
 export class DiscoveryService {
   private chatService?: ChatService;
   private publishDeviceName: string = "";
   private intervalId: number = 0;
 
+  /**
+   * Constructs a DiscoveryService instance and sets up event listeners for service resolution and removal.
+   * @param adapter ZeroconfAdapter instance for network discovery
+   * @param sessionStore SessionStore for user session data
+   * @param networkConfig NetworkConfig for network settings
+   * @param userStore UserStore for user information
+   * @param peerService PeerService for peer management
+   */
   constructor(
     private adapter: ZeroconfAdapter,
     private sessionStore: SessionStore,
@@ -17,14 +28,14 @@ export class DiscoveryService {
     private userStore: UserStore,
     private peerService: PeerService
   ) {
-    // Perform logic on the resolve device/service whether to include in the database or not
+    // Handle device/service resolution: register peer and attempt to resend unsent messages
     this.adapter.on("serviceResolved", async (peerService: Service) => {
       try {
         if (!this.chatService) throw new Error("Chat service not initialized");
         console.log("service resolved");
         await this.peerService.register(peerService);
 
-        // TODO: make the bottom ignore if not necessary to run
+        // Attempt to resend unsent messages to this peer if necessary
         await this.performResendMessagesForPeer(
           peerService.txt.id,
           peerService.addresses[0],
@@ -39,7 +50,7 @@ export class DiscoveryService {
       }
     });
 
-    // Perform logic to make the peer offline when the device/service is removed
+    // Handle device/service removal: mark peer as offline
     this.adapter.on("serviceRemoved", async (peerServiceName: string) => {
       try {
         console.log("service removed");
@@ -54,6 +65,12 @@ export class DiscoveryService {
     });
   }
 
+  /**
+   * Attempts to resend all unsent messages for a given peer when they come online.
+   * @param peerId The ID of the peer
+   * @param ipAddress The IP address of the peer
+   * @param port The port of the peer
+   */
   async performResendMessagesForPeer(
     peerId: string,
     ipAddress: string,
@@ -62,10 +79,12 @@ export class DiscoveryService {
     try {
       if (!this.chatService) throw new Error("Chat service not initialized");
 
+      // Fetch all unsent messages for this peer
       const unsentMessages = await this.chatService.getAllNotSentMessageForPeer(
         peerId
       );
 
+      // Attempt to resend each unsent message
       for (const msg of unsentMessages) {
         try {
           await this.chatService.tryResendMessage(msg, peerId, {
@@ -87,10 +106,17 @@ export class DiscoveryService {
     }
   }
 
+  /**
+   * Sets the ChatService instance to be used for message operations.
+   * @param chatService The ChatService instance
+   */
   setChatService(chatService: ChatService) {
     this.chatService = chatService;
   }
 
+  /**
+   * Starts network discovery to find other devices/services on the local network.
+   */
   startDiscovery() {
     try {
       this.adapter.startScan();
@@ -100,6 +126,9 @@ export class DiscoveryService {
     }
   }
 
+  /**
+   * Stops network discovery, halting the search for other devices/services.
+   */
   stopDiscovery() {
     try {
       this.adapter.stopScan();
@@ -109,6 +138,10 @@ export class DiscoveryService {
     }
   }
 
+  /**
+   * Publishes this device/service on the local network so it can be discovered by others.
+   * The service/device name is made unique to avoid conflicts.
+   */
   publishDevice() {
     try {
       // The service/device name must be unique to avoid conflict/error
@@ -131,6 +164,9 @@ export class DiscoveryService {
     }
   }
 
+  /**
+   * Cleans up resources, stops discovery, and resets peer state. Should be called when the service is no longer needed.
+   */
   destroy() {
     try {
       this.adapter.cleanUp(this.publishDeviceName);
