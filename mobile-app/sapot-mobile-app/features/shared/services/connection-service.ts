@@ -4,18 +4,22 @@ import { EventEmitter } from "events";
 import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapters";
 import { NetworkConfig, UserStore } from "../stores";
 import {
-  WebrtcDataMessage,
+  DataAckMessage,
   SignalingMessage,
   TcpDataMessage,
-  DataAckMessage,
+  WebrtcDataMessage,
 } from "../types";
 
-// TODO: handle edge cases when the data format is wrong
-// This will include the types for both tcp and webrtc message
-
+// TODO: make a custom typed event emitter
 /**
- *  This class will handle connection to peers. This will be the one who will send and receive data from peers.
- *  */
+ * ConnectionService handles peer-to-peer connections, message routing, and event management
+ * for both TCP and WebRTC communication in the app.
+ *
+ * @remarks
+ * - Handles signaling and data messages
+ * - Emits events for call and stream management
+ * - Ensures resource cleanup and robust error handling
+ */
 export class ConnectionService extends EventEmitter {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
@@ -27,39 +31,40 @@ export class ConnectionService extends EventEmitter {
   ) {
     super();
     tcpServerAdapter.on("data", async (message: TcpDataMessage) => {
-      // console.log("[MessageService]: Message recieved:", message);
-      if (
-        (message.type && message.type === "ice-candidate") ||
-        message.type === "offer" ||
-        message.type === "answer" ||
-        message.type === "handshake"
-      ) {
-        await this.handleWebrtcConnection(message);
-      }
-      // TODO: soon, implement tcp for fallback of webrtc
+      try {
+        // Type narrowing for signaling messages
+        if (
+          message.type === "ice-candidate" ||
+          message.type === "offer" ||
+          message.type === "answer" ||
+          message.type === "handshake"
+        ) {
+          await this.handleWebrtcConnection(message);
+        }
+        // TODO: soon, implement tcp for fallback of webrtc
 
-      if (
-        message.type &&
-        message.type === "audio-call" &&
-        message.data.senderId
-      ) {
-        await this.initializeStream(message.data.senderId);
-        this.emit("audio-call", message.data.senderId);
-      }
+        if (message.type === "audio-call" && "senderId" in message.data) {
+          await this.initializeStream(message.data.senderId);
+          this.emit("audio-call", message.data.senderId);
+        }
 
-      if (
-        message.type &&
-        message.type === "call-ended" &&
-        message.data.senderId
-      ) {
-        // TODO: check if needed to reinitialize local stream
-        // TODO: validate that the caller id is the sender
-        console.log("call ended");
-        this.emit("call-ended");
+        if (message.type === "call-ended" && "senderId" in message.data) {
+          // TODO: check if needed to reinitialize local stream
+          // TODO: validate that the caller id is the sender
+          console.log("call ended");
+          this.emit("call-ended");
+        }
+      } catch (error) {
+        console.error("[ConnectionService]: Error in TCP data handler", error);
       }
     });
   }
 
+  /**
+   * Sets up WebRTC adapter event listeners for signaling and data channel events.
+   * @param webrtcAdapter - The WebrtcAdapter instance
+   * @param peerId - The peer's unique identifier
+   */
   setupWebrtcEvents(webrtcAdapter: WebrtcAdapter, peerId: string) {
     console.log("Setupwebrtc events");
     webrtcAdapter.on("onicecandidate", (candidate) => {
@@ -77,32 +82,31 @@ export class ConnectionService extends EventEmitter {
     });
 
     webrtcAdapter.on("receivedMessage", async (message: WebrtcDataMessage) => {
-      if (!this.chatService) {
-        throw new Error("Chat service not initialize");
-      }
-
-      if (message.type === "chat" && message.data) {
-        try {
-          await this.chatService.handleIncomingChatMessage(message.data);
-        } catch (error) {
-          `[ConnectionService]: Error handling incoming chat message\n${JSON.stringify(
-            message,
-            null,
-            2
-          )}\n${error}`;
+      try {
+        if (!this.chatService) {
+          throw new Error(
+            "Chat service not initialized. Please call setChatService before using chat features."
+          );
         }
-      }
-      if (message.type === "ack" && message.data) {
-        try {
-          console.log("Ack received");
-          await this.chatService.handleAckMessage(message.data.messageId);
-        } catch (error) {
-          `[ConnectionService]: Error handling acknowledge message\n${JSON.stringify(
-            message,
-            null,
-            2
-          )}\n${error}`;
+        // Type narrowing for WebrtcDataMessage
+        switch (message.type) {
+          case "chat":
+            if (message.data) {
+              await this.chatService.handleIncomingChatMessage(message.data);
+            }
+            break;
+          case "ack":
+            if (message.data) {
+              console.log("Ack received");
+              await this.chatService.handleAckMessage(message.data.messageId);
+            }
+            break;
         }
+      } catch (error) {
+        console.error(
+          "[ConnectionService]: Error in WebRTC receivedMessage handler",
+          error
+        );
       }
     });
 
@@ -121,11 +125,13 @@ export class ConnectionService extends EventEmitter {
       }
       return adapter;
     } catch (error) {
-      `[ConnectionService]: Error getting tcp client adapter\n${JSON.stringify(
-        { peerId },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error getting tcp client adapter\n${JSON.stringify(
+          { peerId },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -141,11 +147,13 @@ export class ConnectionService extends EventEmitter {
       }
       return adapter;
     } catch (error) {
-      `[ConnectionService]: Error getting webrtc adapter\n${JSON.stringify(
-        { peerId },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error getting webrtc adapter\n${JSON.stringify(
+          { peerId },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -207,11 +215,13 @@ export class ConnectionService extends EventEmitter {
           data: { sdp: sdp, senderId: this.userStore.user.id },
         });
       } catch (error) {
-        `[ConnectionService]: Error connecting to peer\n${JSON.stringify(
-          { peerId, ipAddress, port },
-          null,
-          2
-        )}\n${error}`;
+        console.error(
+          `[ConnectionService]: Error connecting to peer\n${JSON.stringify(
+            { peerId, ipAddress, port },
+            null,
+            2
+          )}\n${error}`
+        );
         reject(error);
       }
     });
@@ -231,11 +241,13 @@ export class ConnectionService extends EventEmitter {
         data: { sdp: sdp, senderId: this.userStore.user.id },
       });
     } catch (error) {
-      `[ConnectionService]: Error renegotiating\n${JSON.stringify(
-        { peerId },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error renegotiating\n${JSON.stringify(
+          { peerId },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -289,11 +301,13 @@ export class ConnectionService extends EventEmitter {
           break;
       }
     } catch (error) {
-      `[ConnectionService]: Error handling webrtc connection\n${JSON.stringify(
-        message,
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error handling webrtc connection\n${JSON.stringify(
+          message,
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -306,11 +320,13 @@ export class ConnectionService extends EventEmitter {
         adapter.sendMessage(message);
       }
     } catch (error) {
-      `[ConnectionService]: Error sending message\n${JSON.stringify(
-        { peerId, ...message },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error sending message\n${JSON.stringify(
+          { peerId, ...message },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -342,19 +358,21 @@ export class ConnectionService extends EventEmitter {
         },
       });
     } catch (error) {
-      `[ConnectionService]: Error sending chat message\n${JSON.stringify(
-        {
-          peerId,
-          message,
-          conversationId,
-          messageId,
-          senderId,
-          sentAt,
-          messageType,
-        },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error sending chat message\n${JSON.stringify(
+          {
+            peerId,
+            message,
+            conversationId,
+            messageId,
+            senderId,
+            sentAt,
+            messageType,
+          },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -373,14 +391,16 @@ export class ConnectionService extends EventEmitter {
         },
       });
     } catch (error) {
-      `[ConnectionService]: Error sending acknowledge message\n${JSON.stringify(
-        {
-          peerId,
-          messageId,
-        },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error sending acknowledge message\n${JSON.stringify(
+          {
+            peerId,
+            messageId,
+          },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -391,13 +411,15 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Not connected");
       await webrtcAdapter.initializeLocalStream(true, true);
     } catch (error) {
-      `[ConnectionService]: Error initializing the stream\n${JSON.stringify(
-        {
-          peerId,
-        },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error initializing the stream\n${JSON.stringify(
+          {
+            peerId,
+          },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -408,13 +430,15 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) return;
       webrtcAdapter.terminateCall();
     } catch (error) {
-      `[ConnectionService]: Error terminating call connection\n${JSON.stringify(
-        {
-          peerId,
-        },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error terminating call connection\n${JSON.stringify(
+          {
+            peerId,
+          },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -425,13 +449,15 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       webrtcAdapter.toggleMic();
     } catch (error) {
-      `[ConnectionService]: Error toggling mic\n${JSON.stringify(
-        {
-          peerId,
-        },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error toggling mic\n${JSON.stringify(
+          {
+            peerId,
+          },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -442,13 +468,15 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       webrtcAdapter.toggleCamera();
     } catch (error) {
-      `[ConnectionService]: Error toggling camera\n${JSON.stringify(
-        {
-          peerId,
-        },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[ConnectionService]: Error toggling camera\n${JSON.stringify(
+          {
+            peerId,
+          },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -459,33 +487,29 @@ export class ConnectionService extends EventEmitter {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       return webrtcAdapter.getLocalStream();
     } catch (error) {
-      `[ConnectionService]: Error getting local stream\n${JSON.stringify(
-        {
-          peerId,
-        },
-        null,
-        2
-      )}\n${error}`;
-      throw error;
-    }
-  }
-
-  disconnect() {
-    try {
-      this.tcpClientAdapters.forEach((client) => client.disconnect());
-    } catch (error) {
       console.error(
-        "[ConnectionService]: Error performing disconnection:",
-        error
+        `[ConnectionService]: Error getting local stream\n${JSON.stringify(
+          {
+            peerId,
+          },
+          null,
+          2
+        )}\n${error}`
       );
       throw error;
     }
   }
 
+  /**
+   * Stops all WebRTC adapters, TCP server, TCP clients, and removes all event listeners for resource cleanup.
+   */
   stop() {
     try {
       this.webrtcAdapters.forEach((webrtc) => webrtc.cleanup());
+      this.tcpClientAdapters.forEach((client) => client.disconnect());
       this.tcpServerAdapter.stop();
+      this.removeAllListeners();
+      this.webrtcAdapters.forEach((adapter) => adapter.removeAllListeners());
     } catch (error) {
       console.error("[ConnectionService]: Error performing stop:", error);
       throw error;
