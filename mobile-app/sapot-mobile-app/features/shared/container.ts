@@ -39,7 +39,7 @@ export class AppContainer {
 
   constructor() {
     this.sessionStore = new SessionStore();
-    this.networkConfig = new NetworkConfig(this.sessionStore);
+    this.networkConfig = new NetworkConfig();
 
     this.peerRepository = new PeerRepository(database);
     this.peerService = new PeerService(this.peerRepository);
@@ -95,9 +95,9 @@ export class AppContainer {
       if (this.initPromise) return this.initPromise;
 
       this.initPromise = (async () => {
-        console.log("Initializing...");
-        await this.userService.initialize();
-        await this.networkConfig.initialize();
+          console.log("Initializing...");
+          await this.userService.initialize();
+          await this.networkConfig.initialize();
       })();
 
       return this.initPromise;

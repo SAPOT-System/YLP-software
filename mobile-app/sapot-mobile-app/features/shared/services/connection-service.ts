@@ -1,9 +1,14 @@
-import { NetworkConfig, UserStore } from "../stores";
-import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapters";
-import { MessageI } from "../types";
-import { SentMessageI } from "@/features/chat/types";
 import { ChatService } from "@/features/chat/services/chat-service";
+import { DataChatMessageI } from "@/features/chat/types";
 import { EventEmitter } from "events";
+import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapters";
+import { NetworkConfig, UserStore } from "../stores";
+import {
+  WebrtcDataMessage,
+  SignalingMessage,
+  TcpDataMessage,
+  DataAckMessage,
+} from "../types";
 
 // TODO: handle edge cases when the data format is wrong
 // This will include the types for both tcp and webrtc message
@@ -21,7 +26,7 @@ export class ConnectionService extends EventEmitter {
     private userStore: UserStore
   ) {
     super();
-    tcpServerAdapter.on("data", async (message) => {
+    tcpServerAdapter.on("data", async (message: TcpDataMessage) => {
       // console.log("[MessageService]: Message recieved:", message);
       if (
         (message.type && message.type === "ice-candidate") ||
@@ -71,38 +76,35 @@ export class ConnectionService extends EventEmitter {
       }
     });
 
-    webrtcAdapter.on(
-      "receivedMessage",
-      async (message: MessageI<SentMessageI>) => {
-        if (!this.chatService) {
-          throw new Error("Chat service not initialize");
-        }
+    webrtcAdapter.on("receivedMessage", async (message: WebrtcDataMessage) => {
+      if (!this.chatService) {
+        throw new Error("Chat service not initialize");
+      }
 
-        if (message.type === "chat" && message.data) {
-          try {
-            await this.chatService.handleIncomingChatMessage(message.data);
-          } catch (error) {
-            `[ConnectionService]: Error handling incoming chat message\n${JSON.stringify(
-              message,
-              null,
-              2
-            )}\n${error}`;
-          }
-        }
-        if (message.type === "ack" && message.data) {
-          try {
-            console.log("Ack received");
-            await this.chatService.handleAckMessage(message.data.messageId);
-          } catch (error) {
-            `[ConnectionService]: Error handling acknowledge message\n${JSON.stringify(
-              message,
-              null,
-              2
-            )}\n${error}`;
-          }
+      if (message.type === "chat" && message.data) {
+        try {
+          await this.chatService.handleIncomingChatMessage(message.data);
+        } catch (error) {
+          `[ConnectionService]: Error handling incoming chat message\n${JSON.stringify(
+            message,
+            null,
+            2
+          )}\n${error}`;
         }
       }
-    );
+      if (message.type === "ack" && message.data) {
+        try {
+          console.log("Ack received");
+          await this.chatService.handleAckMessage(message.data.messageId);
+        } catch (error) {
+          `[ConnectionService]: Error handling acknowledge message\n${JSON.stringify(
+            message,
+            null,
+            2
+          )}\n${error}`;
+        }
+      }
+    });
 
     webrtcAdapter.on("remoteStream", (stream) => {
       this.emit("remoteStream", stream);
@@ -239,7 +241,7 @@ export class ConnectionService extends EventEmitter {
   }
 
   // This message is received from tcp client
-  private async handleWebrtcConnection(message: any) {
+  private async handleWebrtcConnection(message: SignalingMessage) {
     try {
       let webrtcAdapter = this.getWebrtcAdapter(message.data.senderId);
       let tcpClientAdapter: TcpClientAdapter;
@@ -297,7 +299,7 @@ export class ConnectionService extends EventEmitter {
   }
 
   // TODO: Probably this method can insert the id of the sender/current user
-  sendMessage(peerId: string, message: any) {
+  sendMessage(peerId: string, message: TcpDataMessage) {
     try {
       const adapter = this.getTcpClientAdapter(peerId);
       if (adapter.isConnected) {
@@ -323,7 +325,7 @@ export class ConnectionService extends EventEmitter {
       senderId,
       sentAt,
       messageType,
-    }: SentMessageI
+    }: DataChatMessageI
   ) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -359,7 +361,7 @@ export class ConnectionService extends EventEmitter {
 
   // TODO: make tcp as fallback
   // ACK message will be used for the sender to know if the message is delivered or not
-  sendAckMessage(peerId: string, { messageId }: { messageId: string }) {
+  sendAckMessage(peerId: string, { messageId }: DataAckMessage) {
     try {
       console.log("sending ack message");
 

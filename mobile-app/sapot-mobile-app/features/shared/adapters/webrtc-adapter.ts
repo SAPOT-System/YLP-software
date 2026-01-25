@@ -7,8 +7,8 @@ import {
 } from "react-native-webrtc";
 import { EventEmitter } from "events";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
-import { MessageI } from "../types";
 import { MediaStreamTrack } from "react-native-webrtc";
+import { WebrtcDataMessage } from "../types";
 
 interface RTCIceCandidateInit {
   candidate: string;
@@ -207,15 +207,15 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   async createOffer() {
-    return new Promise<{ type: string; sdp: any }>(async (resolve, reject) => {
-    try {
-      if (!this.peerConnection) {
-        console.log(
-          "[WebrtcAdapter]: Creating peer connection in create offer method"
-        );
-        this.createPeerConnection();
-      }
-      // console.log(`[WebrtcAdapter]: Creating offer...`);
+    return new Promise<{ type: "offer"; sdp: any }>(async (resolve, reject) => {
+      try {
+        if (!this.peerConnection) {
+          console.log(
+            "[WebrtcAdapter]: Creating peer connection in create offer method"
+          );
+          this.createPeerConnection();
+        }
+        // console.log(`[WebrtcAdapter]: Creating offer...`);
         if (this.peerConnection?.signalingState === "stable") {
           console.log("stable");
           const offer = await this.peerConnection!.createOffer();
@@ -232,28 +232,30 @@ export class WebrtcAdapter extends EventEmitter {
             if (this.peerConnection?.signalingState === "stable") {
               console.log("run");
               this.peerConnection.onsignalingstatechange = () => null;
-      const offer = await this.peerConnection!.createOffer();
-      // console.log(`[WebrtcAdapter]: Setting local description...`);
-      await this.peerConnection!.setLocalDescription(offer);
+              const offer = await this.peerConnection!.createOffer();
+              // console.log(`[WebrtcAdapter]: Setting local description...`);
+              await this.peerConnection!.setLocalDescription(offer);
 
               resolve({
-        type: "offer",
-        sdp: offer.sdp,
+                type: "offer",
+                sdp: offer.sdp,
               });
             }
-      };
+          };
           this.peerConnection!.onsignalingstatechange = async () =>
             await onStable();
         }
-    } catch (error) {
-      console.error("[WebrtcAdapter]: Error creating offer:", error);
+      } catch (error) {
+        console.error("[WebrtcAdapter]: Error creating offer:", error);
         error;
         reject(error);
-    }
+      }
     });
   }
 
-  async handleOffer(offer: RTCSessionDescriptionInit | undefined) {
+  async handleOffer(
+    offer: RTCSessionDescriptionInit | undefined
+  ): Promise<{ type: "answer"; sdp: any }> {
     try {
       if (!this.peerConnection) {
         console.log(
@@ -374,7 +376,7 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   // TODO: make a type interface for the payload paramater
-  sendDataMessage(payload: MessageI<any>) {
+  sendDataMessage(payload: WebrtcDataMessage) {
     try {
       if (
         this.dataChannel &&
