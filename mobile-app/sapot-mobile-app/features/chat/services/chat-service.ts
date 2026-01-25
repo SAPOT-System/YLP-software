@@ -16,7 +16,7 @@ import {
   MessageRepository,
   MessageStatusRepository,
 } from "../repositories";
-import { SentMessageI } from "../types";
+import { DataChatMessageI } from "../types";
 
 // This is class will be responsible of behavior and rules of the conversation.
 export class ChatService {
@@ -57,7 +57,6 @@ export class ChatService {
 
   disconnect() {
     try {
-      this.connectionService.disconnect();
       this.conversation = undefined;
       this.peer = undefined;
     } catch (error) {
@@ -67,7 +66,7 @@ export class ChatService {
   }
 
   // TODO: Apply ACID principle and retry if failed
-  async handleIncomingChatMessage(data: SentMessageI) {
+  async handleIncomingChatMessage(data: DataChatMessageI) {
     try {
       // Check if the direct conversation state between current user and peer is created
       console.log("[ChatService]: Handling incoming chat message");

@@ -2,15 +2,20 @@ import { NetworkInfo } from "react-native-network-info";
 
 export class NetworkConfig {
   readonly port: number;
-  ipAddress: string | null = null;
+  ipAddress: string;
 
   constructor() {
     this.port = this.generatePort();
+    this.ipAddress = "";
   }
 
   async initialize() {
     try {
-      this.ipAddress = await NetworkInfo.getIPV4Address();
+      const ip = await NetworkInfo.getIPV4Address();
+      if (!ip) {
+        throw new Error("Failed to obtain a valid IP address.");
+      }
+      this.ipAddress = ip;
     } catch (error) {
       console.error(
         "[NetworkConfig]: Error initializing network configuration:",

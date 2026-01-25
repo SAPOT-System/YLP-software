@@ -1,6 +1,6 @@
 import { MessageType } from "../shared";
 
-export interface SentMessageI {
+export interface DataChatMessageI {
   message: any; //TODO: implement enum
   conversationId: string;
   messageId: string;
@@ -9,9 +9,10 @@ export interface SentMessageI {
   messageType: MessageType;
 }
 
-// This is enum for determining where the chat room is triggered, it is either in peer list item or chat list item
+/**
+ * This is enum for determining where the chat room is triggered, it is either in peer list item or chat list item
+ */
 export enum ChatRoomSource {
   PEER = "peer_list",
   CHAT = "chat_list",
 }
- 
