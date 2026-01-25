@@ -57,7 +57,6 @@ export class ChatService {
 
   disconnect() {
     try {
-      this.connectionService.disconnect();
       this.conversation = undefined;
       this.peer = undefined;
     } catch (error) {
