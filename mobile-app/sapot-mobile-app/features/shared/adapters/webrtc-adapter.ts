@@ -1,13 +1,13 @@
+import { EventEmitter } from "events";
 import {
   mediaDevices,
+  MediaStream,
+  MediaStreamTrack,
+  RTCIceCandidate,
   RTCPeerConnection,
   RTCSessionDescription,
-  RTCIceCandidate,
-  MediaStream,
 } from "react-native-webrtc";
-import { EventEmitter } from "events";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
-import { MediaStreamTrack } from "react-native-webrtc";
 import { WebrtcDataMessage } from "../types";
 
 interface RTCIceCandidateInit {
@@ -16,6 +16,10 @@ interface RTCIceCandidateInit {
   sdpMLineIndex: number | null;
 }
 
+/**
+ * WebrtcAdapter manages WebRTC peer connections, media streams, and data channels for real-time communication.
+ * It handles signaling, ICE candidates, media control, and emits events for connection and media state changes.
+ */
 export class WebrtcAdapter extends EventEmitter {
   /**
    * This property holds the connection of webrtc
@@ -69,6 +73,10 @@ export class WebrtcAdapter extends EventEmitter {
    */
   readonly peerId: string;
 
+  /**
+   * Constructs a WebrtcAdapter instance for a given peer.
+   * @param peerId The peer id this adapter is associated with
+   */
   constructor(peerId: string) {
     super();
     this.peerId = peerId;
@@ -89,6 +97,13 @@ export class WebrtcAdapter extends EventEmitter {
     };
   }
 
+  /**
+   * Initializes the local media stream with audio and/or video.
+   * Adds tracks to the peer connection if available.
+   * @param audio Whether to enable audio
+   * @param video Whether to enable video
+   * @returns Promise<void>
+   */
   async initializeLocalStream(audio = false, video = false) {
     try {
       const constraints = {
@@ -131,6 +146,9 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Creates and configures a new RTCPeerConnection, sets up event handlers, and creates a data channel.
+   */
   createPeerConnection() {
     try {
       console.log("[WebrtcAdapter]: Creating peer connection...");
@@ -196,6 +214,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Sets the data channel and attaches event handlers for messaging and state changes.
+   * @param channel The RTCDataChannel to set
+   */
   setDataChannel(channel: RTCDataChannel) {
     try {
       this.dataChannel = channel;
@@ -206,6 +228,11 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Creates a WebRTC offer and sets the local description.
+   * Waits for signaling state to be stable if needed.
+   * @returns Promise<{ type: "offer"; sdp: any }>
+   */
   async createOffer() {
     return new Promise<{ type: "offer"; sdp: any }>(async (resolve, reject) => {
       try {
@@ -253,6 +280,11 @@ export class WebrtcAdapter extends EventEmitter {
     });
   }
 
+  /**
+   * Handles an incoming WebRTC offer, sets the remote description, creates and returns an answer.
+   * @param offer The RTCSessionDescriptionInit offer
+   * @returns Promise<{ type: "answer"; sdp: any }>
+   */
   async handleOffer(
     offer: RTCSessionDescriptionInit | undefined
   ): Promise<{ type: "answer"; sdp: any }> {
@@ -292,6 +324,11 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Handles an incoming WebRTC answer, sets the remote description, and processes pending ICE candidates.
+   * @param answer The RTCSessionDescriptionInit answer
+   * @returns Promise<void>
+   */
   async handleAnswer(answer: RTCSessionDescriptionInit | undefined) {
     try {
       if (!this.peerConnection) {
@@ -316,6 +353,11 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Adds an ICE candidate to the peer connection, or queues it if remote description is not set.
+   * @param candidate The ICE candidate to add
+   * @returns Promise<void>
+   */
   async addIceCandidate(candidate: RTCIceCandidateInit) {
     try {
       if (!this.peerConnection) {
@@ -340,6 +382,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Sets up event handlers for the data channel (open, message, error, close).
+   * @param channel The RTCDataChannel to set up
+   */
   setupDataChannel(channel: RTCDataChannel) {
     try {
       // console.log(`[WebrtcAdapter]: Setup data channel`);
@@ -376,6 +422,11 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   // TODO: make a type interface for the payload paramater
+  /**
+   * Sends a data message over the WebRTC data channel.
+   * @param payload The message payload to send
+   * @throws Error if data channel is not open or not connected
+   */
   sendDataMessage(payload: WebrtcDataMessage) {
     try {
       if (
@@ -400,6 +451,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Terminates the call by stopping local media tracks and removing them from the peer connection.
+   * @throws Error if termination fails
+   */
   terminateCall() {
     try {
       if (!this.localStream) {
@@ -428,6 +483,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Toggles the microphone (audio track) enabled state.
+   * @throws Error if audio track is not initialized
+   */
   toggleMic() {
     try {
       if (!this.audioTrack) throw Error("Audio track not initialized");
@@ -439,6 +498,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Toggles the camera (video track) enabled state.
+   * @throws Error if video track is not initialized
+   */
   toggleCamera() {
     try {
       if (!this.videoTrack) throw Error("Video track not initialized");
@@ -450,6 +513,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Returns whether the WebRTC connection and data channel are both open/connected.
+   * @returns boolean True if connected, false otherwise
+   */
   get isConnected() {
     try {
       return (
@@ -465,6 +532,11 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Gets the local media stream.
+   * @returns MediaStream The local stream
+   * @throws Error if local stream is undefined
+   */
   getLocalStream() {
     try {
       if (!this.localStream) throw new Error("Local stream is undefined");
@@ -475,6 +547,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Cleans up all WebRTC resources, closes streams and connections, and resets state.
+   * @throws Error if cleanup fails
+   */
   cleanup() {
     try {
       if (this.localStream) {

@@ -1,14 +1,26 @@
-import Zeroconf from "react-native-zeroconf";
 import { EventEmitter } from "events";
+import Zeroconf from "react-native-zeroconf";
 
+/**
+ * ZeroconfAdapter manages network service discovery and publishing using mDNS/ZeroConf.
+ * It emits events for service resolution and removal, and provides methods to scan, publish, and clean up services.
+ */
 export class ZeroconfAdapter extends EventEmitter {
   private zeroconf: Zeroconf;
 
+  /**
+   * Constructs a ZeroconfAdapter instance and initializes the underlying Zeroconf object.
+   */
   constructor() {
     super();
     this.zeroconf = new Zeroconf();
   }
 
+  /**
+   * Starts scanning for network services using Zeroconf.
+   * Emits 'serviceResolved' and 'serviceRemoved' events for discovered/removed services.
+   * @throws Error if scanning fails
+   */
   startScan(): void {
     try {
       if (!this.zeroconf) {
@@ -54,6 +66,10 @@ export class ZeroconfAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Stops scanning for network services.
+   * @throws Error if stopping scan fails
+   */
   stopScan(): void {
     try {
       this.zeroconf.stop();
@@ -64,6 +80,11 @@ export class ZeroconfAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Publishes a network service using Zeroconf.
+   * @param service The service details (type, protocol, domain, name, port, txt)
+   * @throws Error if publishing fails
+   */
   publishService(service: {
     type: string;
     protocol: string;
@@ -118,6 +139,11 @@ export class ZeroconfAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Cleans up Zeroconf resources, unpublishes the service, stops scanning, and removes listeners.
+   * @param publishedServiceName The name of the published service to unpublish
+   * @throws Error if cleanup fails
+   */
   cleanUp(publishedServiceName: string): void {
     if (!this.zeroconf) return;
 

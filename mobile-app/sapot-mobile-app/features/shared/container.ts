@@ -1,22 +1,25 @@
-import { database } from "./database";
-import { NetworkConfig, SessionStore, UserStore } from "./stores";
 import { TcpServerAdapter, ZeroconfAdapter } from "./adapters";
+import { database } from "./database";
+import { PeerRepository } from "./repositories";
 import {
   ConnectionService,
   DiscoveryService,
   PeerService,
   UserService,
 } from "./services";
-import { PeerRepository } from "./repositories";
+import { NetworkConfig, SessionStore, UserStore } from "./stores";
 
 import { CallService } from "@/features/call/services/call-service";
-import { ChatService } from "@/features/chat/services/chat-service";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import { ConversationRepository } from "@/features/chat/repositories/conversation-repository";
 import { MessageRepository } from "@/features/chat/repositories/message-repository";
 import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
+import { ChatService } from "@/features/chat/services/chat-service";
 
-// This class will be used for initializing mobile app by initializing classes.
+/**
+ * AppContainer is responsible for initializing and wiring up all core services, repositories, and stores for the mobile app.
+ * It acts as a dependency injection container and provides a single point of initialization for the application.
+ */
 export class AppContainer {
   readonly zeroconfAdapter: ZeroconfAdapter;
   readonly sessionStore: SessionStore;
@@ -37,6 +40,10 @@ export class AppContainer {
 
   private initPromise?: Promise<void>;
 
+  /**
+   * Constructs an AppContainer instance and initializes all dependencies and services.
+   * Sets up dependency injection and cross-service references.
+   */
   constructor() {
     this.sessionStore = new SessionStore();
     this.networkConfig = new NetworkConfig();
@@ -90,6 +97,11 @@ export class AppContainer {
     this.discoveryService.setChatService(this.chatService);
   }
 
+  /**
+   * Initializes the application by initializing the user service and network configuration.
+   * Ensures initialization is only performed once (idempotent).
+   * @returns Promise<void>
+   */
   async initialize() {
     try {
       if (this.initPromise) return this.initPromise;

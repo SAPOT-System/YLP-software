@@ -1,12 +1,25 @@
-import TcpSocket from "react-native-tcp-socket";
 import { EventEmitter } from "events";
+import TcpSocket from "react-native-tcp-socket";
+/**
+ * TcpServerAdapter manages a TCP server socket for accepting peer-to-peer connections.
+ * It handles starting, stopping, and emitting data events for incoming messages.
+ */
 export class TcpServerAdapter extends EventEmitter {
   private server?: TcpSocket.Server;
 
+  /**
+   * Constructs a TcpServerAdapter instance.
+   */
   constructor() {
     super();
   }
 
+  /**
+   * Starts the TCP server and listens for incoming connections on the specified port.
+   * Emits 'data' events for each parsed message received.
+   * @param port The port to listen on
+   * @returns Promise<void> Resolves when server is listening, rejects on error
+   */
   start(port: number) {
     return new Promise<void>((resolve, reject) => {
       try {
@@ -70,6 +83,10 @@ export class TcpServerAdapter extends EventEmitter {
     });
   }
 
+  /**
+   * Stops the TCP server and cleans up resources.
+   * @throws Error if stopping fails
+   */
   stop() {
     try {
       if (this.server) {

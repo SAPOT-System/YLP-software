@@ -115,6 +115,11 @@ export class ConnectionService extends EventEmitter {
     });
   }
 
+  /**
+   * Retrieves or creates a TcpClientAdapter for the given peer.
+   * @param peerId - Unique identifier of the peer
+   * @returns TcpClientAdapter instance
+   */
   getTcpClientAdapter(peerId: string) {
     try {
       let adapter = this.tcpClientAdapters.get(peerId);
@@ -136,6 +141,11 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Retrieves or creates a WebrtcAdapter for the given peer and sets up event listeners.
+   * @param peerId - Unique identifier of the peer
+   * @returns WebrtcAdapter instance
+   */
   getWebrtcAdapter(peerId: string) {
     try {
       let adapter = this.webrtcAdapters.get(peerId);
@@ -158,10 +168,18 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Sets the chat service instance for handling chat-related events.
+   * @param chatService - Instance of ChatService
+   */
   setChatService(chatService: ChatService) {
     this.chatService = chatService;
   }
 
+  /**
+   * Starts the TCP server and initializes connections.
+   * Throws error if startup fails.
+   */
   start() {
     try {
       // await this.webrtcAdapter.initializeLocalStream();
@@ -172,6 +190,14 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Initiates connection to a peer using TCP and WebRTC.
+   * Handles timeouts and connection events.
+   * @param peerId - Unique identifier of the peer
+   * @param ipAddress - IP address of the peer
+   * @param port - Port number for TCP connection
+   * @returns Promise that resolves when connection is established
+   */
   async connectToPeer(peerId: string, ipAddress: string, port: number) {
     return new Promise<void>(async (resolve, reject) => {
       try {
@@ -228,6 +254,10 @@ export class ConnectionService extends EventEmitter {
   }
 
   // This method will assume that tcp and webrtc connection is good
+  /**
+   * Renegotiates the WebRTC connection with the specified peer.
+   * @param peerId - Unique identifier of the peer
+   */
   async renegotiate(peerId: string) {
     try {
       const tcpAdapter = this.getTcpClientAdapter(peerId);
@@ -253,6 +283,12 @@ export class ConnectionService extends EventEmitter {
   }
 
   // This message is received from tcp client
+  /**
+   * Handles incoming WebRTC signaling messages received via TCP.
+   * Processes ICE candidates, offers, answers, and handshake messages to coordinate
+   * the WebRTC connection setup and negotiation between peers.
+   * @param message - The signaling message containing type and data for connection negotiation
+   */
   private async handleWebrtcConnection(message: SignalingMessage) {
     try {
       let webrtcAdapter = this.getWebrtcAdapter(message.data.senderId);
@@ -313,6 +349,11 @@ export class ConnectionService extends EventEmitter {
   }
 
   // TODO: Probably this method can insert the id of the sender/current user
+  /**
+   * Sends a TCP data message to the specified peer.
+   * @param peerId - Unique identifier of the peer
+   * @param message - TcpDataMessage to send
+   */
   sendMessage(peerId: string, message: TcpDataMessage) {
     try {
       const adapter = this.getTcpClientAdapter(peerId);
@@ -332,17 +373,20 @@ export class ConnectionService extends EventEmitter {
   }
 
   // TODO: Make tcp as fallback once webrtc failed
-  sendChatMessage(
-    peerId: string,
-    {
+  /**
+   * Sends a chat message to the specified peer via WebRTC.
+   * @param peerId - Unique identifier of the peer
+   * @param messageData - DataChatMessageI containing chat message details
+   */
+  sendChatMessage(peerId: string, messageData: DataChatMessageI) {
+    const {
       message,
       conversationId,
       messageId,
       senderId,
       sentAt,
       messageType,
-    }: DataChatMessageI
-  ) {
+    } = messageData;
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
 
@@ -379,7 +423,13 @@ export class ConnectionService extends EventEmitter {
 
   // TODO: make tcp as fallback
   // ACK message will be used for the sender to know if the message is delivered or not
-  sendAckMessage(peerId: string, { messageId }: DataAckMessage) {
+  /**
+   * Sends an acknowledgement message to the specified peer.
+   * @param peerId - Unique identifier of the peer
+   * @param ackData - DataAckMessage containing messageId to acknowledge
+   */
+  sendAckMessage(peerId: string, ackData: DataAckMessage) {
+    const { messageId } = ackData;
     try {
       console.log("sending ack message");
 
@@ -405,6 +455,10 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Initializes the local media stream for the specified peer.
+   * @param peerId - Unique identifier of the peer
+   */
   async initializeStream(peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -424,6 +478,10 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Terminates the call connection with the specified peer.
+   * @param peerId - Unique identifier of the peer
+   */
   terminateCallConnection(peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -443,6 +501,10 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Toggles the microphone state for the specified peer's connection.
+   * @param peerId - Unique identifier of the peer
+   */
   toggleMic(peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -462,6 +524,10 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Toggles the camera state for the specified peer's connection.
+   * @param peerId - Unique identifier of the peer
+   */
   toggleCamera(peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -481,6 +547,11 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Retrieves the local media stream for the specified peer.
+   * @param peerId - Unique identifier of the peer
+   * @returns MediaStream instance
+   */
   getLocalStream(peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -501,7 +572,8 @@ export class ConnectionService extends EventEmitter {
   }
 
   /**
-   * Stops all WebRTC adapters, TCP server, TCP clients, and removes all event listeners for resource cleanup.
+   * Stops all connections, cleans up resources, and removes event listeners.
+   * Should be called when the service is no longer needed.
    */
   stop() {
     try {

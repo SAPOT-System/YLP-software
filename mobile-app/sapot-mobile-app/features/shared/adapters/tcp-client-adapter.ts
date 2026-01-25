@@ -1,18 +1,32 @@
-import TcpSocket from "react-native-tcp-socket";
 import EventEmitter from "events";
+import TcpSocket from "react-native-tcp-socket";
 import { TcpDataMessage } from "../types";
 
+/**
+ * TcpClientAdapter manages a TCP client socket connection for peer-to-peer communication.
+ * It handles connecting, sending messages, disconnecting, and connection state management.
+ */
 export class TcpClientAdapter extends EventEmitter {
   private socket?: TcpSocket.Socket;
   private connectionState: "disconnected" | "connecting" | "connected" =
     "disconnected";
   readonly peerId: string;
 
+  /**
+   * Constructs a TcpClientAdapter instance for a given peer.
+   * @param peerId The peer id this client will connect to
+   */
   constructor(peerId: string) {
     super();
     this.peerId = peerId;
   }
 
+  /**
+   * Connects to a TCP server at the specified host and port.
+   * @param host The server host
+   * @param port The server port
+   * @returns Promise<void> Resolves when connected, rejects on error
+   */
   connect(host: string, port: number) {
     return new Promise<void>((resolve, reject) => {
       try {
@@ -65,6 +79,11 @@ export class TcpClientAdapter extends EventEmitter {
     });
   }
 
+  /**
+   * Sends a message to the connected TCP server.
+   * @param message The message to send
+   * @throws Error if not connected or sending fails
+   */
   sendMessage(message: TcpDataMessage) {
     if (!this.socket) throw new Error("TCP not connected");
     try {
@@ -80,6 +99,10 @@ export class TcpClientAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Disconnects the TCP client and cleans up the socket.
+   * @throws Error if disconnect fails
+   */
   disconnect() {
     try {
       this.socket?.destroy();
@@ -90,6 +113,10 @@ export class TcpClientAdapter extends EventEmitter {
     }
   }
 
+  /**
+   * Returns whether the TCP client is currently connected.
+   * @returns boolean True if connected, false otherwise
+   */
   get isConnected() {
     try {
       return this.connectionState === "connected";

@@ -2,10 +2,16 @@ import { ConnectionService, UserStore } from "@/features/shared";
 import { EventEmitter } from "events";
 // TODO: probably store the peerId state
 /**
- * This class is capable of managing call connection
+ * CallService manages call connections, including starting/terminating calls, handling streams,
+ * and toggling audio/video for peer-to-peer calls. It extends EventEmitter to emit call-related events.
  */
 export class CallService extends EventEmitter {
   private connectedState: "connected" | "disconnected" = "disconnected";
+  /**
+   * Constructs a CallService instance.
+   * @param connectionService Handles network and media stream operations
+   * @param userStore Store for user state
+   */
   constructor(
     private connectionService: ConnectionService,
     private userStore: UserStore
@@ -13,7 +19,12 @@ export class CallService extends EventEmitter {
     super();
   }
 
-  // This method will assume that tcp and webrtc connection is good
+  /**
+   * Starts a call with the given peer. Assumes TCP and WebRTC connections are established.
+   * Initializes local media, listens for remote streams, and renegotiates WebRTC.
+   * @param peerId The peer id to call
+   * @returns Promise<void>
+   */
   async startCall(peerId: string) {
     try {
       if (this.connectedState === "connected") return;
@@ -32,13 +43,19 @@ export class CallService extends EventEmitter {
     }
   }
 
+  /**
+   * Listens for remote media streams from the connection service and emits them to listeners.
+   */
   listenToRemoteStream() {
     this.connectionService.on("remoteStream", (stream) => {
       this.emit("remoteStream", stream);
     });
   }
 
-  // Inform peer for incoming call
+  /**
+   * Informs a peer of an incoming audio call by sending a signaling message.
+   * @param peerId The peer id to inform
+   */
   informPeerForIncomingAudioCall(peerId: string) {
     try {
       this.connectionService.sendMessage(peerId, {
@@ -53,6 +70,11 @@ export class CallService extends EventEmitter {
     }
   }
 
+  /**
+   * Terminates the call connection with the given peer, renegotiates WebRTC, and notifies the peer.
+   * @param peerId The peer id to terminate the call with
+   * @returns Promise<void>
+   */
   async terminateCallConnection(peerId: string) {
     try {
       if (this.connectedState === "disconnected") return;
@@ -71,6 +93,10 @@ export class CallService extends EventEmitter {
     }
   }
 
+  /**
+   * Toggles the microphone state for the given peer.
+   * @param peerId The peer id
+   */
   toggleMic(peerId: string) {
     try {
       this.connectionService.toggleMic(peerId);
@@ -82,6 +108,10 @@ export class CallService extends EventEmitter {
     }
   }
 
+  /**
+   * Toggles the camera state for the given peer.
+   * @param peerId The peer id
+   */
   toggleCamera(peerId: string) {
     try {
       this.connectionService.toggleCamera(peerId);
@@ -93,6 +123,11 @@ export class CallService extends EventEmitter {
     }
   }
 
+  /**
+   * Gets the local camera/media stream for the given peer.
+   * @param peerId The peer id
+   * @returns The local media stream
+   */
   getLocalCam(peerId: string) {
     try {
       return this.connectionService.getLocalStream(peerId);

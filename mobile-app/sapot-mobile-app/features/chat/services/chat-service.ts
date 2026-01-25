@@ -1,14 +1,15 @@
 import {
+  ConnectionService,
   Conversation,
   ConversationParticipantRole,
   ConversationType,
   database,
   Message,
+  MessageStatus,
   MessageStatusType,
   Peer,
-  UserStore,
-  ConnectionService,
   PeerService,
+  UserStore,
 } from "@/features/shared";
 import {
   ConversationParticipantRepository,
@@ -18,10 +19,23 @@ import {
 } from "../repositories";
 import { DataChatMessageI } from "../types";
 
-// This is class will be responsible of behavior and rules of the conversation.
+/**
+ * ChatService is responsible for managing chat/conversation logic, including peer connections, message sending/receiving,
+ * repository coordination, and state management. It encapsulates business rules for chat flows and ensures ACID principles where possible.
+ */
 export class ChatService {
   private peer?: Peer;
   private conversation?: Conversation;
+  /**
+   * Constructs a ChatService instance.
+   * @param connectionService Handles peer-to-peer network connections
+   * @param conversationRepository Repository for conversation data
+   * @param conversationParticipantRepository Repository for conversation participants
+   * @param messageRepository Repository for messages
+   * @param messageStatusRepository Repository for message statuses
+   * @param peerService Service for peer management
+   * @param userStore Store for user state
+   */
   constructor(
     private connectionService: ConnectionService,
     private conversationRepository: ConversationRepository,
@@ -32,7 +46,12 @@ export class ChatService {
     private userStore: UserStore
   ) {}
 
-  async connect(id: string) {
+  /**
+   * Connects to a peer by id, establishing a network connection for chat.
+   * @param id The peer id to connect to
+   * @returns Promise<void>
+   */
+  async connect(id: string): Promise<void> {
     try {
       const foundUser = await this.peerService.findPeerById(id);
       if (!foundUser) throw new Error("Peer not found");
@@ -55,7 +74,10 @@ export class ChatService {
     }
   }
 
-  disconnect() {
+  /**
+   * Disconnects the current chat session, clearing peer and conversation state.
+   */
+  disconnect(): void {
     try {
       this.conversation = undefined;
       this.peer = undefined;
@@ -66,47 +88,23 @@ export class ChatService {
   }
 
   // TODO: Apply ACID principle and retry if failed
-  async handleIncomingChatMessage(data: DataChatMessageI) {
+
+  /**
+   * Handles an incoming chat message: finds/creates sender and conversation, saves the message, and sends an acknowledgment.
+   * @param data Incoming chat message data
+   * @returns Promise<void>
+   */
+  async handleIncomingChatMessage(data: DataChatMessageI): Promise<void> {
     try {
-      // Check if the direct conversation state between current user and peer is created
       console.log("[ChatService]: Handling incoming chat message");
-      const isConversationExist =
-        await this.conversationRepository.isConversationExist(
-          data.conversationId
-        );
-
-      console.log("[ChatService]: Conversation exist", isConversationExist);
-      // TODO: inform user if peer state is not initialize
-
       const sender = await this.peerService.findPeerById(data.senderId);
-
       // TODO: create sender if not exists in the database
-
-      console.log("[ChatService]: Sender:", sender.id);
-
-      // Initialize the conversation
-      let conversation: Conversation;
-      if (!isConversationExist)
-        conversation = await this.createChatRoom(sender, data.conversationId);
-      else
-        conversation = await this.conversationRepository.queryConversationById(
-          data.conversationId
-        );
-
-      console.log("[ChatService]: Conversation:", conversation.id);
-      // Create message without taking the message status
-      await this.messageRepository.saveMessage({
-        sender: sender,
-        content: data.message,
-        conversation: conversation,
-      });
-
-      console.log("[ChatService]: Message ID:", data.messageId);
-
-      // Send acknowledge
-      this.connectionService.sendAckMessage(sender.id, {
-        messageId: data.messageId,
-      });
+      const conversation = await this.getOrCreateConversationForIncoming(
+        sender,
+        data.conversationId
+      );
+      await this.saveIncomingMessage(sender, conversation, data);
+      this.acknowledgeIncomingMessage(sender.id, data.messageId);
     } catch (error) {
       console.error(
         `[ChatService]: Error handling incoming chat message of:\n${JSON.stringify(
@@ -119,7 +117,69 @@ export class ChatService {
     }
   }
 
-  async handleAckMessage(messageId: string) {
+  /**
+   * Gets or creates a conversation for an incoming message, ensuring the conversation exists in the repository.
+   * @param sender The sender peer
+   * @param conversationId The conversation id
+   * @returns Promise<Conversation>
+   */
+  private async getOrCreateConversationForIncoming(
+    sender: Peer,
+    conversationId: string
+  ): Promise<Conversation> {
+    const isConversationExist =
+      await this.conversationRepository.isConversationExist(conversationId);
+    console.log("[ChatService]: Conversation exist", isConversationExist);
+    if (!isConversationExist) {
+      return await this.createChatRoom(sender, conversationId);
+    } else {
+      return await this.conversationRepository.queryConversationById(
+        conversationId
+      );
+    }
+  }
+
+  /**
+   * Saves an incoming message to the repository.
+   * @param sender The sender peer
+   * @param conversation The conversation
+   * @param data Incoming chat message data
+   * @returns Promise<void>
+   */
+  private async saveIncomingMessage(
+    sender: Peer,
+    conversation: Conversation,
+    data: DataChatMessageI
+  ): Promise<void> {
+    console.log("[ChatService]: Sender:", sender.id);
+    console.log("[ChatService]: Conversation:", conversation.id);
+    // TODO: save message with the received incoming message ID
+    await this.messageRepository.saveMessage({
+      sender: sender,
+      content: data.message,
+      conversation: conversation,
+    });
+    console.log("[ChatService]: Message ID:", data.messageId);
+  }
+
+  /**
+   * Sends an acknowledgment for an incoming message to the sender.
+   * @param senderId The sender's peer id
+   * @param messageId The message id to acknowledge
+   */
+  private acknowledgeIncomingMessage(
+    senderId: string,
+    messageId: string
+  ): void {
+    this.connectionService.sendAckMessage(senderId, { messageId });
+  }
+
+  /**
+   * Handles an incoming acknowledgment message for a given messageId, updating its status to DELIVERED.
+   * @param messageId The message id to acknowledge
+   * @returns Promise<void>
+   */
+  async handleAckMessage(messageId: string): Promise<void> {
     try {
       console.log(
         `[ChatService]: Handling acknowledge message with a message id of ${messageId}...`
@@ -140,57 +200,27 @@ export class ChatService {
   // TODO: make a transaction on this function to follow ACID principle
   // TODO: make a logic where user can send conversation even if the receiver is not online. Store the sent conversation and wait for receiver to be online.
   // This method will use the current class state about peer and conversation
-  async sendChatMessage(message: string) {
+
+  /**
+   * Sends a chat message to the current peer, ensuring conversation state and updating message status.
+   * @param message The message content
+   * @returns Promise<string> The conversation id
+   */
+  async sendChatMessage(message: string): Promise<string> {
     try {
       if (!this.peer) throw new Error("No peer state stored");
-
-      // Make sure conversation property is initialized
-      if (!this.conversation) {
-        // Check if the direct conversation state between current user and peer is created
-        const conversationId =
-          await this.conversationParticipantRepository.isDirectConversationExists(
-            [this.peer.id, this.userStore.user.id]
-          );
-
-        if (!conversationId) {
-          this.conversation = await this.createChatRoom(this.peer);
-        } else {
-          this.conversation =
-            await this.conversationRepository.queryConversationById(
-              conversationId
-            );
-        }
-      }
-
-      // Create the message and message status
+      await this.ensureConversationInitialized();
       const { newMessage, newMessageStatus } = await this.createMessage({
         sender: this.userStore.user,
         message: message,
-        conversation: this.conversation,
+        conversation: this.conversation!,
       });
-
-      try {
-        this.connectionService.sendChatMessage(this.peer.id, {
-          message: message,
-          conversationId: this.conversation.id,
-          messageId: newMessage.id,
-          senderId: newMessage.sender.id,
-          sentAt: newMessage.createdAt,
-          messageType: newMessage.messageType,
-        });
-        // Update into sent
-        await this.messageStatusRepository.updateMessageStatusById(
-          newMessageStatus.id,
-          MessageStatusType.SENT
-        );
-      } catch (error) {
-        await this.messageStatusRepository.updateMessageStatusById(
-          newMessageStatus.id,
-          MessageStatusType.NOT_SENT
-        );
-      }
-
-      return this.conversation.id;
+      await this.sendAndTrackMessageStatus(
+        newMessage,
+        newMessageStatus,
+        message
+      );
+      return this.conversation!.id;
     } catch (error) {
       console.error(
         `[ChatService]: Error sending chat message "${message}": ${error}`
@@ -199,16 +229,73 @@ export class ChatService {
     }
   }
 
+  /**
+   * Ensures the conversation property is initialized for sending a message. Creates a new conversation if needed.
+   * @returns Promise<void>
+   */
+  private async ensureConversationInitialized(): Promise<void> {
+    if (!this.conversation && this.peer) {
+      const conversationId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [this.peer.id, this.userStore.user.id]
+        );
+      if (!conversationId) {
+        this.conversation = await this.createChatRoom(this.peer);
+      } else {
+        this.conversation =
+          await this.conversationRepository.queryConversationById(
+            conversationId
+          );
+      }
+    }
+  }
+
+  /**
+   * Sends a chat message over the network and updates its status in the repository.
+   * @param newMessage The message object
+   * @param newMessageStatus The message status object
+   * @param message The message content
+   * @returns Promise<void>
+   */
+  private async sendAndTrackMessageStatus(
+    newMessage: Message,
+    newMessageStatus: MessageStatus,
+    message: string
+  ): Promise<void> {
+    try {
+      this.connectionService.sendChatMessage(this.peer!.id, {
+        message: message,
+        conversationId: this.conversation!.id,
+        messageId: newMessage.id,
+        senderId: newMessage.sender.id,
+        sentAt: newMessage.createdAt,
+        messageType: newMessage.messageType,
+      });
+      await this.messageStatusRepository.updateMessageStatusById(
+        newMessageStatus.id,
+        MessageStatusType.SENT
+      );
+    } catch (error) {
+      await this.messageStatusRepository.updateMessageStatusById(
+        newMessageStatus.id,
+        MessageStatusType.NOT_SENT
+      );
+    }
+  }
+
   // TODO: Apply transaction
-  private async createMessage({
-    sender,
-    message,
-    conversation,
-  }: {
+
+  /**
+   * Creates a message and its status in a transaction.
+   * @param params Object containing sender, message, and conversation
+   * @returns Promise<{ newMessage: Message; newMessageStatus: MessageStatus }>
+   */
+  private async createMessage(params: {
     sender: Peer;
     message: string;
     conversation: Conversation;
-  }) {
+  }): Promise<{ newMessage: Message; newMessageStatus: MessageStatus }> {
+    const { sender, message, conversation } = params;
     try {
       const newMessage = await this.messageRepository.saveMessage({
         sender: sender,
@@ -231,7 +318,16 @@ export class ChatService {
     }
   }
 
-  private async createChatRoom(peer: Peer, conversationId?: string) {
+  /**
+   * Creates a chat room (conversation) with the given peer, and adds both users as participants.
+   * @param peer The peer to create the chat room with
+   * @param conversationId Optional conversation id
+   * @returns Promise<Conversation>
+   */
+  private async createChatRoom(
+    peer: Peer,
+    conversationId?: string
+  ): Promise<Conversation> {
     // Wrap into write method to ensure ACID for safety transaction
     try {
       return await database.write(async () => {
@@ -261,7 +357,13 @@ export class ChatService {
   // TODO: Determine if the conversation is direct or group conversation for integrating group conversation soon
   // For now, I assume that we don't have group conversationt
   // This is used by conversation room when the source is conversation list.
-  async findPeerIdByChatId(chatId: string) {
+
+  /**
+   * Finds the peer id by chat id. Used by conversation room when the source is conversation list.
+   * @param chatId The chat id
+   * @returns Promise<string>
+   */
+  async findPeerIdByChatId(chatId: string): Promise<string> {
     try {
       const participants =
         await this.conversationParticipantRepository.queryPeerByChatId(
@@ -277,6 +379,11 @@ export class ChatService {
     }
   }
 
+  /**
+   * Finds the chat id by peer id.
+   * @param peerId The peer id
+   * @returns Promise<string | undefined>
+   */
   async findChatByPeer(peerId: string): Promise<string | undefined> {
     try {
       const chat =
@@ -296,7 +403,11 @@ export class ChatService {
     }
   }
 
-  async getAllConversations() {
+  /**
+   * Gets all conversations from the repository.
+   * @returns Promise<Conversation[]>
+   */
+  async getAllConversations(): Promise<Conversation[]> {
     try {
       return await this.conversationRepository.queryAllConversation();
     } catch (error) {
@@ -305,7 +416,14 @@ export class ChatService {
     }
   }
 
-  async getMessagesFromConversation(conversationId: string) {
+  /**
+   * Gets all messages from a conversation.
+   * @param conversationId The conversation id
+   * @returns Promise<Message[]>
+   */
+  async getMessagesFromConversation(
+    conversationId: string
+  ): Promise<Message[]> {
     try {
       return await this.messageRepository.queryMessagesByConversation(
         conversationId
@@ -318,7 +436,12 @@ export class ChatService {
     }
   }
 
-  async getMessageStatus(messageId: string) {
+  /**
+   * Gets the status of a message by id.
+   * @param messageId The message id
+   * @returns Promise<MessageStatus>
+   */
+  async getMessageStatus(messageId: string): Promise<MessageStatus> {
     try {
       return await this.messageStatusRepository.queryMessageStatusByMessage(
         messageId
@@ -331,7 +454,11 @@ export class ChatService {
     }
   }
 
-  async getAllParticipants() {
+  /**
+   * Gets all participants in all conversations (for debugging/logging).
+   * @returns Promise<void>
+   */
+  async getAllParticipants(): Promise<void> {
     try {
       console.log(
         await this.conversationParticipantRepository.queryAllParticipants()
@@ -342,7 +469,11 @@ export class ChatService {
     }
   }
 
-  async getAllStatus() {
+  /**
+   * Gets all message statuses (for debugging/logging).
+   * @returns Promise<void>
+   */
+  async getAllStatus(): Promise<void> {
     try {
       console.log(await this.messageStatusRepository.queryAllStatuses());
     } catch (error) {
@@ -351,7 +482,12 @@ export class ChatService {
     }
   }
 
-  async getAllNotSentMessageForPeer(peerId: string) {
+  /**
+   * Gets all not sent messages for a given peer by checking message statuses.
+   * @param peerId The peer id
+   * @returns Promise<Message[]>
+   */
+  async getAllNotSentMessageForPeer(peerId: string): Promise<Message[]> {
     // get the conversation between peer
     try {
       const conversation =
@@ -391,11 +527,18 @@ export class ChatService {
     }
   }
 
+  /**
+   * Tries to resend a message to a peer by reconnecting and sending the message again.
+   * @param message The message to resend
+   * @param peerId The peer id
+   * @param param2 The peer's ipAddress and port
+   * @returns Promise<void>
+   */
   async tryResendMessage(
     message: Message,
     peerId: string,
     { ipAddress, port }: { ipAddress: string; port: number }
-  ) {
+  ): Promise<void> {
     try {
       await this.connectionService.connectToPeer(peerId, ipAddress, port);
 
@@ -424,13 +567,19 @@ export class ChatService {
     }
   }
 
-  cleanUp() {
+  /**
+   * Cleans up the chat service state, clearing peer and conversation references.
+   */
+  cleanUp(): void {
     this.peer = undefined;
     this.conversation = undefined;
   }
 
-  // This is for debugging purposes
-  async deleteAllConversations() {
+  /**
+   * Deletes all conversations, messages, statuses, and participants (for debugging/testing purposes).
+   * @returns Promise<void>
+   */
+  async deleteAllConversations(): Promise<void> {
     try {
       await database.write(async () => {
         const convOps =
