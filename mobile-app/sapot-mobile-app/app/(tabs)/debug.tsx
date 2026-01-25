@@ -1,7 +1,11 @@
 import { Pressable, StyleSheet, TextInput } from "react-native";
 
 import { Text, View } from "@/components/Themed";
-import { useDatabase, useChatService, usePeerService } from "@/features/shared";
+import {
+  useDatabase,
+  useChatService,
+  usePeerService,
+} from "@/features/shared/hooks";
 
 export default function Debug() {
   const { createPeer, showPeers, deletePeers, deleteDatabase } = useDatabase();
