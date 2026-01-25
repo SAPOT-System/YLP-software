@@ -33,7 +33,6 @@ export default function Chat() {
     return () => {
       discoveryService.destroy();
       connectionService.stop();
-      connectionService.disconnect();
       connectionService.off("audio-call", audioCallHandler);
       connectionService.off("call-ended", callEndedHandler);
     };

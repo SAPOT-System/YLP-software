@@ -39,11 +39,6 @@ const ChatRoom = () => {
       setIsRendered(true);
     };
     connect();
-
-    return () => {
-      chatService.disconnect();
-      chatService.cleanUp();
-    };
   }, [chatService, id, source]);
 
   useEffect(() => {
@@ -63,7 +58,6 @@ const ChatRoom = () => {
 
     return () => {
       chatService.disconnect();
-      chatService.cleanUp();
     };
   }, [peerId, chatService]);
 
