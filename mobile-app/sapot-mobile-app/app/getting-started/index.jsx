@@ -1,8 +1,10 @@
 import { Text, View } from "@/components/Themed";
+import { useRouter } from "expo-router";
 import React from "react";
-import { Image, StyleSheet } from "react-native";
+import { Image, Pressable, StyleSheet } from "react-native";
 
 const ModeSelect = () => {
+  const router = useRouter();
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
@@ -23,8 +25,18 @@ const ModeSelect = () => {
           <Text style={styles.headerText}>Getting Started</Text>
         </View>
       </View>
-      <View style={{ marginTop: -30, width: "100%", borderTopRightRadius: 50 }}>
+      <View
+        style={{
+          marginTop: -30,
+          width: "100%",
+          borderTopRightRadius: 50,
+          flex: 1,
+        }}
+      >
         <Text>Mode select</Text>
+        <Pressable onPress={() => router.push("/(tabs)")}>
+          <Text>Continue</Text>
+        </Pressable>
       </View>
     </View>
   );
