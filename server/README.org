@@ -1,0 +1,22 @@
+#+title: Server/Backend Application
+
+This section of the project tackles how the backend server will function, how it
+will be built, and how it was built.
+
+
+*Note: This will be a python based backend*
+
+
+* Database Schema
+// soon
+
+* Tools to be used
+- fastAPI (main framework for the API)
+- SQLModel (for creating database models)
+- pytest (for testing)
+- pytest-asyncio (for async testing)
+- httpx (for async testing)
+
+
+* Project Structure
+// soon
