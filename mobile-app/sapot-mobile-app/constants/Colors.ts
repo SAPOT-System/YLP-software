@@ -1,19 +1,66 @@
-const tintColorLight = "#2f95dc";
-const tintColorDark = "#fff";
-
-export default {
+/**
+ * Application color palette supporting both light and dark themes.
+ *
+ * This object contains all the colors used throughout the application,
+ * organized by theme (light/dark) to ensure consistent theming.
+ *
+ * @example
+ * ```typescript
+ * import Colors from '@/constants/Colors';
+ *
+ * const lightTextColor = Colors.light.text;
+ * const darkBackgroundColor = Colors.dark.background;
+ * ```
+ */
+const Colors = {
+  /** Light theme color palette */
   light: {
-    text: "#000",
+    /** Primary text color for headings and important content */
+    text: "#103462",
+    /** Accent color used for interactive elements like buttons and links */
+    tint: "#3A7AFE",
+    /** secondary text color for descriptions or labels */
+    textSecondary: "#696969",
+    /** Muted text color for placeholers or disabled*/
+    textMuted: "#6B7280",
+
+    /** Primary background color for screens */
     background: "#fff",
-    tint: tintColorLight,
-    tabIconDefault: "#ccc",
-    tabIconSelected: tintColorLight,
+    /** Secondary surface color for background of launch screen*/
+    surface: "#EAEDF3",
+
+    /** Default color for inactive tab icons */
+    tabIconDefault: "#696969",
+    /** Color for active/selected tab icons */
+    tabIconSelected: "#3A7AFE",
   },
+  /** Dark theme color palette */
   dark: {
+    /** Primary text color for headings and important content */
     text: "#fff",
+    /** Accent color used for interactive elements like buttons and links */
+    tint: "#3A7AFE",
+    /** Secondary text color for descriptions or labels*/
+    textSecondary: "#D9D9D9",
+    /** Muted text color for placeholers or disabled*/
+    textMuted: "#696969",
+
+    /** Primary background color for screens */
     background: "#363636",
-    tint: tintColorDark,
-    tabIconDefault: "#ccc",
-    tabIconSelected: tintColorDark,
+    /** Secondary surface color for background of launch screen*/
+    surface: "#363636",
+
+    /** Default color for inactive tab icons */
+    tabIconDefault: "#696969",
+    /** Color for active/selected tab icons */
+    tabIconSelected: "#3A7AFE",
   },
-};
+} as const;
+
+export default Colors;
+
+/**
+ * Type definition representing the structure of a color scheme.
+ * Used to ensure type safety when accessing color properties.
+ */
+export type ColorScheme = typeof Colors.light | typeof Colors.dark;
