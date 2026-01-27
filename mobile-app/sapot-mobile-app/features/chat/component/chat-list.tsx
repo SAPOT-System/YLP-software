@@ -62,7 +62,7 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
     <Pressable
       onPress={() =>
         router.push({
-          pathname: "/chat/[id]",
+          pathname: "/(tabs)/chat/[id]",
           params: { id: chat.id, source: ChatRoomSource.CHAT },
         })
       }

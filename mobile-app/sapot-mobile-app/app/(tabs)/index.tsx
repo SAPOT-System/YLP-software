@@ -25,7 +25,7 @@ export default function Chat() {
     discoveryService.startDiscovery();
     connectionService.start();
     const audioCallHandler = (peerId: string) =>
-      router.push({ pathname: "/call/[id]", params: { id: peerId } });
+      router.push({ pathname: "/(tabs)/call/[id]", params: { id: peerId } });
     const callEndedHandler = () => router.back();
     connectionService.on("audio-call", audioCallHandler);
     connectionService.on("call-ended", callEndedHandler);
