@@ -1,22 +1,29 @@
 import { Text, View } from "@/components/Themed";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React from "react";
-import { Image, Pressable } from "react-native";
+import React, { useState } from "react";
+import { Image, Pressable, StyleSheet, useColorScheme } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { StyledText } from "@/components/StyledText";
+import { useTheme } from "@/components/useTheme";
 
 const Index = () => {
   const router = useRouter();
+  const [isGetStartedPressed, setIsGetStartedPressed] = useState(false);
+  const { colors, isDark } = useTheme();
 
   return (
-    <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
+    <View
+      style={{ alignItems: "center", justifyContent: "center", flex: 1 }}
+      variant="surface"
+    >
       <View
         style={{
           width: 265,
           height: 265,
           borderRadius: 150,
           borderWidth: 1,
-          borderColor: "#D9D9D9",
+          borderColor: isDark ? "#D9D9D9" : "#9BAFC8",
           backgroundColor: "transparent",
           justifyContent: "center",
           marginBottom: 24,
@@ -29,7 +36,7 @@ const Index = () => {
             height: 215,
             borderRadius: 110,
             borderWidth: 1,
-            borderColor: "#D9D9D9",
+            borderColor: isDark ? "#D9D9D9" : "#9BAFC8",
             backgroundColor: "transparent",
             justifyContent: "center",
             alignItems: "center",
@@ -39,17 +46,30 @@ const Index = () => {
             source={require("../assets/images/logo.png")}
             style={{ width: 100, height: 100, resizeMode: "contain" }}
           />
-          <Text style={{ fontSize: 24, fontWeight: "bold", color: "black" }}>
+          <StyledText size="xxl" weight="bold">
             SAPOT
-          </Text>
+          </StyledText>
         </View>
       </View>
-      <Text style={{ fontSize: 24, fontWeight: "bold", textAlign: "center" }}>
+      <StyledText
+        size="xxl"
+        weight="bold"
+        style={{ textAlign: "center" }}
+      >
         Reliable local and internet messaging
-      </Text>
+      </StyledText>
 
+      {/* TODO: animation when pressed */}
       <LinearGradient
-        colors={["#696969", "#606060"]}
+        colors={
+          isGetStartedPressed
+            ? isDark
+              ? ["#696969", "#606060"]
+              : ["#103462", "#E6E6E6"]
+            : isDark
+            ? ["#606060", "#696969"]
+            : ["#E6E6E6", "#103462"]
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
@@ -59,6 +79,8 @@ const Index = () => {
       >
         <Pressable
           onPress={() => router.push("/getting-started")}
+          onPressIn={() => setIsGetStartedPressed(true)}
+          onPressOut={() => setIsGetStartedPressed(false)}
           style={{
             paddingLeft: 34,
             paddingRight: 3,
@@ -86,6 +108,7 @@ const Index = () => {
             >
               Get Started
             </Text>
+            {/* TODO: style this with inner shadow. Probably remove the inner shadow.*/}
             <View
               style={{
                 backgroundColor: "white",
@@ -94,6 +117,8 @@ const Index = () => {
                 borderRadius: 22,
                 justifyContent: "center",
                 alignItems: "center",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
               {/* TODO: change the icon to a lighter one. Probably use another library */}
