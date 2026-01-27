@@ -19,4 +19,25 @@ will be built, and how it was built.
 
 
 * Project Structure
-// soon
+#+BEGIN_SRC
+├── app
+│   ├── __init__.py
+│   ├── main.py
+│   ├── api
+│   │   ├── __init__.py
+│   │   ├── // define endpoints here
+│   ├── db_operations/
+│   │   ├── __init__.py
+│   │   ├── // files related to database operations...
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── // models from SQLModel...
+│   ├── tests
+│   │   ├── __init__.py
+│   │   ├── // other test files...
+│   ├── database
+│   │   ├── __init__.py
+│   │   ├── tmp.db // temporary database (will replace with centralized DB later)
+├── flake.nix
+└── README.org
+#+END_SRC
