@@ -12,7 +12,7 @@
  * const darkBackgroundColor = Colors.dark.background;
  * ```
  */
-export default {
+const Colors = {
   /** Light theme color palette */
   light: {
     /** Primary text color for headings and important content */
@@ -57,8 +57,10 @@ export default {
   },
 } as const;
 
+export default Colors;
+
 /**
  * Type definition representing the structure of a color scheme.
  * Used to ensure type safety when accessing color properties.
  */
-export type ColorScheme = typeof Colors.light;
+export type ColorScheme = typeof Colors.light | typeof Colors.dark;

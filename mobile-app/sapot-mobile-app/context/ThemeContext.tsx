@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from "react";
 import { useColorScheme as useDeviceColorScheme } from "react-native";
-import Colors from "@/constants/Colors";
+import Colors, { ColorScheme } from "@/constants/Colors";
 
 /**
  * Available theme modes for the application.
@@ -20,7 +20,7 @@ interface ThemeContextType {
   /** Whether dark theme is currently active */
   isDark: boolean;
   /** Color palette for the current active theme */
-  colors: typeof Colors.light;
+  colors: ColorScheme;
   /** Function to change the theme mode */
   setThemeMode: (mode: ThemeMode) => void;
 }
@@ -33,12 +33,12 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 
 /**
  * Theme provider component that manages theme state and provides it to child components.
- * 
+ *
  * This provider handles automatic theme switching based on device preferences
  * when in 'auto' mode, and manual theme control when in 'light' or 'dark' modes.
- * 
+ *
  * @param children - React components that will have access to theme context
- * 
+ *
  * @example
  * ```tsx
  * // Wrap app with the theme provider
@@ -78,34 +78,34 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 /**
  * Hook to access theme context and control theme settings.
- * 
+ *
  * This hook provides access to the current theme state and theme switching
  * functionality. It must be used within a component that is wrapped by
  * the ThemeProvider.
- * 
+ *
  * @returns Theme context value with current theme state and controls
  * @throws Error if used outside of ThemeProvider
- * 
+ *
  * @example
  * ```tsx
  * function SettingsScreen() {
  *   const { mode, isDark, colors, setThemeMode } = useAppTheme();
- *   
+ *
  *   return (
  *     <View style={{ backgroundColor: colors.background }}>
  *       <Text style={{ color: colors.text }}>
  *         Current mode: {mode}
  *       </Text>
- *       <Button 
- *         title="Switch to Dark" 
+ *       <Button
+ *         title="Switch to Dark"
  *         onPress={() => setThemeMode('dark')}
  *       />
- *       <Button 
- *         title="Switch to Light" 
+ *       <Button
+ *         title="Switch to Light"
  *         onPress={() => setThemeMode('light')}
  *       />
- *       <Button 
- *         title="Use Auto" 
+ *       <Button
+ *         title="Use Auto"
  *         onPress={() => setThemeMode('auto')}
  *       />
  *     </View>
