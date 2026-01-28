@@ -17,6 +17,7 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   return (
     <ContainerProvider>
+      {/* TODO: apply paper */}
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,

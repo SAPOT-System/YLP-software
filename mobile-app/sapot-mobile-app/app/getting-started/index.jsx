@@ -1,6 +1,6 @@
-import { Text, View } from "@/components/Themed";
+import { View } from "react-native";
+import { Text } from "react-native-paper";
 import { useRouter } from "expo-router";
-import React from "react";
 import { Image, Pressable, StyleSheet } from "react-native";
 
 const ModeSelect = () => {

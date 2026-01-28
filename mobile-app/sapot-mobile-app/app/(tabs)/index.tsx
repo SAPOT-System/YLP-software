@@ -1,6 +1,5 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import { View } from "@/components/Themed";
 import { ChatList, useChats } from "@/features/chat";
 import { PeerList } from "@/features/shared";
 import {

@@ -1,6 +1,5 @@
-import { Pressable, StyleSheet, TextInput } from "react-native";
-
-import { Text, View } from "@/components/Themed";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "react-native-paper";
 import {
   useDatabase,
   useChatService,
