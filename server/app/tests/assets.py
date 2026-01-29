@@ -99,6 +99,6 @@ dummy_data = {
     "name": "test2",
     "phone_number": "+638788667679",
     "email": "test2@test.com",
-    "password": "test_password",
-    "hashed_password": get_password_hash("test_password"),
+    "password": "Test_password2",
+    "hashed_password": get_password_hash("Test_password2"),
 }

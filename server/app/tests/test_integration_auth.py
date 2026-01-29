@@ -34,7 +34,7 @@ sample_user = {
         'name':"emmanuel",
         'email':"Emmanuel@gmail.com",
         'phone_number':"093985984598",
-        'password':"hi world"
+        'password':"hiWorld123"
 }
 
 def test_auth_create_account(client: TestClient, session: SessionDep):
