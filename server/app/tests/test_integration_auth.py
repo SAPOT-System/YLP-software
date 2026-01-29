@@ -74,3 +74,18 @@ def test_auth_create_account_with_id(client: TestClient, session:SessionDep):
     assert from_db.name == sample_user.get('name')
     assert from_db.email == sample_user.get('email')
     assert from_db.phone_number == sample_user.get('phone_number')
+
+
+sample_invalid_user = {
+        'name':"emmanuel",
+        'email':"Emmanuel@gmail.com",
+        'phone_number':"093985984598",
+        'password':"hiworld123"
+}
+
+def test_auth_invalid_create_account(client:TestClient, session:SessionDep):
+    response = client.post('/auth', json=sample_invalid_user)
+
+    assert response.status_code == 422
+    response_data = response.json()
+    assert "detail" in response_data
