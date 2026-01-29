@@ -2,7 +2,7 @@ import React from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { Icon, Text, useTheme } from "react-native-paper";
 
-export interface ModeSelectI {
+export interface ModeSelectProps {
   mode: "server" | "lan";
   selected?: boolean;
   onPress?: () => void;
@@ -25,7 +25,7 @@ export const ModeSelect = ({
   mode,
   selected = false,
   onPress,
-}: ModeSelectI) => {
+}: ModeSelectProps) => {
   const theme = useTheme();
   return (
     <Pressable

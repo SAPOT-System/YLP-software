@@ -1,19 +1,19 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import React, { useState } from "react";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { Button, TextInput } from "react-native-paper";
 import { router } from "expo-router";
-import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 
-const LanLoginScreen = () => {
-  const [username, setUsername] = useState("");
+const EmailResetScreen = () => {
+  const [email, setEmail] = useState("");
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
     >
-      <ScreenHeader headerName="Login" />
+      <ScreenHeader headerName="Resetting Password" />
       <ScreenContent
-        title="Welcome to SAPOT!"
-        description="Please enter your username"
+        title="Password Recovery"
+        description="We will send a password recovery code to this email address"
       >
         <View
           style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
@@ -21,23 +21,22 @@ const LanLoginScreen = () => {
           {/* TODO: implement error mechanism */}
           <TextInput
             mode="outlined"
-            label="Username"
-            placeholder="Username"
-            value={username}
-            onChangeText={setUsername}
+            label="Email Address"
+            placeholder="yourmail@gmail.com"
+            value={email}
+            onChangeText={setEmail}
           />
         </View>
-        {/* TODO: save the entered username using User Service class */}
         <Button
-          onPress={() => router.push("/(tabs)")}
           mode="contained"
           style={{ width: 280 }}
+          onPress={() => router.push("/getting-started/enter-recovery")}
         >
-          Login
+          Send Code
         </Button>
       </ScreenContent>
     </View>
   );
 };
 
-export default LanLoginScreen;
+export default EmailResetScreen;
