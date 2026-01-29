@@ -38,11 +38,15 @@ def test_auth_create_account(client: TestClient, session: SessionDep):
     response_data = response.json()
     assert response_data.get('name') == sample_valid_user.get('name')
     assert response_data.get('email') == sample_valid_user.get('email')
+    assert response_data.get('first_name') == sample_valid_user.get('first_name')
+    assert response_data.get('last_name') == sample_valid_user.get('last_name')
     assert response_data.get('phone_number') == sample_valid_user.get('phone_number')
 
     from_db = session.get(User, uuid.UUID(response_data.get('id')))
 
-    assert from_db.name == sample_valid_user.get('name')
+    assert from_db.username == sample_valid_user.get('name')
+    assert from_db.first_name == sample_valid_user.get('first_name')
+    assert from_db.last_name == sample_valid_user.get('last_name')
     assert from_db.email == sample_valid_user.get('email')
     assert from_db.phone_number == sample_valid_user.get('phone_number')
 
@@ -59,12 +63,16 @@ def test_auth_create_account_with_id(client: TestClient, session:SessionDep):
     response_data = response.json()
     assert response_data.get('id') == id
     assert response_data.get('name') == sample_valid_user.get('name')
+    assert response_data.get('first_name') == sample_valid_user.get('first_name')
+    assert response_data.get('last_name') == sample_valid_user.get('last_name')
     assert response_data.get('email') == sample_valid_user.get('email')
     assert response_data.get('phone_number') == sample_valid_user.get('phone_number')
 
     from_db = session.get(User, uuid.UUID(response_data.get('id')))
 
     assert from_db.name == sample_valid_user.get('name')
+    assert from_db.first_name == sample_valid_user.get('first_name')
+    assert from_db.last_name == sample_valid_user.get('last_name')
     assert from_db.email == sample_valid_user.get('email')
     assert from_db.phone_number == sample_valid_user.get('phone_number')
 

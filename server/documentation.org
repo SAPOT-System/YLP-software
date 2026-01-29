@@ -3,7 +3,7 @@
 * TODO what i need for ~/auth~:
 ** Sign up:
   sign up with the following
-  1. username
+  1. username -> should be *firstname* then *lastname*
   2. phone number
   3. email
   4. password hash
@@ -17,7 +17,7 @@
   - security questions
   - downloadable recovery key
 
-* TODO ~/sync~
+* TODO ~/sync POST~
 ** choose timestamps on how to execute syncing
 
 * TODO server features ~/features~

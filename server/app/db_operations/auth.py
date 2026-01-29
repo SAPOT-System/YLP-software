@@ -36,18 +36,14 @@ def verify_password(plain_password : str, hashed__password : str):
 
 
 def db_create_user(user: UserCreate, session: SessionDep):
-    validated_user = UserCreate.model_validate(user)
-    hashed_password = get_password_hash(validated_user.password)
-    pre_db_user = User(
-        name=user.name,
-        phone_number=user.phone_number,
-        email=user.email,
-        hashed_password=hashed_password
+    hashed_password = get_password_hash(user.password)
+    db_user = User.model_validate(
+        user,
+        update={'hashed_password':hashed_password}
     )
-    if user.id:
-        pre_db_user.id = user.id
+    if hasattr(user, 'id') and user.id:
+        db_user.id = user.id
 
-    db_user = User.model_validate(pre_db_user)
     session.add(db_user)
     session.commit()
     session.refresh(db_user)

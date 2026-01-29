@@ -13,12 +13,22 @@ PhoneStr = Annotated[
 
 class UserBase(SQLModel):
     name: str = Field(index=True, max_length=16, min_length=2)
-    phone_number: PhoneStr = Field(unique=True)
+    first_name: str = Field(index=True, max_length=25, min_length=2)
+    last_name: str = Field(index=True, max_length=25, min_length=2)
+    phone_number: PhoneStr | None = Field(unique=True, default=None)
     email: EmailStr = Field(unique=True)
+
+    @property
+    def username(self) -> str:
+        return self.name
+
+    @username.setter
+    def username(self, value: str):
+        self.name = value
 
 
 class User(UserBase, table=True):
-    id: uuid.UUID = Field(
+    id: uuid.UUID | None = Field(
         default_factory=uuid.uuid4,
         index=True,
         primary_key=True
@@ -33,7 +43,9 @@ class UserPublic(UserBase):
 class UserCreate(UserBase):
     id: uuid.UUID | None = None
     name: str
-    phone_number: PhoneStr
+    first_name: str
+    last_name: str
+    phone_number: PhoneStr | None = None
     email: EmailStr
     password: str = Field(min_length=8)
 

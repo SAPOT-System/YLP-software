@@ -21,6 +21,8 @@ def test_db_create_user_with_id(session: SessionDep):
 
     assert user.id == dummy_data.get('id')
     assert user.name == dummy_data.get('name')
+    assert user.last_name == dummy_data.get('last_name')
+    assert user.first_name == dummy_data.get('first_name')
     assert user.phone_number == dummy_data.get('phone_number')
     assert user.email == dummy_data.get('email')
     assert verify_password(dummy_data.get('password'), user.hashed_password)
