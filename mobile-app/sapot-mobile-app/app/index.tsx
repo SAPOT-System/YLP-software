@@ -1,10 +1,9 @@
-import { useRouter } from "expo-router";
+import { router } from "expo-router";
 import React from "react";
 import { Button, Text, useTheme } from "react-native-paper";
 import { View, Image, useColorScheme } from "react-native";
 
 const Index = () => {
-  const router = useRouter();
   const theme = useTheme();
   const isDark = useColorScheme() === "dark";
 
