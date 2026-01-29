@@ -20,7 +20,6 @@ def test_auth_token(client:TestClient):
     form_data = {
         'username': sample_user.get('email'),
         'password': sample_user.get('password'),
-
     }
     response = client.post('/auth/token', data=form_data)
 
@@ -44,6 +43,7 @@ def test_auth_create_account(client: TestClient, session: SessionDep):
 
     from_db = session.get(User, uuid.UUID(response_data.get('id')))
 
+    assert from_db
     assert from_db.username == sample_valid_user.get('name')
     assert from_db.first_name == sample_valid_user.get('first_name')
     assert from_db.last_name == sample_valid_user.get('last_name')
@@ -70,6 +70,7 @@ def test_auth_create_account_with_id(client: TestClient, session:SessionDep):
 
     from_db = session.get(User, uuid.UUID(response_data.get('id')))
 
+    assert from_db
     assert from_db.name == sample_valid_user.get('name')
     assert from_db.first_name == sample_valid_user.get('first_name')
     assert from_db.last_name == sample_valid_user.get('last_name')

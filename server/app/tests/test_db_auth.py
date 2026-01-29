@@ -25,4 +25,4 @@ def test_db_create_user_with_id(session: SessionDep):
     assert user.first_name == dummy_data.get('first_name')
     assert user.phone_number == dummy_data.get('phone_number')
     assert user.email == dummy_data.get('email')
-    assert verify_password(dummy_data.get('password'), user.hashed_password)
+    assert verify_password(str(dummy_data.get('password')), user.hashed_password)
