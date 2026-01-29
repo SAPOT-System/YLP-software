@@ -17,9 +17,10 @@ from pwdlib import PasswordHash
 from pydantic import BaseModel
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from app.db_operations.auth import SessionDep, authenticate_user
+from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_password_hash
 from app.models.token import Token
 from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from app.models.users import User, UserCreate, UserPublic
 
 
 router = APIRouter(
@@ -54,3 +55,8 @@ async def login_for_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     return Token(access_token=access_token, token_type="bearer")
+
+
+@router.post("/", response_model=UserPublic, status_code=201)
+def create_account(user: UserCreate, session: SessionDep):
+    return db_create_user(user, session)
