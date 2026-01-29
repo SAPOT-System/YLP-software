@@ -1,10 +1,16 @@
-import { View } from "react-native";
-import { Text } from "react-native-paper";
+import { ModeSelect } from "@/features/getting-started";
 import { useRouter } from "expo-router";
-import { Image, Pressable, StyleSheet } from "react-native";
+import React, { useState } from "react";
+import { Image, StyleSheet, View } from "react-native";
+import { Button, Text, useTheme } from "react-native-paper";
 
-const ModeSelect = () => {
+const ModeSelectScreen = () => {
   const router = useRouter();
+  const theme = useTheme();
+  const [selectedMode, setSelectedMode] = useState<"server" | "lan" | null>(
+    null
+  );
+
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
@@ -22,7 +28,15 @@ const ModeSelect = () => {
           style={styles.headerImage}
         />
         <View style={styles.textOverlay}>
-          <Text style={styles.headerText}>Getting Started</Text>
+          <Text
+            variant="headlineMedium"
+            style={{
+              fontWeight: "bold",
+              color: theme.colors.onPrimaryContainer,
+            }}
+          >
+            Getting Started
+          </Text>
         </View>
       </View>
       <View
@@ -31,12 +45,64 @@ const ModeSelect = () => {
           width: "100%",
           borderTopRightRadius: 50,
           flex: 1,
+          justifyContent: "flex-start",
+          alignItems: "center",
+          backgroundColor: theme.colors.surface,
+          paddingTop: 60,
+          paddingHorizontal: 20,
         }}
       >
-        <Text>Mode select</Text>
-        <Pressable onPress={() => router.push("/(tabs)")}>
-          <Text>Continue</Text>
-        </Pressable>
+        <Text
+          style={{ color: theme.colors.onPrimaryContainer, fontWeight: "bold" }}
+          variant="titleLarge"
+        >
+          Mode select
+        </Text>
+        <Text
+          style={{ textAlign: "center", color: theme.colors.outline }}
+          variant="bodySmall"
+        >
+          Choose how you want to use the application
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 10,
+            marginTop: 20,
+            width: "100%",
+            alignItems: "stretch",
+          }}
+        >
+          <ModeSelect
+            mode="server"
+            selected={selectedMode === "server"}
+            onPress={() => setSelectedMode("server")}
+          />
+          <ModeSelect
+            mode="lan"
+            selected={selectedMode === "lan"}
+            onPress={() => setSelectedMode("lan")}
+          />
+        </View>
+        <Button
+          mode="contained"
+          onPress={() => {
+            if (!selectedMode) return;
+            if (selectedMode === "server") {
+              router.push("/getting-started/server-login");
+            }
+            if (selectedMode === "lan") {
+              router.push("/getting-started/lan-login");
+            }
+          }}
+          style={{
+            width: "100%",
+            marginTop: 20,
+            opacity: selectedMode ? 1 : 0.5,
+          }}
+        >
+          Proceed
+        </Button>
       </View>
     </View>
   );
@@ -59,14 +125,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerText: {
-    color: "#fff",
-    fontSize: 28,
-    fontWeight: "bold",
-    textAlign: "center",
-    textShadowColor: "rgba(0,0,0,0.4)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
 });
-export default ModeSelect;
+export default ModeSelectScreen;
