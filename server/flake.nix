@@ -29,6 +29,8 @@
               echo "#######################################################"
               echo "# Tooling for server development activated            #"
               echo "#######################################################"
+
+              source ./app/venv/bin/activate
         '';
       };
     };
