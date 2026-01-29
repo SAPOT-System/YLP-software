@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.tests.assets import sample_users, dummy_data
 from app.db_operations.auth import SessionDep, db_create_user
-from app.models.users import UserCreate
+from app.models.users import User, UserCreate
 
 
 def test_auth_status(client:TestClient):
@@ -37,7 +37,7 @@ sample_user = {
         'password':"hi world"
 }
 
-def test_auth_create_account(client: TestClient):
+def test_auth_create_account(client: TestClient, session: SessionDep):
     response = client.post('/auth', json=sample_user)
 
     assert response.status_code == 201
@@ -47,8 +47,14 @@ def test_auth_create_account(client: TestClient):
     assert response_data.get('email') == sample_user.get('email')
     assert response_data.get('phone_number') == sample_user.get('phone_number')
 
+    from_db = session.get(User, uuid.UUID(response_data.get('id')))
 
-def test_auth_create_account_with_id(client: TestClient):
+    assert from_db.name == sample_user.get('name')
+    assert from_db.email == sample_user.get('email')
+    assert from_db.phone_number == sample_user.get('phone_number')
+
+
+def test_auth_create_account_with_id(client: TestClient, session:SessionDep):
     id = str(uuid.uuid4())
     response = client.post('/auth', json={
         **sample_user,
@@ -62,3 +68,9 @@ def test_auth_create_account_with_id(client: TestClient):
     assert response_data.get('name') == sample_user.get('name')
     assert response_data.get('email') == sample_user.get('email')
     assert response_data.get('phone_number') == sample_user.get('phone_number')
+
+    from_db = session.get(User, uuid.UUID(response_data.get('id')))
+
+    assert from_db.name == sample_user.get('name')
+    assert from_db.email == sample_user.get('email')
+    assert from_db.phone_number == sample_user.get('phone_number')
