@@ -1,0 +1,25 @@
+#+title: Documentation
+
+* TODO what i need for ~/auth~:
+** Sign up:
+  sign up with the following
+  1. username
+  2. phone number
+  3. email
+  4. password hash
+  5. security questions
+** login with:
+  - username/email/number
+  - password
+** password recovery  through:
+  - SMS
+  - email
+  - security questions
+  - downloadable recovery key
+
+* TODO ~/sync~
+** choose timestamps on how to execute syncing
+
+* TODO server features ~/features~
+** SMS messaging
+**
