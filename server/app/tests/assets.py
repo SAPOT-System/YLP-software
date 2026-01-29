@@ -102,3 +102,20 @@ dummy_data = {
     "password": "Test_password2",
     "hashed_password": get_password_hash("Test_password2"),
 }
+
+
+sample_invalid_user = {
+        'name':"emmanuel",
+        'email':"Emmanuel@gmail.com",
+        'phone_number':"093985984598",
+        'password':"hiworld123"
+}
+
+
+
+sample_valid_user = {
+        'name':"emmanuel",
+        'email':"Emmanuel@gmail.com",
+        'phone_number':"093985984598",
+        'password':"hiWorld123"
+}
