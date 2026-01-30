@@ -13,6 +13,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@lovesworking/watermelondb-expo-plugin-sdk-52-plus": "^1.0.3",
     "@nozbe/watermelondb": "^0.28.0",
+    "@react-navigation/drawer": "^7.7.13",
     "@react-navigation/native": "^7.1.8",
     "deepmerge": "^4.3.1",
     "expo": "~54.0.30",
