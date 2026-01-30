@@ -97,7 +97,7 @@ const Register = () => {
           </View>
         </View>
         <Button
-          onPress={() => router.push("/(tabs)")}
+          onPress={() => router.push("/(drawer)/(tabs)")}
           mode="contained"
           style={{ width: 280, marginBottom: 8 }}
         >
