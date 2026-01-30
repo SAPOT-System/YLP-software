@@ -16,28 +16,27 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   return (
-    <ContainerProvider>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+      }}
+    >
       {/* TODO: apply paper */}
-      <Tabs
-        screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Chats",
+          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          headerShown: false,
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: "Chats",
-            tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="debug"
-          options={{
-            title: "Debugger",
-            tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          }}
-        />
-      </Tabs>
-    </ContainerProvider>
+      />
+      <Tabs.Screen
+        name="debug"
+        options={{
+          title: "Debugger",
+          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+        }}
+      />
+    </Tabs>
   );
 }

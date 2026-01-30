@@ -35,7 +35,7 @@ const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
     <Pressable
       onPress={() =>
         router.push({
-          pathname: "/(tabs)/chat/[id]",
+          pathname: "/(drawer)/(tabs)/chat/[id]",
           params: { id: peer.id, source: ChatRoomSource.PEER },
         })
       }

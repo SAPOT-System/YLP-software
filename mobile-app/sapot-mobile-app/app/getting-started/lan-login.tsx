@@ -29,7 +29,7 @@ const LanLoginScreen = () => {
         </View>
         {/* TODO: save the entered username using User Service class */}
         <Button
-          onPress={() => router.push("/(tabs)")}
+          onPress={() => router.push("/(drawer)/(tabs)")}
           mode="contained"
           style={{ width: 280 }}
         >
