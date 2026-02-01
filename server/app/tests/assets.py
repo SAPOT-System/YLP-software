@@ -7,7 +7,7 @@ import uuid
 sample_users = {
     "test": {
         "id": uuid.uuid4(),
-        "name": "test",
+        "username": "test",
         "first_name": "Test",
         "last_name": "User",
         "phone_number": "+638788667676",
@@ -17,7 +17,7 @@ sample_users = {
     },
     "tony_stark": {
         "id": uuid.uuid4(),
-        "name": "Tony Stark",
+        "username": "Tony Stark",
         "first_name": "Tony",
         "last_name": "Stark",
         "phone_number": "+639171234567",
@@ -27,7 +27,7 @@ sample_users = {
     },
     "steve_rogers": {
         "id": uuid.uuid4(),
-        "name": "Steve Rogers",
+        "username": "Steve Rogers",
         "first_name": "Steve",
         "last_name": "Rogers",
         "phone_number": "+639182345678",
@@ -37,7 +37,7 @@ sample_users = {
     },
     "natasha_romanoff": {
         "id": uuid.uuid4(),
-        "name": "Natasha Romanoff",
+        "username": "Natasha Romanoff",
         "first_name": "Natasha",
         "last_name": "Romanoff",
         "phone_number": "+639193456789",
@@ -47,7 +47,7 @@ sample_users = {
     },
     "bruce_banner": {
         "id": uuid.uuid4(),
-        "name": "Bruce Banner",
+        "username": "Bruce Banner",
         "first_name": "Bruce",
         "last_name": "Banner",
         "phone_number": "+639204567890",
@@ -57,7 +57,7 @@ sample_users = {
     },
     "thor_odinson": {
         "id": uuid.uuid4(),
-        "name": "Thor Odinson",
+        "username": "Thor Odinson",
         "first_name": "Thor",
         "last_name": "Odinson",
         "phone_number": "+639215678901",
@@ -67,7 +67,7 @@ sample_users = {
     },
     "wanda_maximoff": {
         "id": uuid.uuid4(),
-        "name": "Wanda Maximoff",
+        "username": "Wanda Maximoff",
         "first_name": "Wanda",
         "last_name": "Maximoff",
         "phone_number": "+639226789012",
@@ -77,7 +77,7 @@ sample_users = {
     },
     "peter_parker": {
         "id": uuid.uuid4(),
-        "name": "Peter Parker",
+        "username": "Peter Parker",
         "first_name": "Peter",
         "last_name": "Parker",
         "phone_number": "+639237890123",
@@ -87,7 +87,7 @@ sample_users = {
     },
     "sam_wilson": {
         "id": uuid.uuid4(),
-        "name": "Sam Wilson",
+        "username": "Sam Wilson",
         "first_name": "Sam",
         "last_name": "Wilson",
         "phone_number": "+639248901234",
@@ -97,7 +97,7 @@ sample_users = {
     },
     "carol_danvers": {
         "id": uuid.uuid4(),
-        "name": "Carol Danvers",
+        "username": "Carol Danvers",
         "first_name": "Carol",
         "last_name": "Danvers",
         "phone_number": "+639259012345",
@@ -107,7 +107,7 @@ sample_users = {
     },
     "scott_lang": {
         "id": uuid.uuid4(),
-        "name": "Scott Lang",
+        "username": "Scott Lang",
         "first_name": "Scott",
         "last_name": "Lang",
         "phone_number": "+639260123456",
@@ -119,7 +119,7 @@ sample_users = {
 
 dummy_data = {
     "id": uuid.uuid4(),
-    "name": "test2",
+    "username": "test2",
     "first_name": "Test",
     "last_name": "Two",
     "phone_number": "+638788667679",
