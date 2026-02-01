@@ -57,13 +57,38 @@ def get_user_by_email(session: SessionDep, email: str):
     return user
 
 
+def get_user_by_username(session: SessionDep, username: str):
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+
+
+def get_user_by_phone_number(session: SessionDep, phone_number: str):
+    user = session.exec(select(User).where(User.phone_number == phone_number)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
 
 def authenticate_user(
         session: SessionDep,
-        secret_name: str,
+        identifier: str,
         password: str
 ):
-    hero = get_user_by_email(session, secret_name)
+    methods = [get_user_by_email, get_user_by_username, get_user_by_phone_number]
+
+    hero = None
+
+    for method in methods:
+        try:
+            hero = method(session, identifier)
+        except:
+            continue
+
     if not hero:
         return False
     if not verify_password(password, hero.hashed_password):
