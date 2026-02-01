@@ -29,6 +29,35 @@ def test_auth_token(client:TestClient):
     assert token['token_type'] == 'bearer'
 
 
+def test_auth_token_with_username(client:TestClient):
+    sample_user = sample_users['test']
+    form_data = {
+        'username': sample_user.get('username'),
+        'password': sample_user.get('password'),
+    }
+    response = client.post('/auth/token', data=form_data)
+
+    token = response.json()
+
+    assert "access_token" in token
+    assert token['token_type'] == 'bearer'
+
+
+def test_auth_token_with_phone_number(client:TestClient):
+    sample_user = sample_users['test']
+    form_data = {
+        'username': sample_user.get('phone_number'),
+        'password': sample_user.get('password'),
+    }
+    response = client.post('/auth/token', data=form_data)
+
+    token = response.json()
+
+    assert "access_token" in token
+    assert token['token_type'] == 'bearer'
+
+
+
 def test_auth_create_account(client: TestClient, session: SessionDep):
     response = client.post('/auth', json=sample_valid_user)
 
