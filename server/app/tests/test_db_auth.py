@@ -9,9 +9,9 @@ from sqlmodel import SQLModel, Session, StaticPool, create_engine, select
 from app.main import app
 from fastapi.testclient import TestClient
 
-from app.db_operations.auth import SessionDep, db_create_user, get_password_hash, get_session, verify_password
+from app.db_operations.auth import SessionDep, db_create_user, get_password_hash, get_session, get_user_by_email, get_user_by_phone_number, get_user_by_username, verify_password
 from app.models.users import User, UserCreate
-from app.tests.assets import dummy_data
+from app.tests.assets import dummy_data, sample_users
 
 def test_db_create_user_with_id(session: SessionDep):
     user = db_create_user(
@@ -26,3 +26,42 @@ def test_db_create_user_with_id(session: SessionDep):
     assert user.phone_number == dummy_data.get('phone_number')
     assert user.email == dummy_data.get('email')
     assert verify_password(str(dummy_data.get('password')), user.hashed_password)
+
+
+def test_db_get_users_by_email(session : SessionDep):
+    user_data = sample_users['steve_rogers']
+    user = get_user_by_email(session, user_data.get('email'))
+
+    assert user
+    assert user.username == user_data.get('username')
+    assert user.last_name == user_data.get('last_name')
+    assert user.first_name == user_data.get('first_name')
+    assert user.phone_number == user_data.get('phone_number')
+    assert user.email == user_data.get('email')
+    assert verify_password(str(user_data.get('password')), user.hashed_password)
+
+
+def test_db_get_users_by_username(session : SessionDep):
+    user_data = sample_users['steve_rogers']
+    user = get_user_by_username(session, user_data.get('username'))
+
+    assert user
+    assert user.username == user_data.get('username')
+    assert user.last_name == user_data.get('last_name')
+    assert user.first_name == user_data.get('first_name')
+    assert user.phone_number == user_data.get('phone_number')
+    assert user.email == user_data.get('email')
+    assert verify_password(str(user_data.get('password')), user.hashed_password)
+
+
+def test_db_get_users_by_phone_number(session : SessionDep):
+    user_data = sample_users['test']
+    user = get_user_by_phone_number(session, user_data.get('phone_number'))
+
+    assert user
+    assert user.username == user_data.get('username')
+    assert user.last_name == user_data.get('last_name')
+    assert user.first_name == user_data.get('first_name')
+    assert user.phone_number == user_data.get('phone_number')
+    assert user.email == user_data.get('email')
+    assert verify_password(str(user_data.get('password')), user.hashed_password)
