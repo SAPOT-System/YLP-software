@@ -22,7 +22,10 @@
 
 * TODO server features ~/features~
 ** SMS messaging
-**
+** websockets peer to peer initiate
+** GPS mapping
+** Group messaging
+** Group calls
 
 * Endpoints
 ** INFO Endpoint ~/ GET 1.1~
@@ -44,7 +47,8 @@
 *** Sample Request
 #+BEGIN_SRC json
 {
-    "name": "Test",
+    "first_name": "Test",
+    "last_name": "Test",
     "phone_number": "+23960206981",
     "email": "user@example.com",
     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
@@ -58,9 +62,10 @@
 *** Sample Response
 #+BEGIN_SRC json
 {
-  "name": "Test",
-  "phone_number": "883285575",
-  "email": "user@example.com",
-  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    "first_name": "Test",
+    "last_name": "Test",
+    "phone_number": "+23960206981",
+    "email": "user@example.com",
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
 }
 #+END_SRC
