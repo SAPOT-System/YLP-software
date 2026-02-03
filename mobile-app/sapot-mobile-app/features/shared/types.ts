@@ -53,3 +53,11 @@ export interface DiscoveredService {
   port: number;
   ipAddress: string;
 }
+export interface PublishedService {
+  type: string;
+  protocol: string;
+  domain: string;
+  name: string;
+  port: number;
+  txt: { id: string; username: string };
+}
