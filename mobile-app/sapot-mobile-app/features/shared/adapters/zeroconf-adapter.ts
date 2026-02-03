@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import Zeroconf from "react-native-zeroconf";
+import { PublishedService } from "../types";
 
 /**
  * ZeroconfAdapter manages network service discovery and publishing using mDNS/ZeroConf.
@@ -85,14 +86,7 @@ export class ZeroconfAdapter extends EventEmitter {
    * @param service The service details (type, protocol, domain, name, port, txt)
    * @throws Error if publishing fails
    */
-  publishService(service: {
-    type: string;
-    protocol: string;
-    domain: string;
-    name: string;
-    port: number;
-    txt: { id: string; username: string };
-  }): void {
+  publishService(service: PublishedService): void {
     try {
       if (!this.zeroconf) {
         console.warn("[ZeroconfAdapter]: ZeroConf not initialized");
