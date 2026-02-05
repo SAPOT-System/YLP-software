@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 from app.db_operations.auth import SessionDep, db_create_user, get_password_hash, get_session, get_user_by_email, get_user_by_phone_number, get_user_by_username, verify_password
 from app.models.users import User, UserCreate
 from app.tests.assets import dummy_data, sample_users
-from app.db_operations.auth import update_user_info
-from app.models.users import UserUpdate
+from app.db_operations.auth import update_user_info, update_user_password
+from app.models.users import UserUpdate,UserPasswordUpdate
 
 def test_db_create_user_with_id(session: SessionDep):
     user = db_create_user(
@@ -84,3 +84,39 @@ def test_db_change_info(session : SessionDep):
     user = get_user_by_username(session, new_username)
     assert user
     assert user.username == new_username
+
+
+
+def test_db_change_info(session : SessionDep):
+    user_data = sample_users['test']
+    new_username = 'testing_new_username'
+
+    user = get_user_by_username(session, str(user_data.get('username')))
+    print("USERR", user)
+    update_model = UserUpdate(
+        username=new_username
+    )
+    update_user_info(user, update_model, session)
+
+    # test if the update occured
+    user = get_user_by_username(session, new_username)
+    assert user
+    assert user.username == new_username
+
+
+def test_db_update_user_password(session: SessionDep, client: TestClient):
+    user_data = sample_users['test']
+    user = get_user_by_username(session, str(user_data.get('username')))
+    updated_password = 'Testing_9999'
+
+    password_update = UserPasswordUpdate(
+        current_password=str(user_data.get('password')),
+        new_password=updated_password
+    )
+
+    update_user_password(user, password_update, session)
+
+    user = get_user_by_username(session, str(user_data.get('username')))
+
+    assert user
+    assert verify_password(updated_password, user.hashed_password)
