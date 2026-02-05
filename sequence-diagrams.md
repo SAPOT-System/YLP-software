@@ -7,4 +7,4 @@
 
 ## LAN Messaging
 
-![Peer to peer diagram](diagrams/peer-to-peer-connection.svg)
+![Peer to peer diagram](diagrams/lan-messaging.svg)
