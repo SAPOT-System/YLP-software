@@ -1,0 +1,25 @@
+@startuml LAN Messaging
+actor User
+participant ClientApp
+participant ChatService
+participant ConnectionService
+
+User -> ClientApp: clicks chat room with peer
+activate ClientApp
+ClientApp -> ClientApp: get the ID of the peer
+ClientApp -> ChatService: connect to the peer with ID
+activate ChatService
+ChatService -> ChatService: get the IP and port via ID
+ChatService -> ConnectionService: connect to the peer via IP and port
+ref over ConnectionService : peer to peer connection
+ConnectionService --> ChatService: connected successfully
+ChatService --> ClientApp: connected successfully
+ChatService->ChatService: initialize the peer property
+deactivate ClientApp
+
+User -> ClientApp: send message
+activate ClientApp
+ClientApp -> ChatService: send message to the peer
+
+
+@enduml
