@@ -12,7 +12,7 @@ PhoneStr = Annotated[
 ]
 
 class UserBase(SQLModel):
-    username: str | None = Field(index=True, max_length=16, min_length=2, unique=True, default=None)
+    username: str | None = Field(index=True, max_length=255, min_length=2, unique=True, default=None)
     first_name: str = Field(index=True, max_length=25, min_length=2)
     last_name: str = Field(index=True, max_length=25, min_length=2)
     phone_number: PhoneStr | None = Field(unique=True, default=None)
@@ -59,3 +59,22 @@ class UserCreate(UserBase):
         if not any(char.isupper() for char in v):
             raise ValueError("Password must contain at least one uppercase letter")
         return v
+
+class UserUpdate(SQLModel):
+    username: str | None = Field(
+        default=None, max_length=255, min_length=2
+    )
+    first_name: str | None = Field(
+        default=None, max_length=25, min_length=2
+    )
+    last_name: str | None = Field(
+        default=None, max_length=25, min_length=2
+    )
+    phone_number: PhoneStr | None = Field(default=None)
+    email: EmailStr | None = Field(default=None)
+
+
+
+class UserPasswordUpdate(SQLModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
