@@ -94,3 +94,14 @@ def authenticate_user(
     if not verify_password(password, hero.hashed_password):
         return False
     return hero
+
+
+def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDep):
+    new_user_dump = new_user_data.model_dump(exclude_unset=True)
+
+    for field, value in new_user_dump.items():
+        setattr(user, field, value)
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
