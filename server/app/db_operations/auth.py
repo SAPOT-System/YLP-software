@@ -4,6 +4,7 @@ from pwdlib import PasswordHash
 from sqlmodel import SQLModel, Session, create_engine, select
 
 from app.models.users import User, UserCreate
+from app.models.users import UserUpdate, UserPasswordUpdate
 
 
 
@@ -53,6 +54,7 @@ def db_create_user(user: UserCreate, session: SessionDep):
 def get_user_by_email(session: SessionDep, email: str):
     user = session.exec(select(User).where(User.email == email)).first()
     if not user:
+        # change to an appropriate error, not HTTPException
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
@@ -60,6 +62,7 @@ def get_user_by_email(session: SessionDep, email: str):
 def get_user_by_username(session: SessionDep, username: str):
     user = session.exec(select(User).where(User.username == username)).first()
     if not user:
+        # change to an appropriate error, not HTTPException
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
@@ -69,6 +72,7 @@ def get_user_by_username(session: SessionDep, username: str):
 def get_user_by_phone_number(session: SessionDep, phone_number: str):
     user = session.exec(select(User).where(User.phone_number == phone_number)).first()
     if not user:
+        # change to an appropriate error, not HTTPException
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
@@ -102,6 +106,14 @@ def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDe
     for field, value in new_user_dump.items():
         setattr(user, field, value)
 
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+
+def update_user_password(user: User, password_update_data : UserPasswordUpdate, session : SessionDep):
+    hashed_password = get_password_hash(password_update_data.new_password)
+    setattr(user, "hashed_password", hashed_password)
     session.add(user)
     session.commit()
     session.refresh(user)
