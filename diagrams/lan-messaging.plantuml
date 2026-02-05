@@ -1,4 +1,4 @@
-@startuml LAN Messaging
+@startuml lan-messaging
 actor User
 participant ClientApp
 participant ChatService
