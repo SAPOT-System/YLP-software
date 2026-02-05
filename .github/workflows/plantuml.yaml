@@ -3,10 +3,10 @@ name: Render PlantUML diagrams
 on:
   push:
     paths:
-      - 'diagrams/**/*.plantuml'
+      - 'diagrams/*.plantuml'
   pull_request:
     paths:
-      - 'diagrams/**/*.plantuml'
+      - 'diagrams/*.plantuml'
 
 jobs:
   plantuml:
@@ -36,4 +36,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Auto-generate PlantUML SVG diagrams"
-          file_pattern: "diagrams/**/*.svg"
+          file_pattern: "diagrams/*.svg"
