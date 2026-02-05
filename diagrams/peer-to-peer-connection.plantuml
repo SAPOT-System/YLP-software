@@ -1,4 +1,4 @@
-@startuml Peer to peer connection
+@startuml peer-to-peer-connection
 actor UserA
 participant ClientApp
 participant DiscoveryService
