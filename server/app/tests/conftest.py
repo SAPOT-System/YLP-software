@@ -27,7 +27,7 @@ def session_fixture():
             hero = User(**hero_data)
             session.add(hero)
             session.commit()
-            session.expunge_all()
+            session.refresh(hero)
         yield session
 
 
