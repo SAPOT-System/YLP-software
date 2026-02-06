@@ -11,4 +11,4 @@
 
 ## LAN Call
 
-![Peer to peer diagram](diagrams/lan-messaging.svg)
+![Peer to peer diagram](diagrams/lan-call.svg)
