@@ -1,4 +1,4 @@
-@startuml Peer to peer connection
+@startuml peer-to-peer-connection
 actor UserA
 participant ClientApp
 participant DiscoveryService
@@ -22,12 +22,13 @@ UserBClientApp -> DiscoveryService: make the device discovered by others
 
 ClientApp -> DiscoveryService: discover all peers on the LAN
 UserBClientApp -> DiscoveryService: discover all peers on the LAN
+alt if peer is discovered
+    DiscoveryService -> DiscoveryService: store UUID, IP address, username and port of discovered peers
 
-DiscoveryService -> DiscoveryService: store UUID, IP address, username and port of discovered peers
-
-DiscoveryService --> UserBClientApp: display discovered peer's username
-DiscoveryService --> ClientApp: display discovered peer's username
-deactivate DiscoveryService
+    DiscoveryService --> UserBClientApp: display discovered peer's username
+    DiscoveryService --> ClientApp: display discovered peer's username
+    deactivate DiscoveryService
+end
 
 UserA -> ClientApp: connect to B
 ClientApp -> DiscoveryService: get IP address and port of B
@@ -38,33 +39,35 @@ else if not
     DiscoveryService --> ClientApp: connection failed
 end
 
-ClientApp->ConnectionService: connect to TCP server of B with IP address and port
+group connect to Peer
+    ClientApp->ConnectionService: connect to TCP server of B with IP address and port
 
-alt if connect success
-    ConnectionService--> ClientApp: TCP connection success
-else
-    ConnectionService--> ClientApp: TCP connection failed
+    alt if connect success
+        ConnectionService--> ClientApp: TCP connection success
+    else
+        ConnectionService--> ClientApp: TCP connection failed
+    end
+
+
+    ConnectionService -> TCPClientAdapter: send handshake message to B
+    activate TCPClientAdapter
+
+    group B handle connection to A
+        TCPServerAdapter --> ConnectionService: recieves handshake message from A containing A's IP and port
+        activate TCPServerAdapter
+        ConnectionService -> ConnectionService: connect to A with IP and port
+    end
+
+
+    ConnectionService -> WebRTCAdapter: create WebRTC offer message
+    activate WebRTCAdapter
+    WebRTCAdapter -> WebRTCAdapter: create WebRTC peer connection
+    WebRTCAdapter -> WebRTCAdapter: generate offer message
+    WebRTCAdapter --> ConnectionService: returns offer message
+    ConnectionService -> TCPClientAdapter: send offer message to B
 end
 
-
-ConnectionService -> TCPClientAdapter: send handshake message to B
-activate TCPClientAdapter
-
-group B handle connection to A
-    TCPServerAdapter --> ConnectionService: recieves handshake message from A containing A's IP and port
-    activate TCPServerAdapter
-    ConnectionService -> ConnectionService: connect to A with IP and port
-end
-
-
-ConnectionService -> WebRTCAdapter: create WebRTC offer message
-activate WebRTCAdapter
-WebRTCAdapter -> WebRTCAdapter: create WebRTC peer connection
-WebRTCAdapter -> WebRTCAdapter: generate offer message
-WebRTCAdapter --> ConnectionService: returns offer message
-ConnectionService -> TCPClientAdapter: send offer message to B
-
-group B handle offer message of A
+group B handles offer message of A
     TCPServerAdapter --> ConnectionService: recieves offer message from A
     ConnectionService -> WebRTCAdapter: handle offer message
     WebRTCAdapter -> WebRTCAdapter: generate answer
@@ -87,5 +90,6 @@ ConnectionService --> UserBClientApp: connection established
 
 deactivate ConnectionService
 deactivate UserBClientApp
+
 
 @enduml
