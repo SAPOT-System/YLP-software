@@ -3,16 +3,36 @@ actor User
 participant ClientApp
 participant ChatService
 participant ConnectionService
+participant PeerService
+participant LocalDatabase
+participant TCPClientAdapter
+participant TCPServerAdapter
+participant PeerClientApp
 
 User -> ClientApp: clicks chat room with peer
 activate ClientApp
 ClientApp -> ClientApp: get the ID of the peer
 ClientApp -> ChatService: connect to the peer with ID
 activate ChatService
-ChatService -> ChatService: get the IP and port via ID
+ChatService -> PeerService: get the peer in the database via ID
+
+activate PeerService
+PeerService -> LocalDatabase: get the peer
+activate LocalDatabase
+LocalDatabase --> PeerService: returns peer
+deactivate LocalDatabase
+PeerService--> ChatService: returns peer
+
+ChatService -> PeerService: get the discovered peer via ID
+PeerService -> PeerService: get the discovered peer
+PeerService --> ChatService: returns discovered peer
+deactivate PeerService
+
 ChatService -> ConnectionService: connect to the peer via IP and port
+activate ConnectionService
 ref over ConnectionService : peer to peer connection
 ConnectionService --> ChatService: connected successfully
+deactivate ConnectionService
 ChatService --> ClientApp: connected successfully
 ChatService->ChatService: initialize the peer property
 deactivate ClientApp
@@ -20,6 +40,47 @@ deactivate ClientApp
 User -> ClientApp: send message
 activate ClientApp
 ClientApp -> ChatService: send message to the peer
+ChatService->LocalDatabase: check if conversation with the peer exists
+activate LocalDatabase
+LocalDatabase-->ChatService: returns boolean if conversation exists
+alt if conversation exists
+    ChatService->LocalDatabase: get the conversation
+    LocalDatabase-->ChatService: returns conversation
+    ChatService->ChatService: initialize the conversation property
+else
+    ChatService->LocalDatabase: create conversation
+    LocalDatabase-->ChatService: returns conversation
+    ChatService->ChatService: initialize the conversation property
+end
 
+ChatService->LocalDatabase: save message
+LocalDatabase->ChatService: returns message
+ChatService->LocalDatabase: save message status with the status of SENDING
+LocalDatabase->ChatService: returns message status
+
+ChatService->ConnectionService: send message
+ConnectionService->TCPClientAdapter: send message
+activate TCPClientAdapter
+ConnectionService-->ChatService: sending message status
+alt if send message success
+    TCPClientAdapter-->ConnectionService: sending message success
+    ConnectionService-->ChatService: inform sending sucess
+    ChatService->LocalDatabase: update message status with SENT
+else
+    TCPClientAdapter-->ConnectionService: sending message failed
+    ConnectionService-->ChatService: inform sending failed
+    ChatService->LocalDatabase: update message status with NOT_SENT
+end
+deactivate LocalDatabase
+
+group handle incoming message
+TCPServerAdapter-->ConnectionService: recieves message
+activate TCPServerAdapter
+activate ConnectionService
+ConnectionService->ChatService: handle incoming message
+
+deactivate ConnectionService
+deactivate TCPServerAdapter
+end
 
 @enduml
