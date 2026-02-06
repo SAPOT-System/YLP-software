@@ -8,3 +8,7 @@
 ## LAN Messaging
 
 ![Peer to peer diagram](diagrams/lan-messaging.svg)
+
+## LAN Call
+
+![Peer to peer diagram](diagrams/lan-messaging.svg)
