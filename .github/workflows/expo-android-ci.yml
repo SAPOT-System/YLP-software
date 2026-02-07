@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20.19.6
           cache: npm
           cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
 
@@ -59,7 +59,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20.19.6
           cache: npm
           cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
 
@@ -89,7 +89,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20.19.6
           cache: npm
           cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
 
