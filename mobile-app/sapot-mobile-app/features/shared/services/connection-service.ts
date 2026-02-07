@@ -238,7 +238,7 @@ export class ConnectionService extends EventEmitter {
 
         this.sendMessage(peerId, {
           type: type,
-          data: { sdp: sdp, senderId: this.userStore.user.id },
+          data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
         });
       } catch (error) {
         console.error(
@@ -268,7 +268,7 @@ export class ConnectionService extends EventEmitter {
       const { type, sdp } = await webrtcAdapter.createOffer();
       this.sendMessage(peerId, {
         type: type,
-        data: { sdp: sdp, senderId: this.userStore.user.id },
+        data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
       });
     } catch (error) {
       console.error(
@@ -298,17 +298,19 @@ export class ConnectionService extends EventEmitter {
           if (webrtcAdapter.isConnected) return;
 
           console.log("[ConnectionService]: Handling ice candidate message...");
-          webrtcAdapter.addIceCandidate(message.data.candidate);
+          if (message.data.candidate !== null) {
+            webrtcAdapter.addIceCandidate(message.data.candidate);
+          }
           break;
         case "offer":
           console.log("[ConnectionService]: Handling offer message...");
           const { type, sdp } = await webrtcAdapter.handleOffer({
             type: "offer",
-            sdp: message.data.sdp,
+            sdp: message.data.sdp.sdp || "",
           });
           this.sendMessage(message.data.senderId, {
             type: type,
-            data: { sdp: sdp, senderId: this.userStore.user.id },
+            data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
           });
           break;
         case "answer":
@@ -316,7 +318,7 @@ export class ConnectionService extends EventEmitter {
 
           await webrtcAdapter.handleAnswer({
             type: "answer",
-            sdp: message.data.sdp,
+            sdp: message.data.sdp.sdp || "",
           });
           break;
         case "handshake":
