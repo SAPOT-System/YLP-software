@@ -1,5 +1,17 @@
+# Notes
 
-# Notes about `app.json` and native config
+## Get Started
+
+To run the app to your device, ensure that your computer have access to your device.
+
+In terminal, run this:
+
+```bash
+npx expo prebuild
+npx expo run:android
+```
+
+## Notes about `app.json` and native config
 
 - The project is fully Bare.
 - Native folder (`android/`) are authoritative.
