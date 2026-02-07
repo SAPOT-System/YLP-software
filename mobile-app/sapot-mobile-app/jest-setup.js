@@ -24,11 +24,39 @@ jest.mock('react-native-webrtc', () => ({
 // Mock WatermelonDB
 jest.mock('@nozbe/watermelondb', () => ({
   Database: jest.fn(),
+  Model: class MockModel {},
   Q: {
     where: jest.fn(),
-    sortBy: jest.fn()
-  }
+    sortBy: jest.fn(),
+    oneOf: jest.fn(),
+    desc: jest.fn(),
+    skip: jest.fn(),
+    take: jest.fn()
+  },
+  tableSchema: jest.fn((config) => config),
+  appSchema: jest.fn((config) => config),
+  field: () => () => {},
+  date: () => () => {},
+  text: () => () => {},
+  readonly: () => () => {},
+  relation: () => () => {},
+  lazy: () => () => {},
+  immutableRelation: () => () => {},
+  children: () => () => {},
+  json: () => () => {},
+  writer: () => () => {},
+  reader: () => () => {}
 }));
+
+// Mock SQLiteAdapter
+jest.mock('@nozbe/watermelondb/adapters/sqlite', () => {
+  const mockAdapter = jest.fn().mockImplementation(() => ({}));
+  return {
+    __esModule: true,
+    default: mockAdapter,
+    SQLiteAdapter: mockAdapter
+  };
+});
 
 // Mock network discovery
 jest.mock('react-native-zeroconf', () => ({
