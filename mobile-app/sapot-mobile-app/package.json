@@ -7,8 +7,11 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android:dev": "eas build --platform android --profile development",
+    "android:prod": "eas build --platform android --profile production"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "jest": {
     "preset": "jest-expo",
