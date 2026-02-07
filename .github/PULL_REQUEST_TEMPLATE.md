@@ -19,4 +19,4 @@ Attach screenshots if UI is affected.
 - [ ] My code follows the project style guide
 - [ ] I have linted my code locally prior to submission
 - [ ] I have added necessary tests
-- [ ] PR is linked to a Jira / Issue (if applicable)
+- [ ] PR is linked to a Issue (if applicable)
