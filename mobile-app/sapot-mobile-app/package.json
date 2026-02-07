@@ -78,5 +78,6 @@
     "tls": "react-native-tcp-socket",
     "fs": "react-native-tcp-socket"
   },
-  "private": true
+  "private": true,
+  "packageManager": "npm@10.8.2"
 }
