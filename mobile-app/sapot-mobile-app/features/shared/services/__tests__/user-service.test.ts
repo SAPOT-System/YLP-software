@@ -46,14 +46,14 @@ describe("UserService", () => {
 
     // Setup mocks
     mockUserStore = {
-      user: null,
+      user: undefined,
       setUser: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<UserStore>;
 
     mockSessionStore = {
-      userId: null,
+      userId: undefined,
       setUserId: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<SessionStore>;
 
     mockPeerService = {
       findPeerById: jest.fn(),
@@ -64,7 +64,7 @@ describe("UserService", () => {
       getAllPeers: jest.fn(),
       findDiscoveredPeerById: jest.fn(),
       cleanUp: jest.fn(),
-    } as any;
+    } as Partial<PeerService> as jest.Mocked<PeerService>;
 
     mockGetItemAsync = jest.mocked(ExpoSecureStore.getItemAsync);
     mockSetItemAsync = jest.mocked(ExpoSecureStore.setItemAsync);
@@ -96,7 +96,7 @@ describe("UserService", () => {
         id: existingUuid,
         username: "existinguser",
         isOnline: true,
-      } as any;
+      } as unknown as Peer;
 
       mockGetItemAsync.mockResolvedValue(existingUuid);
       mockPeerService.findPeerById.mockResolvedValue(mockUser);
@@ -112,16 +112,16 @@ describe("UserService", () => {
     });
 
     it("should generate new UUID and create new user when UUID doesn't exist", async () => {
-      const newUuid = "23-12-456" as any;
+      const newUuid = "23-12-456";
       const mockUser: Peer = {
         id: newUuid,
         username: "User_abc123",
         isOnline: false,
-      } as any;
+      } as unknown as Peer;
 
       mockGetItemAsync.mockResolvedValue(null);
-      mockUuidV4.mockReturnValue(newUuid);
-      mockPeerService.findPeerById.mockResolvedValue(null as any); // First call returns null
+      (mockUuidV4 as jest.Mock).mockReturnValue(newUuid);
+      mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer); // First call returns null
       mockPeerService.createUser.mockResolvedValue(mockUser);
 
       await userService.initialize();
@@ -144,10 +144,10 @@ describe("UserService", () => {
         id: existingUuid,
         username: "User_xyz789",
         isOnline: false,
-      } as any;
+      } as unknown as Peer;
 
       mockGetItemAsync.mockResolvedValue(existingUuid);
-      mockPeerService.findPeerById.mockResolvedValue(null as any); // User not found in database
+      mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer); // User not found in database
       mockPeerService.createUser.mockResolvedValue(mockUser);
 
       await userService.initialize();
@@ -171,7 +171,7 @@ describe("UserService", () => {
 
     it("should throw error if setItemAsync fails", async () => {
       mockGetItemAsync.mockResolvedValue(null);
-      mockUuidV4.mockReturnValue("new-uuid" as any);
+      (mockUuidV4 as jest.Mock).mockReturnValue("new-uuid");
       mockSetItemAsync.mockRejectedValue(new Error("SecureStore write error"));
 
       await expect(userService.initialize()).rejects.toThrow("SecureStore write error");
@@ -188,14 +188,9 @@ describe("UserService", () => {
 
     it("should throw error if createUser fails", async () => {
       const newUuid = "new-uuid-456";
-      const mockUser: Peer = {
-        id: newUuid,
-        username: "User_test",
-        isOnline: false,
-      } as any;
 
       mockGetItemAsync.mockResolvedValue(newUuid);
-      mockPeerService.findPeerById.mockResolvedValue(null as any);
+      mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer);
       mockPeerService.createUser.mockRejectedValue(new Error("User creation error"));
 
       await expect(userService.initialize()).rejects.toThrow("User creation error");
@@ -205,7 +200,7 @@ describe("UserService", () => {
   describe("generateUsername", () => {
     it("should generate username with proper format", () => {
       // Access private method for testing
-      const generateUsername = (userService as any).generateUsername.bind(userService);
+      const generateUsername = (userService as unknown as { generateUsername: () => string }).generateUsername.bind(userService);
 
       const username = generateUsername();
 
@@ -214,7 +209,7 @@ describe("UserService", () => {
     });
 
     it("should generate different usernames on multiple calls", () => {
-      const generateUsername = (userService as any).generateUsername.bind(userService);
+      const generateUsername = (userService as unknown as { generateUsername: () => string }).generateUsername.bind(userService);
 
       const username1 = generateUsername();
       const username2 = generateUsername();
