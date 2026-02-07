@@ -275,7 +275,7 @@ export class ChatService {
         newMessageStatus.id,
         MessageStatusType.SENT
       );
-    } catch (error) {
+    } catch {
       await this.messageStatusRepository.updateMessageStatusById(
         newMessageStatus.id,
         MessageStatusType.NOT_SENT
