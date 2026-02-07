@@ -1,5 +1,5 @@
-import { ConversationRepository } from "../conversation-repository";
 import { ConversationType } from "@/features/shared";
+import { ConversationRepository } from "../conversation-repository";
 
 describe("ConversationRepository", () => {
   let repository: ConversationRepository;

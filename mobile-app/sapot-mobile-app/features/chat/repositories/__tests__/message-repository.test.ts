@@ -1,5 +1,5 @@
-import { MessageRepository } from "../message-repository";
 import { MessageType } from "@/features/shared";
+import { MessageRepository } from "../message-repository";
 
 describe("MessageRepository", () => {
   let repository: MessageRepository;
