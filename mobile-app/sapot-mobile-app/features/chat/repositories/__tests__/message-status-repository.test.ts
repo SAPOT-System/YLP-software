@@ -1,5 +1,5 @@
-import { MessageStatusRepository } from "../message-status-repository";
 import { MessageStatusType } from "@/features/shared";
+import { MessageStatusRepository } from "../message-status-repository";
 
 describe("MessageStatusRepository", () => {
   let repository: MessageStatusRepository;
