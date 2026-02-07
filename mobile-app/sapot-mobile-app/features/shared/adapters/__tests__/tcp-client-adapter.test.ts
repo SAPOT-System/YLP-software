@@ -6,7 +6,6 @@ jest.mock("react-native-tcp-socket", () => ({
 
 describe("TcpClientAdapter", () => {
   let adapter: TcpClientAdapter;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockSocket: any;
 
   beforeEach(() => {
@@ -18,13 +17,10 @@ describe("TcpClientAdapter", () => {
     };
 
     const TcpSocket = require("react-native-tcp-socket");
-    TcpSocket.createConnection.mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (options: any, callback: any) => {
-        setTimeout(callback, 0);
-        return mockSocket;
-      }
-    );
+    TcpSocket.createConnection.mockImplementation((options: any, callback: any) => {
+      setTimeout(callback, 0);
+      return mockSocket;
+    });
 
     adapter = new TcpClientAdapter("peer-1");
   });
@@ -41,24 +37,16 @@ describe("TcpClientAdapter", () => {
 
   it("sends a message when connected", async () => {
     await adapter.connect("127.0.0.1", 3000);
-    const message = {
-      type: "handshake" as const,
-      data: { senderId: "peer-1", ipAddress: "127.0.0.1", port: 3000 },
-    };
+    const message = { type: "handshake" as const, data: { senderId: "peer-1", ipAddress: "127.0.0.1", port: 3000 } };
 
     adapter.sendMessage(message);
 
-    expect(mockSocket.write).toHaveBeenCalledWith(
-      JSON.stringify(message) + "\n"
-    );
+    expect(mockSocket.write).toHaveBeenCalledWith(JSON.stringify(message) + "\n");
   });
 
   it("throws error when sending message while disconnected", async () => {
     expect(() => {
-      adapter.sendMessage({
-        type: "handshake" as const,
-        data: { senderId: "peer-1", ipAddress: "127.0.0.1", port: 3000 },
-      });
+      adapter.sendMessage({ type: "handshake" as const, data: { senderId: "peer-1", ipAddress: "127.0.0.1", port: 3000 } });
     }).toThrow("TCP not connected");
   });
 
