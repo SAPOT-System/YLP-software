@@ -38,6 +38,9 @@ module.exports = [
         RTCDataChannel: 'readonly',
         RTCConfiguration: 'readonly',
         RTCPeerConnectionIceEvent: 'readonly',
+        RTCIceCandidate: 'readonly',
+        RTCSessionDescriptionInit: 'readonly',
+        MediaStream: 'readonly',
         // Jest
         jest: 'readonly',
         describe: 'readonly',

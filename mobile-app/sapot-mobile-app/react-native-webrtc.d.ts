@@ -1,7 +1,6 @@
 import {
-  RTCPeerConnection,
-  RTCTrackEvent,
   RTCDataChannelEvent,
+  RTCTrackEvent,
 } from "react-native-webrtc";
 
 declare module "react-native-webrtc" {
