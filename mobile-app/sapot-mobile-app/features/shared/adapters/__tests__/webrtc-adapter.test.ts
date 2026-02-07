@@ -66,9 +66,9 @@ describe("WebrtcAdapter", () => {
 
     adapter.emit("test-event", { data: "test" });
 
-    setTimeout(() => {
+    setImmediate(() => {
       expect(listener).toHaveBeenCalledWith({ data: "test" });
       done();
-    }, 0);
+    });
   });
 });
