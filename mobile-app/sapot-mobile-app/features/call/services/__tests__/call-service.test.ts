@@ -30,7 +30,7 @@ describe("CallService", () => {
       connectToPeer: jest.fn(),
       sendChatMessage: jest.fn(),
       sendAckMessage: jest.fn(),
-    } as any;
+    } as Partial<ConnectionService> as jest.Mocked<ConnectionService>;
 
     // Configure the 'on' method to return the mock instance for chaining
     mockConnectionService.on.mockImplementation(() => mockConnectionService);
@@ -40,7 +40,7 @@ describe("CallService", () => {
         id: "test-user-id",
         username: "testuser",
       },
-    } as any;
+    } as Partial<UserStore> as jest.Mocked<UserStore>;
 
     // Mock constructors
     jest
@@ -138,7 +138,7 @@ describe("CallService", () => {
 
     it("should emit remoteStream event when received", () => {
       const mockStream = { id: "remote-stream" };
-      let streamCallback: Function;
+      let streamCallback: (stream: unknown) => void;
 
       mockConnectionService.on.mockImplementation((event, callback) => {
         if (event === "remoteStream") {
@@ -332,7 +332,7 @@ describe("CallService", () => {
     it("should return undefined if no stream available", () => {
       const peerId = "peer-1";
 
-      mockConnectionService.getLocalStream.mockReturnValue(undefined as any);
+      mockConnectionService.getLocalStream.mockReturnValue(undefined as unknown as MediaStream);
 
       const result = callService.getLocalCam(peerId);
 
@@ -350,7 +350,7 @@ describe("CallService", () => {
 
       try {
         await callService.startCall(peerId);
-      } catch (e) {
+      } catch {
         // Expected to throw
       }
 
