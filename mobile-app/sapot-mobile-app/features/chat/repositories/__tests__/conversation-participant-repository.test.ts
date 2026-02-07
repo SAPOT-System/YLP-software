@@ -1,5 +1,5 @@
-import { ConversationParticipantRepository } from "../conversation-participant-repository";
 import { ConversationParticipantRole } from "@/features/shared";
+import { ConversationParticipantRepository } from "../conversation-participant-repository";
 
 describe("ConversationParticipantRepository", () => {
   let repository: ConversationParticipantRepository;
