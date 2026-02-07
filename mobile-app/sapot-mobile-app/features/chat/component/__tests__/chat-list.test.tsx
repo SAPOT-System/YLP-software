@@ -18,21 +18,6 @@ jest.mock("@/features/shared", () => {
 });
 
 jest.mock("@/features/shared/hooks", () => ({
-  useContainer: () => ({
-    chatService: {
-      findPeerIdByChatId: jest.fn().mockResolvedValue("peer-1")
-    },
-    peerService: {
-      findDiscoveredPeerById: jest.fn().mockReturnValue({
-        id: "peer-1",
-        ipAddress: "127.0.0.1",
-        port: 1234
-      })
-    },
-    discoveryService: {
-      performResendMessagesForPeer: jest.fn().mockResolvedValue(undefined)
-    }
-  }),
   useChatService: () => ({
     findPeerIdByChatId: jest.fn().mockResolvedValue("peer-1")
   }),
