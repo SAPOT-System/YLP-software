@@ -2,9 +2,7 @@ import { PeerRepository } from "../peer-repository";
 
 describe("PeerRepository", () => {
   let repository: PeerRepository;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockDb: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockCollection: any;
 
   beforeEach(() => {
@@ -29,12 +27,11 @@ describe("PeerRepository", () => {
       username: "Alice",
       isOnline: false,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockDb.write.mockImplementation((fn: any) =>
       Promise.resolve(fn()).then(() => mockPeer)
     );
 
-    await repository.savePeer({
+    const result = await repository.savePeer({
       id: "peer-1",
       username: "Alice",
     });
@@ -50,7 +47,7 @@ describe("PeerRepository", () => {
         update: jest.fn(),
       },
     ]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     mockDb.write.mockImplementation((fn: any) => fn());
 
     await repository.markPeerOffline("peer-1");
@@ -67,7 +64,6 @@ describe("PeerRepository", () => {
       },
     ]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockDb.write.mockImplementation((fn: any) => fn());
 
     await repository.markPeerOnline("peer-1");
@@ -76,9 +72,9 @@ describe("PeerRepository", () => {
   });
 
   it("checks if peer exists", async () => {
-    mockCollection
-      .query()
-      .fetch.mockResolvedValue([{ id: "peer-1", username: "Alice" }]);
+    mockCollection.query().fetch.mockResolvedValue([
+      { id: "peer-1", username: "Alice" },
+    ]);
 
     const exists = await repository.isPeerExist("peer-1");
 
