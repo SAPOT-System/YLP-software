@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Peer } from "../database";
-import { usePeerService } from "./use-container";
+import { usePeerService } from "./use-peer-service";
 
 const usePeers = () => {
   const peerService = usePeerService();
