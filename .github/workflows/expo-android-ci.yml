@@ -27,19 +27,24 @@ jobs:
           cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
 
       - run: npm ci
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Lint
         run: npm run lint
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Typecheck
         run: npm run typecheck --if-present
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Unit tests
         run: npm test -- --runInBand
         if: hashFiles('**/*.test.*') != ''  
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Expo Doctor
         run: npx expo-doctor
+        working-directory: mobile-app/sapot-mobile-app
 
   # -------------------------
   # 2. DEVELOPMENT BUILD
@@ -59,14 +64,18 @@ jobs:
           cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
 
       - run: npm ci
+        working-directory: mobile-app/sapot-mobile-app
 
       - run: npm install -g eas-cli
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Login to Expo
         run: eas login --token ${{ secrets.EXPO_TOKEN }}
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Build Android Dev Client
         run: eas build --platform android --profile development --non-interactive
+        working-directory: mobile-app/sapot-mobile-app
 
   # -------------------------
   # 3. PRODUCTION BUILD
@@ -85,11 +94,15 @@ jobs:
           cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
 
       - run: npm ci
+        working-directory: mobile-app/sapot-mobile-app
 
       - run: npm install -g eas-cli
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Login to Expo
         run: eas login --token ${{ secrets.EXPO_TOKEN }}
+        working-directory: mobile-app/sapot-mobile-app
 
       - name: Build Android Production
         run: eas build --platform android --profile production --non-interactive
+        working-directory: mobile-app/sapot-mobile-app
