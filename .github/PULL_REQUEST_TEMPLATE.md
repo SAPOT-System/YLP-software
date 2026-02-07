@@ -16,7 +16,6 @@ Attach screenshots if UI is affected.
 
 ## Checklist
 
-- [ ] My code follows the project style guide
 - [ ] I have linted my code locally prior to submission
 - [ ] I have added necessary tests
 - [ ] PR is linked to a Issue (if applicable)
