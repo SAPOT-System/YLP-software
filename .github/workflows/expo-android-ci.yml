@@ -30,6 +30,13 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npm run typecheck --if-present
+
+      - name: Unit tests
+        run: npm test -- --runInBand
+        if: hashFiles('**/*.test.*') != ''  
+
       - name: Expo Doctor
         run: npx expo-doctor
 
