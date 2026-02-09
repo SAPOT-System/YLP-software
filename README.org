@@ -27,4 +27,5 @@ Always use the flake.nix for downloading the dependencies during development
 [[./web-portal-todo.org][WEB PORTAL TODOs]]
 ** Sequence diagram
 [[./sequence-diagrams.md][SEQUENCE DIAGRAMS]]
-
+** Expo Android CI/CD _workflow
+[[./.github/workflows/EXPO_ANDROID_CI_DOCUMENTATION_][EXPO ANDROID CI/CD WORKFLOW]]
