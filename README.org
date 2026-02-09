@@ -28,4 +28,4 @@ Always use the flake.nix for downloading the dependencies during development
 ** Sequence diagram
 [[./sequence-diagrams.md][SEQUENCE DIAGRAMS]]
 ** Expo Android CI/CD _workflow
-[[./.github/workflows/EXPO_ANDROID_CI_DOCUMENTATION_][EXPO ANDROID CI/CD WORKFLOW]]
+[[./.github/workflows/EXPO_ANDROID_CI_DOCUMENTATION.md][EXPO ANDROID CI/CD WORKFLOW]]
