@@ -1,7 +1,8 @@
 {
   "build": {
-    "development": {
+    "preview": {
       "distribution": "internal",
+      "developmentClient": true,
       "android": {
         "buildType": "apk"
       }
