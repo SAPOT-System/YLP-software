@@ -24,7 +24,7 @@ describe("PeerService", () => {
       markPeerOffline: jest.fn(),
       queryAllPeers: jest.fn(),
       queryPeerById: jest.fn(),
-    } as any;
+    } as Partial<PeerRepository> as jest.Mocked<PeerRepository>;
 
     // Mock constructor
     jest.mocked(PeerRepository).mockImplementation(() => mockPeerRepository);

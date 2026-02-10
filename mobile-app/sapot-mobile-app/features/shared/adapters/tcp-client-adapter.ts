@@ -49,7 +49,7 @@ export class TcpClientAdapter extends EventEmitter {
           }
         );
 
-        const onError = (error: any) => {
+        const onError = (error: Error) => {
           console.error(
             "[TcpClientAdapter]: Error on connection client:",
             error

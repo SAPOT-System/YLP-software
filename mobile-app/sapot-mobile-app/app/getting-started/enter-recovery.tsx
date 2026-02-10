@@ -1,11 +1,15 @@
-import { View } from "react-native";
-import React, { useRef, useState } from "react";
-import { TextInput, Text, useTheme } from "react-native-paper";
 import {
   CodeInput,
   ScreenContent,
   ScreenHeader,
 } from "@/features/getting-started";
+import React, { useRef, useState } from "react";
+import {
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
+  View,
+} from "react-native";
+import { Text, TextInput, useTheme } from "react-native-paper";
 
 const CODE_LENGTH = 4;
 
@@ -26,7 +30,7 @@ const EnterRecoveryScreen = () => {
     }
   };
 
-  const handleKeyPress = (e: any, index: number) => {
+  const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
     if (e.nativeEvent.key === "Backspace" && !code[index] && index > 0) {
       refs.current[index - 1]?.focus();
     }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useEffect, useState } from "react";
 import { ActivityIndicator } from "react-native";
 import { AppContainer } from "../container";
 
