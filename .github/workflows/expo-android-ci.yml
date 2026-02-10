@@ -42,15 +42,6 @@ jobs:
         if: hashFiles('**/*.test.*') != ''  
         working-directory: mobile-app/sapot-mobile-app
 
-      - name: Typecheck
-        run: npm run typecheck --if-present
-        working-directory: mobile-app/sapot-mobile-app
-
-      - name: Unit tests
-        run: npm test -- --runInBand
-        if: hashFiles('**/*.test.*') != ''  
-        working-directory: mobile-app/sapot-mobile-app
-
       - name: Expo Doctor
         run: npx expo-doctor
         working-directory: mobile-app/sapot-mobile-app
