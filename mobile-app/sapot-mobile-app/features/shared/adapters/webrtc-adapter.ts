@@ -36,12 +36,12 @@ export class WebrtcAdapter extends EventEmitter {
   /**
    * This property stores the audio and video of the peer that is currently interacting by the user
    */
-  private remoteStream?: any;
+  private remoteStream?: MediaStream;
 
   /**
    * This property manages the chat connection
    */
-  private dataChannel?: any;
+  private dataChannel?: RTCDataChannel;
 
   /**
    * This property holds the information whether the app will use servers or not
@@ -160,7 +160,7 @@ export class WebrtcAdapter extends EventEmitter {
         this.emit("remoteStream", event.streams[0]);
       };
 
-      this.peerConnection.onconnectionstatechange = (event) => {
+      this.peerConnection.onconnectionstatechange = (_event) => {
         // console.log(this.peerConnection?.connectionState);
         switch (this.peerConnection?.connectionState) {
           case "closed":
@@ -168,7 +168,7 @@ export class WebrtcAdapter extends EventEmitter {
             this.emit("connection-closed");
             break;
           case "connected":
-            if (this.dataChannel.readyState == "open") {
+            if (this.dataChannel?.readyState == "open") {
               this.emit("connection-established");
             }
             break;
@@ -180,7 +180,7 @@ export class WebrtcAdapter extends EventEmitter {
         this.setDataChannel(event.channel);
       };
 
-      this.peerConnection.oniceconnectionstatechange = (event) => {
+      this.peerConnection.oniceconnectionstatechange = (_event) => {
         // console.log(
         //   "[WebrtcAdapter]: ICE Connection state:",
         //   this.peerConnection?.iceConnectionState
@@ -203,9 +203,10 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       // Create data channel for text chat
-      this.dataChannel = this.peerConnection.createDataChannel("chat");
+      const channel = this.peerConnection.createDataChannel("chat") as unknown as RTCDataChannel;
+      this.dataChannel = channel;
       // console.log(this.dataChannel ? "Data channel on" : "Data channel off");
-      this.setupDataChannel(this.dataChannel);
+      this.setupDataChannel(channel);
 
       // console.log("Peer connection created:", this.peerConnection ? true : false);
     } catch (error) {
@@ -234,7 +235,7 @@ export class WebrtcAdapter extends EventEmitter {
    * @returns Promise<{ type: "offer"; sdp: any }>
    */
   async createOffer() {
-    return new Promise<{ type: "offer"; sdp: any }>(async (resolve, reject) => {
+    return new Promise<{ type: "offer"; sdp: string }>((resolve, reject) => {
       try {
         if (!this.peerConnection) {
           console.log(
@@ -245,14 +246,15 @@ export class WebrtcAdapter extends EventEmitter {
         // console.log(`[WebrtcAdapter]: Creating offer...`);
         if (this.peerConnection?.signalingState === "stable") {
           console.log("stable");
-          const offer = await this.peerConnection!.createOffer();
-          // console.log(`[WebrtcAdapter]: Setting local description...`);
-          await this.peerConnection!.setLocalDescription(offer);
+          this.peerConnection!.createOffer().then(async (offer) => {
+            // console.log(`[WebrtcAdapter]: Setting local description...`);
+            await this.peerConnection!.setLocalDescription(offer);
 
-          resolve({
-            type: "offer",
-            sdp: offer.sdp,
-          });
+            resolve({
+              type: "offer",
+              sdp: offer.sdp,
+            });
+          }).catch(reject);
         } else {
           console.log("Not stable");
           const onStable = async () => {
@@ -274,7 +276,7 @@ export class WebrtcAdapter extends EventEmitter {
         }
       } catch (error) {
         console.error("[WebrtcAdapter]: Error creating offer:", error);
-        error;
+
         reject(error);
       }
     });
@@ -283,11 +285,11 @@ export class WebrtcAdapter extends EventEmitter {
   /**
    * Handles an incoming WebRTC offer, sets the remote description, creates and returns an answer.
    * @param offer The RTCSessionDescriptionInit offer
-   * @returns Promise<{ type: "answer"; sdp: any }>
+   * @returns Promise<{ type: "answer"; sdp: string }>
    */
   async handleOffer(
     offer: RTCSessionDescriptionInit | undefined
-  ): Promise<{ type: "answer"; sdp: any }> {
+  ): Promise<{ type: "answer"; sdp: string }> {
     try {
       if (!this.peerConnection) {
         console.log(
@@ -521,7 +523,7 @@ export class WebrtcAdapter extends EventEmitter {
     try {
       return (
         this.peerConnection?.connectionState === "connected" &&
-        this.dataChannel.readyState === "open"
+        this.dataChannel?.readyState === "open"
       );
     } catch (error) {
       console.error(

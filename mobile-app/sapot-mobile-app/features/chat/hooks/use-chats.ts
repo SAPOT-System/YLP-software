@@ -1,6 +1,6 @@
 import { Conversation } from "@/features/shared";
-import { useChatService } from "@/features/shared/hooks";
 import { useEffect, useState } from "react";
+import { useChatService } from "./use-chat-service";
 
 const useChats = () => {
   const chatService = useChatService();

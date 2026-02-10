@@ -1,0 +1,27 @@
+{
+  "build": {
+    "preview": {
+      "android": {
+        "resourceClass": "default"
+      }
+    },
+    "preview2": {
+      "android": {
+        "resourceClass": "default"
+      }
+    },
+    "preview3": {
+      "android": {
+        "resourceClass": "default"
+      }
+    },
+    "production": {
+      "android": {
+        "resourceClass": "default"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

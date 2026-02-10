@@ -42,11 +42,13 @@ export class DiscoveryService {
           peerService.port
         );
       } catch (error) {
-        `[DiscoveryService]: Error handling service resolved\n${JSON.stringify(
-          peerService,
-          null,
-          2
-        )}\n${error}`;
+        console.error(
+          `[DiscoveryService]: Error handling service resolved\n${JSON.stringify(
+            peerService,
+            null,
+            2
+          )}\n${error}`
+        );
       }
     });
 
@@ -56,11 +58,13 @@ export class DiscoveryService {
         console.log("service removed");
         await this.peerService.markOffline(peerServiceName);
       } catch (error) {
-        `[DiscoveryService]: Error handling service removed\n${JSON.stringify(
-          { peerServiceName },
-          null,
-          2
-        )}\n${error}`;
+        console.error(
+          `[DiscoveryService]: Error handling service removed\n${JSON.stringify(
+            { peerServiceName },
+            null,
+            2
+          )}\n${error}`
+        );
       }
     });
   }
@@ -97,11 +101,13 @@ export class DiscoveryService {
         }
       }
     } catch (error) {
-      `[DiscoveryService]: Error performing resend messge\n${JSON.stringify(
-        { peerId, ipAddress, port },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[DiscoveryService]: Error performing resend message\n${JSON.stringify(
+          { peerId, ipAddress, port },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }

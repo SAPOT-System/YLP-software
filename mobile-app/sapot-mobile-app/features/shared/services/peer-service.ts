@@ -140,11 +140,13 @@ export class PeerService {
       const peer = await this.peerRepository.queryPeerById(id);
       return peer;
     } catch (error) {
-      `[PeerService]: Error finding peer\n${JSON.stringify(
-        { id },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[PeerService]: Error finding peer\n${JSON.stringify(
+          { id },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -160,11 +162,13 @@ export class PeerService {
       const peer = this.discoveredPeerServices.find((peer) => peer.id === id);
       return peer;
     } catch (error) {
-      `[PeerService]: Error finding discovered peer\n${JSON.stringify(
-        { id },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[PeerService]: Error finding discovered peer\n${JSON.stringify(
+          { id },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }
@@ -181,11 +185,13 @@ export class PeerService {
     try {
       return await this.peerRepository.savePeer({ id, username });
     } catch (error) {
-      `[PeerService]: Error creating user\n${JSON.stringify(
-        { id, username },
-        null,
-        2
-      )}\n${error}`;
+      console.error(
+        `[PeerService]: Error creating user\n${JSON.stringify(
+          { id, username },
+          null,
+          2
+        )}\n${error}`
+      );
       throw error;
     }
   }

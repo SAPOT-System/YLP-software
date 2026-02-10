@@ -1,11 +1,10 @@
-import { View, StyleSheet, useColorScheme } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withRepeat,
-} from "react-native-reanimated";
 import { useEffect } from "react";
+import { StyleSheet, useColorScheme, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { LottieProgressBar } from "./ProgressBar";
 
 export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {

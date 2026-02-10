@@ -1,8 +1,8 @@
-import { View, Text } from "react-native";
-import React, { useState } from "react";
-import { Button, TextInput } from "react-native-paper";
-import { router } from "expo-router";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import { View } from "react-native";
+import { Button, TextInput } from "react-native-paper";
 
 const LanLoginScreen = () => {
   const [username, setUsername] = useState("");

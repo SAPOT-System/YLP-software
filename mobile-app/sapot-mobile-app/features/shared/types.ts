@@ -1,12 +1,13 @@
+/// <reference lib="dom" />
 import type { DataChatMessageI } from "@/features/chat/types";
 
 /**
  * For establishing webrtc connection
  */
 export type SignalingMessage =
-  | { type: "ice-candidate"; data: { senderId: string; candidate: any } }
-  | { type: "offer"; data: { senderId: string; sdp: any } }
-  | { type: "answer"; data: { senderId: string; sdp: any } }
+  | { type: "ice-candidate"; data: { senderId: string; candidate: RTCIceCandidate | null } }
+  | { type: "offer"; data: { senderId: string; sdp: RTCSessionDescriptionInit } }
+  | { type: "answer"; data: { senderId: string; sdp: RTCSessionDescriptionInit } }
   | {
       type: "handshake";
       data: { senderId: string; ipAddress: string; port: number };
@@ -52,4 +53,12 @@ export interface DiscoveredService {
   id: string;
   port: number;
   ipAddress: string;
+}
+export interface PublishedService {
+  type: string;
+  protocol: string;
+  domain: string;
+  name: string;
+  port: number;
+  txt: { id: string; username: string };
 }

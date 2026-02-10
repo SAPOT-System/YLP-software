@@ -207,14 +207,10 @@ export class ConversationParticipantRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getParticipantDestroyOps() {
-    try {
-      const records = await this.conversationParticipantsCollection
-        .query()
-        .fetch();
+    const records = await this.conversationParticipantsCollection
+      .query()
+      .fetch();
 
-      return records.map((r) => r.prepareDestroyPermanently());
-    } catch (error) {
-      throw error;
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }
