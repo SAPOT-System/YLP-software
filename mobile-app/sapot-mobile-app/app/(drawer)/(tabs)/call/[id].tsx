@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from "react-native";
 import React, { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallService } from "@/features/shared/hooks";
+import { useCallService } from "@/features/call";
 import { MediaStream, RTCView } from "react-native-webrtc";
 
 // TODO: This component can minimized
