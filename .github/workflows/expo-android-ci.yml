@@ -52,7 +52,6 @@ jobs:
   dev-build:
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    needs: pr-checks
 
     steps:
       - uses: actions/checkout@v4
