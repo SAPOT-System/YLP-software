@@ -1,0 +1,40 @@
+name: Expo Android CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+jobs:
+  pr-checks:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.6
+          cache: npm
+          cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
+
+      - run: npm ci
+        working-directory: mobile-app/sapot-mobile-app
+
+      - name: Lint
+        run: npm run lint
+        working-directory: mobile-app/sapot-mobile-app
+
+      - name: Typecheck
+        run: npm run typecheck --if-present
+        working-directory: mobile-app/sapot-mobile-app
+
+      - name: Unit tests
+        run: npm test -- --runInBand
+        if: hashFiles('**/*.test.*') != ''  
+        working-directory: mobile-app/sapot-mobile-app
+
+      - name: Expo Doctor
+        run: npx expo-doctor
+        working-directory: mobile-app/sapot-mobile-app
