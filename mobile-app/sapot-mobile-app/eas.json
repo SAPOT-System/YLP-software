@@ -1,25 +1,10 @@
 {
   "build": {
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      },
-      "env": {
-        "APP_VARIANT": "preview"
-      },
-      "channel": "preview"
-    },
     "development": {
       "distribution": "internal",
-      "developmentClient": true,
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "APP_VARIANT": "development"
-      },
-      "channel": "development"
+      }
     },
     "production": {
       "autoIncrement": true,
