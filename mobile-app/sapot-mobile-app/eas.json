@@ -1,18 +1,9 @@
 {
   "build": {
-    "preview": {
+    "development": {
+      "distribution": "internal",
       "android": {
-        "resourceClass": "default"
-      }
-    },
-    "preview2": {
-      "android": {
-        "resourceClass": "default"
-      }
-    },
-    "preview3": {
-      "android": {
-        "resourceClass": "default"
+        "buildType": "apk"
       }
     },
     "production": {
