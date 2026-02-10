@@ -61,12 +61,10 @@ jobs:
       - run: npm install -g eas-cli
         working-directory: mobile-app/sapot-mobile-app
 
-      - name: Login to Expo
-        run: eas login --token ${{ secrets.EXPO_TOKEN }}
-        working-directory: mobile-app/sapot-mobile-app
-
       - name: Build Android Dev Client
         run: eas build --platform android --profile development --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         working-directory: mobile-app/sapot-mobile-app
 
   # -------------------------
