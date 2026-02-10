@@ -1,9 +1,8 @@
 import {
-  useChatService,
   useDatabase,
+  usePeerService,
 } from "@/features/shared/hooks";
-import { Pressable, StyleSheet, View } from "react-native";
-import { Text } from "react-native-paper";
+import { useChatService } from "@/features/chat";
 
 export default function Debug() {
   const { createPeer, showPeers, deletePeers, deleteDatabase } = useDatabase();
