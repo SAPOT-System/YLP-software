@@ -8,12 +8,10 @@
       }
     },
     "production": {
+      "distribution": "store",
       "android": {
-        "resourceClass": "default"
+        "buildType": "apk"
       }
     }
-  },
-  "submit": {
-    "production": {}
   }
 }
