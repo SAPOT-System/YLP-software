@@ -139,13 +139,9 @@ export class ConversationRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getConversationDestroyOps() {
-    try {
-      const records = await this.conversationCollections.query().fetch();
-      console.log(records);
+    const records = await this.conversationCollections.query().fetch();
+    console.log(records);
 
-      return records.map((r) => r.prepareDestroyPermanently());
-    } catch (error) {
-      throw error;
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

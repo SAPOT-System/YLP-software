@@ -580,19 +580,15 @@ export class ChatService {
    * @returns Promise<void>
    */
   async deleteAllConversations(): Promise<void> {
-    try {
-      await database.write(async () => {
-        const convOps =
-          await this.conversationRepository.getConversationDestroyOps();
-        const msgOps = await this.messageRepository.getAllMessageDestroyOps();
-        const statusOps =
-          await this.messageStatusRepository.getStatusDestroyOps();
-        const partOps =
-          await this.conversationParticipantRepository.getParticipantDestroyOps();
-        await database.batch(...convOps, ...msgOps, ...statusOps, ...partOps);
-      });
-    } catch (error) {
-      throw error;
-    }
+    await database.write(async () => {
+      const convOps =
+        await this.conversationRepository.getConversationDestroyOps();
+      const msgOps = await this.messageRepository.getAllMessageDestroyOps();
+      const statusOps =
+        await this.messageStatusRepository.getStatusDestroyOps();
+      const partOps =
+        await this.conversationParticipantRepository.getParticipantDestroyOps();
+      await database.batch(...convOps, ...msgOps, ...statusOps, ...partOps);
+    });
   }
 }
