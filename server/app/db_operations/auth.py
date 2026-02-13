@@ -77,27 +77,35 @@ def get_user_by_phone_number(session: SessionDep, phone_number: str):
     return user
 
 
+def get_user(identifier: str, session: SessionDep):
+    methods = [get_user_by_email, get_user_by_username, get_user_by_phone_number]
+
+    user = None
+
+    for method in methods:
+        try:
+            user = method(session, identifier)
+        except:
+            continue
+
+    if not user:
+        return None
+
+    return user
+
 
 def authenticate_user(
         session: SessionDep,
         identifier: str,
         password: str
 ):
-    methods = [get_user_by_email, get_user_by_username, get_user_by_phone_number]
+    user = get_user(identifier, session)
 
-    hero = None
-
-    for method in methods:
-        try:
-            hero = method(session, identifier)
-        except:
-            continue
-
-    if not hero:
+    if not user:
         return False
-    if not verify_password(password, hero.hashed_password):
+    if not verify_password(password, user.hashed_password):
         return False
-    return hero
+    return user
 
 
 def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDep):
@@ -111,7 +119,15 @@ def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDe
     session.refresh(user)
 
 
-def update_user_password(user: User, password_update_data : UserPasswordUpdate, session : SessionDep):
+def update_user_password(user: User, new_password : str, session : SessionDep):
+    hashed_password = get_password_hash(new_password)
+    setattr(user, "hashed_password", hashed_password)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+
+def update_user_password_with_old_pass(user: User, password_update_data : UserPasswordUpdate, session : SessionDep):
     hashed_password = get_password_hash(password_update_data.new_password)
     setattr(user, "hashed_password", hashed_password)
     session.add(user)

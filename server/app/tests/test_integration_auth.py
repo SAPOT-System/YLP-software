@@ -113,3 +113,48 @@ def test_auth_invalid_create_account(client:TestClient, session:SessionDep):
     assert response.status_code == 422
     response_data = response.json()
     assert "detail" in response_data
+
+
+def test_get_auth_security_key(client:TestClient, session:SessionDep):
+    sample_user = sample_users['test']
+    form_data = {
+        'username': sample_user.get('phone_number'),
+        'password': sample_user.get('password'),
+    }
+
+    response = client.post('/auth/token', data=form_data)
+
+    token = response.json()
+
+    response = client.get('/auth/register/security-key', headers={
+        "Authorization": f"Bearer {token}"
+    })
+
+    # get test if the file is gotten here
+
+    assert False
+
+
+def test_auth_security_key_change_password(client:TestClient, session:SessionDep):
+    response = client.post('/auth/forgot-password/security-key', json=sample_invalid_user)
+
+    assert False
+
+
+
+def test_auth_security_questions_change_password(client:TestClient, session:SessionDep):
+    response = client.post('/auth/forgot-password/security-questions', json=sample_invalid_user)
+
+    assert False
+
+
+def test_auth_sms_change_password(client:TestClient, session:SessionDep):
+    response = client.post('/auth/forgot-password/sms', json=sample_invalid_user)
+
+    assert False
+
+
+def test_auth_email_change_password(client:TestClient, session:SessionDep):
+    response = client.post('/auth/forgot-password/email', json=sample_invalid_user)
+
+    assert False

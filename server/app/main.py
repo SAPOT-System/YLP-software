@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from contextlib import asynccontextmanager
 from typing import Union
 
@@ -7,7 +5,7 @@ from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
 from app.db_operations.auth import create_db_and_tables
-from .api import auth
+from app.api import auth, forgot_password
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +21,7 @@ app = FastAPI(
 )
 
 app.include_router(auth.router)
+app.include_router(forgot_password.router)
 
 @app.get("/")
 def read_root():
