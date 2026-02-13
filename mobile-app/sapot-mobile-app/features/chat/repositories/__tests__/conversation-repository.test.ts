@@ -3,7 +3,9 @@ import { ConversationRepository } from "../conversation-repository";
 
 describe("ConversationRepository", () => {
   let repository: ConversationRepository;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockDb: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockCollection: any;
 
   beforeEach(() => {
@@ -39,9 +41,11 @@ describe("ConversationRepository", () => {
   });
 
   it("checks if conversation exists", async () => {
-    mockCollection.query().fetch.mockResolvedValue([
-      { id: "conv-1", type: ConversationType.DIRECT },
-    ]);
+    mockCollection
+      .query()
+      .fetch.mockResolvedValue([
+        { id: "conv-1", type: ConversationType.DIRECT },
+      ]);
 
     const exists = await repository.isConversationExist("conv-1");
 
@@ -58,9 +62,7 @@ describe("ConversationRepository", () => {
   });
 
   it("queries all conversations", async () => {
-    const mockConversations = [
-      { id: "conv-1", type: ConversationType.DIRECT },
-    ];
+    const mockConversations = [{ id: "conv-1", type: ConversationType.DIRECT }];
     mockCollection.query().fetch.mockResolvedValue(mockConversations);
 
     const result = await repository.queryAllConversation();
