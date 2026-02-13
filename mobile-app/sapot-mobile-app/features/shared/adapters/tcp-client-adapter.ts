@@ -125,6 +125,7 @@ export class TcpClientAdapter extends EventEmitter {
         "[TcpClientAdapter]: Error getting if tcp is connected:",
         error
       );
+      return false;
     }
   }
 }

@@ -199,33 +199,31 @@ export class ConnectionService extends EventEmitter {
    * @returns Promise that resolves when connection is established
    */
   async connectToPeer(peerId: string, ipAddress: string, port: number) {
-    return new Promise<void>(async (resolve, reject) => {
-      try {
-        const tcpAdapter = this.getTcpClientAdapter(peerId);
-        const webrtcAdapter = this.getWebrtcAdapter(peerId);
+    const tcpAdapter = this.getTcpClientAdapter(peerId);
+    const webrtcAdapter = this.getWebrtcAdapter(peerId);
 
-        if (webrtcAdapter.isConnected) resolve();
+    if (webrtcAdapter.isConnected) return;
 
-        if (!tcpAdapter.isConnected) await tcpAdapter.connect(ipAddress, port);
+    if (!tcpAdapter.isConnected) await tcpAdapter.connect(ipAddress, port);
 
-        webrtcAdapter.once("connection-established", () => {
-          resolve();
-        });
+    return new Promise<void>((resolve, reject) => {
+      webrtcAdapter.once("connection-established", () => {
+        resolve();
+      });
 
-        webrtcAdapter.once("connection-failed", (error) => {
-          reject(error);
-        });
+      webrtcAdapter.once("connection-failed", (error) => {
+        reject(error);
+      });
 
-        const timeout = setTimeout(() => {
-          reject(new Error("Connection timeout"));
-        }, 20000);
+      const timeout = setTimeout(() => {
+        reject(new Error("Connection timeout"));
+      }, 20000);
 
-        webrtcAdapter.once("connection-established", () => {
-          clearTimeout(timeout);
-        });
+      webrtcAdapter.once("connection-established", () => {
+        clearTimeout(timeout);
+      });
 
-        const { type, sdp } = await webrtcAdapter.createOffer();
-
+      webrtcAdapter.createOffer().then(({ type, sdp }) => {
         // Persuade peer to connect to the current user's tcp server by giving the ip address and port
         this.sendMessage(peerId, {
           type: "handshake",
@@ -240,7 +238,7 @@ export class ConnectionService extends EventEmitter {
           type: type,
           data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
         });
-      } catch (error) {
+      }).catch((error) => {
         console.error(
           `[ConnectionService]: Error connecting to peer\n${JSON.stringify(
             { peerId, ipAddress, port },
@@ -249,7 +247,7 @@ export class ConnectionService extends EventEmitter {
           )}\n${error}`
         );
         reject(error);
-      }
+      });
     });
   }
 
@@ -302,7 +300,7 @@ export class ConnectionService extends EventEmitter {
             webrtcAdapter.addIceCandidate(message.data.candidate);
           }
           break;
-        case "offer":
+        case "offer": {
           console.log("[ConnectionService]: Handling offer message...");
           const { type, sdp } = await webrtcAdapter.handleOffer({
             type: "offer",
@@ -313,6 +311,7 @@ export class ConnectionService extends EventEmitter {
             data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
           });
           break;
+        }
         case "answer":
           console.log("[ConnectionService]: Handling answer message...");
 
