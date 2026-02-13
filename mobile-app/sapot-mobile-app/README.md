@@ -2,8 +2,14 @@
 
 ## Getting Started
 
-1. Connect your device to your computer
-2. Run:
+1. Run:
+
+   ```bash
+   npm run dev
+   ```
+
+2. Connect your device to your computer
+3. Run:
 
    ```bash
    npx expo prebuild
