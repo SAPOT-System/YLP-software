@@ -6,6 +6,7 @@ jest.mock("react-native-tcp-socket", () => ({
 
 describe("TcpServerAdapter", () => {
   let adapter: TcpServerAdapter;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockServer: any;
 
   beforeEach(() => {
@@ -23,6 +24,7 @@ describe("TcpServerAdapter", () => {
   });
 
   it("starts TCP server", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockServer.listen.mockImplementation((options: any, callback: any) => {
       setTimeout(callback, 0);
     });
@@ -36,6 +38,7 @@ describe("TcpServerAdapter", () => {
   });
 
   it("emits data events when messages are received", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockServer.listen.mockImplementation((options: any, callback: any) => {
       setTimeout(callback, 0);
     });
@@ -46,8 +49,9 @@ describe("TcpServerAdapter", () => {
     await adapter.start(3000);
 
     // Simulate server creation with socket handler
-    const socketHandler = (require("react-native-tcp-socket")
-      .createServer as jest.Mock).mock.calls[0][0];
+    const socketHandler = (
+      require("react-native-tcp-socket").createServer as jest.Mock
+    ).mock.calls[0][0];
     const mockSocket = {
       on: jest.fn(),
     };
@@ -66,6 +70,7 @@ describe("TcpServerAdapter", () => {
   });
 
   it("stops TCP server", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockServer.listen.mockImplementation((options: any, callback: any) => {
       setTimeout(callback, 0);
     });
@@ -80,8 +85,10 @@ describe("TcpServerAdapter", () => {
     const errorSpy = jest.fn();
     const error = new Error("Server error");
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockServer.listen.mockImplementation((options: any, callback: any) => {
       const errorCallback = mockServer.on.mock.calls.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (call: any) => call[0] === "error"
       )?.[1];
       if (errorCallback) {
