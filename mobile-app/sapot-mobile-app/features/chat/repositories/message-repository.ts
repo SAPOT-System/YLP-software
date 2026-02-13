@@ -113,12 +113,8 @@ export class MessageRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getAllMessageDestroyOps() {
-    try {
-      const records = await this.messagesCollection.query().fetch();
+    const records = await this.messagesCollection.query().fetch();
 
-      return records.map((r) => r.prepareDestroyPermanently());
-    } catch (error) {
-      throw error;
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

@@ -176,11 +176,7 @@ export class MessageStatusRepository {
    * @returns Promise<MessageStatus[]> Array of all message statuses
    */
   async queryAllStatuses() {
-    try {
-      return await this.messageStatusCollection.query().fetch();
-    } catch (error) {
-      throw error;
-    }
+    return await this.messageStatusCollection.query().fetch();
   }
 
   /**
@@ -188,12 +184,8 @@ export class MessageStatusRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getStatusDestroyOps() {
-    try {
-      const records = await this.messageStatusCollection.query().fetch();
+    const records = await this.messageStatusCollection.query().fetch();
 
-      return records.map((r) => r.prepareDestroyPermanently());
-    } catch (error) {
-      throw error;
-    }
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }
