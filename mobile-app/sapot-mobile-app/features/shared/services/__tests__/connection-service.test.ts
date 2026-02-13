@@ -100,7 +100,6 @@ describe("ConnectionService", () => {
       removeAllListeners: jest.fn(),
     } as Partial<TcpClientAdapter> as jest.Mocked<TcpClientAdapter>;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockWebrtcAdapter = {
       createOffer: jest.fn(),
       handleOffer: jest.fn(),
@@ -117,12 +116,11 @@ describe("ConnectionService", () => {
       on: jest.fn(),
       once: jest.fn(),
       removeAllListeners: jest.fn(),
-    } as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as Partial<WebrtcAdapter> as jest.Mocked<WebrtcAdapter>;
     mockChatService = {
       handleIncomingChatMessage: jest.fn(),
       handleAckMessage: jest.fn(),
-    } as any;
+    } as Partial<ChatService> as jest.Mocked<ChatService>;
 
     // Mock constructors
     jest
@@ -204,7 +202,6 @@ describe("ConnectionService", () => {
       };
       const answerMessage = {
         type: "answer",
-        data: { senderId: "peer-1", sdp: "test" },
       };
       const handshakeMessage = {
         type: "handshake",
@@ -212,7 +209,12 @@ describe("ConnectionService", () => {
       };
 
       const handleSpy = jest
-        .spyOn(connectionService as unknown as { handleWebrtcConnection: (msg: unknown) => Promise<void> }, "handleWebrtcConnection")
+        .spyOn(
+          connectionService as unknown as {
+            handleWebrtcConnection: (msg: unknown) => Promise<void>;
+          },
+          "handleWebrtcConnection"
+        )
         .mockResolvedValue(undefined);
       await dataHandler?.(iceCandidateMessage);
       expect(handleSpy).toHaveBeenCalledWith(iceCandidateMessage);
@@ -435,13 +437,13 @@ describe("ConnectionService", () => {
 
   describe("connectToPeer", () => {
     beforeEach(() => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
-      Object.defineProperty(mockTcpClientAdapter, 'isConnected', {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       mockWebrtcAdapter.createOffer.mockResolvedValue({
         type: "offer",
@@ -480,9 +482,9 @@ describe("ConnectionService", () => {
     });
 
     it("should resolve immediately if already connected", async () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(true),
-        configurable: true
+        configurable: true,
       });
       const connectPromise = connectionService.connectToPeer(
         "peer-1",
@@ -494,13 +496,13 @@ describe("ConnectionService", () => {
     });
 
     it("should handle connection failure", async () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
-      Object.defineProperty(mockTcpClientAdapter, 'isConnected', {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       mockWebrtcAdapter.createOffer.mockResolvedValue({
         type: "offer",
@@ -539,9 +541,9 @@ describe("ConnectionService", () => {
     });
 
     it("should not send message if adapter not connected", () => {
-      Object.defineProperty(mockTcpClientAdapter, 'isConnected', {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       const peerId = "peer-1";
 
@@ -604,9 +606,9 @@ describe("ConnectionService", () => {
     });
 
     it("should throw error if peer not connected", async () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       const peerId = "peer-1";
 
@@ -626,9 +628,9 @@ describe("ConnectionService", () => {
     });
 
     it("should not terminate call if peer not connected", () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       const peerId = "peer-1";
 
@@ -648,9 +650,9 @@ describe("ConnectionService", () => {
     });
 
     it("should throw error if peer not connected", () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       const peerId = "peer-1";
 
@@ -670,9 +672,9 @@ describe("ConnectionService", () => {
     });
 
     it("should throw error if peer not connected", () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       const peerId = "peer-1";
 
@@ -695,9 +697,9 @@ describe("ConnectionService", () => {
     });
 
     it("should throw error if peer not connected", () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       const peerId = "peer-1";
 
@@ -723,18 +725,21 @@ describe("ConnectionService", () => {
       expect(mockWebrtcAdapter.createOffer).toHaveBeenCalled();
       expect(sendMessageSpy).toHaveBeenCalledWith(peerId, {
         type: "offer",
-        data: { sdp: { type: "offer", sdp: "new-sdp" }, senderId: mockUserStore.user.id },
+        data: {
+          sdp: { type: "offer", sdp: "new-sdp" },
+          senderId: mockUserStore.user.id,
+        },
       });
     });
 
     it("should throw error if not connected", async () => {
-      Object.defineProperty(mockWebrtcAdapter, 'isConnected', {
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
-      Object.defineProperty(mockTcpClientAdapter, 'isConnected', {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
-        configurable: true
+        configurable: true,
       });
       const peerId = "peer-1";
 

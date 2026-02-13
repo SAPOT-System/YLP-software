@@ -311,7 +311,10 @@ describe("ChatService", () => {
       mockConversationRepository.isConversationExist.mockResolvedValue(false);
 
       // Mock database write transaction
-      mockDatabase.write.mockImplementation(async (fn: (writer: any) => Promise<any>) => await fn({} as any));
+      mockDatabase.write.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async (fn: (writer: any) => Promise<any>) => await fn({} as any)
+      );
       mockConversationRepository.saveConversation.mockResolvedValue(
         mockConversation
       );
@@ -377,7 +380,10 @@ describe("ChatService", () => {
   describe("sendChatMessage", () => {
     beforeEach(() => {
       // Set up peer state for sending messages
-      (chatService as unknown as { peer: Peer }).peer = { id: "peer-1", username: "peeruser" } as unknown as Peer;
+      (chatService as unknown as { peer: Peer }).peer = {
+        id: "peer-1",
+        username: "peeruser",
+      } as unknown as Peer;
     });
 
     it("should send message with existing conversation", async () => {
@@ -393,7 +399,8 @@ describe("ChatService", () => {
       } as Message;
       const mockMessageStatus = { id: "status-1" } as MessageStatus;
 
-      (chatService as unknown as { conversation: Conversation }).conversation = mockConversation as unknown as Conversation;
+      (chatService as unknown as { conversation: Conversation }).conversation =
+        mockConversation as unknown as Conversation;
       mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
       mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(
         mockMessageStatus
@@ -437,7 +444,10 @@ describe("ChatService", () => {
       mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
         undefined
       );
-      mockDatabase.write.mockImplementation(async (fn: (writer: any) => Promise<any>) => await fn({} as any));
+      mockDatabase.write.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async (fn: (writer: any) => Promise<any>) => await fn({} as any)
+      );
       mockConversationRepository.saveConversation.mockResolvedValue(
         mockConversation
       );
@@ -466,7 +476,8 @@ describe("ChatService", () => {
       } as Message;
       const mockMessageStatus = { id: "status-1" } as MessageStatus;
 
-      (chatService as unknown as { conversation: Conversation }).conversation = mockConversation as unknown as Conversation;
+      (chatService as unknown as { conversation: Conversation }).conversation =
+        mockConversation as unknown as Conversation;
       mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
       mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(
         mockMessageStatus
@@ -733,9 +744,13 @@ describe("ChatService", () => {
 
   describe("deleteAllConversations", () => {
     it("should delete all conversations, messages, and statuses", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mockOps = [jest.fn()] as unknown as any;
 
-      mockDatabase.write.mockImplementation(async (fn: (writer: any) => Promise<any>) => await fn({} as any));
+      mockDatabase.write.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async (fn: (writer: any) => Promise<any>) => await fn({} as any)
+      );
       mockConversationRepository.getConversationDestroyOps.mockResolvedValue(
         mockOps
       );
