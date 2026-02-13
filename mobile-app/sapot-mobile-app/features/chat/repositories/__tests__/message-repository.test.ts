@@ -1,9 +1,11 @@
-import { MessageType } from "@/features/shared";
+import { Conversation, MessageType, Peer } from "@/features/shared";
 import { MessageRepository } from "../message-repository";
 
 describe("MessageRepository", () => {
   let repository: MessageRepository;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockDb: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockCollection: any;
 
   beforeEach(() => {
@@ -28,14 +30,22 @@ describe("MessageRepository", () => {
       content: "Hello",
       messageType: MessageType.TEXT,
     };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockDb.write.mockImplementation((fn: any) =>
-      Promise.resolve(fn()).then((result: any) => mockMessage)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      Promise.resolve(fn()).then((_result: any) => mockMessage)
     );
 
-    const result = await repository.saveMessage({
-      sender: { id: "user-1", username: "Alice" } as any,
+    await repository.saveMessage({
+      sender: {
+        id: "user-1",
+        username: "Alice",
+      } as Partial<Peer> as jest.Mocked<Peer>,
       content: "Hello",
-      conversation: { id: "conv-1" } as any,
+      conversation: {
+        id: "conv-1",
+      } as Partial<Conversation> as jest.Mocked<Conversation>,
       messageId: "msg-1",
     });
 
