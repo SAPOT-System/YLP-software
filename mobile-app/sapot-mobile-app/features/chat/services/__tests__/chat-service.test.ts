@@ -74,7 +74,7 @@ describe("ChatService", () => {
   let mockMessageStatusRepository: jest.Mocked<MessageStatusRepository>;
   let mockPeerService: jest.Mocked<PeerService>;
   let mockUserStore: jest.Mocked<UserStore>;
-  let mockDatabase: any;
+  let mockDatabase: jest.Mocked<typeof database>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -91,7 +91,7 @@ describe("ChatService", () => {
       toggleCamera: jest.fn(),
       getLocalStream: jest.fn(),
       renegotiate: jest.fn(),
-    } as any;
+    } as Partial<ConnectionService> as jest.Mocked<ConnectionService>;
 
     mockConversationRepository = {
       isConversationExist: jest.fn(),
@@ -99,7 +99,7 @@ describe("ChatService", () => {
       saveConversation: jest.fn(),
       queryAllConversation: jest.fn(),
       getConversationDestroyOps: jest.fn(),
-    } as any;
+    } as Partial<ConversationRepository> as jest.Mocked<ConversationRepository>;
 
     mockConversationParticipantRepository = {
       isDirectConversationExists: jest.fn(),
@@ -108,13 +108,13 @@ describe("ChatService", () => {
       queryConversationByPeer: jest.fn(),
       queryAllParticipants: jest.fn(),
       getParticipantDestroyOps: jest.fn(),
-    } as any;
+    } as Partial<ConversationParticipantRepository> as jest.Mocked<ConversationParticipantRepository>;
 
     mockMessageRepository = {
       saveMessage: jest.fn(),
       queryMessagesByConversation: jest.fn(),
       getAllMessageDestroyOps: jest.fn(),
-    } as any;
+    } as Partial<MessageRepository> as jest.Mocked<MessageRepository>;
 
     mockMessageStatusRepository = {
       saveMessageStatus: jest.fn(),
@@ -124,19 +124,19 @@ describe("ChatService", () => {
       queryAllStatuses: jest.fn(),
       queryNotSentByMessages: jest.fn(),
       getStatusDestroyOps: jest.fn(),
-    } as any;
+    } as Partial<MessageStatusRepository> as jest.Mocked<MessageStatusRepository>;
 
     mockPeerService = {
       findPeerById: jest.fn(),
       findDiscoveredPeerById: jest.fn(),
-    } as any;
+    } as Partial<PeerService> as jest.Mocked<PeerService>;
 
     mockUserStore = {
       user: {
         id: "test-user-id",
         username: "testuser",
       },
-    } as any;
+    } as Partial<UserStore> as jest.Mocked<UserStore>;
 
     mockDatabase = jest.mocked(database);
 
@@ -212,7 +212,7 @@ describe("ChatService", () => {
 
     it("should throw error if peer not found", async () => {
       const peerId = "non-existent-peer";
-      mockPeerService.findPeerById.mockResolvedValue(null as any);
+      mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer);
 
       await expect(chatService.connect(peerId)).rejects.toThrow(
         "Peer not found"
@@ -224,7 +224,7 @@ describe("ChatService", () => {
       const mockPeer = { id: peerId, username: "peeruser" } as Peer;
 
       mockPeerService.findPeerById.mockResolvedValue(mockPeer);
-      mockPeerService.findDiscoveredPeerById.mockReturnValue(null as any);
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
 
       await expect(chatService.connect(peerId)).rejects.toThrow(
         "Peer not discovered"
@@ -273,7 +273,7 @@ describe("ChatService", () => {
       );
       mockMessageRepository.saveMessage.mockResolvedValue({
         id: "msg-1",
-      } as any);
+      } as unknown as Message);
 
       await chatService.handleIncomingChatMessage(mockData);
 
@@ -311,14 +311,14 @@ describe("ChatService", () => {
       mockConversationRepository.isConversationExist.mockResolvedValue(false);
 
       // Mock database write transaction
-      mockDatabase.write.mockImplementation(async (fn: Function) => await fn());
+      mockDatabase.write.mockImplementation(async (fn: (writer: any) => Promise<any>) => await fn({} as any));
       mockConversationRepository.saveConversation.mockResolvedValue(
         mockConversation
       );
       mockConversationParticipantRepository.saveMultipleConversationParticipant.mockResolvedValue();
       mockMessageRepository.saveMessage.mockResolvedValue({
         id: "msg-1",
-      } as any);
+      } as unknown as Message);
 
       await chatService.handleIncomingChatMessage(mockData);
 
@@ -377,7 +377,7 @@ describe("ChatService", () => {
   describe("sendChatMessage", () => {
     beforeEach(() => {
       // Set up peer state for sending messages
-      (chatService as any).peer = { id: "peer-1", username: "peeruser" };
+      (chatService as unknown as { peer: Peer }).peer = { id: "peer-1", username: "peeruser" } as unknown as Peer;
     });
 
     it("should send message with existing conversation", async () => {
@@ -393,7 +393,7 @@ describe("ChatService", () => {
       } as Message;
       const mockMessageStatus = { id: "status-1" } as MessageStatus;
 
-      (chatService as any).conversation = mockConversation;
+      (chatService as unknown as { conversation: Conversation }).conversation = mockConversation as unknown as Conversation;
       mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
       mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(
         mockMessageStatus
@@ -437,7 +437,7 @@ describe("ChatService", () => {
       mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
         undefined
       );
-      mockDatabase.write.mockImplementation(async (fn: Function) => await fn());
+      mockDatabase.write.mockImplementation(async (fn: (writer: any) => Promise<any>) => await fn({} as any));
       mockConversationRepository.saveConversation.mockResolvedValue(
         mockConversation
       );
@@ -466,7 +466,7 @@ describe("ChatService", () => {
       } as Message;
       const mockMessageStatus = { id: "status-1" } as MessageStatus;
 
-      (chatService as any).conversation = mockConversation;
+      (chatService as unknown as { conversation: Conversation }).conversation = mockConversation as unknown as Conversation;
       mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
       mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(
         mockMessageStatus
@@ -483,7 +483,7 @@ describe("ChatService", () => {
     });
 
     it("should throw error if no peer state", async () => {
-      (chatService as any).peer = undefined;
+      (chatService as unknown as { peer: Peer | undefined }).peer = undefined;
 
       await expect(chatService.sendChatMessage("Hello")).rejects.toThrow(
         "No peer state stored"
@@ -496,7 +496,7 @@ describe("ChatService", () => {
       const chatId = "conv-1";
       const mockParticipants = [
         { user: { id: "peer-1", username: "peeruser" } },
-      ] as any;
+      ] as unknown as ConversationParticipant[];
 
       mockConversationParticipantRepository.queryPeerByChatId.mockResolvedValue(
         mockParticipants
@@ -733,9 +733,9 @@ describe("ChatService", () => {
 
   describe("deleteAllConversations", () => {
     it("should delete all conversations, messages, and statuses", async () => {
-      const mockOps = [jest.fn()] as any;
+      const mockOps = [jest.fn()] as unknown as any;
 
-      mockDatabase.write.mockImplementation(async (fn: Function) => await fn());
+      mockDatabase.write.mockImplementation(async (fn: (writer: any) => Promise<any>) => await fn({} as any));
       mockConversationRepository.getConversationDestroyOps.mockResolvedValue(
         mockOps
       );

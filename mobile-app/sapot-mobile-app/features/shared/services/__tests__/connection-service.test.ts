@@ -6,6 +6,7 @@ import {
   TcpServerAdapter,
   WebrtcAdapter,
 } from "../../adapters";
+import { Peer as PeerModel } from "../../database";
 import { NetworkConfig, UserStore } from "../../stores";
 import { ConnectionService } from "../connection-service";
 
@@ -22,18 +23,22 @@ const createMockMediaStream = (id: string = "mock-stream"): MediaStream => {
     active: true,
     addTrack: jest.fn(),
     removeTrack: jest.fn(),
-    getTracks: jest.fn().mockReturnValue([]),
-    getAudioTracks: jest.fn().mockReturnValue([]),
-    getVideoTracks: jest.fn().mockReturnValue([]),
-    getTrackById: jest.fn(),
-    clone: jest.fn() as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getTracks: jest.fn().mockReturnValue([] as unknown as any[]),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getAudioTracks: jest.fn().mockReturnValue([] as unknown as any[]),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getVideoTracks: jest.fn().mockReturnValue([] as unknown as any[]),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getTrackById: jest.fn() as unknown as (trackId: string) => any,
+    clone: jest.fn() as unknown as () => MediaStream,
 
     _tracks: [],
     _id: id,
     _reactTag: id,
-    toURL: jest.fn().mockReturnValue(`mock-url-${id}`),
+    toURL: jest.fn().mockReturnValue(`mock-url-${id}` as unknown as string),
     release: jest.fn(),
-  };
+  } as unknown as MediaStream;
 };
 
 // Mock the adapters
@@ -72,19 +77,20 @@ describe("ConnectionService", () => {
       stop: jest.fn(),
       on: jest.fn(),
       removeAllListeners: jest.fn(),
-    } as any;
+    } as Partial<TcpServerAdapter> as jest.Mocked<TcpServerAdapter>;
 
     mockNetworkConfig = {
       port: 8080,
       ipAddress: "192.168.1.100",
-    } as any;
+    } as Partial<NetworkConfig> as jest.Mocked<NetworkConfig>;
 
     mockUserStore = {
       user: {
         id: "test-user-id",
         username: "testuser",
-      },
-    } as any;
+        isOnline: true,
+      } as unknown as PeerModel,
+    } as Partial<UserStore> as jest.Mocked<UserStore>;
 
     mockTcpClientAdapter = {
       connect: jest.fn(),
@@ -92,8 +98,9 @@ describe("ConnectionService", () => {
       sendMessage: jest.fn(),
       isConnected: true,
       removeAllListeners: jest.fn(),
-    } as any;
+    } as Partial<TcpClientAdapter> as jest.Mocked<TcpClientAdapter>;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockWebrtcAdapter = {
       createOffer: jest.fn(),
       handleOffer: jest.fn(),
@@ -111,7 +118,7 @@ describe("ConnectionService", () => {
       once: jest.fn(),
       removeAllListeners: jest.fn(),
     } as any;
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockChatService = {
       handleIncomingChatMessage: jest.fn(),
       handleAckMessage: jest.fn(),
@@ -205,7 +212,7 @@ describe("ConnectionService", () => {
       };
 
       const handleSpy = jest
-        .spyOn(connectionService as any, "handleWebrtcConnection")
+        .spyOn(connectionService as unknown as { handleWebrtcConnection: (msg: unknown) => Promise<void> }, "handleWebrtcConnection")
         .mockResolvedValue(undefined);
       await dataHandler?.(iceCandidateMessage);
       expect(handleSpy).toHaveBeenCalledWith(iceCandidateMessage);
@@ -716,7 +723,7 @@ describe("ConnectionService", () => {
       expect(mockWebrtcAdapter.createOffer).toHaveBeenCalled();
       expect(sendMessageSpy).toHaveBeenCalledWith(peerId, {
         type: "offer",
-        data: { sdp: "new-sdp", senderId: mockUserStore.user.id },
+        data: { sdp: { type: "offer", sdp: "new-sdp" }, senderId: mockUserStore.user.id },
       });
     });
 

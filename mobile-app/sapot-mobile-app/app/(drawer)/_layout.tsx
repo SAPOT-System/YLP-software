@@ -1,5 +1,5 @@
 import { Drawer } from "expo-router/drawer";
-import { ContainerProvider } from "@/features/shared/hooks";
+import { ContainerProvider } from "@/features/shared/context";
 
 export default function DrawerLayout() {
   return (

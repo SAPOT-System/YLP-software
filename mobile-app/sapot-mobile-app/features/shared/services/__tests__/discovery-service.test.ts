@@ -1,10 +1,11 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../../adapters";
+import { Message } from "../../database";
 import { NetworkConfig, SessionStore, UserStore } from "../../stores";
+import { Peer } from "../../types";
 import { DiscoveryService } from "../discovery-service";
 import { PeerService } from "../peer-service";
-import { Message } from "../../database";
 
 // Mock the adapters
 jest.mock("../../adapters", () => ({
@@ -47,25 +48,25 @@ describe("DiscoveryService", () => {
       stopScan: jest.fn(),
       publishService: jest.fn(),
       cleanUp: jest.fn(),
-    } as any;
+    } as Partial<ZeroconfAdapter> as jest.Mocked<ZeroconfAdapter>;
 
     mockSessionStore = {
       userId: "test-user-id",
       setUserId: jest.fn(),
-    } as any;
+    } as Partial<SessionStore> as jest.Mocked<SessionStore>;
 
     mockNetworkConfig = {
       port: 8080,
       ipAddress: "192.168.1.100",
-    } as any;
+    } as Partial<NetworkConfig> as jest.Mocked<NetworkConfig>;
 
     mockUserStore = {
       user: {
         id: "test-user-id",
         username: "testuser",
-      },
+      } as unknown as Peer,
       setUser: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<UserStore>;
 
     mockPeerService = {
       register: jest.fn(),
@@ -76,14 +77,14 @@ describe("DiscoveryService", () => {
       findDiscoveredPeerById: jest.fn(),
       createUser: jest.fn(),
       cleanUp: jest.fn(),
-    } as any;
+    } as Partial<PeerService> as jest.Mocked<PeerService>;
 
     mockChatService = {
       getAllNotSentMessageForPeer: jest.fn(),
       tryResendMessage: jest.fn(),
       handleIncomingChatMessage: jest.fn(),
       handleAckMessage: jest.fn(),
-    } as any;
+    } as Partial<ChatService> as jest.Mocked<ChatService>;
 
     // Mock constructors
     jest.mocked(ZeroconfAdapter).mockImplementation(() => mockZeroconfAdapter);
@@ -390,7 +391,7 @@ describe("DiscoveryService", () => {
     it("should clear interval if it exists", () => {
       const clearIntervalSpy = jest.spyOn(global, "clearInterval");
       // Set intervalId to simulate an active interval
-      (discoveryService as any).intervalId = 123;
+      (discoveryService as unknown as { intervalId: number }).intervalId = 123;
 
       discoveryService.destroy();
 

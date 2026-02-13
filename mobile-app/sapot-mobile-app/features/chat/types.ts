@@ -1,7 +1,7 @@
 import { MessageType } from "../shared";
 
 export interface DataChatMessageI {
-  message: any; //TODO: implement enum
+  message: string; //TODO: implement enum
   conversationId: string;
   messageId: string;
   senderId: string;

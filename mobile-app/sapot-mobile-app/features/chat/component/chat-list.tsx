@@ -5,11 +5,8 @@ import { withObservables } from "@nozbe/watermelondb/react";
 import { Conversation, database } from "@/features/shared";
 
 import { ChatRoomSource } from "@/features/chat/types";
-import {
-  useChatService,
-  usePeerService,
-  useDiscoveryService,
-} from "@/features/shared/hooks";
+import { useChatService } from "../hooks";
+import { usePeerService, useDiscoveryService } from "@/features/shared/hooks";
 
 const enhanceChats = withObservables([], () => ({
   chats: database.get<Conversation>("conversations").query().observe(),

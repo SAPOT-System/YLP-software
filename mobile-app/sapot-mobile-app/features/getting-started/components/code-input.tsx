@@ -1,12 +1,12 @@
-import { View } from "react-native";
 import React from "react";
+import { NativeSyntheticEvent, TextInputKeyPressEventData, View } from "react-native";
 import { TextInput } from "react-native-paper";
 
 interface CodeInputProps {
   code: string[];
   refs: React.RefObject<(React.ComponentRef<typeof TextInput> | null)[]>;
   onChangeText: (text: string, index: number) => void;
-  onKeyPress: (e: any, index: number) => void;
+  onKeyPress: (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => void;
 }
 
 export const CodeInput = ({

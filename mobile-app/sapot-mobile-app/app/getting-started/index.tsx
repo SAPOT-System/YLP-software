@@ -6,7 +6,7 @@ import {
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { View } from "react-native";
-import { Button, Text, useTheme } from "react-native-paper";
+import { Button } from "react-native-paper";
 
 const ModeSelectScreen = () => {
   const router = useRouter();
