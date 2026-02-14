@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from fastapi import APIRouter, File, UploadFile
+from urllib.parse import urlencode
+from fastapi import APIRouter, File, UploadFile, BackgroundTasks
 import hmac
 import time
 from fastapi.responses import StreamingResponse
@@ -11,6 +12,7 @@ import uuid
 import io
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.utils import generate_unique_id
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 from datetime import datetime, timedelta, timezone
@@ -28,7 +30,7 @@ from app.models.token import Token
 from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
 from app.models.users import User, UserCreate, UserPublic
 from app.db_operations.token import get_current_user
-from app.db_operations.forgot_password import generate_and_save_new_recovery_key, sign
+from app.db_operations.forgot_password import generate_and_save_new_recovery_key, sign, send_email, EMAIL_API_KEY
 from app.models.recovery import RecoveryKeyCreate
 from app.db_operations.forgot_password import verify_recovery_key
 from app.db_operations.auth import get_user
@@ -111,7 +113,7 @@ def can_reset_password(username: str, expires: int, signature: str):
 
 
     return {
-        'detail': 'Valid signature. Use POST request.'
+        'detail': 'Valid signature. Use POST request.',
     }
 
 
@@ -138,3 +140,41 @@ def reset_password(username: str, new_password_data: UserPasswordUpdateNoOldPass
     return {
         "message": "password updated successfully."
     }
+
+
+@router.post("/email")
+def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep):
+
+    current_user = get_user(email, session)
+
+    if current_user:
+        expires = int(time.time()) + LINK_TTL_SECONDS
+        payload = f"{current_user.username}:{expires}"
+
+
+        signature = sign(payload)
+
+        params = {
+            "username": current_user.username,
+            "expires": expires,
+            "signature": signature,
+        }
+
+        reset_link = f"http://localhost:8000/auth/forgot-password/reset-password?{urlencode(params)}"
+
+        # reset_link = generate_unique_id
+
+        html = f"""
+        <h3>Password Reset</h3>
+        <p>Click below to reset your password:</p>
+        <a href="{reset_link}">Reset Password</a>
+        <p>This link expires in 30 minutes.</p>
+        """
+
+        background_tasks.add_task(
+            send_email,
+            email,
+            "Reset Your Password",
+            html
+        )
+    return {"message": "If the account exists, a reset link was sent."}

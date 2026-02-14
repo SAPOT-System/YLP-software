@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import secrets
+import requests
 import hmac
 import hashlib
 import time
@@ -16,6 +17,11 @@ from app.db_operations.auth import get_password_hash
 from app.models.recovery import RecoveryKeyCreate, RecoveryKey
 from app.models.users import User
 from app.db_operations.token import SECRET_KEY
+
+# change this to an env variable (temporary key lang muna)
+EMAIL_API_KEY="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"
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
 
 def generate_recovery_key(length: int = 64) -> str:
     # Generate a secure random byte string
@@ -85,3 +91,28 @@ def verify_recovery_key(
 def sign(data: str) -> str:
     signature = hmac.new(SECRET_KEY.encode(), data.encode(), hashlib.sha256).digest()
     return base64.urlsafe_b64encode(signature).decode()
+
+
+def send_email(to_email: str, subject: str, html_content: str):
+    headers = {
+        "accept": "application/json",
+        "api-key": EMAIL_API_KEY,
+        "content-type": "application/json"
+    }
+
+    data = {
+        "sender": {
+            "name": "Emmanuel Parreno",
+            "email": "parrenoemmanuel755@gmail.com"
+        },
+        "to": [
+            {"email": to_email}
+        ],
+        "subject": subject,
+        "htmlContent": html_content
+    }
+
+    response = requests.post(BREVO_URL, json=data, headers=headers)
+
+    if response.status_code >= 400:
+        raise Exception(f"Brevo error: {response.text}")
