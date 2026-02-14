@@ -1,0 +1,71 @@
+#+title: Documentation
+
+* TODO what i need for ~/auth~:
+** Sign up:
+  sign up with the following
+  1. username -> should be *firstname* then *lastname*
+  2. phone number
+  3. email
+  4. password hash
+  5. security questions
+** login with:
+  - username/email/number
+  - password
+** password recovery  through:
+  - SMS
+  - email
+  - security questions
+  - downloadable recovery key
+
+* TODO ~/sync POST~
+** choose timestamps on how to execute syncing
+
+* TODO server features ~/features~
+** SMS messaging
+** websockets peer to peer initiate
+** GPS mapping
+** Group messaging
+** Group calls
+
+* Endpoints
+** INFO Endpoint ~/ GET 1.1~
+- returns a string if the API is running
+- ~{"state": "running"}~
+
+** INFO endpont ~/auth GET~
+- returns a string if the ~/auth~ endpoint is running
+- ~{ 'status': 'auth endpoint is running properly' }~
+** Get Token Endpoint~/auth/token POST~
+- this endpoint requires two form-data arguments:
+  1. username
+  2. password
+- the ~username~ is actually an *email address*. It is named ~username~ as per compliance
+  with the oauth2 standard
+- the password is any string
+** Create account endpoint ~/auth/ POST~
+- this is an example form-data (body) that should be sent to the API
+*** Sample Request
+#+BEGIN_SRC json
+{
+    "first_name": "Test",
+    "last_name": "Test",
+    "phone_number": "+23960206981",
+    "email": "user@example.com",
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "password": "Test1234"
+}
+#+END_SRC
+- the ~id~ field is optional
+- the password field should have upper and lower case letter. At least one
+  number is also required
+
+*** Sample Response
+#+BEGIN_SRC json
+{
+    "first_name": "Test",
+    "last_name": "Test",
+    "phone_number": "+23960206981",
+    "email": "user@example.com",
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+}
+#+END_SRC
