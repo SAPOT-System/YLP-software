@@ -78,10 +78,14 @@ def verify_recovery_key(
     existing_key = session.exec(select(RecoveryKey).where(RecoveryKey.user_id == user.id)).first()
 
     if not existing_key:
-        raise Exception("Key not found")
+        return False
 
     if not existing_key.key_hash == hashed_key:
         return False
+
+    # invalidate the key
+    session.delete(existing_key)
+    session.commit()
 
     return True
 

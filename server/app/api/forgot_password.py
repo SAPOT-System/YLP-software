@@ -97,7 +97,7 @@ async def recover_with_recovery_key(
 
     signature = sign(payload)
     return {
-        'recovery-link': f'/auth/forgot-password/reset-password?expires={expires}&signature={signature}',
+        'recovery-link': f'/auth/forgot-password/reset-password?expires={expires}&signature={signature}&username={current_user.username}',
         'method': 'POST',
         'expire_in_seconds': LINK_TTL_SECONDS
     }
