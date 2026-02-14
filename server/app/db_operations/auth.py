@@ -120,6 +120,14 @@ def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDe
 
 
 def update_user_password(user: User, new_password : str, session : SessionDep):
+    v = new_password
+    if not any(char.isdigit() for char in v):
+        raise ValueError("Password must contain at least one number")
+    if not any(char.islower() for char in v):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not any(char.isupper() for char in v):
+        raise ValueError("Password must contain at least one uppercase letter")
+    return v
     hashed_password = get_password_hash(new_password)
     setattr(user, "hashed_password", hashed_password)
     session.add(user)

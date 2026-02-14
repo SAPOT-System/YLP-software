@@ -245,7 +245,6 @@ def verify_security_answer(
         payload.answer.strip(),
         db_question.answer_hash
     )
-    print("CORRECT",is_correct)
 
     if not is_correct:
         return {"correct": False}
