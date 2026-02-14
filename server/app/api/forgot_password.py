@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
-
+import random
+from typing import Optional, List
+from app.models.securityQuestions import UserSecurityQuestion
 from urllib.parse import urlencode
 from fastapi import APIRouter, File, UploadFile, BackgroundTasks
 import hmac
@@ -33,8 +34,9 @@ from app.db_operations.token import get_current_user
 from app.db_operations.forgot_password import generate_and_save_new_recovery_key, sign, send_email, EMAIL_API_KEY
 from app.models.recovery import RecoveryKeyCreate
 from app.db_operations.forgot_password import verify_recovery_key
-from app.db_operations.auth import get_user
+from app.db_operations.auth import get_user, verify_password
 from app.models.users import UserPasswordUpdateNoOldPassword
+from app.models.securityQuestions import AddSecurityQuestion, SecurityQuestionOut, SecurityAnswerOut, SecurityAnswerIn
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
 
@@ -178,3 +180,89 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
             html
         )
     return {"message": "If the account exists, a reset link was sent."}
+
+
+@router.post("/security-questions")
+def add_security_questions(
+        current_user : Annotated[User, Depends(get_current_user)],
+        questions: AddSecurityQuestion,  # [{"question": "...", "answer": "..."}]
+        session: SessionDep
+):
+
+    for q in questions.questions:
+        question_record = UserSecurityQuestion(
+            user_id=current_user.id,
+            question=q.question.strip(),
+            answer_hash=get_password_hash(q.answer)
+        )
+        session.add(question_record)
+    session.commit()
+    return {"message": "Security questions saved successfully."}
+
+
+@router.get("/security-question", response_model=SecurityQuestionOut)
+def get_security_question(
+        identifier: str,
+        session: SessionDep
+):
+    current_user = get_user(identifier, session)
+    questions = session.exec(
+        select(UserSecurityQuestion).where(UserSecurityQuestion.user_id == current_user.id)
+    ).all()
+
+    if not questions:
+        raise HTTPException(status_code=404, detail="No security questions found for this user")
+
+    # pick one random question
+    question = random.choice(questions)
+    return SecurityQuestionOut(question=question.question)
+
+
+@router.post("/security-question/answer")
+def verify_security_answer(
+        identifier: str,
+        payload: SecurityAnswerIn,
+        session: SessionDep
+):
+
+    current_user = get_user(identifier, session)
+
+    if not current_user:
+        raise HTTPException(404, 'User not found')
+
+    user_id = current_user.id
+
+    db_question = session.exec(
+        select(UserSecurityQuestion)
+        .where(UserSecurityQuestion.user_id == user_id)
+        .where(UserSecurityQuestion.question == payload.question)
+    ).first()
+
+    if not db_question:
+        raise HTTPException(status_code=404, detail="Security question not found")
+
+    is_correct = verify_password(
+        payload.answer.strip(),
+        db_question.answer_hash
+    )
+    print("CORRECT",is_correct)
+
+    if not is_correct:
+        return {"correct": False}
+
+    expires = int(time.time()) + LINK_TTL_SECONDS
+    payload_str = f"{current_user.username}:{expires}"
+    signature = sign(payload_str)
+
+    params = {
+        "username": current_user.username,
+        "expires": expires,
+        "signature": signature
+    }
+
+    reset_link = f"http://localhost:8000/auth/forgot-password/reset-password?{urlencode(params)}"
+
+    return {
+        "correct": True,
+        "reset_link": reset_link
+    }

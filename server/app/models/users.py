@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 from enum import unique
-from typing import Annotated
+from typing import Annotated, List
 import uuid
 from pydantic import EmailStr, StringConstraints, field_validator
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
+from .securityQuestions import UserSecurityQuestion
 
 PhoneStr = Annotated[
     str,
@@ -34,6 +35,8 @@ class User(UserBase, table=True):
         primary_key=True
     )
     hashed_password: str
+
+    security_questions: List["UserSecurityQuestion"] = Relationship(back_populates="user")
 
 
 class UserPublic(UserBase):
