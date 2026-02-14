@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import secrets
+from fastapi import HTTPException
 import requests
 import hmac
 import hashlib
@@ -17,6 +19,7 @@ from app.db_operations.auth import get_password_hash
 from app.models.recovery import RecoveryKeyCreate, RecoveryKey
 from app.models.users import User
 from app.db_operations.token import SECRET_KEY
+from app.models.token import PasswordResetToken
 
 # change this to an env variable (temporary key lang muna)
 EMAIL_API_KEY="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"
@@ -120,3 +123,61 @@ def send_email(to_email: str, subject: str, html_content: str):
 
     if response.status_code >= 400:
         raise Exception(f"Brevo error: {response.text}")
+
+def get_reset_token_hash(token: str):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+def get_reset_token_from_db(token_hash: str, session: SessionDep):
+    return session.exec(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)).first()
+
+def generate_reset_token():
+    raw_token = secrets.token_urlsafe(32)  # this goes in URL
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    return {"raw_token": raw_token, "token_hash": token_hash }
+
+def store_reset_token_in_db(
+    *,
+    user_id: UUID,
+    token_hash: str,
+    expires_at: datetime,
+    session: SessionDep
+):
+    """
+    Stores a new password reset token for a user.
+    Deletes any existing reset tokens for that user first.
+    """
+
+    # Remove existing tokens for this user (one active token policy)
+    existing_tokens = session.exec(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user_id)
+    ).all()
+
+    for token in existing_tokens:
+        session.delete(token)
+
+    # Create new reset token record
+    reset_token = PasswordResetToken(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+
+    session.add(reset_token)
+    session.commit()
+
+    return reset_token
+
+
+def validate_reset_token(token: str, session: SessionDep) -> PasswordResetToken:
+    token_hash = get_reset_token_hash(token)
+
+    reset_record = get_reset_token_from_db(token_hash, session)
+
+    if not reset_record:
+        raise HTTPException(status_code=403, detail="Invalid token")
+
+    if datetime.utcnow() > reset_record.expires_at:
+        raise HTTPException(status_code=403, detail="Token expired")
+
+    return reset_record

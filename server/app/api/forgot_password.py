@@ -1,8 +1,9 @@
 import random
+import hashlib
 from typing import Optional, List
 from app.models.securityQuestions import UserSecurityQuestion
 from urllib.parse import urlencode
-from fastapi import APIRouter, File, UploadFile, BackgroundTasks
+from fastapi import APIRouter, File, Request, UploadFile, BackgroundTasks
 import hmac
 import time
 from fastapi.responses import StreamingResponse
@@ -37,8 +38,19 @@ from app.db_operations.forgot_password import verify_recovery_key
 from app.db_operations.auth import get_user, verify_password
 from app.models.users import UserPasswordUpdateNoOldPassword
 from app.models.securityQuestions import AddSecurityQuestion, SecurityQuestionOut, SecurityAnswerOut, SecurityAnswerIn
+from app.models.token import PasswordResetToken
+from app.db_operations.forgot_password import store_reset_token_in_db
+from app.db_operations.forgot_password import get_reset_token_hash
+from app.db_operations.forgot_password import get_reset_token_from_db
+from app.db_operations.forgot_password import validate_reset_token
+from app.db_operations.auth import get_domain
+from app.db_operations.forgot_password import generate_reset_token
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
+
+def reset_link_template(token:str, request: Request):
+    RESET_LINK = f"{get_domain(request)}:8000/auth/forgot-password/reset-password?token={token}"
+    return RESET_LINK
 
 router = APIRouter(
     prefix='/auth/forgot-password',
@@ -69,6 +81,7 @@ def get_recovery_key(
 @router.post('/recovery-with-recovery-key')
 async def recover_with_recovery_key(
         user_identifier: str,
+        request: Request,
         session : SessionDep,
         key_file: UploadFile = File(...)
 ):
@@ -92,52 +105,47 @@ async def recover_with_recovery_key(
         raise HTTPException(status_code=400, detail="Invalid key.")
 
     # give a signed link for password reset
-    expires = int(time.time()) + LINK_TTL_SECONDS
-    payload = f"{current_user.username}:{expires}"
+    expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
-    signature = sign(payload)
+    raw_token = secrets.token_urlsafe(32)  # this goes in URL
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    store_reset_token_in_db(
+        user_id=current_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        session=session
+    )
+
     return {
-        'recovery-link': f'/auth/forgot-password/reset-password?expires={expires}&signature={signature}&username={current_user.username}',
+        'recovery-link': reset_link_template(raw_token, request),
         'method': 'POST',
         'expire_in_seconds': LINK_TTL_SECONDS
     }
 
 @router.get("/reset-password")
-def can_reset_password(username: str, expires: int, signature: str):
-    if time.time() > expires:
-        raise HTTPException(status_code=403, detail="Link expired")
-
-    payload = f"{username}:{expires}"
-    expected_signature = sign(payload)
-
-    if not hmac.compare_digest(expected_signature, signature):
-        raise HTTPException(status_code=403, detail="Invalid signature")
-
-
-    return {
-        'detail': 'Valid signature. Use POST request.',
-    }
+def can_reset_password(token: str, session: SessionDep):
+    validate_reset_token(token, session)
+    return {"detail": "Valid token. Use POST request."}
 
 
 @router.post("/reset-password")
-def reset_password(username: str, new_password_data: UserPasswordUpdateNoOldPassword, expires: int, signature: str, session: SessionDep):
-    if time.time() > expires:
-        raise HTTPException(status_code=403, detail="Link expired")
+def reset_password(
+        token: str,
+        new_password_data: UserPasswordUpdateNoOldPassword,
+        session: SessionDep
+):
+    reset_record = validate_reset_token(token, session)
 
-    payload = f"{username}:{expires}"
-    expected_signature = sign(payload)
-
-    if not hmac.compare_digest(expected_signature, signature):
-        raise HTTPException(status_code=403, detail="Invalid signature")
-
-    user = get_user(username, session)
+    user = session.exec(select(User).where(reset_record.user_id == User.id)).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="Invalid user data")
 
-
-
     update_user_password(user, new_password_data.new_password, session)
+
+    session.delete(reset_record)
+    session.commit()
 
     return {
         "message": "password updated successfully."
@@ -145,26 +153,22 @@ def reset_password(username: str, new_password_data: UserPasswordUpdateNoOldPass
 
 
 @router.post("/email")
-def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep):
+def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep, request: Request):
 
     current_user = get_user(email, session)
 
     if current_user:
-        expires = int(time.time()) + LINK_TTL_SECONDS
-        payload = f"{current_user.username}:{expires}"
+        raw_token, token_hash = generate_reset_token()
+        expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
+        store_reset_token_in_db(
+            user_id=current_user.id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            session=session
+        )
 
-        signature = sign(payload)
-
-        params = {
-            "username": current_user.username,
-            "expires": expires,
-            "signature": signature,
-        }
-
-        reset_link = f"http://localhost:8000/auth/forgot-password/reset-password?{urlencode(params)}"
-
-        # reset_link = generate_unique_id
+        reset_link = reset_link_template(raw_token, request)
 
         html = f"""
         <h3>Password Reset</h3>
@@ -215,6 +219,17 @@ def get_security_question(
 
     # pick one random question
     question = random.choice(questions)
+
+    raw_token, token_hash = generate_reset_token().values()
+    expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
+
+    store_reset_token_in_db(
+        user_id=current_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        session=session
+    )
+
     return SecurityQuestionOut(question=question.question)
 
 
@@ -222,15 +237,16 @@ def get_security_question(
 def verify_security_answer(
         identifier: str,
         payload: SecurityAnswerIn,
-        session: SessionDep
+        session: SessionDep,
+        request: Request
 ):
 
-    current_user = get_user(identifier, session)
+    user = get_user(identifier, session)
 
-    if not current_user:
-        raise HTTPException(404, 'User not found')
+    if not user:
+        raise HTTPException(404, 'Invalid token')
 
-    user_id = current_user.id
+    user_id = user.id
 
     db_question = session.exec(
         select(UserSecurityQuestion)
@@ -249,19 +265,19 @@ def verify_security_answer(
     if not is_correct:
         return {"correct": False}
 
-    expires = int(time.time()) + LINK_TTL_SECONDS
-    payload_str = f"{current_user.username}:{expires}"
-    signature = sign(payload_str)
+    raw_token, token_hash = generate_reset_token().values()
+    expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
-    params = {
-        "username": current_user.username,
-        "expires": expires,
-        "signature": signature
-    }
+    store_reset_token_in_db(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        session=session
+    )
 
-    reset_link = f"http://localhost:8000/auth/forgot-password/reset-password?{urlencode(params)}"
+    reset_link = reset_link_template(raw_token, request)
 
     return {
         "correct": True,
-        "reset_link": reset_link
+        "reset_link": reset_link,
     }
