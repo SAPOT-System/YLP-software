@@ -110,8 +110,16 @@ def get_user_by_phone_number(session: SessionDep, phone_number: str):
     return user
 
 
-def get_user(identifier: str, session: SessionDep):
-    methods = [get_user_by_email, get_user_by_username, get_user_by_phone_number]
+def get_user_by_ID(session: SessionDep, ID: UUID):
+    user = session.exec(select(User).where(User.id == ID)).first()
+    if not user:
+        # change to an appropriate error, not HTTPException
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+def get_user(identifier: str|UUID, session: SessionDep):
+    methods = [get_user_by_email, get_user_by_username, get_user_by_phone_number, get_user_by_ID]
 
     user = None
 
