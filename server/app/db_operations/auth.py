@@ -37,6 +37,39 @@ def verify_password(plain_password : str, hashed__password : str):
 
 
 def db_create_user(user: UserCreate, session: SessionDep):
+    errors: Dict[str, str] = {}
+
+    # Check username
+    existing_username = session.exec(
+        select(User).where(User.username == user.username)
+    ).first()
+
+    if existing_username:
+        errors["username"] = "Username already taken"
+
+    # Check email
+    existing_email = session.exec(
+        select(User).where(User.email == user.email)
+    ).first()
+
+    if existing_email:
+        errors["email"] = "Email already registered"
+
+    # Check phone number
+    existing_phone = session.exec(
+        select(User).where(User.phone_number == user.phone_number)
+    ).first()
+
+    if existing_phone:
+        errors["phone_number"] = "Phone number already registered"
+
+    # If any errors exist → return them
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail=errors
+        )
+
     hashed_password = get_password_hash(user.password)
     db_user = User.model_validate(
         user,
