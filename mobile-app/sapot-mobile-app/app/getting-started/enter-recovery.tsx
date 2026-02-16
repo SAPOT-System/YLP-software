@@ -1,8 +1,5 @@
-import {
-  CodeInput,
-  ScreenContent,
-  ScreenHeader,
-} from "@/features/getting-started";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { CodeInput } from "@/features/auth";
 import React, { useRef, useState } from "react";
 import {
   NativeSyntheticEvent,
@@ -30,7 +27,10 @@ const EnterRecoveryScreen = () => {
     }
   };
 
-  const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
+  const handleKeyPress = (
+    e: NativeSyntheticEvent<TextInputKeyPressEventData>,
+    index: number
+  ) => {
     if (e.nativeEvent.key === "Backspace" && !code[index] && index > 0) {
       refs.current[index - 1]?.focus();
     }

@@ -1,10 +1,10 @@
 import { View } from "react-native";
 import React from "react";
 import {
-  ResetOption,
   ScreenContent,
   ScreenHeader,
 } from "@/features/getting-started";
+import { ResetOption } from "@/features/auth";
 
 const ForgotPasswordScreen = () => {
   return (
