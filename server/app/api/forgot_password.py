@@ -45,8 +45,10 @@ from app.db_operations.forgot_password import get_reset_token_from_db
 from app.db_operations.forgot_password import validate_reset_token
 from app.db_operations.auth import get_domain
 from app.db_operations.forgot_password import generate_reset_token
+from app.db_operations.verify_user import require_verified_user
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
+
 
 def reset_link_template(token:str, request: Request):
     RESET_LINK = f"{get_domain(request)}:8000/auth/forgot-password/reset-password?token={token}"
@@ -57,7 +59,8 @@ router = APIRouter(
     tags=['auth', 'forgot password'],
     responses={
         404: {'description': 'Not Found'}
-    }
+    },
+    dependencies=[Depends(require_verified_user)]
 )
 
 @router.post('/generate-new-recovery-key')

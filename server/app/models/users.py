@@ -19,14 +19,6 @@ class UserBase(SQLModel):
     phone_number: PhoneStr | None = Field(unique=True, default=None)
     email: EmailStr = Field(unique=True)
 
-    # @property
-    # def username(self) -> str | None:
-    #     return self.name
-
-    # @username.setter
-    # def username(self, value: str|None):
-    #     self.name = value
-
 
 class User(UserBase, table=True):
     id: uuid.UUID | None = Field(
@@ -35,12 +27,19 @@ class User(UserBase, table=True):
         primary_key=True
     )
     hashed_password: str
+    email_verified : bool =  Field(default=False)
 
     security_questions: List["UserSecurityQuestion"] = Relationship(back_populates="user")
 
 
+    email_verifications: List["EmailVerification"] = Relationship(
+        back_populates="user"
+    )
+
+
 class UserPublic(UserBase):
     id: uuid.UUID
+    detail: str
 
 
 class UserCreate(UserBase):

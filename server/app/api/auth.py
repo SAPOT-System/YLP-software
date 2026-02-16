@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks, Request
 from typing import Annotated
 import uuid
 
@@ -21,6 +21,7 @@ from app.db_operations.auth import SessionDep, authenticate_user, db_create_user
 from app.models.token import Token
 from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
 from app.models.users import User, UserCreate, UserPublic
+from app.models.email_verification import send_verification_email
 
 
 router = APIRouter(
@@ -58,5 +59,10 @@ async def login_for_access_token(
 
 
 @router.post("/", response_model=UserPublic, status_code=201)
-def create_account(user: UserCreate, session: SessionDep):
-    return db_create_user(user, session)
+def create_account(user: UserCreate, session: SessionDep, background_tasks: BackgroundTasks, request: Request):
+    sign_up_res = db_create_user(user, session)
+    output = sign_up_res.model_dump()
+    output['detail'] = 'Account create. Check email to verify'
+    send_verification_email(sign_up_res.id, session, background_tasks, request)
+
+    return output
