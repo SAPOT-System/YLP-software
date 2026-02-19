@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import secrets
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 import requests
 import hmac
 import hashlib
@@ -20,6 +20,7 @@ from app.models.recovery import RecoveryKeyCreate, RecoveryKey
 from app.models.users import User
 from app.db_operations.token import SECRET_KEY
 from app.models.token import PasswordResetToken
+from app.db_operations.token import get_current_user
 
 # change this to an env variable (temporary key lang muna)
 EMAIL_API_KEY="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"
@@ -176,7 +177,6 @@ def validate_reset_token(token: str, session: SessionDep) -> PasswordResetToken:
 
     if not reset_record:
         raise HTTPException(status_code=403, detail="Invalid token")
-
     if datetime.utcnow() > reset_record.expires_at:
         raise HTTPException(status_code=403, detail="Token expired")
 
