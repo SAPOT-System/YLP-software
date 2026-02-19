@@ -1,4 +1,5 @@
 import random
+import requests
 import hashlib
 from typing import Optional, List
 from app.models.securityQuestions import UserSecurityQuestion
@@ -45,8 +46,10 @@ from app.db_operations.forgot_password import get_reset_token_from_db
 from app.db_operations.forgot_password import validate_reset_token
 from app.db_operations.auth import get_domain
 from app.db_operations.forgot_password import generate_reset_token
+from app.db_operations.verify_user import require_verified_user
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
+
 
 def reset_link_template(token:str, request: Request):
     RESET_LINK = f"{get_domain(request)}:8000/auth/forgot-password/reset-password?token={token}"
@@ -57,12 +60,13 @@ router = APIRouter(
     tags=['auth', 'forgot password'],
     responses={
         404: {'description': 'Not Found'}
-    }
+    },
+    # dependencies=[Depends(require_verified_user)]
 )
 
 @router.post('/generate-new-recovery-key')
 def get_recovery_key(
-        current_user : Annotated[User, Depends(get_current_user)],
+        current_user : Annotated[User, Depends(require_verified_user)],
         session : SessionDep,
 ):
     key_data = RecoveryKeyCreate(user=current_user)
@@ -158,7 +162,7 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
     current_user = get_user(email, session)
 
     if current_user:
-        raw_token, token_hash = generate_reset_token()
+        raw_token, token_hash = generate_reset_token().values()
         expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
         store_reset_token_in_db(
@@ -188,7 +192,7 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
 
 @router.post("/security-questions")
 def add_security_questions(
-        current_user : Annotated[User, Depends(get_current_user)],
+        current_user : Annotated[User, Depends(require_verified_user)],
         questions: AddSecurityQuestion,  # [{"question": "...", "answer": "..."}]
         session: SessionDep
 ):
@@ -281,3 +285,11 @@ def verify_security_answer(
         "correct": True,
         "reset_link": reset_link,
     }
+
+@router.get("/generate-security-question")
+def generate_security_question(
+        current_user : Annotated[User, Depends(require_verified_user)]
+):
+    response = requests.get("https://api.truthordarebot.xyz/v1/truth")
+    data = response.json()
+    return {"question": data["question"]}

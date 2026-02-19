@@ -1,4 +1,6 @@
 #+title: Documentation
+run the API with the command ~uvicorn app.main:app --reload --host=0.0.0.0~
+* SEE ~/docs~ for more comprehensive documentation
 
 * TODO what i need for ~/auth~:
 ** Sign up:
@@ -9,13 +11,13 @@
   4. password hash
   5. security questions
 ** login with:
-  - username/email/number
-  - password
+  - [X] username/email/number
+  - [X] password
 ** password recovery  through:
-  - SMS
-  - email
-  - security questions
-  - downloadable recovery key
+  - [X] security questions
+  - [X] downloadable recovery key
+  - [ ] SMS
+  - [X] email
 
 * TODO ~/sync POST~
 ** choose timestamps on how to execute syncing
@@ -26,6 +28,14 @@
 ** GPS mapping
 ** Group messaging
 ** Group calls
+
+* Note
+Authenticated means the user has to send an authorization header in this format
+#+BEGIN_SRC json
+{
+    "Authorization": "Bearer <access_token>"
+}
+#+END_SRC
 
 * Endpoints
 ** INFO Endpoint ~/ GET 1.1~
@@ -45,14 +55,16 @@
 ** Create account endpoint ~/auth/ POST~
 - this is an example form-data (body) that should be sent to the API
 *** Sample Request
+with form-data/request body
 #+BEGIN_SRC json
 {
-    "first_name": "Test",
-    "last_name": "Test",
+    "first_name": "Test", // min=2, max=50
+    "username": "TestUser", // min=2, max=50
+    "last_name": "Test", // min=2, max=50
     "phone_number": "+23960206981",
-    "email": "user@example.com",
-    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "password": "Test1234"
+    "email": "user@example.com",  // email string
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", // UUID, optional
+    "password": "Test1234" // min=8, max=128, with digits and upper and lower case letters
 }
 #+END_SRC
 - the ~id~ field is optional
@@ -62,10 +74,177 @@
 *** Sample Response
 #+BEGIN_SRC json
 {
-    "first_name": "Test",
-    "last_name": "Test",
-    "phone_number": "+23960206981",
-    "email": "user@example.com",
-    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+  "username": "johndoe",
+  "first_name": "John",
+  "last_name": "Doe",
+  "phone_number": "+14155552671",
+  "email": "21-09546@g.batstate-u.edu.ph",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "detail": "Account create. Check email to verify"
 }
 #+END_SRC
+
+** Login ~/auth/token POST~
+- this endpoint accepts two arguments: ~username~ and ~password~
+
+*** Sample Request
+with request body/form-data
+#+BEGIN_SRC json
+{
+    "username": "TestUser",
+    "password": "Test1234"
+}
+#+END_SRC
+- the ~username~ field can be email, username, or user id
+
+*** Sample Response
+#+BEGIN_SRC json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4E",
+  "token_type": "bearer"
+}
+#+END_SRC
+
+** Generate recovery key ~/auth/forgot-password/generate-new-recovery-key POST~
+  - this endpoint requires the user to be /authenticated/
+  - no arguments required
+  - response is the recovery file
+
+
+** recovery account with recovery key ~/auth/forgot-password/recovery-with-recovery-key~
+- requires two arguments
+- recovery key expires after one use
+*** Sample Request
+with url parameter
+#+BEGIN_SRC txt
+<link>?user_identifier=<username_email_or_id>
+#+END_SRC
+
+with request body
+#+BEGIN_SRC json
+{
+    key_file: File() // recovery file
+}
+#+END_SRC
+*** Sample response
+#+BEGIN_SRC json
+{
+    "recovery-link": "localhost:8000/auth/forgot-password/reset-password?token=EMs-6ZYdWMrpAkeMVK8hdLxfc65vJB6wjGXzEZ2xWrI",
+    "method": "POST",
+    "expire_in_seconds": 1800
+}
+#+END_SRC
+
+
+** reset password ~/auth/forgot-password/reset-password GET~
+- requires the ~token~ argument
+- will give a ~detail~ response regarding request status
+*** Sample Request
+with URL parameter
+#+BEGIN_SRC json
+<link>?token=<token>
+#+END_SRC
+*** Sample response
+  #+BEGIN_SRC json
+{
+    "detail": "Valid token. Use POST request."
+}
+  #+END_SRC
+
+
+** reset password ~/auth/forgot-password/reset-password POST~
+- requires the ~token~ argument
+- will give a ~detail~ response regarding request status
+*** Sample Request
+with url parameter
+#+BEGIN_SRC json
+<link>?token=<token>
+#+END_SRC
+with request body
+#+BEGIN_SRC json
+{
+  "new_password": "stringst" // new_password must have capital, lowecase, and a number. It's at least 8 characters long
+}
+#+END_SRC
+*** Sample response
+  #+BEGIN_SRC json
+{
+  "message": "password updated successfully."
+}
+  #+END_SRC
+
+** forgot password ~/auth/forgot-password/email POST~
+- sends email to user mail (the email includes a link to the /reset-password end
+  point)
+*** sample response
+#+BEGIN_SRC json
+{
+    "message": "If the account exists, a reset link was sent."
+}
+#+END_SRC
+
+** Add security questions ~/auth/forgot-password/security-questions POST~
+This endpoint requires user to be authenticated
+*** Sample Request
+with form data (can be multiple question and answers in one request)
+#+BEGIN_SRC json
+[{
+    "question": "What is your mother'\''s maiden name?",
+    "answer": "Smith"
+}]
+#+END_SRC
+*** Sample response
+#+BEGIN_SRC json
+{
+  "message": "Security questions saved successfully."
+}
+#+END_SRC
+
+** Get security questions ~/auth/forgot-password/security-question POST~
+*** Sample Request
+with url parameter
+#+BEGIN_SRC json
+<link>?identifier=johndoe
+#+END_SRC
+*** Sample response
+#+BEGIN_SRC json
+{
+  "question": "What is your mother's maiden name?"
+}
+#+END_SRC
+
+** Get security questions ~/auth/forgot-password/security-question/answer POST~
+*** Sample Request
+with url parameter
+#+BEGIN_SRC json
+<link>?identifier=johndoe
+#+END_SRC
+
+with request body/form-data
+#+BEGIN_SRC json
+{
+  "question": "What is your mother's maiden name?",
+  "answer": "Smith"
+}
+#+END_SRC
+
+*** Sample response
+#+BEGIN_SRC json
+{
+  "correct": true,
+  "reset_link": "localhost:8000/auth/forgot-password/reset-password?token=iIVaJOGsKMpZL1hxg6uo3dFUyNv-P-beDSW3MCvgZ9s"
+}
+#+END_SRC
+
+** Generate security question ~/auth/forgot-password/generate-security-question GET~
+requires user to be authenticated
+*** Sample Response
+#+BEGIN_SRC json
+{
+  "question": "What's something that you believe that most other people don't?"
+}
+#+END_SRC
+** Verify email ~/auth/verify/email GET~
+requires token url parameter sent to a user email. Responds with an html page
+** Verify email ~/auth/verify/resend-verification-email GET~
+requires user to be authenticated
