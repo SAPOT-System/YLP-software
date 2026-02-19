@@ -60,12 +60,12 @@ router = APIRouter(
     responses={
         404: {'description': 'Not Found'}
     },
-    dependencies=[Depends(require_verified_user)]
+    # dependencies=[Depends(require_verified_user)]
 )
 
 @router.post('/generate-new-recovery-key')
 def get_recovery_key(
-        current_user : Annotated[User, Depends(get_current_user)],
+        current_user : Annotated[User, Depends(require_verified_user)],
         session : SessionDep,
 ):
     key_data = RecoveryKeyCreate(user=current_user)
@@ -161,7 +161,7 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
     current_user = get_user(email, session)
 
     if current_user:
-        raw_token, token_hash = generate_reset_token()
+        raw_token, token_hash = generate_reset_token().values()
         expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
         store_reset_token_in_db(
@@ -191,7 +191,7 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
 
 @router.post("/security-questions")
 def add_security_questions(
-        current_user : Annotated[User, Depends(get_current_user)],
+        current_user : Annotated[User, Depends(require_verified_user)],
         questions: AddSecurityQuestion,  # [{"question": "...", "answer": "..."}]
         session: SessionDep
 ):
