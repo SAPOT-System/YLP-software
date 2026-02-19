@@ -62,7 +62,7 @@ async def login_for_access_token(
 def create_account(user: UserCreate, session: SessionDep, background_tasks: BackgroundTasks, request: Request):
     sign_up_res = db_create_user(user, session)
     output = sign_up_res.model_dump()
-    output['detail'] = 'Account create. Check email to verify'
+    output['detail'] = 'Account created. Check email to verify'
     send_verification_email(sign_up_res.id, session, background_tasks, request)
 
     return output
