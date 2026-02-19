@@ -1,4 +1,5 @@
 import random
+import requests
 import hashlib
 from typing import Optional, List
 from app.models.securityQuestions import UserSecurityQuestion
@@ -284,3 +285,11 @@ def verify_security_answer(
         "correct": True,
         "reset_link": reset_link,
     }
+
+@router.get("/generate-security-question")
+def generate_security_question(
+        current_user : Annotated[User, Depends(require_verified_user)]
+):
+    response = requests.get("https://api.truthordarebot.xyz/v1/truth")
+    data = response.json()
+    return {"question": data["question"]}
