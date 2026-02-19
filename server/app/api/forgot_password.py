@@ -52,7 +52,7 @@ LINK_TTL_SECONDS = 30 * 60  # 30 minutes
 
 
 def reset_link_template(token:str, request: Request):
-    RESET_LINK = f"{get_domain(request)}:8000/auth/forgot-password/reset-password?token={token}"
+    RESET_LINK = f"{get_domain(request)}/auth/forgot-password/reset-password?token={token}"
     return RESET_LINK
 
 router = APIRouter(
