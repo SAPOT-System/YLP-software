@@ -105,13 +105,13 @@ class UserCreate(UserBase):
 
 class UserUpdate(SQLModel):
     username: str | None = Field(
-        default=None, max_length=255, min_length=2
+        default=None, max_length=50, min_length=2
     )
     first_name: str | None = Field(
-        default=None, max_length=25, min_length=2
+        default=None, max_length=50, min_length=2
     )
     last_name: str | None = Field(
-        default=None, max_length=25, min_length=2
+        default=None, max_length=50, min_length=2
     )
     phone_number: PhoneStr | None = Field(default=None)
     email: EmailStr | None = Field(default=None)
