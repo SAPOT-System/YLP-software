@@ -3,7 +3,7 @@
 from enum import unique
 from typing import Annotated, List
 import uuid
-from pydantic import EmailStr, StringConstraints, field_validator
+from pydantic import EmailStr, StringConstraints, field_validator, Field as PyField
 from sqlmodel import SQLModel, Field, Relationship
 from .securityQuestions import UserSecurityQuestion
 
@@ -13,10 +13,10 @@ PhoneStr = Annotated[
 ]
 
 class UserBase(SQLModel):
-    username: str | None = Field(index=True, max_length=255, min_length=2, unique=True, default=None)
-    first_name: str = Field(index=True, max_length=25, min_length=2)
-    last_name: str = Field(index=True, max_length=25, min_length=2)
-    phone_number: PhoneStr | None = Field(unique=True, default=None)
+    username: str = Field(index=True, max_length=50, min_length=2, unique=True)
+    first_name: str = Field(index=True, max_length=50, min_length=2)
+    last_name: str = Field(index=True, max_length=50, min_length=2)
+    phone_number: PhoneStr = Field(unique=True)
     email: EmailStr = Field(unique=True)
 
 
@@ -43,13 +43,54 @@ class UserPublic(UserBase):
 
 
 class UserCreate(UserBase):
-    id: uuid.UUID | None = None
-    username: str | None = None
-    first_name: str
-    last_name: str
-    phone_number: PhoneStr | None = None
-    email: EmailStr
-    password: str = Field(min_length=8)
+    id: uuid.UUID | None = PyField(
+        default=None,
+        description="Optional unique identifier for the user. "
+                    "If not provided, it will be generated automatically.",
+        examples=["550e8400-e29b-41d4-a716-446655440000"]
+    )
+
+    username: str = PyField(
+        min_length=2,
+        max_length=50,
+        description="Unique username used for login and identification. "
+                    "Must be between 2 and 50 characters.",
+        examples=["johndoe"]
+    )
+
+    first_name: str = PyField(
+        min_length=2,
+        max_length=50,
+        description="User's first name. Must be between 2 and 50 characters.",
+        examples=["John"]
+    )
+
+    last_name: str = PyField(
+        min_length=2,
+        max_length=50,
+        description="User's last name. Must be between 2 and 50 characters.",
+        examples=["Doe"]
+    )
+
+    phone_number: PhoneStr = PyField(
+        description="User's phone number in international format (E.164 recommended).",
+        examples=["+14155552671"]
+    )
+
+    email: EmailStr = PyField(
+        description="Valid email address used for account communication and login.",
+        examples=["john.doe@example.com"]
+    )
+
+    password: str = PyField(
+        min_length=8,
+        max_length=128,
+        description=(
+            "Password must be 8–128 characters long and include at least "
+            "one uppercase letter, one lowercase letter, and one number."
+        ),
+        examples=["StrongPass123"]
+    )
 
     @field_validator("password")
     @classmethod
