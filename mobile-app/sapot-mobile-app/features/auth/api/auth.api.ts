@@ -1,7 +1,10 @@
+import { AxiosResponse } from "axios";
 import { apiClient } from "@/features/shared";
-import { RegisterRequest } from "../types";
+import { RegisterApiRequest, RegisterResponse } from "../types";
 
-export const register = async (credentials: RegisterRequest) => {
-  const res = await apiClient.post("/auth/", credentials);
+export const register = async (
+  credentials: RegisterApiRequest
+): Promise<AxiosResponse<RegisterResponse>> => {
+  const res = await apiClient.post<RegisterResponse>("/auth/", credentials);
   return res;
 };
