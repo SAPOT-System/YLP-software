@@ -1,65 +1,73 @@
-// Mock axios before importing
-const mockAxiosCreate = jest.fn();
+// Mock axios and dependencies
+const mockInterceptorUse = jest.fn((callback) => callback);
+const mockAxiosInstance = {
+  interceptors: {
+    request: {
+      use: mockInterceptorUse,
+    },
+  },
+};
+
 jest.mock("axios", () => ({
-  create: mockAxiosCreate,
+  create: jest.fn(() => mockAxiosInstance),
 }));
 
-// Mock getApiUrl
-const mockGetApiUrl = jest.fn();
+const mockGetApiUrl = jest.fn(() => "http://localhost:8000");
 jest.mock("@/config/runtime", () => ({
   getApiUrl: mockGetApiUrl,
+}));
+
+const mockTokenService = {
+  getAccessToken: jest.fn<string | null, []>(),
+};
+jest.mock("@/features/auth/service/token-service", () => ({
+  tokenService: mockTokenService,
 }));
 
 describe("apiClient", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  it("should create axios instance with correct baseURL", () => {
-    const mockUrl = "http://localhost:8000";
-    mockGetApiUrl.mockReturnValue(mockUrl);
-    
-    const mockAxiosInstance = { defaults: { baseURL: mockUrl } };
-    mockAxiosCreate.mockReturnValue(mockAxiosInstance);
-
-    // Import the module to trigger axios.create
     jest.resetModules();
-    require("../client");
-
-    expect(mockAxiosCreate).toHaveBeenCalledWith({
-      baseURL: mockUrl,
-    });
   });
 
-  it("should use development URL when getApiUrl returns development URL", () => {
-    const developmentUrl = "http://10.0.2.2:8000";
-    mockGetApiUrl.mockReturnValue(developmentUrl);
-    
-    const mockAxiosInstance = { defaults: { baseURL: developmentUrl } };
-    mockAxiosCreate.mockReturnValue(mockAxiosInstance);
-    
-    jest.resetModules();
-    require("../client");
-
-    expect(mockAxiosCreate).toHaveBeenCalledWith({
-      baseURL: developmentUrl,
-    });
-  });
-
-  it("should export apiClient with correct configuration", () => {
-    const testUrl = "https://api.test.com";
+  it("should create axios instance with correct baseURL from getApiUrl", () => {
+    const testUrl = "http://localhost:8000";
     mockGetApiUrl.mockReturnValue(testUrl);
-    
-    const mockAxiosInstance = { 
-      defaults: { baseURL: testUrl },
-      get: jest.fn(),
-      post: jest.fn() 
-    };
-    mockAxiosCreate.mockReturnValue(mockAxiosInstance);
-    
-    jest.resetModules();
-    const { apiClient } = require("../client");
 
-    expect(apiClient).toBe(mockAxiosInstance);
+    const axios = require("axios");
+    require("../client");
+
+    expect(axios.create).toHaveBeenCalledWith({
+      baseURL: testUrl,
+    });
+  });
+
+  it("should setup request interceptor", () => {
+    require("../client");
+
+    expect(mockInterceptorUse).toHaveBeenCalled();
+  });
+
+  it("should add Authorization header when token exists", async () => {
+    const testToken = "test-token-123";
+    mockTokenService.getAccessToken.mockReturnValue(testToken);
+
+    require("../client");
+    const interceptorCallback = mockInterceptorUse.mock.calls[0][0];
+    const config = { headers: {} };
+    const result = await interceptorCallback(config);
+
+    expect(result.headers.Authorization).toBe(`Bearer ${testToken}`);
+  });
+
+  it("should not add Authorization header when token is null", async () => {
+    mockTokenService.getAccessToken.mockReturnValue(null);
+
+    require("../client");
+    const interceptorCallback = mockInterceptorUse.mock.calls[0][0];
+    const config = { headers: {} };
+    const result = await interceptorCallback(config);
+
+    expect(result.headers.Authorization).toBeUndefined();
   });
 });
