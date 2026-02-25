@@ -57,20 +57,16 @@ const Register = () => {
     const result = await registerUser(form);
 
     if (result.success) {
-      // Success - store token, update auth state, reset navigation
       showToast("Account created successfully!");
-      // TODO: Store token from result.data
-      // TODO: Update auth state
-      // TODO: Reset navigation to main app
       setTimeout(() => {
-        router.replace("/");
+        // TODO: redirect to screen showing email verification
+        router.replace("/getting-started/server-login");
       }, 1500);
     } else if (!result.success) {
       showToast("Account created failed!");
     }
   };
 
-  // TODO: implement scroll view
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
