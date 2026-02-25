@@ -1,11 +1,11 @@
+import { AxiosError } from "axios";
 import { useState } from "react";
 import { register } from "../api/auth.api";
 import {
-  RegisterErrorResponse,
-  RegisterFormState,
-  RegisterFormStateErrors,
+    RegisterApiErrorResponse,
+    RegisterFormState,
+    RegisterFormStateErrors,
 } from "../types";
-import { AxiosError } from "axios";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
 
 export const useRegister = () => {
@@ -57,7 +57,7 @@ export const useRegister = () => {
 
       return { success: res.status === 201 };
     } catch (err) {
-      const axiosError = err as AxiosError<RegisterErrorResponse>;
+      const axiosError = err as AxiosError<RegisterApiErrorResponse>;
 
       // Network error
       if (!axiosError.response) {
