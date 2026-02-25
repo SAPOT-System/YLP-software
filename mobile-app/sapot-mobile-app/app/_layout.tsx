@@ -25,6 +25,7 @@ import {
 
 import merge from "deepmerge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AuthProvider } from "@/features/auth";
 
 const customDarkTheme = { ...MD3DarkTheme, colors: Colors.dark };
 const customLightTheme = { ...MD3LightTheme, colors: Colors.light };
@@ -92,18 +93,20 @@ function RootLayoutNav() {
     colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
   return (
     <SafeAreaProvider>
-      <PaperProvider theme={paperTheme}>
-        <ThemeProvider value={paperTheme}>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="getting-started"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-          </Stack>
-        </ThemeProvider>
-      </PaperProvider>
+      <AuthProvider>
+        <PaperProvider theme={paperTheme}>
+          <ThemeProvider value={paperTheme}>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="getting-started"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+            </Stack>
+          </ThemeProvider>
+        </PaperProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
