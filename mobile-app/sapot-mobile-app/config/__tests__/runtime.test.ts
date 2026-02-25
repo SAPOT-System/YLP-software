@@ -1,78 +1,78 @@
-// Mock expo-updates with a mutable manifest
-const mockManifest = { extra: {} };
+// Mock expo-updates
 jest.mock("expo-updates", () => ({
-  get manifest() {
-    return mockManifest;
-  },
+  channel: "preview",
 }));
 
 describe("getApiUrl", () => {
-  const originalEnv = process.env;
-
   beforeEach(() => {
     jest.resetModules();
-    process.env = { ...originalEnv };
-    // Reset mock manifest
-    Object.assign(mockManifest, { extra: {} });
   });
 
-  afterEach(() => {
-    process.env = originalEnv;
+  it("should return development URL when in development mode", () => {
+    // __DEV__ is true in test environment
+    const { getApiUrl } = require("../runtime");
+    const result = getApiUrl();
+    
+    // In test environment, __DEV__ is typically true
+    expect(result).toBe("http://10.0.2.2:8000");
   });
 
-  it("should return development URL when NODE_ENV is development", () => {
+  it("should return preview URL when channel is preview", () => {
+    // Mock the Updates module with specific channel before importing
+    jest.doMock("expo-updates", () => ({
+      channel: "preview",
+    }));
+    
+    jest.resetModules();
+    
+    // Set __DEV__ to false to bypass development check
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "development";
+    (globalThis as any).__DEV__ = false;
+    
+    const { getApiUrl } = require("../runtime");
+    const result = getApiUrl();
 
+    expect(result).toBe("https://ylp-software.onrender.com");
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = true;
+  });
+
+  it("should return production URL when channel is production", () => {
+    jest.doMock("expo-updates", () => ({
+      channel: "production",
+    }));
+    
+    jest.resetModules();
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = false;
+    
+    const { getApiUrl } = require("../runtime");
+    const result = getApiUrl();
+
+    expect(result).toBe("https://ylp-software.onrender.com");
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = true;
+  });
+
+  it("should return development URL when channel is unknown", () => {
+    jest.doMock("expo-updates", () => ({
+      channel: "unknown-channel",
+    }));
+    
+    jest.resetModules();
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = false;
+    
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
     expect(result).toBe("http://10.0.2.2:8000");
-  });
-
-  it("should return manifest URL when NODE_ENV is production and manifest has apiUrl", () => {
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "production";
-    const mockApiUrl = "https://api.example.com";
-
-    // Set up mock manifest
-    Object.assign(mockManifest, {
-      extra: {
-        apiUrl: mockApiUrl,
-      },
-    });
-
-    const { getApiUrl } = require("../runtime");
-    const result = getApiUrl();
-
-    expect(result).toBe(mockApiUrl);
-  });
-
-  it("should return undefined when NODE_ENV is production and manifest has no apiUrl", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "production";
-
-    // Mock manifest with no extra.apiUrl
-    Object.assign(mockManifest, {});
-
-    const { getApiUrl } = require("../runtime");
-    const result = getApiUrl();
-
-    expect(result).toBeUndefined();
-  });
-
-  it("should return undefined when NODE_ENV is production and manifest extra is undefined", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "production";
-
-    // Mock manifest with undefined extra
-    Object.assign(mockManifest, {
-      extra: undefined,
-    });
-
-    const { getApiUrl } = require("../runtime");
-    const result = getApiUrl();
-
-    expect(result).toBeUndefined();
+    (globalThis as any).__DEV__ = true;
   });
 });
