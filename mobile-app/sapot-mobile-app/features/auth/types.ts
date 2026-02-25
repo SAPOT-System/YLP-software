@@ -38,7 +38,7 @@ interface ApiValidationErrorResponse {
   ctx?: Record<string, unknown>;
 }
 
-export interface RegisterErrorResponse {
+export interface RegisterApiErrorResponse {
   // Used union type because of server response format is inconsistent
   detail: ApiValidationErrorResponse[] | ApiRegisterFieldErrorResponse;
 }
@@ -50,7 +50,26 @@ interface RegisterApiSuccessResponse {
   phone_number: string;
   email: string;
   username: string;
+  detail: string;
 }
-export interface RegisterResponse {
+export interface RegisterApiResponse {
   data: RegisterApiSuccessResponse;
+}
+
+/**
+ * Register types and interfaces
+ */
+
+export interface LoginApiRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginApiResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface LoginApiErrorResponse {
+  detail: string;
 }
