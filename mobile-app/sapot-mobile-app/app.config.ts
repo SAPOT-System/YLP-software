@@ -29,7 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
-  version: "0.1.0",
+  version: "0.2.0",
   orientation: "portrait",
   icon: "./assets/images/logo.png",
   scheme: "sapotmobileapp",
