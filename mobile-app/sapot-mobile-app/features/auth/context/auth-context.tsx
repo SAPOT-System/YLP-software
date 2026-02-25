@@ -4,8 +4,13 @@ import { tokenService } from "../service/token-service";
 import { LoginApiErrorResponse, LoginApiRequest } from "../types";
 import { loginApi } from "../api";
 import { AxiosError } from "axios";
-
-const AuthContext = createContext<any>(null);
+interface AuthContextI {
+  login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
+  logout: () => void;
+  loading: boolean;
+  errors: LoginFormErrors;
+}
+const AuthContext = createContext<AuthContextI | null>(null);
 
 interface LoginFormErrors {
   username?: string;
@@ -14,7 +19,6 @@ interface LoginFormErrors {
 }
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<LoginFormErrors>({});
 
@@ -42,7 +46,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await loginApi(credentials);
       setLoading(false);
-      console.log(res.data)
+      console.log(res.data);
 
       const { access_token } = res.data;
 
@@ -85,7 +89,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // await SecureStore.deleteItemAsync("refresh_token");
 
     tokenService.clearAccessToken();
-    setUser(null);
   };
 
   // silent login on app start
@@ -115,7 +118,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   //   }, []);
 
   return (
-    <AuthContext.Provider value={{ login, logout, loading, user, errors }}>
+    <AuthContext.Provider value={{ login, logout, loading, errors }}>
       {children}
     </AuthContext.Provider>
   );
