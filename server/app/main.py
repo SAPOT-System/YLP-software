@@ -26,6 +26,8 @@ app.include_router(verify_email.router)
 app.include_router(peer_connection.router)
 app.include_router(ping.router)
 
+manager = ConnectionManager()
+
 @app.get("/")
 def read_root():
     return {"state": "running"}
