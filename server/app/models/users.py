@@ -75,12 +75,14 @@ class UserCreate(UserBase):
 
     phone_number: PhoneStr | None = PyField(
         description="User's phone number in international format (E.164 recommended).",
-        examples=["+14155552671"]
+        examples=["+14155552671"],
+        default=None
     )
 
     email: EmailStr | None = PyField(
         description="Valid email address used for account communication and login.",
-        examples=["john.doe@example.com"]
+        examples=["john.doe@example.com"],
+        default=None
     )
 
     password: str = PyField(
