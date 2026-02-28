@@ -18,6 +18,20 @@ run the API with the command ~uvicorn app.main:app --reload --host=0.0.0.0~
   - [X] downloadable recovery key
   - [ ] SMS
   - [X] email
+** search profiles function (endpoint din to)
+- [ ] searchable users within the app
+- [ ] can initiate contact through the app
+** websockets
+*** create web socket endpoint for
+- [ ] messaging
+  - [ ] group messaging
+  - [ ] end to end encryption (RSA)
+- [ ] peering information
+  - [ ] SDP offer
+  - [ ] SDP answer
+  - [ ] ICE candidate
+  - [ ] ICE servers (optional for remote networks)
+- [ ] calling (through the app, no server is needed)
 
 * TODO ~/sync POST~
 ** choose timestamps on how to execute syncing
