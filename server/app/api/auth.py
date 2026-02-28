@@ -22,6 +22,7 @@ from app.models.token import Token
 from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
 from app.models.users import User, UserCreate, UserPublic
 from app.models.email_verification import send_verification_email
+from app.db_operations.token import generate_access_token
 
 
 router = APIRouter(
@@ -51,18 +52,15 @@ async def login_for_access_token(
                 detail="Incorrect username, phone number, email address or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    return Token(access_token=access_token, token_type="bearer")
+    return generate_access_token(user, ACCESS_TOKEN_EXPIRE_MINUTES)
+
 
 
 @router.post("/", response_model=UserPublic, status_code=201)
 def create_account(user: UserCreate, session: SessionDep, background_tasks: BackgroundTasks, request: Request):
     sign_up_res = db_create_user(user, session)
     output = sign_up_res.model_dump()
-    output['detail'] = 'Account created. Check email to verify'
-    send_verification_email(sign_up_res.id, session, background_tasks, request)
-
+    output['detail'] = 'Account created.'
+    # output login token here
+    output['token'] = generate_access_token(user).access_token
     return output

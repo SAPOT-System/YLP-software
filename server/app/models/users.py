@@ -40,6 +40,7 @@ class User(UserBase, table=True):
 class UserPublic(UserBase):
     id: uuid.UUID
     detail: str
+    token: str
 
 
 class UserCreate(UserBase):
