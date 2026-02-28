@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from fastapi import APIRouter, BackgroundTasks, Request
-from typing import Annotated
+from typing import Annotated, Literal
 import uuid
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -23,6 +23,7 @@ from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_t
 from app.models.users import User, UserCreate, UserPublic
 from app.models.email_verification import send_verification_email
 from app.db_operations.token import generate_access_token
+from app.db_operations.auth import get_user
 
 
 router = APIRouter(
@@ -64,3 +65,8 @@ def create_account(user: UserCreate, session: SessionDep, background_tasks: Back
     # output login token here
     output['token'] = generate_access_token(user).access_token
     return output
+
+
+@router.get("/exists")
+def exists(identifier: str, session: SessionDep):
+    return bool(get_user(identifier, session))
