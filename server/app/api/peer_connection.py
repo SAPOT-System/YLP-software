@@ -7,6 +7,7 @@ from app.db_operations.token import verify_token
 from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
 from app.db_operations.websockets import authenticate_websocket, validate_sender, relay_signal, handle_disconnect, receive_signal_message
+from app.db_operations.connection_manager import manager
 
 router = APIRouter(
     prefix='/ws',
@@ -42,7 +43,7 @@ router = APIRouter(
 # }));
 #
 # ICE candidate
-# ws.send(JSON.stringify({
+# ws.send(JSON.stringify(# {
 #   type: "offer",
 #   from_user: currentUserId,
 #   to: targetUserId,
@@ -60,7 +61,7 @@ html = """
         <h1>WebSocket Chat</h1>
         <h2>Your ID: <span id="ws-id"></span></h2>
         <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off"/>
+            <input type="text" id="messageText" autocomplete="off" value='  {   "type": "offer",   "from_user": "currentUserId",   "to": "targetUserId",   "data":  {"some_data": "here"}}'/>
             <button>Send</button>
         </form>
         <ul id='messages'>
@@ -91,54 +92,32 @@ html = """
 """
 
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: dict[UUID, WebSocket] = {}
-
-    async def connect(self, identifier: UUID, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections[identifier] = websocket
-
-    def disconnect(self, identifier: UUID):
-        self.active_connections.pop(identifier)
-
-    async def send_personal_message(self, identifier: UUID, message: str):
-        websocket = self.active_connections.get(identifier)
-        if not websocket:
-            raise Exception("active connection!")
-        await websocket.send_text(message)
-
-    async def broadcast(self, message: str):
-        for identifier, connection in self.active_connections.items():
-            await connection.send_text(message)
-
-
-manager = ConnectionManager()
-
-
 @router.get("/")
-async def get(target_id: UUID, my_id: UUID):
+async def testing_area(target_id: UUID, my_id: UUID):
     return HTMLResponse(html)
 
 
 @router.websocket("/")
-async def websocket_endpoint(target_id: UUID, my_id: UUID, websocket: WebSocket):
+async def sdp_relay(target_id: UUID, my_id: UUID, websocket: WebSocket):
+    """
+    will relay the sdp between different users
+    can handle
+    sdp offer
+    sdp answer
+    ICE candidates
+    """
     await manager.connect(my_id, websocket)
-    target_conn = manager.active_connections.get(target_id)
-    if target_conn:
-        await target_conn.send_text(f"Client #{target_id} joined the chat")
     try:
         while True:
-            data = await websocket.receive_text()
+            data = await websocket.receive_json()
 
             receiver_id = target_id
             message = data
 
-            if receiver_id in manager.active_connections:
+            if manager.active_connections.get(receiver_id):
                 await manager.send_personal_message(receiver_id, message)
             else:
-                print("Receiver not connected")
+                raise Exception("Receiver not connected")
 
     except WebSocketDisconnect:
         manager.disconnect(my_id)
-        await manager.active_connections.get(target_id).send_text(f"Client #{target_id} left the chat")
