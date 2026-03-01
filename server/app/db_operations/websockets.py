@@ -7,7 +7,7 @@ from app.models.signalling import SignalMessage
 from app.db_operations.token import verify_token
 from app.db_operations.connection_manager import manager
 
-async def authenticate_websocket(websocket: WebSocket, token: str) -> str:
+async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
     user_id = verify_token(token)
 
     if not user_id:
@@ -17,12 +17,12 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> str:
     return user_id
 
 def validate_sender(payload: SignalMessage, user_id: UUID) -> bool:
-    return payload.from_user == user_id
+    return str(UUID(payload.from_user)) == str(user_id)
 
-async def relay_signal(user_id: UUID, payload: SignalMessage):
+async def relay_signal(user_id: UUID, target_id: UUID, payload: SignalMessage):
     message = {
         "type": payload.type,
-        "from": user_id,
+        "from": str(user_id),
         "data": payload.data
     }
 
@@ -30,10 +30,11 @@ async def relay_signal(user_id: UUID, payload: SignalMessage):
     if payload.type == "call-ended":
         message.pop("data", None)
 
-    await manager.send_to_user(payload.to, message)
+    if manager.active_connections.get(target_id):
+        await manager.send_personal_message(target_id, message)
+    else:
+        raise Exception("Receiver not connected")
 
-def handle_disconnect(user_id: UUID):
-    manager.disconnect(user_id)
 
 async def receive_signal_message(websocket: WebSocket) -> SignalMessage|None:
     raw_payload = await websocket.receive_json()
