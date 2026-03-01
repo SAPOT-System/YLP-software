@@ -69,4 +69,4 @@ def create_account(user: UserCreate, session: SessionDep, background_tasks: Back
 
 @router.get("/exists")
 def exists(identifier: str, session: SessionDep):
-    return bool(get_user(identifier, session))
+    return {"exists" : bool(get_user(identifier, session))}
