@@ -6,7 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.db_operations.token import verify_token
 from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
-from app.db_operations.websockets import authenticate_websocket, validate_sender, relay_signal, handle_disconnect, receive_signal_message
+from app.db_operations.websockets import authenticate_websocket, validate_sender, relay_signal, receive_signal_message
 from app.db_operations.connection_manager import manager
 
 router = APIRouter(
@@ -61,7 +61,7 @@ html = """
         <h1>WebSocket Chat</h1>
         <h2>Your ID: <span id="ws-id"></span></h2>
         <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off" value='  {   "type": "offer",   "from_user": "currentUserId",   "to": "targetUserId",   "data":  {"some_data": "here"}}'/>
+            <input type="text" id="messageText" autocomplete="off" value='  {   "type": "offer",   "from_user": "550e8400e29b41d4a716446655440000",   "to": "619176107fed4af4abb235dc9663136d",   "data":  {"some_data": {"here_like":"this"}}}'/>
             <button>Send</button>
         </form>
         <ul id='messages'>
@@ -71,8 +71,9 @@ html = """
             const id = urlParams.get('my_id');
             const client_id = urlParams.get('target_id');
             var my_id = id
+            var token = urlParams.get('token');
             document.querySelector("#ws-id").textContent = my_id;
-            var ws = new WebSocket(`ws://localhost:8000/ws/?target_id=${client_id}&my_id=${my_id}`);
+            var ws = new WebSocket(`ws://localhost:8000/ws/?target_id=${client_id}&token=${token}`);
             ws.onmessage = function(event) {
                 var messages = document.getElementById('messages')
                 var message = document.createElement('li')
@@ -96,9 +97,9 @@ html = """
 async def testing_area(target_id: UUID, my_id: UUID):
     return HTMLResponse(html)
 
-
+# TODO add authentication... A CLEAN ONE!!
 @router.websocket("/")
-async def sdp_relay(target_id: UUID, my_id: UUID, websocket: WebSocket):
+async def sdp_relay(target_id: UUID, token: str, websocket: WebSocket):
     """
     will relay the sdp between different users
     can handle
@@ -106,18 +107,16 @@ async def sdp_relay(target_id: UUID, my_id: UUID, websocket: WebSocket):
     sdp answer
     ICE candidates
     """
-    await manager.connect(my_id, websocket)
+    user_id = await authenticate_websocket(websocket, token)
+    await manager.connect(UUID(user_id), websocket)
     try:
         while True:
-            data = await websocket.receive_json()
+            payload = await receive_signal_message(websocket)
+            if not payload:
+                continue
 
-            receiver_id = target_id
-            message = data
-
-            if manager.active_connections.get(receiver_id):
-                await manager.send_personal_message(receiver_id, message)
-            else:
-                raise Exception("Receiver not connected")
-
+            if not validate_sender(payload, user_id):
+                continue
+            await relay_signal(user_id, target_id, payload)
     except WebSocketDisconnect:
-        manager.disconnect(my_id)
+        manager.disconnect(user_id)
