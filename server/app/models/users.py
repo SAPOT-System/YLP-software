@@ -16,8 +16,8 @@ class UserBase(SQLModel):
     username: str = Field(index=True, max_length=50, min_length=2, unique=True)
     first_name: str = Field(index=True, max_length=50, min_length=2)
     last_name: str = Field(index=True, max_length=50, min_length=2)
-    phone_number: PhoneStr = Field(unique=True)
-    email: EmailStr = Field(unique=True)
+    phone_number: PhoneStr | None  = Field(unique=True, default=None)
+    email: EmailStr | None = Field(unique=True, default=None)
 
 
 class User(UserBase, table=True):
@@ -40,6 +40,7 @@ class User(UserBase, table=True):
 class UserPublic(UserBase):
     id: uuid.UUID
     detail: str
+    token: str
 
 
 class UserCreate(UserBase):
@@ -72,14 +73,16 @@ class UserCreate(UserBase):
         examples=["Doe"]
     )
 
-    phone_number: PhoneStr = PyField(
+    phone_number: PhoneStr | None = PyField(
         description="User's phone number in international format (E.164 recommended).",
-        examples=["+14155552671"]
+        examples=["+14155552671"],
+        default=None
     )
 
-    email: EmailStr = PyField(
+    email: EmailStr | None = PyField(
         description="Valid email address used for account communication and login.",
-        examples=["john.doe@example.com"]
+        examples=["john.doe@example.com"],
+        default=None
     )
 
     password: str = PyField(

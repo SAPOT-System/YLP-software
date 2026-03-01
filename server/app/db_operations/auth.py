@@ -53,7 +53,7 @@ def db_create_user(user: UserCreate, session: SessionDep):
         select(User).where(User.email == user.email)
     ).first()
 
-    if existing_email:
+    if existing_email and user.email :
         errors["email"] = "Email already registered"
 
     # Check phone number
@@ -61,7 +61,7 @@ def db_create_user(user: UserCreate, session: SessionDep):
         select(User).where(User.phone_number == user.phone_number)
     ).first()
 
-    if existing_phone:
+    if existing_phone and user.phone_number:
         errors["phone_number"] = "Phone number already registered"
 
     # If any errors exist → return them
