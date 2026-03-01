@@ -42,9 +42,17 @@ Authenticated means the user has to send an authorization header in this format
 - returns a string if the API is running
 - ~{"state": "running"}~
 
-** INFO endpont ~/auth GET~
+** INFO endpoint ~/auth GET~
 - returns a string if the ~/auth~ endpoint is running
 - ~{ 'status': 'auth endpoint is running properly' }~
+
+** INFO point ~/auth/exists GET~
+- returns a ~{exists: boolean}~ value to any of these fields: username,
+  phone number, ID, or email
+*** Sample Request
+#+BEGIN_SRC json
+<link>/auth/exists?identifier=<username, email, or phonenumber>
+#+END_SRC
 ** Get Token Endpoint~/auth/token POST~
 - this endpoint requires two form-data arguments:
   1. username
@@ -74,13 +82,14 @@ with form-data/request body
 *** Sample Response
 #+BEGIN_SRC json
 {
-  "username": "johndoe",
+  "username": "johndoe3",
   "first_name": "John",
   "last_name": "Doe",
-  "phone_number": "+14155552671",
-  "email": "21-09546@g.batstate-u.edu.ph",
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "detail": "Account create. Check email to verify"
+  "phone_number": null,
+  "email": null,
+  "id": "f5da3a69-26f7-464f-a3ae-bb25b8bfe124",
+  "detail": "Account created.",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOm51bGwsImV4cCI6MTc3MjMyNTQ2Mn0.CeR0uAK3LG8Ewmrn_eWiGAW9W9OAjexE_8shb40I5XQ"
 }
 #+END_SRC
 
@@ -95,7 +104,7 @@ with request body/form-data
     "password": "Test1234"
 }
 #+END_SRC
-- the ~username~ field can be email, username, or user id
+- the ~username~ field can be email, username, phone_number, or user id
 
 *** Sample Response
 #+BEGIN_SRC json
