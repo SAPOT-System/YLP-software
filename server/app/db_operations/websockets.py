@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from app.models.signalling import SignalMessage
 from app.db_operations.token import verify_token
-from app.main import manager
+from app.db_operations.connection_manager import manager
 
 async def authenticate_websocket(websocket: WebSocket, token: str) -> str:
     user_id = verify_token(token)
