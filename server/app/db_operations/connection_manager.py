@@ -13,10 +13,15 @@ class ConnectionManager:
     def disconnect(self, user_id: UUID):
         self.active_connections.pop(user_id, None)
 
-    async def send_to_user(self, user_id: UUID, message: dict):
-        websocket = self.active_connections.get(user_id)
+
+    async def send_personal_message(self, target_id: UUID, message: dict):
+        websocket = self.active_connections.get(target_id)
         if websocket:
             await websocket.send_json(message)
+
+    async def broadcast(self, message: str):
+        for _, connection in self.active_connections.items():
+            await connection.send_json(message)
 
 
 manager = ConnectionManager()
