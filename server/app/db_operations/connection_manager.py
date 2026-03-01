@@ -18,3 +18,5 @@ class ConnectionManager:
         if websocket:
             await websocket.send_json(message)
 
+
+manager = ConnectionManager()

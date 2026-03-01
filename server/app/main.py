@@ -5,8 +5,7 @@ from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
 from app.db_operations.auth import create_db_and_tables
-from app.api import auth, forgot_password, verify_email
-from app.db_operations.connection_manager import ConnectionManager
+from app.api import auth, forgot_password, verify_email, peer_connection
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,8 +23,7 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(forgot_password.router)
 app.include_router(verify_email.router)
-
-manager = ConnectionManager()
+app.include_router(peer_connection.router)
 
 @app.get("/")
 def read_root():
