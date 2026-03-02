@@ -5,3 +5,4 @@ export * from "./use-peer-service";
 export * from "./use-connection-service";
 export * from "./use-discovery-service";
 export * from "./use-check-connection";
+export * from "./use-loading-overlay";
