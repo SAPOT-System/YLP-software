@@ -4,3 +4,4 @@ export { default as usePeers } from "./use-peers";
 export * from "./use-peer-service";
 export * from "./use-connection-service";
 export * from "./use-discovery-service";
+export * from "./use-check-connection";
