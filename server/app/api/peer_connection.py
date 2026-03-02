@@ -73,7 +73,7 @@ html = """
             var my_id = id
             var token = urlParams.get('token');
             document.querySelector("#ws-id").textContent = my_id;
-            var ws = new WebSocket(`ws://ylp-software.onrender.com/ws/?target_id=${client_id}&token=${token}`);
+            var ws = new WebSocket(`wss://ylp-software.onrender.com/ws/?target_id=${client_id}&token=${token}`);
             ws.onmessage = function(event) {
                 var messages = document.getElementById('messages')
                 var message = document.createElement('li')
