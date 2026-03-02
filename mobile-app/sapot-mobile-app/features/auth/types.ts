@@ -9,6 +9,8 @@ export interface RegisterFormState {
   phoneNumber: string;
   email: string;
   password: string;
+  securityQuestion: string;
+  questionAnswer: string;
   confirmPassword: string;
   termsChecked: boolean;
 }

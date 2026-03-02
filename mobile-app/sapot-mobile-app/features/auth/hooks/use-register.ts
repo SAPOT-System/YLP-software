@@ -111,5 +111,16 @@ export const useRegister = () => {
     }
   };
 
-  return { registerUser, loading, errors };
+  const validateRegisterStep = (form: Partial<RegisterFormState>) => {
+    setLoading(true);
+    const errors = validateRegistrationForm(form);
+    if (hasValidationErrors(errors)) {
+      setErrors(errors);
+      setLoading(false);
+      return { success: false };
+    }
+    setLoading(false);
+    return { success: true };
+  };
+  return { registerUser, validateRegisterStep, loading, errors };
 };
