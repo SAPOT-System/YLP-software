@@ -114,7 +114,8 @@ def test_db_update_user_password(session: SessionDep, client: TestClient):
         new_password=updated_password
     )
 
-    update_user_password(user, password_update, session)
+    # update_user_password(user, password_update, session)
+    update_user_password(user, updated_password, session)
 
     user = get_user_by_username(session, str(user_data.get('username')))
 

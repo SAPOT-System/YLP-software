@@ -52,6 +52,39 @@ Authenticated means the user has to send an authorization header in this format
 #+END_SRC
 
 * Endpoints
+** Ping endpoint ~/ping GET~
+- returns timestamp for measuring latency between client and server
+  #+BEGIN_SRC json
+    {"status":"ok","timestamp":1772410305.0920138}
+  #+END_SRC
+- this endpoint can be used like this
+  #+BEGIN_SRC javascript
+async function measureLatency() {
+    const start = performance.now();
+    await fetch("http://localhost:8000/ping");
+    const end = performance.now();
+    return end - start; // milliseconds
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
+(async ()=>{
+    let successes = 0;
+    for (let i = 0; i < 4; i++) {
+        try {
+            await measureLatency()
+            successes++
+        } catch {
+            fails++
+        }
+        await sleep(1000)
+    }
+    console.log(`${successes/4 * 100}% success rate`) // if 3 of the 4 pings is a success then this will output -> 75% success rate
+})()
+#+END_SRC
 ** INFO Endpoint ~/ GET 1.1~
 - returns a string if the API is running
 - ~{"state": "running"}~

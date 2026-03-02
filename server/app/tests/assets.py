@@ -129,7 +129,7 @@ dummy_data = {
 }
 
 sample_invalid_user = {
-    'name': "emmanuel",
+    'username': "emmanuel",
     'first_name': "Emmanuel",
     'last_name': "Invalid",
     'email': "Emmanuel@gmail.com",
@@ -138,7 +138,7 @@ sample_invalid_user = {
 }
 
 sample_valid_user = {
-    'name': "emmanuel",
+    'username': "emmanuel",
     'first_name': "Emmanuel",
     'last_name': "Valid",
     'email': "Emmanuel@gmail.com",
