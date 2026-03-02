@@ -7,70 +7,84 @@ export const validateRegistrationForm = ({
   email,
   phoneNumber,
   password,
+  questionAnswer,
+  securityQuestion,
   confirmPassword,
   termsChecked,
-}: RegisterFormState): RegisterFormStateErrors => {
+}: Partial<RegisterFormState>): RegisterFormStateErrors => {
   const errors: RegisterFormStateErrors = {};
-
   // First Name validation
-  if (!username.trim()) {
+  if (username !== undefined && !username.trim()) {
     errors.username = "Username is required";
-  } else if (username.trim().length <= 2) {
+  } else if (username !== undefined && username.trim().length <= 2) {
     errors.username = "Username must be at least 2 characters";
-  } else if (username.trim().length >= 50) {
+  } else if (username !== undefined && username.trim().length >= 50) {
     errors.username = "Username must be less than 50 characters";
   }
 
   // First Name validation
-  if (!firstName.trim()) {
+  if (firstName !== undefined && !firstName.trim()) {
     errors.firstName = "First name is required";
-  } else if (firstName.trim().length <= 2) {
+  } else if (firstName !== undefined && firstName.trim().length <= 2) {
     errors.firstName = "First name must be at least 2 characters";
-  } else if (firstName.trim().length >= 50) {
+  } else if (firstName !== undefined && firstName.trim().length >= 50) {
     errors.firstName = "First name must be less than 50 characters";
   }
 
   // Last Name validation
-  if (!lastName.trim()) {
+  if (lastName !== undefined && !lastName.trim()) {
     errors.lastName = "Last name is required";
-  } else if (lastName.trim().length < 2) {
+  } else if (lastName !== undefined && lastName.trim().length < 2) {
     errors.lastName = "Last name must be at least 2 characters";
-  } else if (lastName.trim().length > 50) {
+  } else if (lastName !== undefined && lastName.trim().length > 50) {
     errors.lastName = "First name must be less than or equal to 50 characters";
   }
 
   // Phone Number validation
-  if (!phoneNumber.trim()) {
-    errors.phoneNumber = "Phone number is required";
-  } else if (!/^\d{10,}$/.test(phoneNumber.replace(/\D/g, ""))) {
+  if (
+    phoneNumber !== undefined &&
+    phoneNumber.length > 0 &&
+    !/^\d{10,}$/.test(phoneNumber.replace(/\D/g, ""))
+  ) {
     errors.phoneNumber = "Phone number must be at least 10 digits";
   }
 
   // Email validation
-  if (!email.trim()) {
-    errors.email = "Email is required";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (
+    email !== undefined &&
+    email.length > 0 &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  ) {
     errors.email = "Invalid email address";
   }
 
+  // Question validation
+  if (securityQuestion !== undefined && !securityQuestion) {
+    errors.securityQuestion = "Security question is required";
+  }
+  // Answer validation
+  if (questionAnswer !== undefined && !questionAnswer) {
+    errors.questionAnswer = "Answer is required";
+  }
+
   // Password validation
-  if (!password) {
+  if (password !== undefined && !password) {
     errors.password = "Password is required";
-  } else if (password.length < 8) {
+  } else if (password !== undefined && password.length < 8) {
     errors.password = "Password must be at least 8 characters";
-  } else if (password.length > 128) {
+  } else if (password !== undefined && password.length > 128) {
     errors.password = "Password must be less than or equal to 128 characters";
   }
 
   // Confirm Password validation
-  if (!confirmPassword) {
+  if (confirmPassword !== undefined && !confirmPassword) {
     errors.confirmPassword = "Please confirm your password";
-  } else if (password !== confirmPassword) {
+  } else if (confirmPassword !== undefined && password !== confirmPassword) {
     errors.confirmPassword = "Passwords do not match";
   }
 
   // Terms & Conditions validation
-  if (!termsChecked) {
+  if (termsChecked !== undefined && !termsChecked) {
     errors.termsChecked = "You must agree to the terms and conditions";
   }
 
