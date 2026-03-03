@@ -94,7 +94,7 @@ html = """
 
 
 @router.get("/")
-async def testing_area(target_id: UUID, my_id: UUID):
+async def testing_area(target_id: UUID, my_id: UUID, token: str):
     return HTMLResponse(html)
 
 # TODO add authentication... A CLEAN ONE!!
