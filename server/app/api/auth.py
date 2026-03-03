@@ -62,8 +62,7 @@ def create_account(user: UserCreate, session: SessionDep, background_tasks: Back
     sign_up_res = db_create_user(user, session)
     output = sign_up_res.model_dump()
     output['detail'] = 'Account created.'
-    # output login token here
-    output['token'] = generate_access_token(user).access_token
+    output['token'] = generate_access_token(sign_up_res, ACCESS_TOKEN_EXPIRE_MINUTES).access_token
     return output
 
 
