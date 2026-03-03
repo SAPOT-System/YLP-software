@@ -72,6 +72,8 @@ async def get_current_user(
 
 def generate_access_token(user: User|UserCreate, ACCESS_TOKEN_EXPIRE_MINUTES = 30):
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    if not user.id:
+        raise Exception("user has no ID")
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
