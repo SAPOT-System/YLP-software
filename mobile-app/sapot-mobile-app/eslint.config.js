@@ -51,6 +51,8 @@ module.exports = [
         beforeAll: 'readonly',
         afterAll: 'readonly',
         test: 'readonly',
+        // Others
+        __DEV__: "readonly"
       },
     },
     plugins: {
