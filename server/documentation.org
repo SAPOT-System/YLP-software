@@ -322,6 +322,28 @@ requires user to be authenticated
   #+END_SRC
   Put this link url (change domain as needed but it needs ws:// or wss:// at the
   protocol) inside a WebSocket object, then send a sdp message like
-~{   "type": "offer",   "from_user": "550e8400e29b41d4a716446655440000",   "to": "619176107fed4af4abb235dc9663136d",   "data":  {"some_data": {"here_like":"this"}}}~
+  #+BEGIN_SRC json
+    {
+        "type": "offer",
+        "from_user": "550e8400e29b41d4a716446655440000",
+        "to": "619176107fed4af4abb235dc9663136d",j
+        "data":  {"some_data": {"here_like":"this"}}
+    }
+  #+END_SRC
 
   *Note that the ~from~ and ~to~ should be the same as the connection parameters*
+
+***** TODO
+****** ADD TYPES
+  - ice-candidate
+  - offer
+  - answer
+  - handshake
+******  change structure
+#+BEGIN_SRC
+      {
+        type: "";
+        data: {
+            from: UUID; to: UUID, ipAddress: string; port: number };
+        }
+#+END_SRC
