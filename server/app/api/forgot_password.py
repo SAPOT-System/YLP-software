@@ -66,7 +66,7 @@ router = APIRouter(
 
 @router.post('/generate-new-recovery-key')
 def get_recovery_key(
-        current_user : Annotated[User, Depends(require_verified_user)],
+        current_user : Annotated[User, Depends(get_current_user)],
         session : SessionDep,
 ):
     key_data = RecoveryKeyCreate(user=current_user)
@@ -192,7 +192,7 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
 
 @router.post("/security-questions")
 def add_security_questions(
-        current_user : Annotated[User, Depends(require_verified_user)],
+        current_user : Annotated[User, Depends(get_current_user)],
         questions: AddSecurityQuestion,  # [{"question": "...", "answer": "..."}]
         session: SessionDep
 ):
@@ -288,7 +288,7 @@ def verify_security_answer(
 
 @router.get("/generate-security-question")
 def generate_security_question(
-        current_user : Annotated[User, Depends(require_verified_user)]
+        current_user : Annotated[User, Depends(get_current_user)]
 ):
     response = requests.get("https://api.truthordarebot.xyz/v1/truth")
     data = response.json()

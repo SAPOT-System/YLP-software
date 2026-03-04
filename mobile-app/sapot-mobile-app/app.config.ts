@@ -29,7 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
-  version: "0.1.0",
+  version: "0.2.0",
   orientation: "portrait",
   icon: "./assets/images/logo.png",
   scheme: "sapotmobileapp",
@@ -89,11 +89,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   runtimeVersion: {
     policy: "appVersion",
   },
+  updates: {
+    url: "https://u.expo.dev/ee940ed5-5653-43cb-8938-d5f54a830c59",
+  },
   extra: {
     router: {},
     eas: {
       projectId: "ee940ed5-5653-43cb-8938-d5f54a830c59",
     },
+    apiUrl: process.env.EXPO_PUBLIC_API_URL,
   },
 });
-

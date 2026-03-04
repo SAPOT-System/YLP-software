@@ -1,20 +1,33 @@
 #!/usr/bin/env python3
+from uuid import UUID
+from app.models.token import Token
 from typing import Annotated
 from fastapi import Depends, HTTPException
 from datetime import datetime, timedelta, timezone
 from fastapi.security import  OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
+from jwt import PyJWTError
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from app.db_operations.auth import SessionDep, get_user_by_email
 from app.models.users import User
 from app.models.token import TokenData
+from app.models.users import UserCreate
+from app.db_operations.auth import get_user, get_user_by_ID
 
 SECRET_KEY = "7a272aa19fd88943207a62115b64f67530731eafd3b79a228f42972a2a51df1e"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return payload["sub"]  # user_id
+    except PyJWTError:
+        return None
 
 def create_access_token(data: dict, expires_delta : timedelta | None = None):
     to_encode = data.copy()
@@ -41,13 +54,13 @@ async def get_current_user(
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ ALGORITHM ])
-        email = payload.get("sub")
-        if email is None:
+        identifier = payload.get("sub")
+        if identifier is None:
             raise credentials_exception
     except jwt.InvalidTokenError:
         raise credentials_exception
 
-    hero = get_user_by_email(email=email, session=session)
+    hero = get_user_by_ID(session, UUID(identifier))
 
     if not hero:
         raise credentials_exception
@@ -55,3 +68,13 @@ async def get_current_user(
     if hero is None:
         raise credentials_exception
     return hero
+
+
+def generate_access_token(user: User|UserCreate, ACCESS_TOKEN_EXPIRE_MINUTES = 30):
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    if not user.id:
+        raise Exception("user has no ID")
+    access_token = create_access_token(
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
+    )
+    return Token(access_token=access_token, token_type="bearer")

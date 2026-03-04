@@ -1,13 +1,48 @@
-import { View } from "react-native";
-import React, { useState } from "react";
-import { Button, Text, TextInput, useTheme } from "react-native-paper";
-import { Link, router } from "expo-router";
+import { useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { Link, router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { View } from "react-native";
+import {
+  Button,
+  HelperText,
+  Snackbar,
+  Text,
+  TextInput,
+  useTheme,
+} from "react-native-paper";
 
 const ServerLoginScreen = () => {
   const theme = useTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+
+  const { login, loading, errors } = useAuth();
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+  };
+
+  // Handle general errors
+  useEffect(() => {
+    if (errors.general) {
+      showToast(errors.general);
+    }
+  }, [errors.general]);
+
+  const handleLogin = async () => {
+    const result = await login({ username, password });
+
+    if (result.success) {
+      showToast("Login successful!");
+      setTimeout(() => {
+        router.replace("/(drawer)/(tabs)");
+      }, 1000);
+    }
+  };
 
   return (
     <View
@@ -27,16 +62,25 @@ const ServerLoginScreen = () => {
             placeholder="Username"
             value={username}
             onChangeText={setUsername}
-            style={{ marginBottom: 16 }}
+            style={{ marginBottom: 4 }}
+            error={!!errors.username}
           />
+          <HelperText type="error" visible={!!errors.username}>
+            {errors.username}
+          </HelperText>
           <TextInput
             mode="outlined"
             label="Password"
             placeholder="Password"
             value={password}
             onChangeText={setPassword}
-            style={{ marginBottom: 8 }}
+            secureTextEntry
+            style={{ marginBottom: 4 }}
+            error={!!errors.password}
           />
+          <HelperText type="error" visible={!!errors.password}>
+            {errors.password}
+          </HelperText>
           {/* TODO: screen for forgot password */}
           <Link href="/getting-started/forgot-password" asChild>
             <Text
@@ -52,13 +96,14 @@ const ServerLoginScreen = () => {
             </Text>
           </Link>
         </View>
-        {/* For testing purposes */}
         <Button
-          onPress={() => router.push("/(drawer)/(tabs)")}
+          onPress={handleLogin}
           mode="contained"
+          loading={loading}
+          disabled={loading}
           style={{ width: 280, marginBottom: 8 }}
         >
-          Login
+          {loading ? "Logging in..." : "Login"}
         </Button>
         <Text
           variant="bodyMedium"
@@ -73,6 +118,13 @@ const ServerLoginScreen = () => {
           </Link>
         </Text>
       </ScreenContent>
+      <Snackbar
+        visible={toastVisible}
+        onDismiss={() => setToastVisible(false)}
+        duration={3000}
+      >
+        {toastMessage}
+      </Snackbar>
     </View>
   );
 };
