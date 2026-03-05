@@ -4,6 +4,7 @@ import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import {
+  ActivityIndicator,
   Button,
   HelperText,
   Snackbar,
@@ -19,7 +20,13 @@ const ServerLoginScreen = () => {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
-  const { login, loading, errors } = useAuth();
+  const auth = useAuth();
+
+  if (!auth) {
+    return <ActivityIndicator />;
+  }
+
+  const { login, loading, errors } = auth;
 
   const showToast = (message: string) => {
     setToastMessage(message);
