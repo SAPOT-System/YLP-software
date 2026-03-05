@@ -6,17 +6,13 @@ export const apiClient = axios.create({
   baseURL: getApiUrl(),
 });
 
-apiClient.interceptors.request.use(
-  async config => {
+apiClient.interceptors.request.use(async (config) => {
 
-    const token =
-      tokenService.getAccessToken();
+  const token = tokenService.getAccessToken();
 
-    if (token) {
-      config.headers.Authorization =
-        `Bearer ${token}`;
-    }
-
-    return config;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+
+  return config;
+});
