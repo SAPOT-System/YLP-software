@@ -24,8 +24,8 @@ export interface RegisterApiRequest {
   password: string;
   first_name: string;
   last_name: string;
-  phone_number: string;
-  email: string;
+  phone_number?: string;
+  email?: string;
 }
 
 type ApiRegisterFieldErrorResponse = Partial<
@@ -45,7 +45,7 @@ export interface RegisterApiErrorResponse {
   detail: ApiValidationErrorResponse[] | ApiRegisterFieldErrorResponse;
 }
 
-interface RegisterApiSuccessResponse {
+export interface RegisterApiResponse {
   id: string;
   first_name: string;
   last_name: string;
@@ -53,9 +53,7 @@ interface RegisterApiSuccessResponse {
   email: string;
   username: string;
   detail: string;
-}
-export interface RegisterApiResponse {
-  data: RegisterApiSuccessResponse;
+  token: string;
 }
 
 /**

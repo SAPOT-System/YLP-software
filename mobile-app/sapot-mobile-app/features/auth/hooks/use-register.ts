@@ -1,12 +1,18 @@
 import { AxiosError } from "axios";
 import { useState } from "react";
-import { register } from "../api/auth.api";
 import {
-    RegisterApiErrorResponse,
-    RegisterFormState,
-    RegisterFormStateErrors,
+  addSecurityQuestionApi,
+  existsApi,
+  generateNewRecoveryKeyApi,
+  register,
+} from "../api/auth.api";
+import {
+  RegisterApiErrorResponse,
+  RegisterFormState,
+  RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
+import { tokenService } from "../service/token-service";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
@@ -14,7 +20,7 @@ export const useRegister = () => {
 
   const registerUser = async (
     form: RegisterFormState
-  ): Promise<{ success: boolean }> => {
+  ): Promise<{ success: boolean, recoveryKeyFileLink?: string }> => {
     setLoading(true);
     setErrors({});
 
@@ -51,11 +57,21 @@ export const useRegister = () => {
         first_name: form.firstName,
         last_name: form.lastName,
         password: form.password,
-        email: form.email,
-        phone_number: form.phoneNumber,
+        email: form.email || undefined,
+        phone_number: form.phoneNumber || undefined,
       });
+      const { token } = res.data;
 
-      return { success: res.status === 201 };
+      tokenService.setAccessToken(token);
+
+      await addSecurityQuestionApi(
+        [{ question: form.securityQuestion, answer: form.questionAnswer }],
+        token
+      );
+
+      const res2 = await generateNewRecoveryKeyApi();
+
+      return { success: res.status === 201, recoveryKeyFileLink: res2.data };
     } catch (err) {
       const axiosError = err as AxiosError<RegisterApiErrorResponse>;
 
@@ -111,6 +127,15 @@ export const useRegister = () => {
     }
   };
 
+  const checkIfIdentifierExists = async (identifier: string) => {
+    try {
+      const res = await existsApi(identifier);
+      return res.data.exists;
+    } catch {
+      return false;
+    }
+  };
+
   const validateRegisterStep = (form: Partial<RegisterFormState>) => {
     setLoading(true);
     const errors = validateRegistrationForm(form);
@@ -122,5 +147,12 @@ export const useRegister = () => {
     setLoading(false);
     return { success: true };
   };
-  return { registerUser, validateRegisterStep, loading, errors };
+  return {
+    registerUser,
+    validateRegisterStep,
+    checkIfIdentifierExists,
+    loading,
+    setErrors,
+    errors,
+  };
 };

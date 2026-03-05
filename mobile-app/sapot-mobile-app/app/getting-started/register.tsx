@@ -1,11 +1,11 @@
-import { useRegister } from "@/features/auth";
+import { RecoveryKeyDownloadModal, useRegister } from "@/features/auth";
 import {
   RegisterFormState,
   RegisterFormStateErrors,
 } from "@/features/auth/types";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import React, { useEffect, useState } from "react";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -27,8 +27,15 @@ import { Dropdown } from "react-native-paper-dropdown";
 type RegisterFormField = keyof RegisterFormState;
 
 const Register = () => {
-  const router = useRouter();
-  const { registerUser, errors, loading, validateRegisterStep } = useRegister();
+  // const router = useRouter();
+  const {
+    registerUser,
+    errors,
+    setErrors,
+    loading,
+    validateRegisterStep,
+    checkIfIdentifierExists,
+  } = useRegister();
 
   // Form state
   const [step, setStep] = useState(1);
@@ -48,13 +55,17 @@ const Register = () => {
   // Validation and UI state
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-
   const showToast = (message: string) => {
     setToastMessage(message);
     setToastVisible(true);
   };
 
-  const handleStep1Submit = (values: Partial<RegisterFormState>) => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalData, setModalData] = useState("");
+  const showModal = () => setModalVisible(true);
+  const hideModal = () => setModalVisible(false);
+
+  const handleStep1Submit = async (values: Partial<RegisterFormState>) => {
     const step1Values = {
       firstName: values.firstName,
       lastName: values.lastName,
@@ -64,6 +75,23 @@ const Register = () => {
     };
     const clientValidationResult = validateRegisterStep(step1Values);
     if (!clientValidationResult.success) return;
+
+    if (values.username && (await checkIfIdentifierExists(values.username))) {
+      setErrors({ username: "Username exists" });
+      return;
+    }
+    if (
+      values.phoneNumber &&
+      (await checkIfIdentifierExists(values.phoneNumber))
+    ) {
+      setErrors({ phoneNumber: "Phone number exists" });
+      return;
+    }
+    if (values.email && (await checkIfIdentifierExists(values.email))) {
+      setErrors({ email: "Email exists" });
+      return;
+    }
+    setErrors({});
     setForm((prev) => ({ ...prev, ...values }));
     setStep(2);
   };
@@ -79,14 +107,16 @@ const Register = () => {
     if (serverSideResult.success) {
       // Success - store token, update auth state, reset navigation
       showToast("Account created successfully!");
+      setModalData(serverSideResult.recoveryKeyFileLink!);
+      showModal();
       // TODO: Store token from result.data
       // TODO: Update auth state
       // TODO: Reset navigation to main app
-      setTimeout(() => {
-        router.replace("/");
-      }, 1500);
+      // setTimeout(() => {
+      //   router.replace("/(drawer)/(tabs)");
+      // }, 1500);
     } else if (!serverSideResult.success) {
-      showToast("Account created failed!");
+      showToast("Account creation failed!");
     }
   };
 
@@ -150,6 +180,11 @@ const Register = () => {
         >
           {toastMessage}
         </Snackbar>
+        <RecoveryKeyDownloadModal
+          visible={modalVisible}
+          hideModal={hideModal}
+          fileLink={modalData}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -338,7 +373,6 @@ const RegisterStep2 = ({
           placeholder="Answer"
           value={values.questionAnswer}
           onChangeText={(value) => onChange("questionAnswer", value)}
-          secureTextEntry
           style={styles.textInput}
           error={!!errors.questionAnswer}
         />
@@ -407,7 +441,7 @@ const RegisterStep2 = ({
         </View>
         {errors.termsChecked && (
           <HelperText type="error" style={styles.helperText}>
-            {errors.email}
+            {errors.termsChecked}
           </HelperText>
         )}
       </View>
