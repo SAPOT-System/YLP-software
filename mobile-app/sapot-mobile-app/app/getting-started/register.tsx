@@ -112,9 +112,6 @@ const Register = () => {
       // TODO: Store token from result.data
       // TODO: Update auth state
       // TODO: Reset navigation to main app
-      // setTimeout(() => {
-      //   router.replace("/(drawer)/(tabs)");
-      // }, 1500);
     } else if (!serverSideResult.success) {
       showToast("Account creation failed!");
     }
@@ -183,7 +180,7 @@ const Register = () => {
         <RecoveryKeyDownloadModal
           visible={modalVisible}
           hideModal={hideModal}
-          fileLink={modalData}
+          fileData={modalData}
         />
       </View>
     </KeyboardAvoidingView>

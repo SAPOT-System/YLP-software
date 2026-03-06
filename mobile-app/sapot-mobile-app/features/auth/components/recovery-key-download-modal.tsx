@@ -3,12 +3,12 @@ import { Modal, Portal, Text } from "react-native-paper";
 import DownloadFileButton from "./download-file-button";
 interface RecoveryKeyDownloadModalProps {
   visible: boolean;
-  fileLink: string;
+  fileData: string;
   hideModal: () => void;
 }
 const RecoveryKeyDownloadModal = ({
   visible,
-  fileLink,
+  fileData,
   hideModal,
 }: RecoveryKeyDownloadModalProps) => {
   //   const [visible, setVisible] = React.useState(false);
@@ -31,7 +31,7 @@ const RecoveryKeyDownloadModal = ({
         </Text>
         <Text variant="bodySmall">Your recovery key</Text>
         <Text>recovery-file.txt</Text>
-        <DownloadFileButton url={fileLink} />
+        <DownloadFileButton fileData={fileData} />
       </Modal>
     </Portal>
   );

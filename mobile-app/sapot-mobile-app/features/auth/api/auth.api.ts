@@ -54,11 +54,7 @@ export const addSecurityQuestionApi = async (
 
 export const generateNewRecoveryKeyApi = async () => {
   const res = await apiClient.post<string>(
-    "/auth/forgot-password/generate-new-recovery-key/",
-    "",
-    {
-      responseType: "arraybuffer",
-    }
+    "/auth/forgot-password/generate-new-recovery-key/"
   );
   return res;
 };

@@ -1,11 +1,12 @@
-import { File, Paths } from "expo-file-system";
+import { saveDocuments } from "@react-native-documents/picker";
 import { router } from "expo-router";
 import React from "react";
 import { Alert } from "react-native";
+import { File, Paths } from "expo-file-system";
 import { Button } from "react-native-paper";
 
 type DownloadFileButtonProps = {
-  fileData: ArrayBuffer;
+  fileData: string;
   fileName?: string;
 };
 
@@ -15,30 +16,34 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
 }) => {
   const handleDownload = async () => {
     try {
-      // Decode fileData to string
-      let fileContent: string;
-      if (typeof Buffer !== "undefined") {
-        fileContent = Buffer.from(fileData).toString("utf8");
-      } else {
-        fileContent = String.fromCharCode(...new Uint8Array(fileData));
-      }
-
       // Create file instance and write content
       const file = new File(Paths.document, fileName);
-      await file.write(fileContent, { encoding: "utf8" });
+      await file.write(fileData, { encoding: "utf8" });
 
-      Alert.alert("Download complete", `Saved to: ${file.uri}`);
-      router.replace("/(drawer)/(tabs)");
+      // Let user pick location and save
+      const [{ uri: targetUri }] = await saveDocuments({
+        sourceUris: [file.uri],
+        copy: false,
+        mimeType: "text/plain",
+        fileName,
+      });
+
+      if (targetUri) {
+        Alert.alert("File saved");
+        router.replace("/(drawer)/(tabs)");
+      } else {
+        Alert.alert("Save cancelled", "No location selected.");
+      }
     } catch (error: any) {
       console.error(error);
-      Alert.alert("Download failed", error?.message || "Unknown error");
+      Alert.alert("Download failed", error.message || "Unknown error");
     }
   };
 
   return (
     <Button
-      mode="contained"
       onPress={handleDownload}
+      mode="contained"
       accessibilityLabel="Download recovery key file"
     >
       Download Recovery Key
