@@ -1,9 +1,6 @@
 import { View } from "react-native";
 import React from "react";
-import {
-  ScreenContent,
-  ScreenHeader,
-} from "@/features/getting-started";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { ResetOption } from "@/features/auth";
 
 const ForgotPasswordScreen = () => {
@@ -21,6 +18,8 @@ const ForgotPasswordScreen = () => {
         >
           <ResetOption option="email" />
           <ResetOption option="sms" />
+          <ResetOption option="question" />
+          <ResetOption option="recoveryKey" />
         </View>
       </ScreenContent>
     </View>

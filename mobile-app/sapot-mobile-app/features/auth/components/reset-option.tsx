@@ -4,7 +4,7 @@ import { Pressable, View } from "react-native";
 import { Icon, Text, useTheme } from "react-native-paper";
 
 interface ResetOptionProps {
-  option: "email" | "sms";
+  option: "email" | "sms" | "question" | "recoveryKey";
 }
 
 const resetOptionData = {
@@ -20,13 +20,30 @@ const resetOptionData = {
     description: "If you have number linked to account",
     icon: "cellphone",
   },
+  question: {
+    link: "/getting-started/enter-identifier",
+    title: "Verify your Identity",
+    description: "Answer security questions to confirm your identity",
+    icon: "question",
+  },
+  recoveryKey: {
+    link: "/getting-started/enter-identifier",
+    title: "Verify your Identity",
+    description: "Answer security questions to confirm your identity",
+    icon: "question",
+  },
 } as const;
 
 export const ResetOption = ({ option }: ResetOptionProps) => {
   const theme = useTheme();
   return (
     <Pressable
-      onPress={() => router.push(resetOptionData[option].link)}
+      onPress={() =>
+        router.push({
+          pathname: resetOptionData[option].link,
+          params: { resetOption: option },
+        })
+      }
       style={({ pressed }) => [
         {
           backgroundColor: pressed
