@@ -6,3 +6,4 @@ export * from "./use-connection-service";
 export * from "./use-discovery-service";
 export * from "./use-check-connection";
 export * from "./use-loading-overlay";
+export * from "./use-toast";

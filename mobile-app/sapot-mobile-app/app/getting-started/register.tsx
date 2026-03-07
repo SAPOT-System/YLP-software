@@ -23,6 +23,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { Dropdown } from "react-native-paper-dropdown";
+import { useToast } from "@/features/shared/hooks";
 
 type RegisterFormField = keyof RegisterFormState;
 
@@ -53,12 +54,12 @@ const Register = () => {
   });
 
   // Validation and UI state
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setToastVisible(true);
-  };
+  const {
+    visible: toastVisible,
+    message: toastMessage,
+    showToast,
+    hideToast,
+  } = useToast();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState("");
@@ -170,11 +171,7 @@ const Register = () => {
         </ScreenContent>
 
         {/* Toast Notification */}
-        <Snackbar
-          visible={toastVisible}
-          onDismiss={() => setToastVisible(false)}
-          duration={3000}
-        >
+        <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
           {toastMessage}
         </Snackbar>
         <RecoveryKeyDownloadModal
