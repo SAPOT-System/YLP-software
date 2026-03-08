@@ -1,3 +1,4 @@
+import { AUTH_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { Link, router } from "expo-router";
@@ -89,7 +90,7 @@ const ServerLoginScreen = () => {
             {errors.password}
           </HelperText>
           {/* TODO: screen for forgot password */}
-          <Link href="/getting-started/forgot-password" asChild>
+          <Link href={AUTH_ROUTES.FORGOT_PASSWORD.INDEX} asChild>
             <Text
               variant="bodyMedium"
               style={{
@@ -118,7 +119,7 @@ const ServerLoginScreen = () => {
         >
           Don't have an account?{" "}
           <Link
-            href="/getting-started/register"
+            href={AUTH_ROUTES.REGISTER}
             style={{ textDecorationLine: "underline", fontWeight: "bold" }}
           >
             Register here

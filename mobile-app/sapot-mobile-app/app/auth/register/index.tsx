@@ -24,6 +24,7 @@ import {
 } from "react-native-paper";
 import { Dropdown } from "react-native-paper-dropdown";
 import { useToast } from "@/features/shared/hooks";
+import { AUTH_ROUTES } from "@/app/routes";
 
 type RegisterFormField = keyof RegisterFormState;
 
@@ -305,7 +306,7 @@ const RegisterStep1 = ({
         >
           Already have an account?{" "}
           <Link
-            href="/getting-started/server-login"
+            href={AUTH_ROUTES.LOGIN.SERVER_LOGIN}
             style={{ fontWeight: "bold", textDecorationLine: "underline" }}
           >
             Login Here
@@ -466,7 +467,7 @@ const RegisterStep2 = ({
         >
           Already have an account?{" "}
           <Link
-            href="/getting-started/server-login"
+            href={AUTH_ROUTES.LOGIN.SERVER_LOGIN}
             style={{ fontWeight: "bold", textDecorationLine: "underline" }}
           >
             Login Here

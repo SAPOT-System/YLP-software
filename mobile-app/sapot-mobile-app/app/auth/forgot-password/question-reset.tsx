@@ -9,6 +9,7 @@ import {
 } from "react-native-paper";
 import { router, useLocalSearchParams } from "expo-router";
 import { useGetQuestion, useVerifyAnswer } from "@/features/auth";
+import { AUTH_ROUTES } from "@/app/routes";
 
 const QuestionResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
@@ -36,12 +37,11 @@ const QuestionResetScreen = () => {
   const handleVerify = async () => {
     const res = await verifyAnswer({ question, answer });
 
-
     if (res.success && res.resetLink) {
       const token = res.resetLink.split("token=")[1];
 
       router.push({
-        pathname: "/getting-started/reset-password",
+        pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
         params: { token, identifier },
       });
     }

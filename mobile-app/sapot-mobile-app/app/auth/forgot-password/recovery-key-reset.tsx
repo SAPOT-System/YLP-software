@@ -10,6 +10,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { ExpoFileUpload, useVerifyRecoveryKey } from "@/features/auth";
 import { pick } from "@react-native-documents/picker";
+import { AUTH_ROUTES } from "@/app/routes";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
@@ -52,7 +53,7 @@ const RecoveryKeyResetScreen = () => {
       const token = res.resetLink.split("token=")[1];
 
       router.push({
-        pathname: "/getting-started/reset-password",
+        pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
         params: { token, identifier },
       });
     }

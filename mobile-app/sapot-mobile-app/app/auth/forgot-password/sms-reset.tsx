@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { Button, TextInput } from "react-native-paper";
 import { router } from "expo-router";
+import { AUTH_ROUTES } from "@/app/routes";
 
 const SmsResetScreen = () => {
   const [phone, setPhone] = useState("");
@@ -30,7 +31,9 @@ const SmsResetScreen = () => {
         <Button
           mode="contained"
           style={{ width: 280 }}
-          onPress={() => router.push("/getting-started/enter-recovery")}
+          onPress={() =>
+            router.push(AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY)
+          }
         >
           Send Code
         </Button>

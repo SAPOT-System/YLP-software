@@ -10,6 +10,7 @@ import { View } from "react-native";
 import { Button } from "react-native-paper";
 import { LoadingOverlay } from "@/features/shared";
 import { useLoadingOverlay } from "@/features/shared/hooks";
+import { AUTH_ROUTES } from "../routes";
 
 const ModeSelectScreen = () => {
   const router = useRouter();
@@ -66,7 +67,7 @@ const ModeSelectScreen = () => {
                 setLoadingMessage("Connected! Redirecting...");
                 setTimeout(() => {
                   hideLoading();
-                  router.push("/getting-started/server-login");
+                  router.push(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
                 }, 700);
               } else {
                 setLoadingMessage("Connection failed. Please try again.");
@@ -77,7 +78,7 @@ const ModeSelectScreen = () => {
               showLoading("Preparing LAN login...");
               setTimeout(() => {
                 hideLoading();
-                router.push("/getting-started/lan-login");
+                router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
               }, 700);
             }
           }}

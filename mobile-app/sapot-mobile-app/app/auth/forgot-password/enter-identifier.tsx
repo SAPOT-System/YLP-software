@@ -4,6 +4,7 @@ import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { Button, HelperText, TextInput } from "react-native-paper";
 import { router, useLocalSearchParams } from "expo-router";
 import { useValidateIdentifier } from "@/features/auth";
+import { AUTH_ROUTES } from "@/app/routes";
 
 const EnterIdentifierScreen = () => {
   const {
@@ -20,13 +21,13 @@ const EnterIdentifierScreen = () => {
     if (result.success) {
       if (resetOption === "question")
         router.push({
-          pathname: "/getting-started/question-reset",
+          pathname: AUTH_ROUTES.FORGOT_PASSWORD.QUESTION_RESET,
           params: { identifier },
         });
 
       if (resetOption === "recoveryKey")
         router.push({
-          pathname: "/getting-started/recovery-key-reset",
+          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RECOVERY_KEY_RESET,
           params: { identifier },
         });
     }

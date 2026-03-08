@@ -1,3 +1,4 @@
+import { AUTH_ROUTES } from "@/app/routes";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, View } from "react-native";
@@ -9,25 +10,25 @@ interface ResetOptionProps {
 
 const resetOptionData = {
   email: {
-    link: "/getting-started/email-reset",
+    link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Reset via email",
     description: "If you have email linked to account",
     icon: "email",
   },
   sms: {
-    link: "/getting-started/sms-reset",
+    link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Reset via SMS",
     description: "If you have number linked to account",
     icon: "cellphone",
   },
   question: {
-    link: "/getting-started/enter-identifier",
+    link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Verify your Identity",
     description: "Answer security questions to confirm your identity",
     icon: "question",
   },
   recoveryKey: {
-    link: "/getting-started/enter-identifier",
+    link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Verify your Identity",
     description: "Answer security questions to confirm your identity",
     icon: "question",

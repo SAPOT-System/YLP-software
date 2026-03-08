@@ -12,6 +12,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { useChangePassword } from "@/features/auth";
 import { useToast } from "@/features/shared/hooks";
+import { AUTH_ROUTES } from "@/app/routes";
 
 const ChangePasswordScreen = () => {
   const { token, identifier } = useLocalSearchParams<{
@@ -47,7 +48,7 @@ const ChangePasswordScreen = () => {
     const res = await changePassword({ password, confirmPassword, identifier });
     if (res.success) {
       showToast("Change password successfully");
-      router.replace("/getting-started/server-login");
+      router.replace(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
     } else {
       showToast("Change password failed");
     }
