@@ -67,6 +67,30 @@ export const validateRegistrationForm = ({
     errors.questionAnswer = "Answer is required";
   }
 
+  // Password and confirm password validation
+  Object.assign(errors, validatePassword(password, confirmPassword));
+
+  // Terms & Conditions validation
+  if (termsChecked !== undefined && !termsChecked) {
+    errors.termsChecked = "You must agree to the terms and conditions";
+  }
+
+  return errors;
+};
+
+export const hasValidationErrors = (
+  errors:
+    | RegisterFormStateErrors
+    | { password?: string; confirmPassword?: string }
+): boolean => {
+  return Object.keys(errors).length > 0;
+};
+
+export const validatePassword = (
+  password?: string,
+  confirmPassword?: string
+) => {
+  const errors: { password?: string; confirmPassword?: string } = {};
   // Password validation
   if (password !== undefined && !password) {
     errors.password = "Password is required";
@@ -83,16 +107,5 @@ export const validateRegistrationForm = ({
     errors.confirmPassword = "Passwords do not match";
   }
 
-  // Terms & Conditions validation
-  if (termsChecked !== undefined && !termsChecked) {
-    errors.termsChecked = "You must agree to the terms and conditions";
-  }
-
   return errors;
-};
-
-export const hasValidationErrors = (
-  errors: RegisterFormStateErrors
-): boolean => {
-  return Object.keys(errors).length > 0;
 };
