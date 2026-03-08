@@ -2,6 +2,15 @@
  * Register types and interfaces
  */
 
+export interface RegisterStepProps {
+  values: RegisterFormState;
+  errors: RegisterFormStateErrors;
+  loading: boolean;
+  onChange: (name: keyof RegisterFormState, value: string | boolean) => void;
+  onSubmit: (values: Partial<RegisterFormState>) => void;
+  onBack?: () => void;
+}
+
 export interface RegisterFormState {
   username: string;
   firstName: string;
