@@ -20,7 +20,7 @@ export const useRegister = () => {
 
   const registerUser = async (
     form: RegisterFormState
-  ): Promise<{ success: boolean, recoveryKeyFileLink?: string }> => {
+  ): Promise<{ success: boolean; recoveryKeyFileLink?: string }> => {
     setLoading(true);
     setErrors({});
 
@@ -129,8 +129,8 @@ export const useRegister = () => {
 
   const checkIfIdentifierExists = async (identifier: string) => {
     try {
-      const res = await existsApi(identifier);
-      return res.data.exists;
+      const { exists } = await existsApi(identifier);
+      return exists;
     } catch {
       return false;
     }
