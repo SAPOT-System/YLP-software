@@ -30,7 +30,9 @@ export const loginApi = async (
 };
 
 export const existsApi = async (identifier: string) => {
-  const res = await apiClient.get("/auth/exists/", { params: { identifier } });
+  const res = await apiClient.get<{ exists: boolean }>("/auth/exists/", {
+    params: { identifier },
+  });
   return res.data;
 };
 
@@ -56,5 +58,43 @@ export const generateNewRecoveryKeyApi = async () => {
   const res = await apiClient.post<string>(
     "/auth/forgot-password/generate-new-recovery-key/"
   );
+  return res;
+};
+
+export const getSecurityQuestionApi = async (identifier: string) => {
+  const res = await apiClient.get<{ question: string }>(
+    "/auth/forgot-password/security-question",
+    { params: { identifier } }
+  );
+  return res;
+};
+
+export const verifySecurityQuestionApi = async (
+  identifier: string,
+  requestBody: { question: string; answer: string }
+) => {
+  const res = await apiClient.post<{ correct: boolean; reset_link: string }>(
+    "/auth/forgot-password/security-question/answer",
+    requestBody,
+    { params: { identifier } }
+  );
+  return res;
+};
+
+export const canResetPasswordApi = async (token: string) => {
+  const res = await apiClient.get("/auth/forgot-password/reset-password", {
+    params: { token },
+  });
+  return res.status === 200;
+};
+
+export const resetPasswordApi = async (token: string, newPassword: string) => {
+
+  const res = await apiClient.post<{ message: string }>(
+    "/auth/forgot-password/reset-password",
+    { new_password: newPassword },
+    { params: { token } }
+  );
+
   return res;
 };
