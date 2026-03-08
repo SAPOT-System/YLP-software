@@ -1,0 +1,17 @@
+export const AUTH_ROUTES = {
+  LOGIN: {
+    LAN_LOGIN: "/auth/login/lan-login",
+    SERVER_LOGIN: "/auth/login/server-login",
+  },
+  FORGOT_PASSWORD: {
+    INDEX: "/auth/forgot-password",
+    EMAIL_RESET: "/auth/forgot-password/email-reset",
+    ENTER_IDENTIFIER: "/auth/forgot-password/enter-identifier",
+    ENTER_RECOVERY: "/auth/forgot-password/enter-recovery",
+    QUESTION_RESET: "/auth/forgot-password/question-reset",
+    RECOVERY_KEY_RESET: "/auth/forgot-password/recovery-key-reset",
+    RESET_PASSWORD: "/auth/forgot-password/reset-password",
+    SMS_RESET: "/auth/forgot-password/sms-reset",
+  },
+  REGISTER: "/auth/register",
+} as const;
