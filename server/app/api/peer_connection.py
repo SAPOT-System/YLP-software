@@ -61,7 +61,7 @@ html = """
         <h1>WebSocket Chat</h1>
         <h2>Your ID: <span id="ws-id"></span></h2>
         <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off" value='  {   "type": "offer",   "from_user": "550e8400e29b41d4a716446655440000",   "to": "619176107fed4af4abb235dc9663136d",   "data":  {"some_data": {"here_like":"this"}}}'/>
+            <input type="text" id="messageText" autocomplete="off" value='  { "type": "offer", "data":  { "sender": "550e8400e29b41d4a716446655440000", "ipAddress": "192.168.254.32", "port": 8000, "to": "619176107fed4af4abb235dc9663136d" } }'/>
             <button>Send</button>
         </form>
         <ul id='messages'>
@@ -75,6 +75,7 @@ html = """
             document.querySelector("#ws-id").textContent = my_id;
             var ws = new WebSocket(`ws://localhost:8000/ws/?target_id=${client_id}&token=${token}`);
             ws.onmessage = function(event) {
+            console.log("RECEIVED")
                 var messages = document.getElementById('messages')
                 var message = document.createElement('li')
                 var content = document.createTextNode(event.data)
@@ -84,6 +85,7 @@ html = """
             function sendMessage(event) {
                 var input = document.getElementById("messageText")
                 ws.send(input.value)
+                console.log("clicked", input.value)
                 input.value = ''
                 event.preventDefault()
             }
@@ -106,17 +108,20 @@ async def sdp_relay(target_id: UUID, token: str, websocket: WebSocket):
     sdp offer
     sdp answer
     ICE candidates
+    handshakes
     """
     user_id = await authenticate_websocket(websocket, token)
     await manager.connect(UUID(user_id), websocket)
     try:
         while True:
             payload = await receive_signal_message(websocket)
+
             if not payload:
                 continue
 
             if not validate_sender(payload, user_id):
                 continue
+            print("HERE running")
             await relay_signal(user_id, target_id, payload)
     except WebSocketDisconnect:
         manager.disconnect(user_id)
