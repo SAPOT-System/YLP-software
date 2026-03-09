@@ -304,3 +304,46 @@ requires user to be authenticated
 requires token url parameter sent to a user email. Responds with an html page
 ** Verify email ~/auth/verify/resend-verification-email GET~
 requires user to be authenticated
+
+** Websocket/signalling
+*** SDP relay example ~/ws GET~
+- access like
+  ~https://ylp-software.onrender.com/ws/?target_id=8380dbb9-482e-42fa-a1fd-fafedd9f918d&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwOWM4ZDRlYS00OGYwLTRiN2UtYWY1Mi0yZDNmY2FkMGU2OGQiLCJleHAiOjE3NzI0NTU2MDh9.aD-vGqlRHdx_-zHm9Oev12VKCvOoU9MhLm-7rTLnNok&my_id=09c8d4ea-48f0-4b7e-af52-2d3fcad0e68d~.
+  Notice the url parameters of my_id, target_id, and token (access_token).
+
+*** SDP relay ~ws://localhost:8000/ws/~ (not visible on the docs)
+- this is an endpoint that will be used for relaying SDP offers, answers, and
+  ICE candidates
+- this endpoint will accept sdp offers, sdp answers, and ICE candidates.
+  Anything else will be rejected.
+**** Sample Connection to websocket
+  #+BEGIN_SRC json
+  ws://localhost:8000/ws/?target_id=${client_id}&token=${token}
+  #+END_SRC
+  Put this link url (change domain as needed but it needs ws:// or wss:// at the
+  protocol) inside a WebSocket object, then send a sdp message like
+  #+BEGIN_SRC json
+    {
+        "type": "offer",
+        "from_user": "550e8400e29b41d4a716446655440000",
+        "to": "619176107fed4af4abb235dc9663136d",j
+        "data":  {"some_data": {"here_like":"this"}}
+    }
+  #+END_SRC
+
+  *Note that the ~from~ and ~to~ should be the same as the connection parameters*
+
+***** TODO
+****** ADD TYPES
+  - ice-candidate
+  - offer
+  - answer
+  - handshake
+******  change structure
+#+BEGIN_SRC
+      {
+        type: "";
+        data: {
+            from: UUID; to: UUID, ipAddress: string; port: number };
+        }
+#+END_SRC

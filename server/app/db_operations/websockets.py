@@ -17,18 +17,14 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
     return user_id
 
 def validate_sender(payload: SignalMessage, user_id: UUID) -> bool:
-    return str(UUID(payload.from_user)) == str(user_id)
+    data = payload.data.model_dump()
+    return str(UUID(data.get('sender'))) == str(user_id)
 
-async def relay_signal(user_id: UUID, target_id: UUID, payload: SignalMessage):
+async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage):
     message = {
         "type": payload.type,
-        "from": str(user_id),
-        "data": payload.data
+        "data": payload.data.model_dump()
     }
-
-    # call-ended may not need data
-    if payload.type == "call-ended":
-        message.pop("data", None)
 
     if manager.active_connections.get(target_id):
         await manager.send_personal_message(target_id, message)
@@ -40,6 +36,8 @@ async def receive_signal_message(websocket: WebSocket) -> SignalMessage|None:
     raw_payload = await websocket.receive_json()
 
     try:
-        return SignalMessage(**raw_payload)
+        payload = SignalMessage(**raw_payload)
+        return  payload
     except ValidationError:
+        print("ERRORR: receive signal message")
         return None
