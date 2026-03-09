@@ -127,10 +127,192 @@ async def recover_with_recovery_key(
         'expire_in_seconds': LINK_TTL_SECONDS
     }
 
-@router.get("/reset-password")
+from fastapi.responses import HTMLResponse
+
+HTML_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reset Password</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f4f6f8;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+
+.container{
+  background:white;
+  display: flex;
+  width:100%;
+  flex-direction: column;
+  padding:30px;
+  border-radius:10px;
+  box-shadow:0 10px 25px rgba(0,0,0,0.1);
+}
+
+#resetForm {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+h2{
+  margin-bottom:20px;
+}
+
+input{
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  margin-bottom:15px;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  border:none;
+  border-radius:6px;
+  background:#4CAF50;
+  color:white;
+  font-size:16px;
+  cursor:pointer;
+}
+
+button:hover{
+  background:#45a049;
+}
+
+.error{
+  color:red;
+  font-size:14px;
+}
+
+.success{
+  color:green;
+  font-size:14px;
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+
+<h2>Reset Password</h2>
+
+<form id="resetForm">
+
+<input type="hidden" id="token" value="{{TOKEN}}">
+
+<label>New Password</label>
+<input type="password" id="password" required>
+
+<label>Confirm Password</label>
+<input type="password" id="confirmPassword" required>
+
+<div id="error" class="error"></div>
+<div id="success" class="success"></div>
+
+<button type="submit">Reset Password</button>
+
+</form>
+
+</div>
+
+<script>
+
+const form = document.getElementById("resetForm");
+const error = document.getElementById("error");
+const success = document.getElementById("success");
+
+function validatePassword(password){
+
+  if(password.length < 8){
+    return "Password must be at least 8 characters.";
+  }
+
+  if(!/[a-z]/.test(password) || !/[A-Z]/.test(password)){
+    return "Password must contain lowercase and uppercase letters.";
+  }
+
+  if(!/[0-9]/.test(password)){
+    return "Password must contain at least one number.";
+  }
+
+  return null;
+}
+
+form.addEventListener("submit", async (e) => {
+
+  e.preventDefault();
+
+  error.textContent = "";
+  success.textContent = "";
+
+  const password = document.getElementById("password").value;
+  const confirmPassword = document.getElementById("confirmPassword").value;
+  const token = document.getElementById("token").value;
+
+  const validationError = validatePassword(password);
+
+  if(validationError){
+    error.textContent = validationError;
+    return;
+  }
+
+  if(password !== confirmPassword){
+    error.textContent = "Passwords do not match.";
+    return;
+  }
+
+  const url = window.location.href;
+
+  try{
+
+    const response = await fetch(url,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "accept":"application/json"
+      },
+      body: JSON.stringify({
+        new_password: password
+      })
+    });
+
+    if(response.ok){
+      success.textContent = "Password successfully reset.";
+      form.reset();
+    }
+    else{
+      const data = await response.json();
+      error.textContent = data.detail || "Reset failed.";
+    }
+
+  }catch(err){
+    error.textContent = "Network error.";
+  }
+
+});
+
+</script>
+
+</body>
+</html>
+"""
+
+@router.get("/reset-password", response_class=HTMLResponse)
 def can_reset_password(token: str, session: SessionDep):
     validate_reset_token(token, session)
-    return {"detail": "Valid token. Use POST request."}
+    # return {"detail": "Valid token. Use POST request."}
+    return HTML_PAGE.replace("{{TOKEN}}", token)
 
 
 @router.post("/reset-password")

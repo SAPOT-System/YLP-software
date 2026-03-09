@@ -99,7 +99,6 @@ html = """
 async def testing_area(target_id: UUID, my_id: UUID, token: str):
     return HTMLResponse(html)
 
-# TODO add authentication... A CLEAN ONE!!
 @router.websocket("/")
 async def sdp_relay(target_id: UUID, token: str, websocket: WebSocket):
     """
