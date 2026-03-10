@@ -47,6 +47,8 @@ from app.db_operations.forgot_password import validate_reset_token
 from app.db_operations.auth import get_domain
 from app.db_operations.forgot_password import generate_reset_token
 from app.db_operations.verify_user import require_verified_user
+from app.db_operations.forgot_password import generate_reset_code
+from app.models.PasswordResetCode import PasswordResetCode
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
 
@@ -129,190 +131,10 @@ async def recover_with_recovery_key(
 
 from fastapi.responses import HTMLResponse
 
-HTML_PAGE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Reset Password</title>
-
-<style>
-body{
-  font-family: Arial, sans-serif;
-  background:#f4f6f8;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-}
-
-.container{
-  background:white;
-  display: flex;
-  width:100%;
-  flex-direction: column;
-  padding:30px;
-  border-radius:10px;
-  box-shadow:0 10px 25px rgba(0,0,0,0.1);
-}
-
-#resetForm {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-h2{
-  margin-bottom:20px;
-}
-
-input{
-  width:100%;
-  padding:10px;
-  margin-top:10px;
-  margin-bottom:15px;
-  border-radius:6px;
-  border:1px solid #ccc;
-}
-
-button{
-  width:100%;
-  padding:10px;
-  border:none;
-  border-radius:6px;
-  background:#4CAF50;
-  color:white;
-  font-size:16px;
-  cursor:pointer;
-}
-
-button:hover{
-  background:#45a049;
-}
-
-.error{
-  color:red;
-  font-size:14px;
-}
-
-.success{
-  color:green;
-  font-size:14px;
-}
-</style>
-
-</head>
-<body>
-
-<div class="container">
-
-<h2>Reset Password</h2>
-
-<form id="resetForm">
-
-<input type="hidden" id="token" value="{{TOKEN}}">
-
-<label>New Password</label>
-<input type="password" id="password" required>
-
-<label>Confirm Password</label>
-<input type="password" id="confirmPassword" required>
-
-<div id="error" class="error"></div>
-<div id="success" class="success"></div>
-
-<button type="submit">Reset Password</button>
-
-</form>
-
-</div>
-
-<script>
-
-const form = document.getElementById("resetForm");
-const error = document.getElementById("error");
-const success = document.getElementById("success");
-
-function validatePassword(password){
-
-  if(password.length < 8){
-    return "Password must be at least 8 characters.";
-  }
-
-  if(!/[a-z]/.test(password) || !/[A-Z]/.test(password)){
-    return "Password must contain lowercase and uppercase letters.";
-  }
-
-  if(!/[0-9]/.test(password)){
-    return "Password must contain at least one number.";
-  }
-
-  return null;
-}
-
-form.addEventListener("submit", async (e) => {
-
-  e.preventDefault();
-
-  error.textContent = "";
-  success.textContent = "";
-
-  const password = document.getElementById("password").value;
-  const confirmPassword = document.getElementById("confirmPassword").value;
-  const token = document.getElementById("token").value;
-
-  const validationError = validatePassword(password);
-
-  if(validationError){
-    error.textContent = validationError;
-    return;
-  }
-
-  if(password !== confirmPassword){
-    error.textContent = "Passwords do not match.";
-    return;
-  }
-
-  const url = window.location.href;
-
-  try{
-
-    const response = await fetch(url,{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "accept":"application/json"
-      },
-      body: JSON.stringify({
-        new_password: password
-      })
-    });
-
-    if(response.ok){
-      success.textContent = "Password successfully reset.";
-      form.reset();
-    }
-    else{
-      const data = await response.json();
-      error.textContent = data.detail || "Reset failed.";
-    }
-
-  }catch(err){
-    error.textContent = "Network error.";
-  }
-
-});
-
-</script>
-
-</body>
-</html>
-"""
-
-@router.get("/reset-password", response_class=HTMLResponse)
+@router.get("/reset-password")
 def can_reset_password(token: str, session: SessionDep):
     validate_reset_token(token, session)
-    # return {"detail": "Valid token. Use POST request."}
-    return HTML_PAGE.replace("{{TOKEN}}", token)
+    return {"detail": "Valid token. Use POST request."}
 
 
 @router.post("/reset-password")
@@ -338,13 +160,29 @@ def reset_password(
     }
 
 
-@router.post("/email")
-def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep, request: Request):
-
+@router.post("/email-code")
+def confirm_code(email: str, code: str, session: SessionDep, request: Request):
     current_user = get_user(email, session)
-
     if current_user:
+        statement=  select(PasswordResetCode).where(
+            PasswordResetCode.email == email,
+            PasswordResetCode.code == code
+        )
+
+        record = session.exec(statement).first()
+
+        if not record:
+            raise HTTPException(400, "Invalid code")
+
+
+        if record.expires_at < datetime.utcnow():
+            raise HTTPException(400, "Code expired")
+
+        session.delete(record)
+        session.commit()
+
         raw_token, token_hash = generate_reset_token().values()
+        print("TOKEN", raw_token, token_hash)
         expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
         store_reset_token_in_db(
@@ -356,11 +194,33 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
 
         reset_link = reset_link_template(raw_token, request)
 
+        return {
+            'link': reset_link,
+            'detail': 'Use POST request with the new password to reset the password'
+        }
+    raise HTTPException(401, "Invalid user.")
+
+@router.post("/email")
+def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep, request: Request):
+
+    current_user = get_user(email, session)
+
+    if current_user:
+        code = generate_reset_code()
+
+        reset_code = PasswordResetCode(
+            email=email,
+            code=code,
+            expires_at=datetime.utcnow() + timedelta(minutes=10)
+        )
+        session.add(reset_code)
+        session.commit()
+
+
         html = f"""
         <h3>Password Reset</h3>
-        <p>Click below to reset your password:</p>
-        <a href="{reset_link}">Reset Password</a>
-        <p>This link expires in 30 minutes.</p>
+        <p>Your code is:</p>
+        <h3>{code}</h3>
         """
 
         background_tasks.add_task(
