@@ -1,19 +1,25 @@
 import { View } from "react-native";
 import React, { useState } from "react";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import {
-  ActivityIndicator,
-  Button,
-  HelperText,
-  Text,
-} from "react-native-paper";
+import { ActivityIndicator, Button, HelperText } from "react-native-paper";
 import { router, useLocalSearchParams } from "expo-router";
-import { ExpoFileUpload, useVerifyRecoveryKey } from "@/features/auth";
+import {
+  ExpoFileUpload,
+  FileUploadResultCard,
+  PrimaryButton,
+  SecondaryButton,
+  useVerifyRecoveryKey,
+} from "@/features/auth";
 import { pick } from "@react-native-documents/picker";
 import { AUTH_ROUTES } from "@/app/routes";
+import { FailedDialog } from "@/features/shared";
+import { useDialogVisibility } from "@/features/shared/hooks";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
+
+  // Dialog
+  const insertFailedDialog = useDialogVisibility();
 
   const [file, setFile] = useState<ExpoFileUpload>();
 
@@ -26,18 +32,19 @@ const RecoveryKeyResetScreen = () => {
   const { loading, error, verifyRecoveryKey } = getVerifyRecoveryKey;
 
   const handleFileUpload = async () => {
+    insertFailedDialog.hide();
+    console.log(file);
     try {
       const [pickedFile] = await pick();
 
-      if (pickedFile.name && pickedFile.type) {
-        console.log("pickedFile", pickedFile.name);
+      if (pickedFile.name && pickedFile.type === "text/plain") {
         setFile({
           uri: pickedFile.uri,
           name: pickedFile.name,
           type: pickedFile.type,
         });
       } else {
-        console.log("invalid file");
+        insertFailedDialog.show();
       }
     } catch (error: unknown) {
       console.error(error);
@@ -59,6 +66,10 @@ const RecoveryKeyResetScreen = () => {
     }
   };
 
+  const handleDeleteFile = () => {
+    setFile(undefined);
+  };
+
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
@@ -72,26 +83,40 @@ const RecoveryKeyResetScreen = () => {
           style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
         >
           <HelperText type="error">{error.general}</HelperText>
-          <Button mode="contained" onPress={handleFileUpload}>
+          <Button mode="contained" onPress={handleFileUpload} disabled={!!file}>
             Insert File
           </Button>
           <HelperText type="error">{error.recoveryKey}</HelperText>
           {file && (
-            <Text>
-              {file.name} {file.type} {file.uri}
-            </Text>
+            <FileUploadResultCard
+              fileName={file.name}
+              onDelete={handleDeleteFile}
+            />
           )}
         </View>
-        <Button
-          mode="contained"
-          style={{ width: 280 }}
+        <PrimaryButton
           onPress={handleVerify}
           loading={loading}
           disabled={loading}
         >
           Verify
-        </Button>
+        </PrimaryButton>
+        <SecondaryButton
+          mode="outlined"
+          style={{ width: 280, marginTop: 16 }}
+          onPress={() => router.back()}
+          disabled={loading}
+        >
+          Back
+        </SecondaryButton>
       </ScreenContent>
+      <FailedDialog
+        type="fileUploadFailed"
+        onPrimaryBtnPress={handleFileUpload}
+        onSecondaryBtnPress={insertFailedDialog.hide}
+        visible={insertFailedDialog.visible}
+        hide={insertFailedDialog.hide}
+      />
     </View>
   );
 };

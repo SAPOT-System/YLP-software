@@ -1,14 +1,15 @@
 import { View } from "react-native";
 import React, { useState } from "react";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import {
-  ActivityIndicator,
-  Button,
-  HelperText,
-  TextInput,
-} from "react-native-paper";
+import { ActivityIndicator, HelperText } from "react-native-paper";
 import { router, useLocalSearchParams } from "expo-router";
-import { useGetQuestion, useVerifyAnswer } from "@/features/auth";
+import {
+  AuthTextInput,
+  PrimaryButton,
+  SecondaryButton,
+  useGetQuestion,
+  useVerifyAnswer,
+} from "@/features/auth";
 import { AUTH_ROUTES } from "@/app/routes";
 
 const QuestionResetScreen = () => {
@@ -54,13 +55,13 @@ const QuestionResetScreen = () => {
       <ScreenHeader headerName="Resetting Password" />
       <ScreenContent
         title="Password Recovery"
-        description="Please enter your account"
+        description="Please enter the answer to your security question"
       >
         <View
           style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
         >
           <HelperText type="error">{error.general}</HelperText>
-          <TextInput
+          <AuthTextInput
             mode="outlined"
             label={question}
             placeholder={question}
@@ -70,15 +71,20 @@ const QuestionResetScreen = () => {
           />
           <HelperText type="error">{error.answer}</HelperText>
         </View>
-        <Button
-          mode="contained"
-          style={{ width: 280 }}
+        <PrimaryButton
           onPress={handleVerify}
           loading={verifyAnswerLoading}
           disabled={verifyAnswerLoading}
         >
           Verify
-        </Button>
+        </PrimaryButton>
+        <SecondaryButton
+          style={{ marginTop: 16 }}
+          onPress={() => router.back()}
+          disabled={verifyAnswerLoading}
+        >
+          Back
+        </SecondaryButton>
       </ScreenContent>
     </View>
   );

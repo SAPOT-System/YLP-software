@@ -1,9 +1,9 @@
 import { View } from "react-native";
 import React, { useState } from "react";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { Button, TextInput } from "react-native-paper";
 import { router } from "expo-router";
 import { AUTH_ROUTES } from "@/app/routes";
+import { AuthTextInput, PrimaryButton } from "@/features/auth";
 
 const EmailResetScreen = () => {
   const [email, setEmail] = useState("");
@@ -20,23 +20,20 @@ const EmailResetScreen = () => {
           style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
         >
           {/* TODO: implement error mechanism */}
-          <TextInput
-            mode="outlined"
+          <AuthTextInput
             label="Email Address"
             placeholder="yourmail@gmail.com"
             value={email}
             onChangeText={setEmail}
           />
         </View>
-        <Button
-          mode="contained"
-          style={{ width: 280 }}
+        <PrimaryButton
           onPress={() =>
             router.push(AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY)
           }
         >
           Send Code
-        </Button>
+        </PrimaryButton>
       </ScreenContent>
     </View>
   );

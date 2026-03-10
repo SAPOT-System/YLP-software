@@ -7,3 +7,4 @@ export * from "./use-discovery-service";
 export * from "./use-check-connection";
 export * from "./use-loading-overlay";
 export * from "./use-toast";
+export * from "./use-dialog-visibility";

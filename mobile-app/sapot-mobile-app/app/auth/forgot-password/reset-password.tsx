@@ -3,14 +3,17 @@ import React, { useState } from "react";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import {
   ActivityIndicator,
-  Button,
   HelperText,
   Snackbar,
   Text,
-  TextInput,
 } from "react-native-paper";
 import { router, useLocalSearchParams } from "expo-router";
-import { useChangePassword } from "@/features/auth";
+import {
+  AuthTextInput,
+  PrimaryButton,
+  SecondaryButton,
+  useChangePassword,
+} from "@/features/auth";
 import { useToast } from "@/features/shared/hooks";
 import { AUTH_ROUTES } from "@/app/routes";
 
@@ -48,7 +51,7 @@ const ChangePasswordScreen = () => {
     const res = await changePassword({ password, confirmPassword, identifier });
     if (res.success) {
       showToast("Change password successfully");
-      router.replace(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
+      router.replace(AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS);
     } else {
       showToast("Change password failed");
     }
@@ -67,8 +70,7 @@ const ChangePasswordScreen = () => {
           style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
         >
           {/* TODO: implement error mechanism */}
-          <TextInput
-            mode="outlined"
+          <AuthTextInput
             label="New password"
             placeholder="Enter your new password"
             value={password}
@@ -83,7 +85,7 @@ const ChangePasswordScreen = () => {
             </HelperText>
           )}
 
-          <TextInput
+          <AuthTextInput
             mode="outlined"
             label="Confirm password"
             placeholder="Confirm your password"
@@ -99,15 +101,16 @@ const ChangePasswordScreen = () => {
             </HelperText>
           )}
         </View>
-        <Button
-          mode="contained"
-          style={{ width: 280 }}
+        <PrimaryButton
           onPress={handleChangePassword}
           loading={loading}
           disabled={loading}
         >
           Change
-        </Button>
+        </PrimaryButton>
+        <SecondaryButton onPress={() => router.back()} disabled={loading}>
+          Back
+        </SecondaryButton>
       </ScreenContent>
       <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
         {toastMessage}

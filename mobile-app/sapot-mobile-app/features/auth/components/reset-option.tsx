@@ -25,13 +25,14 @@ const resetOptionData = {
     link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Verify your Identity",
     description: "Answer security questions to confirm your identity",
-    icon: "question",
+    icon: "chat-question",
   },
   recoveryKey: {
     link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
-    title: "Verify your Identity",
-    description: "Answer security questions to confirm your identity",
-    icon: "question",
+    title: "Use Recovery Keys",
+    description:
+      "Enter your recovery key, it was provided when you first created your account",
+    icon: "key-variant",
   },
 } as const;
 
@@ -48,24 +49,36 @@ export const ResetOption = ({ option }: ResetOptionProps) => {
       style={({ pressed }) => [
         {
           backgroundColor: pressed
-            ? theme.colors.elevation.level5
-            : theme.colors.inverseOnSurface,
+            ? theme.colors.secondary
+            : theme.colors.secondary,
           borderRadius: 30,
           paddingHorizontal: 16,
-          paddingVertical: 24,
+          paddingVertical: 20,
           flexDirection: "row",
           alignItems: "center",
           marginBottom: 16,
         },
       ]}
     >
-      <Icon source={resetOptionData[option].icon} size={24} />
+      <View
+        style={{
+          borderRadius: 24,
+          padding: 8,
+          backgroundColor: theme.colors.tertiary,
+        }}
+      >
+        <Icon
+          source={resetOptionData[option].icon}
+          size={24}
+          color={theme.colors.onSecondary}
+        />
+      </View>
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text
-          variant="bodyLarge"
+          variant="bodyMedium"
           style={{
-            color: theme.colors.primary,
-            fontWeight: "bold",
+            color: theme.colors.onSecondary,
+            fontWeight: "medium",
           }}
           numberOfLines={1}
         >
@@ -73,8 +86,10 @@ export const ResetOption = ({ option }: ResetOptionProps) => {
         </Text>
         <Text
           variant="bodySmall"
-          style={{ color: theme.colors.onPrimaryContainer }}
-          numberOfLines={1}
+          numberOfLines={2}
+          style={{
+            color: theme.colors.onTertiary,
+          }}
         >
           {resetOptionData[option].description}
         </Text>

@@ -1,9 +1,14 @@
 import { View } from "react-native";
 import React, { useState } from "react";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { Button, HelperText, TextInput } from "react-native-paper";
+import { HelperText } from "react-native-paper";
 import { router, useLocalSearchParams } from "expo-router";
-import { useValidateIdentifier } from "@/features/auth";
+import {
+  AuthTextInput,
+  PrimaryButton,
+  SecondaryButton,
+  useValidateIdentifier,
+} from "@/features/auth";
 import { AUTH_ROUTES } from "@/app/routes";
 
 const EnterIdentifierScreen = () => {
@@ -38,15 +43,12 @@ const EnterIdentifierScreen = () => {
     >
       <ScreenHeader headerName="Resetting Password" />
       <ScreenContent
-        title="Password Recovery"
-        description="Please enter your account"
+        title="Forgot Password"
+        description="Enter your account details"
       >
-        <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
-        >
+        <View style={{ width: "100%", alignItems: "stretch" }}>
           <HelperText type="error">{error.general}</HelperText>
-          <TextInput
-            mode="outlined"
+          <AuthTextInput
             label="Email/Phone number/Username"
             placeholder="Enter identifier"
             value={identifier}
@@ -55,15 +57,17 @@ const EnterIdentifierScreen = () => {
           />
           <HelperText type="error">{error.identifier}</HelperText>
         </View>
-        <Button
-          mode="contained"
-          style={{ width: 280 }}
+        <PrimaryButton
+          style={{ marginBottom: 8 }}
           onPress={handleContinue}
           loading={loading}
           disabled={loading}
         >
           Continue
-        </Button>
+        </PrimaryButton>
+        <SecondaryButton onPress={() => router.back()} disabled={loading}>
+          Back
+        </SecondaryButton>
       </ScreenContent>
     </View>
   );

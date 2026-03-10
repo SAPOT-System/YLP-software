@@ -1,7 +1,8 @@
 import { View } from "react-native";
 import React from "react";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { ResetOption } from "@/features/auth";
+import { ResetOption, SecondaryButton } from "@/features/auth";
+import { router } from "expo-router";
 
 const ForgotPasswordScreen = () => {
   return (
@@ -22,6 +23,7 @@ const ForgotPasswordScreen = () => {
           <ResetOption option="recoveryKey" />
         </View>
       </ScreenContent>
+      <SecondaryButton onPress={() => router.back()}>Back</SecondaryButton>
     </View>
   );
 };
