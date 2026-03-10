@@ -40,7 +40,7 @@ const Index = () => {
           />
           <Text
             variant="titleLarge"
-            style={{ fontWeight: "bold", color: theme.colors.primary }}
+            style={{ fontWeight: "bold", color: theme.colors.inverseOnSurface }}
           >
             SAPOT
           </Text>
@@ -48,7 +48,12 @@ const Index = () => {
       </View>
       <Text
         variant="headlineSmall"
-        style={{ textAlign: "center", fontWeight: "bold", marginBottom: 10 }}
+        style={{
+          textAlign: "center",
+          fontWeight: "bold",
+          marginBottom: 10,
+          color: theme.colors.inverseOnSurface,
+        }}
       >
         Reliable local and internet messaging
       </Text>
