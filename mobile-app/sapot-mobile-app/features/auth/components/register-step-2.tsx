@@ -1,16 +1,12 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import {
-  Button,
-  Checkbox,
-  HelperText,
-  Text,
-  TextInput,
-  useTheme,
-} from "react-native-paper";
+import { Checkbox, HelperText, Text, useTheme } from "react-native-paper";
 import { RegisterStepProps } from "../types";
 import { Dropdown } from "react-native-paper-dropdown";
+import PrimaryButton from "./primary-button";
+import AuthTextInput from "./auth-text-input";
+import SecondaryButton from "./secondary-button";
 
 const SECURITY_QUESTIONS = [
   {
@@ -57,13 +53,13 @@ export const RegisterStep2 = ({
         )}
 
         {/* Answer */}
-        <TextInput
-          mode="outlined"
+        <AuthTextInput
           label="Answer"
           placeholder="Answer"
           value={values.questionAnswer}
           onChangeText={(value) => onChange("questionAnswer", value)}
           style={styles.textInput}
+          required={true}
           error={!!errors.questionAnswer}
         />
         {errors.questionAnswer && (
@@ -72,7 +68,7 @@ export const RegisterStep2 = ({
           </HelperText>
         )}
 
-        <TextInput
+        <AuthTextInput
           mode="outlined"
           label="Password"
           placeholder="Password"
@@ -80,6 +76,7 @@ export const RegisterStep2 = ({
           onChangeText={(value) => onChange("password", value)}
           secureTextEntry
           style={styles.textInput}
+          required={true}
           error={!!errors.password}
         />
         {errors.password && (
@@ -89,7 +86,7 @@ export const RegisterStep2 = ({
         )}
 
         {/* Confirm Password */}
-        <TextInput
+        <AuthTextInput
           mode="outlined"
           label="Confirm Password"
           placeholder="Confirm Password"
@@ -97,6 +94,7 @@ export const RegisterStep2 = ({
           onChangeText={(value) => onChange("confirmPassword", value)}
           secureTextEntry
           style={styles.textInput}
+          required={true}
           error={!!errors.confirmPassword}
         />
         {errors.confirmPassword && (
@@ -112,17 +110,14 @@ export const RegisterStep2 = ({
               onChange("termsChecked", !values.termsChecked);
             }}
           />
-          <Text
-            variant="bodyMedium"
-            style={{ color: theme.colors.onPrimaryContainer }}
-          >
+          <Text variant="bodyMedium">
             I agree to{" "}
             {/* TODO: Make this a link where it will show the terms and condition texts */}
             <Text
               variant="bodyMedium"
               style={{
-                fontWeight: "bold",
-                textDecorationLine: "underline",
+                fontWeight: "semibold",
+                color: theme.colors.inverseOnSurface,
               }}
             >
               Terms & Conditions
@@ -137,33 +132,31 @@ export const RegisterStep2 = ({
       </View>
       <View style={{ alignItems: "center" }}>
         {/* Submit Button */}
-        <Button
+        <PrimaryButton
           onPress={() => onSubmit(values)}
-          mode="contained"
-          style={{ width: 280, marginBottom: 8 }}
+          style={{ marginBottom: 8 }}
           loading={loading}
           disabled={loading}
         >
           Create Account
-        </Button>
-        <Button
-          onPress={onBack}
-          mode="outlined"
-          style={{ width: 280, marginBottom: 8 }}
+        </PrimaryButton>
+        <SecondaryButton
+          onPress={() => onBack}
+          style={{ marginBottom: 8 }}
           disabled={loading}
         >
           Back
-        </Button>
+        </SecondaryButton>
 
         {/* Login Link */}
-        <Text
-          variant="bodyMedium"
-          style={{ color: theme.colors.onPrimaryContainer }}
-        >
+        <Text variant="bodyMedium">
           Already have an account?{" "}
           <Link
             href={AUTH_ROUTES.LOGIN.SERVER_LOGIN}
-            style={{ fontWeight: "bold", textDecorationLine: "underline" }}
+            style={{
+              textDecorationLine: "underline",
+              color: theme.colors.inverseOnSurface,
+            }}
           >
             Login Here
           </Link>

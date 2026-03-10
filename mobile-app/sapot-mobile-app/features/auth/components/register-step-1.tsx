@@ -1,14 +1,10 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import {
-  Button,
-  HelperText,
-  Text,
-  TextInput,
-  useTheme,
-} from "react-native-paper";
+import { HelperText, Text, useTheme } from "react-native-paper";
 import { RegisterStepProps } from "../types";
+import PrimaryButton from "./primary-button";
+import AuthTextInput from "./auth-text-input";
 
 export const RegisterStep1 = ({
   values,
@@ -22,14 +18,14 @@ export const RegisterStep1 = ({
     <>
       <View style={{ alignItems: "stretch", marginBottom: 20 }}>
         {/* First Name */}
-        <TextInput
-          mode="outlined"
+        <AuthTextInput
           label="First Name"
           placeholder="First Name"
           value={values.firstName}
           onChangeText={(value) => onChange("firstName", value)}
           style={styles.textInput}
           error={!!errors.firstName}
+          required={true}
         />
         {errors.firstName && (
           <HelperText type="error" style={styles.helperText}>
@@ -38,13 +34,13 @@ export const RegisterStep1 = ({
         )}
 
         {/* Last Name */}
-        <TextInput
-          mode="outlined"
+        <AuthTextInput
           label="Last Name"
           placeholder="Last Name"
           value={values.lastName}
           onChangeText={(value) => onChange("lastName", value)}
           style={styles.textInput}
+          required={true}
           error={!!errors.lastName}
         />
         {errors.lastName && (
@@ -53,13 +49,14 @@ export const RegisterStep1 = ({
           </HelperText>
         )}
 
-        <TextInput
+        <AuthTextInput
           mode="outlined"
           label="Username"
           placeholder="Username"
           value={values.username}
           onChangeText={(value) => onChange("username", value)}
           style={styles.textInput}
+          required={true}
           error={!!errors.username}
         />
         {errors.username && (
@@ -69,9 +66,8 @@ export const RegisterStep1 = ({
         )}
 
         {/* Phone Number */}
-        <TextInput
-          mode="outlined"
-          label="Phone Number (optional)"
+        <AuthTextInput
+          label="Phone Number"
           placeholder="Phone Number"
           value={values.phoneNumber}
           onChangeText={(value) => onChange("phoneNumber", value)}
@@ -86,9 +82,8 @@ export const RegisterStep1 = ({
         )}
 
         {/* Email Address */}
-        <TextInput
-          mode="outlined"
-          label="Email Address (optional)"
+        <AuthTextInput
+          label="Email Address"
           placeholder="Email Address"
           value={values.email}
           onChangeText={(value) => onChange("email", value)}
@@ -104,25 +99,24 @@ export const RegisterStep1 = ({
       </View>
       <View style={{ alignItems: "center" }}>
         {/* Submit Button */}
-        <Button
+        <PrimaryButton
           onPress={() => onSubmit(values)}
-          mode="contained"
-          style={{ width: 280, marginBottom: 8 }}
+          style={{ marginBottom: 8 }}
           loading={loading}
           disabled={loading}
         >
           Continue
-        </Button>
+        </PrimaryButton>
 
         {/* Login Link */}
-        <Text
-          variant="bodyMedium"
-          style={{ color: theme.colors.onPrimaryContainer }}
-        >
+        <Text variant="bodyMedium">
           Already have an account?{" "}
           <Link
             href={AUTH_ROUTES.LOGIN.SERVER_LOGIN}
-            style={{ fontWeight: "bold", textDecorationLine: "underline" }}
+            style={{
+              textDecorationLine: "underline",
+              color: theme.colors.inverseOnSurface,
+            }}
           >
             Login Here
           </Link>
