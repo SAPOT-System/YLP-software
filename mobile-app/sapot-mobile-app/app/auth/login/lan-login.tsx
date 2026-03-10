@@ -1,8 +1,8 @@
+import { AuthTextInput, PrimaryButton } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { View } from "react-native";
-import { Button, TextInput } from "react-native-paper";
 
 const LanLoginScreen = () => {
   const [username, setUsername] = useState("");
@@ -19,8 +19,7 @@ const LanLoginScreen = () => {
           style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
         >
           {/* TODO: implement error mechanism */}
-          <TextInput
-            mode="outlined"
+          <AuthTextInput
             label="Username"
             placeholder="Username"
             value={username}
@@ -28,13 +27,12 @@ const LanLoginScreen = () => {
           />
         </View>
         {/* TODO: save the entered username using User Service class */}
-        <Button
+        <PrimaryButton
           onPress={() => router.push("/(drawer)/(tabs)")}
-          mode="contained"
           style={{ width: 280 }}
         >
           Login
-        </Button>
+        </PrimaryButton>
       </ScreenContent>
     </View>
   );
