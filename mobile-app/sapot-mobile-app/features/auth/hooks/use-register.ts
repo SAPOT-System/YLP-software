@@ -12,7 +12,7 @@ import {
   RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
-import { tokenService } from "../service/token-service";
+import { setItemAsync } from "expo-secure-store";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
@@ -62,7 +62,7 @@ export const useRegister = () => {
       });
       const { token } = res.data;
 
-      tokenService.setAccessToken(token);
+      await setItemAsync("token", token);
 
       await addSecurityQuestionApi(
         [{ question: form.securityQuestion, answer: form.questionAnswer }],

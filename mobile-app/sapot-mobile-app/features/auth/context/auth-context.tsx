@@ -1,14 +1,17 @@
-// import * as SecureStore from "expo-secure-store";
-import React, { createContext, useContext, useState } from "react";
-import { tokenService } from "../service/token-service";
+import { getItemAsync, setItemAsync, deleteItemAsync } from "expo-secure-store";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { LoginApiErrorResponse, LoginApiRequest } from "../types";
 import { loginApi } from "../api";
 import { AxiosError } from "axios";
+import { isAccessTokenValid } from "../utils/";
+
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
   logout: () => void;
   loading: boolean;
   errors: LoginFormErrors;
+  isAuthenticated: boolean;
+  accessToken: string | null;
 }
 const AuthContext = createContext<AuthContextI | null>(null);
 
@@ -21,6 +24,18 @@ interface LoginFormErrors {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<LoginFormErrors>({});
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const token = await getItemAsync("token");
+      setAccessToken(token);
+      setIsAuthenticated(token ? await isAccessTokenValid(token) : false);
+      setLoading(false);
+    })();
+  }, []);
 
   const login = async (credentials: LoginApiRequest) => {
     setLoading(true);
@@ -50,9 +65,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const { access_token } = res.data;
 
-      tokenService.setAccessToken(access_token);
-
-      //   await SecureStore.setItemAsync("refresh_token", refreshToken);
+      await setItemAsync("token", access_token);
+      setAccessToken(access_token);
+      setIsAuthenticated(await isAccessTokenValid(access_token));
       return {
         success: true,
       };
@@ -86,9 +101,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
-    // await SecureStore.deleteItemAsync("refresh_token");
-
-    tokenService.clearAccessToken();
+    await deleteItemAsync("token");
+    setAccessToken(null);
+    setIsAuthenticated(false);
   };
 
   // silent login on app start
@@ -118,7 +133,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   //   }, []);
 
   return (
-    <AuthContext.Provider value={{ login, logout, loading, errors }}>
+    <AuthContext.Provider
+      value={{ login, logout, loading, errors, accessToken, isAuthenticated }}
+    >
       {children}
     </AuthContext.Provider>
   );

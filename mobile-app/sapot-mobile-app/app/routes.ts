@@ -16,3 +16,7 @@ export const AUTH_ROUTES = {
   },
   REGISTER: "/auth/register",
 } as const;
+
+export const APP_ROUTES = {
+  HOME: "/(drawer)/(tabs)",
+} as const;

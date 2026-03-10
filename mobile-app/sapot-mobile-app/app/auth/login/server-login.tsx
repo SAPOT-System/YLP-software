@@ -48,6 +48,8 @@ const ServerLoginScreen = () => {
       setTimeout(() => {
         router.replace("/(drawer)/(tabs)");
       }, 1000);
+    } else {
+      showToast("Login failed");
     }
   };
 
