@@ -47,6 +47,8 @@ from app.db_operations.forgot_password import validate_reset_token
 from app.db_operations.auth import get_domain
 from app.db_operations.forgot_password import generate_reset_token
 from app.db_operations.verify_user import require_verified_user
+from app.db_operations.forgot_password import generate_reset_code
+from app.models.PasswordResetCode import PasswordResetCode
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
 
@@ -127,6 +129,8 @@ async def recover_with_recovery_key(
         'expire_in_seconds': LINK_TTL_SECONDS
     }
 
+from fastapi.responses import HTMLResponse
+
 @router.get("/reset-password")
 def can_reset_password(token: str, session: SessionDep):
     validate_reset_token(token, session)
@@ -156,13 +160,29 @@ def reset_password(
     }
 
 
-@router.post("/email")
-def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep, request: Request):
-
+@router.post("/email-code")
+def confirm_code(email: str, code: str, session: SessionDep, request: Request):
     current_user = get_user(email, session)
-
     if current_user:
+        statement=  select(PasswordResetCode).where(
+            PasswordResetCode.email == email,
+            PasswordResetCode.code == code
+        )
+
+        record = session.exec(statement).first()
+
+        if not record:
+            raise HTTPException(400, "Invalid code")
+
+
+        if record.expires_at < datetime.utcnow():
+            raise HTTPException(400, "Code expired")
+
+        session.delete(record)
+        session.commit()
+
         raw_token, token_hash = generate_reset_token().values()
+        print("TOKEN", raw_token, token_hash)
         expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
         store_reset_token_in_db(
@@ -174,11 +194,33 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
 
         reset_link = reset_link_template(raw_token, request)
 
+        return {
+            'link': reset_link,
+            'detail': 'Use POST request with the new password to reset the password'
+        }
+    raise HTTPException(401, "Invalid user.")
+
+@router.post("/email")
+def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep, request: Request):
+
+    current_user = get_user(email, session)
+
+    if current_user:
+        code = generate_reset_code()
+
+        reset_code = PasswordResetCode(
+            email=email,
+            code=code,
+            expires_at=datetime.utcnow() + timedelta(minutes=10)
+        )
+        session.add(reset_code)
+        session.commit()
+
+
         html = f"""
         <h3>Password Reset</h3>
-        <p>Click below to reset your password:</p>
-        <a href="{reset_link}">Reset Password</a>
-        <p>This link expires in 30 minutes.</p>
+        <p>Your code is:</p>
+        <h3>{code}</h3>
         """
 
         background_tasks.add_task(
