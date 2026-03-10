@@ -7,10 +7,10 @@ import { useCheckConnection } from "@/features/shared/hooks";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { View } from "react-native";
-import { Button } from "react-native-paper";
-import { LoadingOverlay } from "@/features/shared";
+import { FailedDialog, LoadingOverlay } from "@/features/shared";
 import { useLoadingOverlay } from "@/features/shared/hooks";
 import { AUTH_ROUTES } from "../routes";
+import { PrimaryButton } from "@/features/auth";
 
 const ModeSelectScreen = () => {
   const router = useRouter();
@@ -19,13 +19,44 @@ const ModeSelectScreen = () => {
   const [selectedMode, setSelectedMode] = useState<"server" | "lan" | null>(
     null
   );
-  const {
-    loading,
-    loadingMessage,
-    showLoading,
-    hideLoading,
-    setLoadingMessage,
-  } = useLoadingOverlay();
+  const [isConnectionFailedDialogVisible, setConnectionIsFailedDialogVisible] =
+    useState(false);
+  const showConnectionFailedDialog = () =>
+    setConnectionIsFailedDialogVisible(true);
+  const hideConnectionFailedDialog = () =>
+    setConnectionIsFailedDialogVisible(false);
+
+  const { loading, loadingMessage, showLoading, hideLoading } =
+    useLoadingOverlay();
+
+  const handleProceed = async () => {
+    if (!selectedMode) return;
+    if (selectedMode === "server") {
+      await handleConnectToServer();
+    }
+    if (selectedMode === "lan") {
+      handleUseLanMode();
+    }
+  };
+
+  const handleUseLanMode = () => {
+    hideConnectionFailedDialog();
+    hideLoading();
+    router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
+  };
+
+  const handleConnectToServer = async () => {
+    hideConnectionFailedDialog();
+    showLoading("Connecting to server");
+    const result = await checkBackendConnection();
+    if (result === true) {
+      hideLoading();
+      router.push(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
+    } else {
+      hideLoading();
+      showConnectionFailedDialog();
+    }
+  };
 
   return (
     <View
@@ -34,7 +65,7 @@ const ModeSelectScreen = () => {
       <ScreenHeader headerName="Getting Started" />
       <ScreenContent
         title="Mode Select"
-        description="Choose how you want to tuse the application"
+        description="Choose how you want to use the application, you can change this later in Settings"
       >
         <View
           style={{
@@ -42,7 +73,7 @@ const ModeSelectScreen = () => {
             gap: 10,
             width: "100%",
             alignItems: "stretch",
-            marginBottom: 40,
+            marginBottom: 24,
           }}
         >
           <ModeSelect
@@ -56,43 +87,26 @@ const ModeSelectScreen = () => {
             onPress={() => setSelectedMode("lan")}
           />
         </View>
-        <Button
-          mode="contained"
-          onPress={async () => {
-            if (!selectedMode) return;
-            if (selectedMode === "server") {
-              showLoading("Connecting...");
-              const result = await checkBackendConnection();
-              if (result === true) {
-                setLoadingMessage("Connected! Redirecting...");
-                setTimeout(() => {
-                  hideLoading();
-                  router.push(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
-                }, 700);
-              } else {
-                setLoadingMessage("Connection failed. Please try again.");
-                setTimeout(() => hideLoading(), 1200);
-              }
-            }
-            if (selectedMode === "lan") {
-              showLoading("Preparing LAN login...");
-              setTimeout(() => {
-                hideLoading();
-                router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
-              }, 700);
-            }
-          }}
+        <PrimaryButton
+          onPress={handleProceed}
           style={{
             width: "100%",
             opacity: selectedMode ? 1 : 0.5,
           }}
         >
           Proceed
-        </Button>
+        </PrimaryButton>
       </ScreenContent>
       <LoadingOverlay
         visible={loading || checkingConnection}
         text={loadingMessage}
+      />
+      <FailedDialog
+        type="connectionFailed"
+        visible={isConnectionFailedDialogVisible}
+        hide={hideConnectionFailedDialog}
+        onPrimaryBtnPress={handleConnectToServer}
+        onSecondaryBtnPress={handleUseLanMode}
       />
     </View>
   );

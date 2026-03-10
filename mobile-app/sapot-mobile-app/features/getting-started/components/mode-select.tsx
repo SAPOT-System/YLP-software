@@ -48,16 +48,24 @@ export const ModeSelect = ({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <Icon
             source={mode === "server" ? "cloud" : "network-strength-3"}
+            color={theme.colors.inverseOnSurface}
             size={20}
           />
-          <Text variant="titleSmall">
+          <Text
+            variant="titleSmall"
+            style={{ color: theme.colors.inverseOnSurface }}
+          >
             {mode === "server" ? "Server Mode" : "LAN Mode"}
           </Text>
         </View>
         <FlatList
           data={descriptionList[mode]}
           renderItem={({ item }) => (
-            <Text key={item.id} style={{ marginBottom: 4 }} variant="bodySmall">
+            <Text
+              key={item.id}
+              style={{ marginBottom: 4, color: theme.colors.inverseOnSurface }}
+              variant="bodySmall"
+            >
               • {item.description}
             </Text>
           )}
