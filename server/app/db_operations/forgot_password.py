@@ -181,3 +181,7 @@ def validate_reset_token(token: str, session: SessionDep) -> PasswordResetToken:
         raise HTTPException(status_code=403, detail="Token expired")
 
     return reset_record
+
+
+def generate_reset_code():
+    return str(secrets.randbelow(900000) + 100000)
