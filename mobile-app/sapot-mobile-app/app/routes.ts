@@ -12,6 +12,7 @@ export const AUTH_ROUTES = {
     RECOVERY_KEY_RESET: "/auth/forgot-password/recovery-key-reset",
     RESET_PASSWORD: "/auth/forgot-password/reset-password",
     SMS_RESET: "/auth/forgot-password/sms-reset",
+    SUCCESS: "/auth/forgot-password/success",
   },
   REGISTER: "/auth/register",
 } as const;
