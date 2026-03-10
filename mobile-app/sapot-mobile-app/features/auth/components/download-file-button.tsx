@@ -46,7 +46,7 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
       mode="contained"
       accessibilityLabel="Download recovery key file"
     >
-      Download Recovery Key
+      Download
     </Button>
   );
 };

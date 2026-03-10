@@ -1,6 +1,8 @@
 import React from "react";
-import { Modal, Portal, Text } from "react-native-paper";
+import { Modal, Portal, Text, useTheme } from "react-native-paper";
 import DownloadFileButton from "./download-file-button";
+import { View } from "react-native";
+
 interface RecoveryKeyDownloadModalProps {
   visible: boolean;
   fileData: string;
@@ -11,26 +13,52 @@ const RecoveryKeyDownloadModal = ({
   fileData,
   hideModal,
 }: RecoveryKeyDownloadModalProps) => {
-  //   const [visible, setVisible] = React.useState(false);
-
-  //   const showModal = () => setVisible(true);
-  //   const hideModal = () => setVisible(false);
-  const containerStyle = { backgroundColor: "white", padding: 20 };
-
+  const theme = useTheme();
   return (
     <Portal>
       <Modal
         visible={visible}
         onDismiss={hideModal}
-        contentContainerStyle={containerStyle}
+        contentContainerStyle={{
+          backgroundColor: theme.colors.background,
+          padding: 32,
+          borderRadius: 10,
+        }}
       >
-        <Text variant="titleLarge">Recovery Key</Text>
+        <Text
+          variant="titleLarge"
+          style={{
+            fontWeight: "bold",
+            marginBottom: 8,
+            color: theme.colors.inverseOnSurface,
+          }}
+        >
+          Recovery Key
+        </Text>
         <Text variant="bodySmall" style={{ marginBottom: 20 }}>
           You can use this to restore your account, keep this somewhere very
           secure.
         </Text>
-        <Text variant="bodySmall">Your recovery key</Text>
-        <Text>recovery-file.txt</Text>
+        <Text
+          variant="bodySmall"
+          style={{ color: theme.colors.inverseOnSurface, marginBottom: 4 }}
+        >
+          Your recovery key
+        </Text>
+        <View
+          style={{
+            backgroundColor: theme.colors.secondary,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 10,
+            paddingVertical: 16,
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ color: theme.colors.onSecondary }}>
+            recovery-file.txt
+          </Text>
+        </View>
         <DownloadFileButton fileData={fileData} />
       </Modal>
     </Portal>
