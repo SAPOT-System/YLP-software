@@ -5,7 +5,6 @@ export const AUTH_ROUTES = {
   },
   FORGOT_PASSWORD: {
     INDEX: "/auth/forgot-password",
-    EMAIL_RESET: "/auth/forgot-password/email-reset",
     ENTER_IDENTIFIER: "/auth/forgot-password/enter-identifier",
     ENTER_RECOVERY: "/auth/forgot-password/enter-recovery",
     QUESTION_RESET: "/auth/forgot-password/question-reset",
