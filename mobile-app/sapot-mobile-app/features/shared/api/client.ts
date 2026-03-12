@@ -1,14 +1,13 @@
-import axios from "axios";
 import { getApiUrl } from "@/config/runtime";
-import { tokenService } from "@/features/auth/service/token-service";
+import axios from "axios";
+import { getItemAsync } from "expo-secure-store";
 
 export const apiClient = axios.create({
   baseURL: getApiUrl(),
 });
 
 apiClient.interceptors.request.use(async (config) => {
-
-  const token = tokenService.getAccessToken();
+  const token = await getItemAsync("token");
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
