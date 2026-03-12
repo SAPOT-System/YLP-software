@@ -17,17 +17,16 @@ jest.mock("@/config/runtime", () => ({
   getApiUrl: mockGetApiUrl,
 }));
 
-const mockTokenService = {
-  getAccessToken: jest.fn<string | null, []>(),
-};
-jest.mock("@/features/auth/service/token-service", () => ({
-  tokenService: mockTokenService,
+const mockGetItemAsync = jest.fn();
+jest.mock("expo-secure-store", () => ({
+  getItemAsync: mockGetItemAsync,
 }));
 
 describe("apiClient", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.resetModules();
+    mockGetItemAsync.mockClear();
   });
 
   it("should create axios instance with correct baseURL from getApiUrl", () => {
@@ -50,7 +49,7 @@ describe("apiClient", () => {
 
   it("should add Authorization header when token exists", async () => {
     const testToken = "test-token-123";
-    mockTokenService.getAccessToken.mockReturnValue(testToken);
+    mockGetItemAsync.mockReturnValue(testToken);
 
     require("../client");
     const interceptorCallback = mockInterceptorUse.mock.calls[0][0];
@@ -61,7 +60,7 @@ describe("apiClient", () => {
   });
 
   it("should not add Authorization header when token is null", async () => {
-    mockTokenService.getAccessToken.mockReturnValue(null);
+    mockGetItemAsync.mockReturnValue(null);
 
     require("../client");
     const interceptorCallback = mockInterceptorUse.mock.calls[0][0];
