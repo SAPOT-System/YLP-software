@@ -131,3 +131,30 @@ export const verifyRecoveryKeyApi = async (
   });
   return res;
 };
+
+export const sendResetEmailCodeApi = async (email: string) => {
+  const res = await apiClient.post("/auth/forgot-password/email", null, {
+    params: {
+      email: email,
+    },
+    headers: {
+      Accept: "application/json",
+    },
+  });
+  return res;
+};
+
+export const verifyEmailCodeApi = async (email: string, code: string) => {
+  const res = await apiClient.post<{ link: string; detail: string }>(
+    "/auth/forgot-password/email-code",
+    null,
+    {
+      params: {
+        email,
+        code,
+      },
+    }
+  );
+
+  return res;
+};

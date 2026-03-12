@@ -4,3 +4,4 @@ export * from "./use-verify-question";
 export * from "./use-validate-identifier";
 export * from "./use-change-password";
 export * from "./use-verify-recovery-key";
+export * from "./use-email-reset"

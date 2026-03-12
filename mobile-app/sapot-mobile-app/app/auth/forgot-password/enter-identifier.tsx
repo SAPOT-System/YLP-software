@@ -7,6 +7,7 @@ import {
   AuthTextInput,
   PrimaryButton,
   SecondaryButton,
+  useEmailReset,
   useValidateIdentifier,
 } from "@/features/auth";
 import { AUTH_ROUTES } from "@/app/routes";
@@ -18,6 +19,11 @@ const EnterIdentifierScreen = () => {
     useLocalSearchParams();
 
   const { loading, error, validateIdentfier } = useValidateIdentifier();
+  const {
+    isLoading: emailResetLoading,
+    error: emailResetError,
+    sendCode,
+  } = useEmailReset();
   const [identifier, setIdentfier] = useState("");
 
   const handleContinue = async () => {
@@ -35,6 +41,16 @@ const EnterIdentifierScreen = () => {
           pathname: AUTH_ROUTES.FORGOT_PASSWORD.RECOVERY_KEY_RESET,
           params: { identifier },
         });
+
+      if (resetOption === "email") {
+        const res = await sendCode(identifier);
+        if (res.success) {
+          router.push({
+            pathname: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
+            params: { identifier },
+          });
+        }
+      }
     }
   };
   return (
@@ -47,7 +63,9 @@ const EnterIdentifierScreen = () => {
         description="Enter your account details"
       >
         <View style={{ width: "100%", alignItems: "stretch" }}>
-          <HelperText type="error">{error.general}</HelperText>
+          <HelperText type="error">
+            {error.general || emailResetError}
+          </HelperText>
           <AuthTextInput
             label="Email/Phone number/Username"
             placeholder="Enter identifier"
@@ -60,12 +78,15 @@ const EnterIdentifierScreen = () => {
         <PrimaryButton
           style={{ marginBottom: 8 }}
           onPress={handleContinue}
-          loading={loading}
-          disabled={loading}
+          loading={loading || emailResetLoading}
+          disabled={loading || emailResetLoading}
         >
           Continue
         </PrimaryButton>
-        <SecondaryButton onPress={() => router.back()} disabled={loading}>
+        <SecondaryButton
+          onPress={() => router.back()}
+          disabled={loading || emailResetLoading}
+        >
           Back
         </SecondaryButton>
       </ScreenContent>

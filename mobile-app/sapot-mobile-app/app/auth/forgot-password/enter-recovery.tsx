@@ -1,40 +1,41 @@
+import { AUTH_ROUTES } from "@/app/routes";
+import { useEmailReset } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { CodeInput } from "@/features/auth";
-import React, { useRef, useState } from "react";
-import {
-  NativeSyntheticEvent,
-  TextInputKeyPressEventData,
-  View,
-} from "react-native";
-import { Text, TextInput, useTheme } from "react-native-paper";
+import { router, useLocalSearchParams } from "expo-router";
+import { OTPInput } from "input-otp-native";
+import React, { useState } from "react";
+import { View } from "react-native";
+import { HelperText, Text, useTheme } from "react-native-paper";
 
-const CODE_LENGTH = 4;
+const CODE_LENGTH = 6;
 
 const EnterRecoveryScreen = () => {
+  const { identifier: email } = useLocalSearchParams<{ identifier: string }>();
+  const { verifyCode, error } = useEmailReset();
   const theme = useTheme();
-  const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(""));
-  const refs = useRef<React.ComponentRef<typeof TextInput>[]>([]);
+  const [code, setCode] = useState<string>("");
 
-  const handleChange = (text: string, index: number) => {
-    if (!/^\d?$/.test(text)) return; // only numbers
-
-    const newCode = [...code];
-    newCode[index] = text;
+  const handleOnChange = async (newCode: string) => {
     setCode(newCode);
 
-    if (text && index < CODE_LENGTH - 1) {
-      refs.current[index + 1]?.focus();
+    if (newCode.length === CODE_LENGTH) {
+      console.log(newCode);
+      const res = await verifyCode(email, newCode);
+
+      if (res.success && res.recoveryLink) {
+        const token = res.recoveryLink.split("token=")[1];
+
+        router.push({
+          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+          params: {
+            token: token,
+            identifier: email,
+          },
+        });
+      }
     }
   };
 
-  const handleKeyPress = (
-    e: NativeSyntheticEvent<TextInputKeyPressEventData>,
-    index: number
-  ) => {
-    if (e.nativeEvent.key === "Backspace" && !code[index] && index > 0) {
-      refs.current[index - 1]?.focus();
-    }
-  };
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
@@ -44,11 +45,49 @@ const EnterRecoveryScreen = () => {
         title="Enter Recovery Code"
         description="We've sent it on your email example@gmail.com"
       >
-        <CodeInput
-          code={code}
-          refs={refs}
-          onChangeText={handleChange}
-          onKeyPress={handleKeyPress}
+        <HelperText type="error">{error}</HelperText>
+        <OTPInput
+          value={code}
+          onChange={handleOnChange}
+          maxLength={CODE_LENGTH}
+          autoFocus
+          containerStyle={{
+            marginVertical: 20,
+            flexDirection: "row",
+            justifyContent: "center",
+          }}
+          render={({ slots }) => (
+            <>
+              {slots.map((slot, index) => (
+                <View
+                  key={index}
+                  style={{
+                    backgroundColor: theme.colors.surface,
+                    borderColor: slot.isActive
+                      ? theme.colors.primary
+                      : theme.colors.outline,
+                    borderWidth: slot.isActive ? 2 : 1,
+                    borderRadius: 8,
+                    width: 50,
+                    height: 60,
+                    marginHorizontal: 5,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.colors.onSurface,
+                      fontSize: 20,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {slot.char}
+                  </Text>
+                </View>
+              ))}
+            </>
+          )}
         />
         <Text
           variant="bodySmall"
