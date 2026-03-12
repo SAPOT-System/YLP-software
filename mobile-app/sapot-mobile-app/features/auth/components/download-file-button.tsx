@@ -34,8 +34,8 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
       } else {
         Alert.alert("Save cancelled", "No location selected.");
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
-      console.error(error);
       Alert.alert("Download failed", error.message || "Unknown error");
     }
   };
