@@ -2,10 +2,10 @@ import { AUTH_ROUTES } from "@/app/routes";
 import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { Checkbox, HelperText, Text, useTheme } from "react-native-paper";
-import { RegisterStepProps } from "../types";
 import { Dropdown } from "react-native-paper-dropdown";
-import PrimaryButton from "./primary-button";
+import { RegisterStepProps } from "../types";
 import AuthTextInput from "./auth-text-input";
+import PrimaryButton from "./primary-button";
 import SecondaryButton from "./secondary-button";
 
 const SECURITY_QUESTIONS = [
@@ -141,7 +141,7 @@ export const RegisterStep2 = ({
           Create Account
         </PrimaryButton>
         <SecondaryButton
-          onPress={() => onBack}
+          onPress={() => onBack?.()}
           style={{ marginBottom: 8 }}
           disabled={loading}
         >
