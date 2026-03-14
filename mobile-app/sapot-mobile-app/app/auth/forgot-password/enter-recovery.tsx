@@ -11,7 +11,7 @@ const CODE_LENGTH = 6;
 
 const EnterRecoveryScreen = () => {
   const { identifier: email } = useLocalSearchParams<{ identifier: string }>();
-  const { verifyCode, error } = useEmailReset();
+  const { verifyCode, sendCode, error } = useEmailReset();
   const theme = useTheme();
   const [code, setCode] = useState<string>("");
 
@@ -19,7 +19,6 @@ const EnterRecoveryScreen = () => {
     setCode(newCode);
 
     if (newCode.length === CODE_LENGTH) {
-      console.log(newCode);
       const res = await verifyCode(email, newCode);
 
       if (res.success && res.recoveryLink) {
@@ -106,9 +105,7 @@ const EnterRecoveryScreen = () => {
               fontWeight: "bold",
               color: theme.colors.onPrimaryContainer,
             }}
-            onPress={() => {
-              // TODO: make a resend code mechanism
-            }}
+            onPress={() => sendCode(email)}
           >
             Resend
           </Text>
