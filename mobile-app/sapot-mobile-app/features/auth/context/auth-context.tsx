@@ -3,22 +3,44 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { LoginApiErrorResponse, LoginApiRequest } from "../types";
 import { loginApi } from "../api";
 import { AxiosError } from "axios";
-import { isAccessTokenValid } from "../utils/";
+import {
+  generateGuestUsername,
+  hasValidationErrors,
+  isAccessTokenValid,
+  validateGuestLoginForm,
+} from "../utils/";
 
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
+  loginAsGuest: (credentials: { firstName: string; lastName: string }) => {
+    success: boolean;
+  };
   logout: () => void;
+  logoutAsGuest: () => void;
   loading: boolean;
   errors: LoginFormErrors;
   isAuthenticated: boolean;
   accessToken: string | null;
+  guestUser:
+    | {
+        firstName: string;
+        lastName: string;
+        username: string;
+      }
+    | undefined;
+  isGuest: boolean;
 }
 const AuthContext = createContext<AuthContextI | null>(null);
 
-interface LoginFormErrors {
+interface LoginFormErrors extends GuestLoginFormErrors {
   username?: string;
   password?: string;
   general?: string;
+}
+
+interface GuestLoginFormErrors {
+  firstName?: string;
+  lastName?: string;
 }
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -26,6 +48,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [errors, setErrors] = useState<LoginFormErrors>({});
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestUser, setGuestUser] = useState<{
+    firstName: string;
+    lastName: string;
+    username: string;
+  }>();
 
   useEffect(() => {
     (async () => {
@@ -100,6 +128,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const loginAsGuest = (credentials: {
+    firstName: string;
+    lastName: string;
+  }) => {
+    const errors = validateGuestLoginForm(
+      credentials.firstName,
+      credentials.lastName
+    );
+
+    if (hasValidationErrors(errors)) {
+      setErrors(errors);
+      return { success: false };
+    }
+
+    const username = generateGuestUsername(
+      credentials.firstName,
+      credentials.lastName
+    );
+
+    setGuestUser({
+      firstName: credentials.firstName,
+      lastName: credentials.lastName,
+      username,
+    });
+    setIsGuest(true);
+    return { success: true };
+  };
+
+  const logoutAsGuest = async () => {
+    setIsGuest(false);
+    setGuestUser(undefined);
+  };
+
   const logout = async () => {
     await deleteItemAsync("token");
     setAccessToken(null);
@@ -134,7 +195,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ login, logout, loading, errors, accessToken, isAuthenticated }}
+      value={{
+        login,
+        logout,
+        loading,
+        errors,
+        accessToken,
+        isAuthenticated,
+        loginAsGuest,
+        logoutAsGuest,
+        guestUser,
+        isGuest,
+      }}
     >
       {children}
     </AuthContext.Provider>
