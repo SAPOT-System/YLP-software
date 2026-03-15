@@ -10,14 +10,12 @@ export const checkBackEndHealth = async () => {
 };
 
 export const pingServer = async () => {
-  const start = Date.now();
+  // const start = Date.now();
 
   try {
-    const res = await apiClient.get<{ status: string; timestamp: number }>(
-      "/ping"
-    );
+    const res = await apiClient.get<{ status: string; timestamp: number }>("/ping");
 
-    const latency = Date.now() - start;
+    const latency = Date.now() - res.data.timestamp;
 
     return {
       success: true,
