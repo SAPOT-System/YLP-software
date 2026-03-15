@@ -13,10 +13,14 @@ import {
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
 import { setItemAsync } from "expo-secure-store";
+import { useUserService } from "./use-user-service";
+import { usePeerService } from "@/features/shared/hooks";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<RegisterFormStateErrors>({});
+  const userService = useUserService();
+  const peerService = usePeerService();
 
   const registerUser = async (
     form: RegisterFormState
@@ -60,13 +64,24 @@ export const useRegister = () => {
         email: form.email || undefined,
         phone_number: form.phoneNumber || undefined,
       });
-      const { token } = res.data;
+      const data = res.data;
 
-      await setItemAsync("token", token);
+      await setItemAsync("token", data.token);
+      await setItemAsync("userUUID", data.id);
+
+      await peerService.createUser(
+        data.id,
+        data.username,
+        data.first_name,
+        data.last_name,
+        data.email,
+        data.phone_number
+      );
+      await userService.initialize({ isGuest: false });
 
       await addSecurityQuestionApi(
         [{ question: form.securityQuestion, answer: form.questionAnswer }],
-        token
+        data.token
       );
 
       const res2 = await generateNewRecoveryKeyApi();

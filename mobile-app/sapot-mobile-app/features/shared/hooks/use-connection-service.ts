@@ -1,5 +1,5 @@
-import { useContainer } from "./use-container";
+import { useMainContainer } from "./use-main-container";
 
 export function useConnectionService() {
-  return useContainer().connectionService;
+  return useMainContainer().connectionService;
 }

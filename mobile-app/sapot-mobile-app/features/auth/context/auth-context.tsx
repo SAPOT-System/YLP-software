@@ -9,6 +9,9 @@ import {
   isAccessTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
+import { useUserService } from "../hooks";
+import { getUserApi } from "@/features/shared";
+import { usePeerService } from "@/features/shared/hooks";
 
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
@@ -54,11 +57,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     lastName: string;
     username: string;
   }>();
+  const userService = useUserService();
+  const peerService = usePeerService();
+
+  // const guestUserRepo = useGuestUserRepository();
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       const token = await getItemAsync("token");
+      await userService.initialize({ isGuest: false });
       setAccessToken(token);
       setIsAuthenticated(token ? await isAccessTokenValid(token) : false);
       setLoading(false);
@@ -96,6 +104,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await setItemAsync("token", access_token);
       setAccessToken(access_token);
       setIsAuthenticated(await isAccessTokenValid(access_token));
+
+      const userInfo = await getUserApi(access_token);
+      console.log(userInfo);
+      await setItemAsync("userUUID", userInfo.id);
+
+      await peerService.createUser(
+        userInfo.id,
+        userInfo.username,
+        userInfo.first_name,
+        userInfo.last_name,
+        userInfo.email,
+        userInfo.phone_number
+      );
+      await userService.initialize({ isGuest: false });
+
       return {
         success: true,
       };
@@ -152,7 +175,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       lastName: credentials.lastName,
       username,
     });
+
     setIsGuest(true);
+
     return { success: true };
   };
 
@@ -163,6 +188,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     await deleteItemAsync("token");
+    await deleteItemAsync("userUUID");
+
+    await userService.logout();
     setAccessToken(null);
     setIsAuthenticated(false);
   };

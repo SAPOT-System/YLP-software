@@ -1,5 +1,5 @@
 export { default as useDatabase } from "./use-database";
-export * from "./use-container";
+export * from "./use-main-container";
 export { default as usePeers } from "./use-peers";
 export * from "./use-peer-service";
 export * from "./use-connection-service";

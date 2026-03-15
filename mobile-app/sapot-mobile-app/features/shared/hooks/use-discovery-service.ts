@@ -1,5 +1,5 @@
-import { useContainer } from "./use-container";
+import { useMainContainer } from "./use-main-container";
 
 export function useDiscoveryService() {
-  return useContainer().discoveryService;
+  return useMainContainer().discoveryService;
 }
