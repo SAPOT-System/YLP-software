@@ -1,3 +1,4 @@
+import { createRegisterNavigationMock } from "@/test/mocks/auth-component.mock-builders";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { Alert } from "react-native";
@@ -179,10 +180,8 @@ describe("DownloadFileButton", () => {
     );
 
     it("uses custom filename through the full IO flow in a parent render", async () => {
-      const navigation: MockNavigation = {
-        navigate: jest.fn<void, [string]>(),
-        goBack: jest.fn<void, []>(),
-      };
+      const navigation: MockNavigation =
+        createRegisterNavigationMock() as unknown as MockNavigation;
 
       mockWrite.mockResolvedValueOnce(undefined);
       mockSaveDocuments.mockResolvedValueOnce([

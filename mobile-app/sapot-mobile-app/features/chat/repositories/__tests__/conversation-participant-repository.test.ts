@@ -1,74 +1,101 @@
 import {
-  Conversation,
-  ConversationParticipant,
-  ConversationParticipantRole,
-  Peer,
+    Conversation,
+    ConversationParticipant,
+    ConversationParticipantRole,
+    GuestUser,
+    Peer,
 } from "@/features/shared";
-import { ConversationParticipantRepository } from "../conversation-participant-repository";
+import {
+    createTestConversation,
+    createTestConversationParticipant,
+} from "@/test/factories/chat-model.factory";
+import { createTestGuestUser, createTestPeer } from "@/test/factories/user.factory";
+import {
+    createCollectionMock,
+    createWatermelonDbMock,
+} from "@/test/mocks/database.mock-builders";
 import { writer } from "@nozbe/watermelondb/decorators";
+import { ConversationParticipantRepository } from "../conversation-participant-repository";
 
 describe("ConversationParticipantRepository", () => {
   let repository: ConversationParticipantRepository;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockDb: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockCollection: any;
+  let mockCollection: ReturnType<typeof createCollectionMock>;
+  let mockDb: ReturnType<typeof createWatermelonDbMock>;
 
   beforeEach(() => {
-    mockCollection = {
-      create: jest.fn(),
-      query: jest.fn().mockReturnValue({
-        fetch: jest.fn(),
-      }),
-      database: {
-        write: jest.fn((fn) => fn(writer)),
-      },
+    mockCollection = createCollectionMock();
+    const collectionWithDatabase = mockCollection as unknown as {
+      database: { write: jest.Mock };
     };
-
-    mockDb = {
-      get: jest.fn().mockReturnValue(mockCollection),
-      write: jest.fn((fn) => fn()),
+    collectionWithDatabase.database = {
+      write: jest.fn((fn) => fn(writer)),
     };
+    mockDb = createWatermelonDbMock(mockCollection);
 
-    repository = new ConversationParticipantRepository(mockDb);
+    repository = new ConversationParticipantRepository(mockDb as never);
   });
 
   it("saves a conversation participant", async () => {
-    const mockParticipant = {
+    const mockParticipant = createTestConversationParticipant({
       id: "participant-1",
       role: "member",
-    } as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>;
+    }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>;
     mockCollection.create.mockResolvedValue(mockParticipant);
 
     await repository.saveConversationParticipant({
       role: ConversationParticipantRole.MEMBER,
       conversation: {
-        id: "conv-1",
-      } as Partial<Conversation> as jest.Mocked<Conversation>,
+        ...createTestConversation({ id: "conv-1" }),
+      } as unknown as Partial<Conversation> as jest.Mocked<Conversation>,
       user: {
-        id: "user-1",
-        username: "Alice",
-      } as Partial<Peer> as jest.Mocked<Peer>,
+        ...createTestPeer({ id: "user-1", username: "Alice" }),
+      } as unknown as Partial<Peer> as jest.Mocked<Peer>,
+    });
+
+    expect(mockCollection.create).toHaveBeenCalled();
+  });
+
+  it("saves a conversation participant for guest user", async () => {
+    mockCollection.create.mockResolvedValue(
+      createTestConversationParticipant({
+        id: "participant-guest-1",
+        role: ConversationParticipantRole.MEMBER,
+      }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>
+    );
+
+    await repository.saveConversationParticipant({
+      role: ConversationParticipantRole.MEMBER,
+      conversation: {
+        ...createTestConversation({ id: "conv-guest" }),
+      } as unknown as Partial<Conversation> as jest.Mocked<Conversation>,
+      user: {
+        ...createTestGuestUser({ id: "guest-1", username: "Guest Alice" }),
+      } as unknown as Partial<GuestUser> as jest.Mocked<GuestUser>,
     });
 
     expect(mockCollection.create).toHaveBeenCalled();
   });
 
   it("saves multiple conversation participants", async () => {
-    mockCollection.create.mockResolvedValue({
-      id: "participant-1",
-      role: ConversationParticipantRole.MEMBER,
-    } as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>);
+    mockCollection.create.mockResolvedValue(
+      createTestConversationParticipant({
+        id: "participant-1",
+        role: ConversationParticipantRole.MEMBER,
+      }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>
+    );
 
     await repository.saveMultipleConversationParticipant(
       [
         {
-          id: "user-1",
-          username: "Alice",
-        } as Partial<Peer> as jest.Mocked<Peer>,
-        { id: "user-2", username: "Bob" } as Partial<Peer> as jest.Mocked<Peer>,
+          ...createTestPeer({ id: "user-1", username: "Alice" }),
+        } as unknown as Partial<Peer> as jest.Mocked<Peer>,
+        {
+          ...createTestPeer({ id: "user-2", username: "Bob" }),
+        } as unknown as Partial<Peer> as jest.Mocked<Peer>,
       ],
-      { id: "conv-1" } as Partial<Conversation> as jest.Mocked<Conversation>
+      {
+        ...createTestConversation({ id: "conv-1" }),
+      } as unknown as Partial<Conversation> as jest.Mocked<Conversation>
     );
 
     expect(mockCollection.create).toHaveBeenCalledTimes(2);
@@ -92,8 +119,8 @@ describe("ConversationParticipantRepository", () => {
 
   it("queries all participants", async () => {
     const mockParticipants = [
-      { id: "participant-1", role: "member" },
-      { id: "participant-2", role: "member" },
+      createTestConversationParticipant({ id: "participant-1", role: "member" }),
+      createTestConversationParticipant({ id: "participant-2", role: "member" }),
     ];
     mockCollection.query().fetch.mockResolvedValue(mockParticipants);
 

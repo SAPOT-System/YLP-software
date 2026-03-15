@@ -1,3 +1,7 @@
+import {
+    createMockServerSocket,
+    createMockTcpServer,
+} from "@/test/mocks/adapter.mock-builders";
 import { TcpServerAdapter } from "../tcp-server-adapter";
 
 jest.mock("react-native-tcp-socket", () => ({
@@ -6,16 +10,11 @@ jest.mock("react-native-tcp-socket", () => ({
 
 describe("TcpServerAdapter", () => {
   let adapter: TcpServerAdapter;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockServer: any;
+  let mockServer: ReturnType<typeof createMockTcpServer>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockServer = {
-      on: jest.fn(),
-      listen: jest.fn(),
-      close: jest.fn(),
-    };
+    mockServer = createMockTcpServer();
 
     const TcpSocket = require("react-native-tcp-socket");
     TcpSocket.createServer.mockReturnValue(mockServer);
@@ -52,9 +51,7 @@ describe("TcpServerAdapter", () => {
     const socketHandler = (
       require("react-native-tcp-socket").createServer as jest.Mock
     ).mock.calls[0][0];
-    const mockSocket = {
-      on: jest.fn(),
-    };
+    const mockSocket = createMockServerSocket();
 
     socketHandler(mockSocket);
 

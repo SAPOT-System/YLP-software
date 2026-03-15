@@ -1,12 +1,11 @@
+import {
+    createMockAxiosInstance,
+    createMockInterceptorUse,
+} from "@/test/mocks/api.mock-builders";
+
 // Mock axios and dependencies
-const mockInterceptorUse = jest.fn((callback) => callback);
-const mockAxiosInstance = {
-  interceptors: {
-    request: {
-      use: mockInterceptorUse,
-    },
-  },
-};
+const mockInterceptorUse = createMockInterceptorUse();
+const mockAxiosInstance = createMockAxiosInstance(mockInterceptorUse);
 
 jest.mock("axios", () => ({
   create: jest.fn(() => mockAxiosInstance),

@@ -1,21 +1,33 @@
 import {
-  ConnectionService,
-  Conversation,
-  ConversationParticipant,
-  ConversationType,
-  database,
-  Message,
-  MessageStatus,
-  MessageStatusType,
-  Peer,
-  PeerService,
-  UserStore,
+    ConnectionService,
+    Conversation,
+    ConversationParticipant,
+    ConversationType,
+    database,
+    Message,
+    MessageStatus,
+    MessageStatusType,
+    Peer,
+    PeerService,
+    UserStore,
 } from "@/features/shared";
 import {
-  ConversationParticipantRepository,
-  ConversationRepository,
-  MessageRepository,
-  MessageStatusRepository,
+    createTestConversation,
+    createTestConversationParticipant,
+    createTestMessage,
+    createTestMessages,
+    createTestMessageStatus,
+    createTestUnsentStatus,
+} from "@/test/factories/chat-model.factory";
+import { createDestroyOps } from "@/test/factories/destroy-op.factory";
+import { createTestDiscoveredService } from "@/test/factories/peer-service.factory";
+import { createTestPeer } from "@/test/factories/user.factory";
+import { createChatServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
+import {
+    ConversationParticipantRepository,
+    ConversationRepository,
+    MessageRepository,
+    MessageStatusRepository,
 } from "../../repositories";
 import { DataChatMessageI } from "../../types";
 import { ChatService } from "../chat-service";
@@ -78,65 +90,19 @@ describe("ChatService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Setup mocks
-    mockConnectionService = {
-      connectToPeer: jest.fn(),
-      sendChatMessage: jest.fn(),
-      sendAckMessage: jest.fn(),
-      sendMessage: jest.fn(),
-      initializeStream: jest.fn(),
-      terminateCallConnection: jest.fn(),
-      toggleMic: jest.fn(),
-      toggleCamera: jest.fn(),
-      getLocalStream: jest.fn(),
-      renegotiate: jest.fn(),
-    } as Partial<ConnectionService> as jest.Mocked<ConnectionService>;
-
-    mockConversationRepository = {
-      isConversationExist: jest.fn(),
-      queryConversationById: jest.fn(),
-      saveConversation: jest.fn(),
-      queryAllConversation: jest.fn(),
-      getConversationDestroyOps: jest.fn(),
-    } as Partial<ConversationRepository> as jest.Mocked<ConversationRepository>;
-
-    mockConversationParticipantRepository = {
-      isDirectConversationExists: jest.fn(),
-      saveMultipleConversationParticipant: jest.fn(),
-      queryPeerByChatId: jest.fn(),
-      queryConversationByPeer: jest.fn(),
-      queryAllParticipants: jest.fn(),
-      getParticipantDestroyOps: jest.fn(),
-    } as Partial<ConversationParticipantRepository> as jest.Mocked<ConversationParticipantRepository>;
-
-    mockMessageRepository = {
-      saveMessage: jest.fn(),
-      queryMessagesByConversation: jest.fn(),
-      getAllMessageDestroyOps: jest.fn(),
-    } as Partial<MessageRepository> as jest.Mocked<MessageRepository>;
-
-    mockMessageStatusRepository = {
-      saveMessageStatus: jest.fn(),
-      updateMessageStatusById: jest.fn(),
-      updateMessageStatusByMessage: jest.fn(),
-      queryMessageStatusByMessage: jest.fn(),
-      queryAllStatuses: jest.fn(),
-      queryNotSentByMessages: jest.fn(),
-      getStatusDestroyOps: jest.fn(),
-    } as Partial<MessageStatusRepository> as jest.Mocked<MessageStatusRepository>;
-
-    mockPeerService = {
-      findPeerById: jest.fn(),
-      findDiscoveredPeerById: jest.fn(),
-    } as Partial<PeerService> as jest.Mocked<PeerService>;
-
-    mockUserStore = {
-      user: {
-        id: "test-user-id",
-        username: "testuser",
-      },
-    } as Partial<UserStore> as jest.Mocked<UserStore>;
+    const mocks = createChatServiceDependencyMocks();
+    mockConnectionService =
+      mocks.connectionService as unknown as jest.Mocked<ConnectionService>;
+    mockConversationRepository =
+      mocks.conversationRepository as unknown as jest.Mocked<ConversationRepository>;
+    mockConversationParticipantRepository =
+      mocks.conversationParticipantRepository as unknown as jest.Mocked<ConversationParticipantRepository>;
+    mockMessageRepository =
+      mocks.messageRepository as unknown as jest.Mocked<MessageRepository>;
+    mockMessageStatusRepository =
+      mocks.messageStatusRepository as unknown as jest.Mocked<MessageStatusRepository>;
+    mockPeerService = mocks.peerService as unknown as jest.Mocked<PeerService>;
+    mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
 
     mockDatabase = jest.mocked(database);
 
@@ -184,13 +150,13 @@ describe("ChatService", () => {
   describe("connect", () => {
     it("should connect to a peer successfully", async () => {
       const peerId = "peer-1";
-      const mockPeer = { id: peerId, username: "peeruser" } as Peer;
-      const mockDiscoveredPeer = {
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      const mockDiscoveredPeer = createTestDiscoveredService({
         id: peerId,
         ipAddress: "192.168.1.101",
         port: 8080,
         serviceName: "peer-device",
-      };
+      });
 
       mockPeerService.findPeerById.mockResolvedValue(mockPeer);
       mockPeerService.findDiscoveredPeerById.mockReturnValue(
@@ -221,7 +187,7 @@ describe("ChatService", () => {
 
     it("should throw error if peer not discovered", async () => {
       const peerId = "peer-1";
-      const mockPeer = { id: peerId, username: "peeruser" } as Peer;
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
 
       mockPeerService.findPeerById.mockResolvedValue(mockPeer);
       mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
@@ -260,11 +226,11 @@ describe("ChatService", () => {
         messageType: MessageType.TEXT,
       };
 
-      const mockSender = { id: "peer-1", username: "sender" } as Peer;
-      const mockConversation = {
+      const mockSender = createTestPeer({ id: "peer-1", username: "sender" }) as unknown as Peer;
+      const mockConversation = createTestConversation({
         id: "conv-1",
         type: ConversationType.DIRECT,
-      } as Conversation;
+      }) as unknown as Conversation;
 
       mockPeerService.findPeerById.mockResolvedValue(mockSender);
       mockConversationRepository.isConversationExist.mockResolvedValue(true);
@@ -272,7 +238,7 @@ describe("ChatService", () => {
         mockConversation
       );
       mockMessageRepository.saveMessage.mockResolvedValue({
-        id: "msg-1",
+        ...createTestMessage({ id: "msg-1" }),
       } as unknown as Message);
 
       await chatService.handleIncomingChatMessage(mockData);
@@ -301,11 +267,11 @@ describe("ChatService", () => {
         messageType: MessageType.TEXT,
       };
 
-      const mockSender = { id: "peer-1", username: "sender" } as Peer;
-      const mockConversation = {
+      const mockSender = createTestPeer({ id: "peer-1", username: "sender" }) as unknown as Peer;
+      const mockConversation = createTestConversation({
         id: "conv-1",
         type: ConversationType.DIRECT,
-      } as Conversation;
+      }) as unknown as Conversation;
 
       mockPeerService.findPeerById.mockResolvedValue(mockSender);
       mockConversationRepository.isConversationExist.mockResolvedValue(false);
@@ -320,7 +286,7 @@ describe("ChatService", () => {
       );
       mockConversationParticipantRepository.saveMultipleConversationParticipant.mockResolvedValue();
       mockMessageRepository.saveMessage.mockResolvedValue({
-        id: "msg-1",
+        ...createTestMessage({ id: "msg-1" }),
       } as unknown as Message);
 
       await chatService.handleIncomingChatMessage(mockData);
@@ -381,23 +347,23 @@ describe("ChatService", () => {
     beforeEach(() => {
       // Set up peer state for sending messages
       (chatService as unknown as { peer: Peer }).peer = {
-        id: "peer-1",
-        username: "peeruser",
+        ...createTestPeer({ id: "peer-1", username: "peeruser" }),
       } as unknown as Peer;
     });
 
     it("should send message with existing conversation", async () => {
       const message = "Hello World";
-      const mockConversation = { id: "conv-1", type: ConversationType.DIRECT };
-      const mockMessage = {
+      const mockConversation = createTestConversation({
+        id: "conv-1",
+        type: ConversationType.DIRECT,
+      });
+      const mockMessage = createTestMessage({
         id: "msg-1",
         content: message,
         createdAt: new Date(),
         messageType: MessageType.TEXT,
-        sender: { id: "test-user-id" },
-        conversation: { id: "conv-1" },
-      } as Message;
-      const mockMessageStatus = { id: "status-1" } as MessageStatus;
+      }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
 
       (chatService as unknown as { conversation: Conversation }).conversation =
         mockConversation as unknown as Conversation;
@@ -427,19 +393,17 @@ describe("ChatService", () => {
 
     it("should create new conversation if none exists", async () => {
       const message = "Hello World";
-      const mockConversation = {
+      const mockConversation = createTestConversation({
         id: "conv-1",
         type: ConversationType.DIRECT,
-      } as Conversation;
-      const mockMessage = {
+      }) as unknown as Conversation;
+      const mockMessage = createTestMessage({
         id: "msg-1",
         content: message,
         createdAt: new Date(),
         messageType: MessageType.TEXT,
-        sender: { id: "test-user-id" },
-        conversation: { id: "conv-1" },
-      } as Message;
-      const mockMessageStatus = { id: "status-1" } as MessageStatus;
+      }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
 
       mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
         undefined
@@ -465,16 +429,17 @@ describe("ChatService", () => {
 
     it("should handle send failure and update status to not sent", async () => {
       const message = "Hello World";
-      const mockConversation = { id: "conv-1", type: ConversationType.DIRECT };
-      const mockMessage = {
+      const mockConversation = createTestConversation({
+        id: "conv-1",
+        type: ConversationType.DIRECT,
+      });
+      const mockMessage = createTestMessage({
         id: "msg-1",
         content: message,
         createdAt: new Date(),
         messageType: MessageType.TEXT,
-        sender: { id: "test-user-id" },
-        conversation: { id: "conv-1" },
-      } as Message;
-      const mockMessageStatus = { id: "status-1" } as MessageStatus;
+      }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
 
       (chatService as unknown as { conversation: Conversation }).conversation =
         mockConversation as unknown as Conversation;
@@ -565,9 +530,9 @@ describe("ChatService", () => {
   describe("getAllConversations", () => {
     it("should return all conversations", async () => {
       const mockConversations = [
-        { id: "conv-1", type: ConversationType.DIRECT },
-        { id: "conv-2", type: ConversationType.DIRECT },
-      ] as Conversation[];
+        createTestConversation({ id: "conv-1", type: ConversationType.DIRECT }),
+        createTestConversation({ id: "conv-2", type: ConversationType.DIRECT }),
+      ] as unknown as Conversation[];
 
       mockConversationRepository.queryAllConversation.mockResolvedValue(
         mockConversations
@@ -585,10 +550,11 @@ describe("ChatService", () => {
   describe("getMessagesFromConversation", () => {
     it("should return messages from conversation", async () => {
       const conversationId = "conv-1";
-      const mockMessages = [
-        { id: "msg-1", content: "Hello" },
-        { id: "msg-2", content: "Hi" },
-      ] as Message[];
+      const mockMessages = createTestMessages(2, (index) =>
+        index === 0
+          ? { id: "msg-1", content: "Hello" }
+          : { id: "msg-2", content: "Hi" }
+      ) as unknown as Message[];
 
       mockMessageRepository.queryMessagesByConversation.mockResolvedValue(
         mockMessages
@@ -608,10 +574,10 @@ describe("ChatService", () => {
   describe("getMessageStatus", () => {
     it("should return message status", async () => {
       const messageId = "msg-1";
-      const mockStatus = {
+      const mockStatus = createTestMessageStatus({
         id: "status-1",
         status: MessageStatusType.DELIVERED,
-      } as MessageStatus;
+      }) as unknown as MessageStatus;
 
       mockMessageStatusRepository.queryMessageStatusByMessage.mockResolvedValue(
         mockStatus
@@ -630,15 +596,18 @@ describe("ChatService", () => {
     it("should return unsent messages for peer", async () => {
       const peerId = "peer-1";
       const mockConversations = [
-        { conversation: { id: "conv-1" } },
-      ] as ConversationParticipant[];
-      const mockMessages = [
-        { id: "msg-1", content: "Hello" },
-        { id: "msg-2", content: "Hi" },
-      ] as Message[];
+        createTestConversationParticipant({
+          conversation: { id: "conv-1" },
+        }),
+      ] as unknown as ConversationParticipant[];
+      const mockMessages = createTestMessages(2, (index) =>
+        index === 0
+          ? { id: "msg-1", content: "Hello" }
+          : { id: "msg-2", content: "Hi" }
+      ) as unknown as Message[];
       const mockUnsentStatuses = [
-        { message: { id: "msg-1" } },
-      ] as MessageStatus[];
+        createTestUnsentStatus({ message: { id: "msg-1" } }),
+      ] as unknown as MessageStatus[];
 
       mockConversationParticipantRepository.queryConversationByPeer.mockResolvedValue(
         mockConversations
@@ -678,14 +647,12 @@ describe("ChatService", () => {
 
   describe("tryResendMessage", () => {
     it("should resend message successfully", async () => {
-      const mockMessage = {
+      const mockMessage = createTestMessage({
         id: "msg-1",
         content: "Hello",
-        conversation: { id: "conv-1" },
-        sender: { id: "test-user-id" },
         createdAt: new Date(),
         messageType: MessageType.TEXT,
-      } as Message;
+      }) as Message;
 
       await chatService.tryResendMessage(mockMessage, "peer-1", {
         ipAddress: "192.168.1.101",
@@ -711,14 +678,12 @@ describe("ChatService", () => {
     });
 
     it("should throw error if resend fails", async () => {
-      const mockMessage = {
+      const mockMessage = createTestMessage({
         id: "msg-1",
         content: "Hello",
-        conversation: { id: "conv-1" },
-        sender: { id: "test-user-id" },
         createdAt: new Date(),
         messageType: MessageType.TEXT,
-      } as Message;
+      }) as Message;
 
       mockConnectionService.connectToPeer.mockRejectedValue(
         new Error("Connection failed")
@@ -744,22 +709,23 @@ describe("ChatService", () => {
 
   describe("deleteAllConversations", () => {
     it("should delete all conversations, messages, and statuses", async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mockOps = [jest.fn()] as unknown as any;
+      const mockOps = createDestroyOps(1);
 
       mockDatabase.write.mockImplementation(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async (fn: (writer: any) => Promise<any>) => await fn({} as any)
       );
       mockConversationRepository.getConversationDestroyOps.mockResolvedValue(
-        mockOps
+        mockOps as never
       );
-      mockMessageRepository.getAllMessageDestroyOps.mockResolvedValue(mockOps);
+      mockMessageRepository.getAllMessageDestroyOps.mockResolvedValue(
+        mockOps as never
+      );
       mockMessageStatusRepository.getStatusDestroyOps.mockResolvedValue(
-        mockOps
+        mockOps as never
       );
       mockConversationParticipantRepository.getParticipantDestroyOps.mockResolvedValue(
-        mockOps
+        mockOps as never
       );
       mockDatabase.batch = jest.fn();
 

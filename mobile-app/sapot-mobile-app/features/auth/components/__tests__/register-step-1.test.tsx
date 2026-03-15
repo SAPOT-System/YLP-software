@@ -1,3 +1,8 @@
+import { createRegisterFormState, createRegisterFormStateErrors } from "@/test/factories/auth-form-state.factory";
+import {
+    createRegisterCallbacks,
+    createRegisterNavigationMock,
+} from "@/test/mocks/auth-component.mock-builders";
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 import renderer from "react-test-renderer";
@@ -87,27 +92,15 @@ jest.mock("../primary-button", () => {
 });
 
 describe("RegisterStep1", () => {
-  const defaultValues: RegisterFormState = {
-    username: "sam-user",
-    firstName: "Sam",
-    lastName: "Taylor",
-    phoneNumber: "0900000000",
-    email: "sam@example.com",
-    password: "Secret123!",
-    securityQuestion: "",
-    questionAnswer: "",
-    confirmPassword: "",
-    termsChecked: false,
-  };
+  const defaultValues: RegisterFormState = createRegisterFormState();
 
-  const defaultErrors: RegisterFormStateErrors = {};
+  const defaultErrors: RegisterFormStateErrors = createRegisterFormStateErrors();
 
   const createProps = () => ({
     values: { ...defaultValues },
     errors: { ...defaultErrors },
     loading: false,
-    onChange: jest.fn<void, [keyof RegisterFormState, string | boolean]>(),
-    onSubmit: jest.fn<void, [Partial<RegisterFormState>]>(),
+    ...createRegisterCallbacks(),
   });
 
   beforeEach(() => {
@@ -211,13 +204,7 @@ describe("RegisterStep1", () => {
     };
 
     it("updates parent state and submits merged values to navigation", () => {
-      const navigation: MockNavigation = {
-        navigate: jest.fn<
-          void,
-          [string, (Partial<RegisterFormState> | undefined)?]
-        >(),
-        goBack: jest.fn<void, []>(),
-      };
+      const navigation: MockNavigation = createRegisterNavigationMock();
 
       const { getByLabelText, getByText } = render(
         <ParentHarness navigation={navigation} />

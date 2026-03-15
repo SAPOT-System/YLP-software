@@ -1,4 +1,6 @@
 import { ConnectionService, UserStore } from "@/features/shared";
+import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
+import { createCallServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { MediaStream } from "react-native-webrtc";
 import { CallService } from "../call-service";
 
@@ -15,32 +17,10 @@ describe("CallService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Setup mocks
-    mockConnectionService = {
-      initializeStream: jest.fn(),
-      renegotiate: jest.fn(),
-      terminateCallConnection: jest.fn(),
-      sendMessage: jest.fn(),
-      toggleMic: jest.fn(),
-      toggleCamera: jest.fn(),
-      getLocalStream: jest.fn(),
-      on: jest.fn(),
-      emit: jest.fn(),
-      connectToPeer: jest.fn(),
-      sendChatMessage: jest.fn(),
-      sendAckMessage: jest.fn(),
-    } as Partial<ConnectionService> as jest.Mocked<ConnectionService>;
-
-    // Configure the 'on' method to return the mock instance for chaining
-    mockConnectionService.on.mockImplementation(() => mockConnectionService);
-
-    mockUserStore = {
-      user: {
-        id: "test-user-id",
-        username: "testuser",
-      },
-    } as Partial<UserStore> as jest.Mocked<UserStore>;
+    const mocks = createCallServiceDependencyMocks();
+    mockConnectionService =
+      mocks.connectionService as unknown as jest.Mocked<ConnectionService>;
+    mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
 
     // Mock constructors
     jest
@@ -137,7 +117,7 @@ describe("CallService", () => {
     });
 
     it("should emit remoteStream event when received", () => {
-      const mockStream = { id: "remote-stream" };
+      const mockStream = createMockMediaStream("remote-stream");
       let streamCallback: (stream: unknown) => void;
 
       mockConnectionService.on.mockImplementation((event, callback) => {
@@ -306,7 +286,7 @@ describe("CallService", () => {
   describe("getLocalCam", () => {
     it("should return local stream for peer", () => {
       const peerId = "peer-1";
-      const mockStream = { id: "local-stream" } as MediaStream;
+      const mockStream = createMockMediaStream("local-stream") as MediaStream;
 
       mockConnectionService.getLocalStream.mockReturnValue(mockStream);
 

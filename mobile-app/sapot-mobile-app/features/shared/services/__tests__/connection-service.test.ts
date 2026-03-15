@@ -1,12 +1,12 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
-import { MediaStream } from "react-native-webrtc";
+import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
+import { createConnectionServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import {
-  TcpClientAdapter,
-  TcpServerAdapter,
-  WebrtcAdapter,
+    TcpClientAdapter,
+    TcpServerAdapter,
+    WebrtcAdapter,
 } from "../../adapters";
-import { Peer as PeerModel } from "../../database";
 import { NetworkConfig, UserStore } from "../../stores";
 import { ConnectionService } from "../connection-service";
 
@@ -17,29 +17,6 @@ export enum MessageType {
   FILE = "file",
 }
 
-const createMockMediaStream = (id: string = "mock-stream"): MediaStream => {
-  return {
-    id,
-    active: true,
-    addTrack: jest.fn(),
-    removeTrack: jest.fn(),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getTracks: jest.fn().mockReturnValue([] as unknown as any[]),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getAudioTracks: jest.fn().mockReturnValue([] as unknown as any[]),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getVideoTracks: jest.fn().mockReturnValue([] as unknown as any[]),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getTrackById: jest.fn() as unknown as (trackId: string) => any,
-    clone: jest.fn() as unknown as () => MediaStream,
-
-    _tracks: [],
-    _id: id,
-    _reactTag: id,
-    toURL: jest.fn().mockReturnValue(`mock-url-${id}` as unknown as string),
-    release: jest.fn(),
-  } as unknown as MediaStream;
-};
 
 // Mock the adapters
 jest.mock("../../adapters", () => ({
@@ -70,57 +47,18 @@ describe("ConnectionService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const mocks = createConnectionServiceDependencyMocks();
 
-    // Setup mocks
-    mockTcpServerAdapter = {
-      start: jest.fn(),
-      stop: jest.fn(),
-      on: jest.fn(),
-      removeAllListeners: jest.fn(),
-    } as Partial<TcpServerAdapter> as jest.Mocked<TcpServerAdapter>;
-
-    mockNetworkConfig = {
-      port: 8080,
-      ipAddress: "192.168.1.100",
-    } as Partial<NetworkConfig> as jest.Mocked<NetworkConfig>;
-
-    mockUserStore = {
-      user: {
-        id: "test-user-id",
-        username: "testuser",
-        isOnline: true,
-      } as unknown as PeerModel,
-    } as Partial<UserStore> as jest.Mocked<UserStore>;
-
-    mockTcpClientAdapter = {
-      connect: jest.fn(),
-      disconnect: jest.fn(),
-      sendMessage: jest.fn(),
-      isConnected: true,
-      removeAllListeners: jest.fn(),
-    } as Partial<TcpClientAdapter> as jest.Mocked<TcpClientAdapter>;
-
-    mockWebrtcAdapter = {
-      createOffer: jest.fn(),
-      handleOffer: jest.fn(),
-      handleAnswer: jest.fn(),
-      addIceCandidate: jest.fn(),
-      sendDataMessage: jest.fn(),
-      initializeLocalStream: jest.fn(),
-      terminateCall: jest.fn(),
-      toggleMic: jest.fn(),
-      toggleCamera: jest.fn(),
-      getLocalStream: jest.fn(),
-      cleanup: jest.fn(),
-      isConnected: true,
-      on: jest.fn(),
-      once: jest.fn(),
-      removeAllListeners: jest.fn(),
-    } as Partial<WebrtcAdapter> as jest.Mocked<WebrtcAdapter>;
-    mockChatService = {
-      handleIncomingChatMessage: jest.fn(),
-      handleAckMessage: jest.fn(),
-    } as Partial<ChatService> as jest.Mocked<ChatService>;
+    mockTcpServerAdapter =
+      mocks.tcpServerAdapter as unknown as jest.Mocked<TcpServerAdapter>;
+    mockNetworkConfig =
+      mocks.networkConfig as unknown as jest.Mocked<NetworkConfig>;
+    mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
+    mockTcpClientAdapter =
+      mocks.tcpClientAdapter as unknown as jest.Mocked<TcpClientAdapter>;
+    mockWebrtcAdapter =
+      mocks.webrtcAdapter as unknown as jest.Mocked<WebrtcAdapter>;
+    mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
 
     // Mock constructors
     jest
@@ -402,7 +340,7 @@ describe("ConnectionService", () => {
         (call) => call[0] === "remoteStream"
       )?.[1];
 
-      const mockStream = { id: "stream-1" };
+      const mockStream = createMockMediaStream("stream-1");
       remoteStreamHandler?.(mockStream);
 
       expect(emitSpy).toHaveBeenCalledWith("remoteStream", mockStream);
