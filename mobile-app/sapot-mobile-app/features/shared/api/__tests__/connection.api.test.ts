@@ -47,12 +47,16 @@ describe("pingServer", () => {
     jest.clearAllMocks();
   });
 
-  it("returns success true with computed latency", async () => {
-    const nowSpy = jest
-      .spyOn(Date, "now")
-      .mockReturnValueOnce(1000)
-      .mockReturnValueOnce(1088);
-    mockedApiClient.get.mockResolvedValue(createTestPingResponse());
+  it("returns success true with computed latency from server timestamp", async () => {
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1088);
+    mockedApiClient.get.mockResolvedValue(
+      createTestPingResponse({
+        data: {
+          status: "ok",
+          timestamp: 1000,
+        },
+      })
+    );
 
     const result = await pingServer();
 
