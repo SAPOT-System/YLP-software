@@ -1,104 +1,190 @@
+import { createTestPeer, createTestPeers } from "@/test/factories/user.factory";
+import {
+  createCollectionMock,
+  createDestroyableRecord,
+  createUpdatableRecord,
+  createWatermelonDbMock,
+} from "@/test/mocks/database.mock-builders";
+import type { Database } from "@nozbe/watermelondb";
 import { PeerRepository } from "../peer-repository";
 
 describe("PeerRepository", () => {
   let repository: PeerRepository;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockDb: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockCollection: any;
+  let mockCollection: ReturnType<typeof createCollectionMock>;
+  let mockDb: ReturnType<typeof createWatermelonDbMock>;
 
   beforeEach(() => {
-    mockCollection = {
-      create: jest.fn(),
-      query: jest.fn().mockReturnValue({
-        fetch: jest.fn(),
-      }),
-    };
+    mockCollection = createCollectionMock();
+    mockDb = createWatermelonDbMock(mockCollection);
 
-    mockDb = {
-      get: jest.fn().mockReturnValue(mockCollection),
-      write: jest.fn((fn) => fn()),
-    };
-
-    repository = new PeerRepository(mockDb);
+    repository = new PeerRepository(mockDb as unknown as Database);
   });
 
-  it("saves a new peer", async () => {
-    const mockPeer = {
-      id: "peer-1",
-      username: "Alice",
-      isOnline: false,
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockDb.write.mockImplementation((fn: any) =>
-      Promise.resolve(fn()).then(() => mockPeer)
-    );
+  describe("savePeer", () => {
+    it("saves a new peer", async () => {
+      const mockPeer = createTestPeer({
+        id: "peer-1",
+        username: "Alice",
+        isOnline: false,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockDb.write.mockImplementation((fn: any) =>
+        Promise.resolve(fn()).then(() => mockPeer)
+      );
 
-    await repository.savePeer({
-      id: "peer-1",
-      username: "Alice",
+      await repository.savePeer({
+        id: "peer-1",
+        username: "Alice",
+        firstName: "Rish",
+      });
+
+      expect(mockDb.write).toHaveBeenCalled();
     });
 
-    expect(mockDb.write).toHaveBeenCalled();
+    it("throws when write fails", async () => {
+      mockDb.write.mockRejectedValue(new Error("write failed"));
+
+      await expect(
+        repository.savePeer({
+          id: "peer-1",
+          username: "Alice",
+          firstName: "Rish",
+        })
+      ).rejects.toThrow("write failed");
+    });
   });
 
-  it("marks peer as offline", async () => {
-    mockCollection.query().fetch.mockResolvedValue([
-      {
+  describe("markPeerOffline", () => {
+    it("marks peer as offline", async () => {
+      const peer = createUpdatableRecord();
+      (mockCollection.query as jest.Mock).mockResolvedValue([peer]);
+
+      await repository.markPeerOffline("peer-1");
+
+      expect(mockDb.write).toHaveBeenCalled();
+      expect(peer.update).toHaveBeenCalled();
+    });
+
+    it("throws when mark peer offline fails", async () => {
+      mockDb.write.mockRejectedValue(new Error("offline failed"));
+
+      await expect(repository.markPeerOffline("peer-1")).rejects.toThrow(
+        "offline failed"
+      );
+    });
+  });
+
+  describe("markPeerOnline", () => {
+    it("marks peer as online", async () => {
+      const peer = createUpdatableRecord();
+      (mockCollection.query as jest.Mock).mockResolvedValue([peer]);
+
+      await repository.markPeerOnline("peer-1");
+
+      expect(mockDb.write).toHaveBeenCalled();
+      expect(peer.update).toHaveBeenCalled();
+    });
+
+    it("throws when mark peer online fails", async () => {
+      mockDb.write.mockRejectedValue(new Error("online failed"));
+
+      await expect(repository.markPeerOnline("peer-1")).rejects.toThrow(
+        "online failed"
+      );
+    });
+  });
+
+  describe("isPeerExist", () => {
+    it("checks if peer exists", async () => {
+      // Arrange
+      mockCollection.query().fetch.mockResolvedValue(createTestPeers(1));
+
+      // Act
+      const exists = await repository.isPeerExist("peer-1");
+
+      // Assert
+      expect(exists).toBe(true);
+    });
+
+    it("returns false if peer does not exist", async () => {
+      mockCollection.query().fetch.mockResolvedValue([]);
+
+      const exists = await repository.isPeerExist("peer-nonexistent");
+
+      expect(exists).toBe(false);
+    });
+
+    it("throws when lookup fails", async () => {
+      mockCollection.query().fetch.mockRejectedValue(new Error("lookup failed"));
+
+      await expect(repository.isPeerExist("peer-1")).rejects.toThrow(
+        "lookup failed"
+      );
+    });
+  });
+
+  describe("queryPeerById", () => {
+    it("queries peer by id", async () => {
+      const mockPeer = createTestPeer({
         id: "peer-1",
+        username: "Alice",
         isOnline: true,
-        update: jest.fn(),
-      },
-    ]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockDb.write.mockImplementation((fn: any) => fn());
+      });
+      mockCollection.query().fetch.mockResolvedValue([mockPeer]);
 
-    await repository.markPeerOffline("peer-1");
+      const result = await repository.queryPeerById("peer-1");
 
-    expect(mockDb.write).toHaveBeenCalled();
+      expect(result).toEqual(mockPeer);
+    });
   });
 
-  it("marks peer as online", async () => {
-    mockCollection.query().fetch.mockResolvedValue([
-      {
-        id: "peer-1",
-        isOnline: false,
-        update: jest.fn(),
-      },
-    ]);
+  describe("queryAllPeers", () => {
+    it("returns all peers", async () => {
+      // Arrange
+      const peers = createTestPeers(2);
+      mockCollection.query().fetch.mockResolvedValue(peers);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockDb.write.mockImplementation((fn: any) => fn());
+      // Act
+      const result = await repository.queryAllPeers();
 
-    await repository.markPeerOnline("peer-1");
-
-    expect(mockDb.write).toHaveBeenCalled();
+      // Assert
+      expect(result).toEqual(peers);
+    });
   });
 
-  it("checks if peer exists", async () => {
-    mockCollection
-      .query()
-      .fetch.mockResolvedValue([{ id: "peer-1", username: "Alice" }]);
+  describe("deleteAllPeers", () => {
+    it("deletes all peers via batch", async () => {
+      // Arrange
+      const op1 = { op: "destroy-1" };
+      const op2 = { op: "destroy-2" };
+      mockCollection.query().fetch.mockResolvedValue([
+        createDestroyableRecord(op1),
+        createDestroyableRecord(op2),
+      ]);
 
-    const exists = await repository.isPeerExist("peer-1");
+      // Act
+      await repository.deleteAllPeers();
 
-    expect(exists).toBe(true);
+      // Assert
+      expect(mockDb.batch).toHaveBeenCalledWith(op1, op2);
+    });
   });
 
-  it("returns false if peer does not exist", async () => {
-    mockCollection.query().fetch.mockResolvedValue([]);
+  describe("getPeerDestroyOps", () => {
+    it("returns destroy operations", async () => {
+      // Arrange
+      const op1 = { op: "destroy-1" };
+      const op2 = { op: "destroy-2" };
+      mockCollection.query().fetch.mockResolvedValue([
+        createDestroyableRecord(op1),
+        createDestroyableRecord(op2),
+      ]);
 
-    const exists = await repository.isPeerExist("peer-nonexistent");
+      // Act
+      const result = await repository.getPeerDestroyOps();
 
-    expect(exists).toBe(false);
-  });
-
-  it("queries peer by id", async () => {
-    const mockPeer = { id: "peer-1", username: "Alice", isOnline: true };
-    mockCollection.query().fetch.mockResolvedValue([mockPeer]);
-
-    const result = await repository.queryPeerById("peer-1");
-
-    expect(result).toEqual(mockPeer);
+      // Assert
+      expect(result).toEqual([op1, op2]);
+    });
   });
 });

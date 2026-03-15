@@ -18,7 +18,7 @@ jest.mock("@/features/shared", () => {
 });
 
 jest.mock("@/features/shared/hooks", () => ({
-  useContainer: () => ({
+  useMainContainer: () => ({
     chatService: {
       findPeerIdByChatId: jest.fn().mockResolvedValue("peer-1")
     },

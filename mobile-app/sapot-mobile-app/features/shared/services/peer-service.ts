@@ -40,6 +40,7 @@ export class PeerService {
         await this.peerRepository.savePeer({
           id: peerService.txt.id,
           username: peerService.txt.username,
+          firstName: peerService.txt.firstName || "Guest User",
         });
       }
 
@@ -181,9 +182,23 @@ export class PeerService {
    * @param username The username
    * @returns Promise<any> The created peer object
    */
-  async createUser(id: string, username: string) {
+  async createUser(
+    id: string,
+    username: string,
+    firstName: string,
+    lastName?: string,
+    email?: string,
+    phoneNumber?: string
+  ) {
     try {
-      return await this.peerRepository.savePeer({ id, username });
+      return await this.peerRepository.savePeer({
+        id,
+        username,
+        firstName,
+        lastName,
+        email,
+        phoneNumber,
+      });
     } catch (error) {
       console.error(
         `[PeerService]: Error creating user\n${JSON.stringify(

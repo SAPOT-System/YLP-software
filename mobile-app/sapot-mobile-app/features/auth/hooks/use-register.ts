@@ -1,20 +1,30 @@
 import { AxiosError } from "axios";
 import { useState } from "react";
-import { register } from "../api/auth.api";
 import {
-    RegisterApiErrorResponse,
-    RegisterFormState,
-    RegisterFormStateErrors,
+  addSecurityQuestionApi,
+  existsApi,
+  generateNewRecoveryKeyApi,
+  register,
+} from "../api/auth.api";
+import {
+  RegisterApiErrorResponse,
+  RegisterFormState,
+  RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
+import { setItemAsync } from "expo-secure-store";
+import { useUserService } from "./use-user-service";
+import { usePeerService } from "@/features/shared/hooks";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<RegisterFormStateErrors>({});
+  const userService = useUserService();
+  const peerService = usePeerService();
 
   const registerUser = async (
     form: RegisterFormState
-  ): Promise<{ success: boolean }> => {
+  ): Promise<{ success: boolean; recoveryKeyFileLink?: string }> => {
     setLoading(true);
     setErrors({});
 
@@ -51,11 +61,32 @@ export const useRegister = () => {
         first_name: form.firstName,
         last_name: form.lastName,
         password: form.password,
-        email: form.email,
-        phone_number: form.phoneNumber,
+        email: form.email || undefined,
+        phone_number: form.phoneNumber || undefined,
       });
+      const data = res.data;
 
-      return { success: res.status === 201 };
+      await setItemAsync("token", data.token);
+      await setItemAsync("userUUID", data.id);
+
+      await peerService.createUser(
+        data.id,
+        data.username,
+        data.first_name,
+        data.last_name,
+        data.email,
+        data.phone_number
+      );
+      await userService.initialize({ isGuest: false });
+
+      await addSecurityQuestionApi(
+        [{ question: form.securityQuestion, answer: form.questionAnswer }],
+        data.token
+      );
+
+      const res2 = await generateNewRecoveryKeyApi();
+
+      return { success: res.status === 201, recoveryKeyFileLink: res2.data };
     } catch (err) {
       const axiosError = err as AxiosError<RegisterApiErrorResponse>;
 
@@ -111,6 +142,15 @@ export const useRegister = () => {
     }
   };
 
+  const checkIfIdentifierExists = async (identifier: string) => {
+    try {
+      const { exists } = await existsApi(identifier);
+      return exists;
+    } catch {
+      return false;
+    }
+  };
+
   const validateRegisterStep = (form: Partial<RegisterFormState>) => {
     setLoading(true);
     const errors = validateRegistrationForm(form);
@@ -122,5 +162,12 @@ export const useRegister = () => {
     setLoading(false);
     return { success: true };
   };
-  return { registerUser, validateRegisterStep, loading, errors };
+  return {
+    registerUser,
+    validateRegisterStep,
+    checkIfIdentifierExists,
+    loading,
+    setErrors,
+    errors,
+  };
 };

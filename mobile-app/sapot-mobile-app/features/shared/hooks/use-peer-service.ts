@@ -1,5 +1,5 @@
-import { useContainer } from "./use-container";
+import { useAuthContainer } from "@/features/auth";
 
 export function usePeerService() {
-  return useContainer().peerService;
+  return useAuthContainer().peerService;
 }

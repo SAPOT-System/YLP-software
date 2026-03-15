@@ -1,3 +1,7 @@
+import {
+    createTestDiscoveredService,
+    createTestZeroconfService,
+} from "@/test/factories/peer-service.factory";
 import { ZeroconfAdapter } from "../zeroconf-adapter";
 
 jest.mock("react-native-zeroconf", () => {
@@ -36,10 +40,10 @@ describe("ZeroconfAdapter", () => {
   });
 
   it("emits serviceResolved event", () => {
-    const service = {
+    const service = createTestZeroconfService({
       name: "test-service",
-      txt: { username: "Alice" },
-    };
+      txt: { id: "peer-1", username: "Alice" },
+    });
 
     const listener = jest.fn();
     adapter.on("serviceResolved", listener);
@@ -70,7 +74,8 @@ describe("ZeroconfAdapter", () => {
       type: "_lanchat._tcp",
       protocol: "tcp",
       domain: "local.",
-      name: "test-device",
+      name: createTestDiscoveredService({ serviceName: "test-device" })
+        .serviceName,
       port: 3000,
       txt: { id: "device-1", username: "Alice" },
     };

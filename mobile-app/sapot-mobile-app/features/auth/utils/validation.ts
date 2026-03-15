@@ -67,6 +67,31 @@ export const validateRegistrationForm = ({
     errors.questionAnswer = "Answer is required";
   }
 
+  // Password and confirm password validation
+  Object.assign(errors, validatePassword(password, confirmPassword));
+
+  // Terms & Conditions validation
+  if (termsChecked !== undefined && !termsChecked) {
+    errors.termsChecked = "You must agree to the terms and conditions";
+  }
+
+  return errors;
+};
+
+export const hasValidationErrors = (
+  errors:
+    | RegisterFormStateErrors
+    | { password?: string; confirmPassword?: string }
+    | { firstName?: string; lastName?: string }
+): boolean => {
+  return Object.keys(errors).length > 0;
+};
+
+export const validatePassword = (
+  password?: string,
+  confirmPassword?: string
+) => {
+  const errors: { password?: string; confirmPassword?: string } = {};
   // Password validation
   if (password !== undefined && !password) {
     errors.password = "Password is required";
@@ -83,16 +108,26 @@ export const validateRegistrationForm = ({
     errors.confirmPassword = "Passwords do not match";
   }
 
-  // Terms & Conditions validation
-  if (termsChecked !== undefined && !termsChecked) {
-    errors.termsChecked = "You must agree to the terms and conditions";
-  }
-
   return errors;
 };
 
-export const hasValidationErrors = (
-  errors: RegisterFormStateErrors
-): boolean => {
-  return Object.keys(errors).length > 0;
+export const validateGuestLoginForm = (firstName: string, lastName: string) => {
+  const errors: { firstName?: string; lastName?: string } = {};
+  // First Name validation
+  if (!firstName.trim()) {
+    errors.firstName = "First name is required";
+  } else if (firstName.trim().length <= 2) {
+    errors.firstName = "First name must be at least 2 characters";
+  } else if (firstName.trim().length >= 50) {
+    errors.firstName = "First name must be less than 50 characters";
+  }
+
+  // Last Name validation
+  if (lastName.trim().length < 2 && lastName.trim().length > 0) {
+    errors.lastName = "Last name must be at least 2 characters";
+  } else if (lastName.trim().length > 50 && lastName.trim().length > 0) {
+    errors.lastName = "First name must be less than or equal to 50 characters";
+  }
+
+  return errors;
 };

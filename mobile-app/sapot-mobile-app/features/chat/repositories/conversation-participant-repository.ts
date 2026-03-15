@@ -4,6 +4,7 @@ import {
   Conversation,
   ConversationParticipant,
   ConversationParticipantRole,
+  GuestUser,
   Peer,
 } from "@/features/shared";
 
@@ -31,7 +32,7 @@ export class ConversationParticipantRepository {
     newParticipant: {
       role: ConversationParticipantRole;
       conversation: Conversation;
-      user: Peer;
+      user: Peer | GuestUser;
     },
     isInTransaction = false
   ) {
@@ -78,7 +79,7 @@ export class ConversationParticipantRepository {
    * @returns Promise<void>
    */
   async saveMultipleConversationParticipant(
-    users: Peer[],
+    users: (Peer | GuestUser)[],
     conversation: Conversation,
     role: ConversationParticipantRole = ConversationParticipantRole.MEMBER,
     isInTransaction = false

@@ -22,13 +22,24 @@ export class PeerRepository {
    * @param newPeer The peer data (id, username)
    * @returns Promise<Peer> The saved peer
    */
-  async savePeer(newPeer: { id: string; username: string }) {
+  async savePeer(newPeer: {
+    id: string;
+    username: string;
+    firstName: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+  }) {
     try {
       return await this.db.write(async () => {
         const peer = await this.peersCollection.create((peer: Peer) => {
           peer.username = newPeer.username;
           peer.isOnline = false;
           peer._raw.id = newPeer.id;
+          peer.firstName = newPeer.firstName;
+          peer.lastName = newPeer.lastName || "";
+          peer.email = newPeer.email || "";
+          peer.phoneNumber = newPeer.phoneNumber || "";
         });
         return peer;
       });
@@ -184,5 +195,11 @@ export class PeerRepository {
       console.error("[PeerRepository]: Error deleting peers:", error);
       throw error;
     }
+  }
+
+  async getPeerDestroyOps() {
+    const records = await this.peersCollection.query().fetch();
+
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

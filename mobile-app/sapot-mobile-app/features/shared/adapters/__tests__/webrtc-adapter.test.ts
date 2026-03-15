@@ -1,3 +1,7 @@
+import {
+    createMockMediaStream,
+    createMockRtcPeerConnection,
+} from "@/test/mocks/adapter.mock-builders";
 import { WebrtcAdapter } from "../webrtc-adapter";
 
 jest.mock("react-native-webrtc", () => ({
@@ -24,17 +28,7 @@ describe("WebrtcAdapter", () => {
 
   it("initializes peer connection", async () => {
     const { RTCPeerConnection } = require("react-native-webrtc");
-    const mockPeerConnection = {
-      addTrack: jest.fn(),
-      createOffer: jest.fn(),
-      createAnswer: jest.fn(),
-      setLocalDescription: jest.fn(),
-      setRemoteDescription: jest.fn(),
-      addIceCandidate: jest.fn(),
-      createDataChannel: jest.fn(),
-      on: jest.fn(),
-      addEventListener: jest.fn(),
-    };
+    const mockPeerConnection = createMockRtcPeerConnection();
 
     RTCPeerConnection.mockReturnValue(mockPeerConnection);
 
@@ -44,14 +38,7 @@ describe("WebrtcAdapter", () => {
 
   it("handles local stream initialization", async () => {
     const { mediaDevices } = require("react-native-webrtc");
-    const mockTrack = {
-      kind: "audio",
-    };
-    const mockStream = {
-      getAudioTracks: jest.fn().mockReturnValue([mockTrack]),
-      getVideoTracks: jest.fn().mockReturnValue([]),
-      getTracks: jest.fn().mockReturnValue([mockTrack]),
-    };
+    const mockStream = createMockMediaStream();
 
     mediaDevices.getUserMedia.mockResolvedValue(mockStream);
 

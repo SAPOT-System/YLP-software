@@ -17,7 +17,7 @@ export class SessionStore {
    * Sets the user ID for the current session.
    * @param id The user ID to set
    */
-  setUserId(id: string) {
+  setUserId(id: string | undefined) {
     this._userId = id;
   }
 }

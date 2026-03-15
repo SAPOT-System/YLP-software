@@ -1,9 +1,14 @@
 import { ChatService } from "@/features/chat/services/chat-service";
+import {
+    createTestMessage,
+    createTestMessages,
+} from "@/test/factories/chat-model.factory";
+import { createTestZeroconfService } from "@/test/factories/peer-service.factory";
+import { createDiscoveryServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../../adapters";
 import { Message } from "../../database";
 import { NetworkConfig, SessionStore, UserStore } from "../../stores";
-import { Peer } from "../../types";
 import { DiscoveryService } from "../discovery-service";
 import { PeerService } from "../peer-service";
 
@@ -40,51 +45,17 @@ describe("DiscoveryService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const mocks = createDiscoveryServiceDependencyMocks();
 
-    // Setup mocks
-    mockZeroconfAdapter = {
-      on: jest.fn(),
-      startScan: jest.fn(),
-      stopScan: jest.fn(),
-      publishService: jest.fn(),
-      cleanUp: jest.fn(),
-    } as Partial<ZeroconfAdapter> as jest.Mocked<ZeroconfAdapter>;
-
-    mockSessionStore = {
-      userId: "test-user-id",
-      setUserId: jest.fn(),
-    } as Partial<SessionStore> as jest.Mocked<SessionStore>;
-
-    mockNetworkConfig = {
-      port: 8080,
-      ipAddress: "192.168.1.100",
-    } as Partial<NetworkConfig> as jest.Mocked<NetworkConfig>;
-
-    mockUserStore = {
-      user: {
-        id: "test-user-id",
-        username: "testuser",
-      } as unknown as Peer,
-      setUser: jest.fn(),
-    } as unknown as jest.Mocked<UserStore>;
-
-    mockPeerService = {
-      register: jest.fn(),
-      markOffline: jest.fn(),
-      markOnline: jest.fn(),
-      getAllPeers: jest.fn(),
-      findPeerById: jest.fn(),
-      findDiscoveredPeerById: jest.fn(),
-      createUser: jest.fn(),
-      cleanUp: jest.fn(),
-    } as Partial<PeerService> as jest.Mocked<PeerService>;
-
-    mockChatService = {
-      getAllNotSentMessageForPeer: jest.fn(),
-      tryResendMessage: jest.fn(),
-      handleIncomingChatMessage: jest.fn(),
-      handleAckMessage: jest.fn(),
-    } as Partial<ChatService> as jest.Mocked<ChatService>;
+    mockZeroconfAdapter =
+      mocks.zeroconfAdapter as unknown as jest.Mocked<ZeroconfAdapter>;
+    mockSessionStore =
+      mocks.sessionStore as unknown as jest.Mocked<SessionStore>;
+    mockNetworkConfig =
+      mocks.networkConfig as unknown as jest.Mocked<NetworkConfig>;
+    mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
+    mockPeerService = mocks.peerService as unknown as jest.Mocked<PeerService>;
+    mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
 
     // Mock constructors
     jest.mocked(ZeroconfAdapter).mockImplementation(() => mockZeroconfAdapter);
@@ -124,17 +95,8 @@ describe("DiscoveryService", () => {
     });
 
     it("should handle service resolved event", async () => {
-      const mockService: Service = {
-        name: "test-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
-        port: 8080,
-        addresses: ["192.168.1.101"],
-        txt: {
-          id: "peer-1",
-          username: "peeruser",
-        },
-      };
+      const mockService =
+        createTestZeroconfService() as unknown as Service;
 
       discoveryService.setChatService(mockChatService);
       const performResendSpy = jest
@@ -159,17 +121,8 @@ describe("DiscoveryService", () => {
     });
 
     it("should handle service resolved event error when chat service not set", async () => {
-      const mockService: Service = {
-        name: "test-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
-        port: 8080,
-        addresses: ["192.168.1.101"],
-        txt: {
-          id: "peer-1",
-          username: "peeruser",
-        },
-      };
+      const mockService =
+        createTestZeroconfService() as unknown as Service;
 
       const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
@@ -282,10 +235,11 @@ describe("DiscoveryService", () => {
       const peerId = "peer-1";
       const ipAddress = "192.168.1.101";
       const port = 8080;
-      const mockMessages = [
-        { id: "msg-1", content: "Hello" },
-        { id: "msg-2", content: "World" },
-      ] as Message[];
+      const mockMessages = createTestMessages(2, (index) =>
+        index === 0
+          ? { id: "msg-1", content: "Hello" }
+          : { id: "msg-2", content: "World" }
+      ) as unknown as Message[];
 
       discoveryService.setChatService(mockChatService);
       mockChatService.getAllNotSentMessageForPeer.mockResolvedValue(
@@ -320,9 +274,9 @@ describe("DiscoveryService", () => {
       const ipAddress = "192.168.1.101";
       const port = 8080;
       const mockMessages = [
-        { id: "msg-1", content: "Hello" },
-        { id: "msg-2", content: "World" },
-      ] as Message[];
+        createTestMessage({ id: "msg-1", content: "Hello" }),
+        createTestMessage({ id: "msg-2", content: "World" }),
+      ] as unknown as Message[];
 
       discoveryService.setChatService(mockChatService);
       mockChatService.getAllNotSentMessageForPeer.mockResolvedValue(

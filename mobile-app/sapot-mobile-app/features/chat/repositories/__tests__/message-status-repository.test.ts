@@ -1,42 +1,61 @@
-import { Message, MessageStatusType, Peer } from "@/features/shared";
+import { GuestUser, Message, MessageStatusType, Peer } from "@/features/shared";
+import {
+    createTestMessage,
+    createTestMessageStatus,
+} from "@/test/factories/chat-model.factory";
+import { createTestGuestUser, createTestPeer } from "@/test/factories/user.factory";
+import {
+    createCollectionMock,
+    createWatermelonDbMock,
+} from "@/test/mocks/database.mock-builders";
 import { MessageStatusRepository } from "../message-status-repository";
 
 describe("MessageStatusRepository", () => {
   let repository: MessageStatusRepository;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockDb: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockCollection: any;
+  let mockCollection: ReturnType<typeof createCollectionMock>;
+  let mockDb: ReturnType<typeof createWatermelonDbMock>;
 
   beforeEach(() => {
-    mockCollection = {
-      create: jest.fn(),
-      query: jest.fn().mockReturnValue({
-        fetch: jest.fn(),
-      }),
-    };
+    mockCollection = createCollectionMock();
+    mockDb = createWatermelonDbMock(mockCollection);
 
-    mockDb = {
-      get: jest.fn().mockReturnValue(mockCollection),
-      write: jest.fn((fn) => fn()),
-    };
-
-    repository = new MessageStatusRepository(mockDb);
+    repository = new MessageStatusRepository(mockDb as never);
   });
 
   it("saves a message status", async () => {
-    const mockStatus = { id: "status-1", status: MessageStatusType.SENT };
+    const mockStatus = createTestMessageStatus({
+      id: "status-1",
+      status: MessageStatusType.SENT,
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockDb.write.mockImplementation((fn: any) =>
       Promise.resolve(fn()).then(() => mockStatus)
     );
 
     await repository.saveMessageStatus({
-      message: { id: "msg-1" } as Partial<Message> as jest.Mocked<Message>,
+      message: {
+        ...createTestMessage({ id: "msg-1" }),
+      } as unknown as Partial<Message> as jest.Mocked<Message>,
       user: {
-        id: "user-1",
-        username: "Alice",
-      } as Partial<Peer> as jest.Mocked<Peer>,
+        ...createTestPeer({ id: "user-1", username: "Alice" }),
+      } as unknown as Partial<Peer> as jest.Mocked<Peer>,
+      status: MessageStatusType.SENT,
+    });
+
+    expect(mockDb.write).toHaveBeenCalled();
+  });
+
+  it("saves a message status for guest user", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockDb.write.mockImplementation((fn: any) => Promise.resolve(fn()));
+
+    await repository.saveMessageStatus({
+      message: {
+        ...createTestMessage({ id: "msg-guest" }),
+      } as unknown as Partial<Message> as jest.Mocked<Message>,
+      user: {
+        ...createTestGuestUser({ id: "guest-1", username: "Guest Alice" }),
+      } as unknown as Partial<GuestUser> as jest.Mocked<GuestUser>,
       status: MessageStatusType.SENT,
     });
 
@@ -44,7 +63,10 @@ describe("MessageStatusRepository", () => {
   });
 
   it("updates message status by message id", async () => {
-    const mockStatus = { id: "status-1", status: MessageStatusType.SENT };
+    const mockStatus = createTestMessageStatus({
+      id: "status-1",
+      status: MessageStatusType.SENT,
+    });
     mockCollection.query().fetch.mockResolvedValue([
       {
         ...mockStatus,
@@ -63,7 +85,10 @@ describe("MessageStatusRepository", () => {
   });
 
   it("updates message status by id", async () => {
-    const mockStatus = { id: "status-1", status: MessageStatusType.SENT };
+    const mockStatus = createTestMessageStatus({
+      id: "status-1",
+      status: MessageStatusType.SENT,
+    });
     mockCollection.query().fetch.mockResolvedValue([
       {
         ...mockStatus,
@@ -83,7 +108,10 @@ describe("MessageStatusRepository", () => {
   });
 
   it("queries message status by message id", async () => {
-    const mockStatus = { id: "status-1", status: MessageStatusType.SENT };
+    const mockStatus = createTestMessageStatus({
+      id: "status-1",
+      status: MessageStatusType.SENT,
+    });
     mockCollection.query().fetch.mockResolvedValue([mockStatus]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

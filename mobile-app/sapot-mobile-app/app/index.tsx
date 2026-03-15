@@ -1,11 +1,26 @@
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Text, useTheme } from "react-native-paper";
 import { View, Image, useColorScheme } from "react-native";
+import { APP_ROUTES } from "./routes";
+import { useAuth } from "@/features/auth";
 
 const Index = () => {
   const theme = useTheme();
   const isDark = useColorScheme() === "dark";
+  const auth = useAuth();
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (auth && auth.isAuthenticated) {
+      setRedirecting(true);
+      router.replace(APP_ROUTES.HOME); // Redirect to home if authenticated
+    }
+  }, [auth]);
+
+  if (redirecting) {
+    return null;
+  }
 
   return (
     <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
@@ -40,7 +55,7 @@ const Index = () => {
           />
           <Text
             variant="titleLarge"
-            style={{ fontWeight: "bold", color: theme.colors.primary }}
+            style={{ fontWeight: "bold", color: theme.colors.inverseOnSurface }}
           >
             SAPOT
           </Text>
@@ -48,7 +63,12 @@ const Index = () => {
       </View>
       <Text
         variant="headlineSmall"
-        style={{ textAlign: "center", fontWeight: "bold", marginBottom: 10 }}
+        style={{
+          textAlign: "center",
+          fontWeight: "bold",
+          marginBottom: 10,
+          color: theme.colors.inverseOnSurface,
+        }}
       >
         Reliable local and internet messaging
       </Text>

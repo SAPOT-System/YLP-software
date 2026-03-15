@@ -1,4 +1,5 @@
 import {
+  GuestUser,
   Message,
   MessageStatus,
   MessageStatusType,
@@ -31,7 +32,7 @@ export class MessageStatusRepository {
     status,
   }: {
     message: Message;
-    user: Peer;
+    user: Peer | GuestUser;
     status: MessageStatusType;
   }) {
     try {

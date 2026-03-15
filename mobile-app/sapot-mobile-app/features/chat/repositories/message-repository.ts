@@ -1,4 +1,4 @@
-import { Conversation, Message, MessageType, Peer } from "@/features/shared";
+import { Conversation, GuestUser, Message, MessageType, Peer } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 /**
@@ -23,7 +23,7 @@ export class MessageRepository {
    * @returns Promise<Message> The saved message
    */
   async saveMessage(newMessage: {
-    sender: Peer;
+    sender: GuestUser | Peer;
     content: string;
     conversation: Conversation;
     messageId?: string;

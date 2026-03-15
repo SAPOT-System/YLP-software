@@ -1,13 +1,40 @@
 import { appSchema, tableSchema } from "@nozbe/watermelondb";
 
 export default appSchema({
-  version: 1,
+  version: 3,
   tables: [
+    tableSchema({
+      name: "guest_user",
+      columns: [
+        { name: "first_name", type: "string" },
+        { name: "last_name", type: "string" },
+        { name: "username", type: "string" },
+      ],
+    }),
     tableSchema({
       name: "peers",
       columns: [
         { name: "username", type: "string" },
         { name: "is_online", type: "boolean" },
+        {
+          name: "first_name",
+          type: "string",
+        },
+        {
+          name: "last_name",
+          type: "string",
+          isOptional: true,
+        },
+        {
+          name: "email",
+          type: "string",
+          isOptional: true,
+        },
+        {
+          name: "phone_number",
+          type: "string",
+          isOptional: true,
+        },
       ],
     }),
     tableSchema({

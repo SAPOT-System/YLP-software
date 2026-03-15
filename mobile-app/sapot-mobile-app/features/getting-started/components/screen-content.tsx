@@ -24,22 +24,23 @@ export const ScreenContent = ({
         alignItems: "center",
         backgroundColor: theme.colors.surface,
         paddingTop: 28,
+        gap: 8,
         paddingHorizontal: 20,
       }}
     >
       <Text
-        style={{ color: theme.colors.onPrimaryContainer, fontWeight: "bold" }}
-        variant="titleLarge"
+        style={{ color: theme.colors.inverseOnSurface, fontWeight: "bold" }}
+        variant="headlineLarge"
       >
         {title}
       </Text>
       <Text
         style={{
           textAlign: "center",
-          color: theme.colors.outline,
+          color: theme.colors.onSurface,
           marginBottom: 20,
         }}
-        variant="bodySmall"
+        variant="bodyMedium"
       >
         {description}
       </Text>

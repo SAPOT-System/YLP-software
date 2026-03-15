@@ -1,8 +1,9 @@
-import { getItemAsync, setItemAsync } from "expo-secure-store";
-import uuid from "react-native-uuid";
-import { Peer } from "../database";
+import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import { GuestUser, Peer } from "../database";
 import { SessionStore, UserStore } from "../stores";
 import { PeerService } from "./peer-service";
+import { GuestUserRepository } from "../repositories";
+import { CleanUpService } from "./clean-up-service";
 
 /**
  * UserService manages user initialization, user identity, and user persistence in the app.
@@ -15,10 +16,14 @@ export class UserService {
    * @param peerService Service for peer management
    * @param sessionStore Store for session state
    */
+
+  private cleanUpService?: CleanUpService;
+
   constructor(
     private userStore: UserStore,
     private peerService: PeerService,
-    private sessionStore: SessionStore
+    private sessionStore: SessionStore,
+    private guestUserRepository: GuestUserRepository
   ) {}
 
   /**
@@ -26,32 +31,39 @@ export class UserService {
    * and stores the user in the user store.
    * @returns Promise<void>
    */
-  async initialize() {
+  async initialize({ isGuest }: { isGuest: boolean }) {
     try {
       let id = await getItemAsync("userUUID");
+      console.log("ID1:", id);
       if (!id) {
-        id = uuid.v4();
-        await setItemAsync("userUUID", id);
+        // TODO: Handle empty userUUID
+        return;
       }
+
       this.sessionStore.setUserId(id);
 
-      // find the current user in the peers table
-      const foundUser = await this.peerService.findPeerById(id);
-      let user: Peer;
-      if (!foundUser) {
-        // if current user is not in the peers table, create current user
-        const username = this.generateUsername();
-        user = await this.peerService.createUser(id, username);
+      let user: Peer | GuestUser;
+      if (isGuest) {
+        user = await this.guestUserRepository.getCurrentGuestUser();
       } else {
-        user = foundUser;
+        // find the current user in the peers table
+        user = await this.peerService.findPeerById(id);
       }
+      console.log("User1: ", user);
 
       // store the user's peer object
-      this.userStore.setUser(user);
+      this.userStore.setUser(user, isGuest);
     } catch (error) {
       console.error("[UserService]: Error initializing user:", error);
       throw error;
     }
+  }
+
+  async logout() {
+    await deleteItemAsync("userUUID");
+    this.sessionStore.setUserId(undefined);
+    // TODO: handle if clean up service is undefined
+    this.cleanUpService?.cleanUp();
   }
 
   /**
@@ -65,5 +77,13 @@ export class UserService {
       console.error("[UserService]: generating username:", error);
       throw error;
     }
+  }
+
+  setCleanUpService(cleanUpService: CleanUpService) {
+    this.cleanUpService = cleanUpService;
+  }
+
+  getUser() {
+    return this.userStore.user;
   }
 }

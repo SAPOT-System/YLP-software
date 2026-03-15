@@ -1,26 +1,77 @@
-// import * as SecureStore from "expo-secure-store";
-import React, { createContext, useContext, useState } from "react";
-import { tokenService } from "../service/token-service";
+import { getItemAsync, setItemAsync, deleteItemAsync } from "expo-secure-store";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { LoginApiErrorResponse, LoginApiRequest } from "../types";
 import { loginApi } from "../api";
 import { AxiosError } from "axios";
+import {
+  generateGuestUsername,
+  hasValidationErrors,
+  isAccessTokenValid,
+  validateGuestLoginForm,
+} from "../utils/";
+import { useUserService } from "../hooks";
+import { getUserApi } from "@/features/shared";
+import { usePeerService } from "@/features/shared/hooks";
+
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
+  loginAsGuest: (credentials: { firstName: string; lastName: string }) => {
+    success: boolean;
+  };
   logout: () => void;
+  logoutAsGuest: () => void;
   loading: boolean;
   errors: LoginFormErrors;
+  isAuthenticated: boolean;
+  accessToken: string | null;
+  guestUser:
+    | {
+        firstName: string;
+        lastName: string;
+        username: string;
+      }
+    | undefined;
+  isGuest: boolean;
 }
 const AuthContext = createContext<AuthContextI | null>(null);
 
-interface LoginFormErrors {
+interface LoginFormErrors extends GuestLoginFormErrors {
   username?: string;
   password?: string;
   general?: string;
 }
 
+interface GuestLoginFormErrors {
+  firstName?: string;
+  lastName?: string;
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<LoginFormErrors>({});
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestUser, setGuestUser] = useState<{
+    firstName: string;
+    lastName: string;
+    username: string;
+  }>();
+  const userService = useUserService();
+  const peerService = usePeerService();
+
+  // const guestUserRepo = useGuestUserRepository();
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const token = await getItemAsync("token");
+      await userService.initialize({ isGuest: false });
+      setAccessToken(token);
+      setIsAuthenticated(token ? await isAccessTokenValid(token) : false);
+      setLoading(false);
+    })();
+  }, []);
 
   const login = async (credentials: LoginApiRequest) => {
     setLoading(true);
@@ -50,9 +101,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const { access_token } = res.data;
 
-      tokenService.setAccessToken(access_token);
+      await setItemAsync("token", access_token);
+      setAccessToken(access_token);
+      setIsAuthenticated(await isAccessTokenValid(access_token));
 
-      //   await SecureStore.setItemAsync("refresh_token", refreshToken);
+      const userInfo = await getUserApi(access_token);
+      console.log(userInfo);
+      await setItemAsync("userUUID", userInfo.id);
+
+      await peerService.createUser(
+        userInfo.id,
+        userInfo.username,
+        userInfo.first_name,
+        userInfo.last_name,
+        userInfo.email,
+        userInfo.phone_number
+      );
+      await userService.initialize({ isGuest: false });
+
       return {
         success: true,
       };
@@ -85,10 +151,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const logout = async () => {
-    // await SecureStore.deleteItemAsync("refresh_token");
+  const loginAsGuest = (credentials: {
+    firstName: string;
+    lastName: string;
+  }) => {
+    const errors = validateGuestLoginForm(
+      credentials.firstName,
+      credentials.lastName
+    );
 
-    tokenService.clearAccessToken();
+    if (hasValidationErrors(errors)) {
+      setErrors(errors);
+      return { success: false };
+    }
+
+    const username = generateGuestUsername(
+      credentials.firstName,
+      credentials.lastName
+    );
+
+    setGuestUser({
+      firstName: credentials.firstName,
+      lastName: credentials.lastName,
+      username,
+    });
+
+    setIsGuest(true);
+
+    return { success: true };
+  };
+
+  const logoutAsGuest = async () => {
+    setIsGuest(false);
+    setGuestUser(undefined);
+  };
+
+  const logout = async () => {
+    await deleteItemAsync("token");
+    await deleteItemAsync("userUUID");
+
+    await userService.logout();
+    setAccessToken(null);
+    setIsAuthenticated(false);
   };
 
   // silent login on app start
@@ -118,7 +222,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   //   }, []);
 
   return (
-    <AuthContext.Provider value={{ login, logout, loading, errors }}>
+    <AuthContext.Provider
+      value={{
+        login,
+        logout,
+        loading,
+        errors,
+        accessToken,
+        isAuthenticated,
+        loginAsGuest,
+        logoutAsGuest,
+        guestUser,
+        isGuest,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
