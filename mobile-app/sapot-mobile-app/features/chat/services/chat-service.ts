@@ -4,6 +4,7 @@ import {
   ConversationParticipantRole,
   ConversationType,
   database,
+  GuestUser,
   Message,
   MessageStatus,
   MessageStatusType,
@@ -291,7 +292,7 @@ export class ChatService {
    * @returns Promise<{ newMessage: Message; newMessageStatus: MessageStatus }>
    */
   private async createMessage(params: {
-    sender: Peer;
+    sender: Peer | GuestUser;
     message: string;
     conversation: Conversation;
   }): Promise<{ newMessage: Message; newMessageStatus: MessageStatus }> {

@@ -1,7 +1,8 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
-import {Peer} from "./Peer";
+import { Peer } from "./Peer";
 import { Conversation } from "./Conversation";
+import { GuestUser } from "./guest-user";
 
 export enum MessageType {
   TEXT = "text",
@@ -21,5 +22,5 @@ export class Message extends Model {
 
   @relation("conversations", "conversation")
   conversation!: Relation<Conversation>;
-  @relation("peers", "sender") sender!: Relation<Peer>;
+  @relation("peers", "sender") sender!: Relation<GuestUser | Peer>;
 }
