@@ -1,8 +1,7 @@
 import { Model } from "@nozbe/watermelondb";
 import { field } from "@nozbe/watermelondb/decorators";
-import { IUser } from "../types";
 
-export class GuestUser extends Model implements IUser {
+export class GuestUser extends Model {
   static table = "guest_user";
 
   @field("first_name") firstName!: string;
