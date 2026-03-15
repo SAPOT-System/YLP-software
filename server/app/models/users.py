@@ -150,3 +150,8 @@ class UserPasswordUpdateNoOldPassword(SQLModel):
         if not any(char.isupper() for char in v):
             raise ValueError("Password must contain at least one uppercase letter")
         return v
+
+
+class UserInfo(UserBase):
+    # (email, phone number, username, first name, last name, and id
+    id: uuid.UUID
