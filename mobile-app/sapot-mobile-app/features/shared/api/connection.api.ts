@@ -8,3 +8,25 @@ export const checkBackEndHealth = async () => {
     return false;
   }
 };
+
+export const pingServer = async () => {
+  const start = Date.now();
+
+  try {
+    const res = await apiClient.get<{ status: string; timestamp: number }>(
+      "/ping"
+    );
+
+    const latency = Date.now() - start;
+
+    return {
+      success: true,
+      latency,
+    };
+  } catch {
+    return {
+      success: false,
+      latency: null,
+    };
+  }
+};
