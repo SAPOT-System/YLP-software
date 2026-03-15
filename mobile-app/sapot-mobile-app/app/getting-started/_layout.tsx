@@ -9,7 +9,7 @@ export default function Layout() {
   const auth = useAuth();
 
   useEffect(() => {
-    if (auth && auth.isAuthenticated) {
+    if (auth && auth.isAuthenticated && auth.isGuest) {
       router.replace(APP_ROUTES.HOME);
     }
   }, [auth]);

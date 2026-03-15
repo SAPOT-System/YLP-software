@@ -25,7 +25,8 @@ import {
 
 import merge from "deepmerge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider } from "@/features/auth";
+import { AuthProvider, AuthContainerProvider } from "@/features/auth";
+// import { usePing } from "@/features/shared/hooks";
 
 const customDarkTheme = { ...MD3DarkTheme, colors: Colors.dark };
 const customLightTheme = { ...MD3LightTheme, colors: Colors.light };
@@ -88,25 +89,22 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
+  // const { latency } = usePing();
   const colorScheme = useColorScheme();
+
   const paperTheme =
     colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <PaperProvider theme={paperTheme}>
-          <ThemeProvider value={paperTheme}>
-            <Stack>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="getting-started"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-            </Stack>
-          </ThemeProvider>
-        </PaperProvider>
-      </AuthProvider>
+      <AuthContainerProvider>
+        <AuthProvider>
+          <PaperProvider theme={paperTheme}>
+            <ThemeProvider value={paperTheme}>
+              <Stack screenOptions={{ headerShown: false }} />
+            </ThemeProvider>
+          </PaperProvider>
+        </AuthProvider>
+      </AuthContainerProvider>
     </SafeAreaProvider>
   );
 }
