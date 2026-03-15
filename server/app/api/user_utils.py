@@ -15,7 +15,7 @@ router = APIRouter(
     # dependencies=[Depends(require_verified_user)]
 )
 
-@router.post('')
+@router.post('/search-user')
 def search_username(
         username: str,
         current_user : Annotated[User, Depends(get_current_user)],
