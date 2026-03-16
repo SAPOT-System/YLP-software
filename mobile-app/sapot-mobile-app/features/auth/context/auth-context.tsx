@@ -142,10 +142,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const loginAfterRegister = async (data: RegisterApiResponse) => {
     const { token } = data;
 
+    await userService.syncAuthenticatedUser(data);
+
     setAccessToken(token);
     setIsAuthenticated(await isAccessTokenValid(token));
 
-    await userService.syncAuthenticatedUser(data);
   };
 
   const loginAsGuest = async (credentials: {

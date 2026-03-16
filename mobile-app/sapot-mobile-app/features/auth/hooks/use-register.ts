@@ -8,21 +8,24 @@ import {
 } from "../api/auth.api";
 import {
   RegisterApiErrorResponse,
+  RegisterApiResponse,
   RegisterFormState,
   RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
-import { useAuth } from "../context/auth-context";
 import { setItemAsync } from "expo-secure-store";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<RegisterFormStateErrors>({});
-  const auth = useAuth();
 
   const registerUser = async (
     form: RegisterFormState
-  ): Promise<{ success: boolean; recoveryKeyFileLink?: string }> => {
+  ): Promise<{
+    success: boolean;
+    recoveryKeyFileLink?: string;
+    info?: RegisterApiResponse;
+  }> => {
     setLoading(true);
     setErrors({});
 
@@ -73,13 +76,11 @@ export const useRegister = () => {
 
       const res2 = await generateNewRecoveryKeyApi();
 
-      if (!auth || !auth.loginAfterRegister) {
-        return { success: res.status === 201, recoveryKeyFileLink: res2.data };
-      }
-
-      await auth.loginAfterRegister(data);
-
-      return { success: res.status === 201, recoveryKeyFileLink: res2.data };
+      return {
+        success: res.status === 201,
+        recoveryKeyFileLink: res2.data,
+        info: data,
+      };
     } catch (err) {
       const axiosError = err as AxiosError<RegisterApiErrorResponse>;
 
