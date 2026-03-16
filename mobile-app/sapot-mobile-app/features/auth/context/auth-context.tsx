@@ -1,6 +1,10 @@
 import { getItemAsync, setItemAsync, deleteItemAsync } from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { LoginApiErrorResponse, LoginApiRequest } from "../types";
+import {
+  LoginApiErrorResponse,
+  LoginApiRequest,
+  RegisterApiResponse,
+} from "../types";
 import { loginApi } from "../api";
 import { AxiosError } from "axios";
 import {
@@ -20,6 +24,7 @@ interface AuthContextI {
   }) => Promise<{
     success: boolean;
   }>;
+  loginAfterRegister: (data: RegisterApiResponse) => Promise<void>;
   logout: () => Promise<void>;
   logoutAsGuest: () => Promise<void>;
   loading: boolean;
@@ -133,6 +138,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const loginAfterRegister = async (data: RegisterApiResponse) => {
+    const { token } = data;
+
+    setAccessToken(token);
+    setIsAuthenticated(await isAccessTokenValid(token));
+
+    await userService.syncAuthenticatedUser(data);
+  };
+
   const loginAsGuest = async (credentials: {
     firstName: string;
     lastName: string;
@@ -213,6 +227,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loginAsGuest,
         logoutAsGuest,
         isGuest,
+        loginAfterRegister,
       }}
     >
       {children}

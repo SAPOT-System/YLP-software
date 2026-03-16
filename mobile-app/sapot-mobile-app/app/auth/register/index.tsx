@@ -14,7 +14,6 @@ import { Snackbar } from "react-native-paper";
 type RegisterFormField = keyof RegisterFormState;
 
 const Register = () => {
-  // const router = useRouter();
   const {
     registerUser,
     errors,
@@ -92,7 +91,6 @@ const Register = () => {
     const serverSideResult = await registerUser(fullForm);
 
     if (serverSideResult.success) {
-      // Success - store token, update auth state, reset navigation
       showToast("Account created successfully!");
       setModalData(serverSideResult.recoveryKeyFileLink!);
       showModal();
