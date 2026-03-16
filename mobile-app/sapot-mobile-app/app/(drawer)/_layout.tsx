@@ -13,7 +13,7 @@ export default function DrawerLayout() {
     return <ActivityIndicator />;
   }
 
-  const { isAuthenticated, loading, isGuest, logout } = auth;
+  const { isAuthenticated, loading, isGuest, logout, logoutAsGuest } = auth;
 
   if (loading) {
     return <ActivityIndicator />;
@@ -22,6 +22,14 @@ export default function DrawerLayout() {
   if (!isAuthenticated && !isGuest) {
     return <Redirect href={AUTH_ROUTES.LOGIN.SERVER_LOGIN} />;
   }
+
+  const handleLogout = async () => {
+    if (isAuthenticated) {
+      await logout();
+    } else {
+      await logoutAsGuest();
+    }
+  };
 
   return (
     <MainContainerProvider>
@@ -42,7 +50,7 @@ export default function DrawerLayout() {
                 );
               })}
               {/* Logout button */}
-              <DrawerItem label="Logout" onPress={logout} />
+              <DrawerItem label="Logout" onPress={handleLogout} />
             </>
           );
         }}

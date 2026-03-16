@@ -12,7 +12,7 @@ const Index = () => {
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    if (auth && auth.isAuthenticated) {
+    if (auth && (auth.isAuthenticated || auth.isGuest)) {
       setRedirecting(true);
       router.replace(APP_ROUTES.HOME); // Redirect to home if authenticated
     }
