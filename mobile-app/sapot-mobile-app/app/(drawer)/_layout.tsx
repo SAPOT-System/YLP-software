@@ -1,19 +1,21 @@
 import { useAuth } from "@/features/auth";
+import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
 import { MainContainerProvider } from "@/features/shared/context";
-import { DrawerItem } from "@react-navigation/drawer";
 import { Redirect } from "expo-router";
 import { Drawer } from "expo-router/drawer";
-import { ActivityIndicator } from "react-native-paper";
+import { ActivityIndicator, useTheme } from "react-native-paper";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AUTH_ROUTES } from "../routes";
 
 export default function DrawerLayout() {
   const auth = useAuth();
+  const theme = useTheme();
 
   if (!auth) {
     return <ActivityIndicator />;
   }
 
-  const { isAuthenticated, loading, isGuest, logout, logoutAsGuest } = auth;
+  const { isAuthenticated, loading, isGuest } = auth;
 
   if (loading) {
     return <ActivityIndicator />;
@@ -23,54 +25,40 @@ export default function DrawerLayout() {
     return <Redirect href={AUTH_ROUTES.LOGIN.SERVER_LOGIN} />;
   }
 
-  const handleLogout = async () => {
-    if (isAuthenticated) {
-      await logout();
-    } else {
-      await logoutAsGuest();
-    }
-  };
-
   return (
-    <MainContainerProvider>
-      <Drawer
-        drawerContent={(props) => {
-          const { state, navigation, descriptors } = props;
-          return (
-            <>
-              {/* Render default screens */}
-              {state.routes.map((route, _) => {
-                const descriptor = descriptors[route.key];
-                return (
-                  <DrawerItem
-                    key={route.key}
-                    label={descriptor.options.drawerLabel || route.name}
-                    onPress={() => navigation.navigate(route.name)}
-                  />
-                );
-              })}
-              {/* Logout button */}
-              <DrawerItem label="Logout" onPress={handleLogout} />
-            </>
-          );
-        }}
-      >
-        <Drawer.Screen
-          name="(tabs)"
-          options={{
-            drawerLabel: "Home",
-            title: "SAPOT",
-            // headerShown: false,
+    <SafeAreaView style={{ flex: 1 }}>
+      <MainContainerProvider>
+        <Drawer
+          drawerContent={(props) => <CustomDrawerContent {...props} />}
+          screenOptions={{
+            drawerStyle: {
+              backgroundColor: theme.colors.secondary,
+            },
+            drawerItemStyle: {
+              marginHorizontal: 0,
+            },
+            drawerContentContainerStyle: {
+              paddingHorizontal: 0,
+            },
           }}
-        />
-        <Drawer.Screen
-          name="theme"
-          options={{
-            drawerLabel: "Theme",
-            title: "Theme",
-          }}
-        />
-      </Drawer>
-    </MainContainerProvider>
+        >
+          <Drawer.Screen
+            name="(tabs)"
+            options={{
+              drawerLabel: "Home",
+              title: "SAPOT",
+              drawerItemStyle: { display: "none" },
+            }}
+          />
+          <Drawer.Screen
+            name="theme"
+            options={{
+              drawerLabel: "Theme",
+              title: "Theme",
+            }}
+          />
+        </Drawer>
+      </MainContainerProvider>
+    </SafeAreaView>
   );
 }
