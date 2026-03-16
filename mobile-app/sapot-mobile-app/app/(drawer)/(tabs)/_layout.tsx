@@ -36,6 +36,26 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="call/[id]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="chat/[id]"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
