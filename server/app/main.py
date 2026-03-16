@@ -4,6 +4,7 @@ from typing import Union
 from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
+from app.api import user_utils
 from app.db_operations.auth import create_db_and_tables
 from app.api import auth, forgot_password, verify_email, peer_connection, ping
 
@@ -25,6 +26,7 @@ app.include_router(forgot_password.router)
 app.include_router(verify_email.router)
 app.include_router(peer_connection.router)
 app.include_router(ping.router)
+app.include_router(user_utils.router)
 
 @app.get("/")
 def read_root():
