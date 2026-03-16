@@ -1,6 +1,6 @@
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { Button, Text, useTheme } from "react-native-paper";
+import { Redirect, router } from "expo-router";
+import React from "react";
+import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
 import { View, Image, useColorScheme } from "react-native";
 import { APP_ROUTES } from "./routes";
 import { useAuth } from "@/features/auth";
@@ -9,17 +9,16 @@ const Index = () => {
   const theme = useTheme();
   const isDark = useColorScheme() === "dark";
   const auth = useAuth();
-  const [redirecting, setRedirecting] = useState(false);
 
-  useEffect(() => {
-    if (auth && (auth.isAuthenticated || auth.isGuest)) {
-      setRedirecting(true);
-      router.replace(APP_ROUTES.HOME); // Redirect to home if authenticated
-    }
-  }, [auth]);
+  if (!auth) {
+    return <ActivityIndicator />;
+  }
 
-  if (redirecting) {
-    return null;
+  const { isAuthenticated, isGuest } = auth;
+
+  if (isAuthenticated || isGuest) {
+    console.log("app index redirecting to home");
+    return <Redirect href={APP_ROUTES.HOME} />;
   }
 
   return (

@@ -35,8 +35,10 @@ export class UserService {
   async initialize({ isGuest }: { isGuest: boolean }) {
     try {
       let id = await getItemAsync("userUUID");
+      console.log("initialize", id);
       if (!id) {
         // TODO: Handle empty userUUID
+        console.warn("ID is empty");
         return;
       }
 
@@ -49,7 +51,6 @@ export class UserService {
         // find the current user in the peers table
         user = await this.peerService.findPeerById(id);
       }
-
 
       // store the user's peer object
       this.userStore.setUser(user, isGuest);
@@ -87,6 +88,7 @@ export class UserService {
     email?: string;
     phone_number?: string;
   }) {
+    console.log(userInfo);
     await setItemAsync("userUUID", userInfo.id);
     await this.peerService.createUser(
       userInfo.id,

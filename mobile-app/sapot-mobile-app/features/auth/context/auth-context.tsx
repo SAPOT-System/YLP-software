@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     (async () => {
+      console.log("AuthProvider effect");
       setLoading(true);
       const token = await getItemAsync("token");
       const uuid = await getItemAsync("userUUID");
@@ -99,13 +100,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { access_token } = res.data;
 
       await setItemAsync("token", access_token);
-      setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
 
       const userInfo = await getUserApi(access_token);
 
       await userService.syncAuthenticatedUser(userInfo);
 
+      setAccessToken(access_token);
+      setIsAuthenticated(await isAccessTokenValid(access_token));
       return {
         success: true,
       };

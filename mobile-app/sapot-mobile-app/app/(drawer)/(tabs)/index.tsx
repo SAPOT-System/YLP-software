@@ -19,12 +19,15 @@ export default function Chat() {
   const connectionService = useConnectionService();
 
   useEffect(() => {
-    console.log("hello");
+    console.log("home mount");
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
     connectionService.start();
     const audioCallHandler = (peerId: string) =>
-      router.push({ pathname: "/(drawer)/(tabs)/call/[id]", params: { id: peerId } });
+      router.push({
+        pathname: "/(drawer)/(tabs)/call/[id]",
+        params: { id: peerId },
+      });
     const callEndedHandler = () => router.back();
     connectionService.on("audio-call", audioCallHandler);
     connectionService.on("call-ended", callEndedHandler);
