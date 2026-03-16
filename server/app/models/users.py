@@ -36,6 +36,30 @@ class User(UserBase, table=True):
         back_populates="user"
     )
 
+    devices: List["Device"] = Relationship(
+        back_populates="user"
+    )
+
+    devices: List["ConversationParticipant"] = Relationship(
+        back_populates="user"
+    )
+
+    messages: List["Message"] = Relationship(
+        back_populates='user'
+    )
+
+    calls: List["Call"] = Relationship(
+        back_populates='user'
+    )
+
+    call_participants: List["CallParticipant"] = Relationship(
+        back_populates='user'
+    )
+
+    message_receipts: List["MessageReceipt"] = Relationship(
+        back_populates='user'
+    )
+
 
 class UserPublic(UserBase):
     id: uuid.UUID
