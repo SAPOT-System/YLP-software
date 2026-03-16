@@ -65,7 +65,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
             />
             <View style={{ marginLeft: 15, flex: 1 }}>
               <Text
-                variant="headlineSmall"
+                variant="titleLarge"
                 style={{
                   color: theme.colors.onPrimaryContainer,
                   fontWeight: "bold",

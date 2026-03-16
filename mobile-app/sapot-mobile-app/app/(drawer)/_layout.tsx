@@ -1,6 +1,7 @@
 import { useAuth } from "@/features/auth";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
 import { MainContainerProvider } from "@/features/shared/context";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Redirect } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { ActivityIndicator, useTheme } from "react-native-paper";
@@ -44,10 +45,16 @@ export default function DrawerLayout() {
         >
           <Drawer.Screen
             name="(tabs)"
-            options={{
-              drawerLabel: "Home",
-              title: "SAPOT",
-              drawerItemStyle: { display: "none" },
+            options={({ route }) => {
+              const focusedRoute =
+                getFocusedRouteNameFromRoute(route) ?? "index";
+
+              return {
+                drawerLabel: "Home",
+                title: "SAPOT",
+                drawerItemStyle: { display: "none" },
+                headerShown: focusedRoute !== "settings",
+              };
             }}
           />
           <Drawer.Screen
