@@ -8,23 +8,24 @@ import {
 } from "../api/auth.api";
 import {
   RegisterApiErrorResponse,
+  RegisterApiResponse,
   RegisterFormState,
   RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
 import { setItemAsync } from "expo-secure-store";
-import { useUserService } from "./use-user-service";
-import { usePeerService } from "@/features/shared/hooks";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<RegisterFormStateErrors>({});
-  const userService = useUserService();
-  const peerService = usePeerService();
 
   const registerUser = async (
     form: RegisterFormState
-  ): Promise<{ success: boolean; recoveryKeyFileLink?: string }> => {
+  ): Promise<{
+    success: boolean;
+    recoveryKeyFileLink?: string;
+    info?: RegisterApiResponse;
+  }> => {
     setLoading(true);
     setErrors({});
 
@@ -67,17 +68,6 @@ export const useRegister = () => {
       const data = res.data;
 
       await setItemAsync("token", data.token);
-      await setItemAsync("userUUID", data.id);
-
-      await peerService.createUser(
-        data.id,
-        data.username,
-        data.first_name,
-        data.last_name,
-        data.email,
-        data.phone_number
-      );
-      await userService.initialize({ isGuest: false });
 
       await addSecurityQuestionApi(
         [{ question: form.securityQuestion, answer: form.questionAnswer }],
@@ -86,7 +76,11 @@ export const useRegister = () => {
 
       const res2 = await generateNewRecoveryKeyApi();
 
-      return { success: res.status === 201, recoveryKeyFileLink: res2.data };
+      return {
+        success: res.status === 201,
+        recoveryKeyFileLink: res2.data,
+        info: data,
+      };
     } catch (err) {
       const axiosError = err as AxiosError<RegisterApiErrorResponse>;
 

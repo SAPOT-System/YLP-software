@@ -4,6 +4,7 @@ import React from "react";
 import { Alert } from "react-native";
 import { File, Paths } from "expo-file-system";
 import { Button } from "react-native-paper";
+import { APP_ROUTES } from "@/app/routes";
 
 type DownloadFileButtonProps = {
   fileData: string;
@@ -30,11 +31,11 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
 
       if (targetUri) {
         Alert.alert("File saved");
-        router.replace("/(drawer)/(tabs)");
+        router.replace(APP_ROUTES.HOME);
       } else {
         Alert.alert("Save cancelled", "No location selected.");
       }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       Alert.alert("Download failed", error.message || "Unknown error");
     }

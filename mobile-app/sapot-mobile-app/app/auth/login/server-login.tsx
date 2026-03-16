@@ -44,6 +44,7 @@ const ServerLoginScreen = () => {
     const result = await login({ username, password });
 
     if (result.success) {
+      console.log("login successful");
       showToast("Login successful!");
       setTimeout(() => {
         router.replace("/(drawer)/(tabs)");

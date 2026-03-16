@@ -2,6 +2,7 @@ import {
   RecoveryKeyDownloadModal,
   RegisterStep1,
   RegisterStep2,
+  useAuth,
   useRegister,
 } from "@/features/auth";
 import { RegisterFormState } from "@/features/auth/types";
@@ -9,12 +10,11 @@ import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { useToast } from "@/features/shared/hooks";
-import { Snackbar } from "react-native-paper";
+import { ActivityIndicator, Snackbar } from "react-native-paper";
 
 type RegisterFormField = keyof RegisterFormState;
 
 const Register = () => {
-  // const router = useRouter();
   const {
     registerUser,
     errors,
@@ -23,6 +23,10 @@ const Register = () => {
     validateRegisterStep,
     checkIfIdentifierExists,
   } = useRegister();
+  const auth = useAuth();
+  if (!auth) {
+    return <ActivityIndicator />;
+  }
 
   // Form state
   const [step, setStep] = useState(1);
@@ -92,14 +96,16 @@ const Register = () => {
     const serverSideResult = await registerUser(fullForm);
 
     if (serverSideResult.success) {
-      // Success - store token, update auth state, reset navigation
+      console.log("register success");
       showToast("Account created successfully!");
       setModalData(serverSideResult.recoveryKeyFileLink!);
       showModal();
+      await auth.loginAfterRegister(serverSideResult.info!);
       // TODO: Store token from result.data
       // TODO: Update auth state
       // TODO: Reset navigation to main app
     } else if (!serverSideResult.success) {
+      console.log("register failed");
       showToast("Account creation failed!");
     }
   };

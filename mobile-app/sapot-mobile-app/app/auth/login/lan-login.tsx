@@ -16,8 +16,8 @@ const LanLoginScreen = () => {
   }
   const { loginAsGuest, errors } = auth;
 
-  const handleLogin = () => {
-    const res = loginAsGuest({ firstName, lastName });
+  const handleLogin = async () => {
+    const res = await loginAsGuest({ firstName, lastName });
     if (res.success) {
       router.replace("/(drawer)/(tabs)");
     }

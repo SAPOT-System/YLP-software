@@ -1,9 +1,10 @@
-import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import { GuestUser, Peer } from "../database";
 import { SessionStore, UserStore } from "../stores";
 import { PeerService } from "./peer-service";
 import { GuestUserRepository } from "../repositories";
 import { CleanUpService } from "./clean-up-service";
+import uuid from "react-native-uuid";
 
 /**
  * UserService manages user initialization, user identity, and user persistence in the app.
@@ -34,9 +35,10 @@ export class UserService {
   async initialize({ isGuest }: { isGuest: boolean }) {
     try {
       let id = await getItemAsync("userUUID");
-      console.log("ID1:", id);
+      console.log("initialize", id);
       if (!id) {
         // TODO: Handle empty userUUID
+        console.warn("ID is empty");
         return;
       }
 
@@ -49,7 +51,6 @@ export class UserService {
         // find the current user in the peers table
         user = await this.peerService.findPeerById(id);
       }
-      console.log("User1: ", user);
 
       // store the user's peer object
       this.userStore.setUser(user, isGuest);
@@ -77,6 +78,47 @@ export class UserService {
       console.error("[UserService]: generating username:", error);
       throw error;
     }
+  }
+
+  async syncAuthenticatedUser(userInfo: {
+    id: string;
+    username: string;
+    first_name: string;
+    last_name?: string;
+    email?: string;
+    phone_number?: string;
+  }) {
+    console.log(userInfo);
+    await setItemAsync("userUUID", userInfo.id);
+    await this.peerService.createUser(
+      userInfo.id,
+      userInfo.username,
+      userInfo.first_name,
+      userInfo.last_name,
+      userInfo.email,
+      userInfo.phone_number
+    );
+    await this.initialize({ isGuest: false });
+  }
+
+  async syncGuestUser(userInfo: {
+    firstName: string;
+    username: string;
+    lastName: string;
+  }) {
+    const generatedUuid = uuid.v4();
+
+    await setItemAsync("userUUID", generatedUuid);
+    await this.guestUserRepository.saveGuestUser({
+      ...userInfo,
+      id: generatedUuid,
+    });
+
+    await this.initialize({ isGuest: true });
+  }
+
+  async isCurrentUserGuest() {
+    return (await this.guestUserRepository.getCurrentGuestUser()) !== null;
   }
 
   setCleanUpService(cleanUpService: CleanUpService) {

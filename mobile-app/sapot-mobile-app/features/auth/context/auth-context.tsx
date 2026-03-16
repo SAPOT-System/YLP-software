@@ -1,36 +1,36 @@
-import { getItemAsync, setItemAsync, deleteItemAsync } from "expo-secure-store";
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { LoginApiErrorResponse, LoginApiRequest } from "../types";
-import { loginApi } from "../api";
+import { getUserApi } from "@/features/shared";
 import { AxiosError } from "axios";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { loginApi } from "../api";
+import { useUserService } from "../hooks/use-user-service";
+import {
+  LoginApiErrorResponse,
+  LoginApiRequest,
+  RegisterApiResponse,
+} from "../types";
 import {
   generateGuestUsername,
   hasValidationErrors,
   isAccessTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
-import { useUserService } from "../hooks";
-import { getUserApi } from "@/features/shared";
-import { usePeerService } from "@/features/shared/hooks";
 
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
-  loginAsGuest: (credentials: { firstName: string; lastName: string }) => {
+  loginAsGuest: (credentials: {
+    firstName: string;
+    lastName: string;
+  }) => Promise<{
     success: boolean;
-  };
-  logout: () => void;
-  logoutAsGuest: () => void;
+  }>;
+  loginAfterRegister: (data: RegisterApiResponse) => Promise<void>;
+  logout: () => Promise<void>;
+  logoutAsGuest: () => Promise<void>;
   loading: boolean;
   errors: LoginFormErrors;
   isAuthenticated: boolean;
   accessToken: string | null;
-  guestUser:
-    | {
-        firstName: string;
-        lastName: string;
-        username: string;
-      }
-    | undefined;
   isGuest: boolean;
 }
 const AuthContext = createContext<AuthContextI | null>(null);
@@ -52,23 +52,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
-  const [guestUser, setGuestUser] = useState<{
-    firstName: string;
-    lastName: string;
-    username: string;
-  }>();
   const userService = useUserService();
-  const peerService = usePeerService();
-
-  // const guestUserRepo = useGuestUserRepository();
 
   useEffect(() => {
     (async () => {
+      console.log("AuthProvider effect");
       setLoading(true);
       const token = await getItemAsync("token");
-      await userService.initialize({ isGuest: false });
-      setAccessToken(token);
-      setIsAuthenticated(token ? await isAccessTokenValid(token) : false);
+      const uuid = await getItemAsync("userUUID");
+      if (token && uuid) {
+        await userService.initialize({ isGuest: false });
+        setAccessToken(token);
+        setIsAuthenticated(token ? await isAccessTokenValid(token) : false);
+      } else if (await userService.isCurrentUserGuest()) {
+        await userService.initialize({ isGuest: true });
+        setIsGuest(true);
+      }
       setLoading(false);
     })();
   }, []);
@@ -97,28 +96,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await loginApi(credentials);
       setLoading(false);
-      console.log(res.data);
 
       const { access_token } = res.data;
 
       await setItemAsync("token", access_token);
-      setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
 
       const userInfo = await getUserApi(access_token);
-      console.log(userInfo);
-      await setItemAsync("userUUID", userInfo.id);
 
-      await peerService.createUser(
-        userInfo.id,
-        userInfo.username,
-        userInfo.first_name,
-        userInfo.last_name,
-        userInfo.email,
-        userInfo.phone_number
-      );
-      await userService.initialize({ isGuest: false });
+      await userService.syncAuthenticatedUser(userInfo);
 
+      setAccessToken(access_token);
+      setIsAuthenticated(await isAccessTokenValid(access_token));
       return {
         success: true,
       };
@@ -151,7 +139,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const loginAsGuest = (credentials: {
+  const loginAfterRegister = async (data: RegisterApiResponse) => {
+    const { token } = data;
+
+    await userService.syncAuthenticatedUser(data);
+
+    setAccessToken(token);
+    setIsAuthenticated(await isAccessTokenValid(token));
+
+  };
+
+  const loginAsGuest = async (credentials: {
     firstName: string;
     lastName: string;
   }) => {
@@ -170,11 +168,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       credentials.lastName
     );
 
-    setGuestUser({
-      firstName: credentials.firstName,
-      lastName: credentials.lastName,
-      username,
-    });
+    await userService.syncGuestUser({ ...credentials, username });
 
     setIsGuest(true);
 
@@ -183,7 +177,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logoutAsGuest = async () => {
     setIsGuest(false);
-    setGuestUser(undefined);
+    await deleteItemAsync("userUUID");
+
+    await userService.logout();
   };
 
   const logout = async () => {
@@ -232,8 +228,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isAuthenticated,
         loginAsGuest,
         logoutAsGuest,
-        guestUser,
         isGuest,
+        loginAfterRegister,
       }}
     >
       {children}
