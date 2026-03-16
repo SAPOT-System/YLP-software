@@ -1,20 +1,20 @@
-import { getItemAsync, setItemAsync, deleteItemAsync } from "expo-secure-store";
+import { getUserApi } from "@/features/shared";
+import { AxiosError } from "axios";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { loginApi } from "../api";
+import { useUserService } from "../hooks/use-user-service";
 import {
   LoginApiErrorResponse,
   LoginApiRequest,
   RegisterApiResponse,
 } from "../types";
-import { loginApi } from "../api";
-import { AxiosError } from "axios";
 import {
   generateGuestUsername,
   hasValidationErrors,
   isAccessTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
-import { useUserService } from "../hooks";
-import { getUserApi } from "@/features/shared";
 
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;

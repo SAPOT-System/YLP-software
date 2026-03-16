@@ -12,7 +12,7 @@ import {
   RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
-import { useAuth } from "../context";
+import { useAuth } from "../context/auth-context";
 import { setItemAsync } from "expo-secure-store";
 
 export const useRegister = () => {
