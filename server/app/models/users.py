@@ -7,6 +7,12 @@ from pydantic import EmailStr, StringConstraints, field_validator, Field as PyFi
 from sqlmodel import SQLModel, Field, Relationship
 from .securityQuestions import UserSecurityQuestion
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.conversation import ConversationParticipant
+
+
 PhoneStr = Annotated[
     str,
     StringConstraints(pattern=r"^\+?1?\d{9,15}$")
@@ -31,7 +37,9 @@ class User(UserBase, table=True):
 
     security_questions: List["UserSecurityQuestion"] = Relationship(back_populates="user")
 
-
+    conversation_participants: List["ConversationParticipant"] = Relationship(
+        back_populates="user"
+    )
     email_verifications: List["EmailVerification"] = Relationship(
         back_populates="user"
     )
