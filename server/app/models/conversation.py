@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from enum import Enum, auto
-from typing import Annotated, List, Literal
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID, uuid4
 from sqlmodel import Field, Relationship, SQLModel, table
 
@@ -37,11 +37,16 @@ class Conversation(SQLModel, table=True):
         back_populates='conversation'
     )
 
+    conversationparticipants: List['ConversationParticipant'] = Relationship(
+        back_populates='conversation'
+    )
+
 
 class  ConversationParticipant(SQLModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, index=True, primary_key=True)
     # foreign keys
     conversation_id: UUID | None = Field(default=None, index=True, foreign_key='conversation.id')
+    user_id: UUID  = Field(index=True, foreign_key='user.id')
     joined_at : datetime= Field(default_factory=lambda: datetime.now(timezone.utc))
     is_deleted : bool = False
 
@@ -49,4 +54,6 @@ class  ConversationParticipant(SQLModel, table=True):
         back_populates="conversation_participants"
     )
 
-
+    conversation: Optional["Conversation"] = Relationship(
+        back_populates="conversationparticipants"
+    )
