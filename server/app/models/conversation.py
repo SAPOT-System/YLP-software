@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.message import Message
+    from app.models.call import Call
 
 class ConversationType(str, Enum):
     DIRECT = 'direct_message'
@@ -24,6 +25,10 @@ class Conversation(SQLModel, table=True):
     created_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     messages: List['Message'] = Relationship(
+        back_populates='conversation'
+    )
+
+    calls: List['Call'] = Relationship(
         back_populates='conversation'
     )
 
