@@ -18,4 +18,5 @@ export const AUTH_ROUTES = {
 
 export const APP_ROUTES = {
   HOME: "/(drawer)/(tabs)",
+  SEARCH: "/(drawer)/search",
 } as const;

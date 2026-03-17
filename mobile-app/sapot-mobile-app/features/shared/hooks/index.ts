@@ -10,3 +10,4 @@ export * from "./use-toast";
 export * from "./use-dialog-visibility";
 export * from "./use-user-store";
 export * from "./use-user-profile";
+export * from "./use-user-search";

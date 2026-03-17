@@ -9,6 +9,9 @@ import {
 } from "@/features/shared/hooks";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
+import { Searchbar } from "react-native-paper";
+import { TouchableOpacity } from "react-native";
+import { APP_ROUTES } from "@/app/routes";
 
 export default function Chat() {
   const { peers } = usePeers();
@@ -42,6 +45,14 @@ export default function Chat() {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity onPress={() => router.push(APP_ROUTES.SEARCH)}>
+        <Searchbar
+          pointerEvents="none"
+          editable={false}
+          value=""
+          placeholder="Search"
+        />
+      </TouchableOpacity>
       <PeerList peers={peers} />
       <ChatList chats={chats} />
     </View>
@@ -51,6 +62,7 @@ export default function Chat() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 16,
   },
   title: {
     fontSize: 20,

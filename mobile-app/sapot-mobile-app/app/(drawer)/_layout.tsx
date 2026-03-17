@@ -7,6 +7,9 @@ import { Drawer } from "expo-router/drawer";
 import { ActivityIndicator, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AUTH_ROUTES } from "../routes";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient();
 
 export default function DrawerLayout() {
   const auth = useAuth();
@@ -29,42 +32,54 @@ export default function DrawerLayout() {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <MainContainerProvider>
-        <Drawer
-          drawerContent={(props) => <CustomDrawerContent {...props} />}
-          screenOptions={{
-            drawerStyle: {
-              backgroundColor: theme.colors.secondary,
-            },
-            drawerItemStyle: {
-              marginHorizontal: 0,
-            },
-            drawerContentContainerStyle: {
-              paddingHorizontal: 0,
-            },
-          }}
-        >
-          <Drawer.Screen
-            name="(tabs)"
-            options={({ route }) => {
-              const focusedRoute =
-                getFocusedRouteNameFromRoute(route) ?? "index";
+        <QueryClientProvider client={queryClient}>
+          <Drawer
+            drawerContent={(props) => <CustomDrawerContent {...props} />}
+            screenOptions={{
+              drawerStyle: {
+                backgroundColor: theme.colors.secondary,
+              },
+              drawerItemStyle: {
+                marginHorizontal: 0,
+              },
+              drawerContentContainerStyle: {
+                paddingHorizontal: 0,
+              },
+            }}
+          >
+            <Drawer.Screen
+              name="(tabs)"
+              options={({ route }) => {
+                const focusedRoute =
+                  getFocusedRouteNameFromRoute(route) ?? "index";
 
-              return {
-                drawerLabel: "Home",
-                title: "SAPOT",
+                return {
+                  drawerLabel: "Home",
+                  title: "SAPOT",
+                  drawerItemStyle: { display: "none" },
+                  headerShown: focusedRoute !== "settings",
+                };
+              }}
+            />
+            <Drawer.Screen
+              name="search"
+              options={{
+                drawerLabel: "search",
                 drawerItemStyle: { display: "none" },
-                headerShown: focusedRoute !== "settings",
-              };
-            }}
-          />
-          <Drawer.Screen
-            name="theme"
-            options={{
-              drawerLabel: "Theme",
-              title: "Theme",
-            }}
-          />
-        </Drawer>
+                title: "Search",
+                headerShown: false,
+              }}
+            />
+            <Drawer.Screen
+              name="theme"
+              options={{
+                drawerLabel: "Theme",
+                drawerItemStyle: { display: "none" },
+                title: "Theme",
+              }}
+            />
+          </Drawer>
+        </QueryClientProvider>
       </MainContainerProvider>
     </SafeAreaView>
   );
