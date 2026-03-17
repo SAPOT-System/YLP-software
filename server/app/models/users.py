@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.conversation import ConversationParticipant
+    from app.models.message import Message
 
 
 PhoneStr = Annotated[
@@ -40,6 +41,11 @@ class User(UserBase, table=True):
     conversation_participants: List["ConversationParticipant"] = Relationship(
         back_populates="user"
     )
+
+    messages: List["Message"] = Relationship(
+        back_populates="user"
+    )
+
     email_verifications: List["EmailVerification"] = Relationship(
         back_populates="user"
     )
