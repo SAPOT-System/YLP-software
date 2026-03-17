@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.users import User
     from app.models.message import Message
     from app.models.call import Call
+    from app.models.call_participant import CallParticipant
 
 class ConversationType(str, Enum):
     DIRECT = 'direct_message'
@@ -29,6 +30,10 @@ class Conversation(SQLModel, table=True):
     )
 
     calls: List['Call'] = Relationship(
+        back_populates='conversation'
+    )
+
+    callparticipants: List['CallParticipant'] = Relationship(
         back_populates='conversation'
     )
 
