@@ -3,3 +3,4 @@ from app.models.conversation import ConversationParticipant, Conversation
 from app.models.message import Message
 from app.models.call import Call
 from app.models.call_participant import CallParticipant
+from app.models.message_receipt import MessageReceipt

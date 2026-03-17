@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.call import Call
     from app.models.call_participant import CallParticipant
     from app.models.message import Message
+    from app.models.message_receipt import MessageReceipt
 
 
 PhoneStr = Annotated[
@@ -60,28 +61,8 @@ class User(UserBase, table=True):
         back_populates="user"
     )
 
-    devices: List["Device"] = Relationship(
+    messagereceipts: List["MessageReceipt"] = Relationship(
         back_populates="user"
-    )
-
-    devices: List["ConversationParticipant"] = Relationship(
-        back_populates="user"
-    )
-
-    messages: List["Message"] = Relationship(
-        back_populates='user'
-    )
-
-    calls: List["Call"] = Relationship(
-        back_populates='user'
-    )
-
-    call_participants: List["CallParticipant"] = Relationship(
-        back_populates='user'
-    )
-
-    message_receipts: List["MessageReceipt"] = Relationship(
-        back_populates='user'
     )
 
 

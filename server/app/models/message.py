@@ -8,6 +8,7 @@ from sqlmodel import Field, Relationship, SQLModel
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.conversation import Conversation
+    from app.models.message_receipt import MessageReceipt
 
 class MessageType(str, Enum):
     TEXT = 'text'
@@ -35,6 +36,6 @@ class Message(SQLModel, table=True):
         back_populates='messages'
     )
 
-
-
-
+    messagereceipt: Optional['MessageReceipt'] = Relationship(
+        back_populates='message'
+    )
