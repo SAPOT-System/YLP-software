@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.models.users import User
     from app.models.conversation import Conversation
     from app.models.message_receipt import MessageReceipt
+    from app.models.attachment import Attachment
 
 class MessageType(str, Enum):
     TEXT = 'text'
@@ -37,5 +38,9 @@ class Message(SQLModel, table=True):
     )
 
     messagereceipt: Optional['MessageReceipt'] = Relationship(
+        back_populates='message'
+    )
+
+    attachment: Optional['Attachment'] = Relationship(
         back_populates='message'
     )
