@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.conversation import ConversationParticipant
     from app.models.call import Call
+    from app.models.call_participant import CallParticipant
     from app.models.message import Message
 
 
@@ -48,6 +49,10 @@ class User(UserBase, table=True):
     )
 
     calls: List["Call"] = Relationship(
+        back_populates="user"
+    )
+
+    callparticipants: List["CallParticipant"] = Relationship(
         back_populates="user"
     )
 
