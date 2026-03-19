@@ -7,10 +7,9 @@ class SDPData(BaseModel):
     to: str
     ipAddress: str
     port: int
+    sdp: dict | None
 
 
 class SignalMessage(BaseModel):
-    type: Literal["offer", "answer", "ice-candidate", "call-ended"]
-    # to: str
-    # from_user: str
+    type: Literal["offer", "answer", "ice-candidate", "handshake", ]
     data: SDPData
