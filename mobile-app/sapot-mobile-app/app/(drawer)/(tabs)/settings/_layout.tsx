@@ -4,15 +4,17 @@ import { Appbar, useTheme } from "react-native-paper";
 export default function Layout() {
   const theme = useTheme();
   return (
-    <Stack screenOptions={{ headerShown: true }}>
-      <Stack.Screen
-        name="index"
-        options={{
-          header: ({ options }) => (
+    <Stack
+      screenOptions={{
+        headerShown: true,
+        header: ({ options, route }) => {
+          const isIndex = route.name === "index";
+
+          return (
             <Appbar.Header
               statusBarHeight={0}
               style={{ height: 80 }}
-              mode="center-aligned"
+              mode={isIndex ? "center-aligned" : undefined}
             >
               <Appbar.Content
                 titleStyle={{
@@ -23,7 +25,13 @@ export default function Layout() {
                 title={options.title ?? "Settings"}
               />
             </Appbar.Header>
-          ),
+          );
+        },
+      }}
+    >
+      <Stack.Screen
+        name="index"
+        options={{
           title: "Settings",
         }}
       />
