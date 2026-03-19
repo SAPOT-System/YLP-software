@@ -24,9 +24,21 @@ export default function SettingsLayout() {
       }}
     >
       <Stack.Screen
-        name="manage-profile"
+        name="account/manage-profile"
         options={{
           title: "Manage Profile",
+        }}
+      />
+      <Stack.Screen
+        name="account/password-and-security"
+        options={{
+          title: "Password & Security",
+        }}
+      />
+      <Stack.Screen
+        name="account/change-password"
+        options={{
+          title: "Change Password",
         }}
       />
     </Stack>

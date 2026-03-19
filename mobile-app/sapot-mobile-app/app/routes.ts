@@ -18,6 +18,8 @@ export const AUTH_ROUTES = {
 
 export const SETTINGS_ROUTES = {
   MANAGE_PROFILE: "/(drawer)/settings/account/manage-profile",
+    PASSWORD_AND_SECURITY: "/(drawer)/settings/account/password-and-security",
+    CHANGE_PASSWORD: "/(drawer)/settings/account/change-password",
 } as const;
 export const APP_ROUTES = {
   HOME: "/(drawer)/(tabs)",

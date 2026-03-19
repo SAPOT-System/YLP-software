@@ -67,6 +67,15 @@ export default function Settings() {
               <Icon source="arrow-right" size={24} />
             </View>
           </Link>
+          <Link href={SETTINGS_ROUTES.PASSWORD_AND_SECURITY}>
+            <View style={styles.item}>
+              <View style={styles.itemContainer}>
+                <Icon source="account-circle-outline" size={24} />
+                <Text>Password & Security</Text>
+              </View>
+              <Icon source="arrow-right" size={24} />
+            </View>
+          </Link>
         </View>
       </View>
     </View>
