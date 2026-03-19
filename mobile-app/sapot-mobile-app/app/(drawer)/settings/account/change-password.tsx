@@ -3,7 +3,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { Button, Text, useTheme } from "react-native-paper";
 
-export default function ManageProfile() {
+export default function ChangePassword() {
   const theme = useTheme();
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
