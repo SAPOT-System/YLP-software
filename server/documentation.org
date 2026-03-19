@@ -347,3 +347,16 @@ requires user to be authenticated
             from: UUID; to: UUID, ipAddress: string; port: number };
         }
 #+END_SRC
+
+** update user info ~/update/profile POST~
+can take in different fields to update (can leave fields that won't be updated blank)
+with request body/form-data
+#+BEGIN_SRC json
+{
+  "username": "string", // optional
+  "first_name": "string", // optional
+  "last_name": "string", // optional
+  "phone_number": "86410482368", // optional
+  "email": "user@example.com" // optional
+}
+#+END_SRC
