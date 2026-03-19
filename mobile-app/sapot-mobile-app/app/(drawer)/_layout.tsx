@@ -2,12 +2,12 @@ import { useAuth } from "@/features/auth";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
 import { MainContainerProvider } from "@/features/shared/context";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Redirect } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { ActivityIndicator, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AUTH_ROUTES } from "../routes";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +67,14 @@ export default function DrawerLayout() {
                 drawerLabel: "search",
                 drawerItemStyle: { display: "none" },
                 title: "Search",
+                headerShown: false,
+              }}
+            />
+            <Drawer.Screen
+              name="settings"
+              options={{
+                drawerItemStyle: { display: "none" },
+                title: "Settings",
                 headerShown: false,
               }}
             />

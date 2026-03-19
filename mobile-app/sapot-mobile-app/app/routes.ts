@@ -16,6 +16,9 @@ export const AUTH_ROUTES = {
   REGISTER: "/auth/register",
 } as const;
 
+export const SETTINGS_ROUTES = {
+  MANAGE_PROFILE: "/(drawer)/settings/account/manage-profile",
+} as const;
 export const APP_ROUTES = {
   HOME: "/(drawer)/(tabs)",
   SEARCH: "/(drawer)/search",
