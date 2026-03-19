@@ -90,14 +90,17 @@ export class UserService {
   }) {
     console.log(userInfo);
     await setItemAsync("userUUID", userInfo.id);
-    await this.peerService.createUser(
-      userInfo.id,
-      userInfo.username,
-      userInfo.first_name,
-      userInfo.last_name,
-      userInfo.email,
-      userInfo.phone_number
-    );
+    const userExist = await this.peerService.findPeerById(userInfo.id);
+    if (!userExist) {
+      await this.peerService.createUser(
+        userInfo.id,
+        userInfo.username,
+        userInfo.first_name,
+        userInfo.last_name,
+        userInfo.email,
+        userInfo.phone_number
+      );
+    }
     await this.initialize({ isGuest: false });
   }
 
@@ -109,10 +112,13 @@ export class UserService {
     const generatedUuid = uuid.v4();
 
     await setItemAsync("userUUID", generatedUuid);
-    await this.guestUserRepository.saveGuestUser({
-      ...userInfo,
-      id: generatedUuid,
-    });
+    const userExist = await this.guestUserRepository.getCurrentGuestUser();
+    if (userExist) {
+      await this.guestUserRepository.saveGuestUser({
+        ...userInfo,
+        id: generatedUuid,
+      });
+    }
 
     await this.initialize({ isGuest: true });
   }
