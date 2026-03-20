@@ -10,17 +10,7 @@ class SDPData(BaseModel):
     sdp: Optional[dict] = None
     # candidate: Optional[str | dict]
     address: Optional[str] = None
-    candidate: Optional[str] = None
-    component: Optional[str] = None
-    foundation: Optional[str] = None
-    priority:  Optional[int] = None
-    protocol:  Optional[str] = None
-    relatedPort:  Optional[int] = None
-    sdpMid:  Optional[str] = None
-    sdpMidIndex:  Optional[int] = None
-    tcpType:  Optional[str] = None
-    type:  Optional[str] = None
-    usernameFragment:  Optional[str] = None
+    candidate: Optional[dict] = None
 
 
 class SignalMessage(BaseModel):
