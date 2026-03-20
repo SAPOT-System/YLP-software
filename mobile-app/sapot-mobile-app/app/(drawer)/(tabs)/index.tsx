@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
 import { ChatList, useChats } from "@/features/chat";
+import { useAuth } from "@/features/auth";
 import { PeerList } from "@/features/shared";
 import {
   useConnectionService,
@@ -12,14 +13,25 @@ import { useEffect } from "react";
 import { Searchbar } from "react-native-paper";
 import { TouchableOpacity } from "react-native";
 import { APP_ROUTES } from "@/app/routes";
+import { ActivityIndicator } from "react-native-paper";
 
 export default function Chat() {
+  const auth = useAuth();
+
   const { peers } = usePeers();
   const { chats } = useChats();
 
   const router = useRouter();
   const discoveryService = useDiscoveryService();
   const connectionService = useConnectionService();
+
+  if (!auth) {
+    return <ActivityIndicator />;
+  }
+
+  useEffect(() => {
+    connectionService.setSignalingToken(auth.accessToken ?? undefined);
+  }, [auth.accessToken, connectionService]);
 
   useEffect(() => {
     console.log("home mount");

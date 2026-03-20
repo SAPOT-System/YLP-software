@@ -2,12 +2,20 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createConnectionServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
+import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import {
-    TcpClientAdapter,
-    TcpServerAdapter,
-    WebrtcAdapter,
+  TcpClientAdapter,
+  TcpServerAdapter,
+  WebrtcAdapter,
+  WsSignalingAdapter,
 } from "../../adapters";
 import { NetworkConfig, UserStore } from "../../stores";
+import {
+  AudioCallMessage,
+  CallEndedMessage,
+  ChatMessage,
+  SignalingMessage,
+} from "../../types";
 import { ConnectionService } from "../connection-service";
 
 export enum MessageType {
@@ -16,6 +24,20 @@ export enum MessageType {
   VIDEO = "video",
   FILE = "file",
 }
+const mockOfferDescription: RTCSessionDescriptionInit = {
+  type: "offer",
+  sdp: "mock-sdp",
+};
+const mockAnswerDescription: RTCSessionDescriptionInit = {
+  type: "answer",
+  sdp: "mock-sdp",
+};
+
+const mockIceCandidate: RTCIceCandidate = {
+  candidate: "candidate:123456 ...",
+  sdpMid: "0",
+  sdpMLineIndex: 0,
+} as RTCIceCandidate;
 
 
 // Mock the adapters
@@ -23,6 +45,7 @@ jest.mock("../../adapters", () => ({
   TcpClientAdapter: jest.fn(),
   TcpServerAdapter: jest.fn(),
   WebrtcAdapter: jest.fn(),
+  WsSignalingAdapter: jest.fn(),
 }));
 
 // Mock the stores
@@ -43,6 +66,7 @@ describe("ConnectionService", () => {
   let mockUserStore: jest.Mocked<UserStore>;
   let mockTcpClientAdapter: jest.Mocked<TcpClientAdapter>;
   let mockWebrtcAdapter: jest.Mocked<WebrtcAdapter>;
+  let mockWsSignalingAdapter: jest.Mocked<WsSignalingAdapter>;
   let mockChatService: jest.Mocked<ChatService>;
 
   beforeEach(() => {
@@ -58,6 +82,8 @@ describe("ConnectionService", () => {
       mocks.tcpClientAdapter as unknown as jest.Mocked<TcpClientAdapter>;
     mockWebrtcAdapter =
       mocks.webrtcAdapter as unknown as jest.Mocked<WebrtcAdapter>;
+    mockWsSignalingAdapter =
+      mocks.wsSignalingAdapter as unknown as jest.Mocked<WsSignalingAdapter>;
     mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
 
     // Mock constructors
@@ -68,13 +94,18 @@ describe("ConnectionService", () => {
       .mocked(TcpClientAdapter)
       .mockImplementation(() => mockTcpClientAdapter);
     jest.mocked(WebrtcAdapter).mockImplementation(() => mockWebrtcAdapter);
+    jest
+      .mocked(WsSignalingAdapter)
+      .mockImplementation(() => mockWsSignalingAdapter);
     jest.mocked(ChatService).mockImplementation(() => mockChatService);
 
     // Create service instance
     connectionService = new ConnectionService(
       mockTcpServerAdapter,
       mockNetworkConfig,
-      mockUserStore
+      mockUserStore,
+      mockWsSignalingAdapter,
+      "ws://localhost:8000"
     );
   });
 
@@ -107,9 +138,9 @@ describe("ConnectionService", () => {
 
       expect(dataHandler).toBeDefined();
 
-      const audioCallMessage = {
+      const audioCallMessage: AudioCallMessage = {
         type: "audio-call" as const,
-        data: { senderId: "peer-1" },
+        data: { from: "peer-1", to: "peer-2" },
       };
 
       const initializeSpy = jest
@@ -130,20 +161,39 @@ describe("ConnectionService", () => {
 
       expect(dataHandler).toBeDefined();
 
-      const iceCandidateMessage = {
+      const iceCandidateMessage: SignalingMessage = {
         type: "ice-candidate",
-        data: { senderId: "peer-1", sdp: "test" },
+        data: {
+          sender: "peer-1",
+          to: "peer-2",
+          candidate: mockIceCandidate,
+          ipAddress: "127.0.0.1",
+          port: 3000,
+        },
       };
-      const offerMessage = {
+      const offerMessage: SignalingMessage = {
         type: "offer",
-        data: { senderId: "peer-1", sdp: "test" },
+        data: {
+          sender: "peer-1",
+          to: "peer-2",
+          sdp: mockOfferDescription,
+          ipAddress: "127.0.0.1",
+          port: 3000,
+        },
       };
-      const answerMessage = {
+      const answerMessage: SignalingMessage = {
         type: "answer",
+        data: {
+          sender: "peer-1",
+          to: "peer-2",
+          sdp: mockAnswerDescription,
+          ipAddress: "127.0.0.1",
+          port: 3000,
+        },
       };
-      const handshakeMessage = {
+      const handshakeMessage: SignalingMessage = {
         type: "handshake",
-        data: { senderId: "peer-1", ipAddress: "test", port: 123 },
+        data: { sender: "peer-1", to: "peer-2", ipAddress: "test", port: 123 },
       };
 
       const handleSpy = jest
@@ -174,9 +224,9 @@ describe("ConnectionService", () => {
 
       expect(dataHandler).toBeDefined();
 
-      const callEndedMessage = {
+      const callEndedMessage: CallEndedMessage = {
         type: "call-ended" as const,
-        data: { senderId: "peer-1" },
+        data: { from: "peer-1", to: "peer-2" },
       };
 
       const emitSpy = jest.spyOn(connectionService, "emit");
@@ -269,16 +319,22 @@ describe("ConnectionService", () => {
         (call) => call[0] === "onicecandidate"
       )?.[1];
 
-      const candidateData = { candidate: "ice-candidate-data" };
-      onIceCandidateHandler?.(candidateData);
+      onIceCandidateHandler?.(mockIceCandidate);
 
-      expect(sendMessageSpy).toHaveBeenCalledWith(peerId, {
-        type: "ice-candidate",
-        data: {
-          senderId: mockUserStore.user.id,
-          candidate: candidateData,
-        },
-      });
+      expect(sendMessageSpy).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({
+          type: "ice-candidate",
+          data: expect.objectContaining({
+            from: mockUserStore.user.id,
+            sender: mockUserStore.user.id,
+            to: peerId,
+            candidate: mockIceCandidate,
+            ipAddress: mockNetworkConfig.ipAddress,
+            port: mockNetworkConfig.port,
+          }),
+        })
+      );
     });
 
     it("should setup received message handler for chat messages", async () => {
@@ -291,15 +347,16 @@ describe("ConnectionService", () => {
         (call) => call[0] === "receivedMessage"
       )?.[1];
 
-      const chatMessage = {
+      const chatMessage: ChatMessage = {
         type: "chat" as const,
         data: {
           message: "Hello",
           conversationId: "conv-1",
           messageId: "msg-1",
-          senderId: "peer-1",
+          from: "peer-1",
+          to: "peer-2",
           sentAt: new Date(),
-          messageType: "text" as const,
+          messageType: MessageType.TEXT,
         },
       };
 
@@ -470,7 +527,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       const message = {
         type: "handshake" as const,
-        data: { senderId: "test", ipAddress: "123", port: 123 },
+        data: { sender: "test", to: peerId, ipAddress: "123", port: 123 },
       };
 
       connectionService.sendMessage(peerId, message);
@@ -487,7 +544,7 @@ describe("ConnectionService", () => {
 
       const message = {
         type: "handshake" as const,
-        data: { senderId: "test", ipAddress: "test", port: 123 },
+        data: { sender: "test", to: peerId, ipAddress: "test", port: 123 },
       };
 
       connectionService.sendMessage(peerId, message);
@@ -503,7 +560,8 @@ describe("ConnectionService", () => {
         message: "Hello World",
         conversationId: "conv-1",
         messageId: "msg-1",
-        senderId: "test-user",
+        from: "test-user",
+        to: peerId,
         sentAt: new Date(),
         messageType: MessageType.TEXT,
       };
@@ -520,13 +578,17 @@ describe("ConnectionService", () => {
   describe("sendAckMessage", () => {
     it("should send acknowledgment message", () => {
       const peerId = "peer-1";
-      const ackData = { messageId: "msg-1" };
+      const ackData = { messageId: "msg-1", from: "peer-2", to: peerId };
 
       connectionService.sendAckMessage(peerId, ackData);
 
       expect(mockWebrtcAdapter.sendDataMessage).toHaveBeenCalledWith({
         type: "ack",
-        data: ackData,
+        data: {
+          messageId: ackData.messageId,
+          from: mockUserStore.user.id,
+          to: peerId,
+        },
       });
     });
   });
@@ -661,13 +723,20 @@ describe("ConnectionService", () => {
       await connectionService.renegotiate(peerId);
 
       expect(mockWebrtcAdapter.createOffer).toHaveBeenCalled();
-      expect(sendMessageSpy).toHaveBeenCalledWith(peerId, {
-        type: "offer",
-        data: {
-          sdp: { type: "offer", sdp: "new-sdp" },
-          senderId: mockUserStore.user.id,
-        },
-      });
+      expect(sendMessageSpy).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({
+          type: "offer",
+          data: expect.objectContaining({
+            sdp: { type: "offer", sdp: "new-sdp" },
+            from: mockUserStore.user.id,
+            sender: mockUserStore.user.id,
+            to: peerId,
+            ipAddress: mockNetworkConfig.ipAddress,
+            port: mockNetworkConfig.port,
+          }),
+        })
+      );
     });
 
     it("should throw error if not connected", async () => {
@@ -682,7 +751,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
 
       await expect(connectionService.renegotiate(peerId)).rejects.toThrow(
-        "Not connected"
+        "Webrtc not connected"
       );
     });
   });

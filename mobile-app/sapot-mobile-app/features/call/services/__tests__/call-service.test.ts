@@ -157,7 +157,7 @@ describe("CallService", () => {
 
       expect(mockConnectionService.sendMessage).toHaveBeenCalledWith(peerId, {
         type: "audio-call",
-        data: { senderId: "test-user-id" },
+        data: { from: "test-user-id", to: peerId },
       });
     });
 
@@ -193,7 +193,7 @@ describe("CallService", () => {
       expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(peerId);
       expect(mockConnectionService.sendMessage).toHaveBeenCalledWith(peerId, {
         type: "call-ended",
-        data: { senderId: "test-user-id" },
+        data: { from: "test-user-id", to: peerId },
       });
     });
 
@@ -312,7 +312,9 @@ describe("CallService", () => {
     it("should return undefined if no stream available", () => {
       const peerId = "peer-1";
 
-      mockConnectionService.getLocalStream.mockReturnValue(undefined as unknown as MediaStream);
+      mockConnectionService.getLocalStream.mockReturnValue(
+        undefined as unknown as MediaStream
+      );
 
       const result = callService.getLocalCam(peerId);
 

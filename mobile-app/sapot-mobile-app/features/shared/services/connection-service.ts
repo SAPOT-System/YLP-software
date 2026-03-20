@@ -1,7 +1,13 @@
+import { getWsUrl } from "@/config/runtime";
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
 import { EventEmitter } from "events";
-import { TcpClientAdapter, TcpServerAdapter, WebrtcAdapter } from "../adapters";
+import {
+  TcpClientAdapter,
+  TcpServerAdapter,
+  WebrtcAdapter,
+  WsSignalingAdapter,
+} from "../adapters";
 import { NetworkConfig, UserStore } from "../stores";
 import {
   DataAckMessage,
@@ -24,14 +30,82 @@ export class ConnectionService extends EventEmitter {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
+  private signalingToken?: string;
+  private currentWsTargetId?: string;
+  private readonly logPrefix = "[ConnectionService]";
+
   constructor(
     private tcpServerAdapter: TcpServerAdapter,
     private networkConfig: NetworkConfig,
-    private userStore: UserStore
+    private userStore: UserStore,
+    private wsSignalingAdapter: WsSignalingAdapter = new WsSignalingAdapter(),
+    private wsBaseUrl: string = getWsUrl()
   ) {
     super();
+
+    this.wsSignalingAdapter.on("message", async (message: SignalingMessage) => {
+      try {
+        console.log(
+          `${this.logPrefix}: Signaling message received from websocket`,
+          {
+            ...this.summarizeSignalingMessage(message),
+            source: "ws",
+          }
+        );
+        await this.handleWebrtcConnection(message);
+      } catch (error) {
+        console.error(
+          "[ConnectionService]: Error handling websocket signaling message",
+          error
+        );
+      }
+    });
+
+    this.wsSignalingAdapter.on("reconnecting", ({ attempt, delayMs }) => {
+      console.log(
+        `[ConnectionService]: Reconnecting websocket signaling (attempt ${attempt}) in ${delayMs}ms`
+      );
+    });
+
+    this.wsSignalingAdapter.on("reconnect-failed", ({ attempts }) => {
+      console.warn(
+        `[ConnectionService]: Websocket signaling reconnect failed after ${attempts} attempts`
+      );
+    });
+
+    this.wsSignalingAdapter.on("open", () => {
+      console.log(`${this.logPrefix}: Websocket signaling connected`);
+    });
+
+    this.wsSignalingAdapter.on("close", ({ code, reason, wasClean }) => {
+      console.warn(`${this.logPrefix}: Websocket signaling closed`, {
+        code,
+        reason,
+        wasClean,
+      });
+    });
+
+    this.wsSignalingAdapter.on("ws-error", (error) => {
+      console.warn(
+        `${this.logPrefix}: Websocket signaling transport error`,
+        error
+      );
+    });
+
+    this.wsSignalingAdapter.on("raw-message", (payload) => {
+      console.warn(
+        `${this.logPrefix}: Received raw/non-signaling websocket payload`,
+        {
+          payloadType: typeof payload,
+        }
+      );
+    });
+
     tcpServerAdapter.on("data", async (message: TcpDataMessage) => {
       try {
+        console.log(`${this.logPrefix}: TCP data received`, {
+          type: message.type,
+        });
         // Type narrowing for signaling messages
         if (
           message.type === "ice-candidate" ||
@@ -43,12 +117,12 @@ export class ConnectionService extends EventEmitter {
         }
         // TODO: soon, implement tcp for fallback of webrtc
 
-        if (message.type === "audio-call" && "senderId" in message.data) {
-          await this.initializeStream(message.data.senderId);
-          this.emit("audio-call", message.data.senderId);
+        if (message.type === "audio-call" && "from" in message.data) {
+          await this.initializeStream(message.data.from);
+          this.emit("audio-call", message.data.from);
         }
 
-        if (message.type === "call-ended" && "senderId" in message.data) {
+        if (message.type === "call-ended" && "from" in message.data) {
           // TODO: check if needed to reinitialize local stream
           // TODO: validate that the caller id is the sender
           console.log("call ended");
@@ -61,6 +135,39 @@ export class ConnectionService extends EventEmitter {
   }
 
   /**
+   * Sets JWT token used by websocket signaling transport.
+   */
+  setSignalingToken(token?: string) {
+    this.signalingToken = token || undefined;
+    console.log(`${this.logPrefix}: Updated signaling token`, {
+      hasToken: Boolean(this.signalingToken),
+    });
+
+    if (!this.signalingToken && this.wsSignalingAdapter.isConnected) {
+      console.log(
+        `${this.logPrefix}: Token removed while websocket connected, disconnecting signaling`
+      );
+      this.wsSignalingAdapter.disconnect();
+      this.currentWsTargetId = undefined;
+    }
+  }
+
+  private getSignalSenderId(message: SignalingMessage): string | undefined {
+    return message.data.sender;
+  }
+
+  private buildSignalSenderData(to: string) {
+    const id = this.userStore.user.id;
+    return {
+      to,
+      from: id,
+      sender: id,
+      ipAddress: this.networkConfig.ipAddress,
+      port: this.networkConfig.port,
+    };
+  }
+
+  /**
    * Sets up WebRTC adapter event listeners for signaling and data channel events.
    * @param webrtcAdapter - The WebrtcAdapter instance
    * @param peerId - The peer's unique identifier
@@ -69,9 +176,12 @@ export class ConnectionService extends EventEmitter {
     console.log("Setupwebrtc events");
     webrtcAdapter.on("onicecandidate", (candidate) => {
       try {
-        this.sendMessage(peerId, {
+        this.sendSignalingMessage(peerId, {
           type: "ice-candidate",
-          data: { senderId: this.userStore.user.id, candidate: candidate },
+          data: {
+            ...this.buildSignalSenderData(peerId),
+            candidate: candidate,
+          },
         });
       } catch (error) {
         console.error(
@@ -198,56 +308,158 @@ export class ConnectionService extends EventEmitter {
    * @param port - Port number for TCP connection
    * @returns Promise that resolves when connection is established
    */
-  async connectToPeer(peerId: string, ipAddress: string, port: number) {
+  async connectToPeer(peerId: string, ipAddress?: string, port?: number) {
+    console.log(`${this.logPrefix}: connectToPeer started`, {
+      peerId,
+      ipAddress,
+      port,
+    });
     const tcpAdapter = this.getTcpClientAdapter(peerId);
     const webrtcAdapter = this.getWebrtcAdapter(peerId);
+    const isWsConfigured = this.ensureWsSignaling(peerId);
+    console.log(`${this.logPrefix}: Signaling transport availability`, {
+      peerId,
+      tcpConnected: tcpAdapter.isConnected,
+      websocketConfigured: isWsConfigured,
+    });
 
-    if (webrtcAdapter.isConnected) return;
+    if (webrtcAdapter.isConnected) {
+      console.log(
+        `${this.logPrefix}: Peer already has active WebRTC connection`,
+        {
+          peerId,
+        }
+      );
+      return;
+    }
 
-    if (!tcpAdapter.isConnected) await tcpAdapter.connect(ipAddress, port);
+    let isTcpConnected = tcpAdapter.isConnected;
+    if (!isTcpConnected && ipAddress && port) {
+      try {
+        await tcpAdapter.connect(ipAddress, port);
+        isTcpConnected = true;
+      } catch (error) {
+        if (!isWsConfigured) {
+          throw error;
+        }
+
+        console.warn(
+          "[ConnectionService]: TCP connect failed; continuing with websocket signaling",
+          error
+        );
+      }
+    }
 
     return new Promise<void>((resolve, reject) => {
-      webrtcAdapter.once("connection-established", () => {
-        resolve();
-      });
+      let isSettled = false;
+      let timeout: ReturnType<typeof setTimeout>;
 
-      webrtcAdapter.once("connection-failed", (error) => {
-        reject(error);
-      });
+      const removeListenerIfExists = (
+        eventName: string,
+        callback: (...args: unknown[]) => void
+      ) => {
+        const adapterWithListeners = webrtcAdapter as unknown as {
+          off?: (event: string, cb: (...args: unknown[]) => void) => void;
+          removeListener?: (
+            event: string,
+            cb: (...args: unknown[]) => void
+          ) => void;
+        };
 
-      const timeout = setTimeout(() => {
-        reject(new Error("Connection timeout"));
-      }, 20000);
+        if (typeof adapterWithListeners.off === "function") {
+          adapterWithListeners.off(eventName, callback);
+          return;
+        }
 
-      webrtcAdapter.once("connection-established", () => {
+        if (typeof adapterWithListeners.removeListener === "function") {
+          adapterWithListeners.removeListener(eventName, callback);
+        }
+      };
+
+      const cleanup = () => {
         clearTimeout(timeout);
-      });
+        removeListenerIfExists("connection-established", onConnectionEstablished);
+        removeListenerIfExists("connection-failed", onConnectionFailed);
+      };
 
-      webrtcAdapter.createOffer().then(({ type, sdp }) => {
-        // Persuade peer to connect to the current user's tcp server by giving the ip address and port
-        this.sendMessage(peerId, {
-          type: "handshake",
-          data: {
-            port: this.networkConfig.port,
-            ipAddress: this.networkConfig.ipAddress,
-            senderId: this.userStore.user.id,
-          },
+      const onConnectionEstablished = () => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        console.log(`${this.logPrefix}: WebRTC connection established`, {
+          peerId,
         });
+        resolve();
+      };
 
-        this.sendMessage(peerId, {
-          type: type,
-          data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
+      const onConnectionFailed = (error: unknown) => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        console.error(`${this.logPrefix}: WebRTC connection failed`, {
+          peerId,
+          error,
         });
-      }).catch((error) => {
-        console.error(
-          `[ConnectionService]: Error connecting to peer\n${JSON.stringify(
-            { peerId, ipAddress, port },
-            null,
-            2
-          )}\n${error}`
-        );
         reject(error);
-      });
+      };
+
+      webrtcAdapter.once("connection-established", onConnectionEstablished);
+      webrtcAdapter.once("connection-failed", onConnectionFailed);
+
+      timeout = setTimeout(() => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        console.warn(`${this.logPrefix}: connectToPeer timeout`, {
+          peerId,
+          timeoutMs: 10000,
+        });
+        reject(new Error("Connection timeout"));
+      }, 10000);
+
+      webrtcAdapter
+        .createOffer()
+        .then(({ type, sdp }) => {
+          console.log(`${this.logPrefix}: Created WebRTC offer`, {
+            peerId,
+            type,
+            hasSdp: Boolean(sdp),
+          });
+          // Handshake is only needed for direct TCP fallback routing.
+          if (isTcpConnected) {
+            console.log(`${this.logPrefix}: Sending TCP handshake`, {
+              peerId,
+              ipAddress: this.networkConfig.ipAddress,
+              port: this.networkConfig.port,
+            });
+            this.sendMessage(peerId, {
+              type: "handshake",
+              data: {
+                // port: this.networkConfig.port,
+                // ipAddress: this.networkConfig.ipAddress,
+                ...this.buildSignalSenderData(peerId),
+              },
+            });
+          }
+
+          this.sendSignalingMessage(peerId, {
+            type: type,
+            data: {
+              sdp: { type, sdp },
+              ...this.buildSignalSenderData(peerId),
+            },
+          });
+        })
+        .catch((error) => {
+          console.error(
+            `[ConnectionService]: Error connecting to peer\n${JSON.stringify(
+              { peerId, ipAddress, port },
+              null,
+              2
+            )}\n${error}`
+          );
+          reject(error);
+        });
     });
   }
 
@@ -258,15 +470,33 @@ export class ConnectionService extends EventEmitter {
    */
   async renegotiate(peerId: string) {
     try {
+      console.log(`${this.logPrefix}: Renegotiation requested`, {
+        peerId,
+      });
       const tcpAdapter = this.getTcpClientAdapter(peerId);
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
-      if (!tcpAdapter.isConnected && !webrtcAdapter.isConnected)
-        throw new Error("Not connected");
+      const isWsConfigured = this.ensureWsSignaling(peerId);
+
+      if (!webrtcAdapter.isConnected) {
+        throw new Error("Webrtc not connected");
+      }
+
+      if (!tcpAdapter.isConnected && !isWsConfigured) {
+        throw new Error("No signaling transport available");
+      }
 
       const { type, sdp } = await webrtcAdapter.createOffer();
-      this.sendMessage(peerId, {
+      console.log(`${this.logPrefix}: Renegotiation offer created`, {
+        peerId,
+        type,
+        hasSdp: Boolean(sdp),
+      });
+      this.sendSignalingMessage(peerId, {
         type: type,
-        data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
+        data: {
+          sdp: { type, sdp },
+          ...this.buildSignalSenderData(peerId),
+        },
       });
     } catch (error) {
       console.error(
@@ -289,14 +519,42 @@ export class ConnectionService extends EventEmitter {
    */
   private async handleWebrtcConnection(message: SignalingMessage) {
     try {
-      let webrtcAdapter = this.getWebrtcAdapter(message.data.senderId);
+      if (message.data.to !== this.userStore.user.id) {
+        console.log(`${this.logPrefix}: Ignoring signaling not addressed to self`, {
+          expectedRecipient: this.userStore.user.id,
+          actualRecipient: message.data.to,
+          messageType: message.type,
+        });
+        return;
+      }
+
+      const senderId = this.getSignalSenderId(message);
+      if (!senderId) {
+        throw new Error("Invalid signaling payload: missing sender");
+      }
+
+      console.log(`${this.logPrefix}: Handling signaling message`, {
+        ...this.summarizeSignalingMessage(message),
+        resolvedSenderId: senderId,
+      });
+
+      let webrtcAdapter = this.getWebrtcAdapter(senderId);
       let tcpClientAdapter: TcpClientAdapter;
       switch (message.type) {
         case "ice-candidate":
-          if (webrtcAdapter.isConnected) return;
+          if (webrtcAdapter.isConnected) {
+            console.log(
+              `${this.logPrefix}: Ignoring ICE candidate because WebRTC is already connected`,
+              { senderId }
+            );
+            return;
+          }
 
           console.log("[ConnectionService]: Handling ice candidate message...");
           if (message.data.candidate !== null) {
+            console.log(`${this.logPrefix}: Applying remote ICE candidate`, {
+              senderId,
+            });
             webrtcAdapter.addIceCandidate(message.data.candidate);
           }
           break;
@@ -306,9 +564,16 @@ export class ConnectionService extends EventEmitter {
             type: "offer",
             sdp: message.data.sdp.sdp || "",
           });
-          this.sendMessage(message.data.senderId, {
+          this.sendSignalingMessage(senderId, {
             type: type,
-            data: { sdp: { type, sdp }, senderId: this.userStore.user.id },
+            data: {
+              sdp: { type, sdp },
+              ...this.buildSignalSenderData(senderId),
+            },
+          });
+          console.log(`${this.logPrefix}: Sent answer to offer`, {
+            senderId,
+            type,
           });
           break;
         }
@@ -323,11 +588,31 @@ export class ConnectionService extends EventEmitter {
         case "handshake":
           console.log("[ConnectionService]: Handling handshake message...");
           // console.log(message);
-          if (webrtcAdapter.isConnected) return;
+          if (webrtcAdapter.isConnected) {
+            console.log(
+              `${this.logPrefix}: Ignoring handshake because WebRTC is already connected`,
+              { senderId }
+            );
+            return;
+          }
 
-          tcpClientAdapter = this.getTcpClientAdapter(message.data.senderId);
-          if (tcpClientAdapter.isConnected) return;
+          tcpClientAdapter = this.getTcpClientAdapter(senderId);
+          if (tcpClientAdapter.isConnected) {
+            console.log(
+              `${this.logPrefix}: Ignoring handshake because TCP adapter is already connected`,
+              { senderId }
+            );
+            return;
+          }
 
+          console.log(
+            `${this.logPrefix}: Connecting TCP client from handshake`,
+            {
+              senderId,
+              ipAddress: message.data.ipAddress,
+              port: message.data.port,
+            }
+          );
           await tcpClientAdapter.connect(
             message.data.ipAddress,
             message.data.port
@@ -357,10 +642,23 @@ export class ConnectionService extends EventEmitter {
    */
   sendMessage(peerId: string, message: TcpDataMessage) {
     try {
+      console.log(`${this.logPrefix}: Sending TCP message`, {
+        peerId,
+        type: message.type,
+      });
       const adapter = this.getTcpClientAdapter(peerId);
       if (adapter.isConnected) {
         adapter.sendMessage(message);
+        return;
       }
+
+      console.warn(
+        `${this.logPrefix}: TCP adapter is not connected, message not sent`,
+        {
+          peerId,
+          type: message.type,
+        }
+      );
     } catch (error) {
       console.error(
         `[ConnectionService]: Error sending message\n${JSON.stringify(
@@ -370,6 +668,111 @@ export class ConnectionService extends EventEmitter {
         )}\n${error}`
       );
       throw error;
+    }
+  }
+
+  private sendSignalingMessage(peerId: string, message: SignalingMessage) {
+    try {
+      const isWsConfigured = this.ensureWsSignaling(peerId);
+
+      console.log(`${this.logPrefix}: Routing signaling message`, {
+        peerId,
+        ...this.summarizeSignalingMessage(message),
+        route: isWsConfigured ? "ws" : "tcp",
+      });
+
+      if (isWsConfigured) {
+        this.wsSignalingAdapter.sendMessage(message);
+        return;
+      }
+
+      this.sendMessage(peerId, message);
+    } catch (error) {
+      console.error(
+        `[ConnectionService]: Error sending signaling message\n${JSON.stringify(
+          { peerId, ...message },
+          null,
+          2
+        )}\n${error}`
+      );
+      throw error;
+    }
+  }
+
+  private ensureWsSignaling(peerId: string): boolean {
+    try {
+      if (!this.signalingToken) {
+        console.log(
+          `${this.logPrefix}: Websocket signaling skipped (missing token)`,
+          {
+            peerId,
+          }
+        );
+        return false;
+      }
+
+      const wsAdapterWithState = this.wsSignalingAdapter as unknown as {
+        isConnectingTo?: (targetId?: string) => boolean;
+      };
+
+      if (
+        typeof wsAdapterWithState.isConnectingTo === "function" &&
+        wsAdapterWithState.isConnectingTo(peerId)
+      ) {
+        console.log(
+          `${this.logPrefix}: Reusing in-flight websocket signaling connection`,
+          {
+            peerId,
+          }
+        );
+        return true;
+      }
+
+      if (
+        this.wsSignalingAdapter.isConnected &&
+        this.currentWsTargetId === peerId
+      ) {
+        console.log(
+          `${this.logPrefix}: Reusing existing websocket signaling connection`,
+          {
+            peerId,
+          }
+        );
+        return true;
+      }
+
+      if (
+        this.wsSignalingAdapter.isConnected &&
+        this.currentWsTargetId !== peerId
+      ) {
+        console.log(`${this.logPrefix}: Switching websocket signaling target`, {
+          fromPeerId: this.currentWsTargetId,
+          toPeerId: peerId,
+        });
+        this.wsSignalingAdapter.disconnect();
+      }
+
+      this.currentWsTargetId = peerId;
+      console.log(`${this.logPrefix}: Initializing websocket signaling`, {
+        peerId,
+        wsBaseUrl: this.wsBaseUrl,
+        hasToken: Boolean(this.signalingToken),
+      });
+      this.wsSignalingAdapter.connect({
+        baseUrl: this.wsBaseUrl,
+        token: this.signalingToken,
+        targetId: peerId,
+        path: "/ws/",
+      });
+
+      return true;
+    } catch (error) {
+      console.warn(
+        "[ConnectionService]: Could not initialize websocket signaling",
+        error
+      );
+      this.currentWsTargetId = undefined;
+      return false;
     }
   }
 
@@ -384,9 +787,10 @@ export class ConnectionService extends EventEmitter {
       message,
       conversationId,
       messageId,
-      senderId,
+      from,
       sentAt,
       messageType,
+      to,
     } = messageData;
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -397,7 +801,8 @@ export class ConnectionService extends EventEmitter {
           message: message,
           conversationId: conversationId,
           messageId: messageId,
-          senderId: senderId,
+          from: from,
+          to: to,
           sentAt: sentAt,
           messageType: messageType,
         },
@@ -410,7 +815,7 @@ export class ConnectionService extends EventEmitter {
             message,
             conversationId,
             messageId,
-            senderId,
+            from,
             sentAt,
             messageType,
           },
@@ -439,6 +844,8 @@ export class ConnectionService extends EventEmitter {
         type: "ack",
         data: {
           messageId: messageId,
+          from: this.userStore.user.id,
+          to: peerId,
         },
       });
     } catch (error) {
@@ -578,14 +985,28 @@ export class ConnectionService extends EventEmitter {
    */
   stop() {
     try {
+      console.log(`${this.logPrefix}: Stopping connection service`, {
+        webrtcAdapters: this.webrtcAdapters.size,
+        tcpClientAdapters: this.tcpClientAdapters.size,
+      });
       this.webrtcAdapters.forEach((webrtc) => webrtc.cleanup());
       this.tcpClientAdapters.forEach((client) => client.disconnect());
       this.tcpServerAdapter.stop();
+      this.wsSignalingAdapter.disconnect();
+      this.currentWsTargetId = undefined;
       this.removeAllListeners();
       this.webrtcAdapters.forEach((adapter) => adapter.removeAllListeners());
     } catch (error) {
       console.error("[ConnectionService]: Error performing stop:", error);
       throw error;
     }
+  }
+
+  private summarizeSignalingMessage(message: SignalingMessage) {
+    return {
+      messageType: message.type,
+      to: message.data.to,
+      sender: message.data.sender,
+    };
   }
 }

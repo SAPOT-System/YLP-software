@@ -221,7 +221,8 @@ describe("ChatService", () => {
         message: "Hello World",
         conversationId: "conv-1",
         messageId: "msg-1",
-        senderId: "peer-1",
+        from: "peer-1",
+        to: "peer-2",
         sentAt: new Date(),
         messageType: MessageType.TEXT,
       };
@@ -253,7 +254,11 @@ describe("ChatService", () => {
       expect(mockMessageRepository.saveMessage).toHaveBeenCalled();
       expect(mockConnectionService.sendAckMessage).toHaveBeenCalledWith(
         "peer-1",
-        { messageId: "msg-1" }
+        expect.objectContaining({
+          messageId: "msg-1",
+          from: "test-user-id",
+          to: "peer-1",
+        })
       );
     });
 
@@ -262,7 +267,8 @@ describe("ChatService", () => {
         message: "Hello World",
         conversationId: "conv-1",
         messageId: "msg-1",
-        senderId: "peer-1",
+        from: "peer-1",
+        to: "peer-2",
         sentAt: new Date(),
         messageType: MessageType.TEXT,
       };
@@ -305,7 +311,8 @@ describe("ChatService", () => {
         message: "Hello World",
         conversationId: "conv-1",
         messageId: "msg-1",
-        senderId: "peer-1",
+        from: "peer-1",
+        to: "peer-2",
         sentAt: new Date(),
         messageType: MessageType.TEXT,
       };
@@ -382,7 +389,8 @@ describe("ChatService", () => {
           message: message,
           conversationId: "conv-1",
           messageId: "msg-1",
-          senderId: "test-user-id",
+          from: "test-user-id",
+          to: "peer-1",
         })
       );
       expect(

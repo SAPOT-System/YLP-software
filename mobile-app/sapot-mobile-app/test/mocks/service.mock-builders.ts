@@ -47,6 +47,13 @@ export function createConnectionServiceDependencyMocks() {
 		removeAllListeners: jest.fn(),
 	};
 
+	const wsSignalingAdapter = {
+		on: jest.fn(),
+		sendMessage: jest.fn(),
+		disconnect: jest.fn(),
+		isConnected: false,
+	};
+
 	const chatService = {
 		handleIncomingChatMessage: jest.fn(),
 		handleAckMessage: jest.fn(),
@@ -58,6 +65,7 @@ export function createConnectionServiceDependencyMocks() {
 		userStore,
 		tcpClientAdapter,
 		webrtcAdapter,
+		wsSignalingAdapter,
 		chatService,
 	};
 }

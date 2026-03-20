@@ -60,7 +60,7 @@ export class CallService extends EventEmitter {
     try {
       this.connectionService.sendMessage(peerId, {
         type: "audio-call",
-        data: { senderId: this.userStore.user.id },
+        data: { from: this.userStore.user.id, to: peerId },
       });
     } catch (error) {
       console.error(
@@ -82,7 +82,7 @@ export class CallService extends EventEmitter {
       await this.connectionService.renegotiate(peerId);
       this.connectionService.sendMessage(peerId, {
         type: "call-ended",
-        data: { senderId: this.userStore.user.id },
+        data: { from: this.userStore.user.id, to: peerId },
       });
       this.connectedState = "disconnected";
     } catch (error) {
