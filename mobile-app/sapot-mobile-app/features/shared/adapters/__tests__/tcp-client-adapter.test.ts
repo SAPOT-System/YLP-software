@@ -11,7 +11,12 @@ describe("TcpClientAdapter", () => {
 
   const createHandshakeMessage = () => ({
     type: "handshake" as const,
-    data: { senderId: "peer-1", ipAddress: "127.0.0.1", port: 3000 },
+    data: {
+      sender: "peer-1",
+      to: "peer-2",
+      ipAddress: "127.0.0.1",
+      port: 3000,
+    },
   });
 
   beforeEach(() => {

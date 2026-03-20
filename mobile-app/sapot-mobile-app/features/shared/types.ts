@@ -1,29 +1,62 @@
 /// <reference lib="dom" />
 import type { DataChatMessageI } from "@/features/chat/types";
+import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 
 /**
  * For establishing webrtc connection
  */
 export type SignalingMessage =
-  | { type: "ice-candidate"; data: { senderId: string; candidate: RTCIceCandidate | null } }
-  | { type: "offer"; data: { senderId: string; sdp: RTCSessionDescriptionInit } }
-  | { type: "answer"; data: { senderId: string; sdp: RTCSessionDescriptionInit } }
+  | {
+      type: "ice-candidate";
+      data: {
+        to: string;
+        candidate: RTCIceCandidate | null;
+        sender: string;
+        ipAddress: string;
+        port: number;
+      };
+    }
+  | {
+      type: "offer";
+      data: {
+        to: string;
+        sdp: RTCSessionDescriptionInit;
+        sender: string;
+        ipAddress: string;
+        port: number;
+      };
+    }
+  | {
+      type: "answer";
+      data: {
+        to: string;
+        sdp: RTCSessionDescriptionInit;
+        sender: string;
+        ipAddress: string;
+        port: number;
+      };
+    }
   | {
       type: "handshake";
-      data: { senderId: string; ipAddress: string; port: number };
+      data: {
+        to: string;
+        ipAddress: string;
+        port: number;
+        sender: string;
+      };
     };
 
 export type ChatMessage = { type: "chat"; data: DataChatMessageI };
-export type DataAckMessage = { messageId: string };
+export type DataAckMessage = { messageId: string; from: string; to: string };
 export type AckMessage = { type: "ack"; data: DataAckMessage };
 
 export type AudioCallMessage = {
   type: "audio-call";
-  data: { senderId: string };
+  data: { from: string; to: string };
 };
 export type CallEndedMessage = {
   type: "call-ended";
-  data: { senderId: string };
+  data: { from: string; to: string };
 };
 
 /**

@@ -161,7 +161,7 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       this.peerConnection.onconnectionstatechange = (_event) => {
-        // console.log(this.peerConnection?.connectionState);
+        console.log("[WebrtcAdapter]:",this.peerConnection?.connectionState);
         switch (this.peerConnection?.connectionState) {
           case "closed":
             console.log("[WebrtcAdapter]: Call being disconnected");
@@ -176,15 +176,15 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       this.peerConnection.ondatachannel = (event) => {
-        // console.log(`Data channel received: ${event.channel}`);
+        console.log(`Data channel received: ${event.channel}`);
         this.setDataChannel(event.channel);
       };
 
       this.peerConnection.oniceconnectionstatechange = (_event) => {
-        // console.log(
-        //   "[WebrtcAdapter]: ICE Connection state:",
-        //   this.peerConnection?.iceConnectionState
-        // );
+        console.log(
+          "[WebrtcAdapter]: ICE Connection state:",
+          this.peerConnection?.iceConnectionState
+        );
         switch (this.peerConnection?.iceConnectionState) {
           case "connected":
             console.log("[WebrtcAdapter]: ICE connection connected");
@@ -197,13 +197,15 @@ export class WebrtcAdapter extends EventEmitter {
 
       this.peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          // console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
+          console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
           this.emit("onicecandidate", event.candidate);
         }
       };
 
       // Create data channel for text chat
-      const channel = this.peerConnection.createDataChannel("chat") as unknown as RTCDataChannel;
+      const channel = this.peerConnection.createDataChannel(
+        "chat"
+      ) as unknown as RTCDataChannel;
       this.dataChannel = channel;
       // console.log(this.dataChannel ? "Data channel on" : "Data channel off");
       this.setupDataChannel(channel);
@@ -235,51 +237,55 @@ export class WebrtcAdapter extends EventEmitter {
    * @returns Promise<{ type: "offer"; sdp: any }>
    */
   async createOffer() {
-    return new Promise<{ type: "offer"; sdp: string }>((resolve, reject) => {
-      try {
-        if (!this.peerConnection) {
-          console.log(
-            "[WebrtcAdapter]: Creating peer connection in create offer method"
-          );
-          this.createPeerConnection();
+    return new Promise<{ type: "offer"; sdp: string }>(
+      (resolve, reject) => {
+        try {
+          if (!this.peerConnection) {
+            console.log(
+              "[WebrtcAdapter]: Creating peer connection in create offer method"
+            );
+            this.createPeerConnection();
+          }
+          console.log(`[WebrtcAdapter]: Creating offer...`);
+          if (this.peerConnection?.signalingState === "stable") {
+            console.log("stable");
+            this.peerConnection!.createOffer()
+              .then(async (offer) => {
+                console.log(`[WebrtcAdapter-createOffer]: Setting local description...`);
+                await this.peerConnection!.setLocalDescription(offer);
+
+                resolve({
+                  type: "offer",
+                  sdp: offer.sdp,
+                });
+              })
+              .catch(reject);
+          } else {
+            console.log("Not stable");
+            const onStable = async () => {
+              if (this.peerConnection?.signalingState === "stable") {
+                console.log("run");
+                this.peerConnection.onsignalingstatechange = () => null;
+                const offer = await this.peerConnection!.createOffer();
+                console.log(`[WebrtcAdapter-createOffer]: Setting local description...`);
+                await this.peerConnection!.setLocalDescription(offer);
+
+                resolve({
+                  type: "offer",
+                  sdp: offer.sdp,
+                });
+              }
+            };
+            this.peerConnection!.onsignalingstatechange = async () =>
+              await onStable();
+          }
+        } catch (error) {
+          console.error("[WebrtcAdapter]: Error creating offer:", error);
+
+          reject(error);
         }
-        // console.log(`[WebrtcAdapter]: Creating offer...`);
-        if (this.peerConnection?.signalingState === "stable") {
-          console.log("stable");
-          this.peerConnection!.createOffer().then(async (offer) => {
-            // console.log(`[WebrtcAdapter]: Setting local description...`);
-            await this.peerConnection!.setLocalDescription(offer);
-
-            resolve({
-              type: "offer",
-              sdp: offer.sdp,
-            });
-          }).catch(reject);
-        } else {
-          console.log("Not stable");
-          const onStable = async () => {
-            if (this.peerConnection?.signalingState === "stable") {
-              console.log("run");
-              this.peerConnection.onsignalingstatechange = () => null;
-              const offer = await this.peerConnection!.createOffer();
-              // console.log(`[WebrtcAdapter]: Setting local description...`);
-              await this.peerConnection!.setLocalDescription(offer);
-
-              resolve({
-                type: "offer",
-                sdp: offer.sdp,
-              });
-            }
-          };
-          this.peerConnection!.onsignalingstatechange = async () =>
-            await onStable();
-        }
-      } catch (error) {
-        console.error("[WebrtcAdapter]: Error creating offer:", error);
-
-        reject(error);
       }
-    });
+    );
   }
 
   /**
@@ -298,14 +304,14 @@ export class WebrtcAdapter extends EventEmitter {
         this.createPeerConnection();
       }
 
-      // console.log(`[WebrtcAdapter]: Setting remote description`);
+      console.log(`[WebrtcAdapter]: Setting remote description`);
 
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(offer)
       );
 
       const answer = await this.peerConnection!.createAnswer();
-      // console.log(`[WebrtcAdapter]: Setting local description`);
+      console.log(`[WebrtcAdapter-handleOffer]: Setting local description`);
       await this.peerConnection!.setLocalDescription(answer);
 
       this.remoteDescriptionSet = true;
@@ -338,7 +344,7 @@ export class WebrtcAdapter extends EventEmitter {
         return;
       }
 
-      // console.log(`[WebrtcAdapter]: Setting remote description`);
+      console.log(`[WebrtcAdapter-handleAnswer]: Setting remote description`);
 
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(answer)
@@ -368,12 +374,12 @@ export class WebrtcAdapter extends EventEmitter {
       }
 
       if (!this.remoteDescriptionSet) {
-        // console.log("[WebrtcAdapter]: Queueing ICE candidate");
+        console.log("[WebrtcAdapter]: Queueing ICE candidate");
         this.pendingIceCandidates.push(candidate);
         return;
       }
 
-      // console.log(`[WebrtcAdapter]: Adding ice candidate`);
+      console.log(`[WebrtcAdapter]: Adding ice candidate`);
 
       await this.peerConnection!.addIceCandidate(
         new RTCIceCandidate(candidate)
