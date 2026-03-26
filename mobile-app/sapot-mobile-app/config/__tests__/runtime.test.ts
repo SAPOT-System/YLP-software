@@ -30,7 +30,7 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://ylp-software.onrender.com");
+    expect(result).toBe("https://sapot.online");
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -49,7 +49,7 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://ylp-software.onrender.com");
+    expect(result).toBe("https://sapot.online");
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -100,7 +100,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://ylp-software.onrender.com");
+    expect(result).toBe("wss://sapot.online");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -119,7 +119,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://ylp-software.onrender.com");
+    expect(result).toBe("wss://sapot.online");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
