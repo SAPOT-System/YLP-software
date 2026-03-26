@@ -4,10 +4,12 @@ import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { Avatar, Icon, Text, useTheme } from "react-native-paper";
 import { SETTINGS_ROUTES } from "@/app/routes";
+import { useThemePreference } from "@/features/shared/context";
 
 export default function Settings() {
   const theme = useTheme();
   const { user, isGuest } = useUserProfile();
+  const { themeChoice } = useThemePreference();
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
@@ -74,6 +76,25 @@ export default function Settings() {
                 <Text>Password & Security</Text>
               </View>
               <Icon source="arrow-right" size={24} />
+            </View>
+          </Link>
+        </View>
+        <Text>Account</Text>
+        <View
+          style={{ backgroundColor: theme.colors.background, borderRadius: 4 }}
+        >
+          <Link href={SETTINGS_ROUTES.THEME}>
+            <View style={styles.item}>
+              <View style={styles.itemContainer}>
+                <Icon source="format-paint" size={24} />
+                <Text>Theme</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text>
+                  {themeChoice.charAt(0).toUpperCase() + themeChoice.slice(1)}
+                </Text>
+                <Icon source="arrow-right" size={24} />
+              </View>
             </View>
           </Link>
         </View>

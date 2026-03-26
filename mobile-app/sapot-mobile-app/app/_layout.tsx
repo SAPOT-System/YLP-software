@@ -8,7 +8,6 @@ import "react-native-reanimated";
 import Colors from "@/constants/Colors";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
-import { useColorScheme } from "react-native";
 
 import {
   MD3DarkTheme,
@@ -23,9 +22,13 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 
+import { AuthContainerProvider, AuthProvider } from "@/features/auth";
+import {
+  ThemePreferenceProvider,
+  useThemePreference,
+} from "@/features/shared/context";
 import merge from "deepmerge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider, AuthContainerProvider } from "@/features/auth";
 // import { usePing } from "@/features/shared/hooks";
 
 const customDarkTheme = { ...MD3DarkTheme, colors: Colors.dark };
@@ -41,7 +44,7 @@ const CombinedDarkTheme = merge(DarkTheme, customDarkTheme);
 
 export {
   // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
+  ErrorBoundary
 } from "expo-router";
 
 export const unstable_settings = {
@@ -89,11 +92,20 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
+  return (
+    <ThemePreferenceProvider>
+      <RootLayoutWithTheme />
+    </ThemePreferenceProvider>
+  );
+}
+
+function RootLayoutWithTheme() {
   // const { latency } = usePing();
-  const colorScheme = useColorScheme();
+  const { resolvedTheme } = useThemePreference();
 
   const paperTheme =
-    colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
+    resolvedTheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
+
   return (
     <SafeAreaProvider>
       <AuthContainerProvider>
