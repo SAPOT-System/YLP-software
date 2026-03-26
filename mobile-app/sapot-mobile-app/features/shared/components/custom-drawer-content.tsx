@@ -15,6 +15,8 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useUserProfile } from "../hooks";
+import { router } from "expo-router";
+import { SETTINGS_ROUTES } from "@/app/routes";
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
@@ -117,6 +119,14 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
               onPress={handleLogout}
               icon={({ color, size }) => (
                 <Icon source="exit-to-app" color={color} size={size ?? 24} />
+              )}
+              style={{ marginHorizontal: 0, borderRadius: 0 }}
+            />
+            <DrawerItem
+              label="Theme"
+              onPress={() => router.push(SETTINGS_ROUTES.THEME)}
+              icon={({ color, size }) => (
+                <Icon source="format-paint" color={color} size={size ?? 24} />
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />
