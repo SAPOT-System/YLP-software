@@ -2,7 +2,7 @@ import { Redirect, router } from "expo-router";
 import React from "react";
 import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
 import { View, Image, useColorScheme } from "react-native";
-import { APP_ROUTES } from "./routes";
+import { APP_ROUTES, AUTH_ROUTES } from "./routes";
 import { useAuth } from "@/features/auth";
 
 const Index = () => {
@@ -77,7 +77,7 @@ const Index = () => {
         icon="arrow-right"
         mode="contained"
         contentStyle={{ flexDirection: "row-reverse" }}
-        onPress={() => router.push("/getting-started")}
+        onPress={() => router.push(AUTH_ROUTES.GETTING_STARTED)}
       >
         Get Started
       </Button>

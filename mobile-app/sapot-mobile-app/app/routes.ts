@@ -14,6 +14,7 @@ export const AUTH_ROUTES = {
     SUCCESS: "/auth/forgot-password/success",
   },
   REGISTER: "/auth/register",
+  GETTING_STARTED: "/getting-started",
 } as const;
 
 export const SETTINGS_ROUTES = {
