@@ -169,15 +169,17 @@ export default function Settings() {
               </View>
             </View>
           </Link>
-          <Link href={SETTINGS_ROUTES.GPS}>
-            <View style={styles.item}>
-              <View style={styles.itemContainer}>
-                <Icon source="map-marker" size={24} />
-                <Text>GPS</Text>
+          {!isGuest && (
+            <Link href={SETTINGS_ROUTES.GPS}>
+              <View style={styles.item}>
+                <View style={styles.itemContainer}>
+                  <Icon source="map-marker" size={24} />
+                  <Text>GPS</Text>
+                </View>
+                <Icon source="arrow-right" size={24} />
               </View>
-              <Icon source="arrow-right" size={24} />
-            </View>
-          </Link>
+            </Link>
+          )}
           <Link href={SETTINGS_ROUTES.NOTIFICATIONS}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>

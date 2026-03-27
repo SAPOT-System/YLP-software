@@ -115,18 +115,40 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
             <DrawerItemList {...props} />
 
             <DrawerItem
-              label="Logout"
-              onPress={handleLogout}
+              label="Switch Mode"
+              onPress={() => router.push(SETTINGS_ROUTES.SWITCH_MODE)}
               icon={({ color, size }) => (
-                <Icon source="exit-to-app" color={color} size={size ?? 24} />
+                <Icon
+                  source="nintendo-switch"
+                  color={color}
+                  size={size ?? 24}
+                />
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />
+            {isAuthenticated && (
+              <DrawerItem
+                label="GPS"
+                onPress={() => router.push(SETTINGS_ROUTES.GPS)}
+                icon={({ color, size }) => (
+                  <Icon source="map-marker" color={color} size={size ?? 24} />
+                )}
+                style={{ marginHorizontal: 0, borderRadius: 0 }}
+              />
+            )}
             <DrawerItem
               label="Theme"
               onPress={() => router.push(SETTINGS_ROUTES.THEME)}
               icon={({ color, size }) => (
                 <Icon source="format-paint" color={color} size={size ?? 24} />
+              )}
+              style={{ marginHorizontal: 0, borderRadius: 0 }}
+            />
+            <DrawerItem
+              label="Logout"
+              onPress={handleLogout}
+              icon={({ color, size }) => (
+                <Icon source="exit-to-app" color={color} size={size ?? 24} />
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />
