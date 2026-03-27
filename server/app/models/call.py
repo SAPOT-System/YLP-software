@@ -35,6 +35,11 @@ class Call(SQLModel, table=True):
     # foreign keys
     conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')
     initiator_id : UUID  | None = Field(default=None, foreign_key='user.id')
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
+        index=True  # Important for query performance
+    )
 
     user: List["User"] = Relationship(
         back_populates="calls"

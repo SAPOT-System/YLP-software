@@ -25,6 +25,12 @@ class Message(SQLModel, table=True):
     created_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_deleted : bool = Field(default=False)
 
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
+        index=True  # Important for query performance
+    )
+
     # foreign_key
     conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')
     sender_id : UUID | None = Field(default=None, foreign_key='user.id')
