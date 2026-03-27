@@ -14,6 +14,14 @@ export default function SettingsLayout() {
     removeRouteGroups(SETTINGS_ROUTES.MANAGE_PROFILE),
     removeRouteGroups(SETTINGS_ROUTES.PASSWORD_AND_SECURITY),
     removeRouteGroups(SETTINGS_ROUTES.THEME),
+    removeRouteGroups(SETTINGS_ROUTES.AUTHENTICATE),
+    removeRouteGroups(SETTINGS_ROUTES.CONTACTS),
+    removeRouteGroups(SETTINGS_ROUTES.QR_CODE),
+    removeRouteGroups(SETTINGS_ROUTES.SWITCH_MODE),
+    removeRouteGroups(SETTINGS_ROUTES.GPS),
+    removeRouteGroups(SETTINGS_ROUTES.NOTIFICATIONS),
+    removeRouteGroups(SETTINGS_ROUTES.ABOUT_US),
+    removeRouteGroups(SETTINGS_ROUTES.HELP_CENTER),
   ]);
 
   return (
@@ -67,9 +75,57 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
+        name="account/authenticate"
+        options={{
+          title: "Authenticate",
+        }}
+      />
+      <Stack.Screen
+        name="account/contacts"
+        options={{
+          title: "Contacts",
+        }}
+      />
+      <Stack.Screen
+        name="account/qr-code"
+        options={{
+          title: "QR Code",
+        }}
+      />
+      <Stack.Screen
+        name="account/switch-mode"
+        options={{
+          title: "Switch Mode",
+        }}
+      />
+      <Stack.Screen
         name="preferences/theme"
         options={{
           title: "Theme",
+        }}
+      />
+      <Stack.Screen
+        name="preferences/notifications"
+        options={{
+          title: "Notifications",
+        }}
+      />
+      <Stack.Screen
+        name="preferences/gps"
+        options={{
+          title: "GPS",
+        }}
+      />
+      <Stack.Screen
+        name="support/about-us"
+        options={{
+          title: "About Us",
+        }}
+      />
+      <Stack.Screen
+        name="support/help-center"
+        options={{
+          title: "Help Center",
         }}
       />
     </Stack>

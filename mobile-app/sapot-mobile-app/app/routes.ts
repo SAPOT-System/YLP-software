@@ -17,10 +17,23 @@ export const AUTH_ROUTES = {
 } as const;
 
 export const SETTINGS_ROUTES = {
+  // Account
   MANAGE_PROFILE: "/(drawer)/settings/account/manage-profile",
   PASSWORD_AND_SECURITY: "/(drawer)/settings/account/password-and-security",
   CHANGE_PASSWORD: "/(drawer)/settings/account/change-password",
+  AUTHENTICATE: "/(drawer)/settings/account/authenticate",
+  CONTACTS: "/(drawer)/settings/account/contacts",
+  QR_CODE: "/(drawer)/settings/account/qr-code",
+  SWITCH_MODE: "/(drawer)/settings/account/switch-mode",
+
+  // Preferences
   THEME: "/(drawer)/settings/preferences/theme",
+  GPS: "/(drawer)/settings/preferences/gps",
+  NOTIFICATIONS: "/(drawer)/settings/preferences/notifications",
+
+  // Support
+  ABOUT_US: "/(drawer)/settings/support/about-us",
+  HELP_CENTER: "/(drawer)/settings/support/help-center",
 } as const;
 export const APP_ROUTES = {
   HOME: "/(drawer)/(tabs)",
