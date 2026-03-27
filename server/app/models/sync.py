@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select, or_
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from uuid import UUID
 
@@ -20,12 +20,14 @@ class SyncRequest(BaseModel):
 
 # This schema is what the server returns
 class SyncResponse(BaseModel):
-    server_time: datetime
-    conversations: List['Conversation']
-    messages: List['Message']
-    calls: List['Call']
-    call_participants: List['CallParticipant']
-    message_receipts: List['MessageReceipt']
+    server_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    conversations: List['Conversation'] = []
+    messages: List['Message']  = []
+    calls: List['Call']  = []
+    call_participants: List['CallParticipant']  = []
+    message_receipts: List['MessageReceipt'] = []
     new_cursor: datetime
-    has_more: bool
+    has_more: bool = False
 
+SyncResponse.model_rebuild()
+SyncRequest.model_rebuild()
