@@ -1,9 +1,11 @@
+import { SETTINGS_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
 import {
   DrawerContentComponentProps,
   DrawerItem,
   DrawerItemList,
 } from "@react-navigation/drawer";
+import { router } from "expo-router";
 import React from "react";
 import { ScrollView, View } from "react-native";
 import {
@@ -15,8 +17,6 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useUserProfile } from "../hooks";
-import { router } from "expo-router";
-import { SETTINGS_ROUTES } from "@/app/routes";
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
@@ -116,7 +116,12 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
 
             <DrawerItem
               label="Switch Mode"
-              onPress={() => router.push(SETTINGS_ROUTES.SWITCH_MODE)}
+              onPress={() =>
+                router.push({
+                  pathname: SETTINGS_ROUTES.SWITCH_MODE,
+                  params: { fromDrawer: "1" },
+                })
+              }
               icon={({ color, size }) => (
                 <Icon
                   source="nintendo-switch"
@@ -129,7 +134,12 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
             {isAuthenticated && (
               <DrawerItem
                 label="GPS"
-                onPress={() => router.push(SETTINGS_ROUTES.GPS)}
+                onPress={() =>
+                  router.push({
+                    pathname: SETTINGS_ROUTES.GPS,
+                    params: { fromDrawer: "1" },
+                  })
+                }
                 icon={({ color, size }) => (
                   <Icon source="map-marker" color={color} size={size ?? 24} />
                 )}
@@ -138,7 +148,12 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
             )}
             <DrawerItem
               label="Theme"
-              onPress={() => router.push(SETTINGS_ROUTES.THEME)}
+              onPress={() =>
+                router.push({
+                  pathname: SETTINGS_ROUTES.THEME,
+                  params: { fromDrawer: "1" },
+                })
+              }
               icon={({ color, size }) => (
                 <Icon source="format-paint" color={color} size={size ?? 24} />
               )}

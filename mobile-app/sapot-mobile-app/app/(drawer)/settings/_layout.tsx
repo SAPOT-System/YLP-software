@@ -1,10 +1,11 @@
 import { APP_ROUTES, SETTINGS_ROUTES } from "@/app/routes";
-import { router, Stack, usePathname } from "expo-router";
+import { router, Stack, useGlobalSearchParams, usePathname } from "expo-router";
 import { Appbar, useTheme } from "react-native-paper";
 
 export default function SettingsLayout() {
   const theme = useTheme();
   const pathname = usePathname();
+  const { fromDrawer } = useGlobalSearchParams<{ fromDrawer?: string }>();
 
   const removeRouteGroups = (path: string) => path.replace(/\/\([^/]+\)/g, "");
 
@@ -34,13 +35,17 @@ export default function SettingsLayout() {
               onPress={() => {
                 const isTopLevelSettingsRoute =
                   topLevelSettingsRoutes.has(normalizedPathname);
-                if (!isTopLevelSettingsRoute) {
-                  router.back();
-                  console.log("back");
+
+                if (isTopLevelSettingsRoute && fromDrawer !== "1") {
+                  router.replace(APP_ROUTES.SETTINGS);
                   return;
                 }
 
-                console.log("replace");
+                if (fromDrawer == "1") {
+                  router.replace(APP_ROUTES.HOME);
+                  return;
+                }
+
                 router.replace(APP_ROUTES.SETTINGS);
               }}
             />
