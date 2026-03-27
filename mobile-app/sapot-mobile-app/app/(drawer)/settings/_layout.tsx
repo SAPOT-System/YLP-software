@@ -1,10 +1,11 @@
 import { APP_ROUTES, SETTINGS_ROUTES } from "@/app/routes";
-import { router, Stack, usePathname } from "expo-router";
+import { router, Stack, useGlobalSearchParams, usePathname } from "expo-router";
 import { Appbar, useTheme } from "react-native-paper";
 
 export default function SettingsLayout() {
   const theme = useTheme();
   const pathname = usePathname();
+  const { fromDrawer } = useGlobalSearchParams<{ fromDrawer?: string }>();
 
   const removeRouteGroups = (path: string) => path.replace(/\/\([^/]+\)/g, "");
 
@@ -14,6 +15,14 @@ export default function SettingsLayout() {
     removeRouteGroups(SETTINGS_ROUTES.MANAGE_PROFILE),
     removeRouteGroups(SETTINGS_ROUTES.PASSWORD_AND_SECURITY),
     removeRouteGroups(SETTINGS_ROUTES.THEME),
+    removeRouteGroups(SETTINGS_ROUTES.AUTHENTICATE),
+    removeRouteGroups(SETTINGS_ROUTES.CONTACTS),
+    removeRouteGroups(SETTINGS_ROUTES.QR_CODE),
+    removeRouteGroups(SETTINGS_ROUTES.SWITCH_MODE),
+    removeRouteGroups(SETTINGS_ROUTES.GPS),
+    removeRouteGroups(SETTINGS_ROUTES.NOTIFICATIONS),
+    removeRouteGroups(SETTINGS_ROUTES.ABOUT_US),
+    removeRouteGroups(SETTINGS_ROUTES.HELP_CENTER),
   ]);
 
   return (
@@ -26,13 +35,17 @@ export default function SettingsLayout() {
               onPress={() => {
                 const isTopLevelSettingsRoute =
                   topLevelSettingsRoutes.has(normalizedPathname);
-                if (!isTopLevelSettingsRoute) {
-                  router.back();
-                  console.log("back");
+
+                if (isTopLevelSettingsRoute && fromDrawer !== "1") {
+                  router.replace(APP_ROUTES.SETTINGS);
                   return;
                 }
 
-                console.log("replace");
+                if (fromDrawer == "1") {
+                  router.replace(APP_ROUTES.HOME);
+                  return;
+                }
+
                 router.replace(APP_ROUTES.SETTINGS);
               }}
             />
@@ -67,9 +80,57 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
+        name="account/authenticate"
+        options={{
+          title: "Authenticate",
+        }}
+      />
+      <Stack.Screen
+        name="account/contacts"
+        options={{
+          title: "Contacts",
+        }}
+      />
+      <Stack.Screen
+        name="account/qr-code"
+        options={{
+          title: "QR Code",
+        }}
+      />
+      <Stack.Screen
+        name="account/switch-mode"
+        options={{
+          title: "Switch Mode",
+        }}
+      />
+      <Stack.Screen
         name="preferences/theme"
         options={{
           title: "Theme",
+        }}
+      />
+      <Stack.Screen
+        name="preferences/notifications"
+        options={{
+          title: "Notifications",
+        }}
+      />
+      <Stack.Screen
+        name="preferences/gps"
+        options={{
+          title: "GPS",
+        }}
+      />
+      <Stack.Screen
+        name="support/about-us"
+        options={{
+          title: "About Us",
+        }}
+      />
+      <Stack.Screen
+        name="support/help-center"
+        options={{
+          title: "Help Center",
         }}
       />
     </Stack>

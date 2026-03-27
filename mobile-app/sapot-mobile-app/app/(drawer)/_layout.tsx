@@ -26,7 +26,7 @@ export default function DrawerLayout() {
   }
 
   if (!isAuthenticated && !isGuest) {
-    return <Redirect href={AUTH_ROUTES.LOGIN.SERVER_LOGIN} />;
+    return <Redirect href={AUTH_ROUTES.GETTING_STARTED} />;
   }
 
   return (

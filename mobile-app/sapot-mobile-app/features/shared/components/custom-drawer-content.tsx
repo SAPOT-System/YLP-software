@@ -1,9 +1,11 @@
+import { SETTINGS_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
 import {
   DrawerContentComponentProps,
   DrawerItem,
   DrawerItemList,
 } from "@react-navigation/drawer";
+import { router } from "expo-router";
 import React from "react";
 import { ScrollView, View } from "react-native";
 import {
@@ -15,8 +17,6 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useUserProfile } from "../hooks";
-import { router } from "expo-router";
-import { SETTINGS_ROUTES } from "@/app/routes";
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
@@ -115,18 +115,55 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
             <DrawerItemList {...props} />
 
             <DrawerItem
-              label="Logout"
-              onPress={handleLogout}
+              label="Switch Mode"
+              onPress={() =>
+                router.push({
+                  pathname: SETTINGS_ROUTES.SWITCH_MODE,
+                  params: { fromDrawer: "1" },
+                })
+              }
               icon={({ color, size }) => (
-                <Icon source="exit-to-app" color={color} size={size ?? 24} />
+                <Icon
+                  source="nintendo-switch"
+                  color={color}
+                  size={size ?? 24}
+                />
+              )}
+              style={{ marginHorizontal: 0, borderRadius: 0 }}
+            />
+            {isAuthenticated && (
+              <DrawerItem
+                label="GPS"
+                onPress={() =>
+                  router.push({
+                    pathname: SETTINGS_ROUTES.GPS,
+                    params: { fromDrawer: "1" },
+                  })
+                }
+                icon={({ color, size }) => (
+                  <Icon source="map-marker" color={color} size={size ?? 24} />
+                )}
+                style={{ marginHorizontal: 0, borderRadius: 0 }}
+              />
+            )}
+            <DrawerItem
+              label="Theme"
+              onPress={() =>
+                router.push({
+                  pathname: SETTINGS_ROUTES.THEME,
+                  params: { fromDrawer: "1" },
+                })
+              }
+              icon={({ color, size }) => (
+                <Icon source="format-paint" color={color} size={size ?? 24} />
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />
             <DrawerItem
-              label="Theme"
-              onPress={() => router.push(SETTINGS_ROUTES.THEME)}
+              label="Logout"
+              onPress={handleLogout}
               icon={({ color, size }) => (
-                <Icon source="format-paint" color={color} size={size ?? 24} />
+                <Icon source="exit-to-app" color={color} size={size ?? 24} />
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />
