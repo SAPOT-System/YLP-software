@@ -52,12 +52,13 @@ export default function DrawerLayout() {
               options={({ route }) => {
                 const focusedRoute =
                   getFocusedRouteNameFromRoute(route) ?? "index";
+                const routesWithoutHeader = ["settings", "public-chat", "calls", "server"];
 
                 return {
                   drawerLabel: "Home",
                   title: "SAPOT",
                   drawerItemStyle: { display: "none" },
-                  headerShown: focusedRoute !== "settings",
+                  headerShown: !routesWithoutHeader.includes(focusedRoute),
                 };
               }}
             />
@@ -76,14 +77,6 @@ export default function DrawerLayout() {
                 drawerItemStyle: { display: "none" },
                 title: "Settings",
                 headerShown: false,
-              }}
-            />
-            <Drawer.Screen
-              name="theme"
-              options={{
-                drawerLabel: "Theme",
-                drawerItemStyle: { display: "none" },
-                title: "Theme",
               }}
             />
           </Drawer>
