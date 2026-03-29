@@ -78,14 +78,6 @@ export default function DrawerLayout() {
                 headerShown: false,
               }}
             />
-            <Drawer.Screen
-              name="theme"
-              options={{
-                drawerLabel: "Theme",
-                drawerItemStyle: { display: "none" },
-                title: "Theme",
-              }}
-            />
           </Drawer>
         </QueryClientProvider>
       </MainContainerProvider>
