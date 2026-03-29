@@ -1,4 +1,7 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
+import Entypo from "@expo/vector-icons/Entypo";
+import Feather from "@expo/vector-icons/Feather";
 import { Tabs } from "expo-router";
 import React from "react";
 import { View } from "react-native";
@@ -56,6 +59,8 @@ export default function TabLayout() {
           gap: 14,
           alignSelf: "center",
           backgroundColor: "#FFFFFF",
+          borderTopWidth: 0,
+          borderTopColor: "transparent",
         },
       }}
     >
@@ -65,7 +70,9 @@ export default function TabLayout() {
         options={{
           title: "Chats",
           tabBarLabel: "Chats",
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Entypo name="chat" size={24} color={color} />
+          ),
           headerShown: false,
         }}
       />
@@ -82,7 +89,9 @@ export default function TabLayout() {
         options={{
           title: "Public Chat",
           tabBarLabel: "Public Chat",
-          tabBarIcon: ({ color }) => <TabBarIcon name="globe" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <SimpleLineIcons size={24} name="globe" color={color} />
+          ),
           headerShown: false,
         }}
       />
@@ -90,7 +99,9 @@ export default function TabLayout() {
         name="calls"
         options={{
           title: "Calls",
-          tabBarIcon: ({ color }) => <TabBarIcon name="phone" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Feather name="phone-call" size={24} color={color} />
+          ),
           headerShown: false,
           tabBarLabel: "Calls",
         }}
@@ -99,7 +110,9 @@ export default function TabLayout() {
         name="server"
         options={{
           title: "Server",
-          tabBarIcon: ({ color }) => <TabBarIcon name="cloud" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Feather name="cloud" size={24} color={color} />
+          ),
           headerShown: false,
           tabBarLabel: "Server",
         }}
@@ -108,7 +121,9 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Feather name="settings" size={24} color={color} />
+          ),
           headerShown: false,
           tabBarLabel: "Settings",
         }}
