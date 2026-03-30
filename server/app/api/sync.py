@@ -12,7 +12,7 @@ from app.models.call_participant import CallParticipant
 from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_password_hash, update_user_password
 from fastapi.routing import APIRouter
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, col
@@ -54,6 +54,32 @@ def sync_data(
 
     # 2. Fetch Messages (Paginated)
     # We fetch limit + 1 to determine if there's another "page"
+    # fetch conversations
+    conversation_stmt = (
+        select(Conversation)
+        .where(
+            Conversation.id.in_(user_conv_ids),
+            Conversation.updated_at > since
+        )
+        .order_by(Conversation.updated_at.asc()) # Oldest updates first
+        .limit(limit + 1)
+    )
+
+    sync_conversations = session.exec(conversation_stmt).all()
+
+    # fetch conversation participants
+    conversation_participants_stmt = (
+        select(ConversationParticipant)
+        .where(
+            ConversationParticipant.conversation_id.in_(user_conv_ids),
+            # ConversationParticipant.joined_at > datetime.now() - timedelta(hours=10)
+        )
+        .order_by(ConversationParticipant.joined_at.asc()) # Oldest updates first
+        .limit(limit + 1)
+    )
+
+    sync_conversation_participants = session.exec(conversation_participants_stmt).all()
+
     msg_stmt = (
         select(Message)
         .where(
@@ -63,6 +89,7 @@ def sync_data(
         .order_by(Message.updated_at.asc()) # Oldest updates first
         .limit(limit + 1)
     )
+
     messages = session.exec(msg_stmt).all()
 
     # 3. Determine Pagination logic
@@ -82,6 +109,39 @@ def sync_data(
     )
     sync_calls = session.exec(call_stmt).all()
 
+
+    call_participants_stmt = (
+        select(CallParticipant)
+        .where(
+            CallParticipant.conversation_id.in_(user_conv_ids),
+            CallParticipant.joined_at > since
+        )
+        .order_by(CallParticipant.joined_at.asc())
+        .limit(limit) # For simplicity, we usually paginate by the "heaviest" table (Messages)
+    )
+    sync_call_participants = session.exec(call_participants_stmt).all()
+
+
+    msgs = (
+        select(Message.id)
+        .where(
+            Message.conversation_id.in_(user_conv_ids),
+            Message.updated_at > since
+        )
+        .order_by(Message.updated_at.asc()) # Oldest updates first
+    )
+    receipt_stmt = (
+        select(MessageReceipt)
+        .where(
+            MessageReceipt.message_id.in_(msgs),
+            MessageReceipt.updated_at > since
+        )
+        .order_by(MessageReceipt.updated_at.asc())
+        .limit(limit) # For simplicity, we usually paginate by the "heaviest" table (Messages)
+    )
+    sync_receipt = session.exec(receipt_stmt).all()
+
+
     # 5. Set the new cursor
     # If we have messages, the next sync starts from the last message's timestamp
     # Otherwise, use the current server time
@@ -93,6 +153,10 @@ def sync_data(
     return SyncResponse(
         messages=sync_messages,
         calls=sync_calls,
+        call_participants=sync_call_participants,
+        conversations=sync_conversations,
+        message_receipts=sync_receipt,
+        conversation_participants=sync_conversation_participants,
         new_cursor=new_cursor,
         has_more=has_more
     )

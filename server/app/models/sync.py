@@ -30,6 +30,7 @@ class SyncResponse(BaseModel):
     messages: List['Message']  = []
     calls: List['Call']  = []
     call_participants: List['CallParticipant']  = []
+    conversation_participants: List['ConversationParticipant']  = []
     message_receipts: List['MessageReceipt'] = []
     new_cursor: datetime
     has_more: bool = False

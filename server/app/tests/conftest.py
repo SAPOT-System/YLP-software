@@ -9,11 +9,17 @@ from app.main import app
 from fastapi.testclient import TestClient
 
 from app.db_operations.auth import SessionDep, db_create_user, get_password_hash, get_session, verify_password
-from app.models.conversation import Conversation, ConversationType, ConversationParticipant
+from app.models.conversation import Conversation, ConversationType, ConversationParticipant, ConversationType
 from app.models.users import User, UserCreate
 from app.models.message import Message, MessageType
+from app.models.message_receipt import MessageReceipt, StatusType
 from app.models.call import Call, CallType, StatusType as CallStatus
+from app.models.call_participant import CallParticipant
 from app.tests.assets import sample_users
+
+from uuid import uuid4
+from datetime import datetime, timedelta, timezone
+from sqlmodel import Session, select
 
 
 @pytest.fixture(name="session")
@@ -123,5 +129,138 @@ def sync_data_fixture(session: Session):
             "old": now - timedelta(minutes=65),   # Before everything
             "mid": now - timedelta(minutes=45),   # Between old msg and call
             "recent": now - timedelta(minutes=15) # Only the new/deleted msgs
+        }
+    }
+
+
+@pytest.fixture(name="sync_extra_data_fixture")
+def sync_extra_data_fixture(session: Session):
+    """
+    Creates a full sync environment:
+    - 1 Conversation
+    - 2 Participants (User + a ghost contact)
+    - 3 Messages (Old, New, Deleted)
+    - 1 Call with Participant data
+    - 1 Message Receipt
+    """
+    # 1. Grab existing user
+    user = session.exec(select(User)).first()
+    if not user:
+        pytest.fail("No users found. Check session_fixture.")
+
+    # 2. Create a Conversation
+    now = datetime.now(timezone.utc)
+    conv = Conversation(
+        id=uuid4(),
+        title="Sync Test Group",
+        conversation_type=ConversationType.GROUP,
+        created_at=now - timedelta(hours=2)
+    )
+    session.add(conv)
+    session.flush() # Get ID without committing entire transaction yet
+
+    # 3. Add Conversation Participants
+    participant = ConversationParticipant(
+        id=uuid4(),
+        conversation_id=conv.id,
+        user_id=user.id,
+        joined_at=now - timedelta(hours=2)
+    )
+    session.add(participant)
+
+    # 4. Message 1: Old (T-60 mins)
+    msg_old = Message(
+        id=uuid4(),
+        content="Old Message",
+        message_type=MessageType.TEXT,
+        conversation_id=conv.id,
+        sender_id=user.id,
+        updated_at=now - timedelta(minutes=60),
+        created_at=now - timedelta(minutes=60)
+    )
+
+    # 5. Call Log & Call Participant (T-30 mins)
+    call_log = Call(
+        id=uuid4(),
+        call_type=CallType.AUDIO,
+        status=CallStatus.COMPLETED,
+        conversation_id=conv.id,
+        initiator_id=user.id,
+        start_time=now - timedelta(minutes=30),
+        end_time=now - timedelta(minutes=25),
+        updated_at=now - timedelta(minutes=30)
+    )
+    session.add(call_log)
+    session.flush()
+
+    call_part = CallParticipant(
+        id=uuid4(),
+        conversation_id=conv.id,
+        user_id=user.id,
+        joined_at=now, #- timedelta(minutes=10),
+        left_at=now#- timedelta(minutes=10)
+    )
+
+    # 6. Message 2: New (T-10 mins)
+    msg_new = Message(
+        id=uuid4(),
+        content="New Message",
+        message_type=MessageType.TEXT,
+        conversation_id=conv.id,
+        sender_id=user.id,
+        updated_at=now - timedelta(minutes=10)
+    )
+    session.add(msg_new)
+    session.flush()
+
+
+    conv_participant = ConversationParticipant(
+        id=uuid4(),
+        conversation_id=conv.id,
+        user_id=user.id,
+        is_deleted=False,
+        joined_at= now
+    )
+
+    session.add(conv_participant)
+    session.flush()
+
+    # 7. Message Receipt for Message 2
+    receipt = MessageReceipt(
+        id=uuid4(),
+        message_id=msg_new.id,
+        user_id=user.id,
+        status=StatusType.READ, # Using your StatusType Enum for receipts
+        updated_at=now - timedelta(minutes=8)
+    )
+
+    # 8. Message 3: Deleted (T-5 mins)
+    msg_deleted = Message(
+        id=uuid4(),
+        content="This was deleted",
+        message_type=MessageType.TEXT,
+        conversation_id=conv.id,
+        sender_id=user.id,
+        is_deleted=True,
+        updated_at=now - timedelta(minutes=5)
+    )
+
+    # Add all to session
+    session.add_all([msg_old, call_part, receipt, msg_deleted])
+    session.commit()
+
+    return {
+        "user": user,
+        "conversation": conv,
+        "call": call_log,
+        "messages": {
+            "old": msg_old,
+            "new": msg_new,
+            "deleted": msg_deleted
+        },
+        "timestamps": {
+            "old": now - timedelta(minutes=65),   # Before everything
+            "mid": now - timedelta(minutes=45),   # Before call and new msgs
+            "recent": now - timedelta(minutes=15) # Only new/deleted msgs + receipt
         }
     }

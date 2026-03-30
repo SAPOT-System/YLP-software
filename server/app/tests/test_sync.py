@@ -51,6 +51,52 @@ def test_sync_incremental(client:TestClient, sync_data):
     assert data["messages"][0]["content"] == "New Message"
 
 
+def test_sync_incremental_conversations(client:TestClient, sync_extra_data_fixture):
+
+    sample_user = sample_users['test']
+    form_data = {
+        'username': sample_user.get('phone_number'),
+        'password': sample_user.get('password'),
+    }
+    response = client.post('/auth/token', data=form_data)
+
+    token = response.json()
+
+    assert "access_token" in token
+
+    assert token['token_type'] == 'bearer'
+    user = sync_extra_data_fixture["user"]
+    mid_ts = sync_extra_data_fixture["timestamps"]["mid"].isoformat()
+
+    # This should return the Call, the New Message, and the Deleted Message
+    # but NOT the Old Message.
+    # Extract the actual string from the dictionary
+    access_token = token["access_token"]
+
+    # Format the header as "Bearer <token>"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    # Send the request
+    response = client.get(
+        "/sync",
+        params={"last_sync": mid_ts}, # httpx/TestClient will encode this safely
+        headers=headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    print(sample_user)
+    print("DATA", data["call_participants"])
+    print("mid",mid_ts)
+    assert len(data["messages"]) == 2  # New + Deleted
+    assert len(data["calls"]) == 1     # The call log
+    assert len(data["conversations"]) == 1     # The call log
+    assert len(data["conversation_participants"]) == 2     # The call log
+    assert len(data["call_participants"]) == 1, "call participants count is wrong"     # The call log
+    assert len(data["message_receipts"]) == 1     # The call log
+    assert data["messages"][0]["content"] == "New Message"
+
+
 
 def test_sync_check_updates(client: TestClient, sync_data):
     # 1. Authenticate
