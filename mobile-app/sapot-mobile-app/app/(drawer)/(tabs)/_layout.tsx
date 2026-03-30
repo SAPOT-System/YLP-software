@@ -1,7 +1,7 @@
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
 import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { View } from "react-native";
@@ -138,6 +138,8 @@ export default function TabLayout() {
         name="chat/[id]"
         options={{
           href: null,
+          headerShown: false,
+          tabBarStyle: { display: "none" },
         }}
       />
     </Tabs>

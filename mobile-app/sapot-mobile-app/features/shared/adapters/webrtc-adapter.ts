@@ -448,7 +448,7 @@ export class WebrtcAdapter extends EventEmitter {
         throw new Error("Unable to send payload`");
       }
     } catch (error) {
-      console.error(
+      console.warn(
         `[WebrtcAdapter]: Error sending data message\n${JSON.stringify(
           payload,
           null,

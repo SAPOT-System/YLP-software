@@ -1,22 +1,28 @@
 import { StyleSheet, View } from "react-native";
 
-import { ChatList, useChats } from "@/features/chat";
+import { APP_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
+import { ChatList, useChats } from "@/features/chat";
 import { PeerList } from "@/features/shared";
 import {
   useConnectionService,
   useDiscoveryService,
   usePeers,
 } from "@/features/shared/hooks";
+import { useHeaderHeight } from "@react-navigation/elements";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
-import { Searchbar } from "react-native-paper";
 import { TouchableOpacity } from "react-native";
-import { APP_ROUTES } from "@/app/routes";
-import { ActivityIndicator } from "react-native-paper";
+import { ActivityIndicator, Searchbar, useTheme } from "react-native-paper";
 
 export default function Chat() {
   const auth = useAuth();
+  const theme = useTheme();
+  const headerHeight = useHeaderHeight();
+  const topGradientColors: [string, string] = theme.dark
+    ? ["#0F1830", "#1E2E67"]
+    : ["#FFF", "#99AEC7"];
 
   const { peers } = usePeers();
   const { chats } = useChats();
@@ -57,16 +63,34 @@ export default function Chat() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.push(APP_ROUTES.SEARCH)}>
-        <Searchbar
-          pointerEvents="none"
-          editable={false}
-          value=""
-          placeholder="Search"
-        />
-      </TouchableOpacity>
-      <PeerList peers={peers} />
-      <ChatList chats={chats} />
+      <LinearGradient
+        colors={topGradientColors}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={[styles.topSection, { paddingTop: headerHeight + 16 }]}
+      >
+        <TouchableOpacity onPress={() => router.push(APP_ROUTES.SEARCH)}>
+          <Searchbar
+            pointerEvents="none"
+            editable={false}
+            value=""
+            placeholder="Search"
+            iconColor={theme.dark ? "#7E8AA6" : "#000000"}
+            placeholderTextColor={theme.dark ? "#7E8AA6" : "#696969"}
+            style={[
+              styles.searchbar,
+              {
+                backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
+                color: theme.dark ? "#7E8AA6" : "#696969",
+              },
+            ]}
+          />
+        </TouchableOpacity>
+        <PeerList peers={peers} />
+      </LinearGradient>
+      <View style={[styles.chatListContainer, { backgroundColor: "none" }]}>
+        <ChatList chats={chats} />
+      </View>
     </View>
   );
 }
@@ -74,15 +98,24 @@ export default function Chat() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    gap: 10,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
+  topSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomLeftRadius: 27,
+    borderBottomRightRadius: 27,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
   },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: "80%",
+  chatListContainer: {
+    flex: 1,
+    paddingTop: 10,
+  },
+  searchbar: {
+    marginBottom: 12,
   },
 });

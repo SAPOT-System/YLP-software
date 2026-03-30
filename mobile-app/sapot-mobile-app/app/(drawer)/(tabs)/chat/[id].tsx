@@ -1,16 +1,26 @@
-import {
-  View,
-  Text,
-  ActivityIndicator,
-  Pressable,
-  TextInput,
-  StyleSheet,
-} from "react-native";
-import React, { useEffect, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChatRoomSource } from "@/features/chat/types";
 import { useCallService } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
+import { ChatRoomSource } from "@/features/chat/types";
+import { Peer } from "@/features/shared";
+import { usePeerService, useToast } from "@/features/shared/hooks";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import {
+  Appbar,
+  Avatar,
+  IconButton,
+  Snackbar,
+  useTheme,
+} from "react-native-paper";
 
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
@@ -18,10 +28,19 @@ const ChatRoom = () => {
   const [isRendered, setIsRendered] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
+  const [peer, setPeer] = useState<Peer | undefined>();
   const [message, setMessage] = useState("");
   const chatService = useChatService();
+  const peerService = usePeerService();
   const router = useRouter();
   const callService = useCallService();
+  const {
+    visible: toastVisible,
+    message: toastMessage,
+    showToast,
+    hideToast,
+  } = useToast();
+  const theme = useTheme();
 
   // This will initialize the connection to the peer and conversations by the id params
   useEffect(() => {
@@ -50,6 +69,7 @@ const ChatRoom = () => {
         setIsConnected(true);
       } catch (error) {
         console.warn("Connection failed", error);
+        showToast("Connection failed");
         // TODO: try reconnect
       }
     };
@@ -59,7 +79,22 @@ const ChatRoom = () => {
     return () => {
       chatService.disconnect();
     };
-  }, [peerId, chatService]);
+  }, [peerId, chatService, showToast]);
+
+  useEffect(() => {
+    if (!peerId) return;
+
+    const getPeer = async () => {
+      try {
+        const foundPeer = await peerService.findPeerById(peerId);
+        setPeer(foundPeer);
+      } catch (error) {
+        console.error("[ChatRoom]: Error retrieving peer data", error);
+      }
+    };
+
+    getPeer();
+  }, [peerId, peerService]);
 
   if (!isRendered) return <ActivityIndicator />;
 
@@ -87,44 +122,184 @@ const ChatRoom = () => {
     });
   };
 
-  return (
-    <View>
-      <Text>
-        ChatRoom:{" "}
-        {source === ChatRoomSource.PEER
-          ? "Peer list source"
-          : "Chat list source"}{" "}
-        {id}, ConversationID: {conversationId}
-      </Text>
-      {!isConnected && <Text>Not connected</Text>}
-      <TextInput
-        style={styles.input}
-        onChangeText={setMessage}
-        value={message}
-        placeholder="Message"
-      />
+  const peerDisplayName = peer
+    ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
+    : "Unknown user";
 
-      <Pressable onPress={handleSendMessage}>
-        <Text>Send Message</Text>
-      </Pressable>
-      <Pressable onPress={() => handleCall(peerId!)}>
-        <Text>Voice call</Text>
-      </Pressable>
-      {conversationId ? (
-        <MessageList conversationId={conversationId} />
-      ) : (
-        <Text>No message</Text>
-      )}
-    </View>
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 20}
+    >
+      <View style={styles.header}>
+        <View style={styles.headerLeftGroup}>
+          <Appbar.BackAction onPress={() => router.back()} />
+          <Avatar.Text
+            size={40}
+            label={peer?.firstName?.[0]?.toUpperCase() ?? "?"}
+          />
+          <View style={styles.identityGroup}>
+            <Text
+              style={[
+                styles.nameText,
+                { color: theme.dark ? "#E6ECF5" : "#000000" },
+              ]}
+              numberOfLines={1}
+            >
+              {peerDisplayName}
+            </Text>
+            <Text
+              style={[
+                styles.statusText,
+                { color: theme.dark ? "#E6ECF5" : "#6B7280" },
+              ]}
+              numberOfLines={1}
+            >
+              {isConnected
+                ? "Connected"
+                : peer?.isOnline
+                ? "Active now"
+                : "Offline"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.headerActions}>
+          <IconButton
+            icon="phone"
+            size={20}
+            iconColor="#00E700"
+            onPress={() => peerId && handleCall(peerId)}
+            style={styles.headerActionButton}
+          />
+          <IconButton
+            icon="video"
+            size={20}
+            onPress={() => peerId && handleCall(peerId)}
+            style={styles.headerActionButton}
+          />
+          <IconButton
+            icon="dots-vertical"
+            size={20}
+            style={styles.headerActionButton}
+          />
+        </View>
+      </View>
+
+      <View style={styles.body}>
+        {conversationId ? (
+          <MessageList conversationId={conversationId} />
+        ) : (
+          <View style={styles.emptyStateContainer}>
+            <Text style={styles.emptyStateText}>No messages yet</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.composerContainer}>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
+              color: theme.dark ? "#FFF" : "#000",
+            },
+          ]}
+          onChangeText={setMessage}
+          value={message}
+          placeholder="Message..."
+          placeholderTextColor="#696969"
+        />
+        <IconButton icon="send" size={30} onPress={handleSendMessage} />
+      </View>
+
+      <Snackbar
+        visible={toastVisible}
+        onDismiss={hideToast}
+        duration={3000}
+        theme={{
+          colors: { inverseSurface: "#696969", inverseOnSurface: "#FFFFFF" },
+        }}
+      >
+        {toastMessage}
+      </Snackbar>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  header: {
+    height: 82,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
+  headerLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6,
+  },
+  identityGroup: {
+    marginLeft: 10,
+    justifyContent: "center",
+    flex: 1,
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    marginRight: 4,
+  },
+  nameText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  statusText: {
+    fontSize: 12,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
+    marginLeft: 2,
+  },
+  headerActionButton: {
+    margin: 0,
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateText: {
+    color: "#758695",
+    fontSize: 14,
+  },
+  composerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   input: {
-    height: 40,
-    margin: 12,
-    borderWidth: 1,
-    padding: 10,
+    flex: 1,
+    minHeight: 60,
+    maxHeight: 120,
+    borderRadius: 40,
+    paddingHorizontal: 28,
+    paddingVertical: 20,
   },
 });
 

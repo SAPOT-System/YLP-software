@@ -1,18 +1,25 @@
+import { ChatRoomSource } from "@/features/chat/types";
 import {
-  useConnectionService,
+  usePeerService,
   useToast,
   useUserSearch,
 } from "@/features/shared/hooks";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable } from "react-native";
-import { View, FlatList } from "react-native";
-import { Appbar, Searchbar, Snackbar, Text } from "react-native-paper";
+import { FlatList, Pressable, View } from "react-native";
+import {
+  Appbar,
+  Searchbar,
+  Snackbar,
+  Text,
+  useTheme,
+} from "react-native-paper";
 import { useDebounce } from "use-debounce";
 
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
-  const connectionService = useConnectionService();
+  const peerService = usePeerService();
+  const theme = useTheme();
 
   // debounce the query
   const [debouncedQuery] = useDebounce(query, 400);
@@ -34,7 +41,14 @@ export default function SearchScreen() {
           placeholder="Search "
           value={query}
           onChangeText={setQuery}
-          style={{ flex: 1 }}
+          iconColor={theme.dark ? "#7E8AA6" : "#000000"}
+          placeholderTextColor={theme.dark ? "#7E8AA6" : "#103462"}
+          style={{
+            flex: 1,
+            backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
+            color: theme.dark ? "#7E8AA6" : "#696969",
+            borderWidth: 1,
+          }}
         />
       </View>
 
@@ -46,11 +60,24 @@ export default function SearchScreen() {
           <Pressable
             onPress={async () => {
               try {
-                showToast("Connecting...");
-                await connectionService.connectToPeer(item.id);
-                showToast("Connected");
-              } catch {
-                showToast("Not Connected");
+                const existingPeer = await peerService.findPeerById(item.id);
+
+                if (!existingPeer) {
+                  await peerService.createUser(
+                    item.id,
+                    item.username,
+                    item.first_name,
+                    item.last_name
+                  );
+                }
+
+                router.push({
+                  pathname: "/(drawer)/(tabs)/chat/[id]",
+                  params: { id: item.id, source: ChatRoomSource.PEER },
+                });
+              } catch (error) {
+                console.error("[SearchScreen]: Error opening chat", error);
+                showToast("Unable to open chat");
               }
             }}
           >

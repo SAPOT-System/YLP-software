@@ -1,22 +1,22 @@
 import {
-    ConnectionService,
-    Conversation,
-    ConversationParticipantRole,
-    ConversationType,
-    database,
-    GuestUser,
-    Message,
-    MessageStatus,
-    MessageStatusType,
-    Peer,
-    PeerService,
-    UserStore,
+  ConnectionService,
+  Conversation,
+  ConversationParticipantRole,
+  ConversationType,
+  database,
+  GuestUser,
+  Message,
+  MessageStatus,
+  MessageStatusType,
+  Peer,
+  PeerService,
+  UserStore,
 } from "@/features/shared";
 import {
-    ConversationParticipantRepository,
-    ConversationRepository,
-    MessageRepository,
-    MessageStatusRepository,
+  ConversationParticipantRepository,
+  ConversationRepository,
+  MessageRepository,
+  MessageStatusRepository,
 } from "../repositories";
 import { DataChatMessageI } from "../types";
 
@@ -68,7 +68,7 @@ export class ChatService {
         discoveredPeer.port
       );
     } catch (error) {
-      console.error(
+      console.warn(
         `[ChatService]: Error connecting to peer id of ${id}: ${error}`
       );
       throw error;

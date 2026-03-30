@@ -378,7 +378,10 @@ export class ConnectionService extends EventEmitter {
 
       const cleanup = () => {
         clearTimeout(timeout);
-        removeListenerIfExists("connection-established", onConnectionEstablished);
+        removeListenerIfExists(
+          "connection-established",
+          onConnectionEstablished
+        );
         removeListenerIfExists("connection-failed", onConnectionFailed);
       };
 
@@ -520,11 +523,14 @@ export class ConnectionService extends EventEmitter {
   private async handleWebrtcConnection(message: SignalingMessage) {
     try {
       if (message.data.to !== this.userStore.user.id) {
-        console.log(`${this.logPrefix}: Ignoring signaling not addressed to self`, {
-          expectedRecipient: this.userStore.user.id,
-          actualRecipient: message.data.to,
-          messageType: message.type,
-        });
+        console.log(
+          `${this.logPrefix}: Ignoring signaling not addressed to self`,
+          {
+            expectedRecipient: this.userStore.user.id,
+            actualRecipient: message.data.to,
+            messageType: message.type,
+          }
+        );
         return;
       }
 
@@ -808,7 +814,7 @@ export class ConnectionService extends EventEmitter {
         },
       });
     } catch (error) {
-      console.error(
+      console.warn(
         `[ConnectionService]: Error sending chat message\n${JSON.stringify(
           {
             peerId,
