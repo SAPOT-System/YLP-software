@@ -1,4 +1,5 @@
-import { View, Text, FlatList, Pressable } from "react-native";
+import { View, FlatList, Pressable } from "react-native";
+import { Text } from "react-native-paper";
 import React, { useCallback } from "react";
 import { useRouter } from "expo-router";
 import { withObservables } from "@nozbe/watermelondb/react";
@@ -15,7 +16,24 @@ const enhanceChats = withObservables([], () => ({
 const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
   return (
     <View>
-      <Text style={{ fontSize: 16 }}>Chat List</Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text variant="titleLarge" style={{ fontWeight: 700 }}>
+          Chats
+        </Text>
+        <View
+          style={{
+            backgroundColor: "#3A7AFE",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 16,
+            paddingVertical: 2,
+            borderRadius: 999,
+            elevation: 6,
+          }}
+        >
+          <Text style={{ color: "white", fontSize: 13 }}>Peer requests</Text>
+        </View>
+      </View>
       <FlatList
         data={chats}
         renderItem={({ item }) => <ChatListItem chat={item} />}

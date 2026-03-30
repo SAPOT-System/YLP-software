@@ -1,9 +1,11 @@
-import { View, Text, FlatList, Pressable } from "react-native";
+import { View, FlatList, Pressable } from "react-native";
+import { Text } from "react-native-paper";
 import React from "react";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
 import { database, Peer } from "../database";
 import { ChatRoomSource } from "@/features/chat/types";
+import { Avatar, useTheme } from "react-native-paper";
 
 const enhancePeers = withObservables([], () => ({
   peers: database.get<Peer>("peers").query().observe(),
@@ -11,12 +13,14 @@ const enhancePeers = withObservables([], () => ({
 
 const PeerList = enhancePeers(({ peers }: { peers: Peer[] }) => {
   return (
-    <View>
-      <Text style={{ fontSize: 16 }}>Peer List</Text>
+    <View style={{ gap: 12, marginTop: 12 }}>
+      <Text variant="bodyLarge" style={{ fontSize: 20, fontWeight: "600" }}>
+        Peer Active
+      </Text>
 
       <FlatList
         horizontal
-        contentContainerStyle={{ gap: 5, paddingHorizontal: 4 }}
+        contentContainerStyle={{ gap: 24 }}
         data={peers}
         renderItem={({ item }) => <PeerListItem peer={item} />}
         keyExtractor={(peer) => peer.id}
@@ -31,6 +35,7 @@ const enhancePeer = withObservables(["peer"], ({ peer }: { peer: Peer }) => ({
 
 const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
   const router = useRouter();
+  const theme = useTheme();
   return (
     <Pressable
       onPress={() =>
@@ -39,14 +44,13 @@ const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
           params: { id: peer.id, source: ChatRoomSource.PEER },
         })
       }
-      style={{
-        backgroundColor: `${peer.isOnline ? "green" : "grey"}`,
-        paddingVertical: 5,
-        paddingHorizontal: 10,
-        borderRadius: 4,
-      }}
     >
-      <Text>{peer.username}</Text>
+      <Avatar.Text
+        size={60}
+        label={peer.username[0].toUpperCase()}
+        style={{ backgroundColor: theme.colors.primary }}
+      />
+      <Text>{peer.firstName}</Text>
     </Pressable>
   );
 });
