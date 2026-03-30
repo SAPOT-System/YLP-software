@@ -134,7 +134,7 @@ def add_to_blacklist(session: SessionDep, jti_str: str, expires_at: datetime):
     Persists a revoked JTI to SQLite.
     """
     # Convert string JTI from JWT back to UUID object for SQLite
-    jti_uuid = uuid.UUID(jti_str)
+    jti_uuid = UUID(jti_str)
 
     blacklisted_token = BlacklistedToken(
         jti=jti_uuid,

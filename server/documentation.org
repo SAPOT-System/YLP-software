@@ -136,7 +136,8 @@ with form-data/request body
   "email": null,
   "id": "f5da3a69-26f7-464f-a3ae-bb25b8bfe124",
   "detail": "Account created.",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOm51bGwsImV4cCI6MTc3MjMyNTQ2Mn0.CeR0uAK3LG8Ewmrn_eWiGAW9W9OAjexE_8shb40I5XQ"
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4E",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4i",
 }
 #+END_SRC
 
@@ -157,9 +158,29 @@ with request body/form-data
 #+BEGIN_SRC json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4E",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4i",
   "token_type": "bearer"
 }
 #+END_SRC
+
+*NOTE:* Refresh token will be used to refresh the access token in case it expires
+
+** Refresh Token ~/auth/refresh POST~
+send a request with the following form data
+#+BEGIN_SRC json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NmI3MjgzOS1lMDc3LTQ0MTMtOTFlNi1kMzAzOGM2YTk1MzIiLCJqdGkiOiI5NzIxNTlkNy05NTdkLTRhYmQtOWQxNi1iMTRiYjcyYWE1YTAiLCJ0eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4MDA2MTI4OX0.bzVjgg74WikXOFTP6kIav0M2kCvP99WlmX8GGueM6pg"
+}
+#+END_SRC
+sample response
+#+BEGIN_SRC json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NmI3MjgzOS1lMDc3LTQ0MTMtOTFlNi1kMzAzOGM2YTk1MzIiLCJqdGkiOiI1ZWFkNjQ1Yy1lNWQ0LTQ4YzctODI0Yi02ZTk2MDZiMTE5YzIiLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc0ODc5MTg1fQ.1pq4cTmpZEyyBBrZlr5Oe7OmTmsc0zXe-Y0RpsI4e6o",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NmI3MjgzOS1lMDc3LTQ0MTMtOTFlNi1kMzAzOGM2YTk1MzIiLCJqdGkiOiIwMGNkM2YxNC01MjQwLTQ5MTEtOTMzYy0yNDY2NzQ0MDg5OWQiLCJ0eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4MDA2MTM4NX0.DX0L_iDRq858J4a_8v6S-onijwRTqpiRfU5-YVcfaA0",
+  "token_type": "bearer"
+}
+#+END_SRC
+*The response should be the new refresh and access token.* The old ones are now unusable.
 
 ** Generate recovery key ~/auth/forgot-password/generate-new-recovery-key POST~
   - this endpoint requires the user to be /authenticated/
