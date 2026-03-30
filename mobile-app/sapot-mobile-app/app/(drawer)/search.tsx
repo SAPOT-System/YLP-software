@@ -7,12 +7,19 @@ import {
 import { router } from "expo-router";
 import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
-import { Appbar, Searchbar, Snackbar, Text } from "react-native-paper";
+import {
+  Appbar,
+  Searchbar,
+  Snackbar,
+  Text,
+  useTheme,
+} from "react-native-paper";
 import { useDebounce } from "use-debounce";
 
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const peerService = usePeerService();
+  const theme = useTheme();
 
   // debounce the query
   const [debouncedQuery] = useDebounce(query, 400);
@@ -34,7 +41,14 @@ export default function SearchScreen() {
           placeholder="Search "
           value={query}
           onChangeText={setQuery}
-          style={{ flex: 1 }}
+          iconColor={theme.dark ? "#7E8AA6" : "#000000"}
+          placeholderTextColor={theme.dark ? "#7E8AA6" : "#103462"}
+          style={{
+            flex: 1,
+            backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
+            color: theme.dark ? "#7E8AA6" : "#696969",
+            borderWidth: 1,
+          }}
         />
       </View>
 

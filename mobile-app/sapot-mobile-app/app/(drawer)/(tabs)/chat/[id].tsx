@@ -12,9 +12,15 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
-import { Appbar, Avatar, IconButton, Snackbar } from "react-native-paper";
+import {
+  Appbar,
+  Avatar,
+  IconButton,
+  Snackbar,
+  useTheme,
+} from "react-native-paper";
 
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
@@ -34,6 +40,7 @@ const ChatRoom = () => {
     showToast,
     hideToast,
   } = useToast();
+  const theme = useTheme();
 
   // This will initialize the connection to the peer and conversations by the id params
   useEffect(() => {
@@ -122,8 +129,8 @@ const ChatRoom = () => {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 20}
     >
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
@@ -133,10 +140,22 @@ const ChatRoom = () => {
             label={peer?.firstName?.[0]?.toUpperCase() ?? "?"}
           />
           <View style={styles.identityGroup}>
-            <Text style={styles.nameText} numberOfLines={1}>
+            <Text
+              style={[
+                styles.nameText,
+                { color: theme.dark ? "#E6ECF5" : "#000000" },
+              ]}
+              numberOfLines={1}
+            >
               {peerDisplayName}
             </Text>
-            <Text style={styles.statusText} numberOfLines={1}>
+            <Text
+              style={[
+                styles.statusText,
+                { color: theme.dark ? "#E6ECF5" : "#6B7280" },
+              ]}
+              numberOfLines={1}
+            >
               {isConnected
                 ? "Connected"
                 : peer?.isOnline
@@ -180,15 +199,18 @@ const ChatRoom = () => {
 
       <View style={styles.composerContainer}>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
+              color: theme.dark ? "#FFF" : "#000",
+            },
+          ]}
           onChangeText={setMessage}
           value={message}
           placeholder="Message..."
-          placeholderTextColor="#8A8A8A"
+          placeholderTextColor="#696969"
         />
-        {/* <Pressable style={styles.sendButton} onPress={handleSendMessage}>
-          <Text style={styles.sendButtonText}>Send</Text>
-        </Pressable> */}
         <IconButton icon="send" size={30} onPress={handleSendMessage} />
       </View>
 
@@ -209,7 +231,6 @@ const ChatRoom = () => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
   },
   header: {
     height: 82,
@@ -237,11 +258,9 @@ const styles = StyleSheet.create({
   nameText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#151515",
   },
   statusText: {
     fontSize: 12,
-    color: "#6E6E6E",
   },
   headerActions: {
     flexDirection: "row",
@@ -254,7 +273,7 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 18,
     paddingTop: 8,
     paddingBottom: 4,
   },
@@ -264,7 +283,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyStateText: {
-    color: "#7A7A7A",
+    color: "#758695",
     fontSize: 14,
   },
   composerContainer: {
@@ -273,7 +292,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#FFFFFF",
   },
   input: {
     flex: 1,
@@ -282,22 +300,6 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     paddingHorizontal: 28,
     paddingVertical: 20,
-    backgroundColor: "#C9C9C9",
-    color: "#111111",
-  },
-  sendButton: {
-    height: 40,
-    minWidth: 64,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: "#3A7AFE",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
   },
 });
 

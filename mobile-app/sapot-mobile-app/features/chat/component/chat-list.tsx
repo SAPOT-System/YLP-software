@@ -1,23 +1,37 @@
-import { View, FlatList, Pressable } from "react-native";
-import { Text } from "react-native-paper";
-import React, { useCallback } from "react";
-import { useRouter } from "expo-router";
+import { Conversation, database, formatDate } from "@/features/shared";
 import { withObservables } from "@nozbe/watermelondb/react";
-import { Conversation, database } from "@/features/shared";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { FlatList, Pressable, View } from "react-native";
+import { Avatar, Text, useTheme } from "react-native-paper";
 
 import { ChatRoomSource } from "@/features/chat/types";
+import { usePeerService } from "@/features/shared/hooks";
 import { useChatService } from "../hooks";
-import { usePeerService, useDiscoveryService } from "@/features/shared/hooks";
 
 const enhanceChats = withObservables([], () => ({
   chats: database.get<Conversation>("conversations").query().observe(),
 }));
 
 const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
+  const theme = useTheme();
   return (
     <View>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text variant="titleLarge" style={{ fontWeight: 700 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          paddingHorizontal: 16,
+          marginBottom: 20,
+        }}
+      >
+        <Text
+          variant="titleLarge"
+          style={{
+            fontWeight: 700,
+            color: theme.dark ? "#9AA7C1" : "#103462",
+          }}
+        >
           Chats
         </Text>
         <View
@@ -31,7 +45,11 @@ const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
             elevation: 6,
           }}
         >
-          <Text style={{ color: "white", fontSize: 13 }}>Peer requests</Text>
+          <Text
+            style={{ color: theme.dark ? "#121A2E" : "#FFF", fontSize: 13 }}
+          >
+            Peer requests
+          </Text>
         </View>
       </View>
       <FlatList
@@ -52,26 +70,58 @@ const enhanceChat = withObservables(
 
 const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
   const router = useRouter();
+  const theme = useTheme();
   const chatService = useChatService();
   const peerService = usePeerService();
-  const discoveryService = useDiscoveryService();
+  const [peerName, setPeerName] = useState("Loading...");
 
-  const handleResend = useCallback(
-    async (chatId: string) => {
-      const peerId = await chatService.findPeerIdByChatId(chatId);
-      const peer = peerService.findDiscoveredPeerById(peerId);
+  useEffect(() => {
+    let isMounted = true;
 
-      // TODO: catch
-      if (!peer) throw Error("Peer not found");
+    const loadPeerName = async () => {
+      try {
+        const peerId = await chatService.findPeerIdByChatId(chat.id);
+        const peer = await peerService.findPeerById(peerId);
 
-      await discoveryService.performResendMessagesForPeer(
-        peerId,
-        peer.ipAddress,
-        peer.port
-      );
-    },
-    [chatService, peerService, discoveryService]
-  );
+        if (!isMounted) return;
+
+        if (!peer) {
+          setPeerName("Unknown peer");
+          return;
+        }
+
+        const fullName = `${peer.firstName || ""} ${
+          peer.lastName || ""
+        }`.trim();
+        setPeerName(fullName || peer.username || "Unknown peer");
+      } catch {
+        if (isMounted) setPeerName("Unknown peer");
+      }
+    };
+
+    loadPeerName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [chat.id, chatService, peerService]);
+
+  // const handleResend = useCallback(
+  //   async (chatId: string) => {
+  //     const peerId = await chatService.findPeerIdByChatId(chatId);
+  //     const peer = peerService.findDiscoveredPeerById(peerId);
+
+  //     // TODO: catch
+  //     if (!peer) throw Error("Peer not found");
+
+  //     await discoveryService.performResendMessagesForPeer(
+  //       peerId,
+  //       peer.ipAddress,
+  //       peer.port
+  //     );
+  //   },
+  //   [chatService, peerService, discoveryService]
+  // );
 
   return (
     <Pressable
@@ -82,17 +132,45 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
         })
       }
       style={{
-        paddingVertical: 5,
-        paddingHorizontal: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderColor: theme.dark ? "#0B1020" : "#EEEEEE",
+        backgroundColor: theme.dark ? "#121A2E" : "",
+        borderTopWidth: 2,
+        borderBottomWidth: 2,
         borderRadius: 4,
       }}
     >
-      <Text>
-        {chat.id}^^^{chat.createdAt.toLocaleString()}
-      </Text>
-      <Pressable onPress={() => handleResend(chat.id)}>
-        <Text>Resend</Text>
-      </Pressable>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-start",
+        }}
+      >
+        <Avatar.Text size={60} label={peerName[0].toUpperCase() ?? "?"} />
+        <View style={{ flexGrow: 1, marginLeft: 16 }}>
+          <Text
+            style={{ fontSize: 17, color: theme.dark ? "#E6ECF5" : "#1E1E1E" }}
+          >
+            {peerName}
+          </Text>
+          <Text
+            style={{ fontSize: 17, color: theme.dark ? "#6E7891" : "#6B7280" }}
+          >
+            messages
+            {/* TODO: make a message field in the conversation table */}
+          </Text>
+        </View>
+        <Text
+          style={{
+            alignSelf: "flex-end",
+            color: theme.dark ? "#6E7891" : "#6B7280",
+          }}
+        >
+          {formatDate(chat.createdAt)}
+        </Text>
+      </View>
     </Pressable>
   );
 });

@@ -75,7 +75,15 @@ export default function Chat() {
             editable={false}
             value=""
             placeholder="Search"
-            style={styles.searchbar}
+            iconColor={theme.dark ? "#7E8AA6" : "#000000"}
+            placeholderTextColor={theme.dark ? "#7E8AA6" : "#696969"}
+            style={[
+              styles.searchbar,
+              {
+                backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
+                color: theme.dark ? "#7E8AA6" : "#696969",
+              },
+            ]}
           />
         </TouchableOpacity>
         <PeerList peers={peers} />
@@ -105,7 +113,6 @@ const styles = StyleSheet.create({
   },
   chatListContainer: {
     flex: 1,
-    paddingHorizontal: 16,
     paddingTop: 10,
   },
   searchbar: {

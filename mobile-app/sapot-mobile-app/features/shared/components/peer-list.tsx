@@ -12,9 +12,17 @@ const enhancePeers = withObservables([], () => ({
 }));
 
 const PeerList = enhancePeers(({ peers }: { peers: Peer[] }) => {
+  const theme = useTheme();
   return (
     <View style={{ gap: 12, marginTop: 12 }}>
-      <Text variant="bodyLarge" style={{ fontSize: 20, fontWeight: "600" }}>
+      <Text
+        variant="bodyLarge"
+        style={{
+          fontSize: 20,
+          fontWeight: 700,
+          color: theme.dark ? "#9AA7C1" : "#103462",
+        }}
+      >
         Peer Active
       </Text>
 
@@ -44,13 +52,16 @@ const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
           params: { id: peer.id, source: ChatRoomSource.PEER },
         })
       }
+      style={{ display: "flex", alignItems: "center" }}
     >
       <Avatar.Text
         size={60}
         label={peer.username[0].toUpperCase()}
         style={{ backgroundColor: theme.colors.primary }}
       />
-      <Text>{peer.firstName}</Text>
+      <Text style={{ color: theme.dark ? "#9AA7C1" : "#103462" }}>
+        {peer.firstName}
+      </Text>
     </Pressable>
   );
 });
