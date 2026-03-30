@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-
+from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_password_hash, update_user_password
+from app.db_operations.token import get_current_user
 from fastapi import APIRouter, BackgroundTasks, Request
 from typing import Annotated, Literal
 import uuid
@@ -23,7 +23,7 @@ from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_t
 from app.models.users import User, UserCreate, UserPublic
 from app.models.email_verification import send_verification_email
 from app.db_operations.token import generate_access_token, create_token_pair, logout, RefreshRequest, refresh_token
-from app.db_operations.auth import get_user
+from app.db_operations.auth import get_user, verify_password
 
 
 router = APIRouter(
@@ -92,3 +92,19 @@ def create_account(user: UserCreate, session: SessionDep, background_tasks: Back
 @router.get("/exists")
 def exists(identifier: str, session: SessionDep):
     return {"exists" : bool(get_user(identifier, session))}
+
+
+@router.post("/change-password")
+def change_password(
+        current_user : Annotated[User, Depends(get_current_user)],
+        current_password: str,
+        new_password: str,
+        session: SessionDep
+):
+    if not verify_password(current_password, current_user.hashed_password):
+        raise HTTPException(401, "Wrong old password")
+    update_user_password(current_user, new_password, session)
+
+    return {
+        "message": "password updated successfully."
+    }
