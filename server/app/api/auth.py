@@ -64,7 +64,7 @@ async def login_for_access_token(
 
 
 @router.post("/logout")
-async def logout(
+async def logout_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: SessionDep
 ):
