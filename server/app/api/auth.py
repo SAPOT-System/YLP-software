@@ -19,10 +19,10 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 
 from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_password_hash
 from app.models.token import Token
-from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, oauth2_scheme
 from app.models.users import User, UserCreate, UserPublic
 from app.models.email_verification import send_verification_email
-from app.db_operations.token import generate_access_token
+from app.db_operations.token import generate_access_token, create_token_pair, logout, RefreshRequest, refresh_token
 from app.db_operations.auth import get_user
 
 
@@ -40,29 +40,52 @@ def read_auth_status():
 
 
 
-@router.post("/token")
+@router.post("/token", response_model=Token) # 1. Added response_model for validation
 async def login_for_access_token(
-        form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-        session: SessionDep,
-) -> Token:
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    session: SessionDep,
+):
+    # 2. authenticate_user should ideally return the User object
     user = authenticate_user(session, form_data.username, form_data.password)
 
     if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username, phone number, email address or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    return generate_access_token(user, ACCESS_TOKEN_EXPIRE_MINUTES)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 3. Ensure create_token_pair takes the user's UUID
+    # We pass user.id to be used as the 'sub' claim
+    tokens = create_token_pair(user.id)
+
+    # 4. Return the full dictionary (access_token, refresh_token, token_type)
+    return tokens
 
 
+@router.post("/logout")
+async def logout(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: SessionDep
+):
+    return logout(token, session)
+
+@router.post("/refresh", response_model=Token)
+async def refresh_access_token(
+    request: RefreshRequest,
+    session: SessionDep
+):
+    return refresh_token(request, session)
 
 @router.post("/", response_model=UserPublic, status_code=201)
 def create_account(user: UserCreate, session: SessionDep, background_tasks: BackgroundTasks, request: Request):
     sign_up_res = db_create_user(user, session)
     output = sign_up_res.model_dump()
     output['detail'] = 'Account created.'
-    output['token'] = generate_access_token(sign_up_res, ACCESS_TOKEN_EXPIRE_MINUTES).access_token
+    # output['token'] = generate_access_token(sign_up_res, ACCESS_TOKEN_EXPIRE_MINUTES).access_token
+    tokens = create_token_pair(sign_up_res.id)
+    output['access_token'] = tokens.access_token
+    output['refresh_token'] = tokens.refresh_token
     return output
 
 

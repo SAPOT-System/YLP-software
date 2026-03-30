@@ -5,3 +5,4 @@ from app.models.call import Call
 from app.models.call_participant import CallParticipant
 from app.models.message_receipt import MessageReceipt
 from app.models.attachment import Attachment
+from app.models.jti import BlacklistedToken

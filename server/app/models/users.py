@@ -69,7 +69,8 @@ class User(UserBase, table=True):
 class UserPublic(UserBase):
     id: uuid.UUID
     detail: str
-    token: str
+    access_token: str
+    refresh_token: str
 
 
 class UserCreate(UserBase):
