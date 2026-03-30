@@ -4,12 +4,12 @@ import React, { memo } from "react";
 import { FlatList, Text, View } from "react-native";
 
 import {
-  GuestUser,
-  Message,
-  MessageStatus,
-  Peer,
-  database,
-  formatDate,
+    GuestUser,
+    Message,
+    MessageStatus,
+    Peer,
+    database,
+    formatDate,
 } from "@/features/shared";
 import { useTheme } from "react-native-paper";
 
@@ -40,7 +40,7 @@ const enhanceMessage = withObservables(
   ["message"],
   ({ message }: { message: Message }) => ({
     message,
-    sender: message.sender.observe(),
+    sender: message.sender?.observe?.(),
     status: database
       .get<MessageStatus>(MessageStatus.table)
       .query(Q.where("message", message.id))
@@ -64,7 +64,7 @@ const MessageListItem = enhanceMessage(
     status,
   }: {
     message: Message;
-    sender: Peer | GuestUser;
+    sender?: Peer | GuestUser;
     status: MessageStatus[];
   }) => {
     // console.log("[MessageListItem] messageId:", message.id);
