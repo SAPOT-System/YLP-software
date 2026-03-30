@@ -5,7 +5,7 @@ import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { View } from "react-native";
-import { Text } from "react-native-paper";
+import { Text, useTheme } from "react-native-paper";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -19,6 +19,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const theme = useTheme();
   return (
     <Tabs
       screenOptions={{
@@ -58,7 +59,7 @@ export default function TabLayout() {
           alignItems: "center",
           gap: 14,
           alignSelf: "center",
-          backgroundColor: "#FFFFFF",
+          backgroundColor: theme.dark ? "#0B1020" : "#FFFFFF",
           borderTopWidth: 0,
           borderTopColor: "transparent",
         },
