@@ -1,18 +1,18 @@
+import { ChatRoomSource } from "@/features/chat/types";
 import {
-  useConnectionService,
+  usePeerService,
   useToast,
   useUserSearch,
 } from "@/features/shared/hooks";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable } from "react-native";
-import { View, FlatList } from "react-native";
+import { FlatList, Pressable, View } from "react-native";
 import { Appbar, Searchbar, Snackbar, Text } from "react-native-paper";
 import { useDebounce } from "use-debounce";
 
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
-  const connectionService = useConnectionService();
+  const peerService = usePeerService();
 
   // debounce the query
   const [debouncedQuery] = useDebounce(query, 400);
@@ -46,11 +46,24 @@ export default function SearchScreen() {
           <Pressable
             onPress={async () => {
               try {
-                showToast("Connecting...");
-                await connectionService.connectToPeer(item.id);
-                showToast("Connected");
-              } catch {
-                showToast("Not Connected");
+                const existingPeer = await peerService.findPeerById(item.id);
+
+                if (!existingPeer) {
+                  await peerService.createUser(
+                    item.id,
+                    item.username,
+                    item.first_name,
+                    item.last_name
+                  );
+                }
+
+                router.push({
+                  pathname: "/(drawer)/(tabs)/chat/[id]",
+                  params: { id: item.id, source: ChatRoomSource.PEER },
+                });
+              } catch (error) {
+                console.error("[SearchScreen]: Error opening chat", error);
+                showToast("Unable to open chat");
               }
             }}
           >

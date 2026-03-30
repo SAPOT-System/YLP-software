@@ -63,6 +63,7 @@ export default function DrawerLayout() {
                   "public-chat",
                   "calls",
                   "server",
+                  "chat/[id]",
                 ];
 
                 return {
