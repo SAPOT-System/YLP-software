@@ -91,7 +91,7 @@ def test_sync_incremental_conversations(client:TestClient, sync_extra_data_fixtu
     assert len(data["messages"]) == 2  # New + Deleted
     assert len(data["calls"]) == 1     # The call log
     assert len(data["conversations"]) == 1     # The call log
-    assert len(data["conversation_participants"]) == 2     # The call log
+    assert len(data["conversation_participants"]) == 1     # The call log
     assert len(data["call_participants"]) == 1, "call participants count is wrong"     # The call log
     assert len(data["message_receipts"]) == 1     # The call log
     assert data["messages"][0]["content"] == "New Message"
@@ -123,7 +123,7 @@ def test_sync_check_updates(client: TestClient, sync_data):
     data = response.json()
     assert data["has_updates"] is True
     # In your fixture: 1 New Msg + 1 Deleted Msg + 1 Call = 3 new items
-    assert data["new_items_count"] == 3
+    assert data["new_items_count"] == 5
 
     # --- Scenario B: No Updates ---
     # Use a timestamp from the future (right now)

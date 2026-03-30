@@ -72,7 +72,7 @@ def sync_data(
         select(ConversationParticipant)
         .where(
             ConversationParticipant.conversation_id.in_(user_conv_ids),
-            # ConversationParticipant.joined_at > datetime.now() - timedelta(hours=10)
+            ConversationParticipant.joined_at > since
         )
         .order_by(ConversationParticipant.joined_at.asc()) # Oldest updates first
         .limit(limit + 1)
@@ -165,11 +165,12 @@ def sync_data(
 
 @router.get("/check", response_model=SyncCheckResponse)
 async def check_for_updates(
-    current_user : Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
     session: SessionDep,
     last_sync: datetime = Query(...),
 ):
-    # 1. Get user's conversation IDs
+    # 1. Get the actual list of IDs for the user's conversations
+    # We need the actual list for the .in_() clauses below
     conv_ids_stmt = select(ConversationParticipant.conversation_id).where(
         ConversationParticipant.user_id == current_user.id
     )
@@ -178,21 +179,58 @@ async def check_for_updates(
     if not user_conv_ids:
         return {"has_updates": False, "new_items_count": 0}
 
-    # 2. Count new messages
-    msg_count_stmt = select(func.count(Message.id)).where(
-        Message.conversation_id.in_(user_conv_ids),
-        Message.updated_at > last_sync
-    )
-    new_msgs = session.exec(msg_count_stmt).one()
+    new_convs = session.exec(
+        select(func.count(Conversation.id)).where(
+            Conversation.id.in_(user_conv_ids),
+            Conversation.updated_at > last_sync
+        )
+    ).one()
 
-    # 3. Count new calls
-    call_count_stmt = select(func.count(Call.id)).where(
-        Call.conversation_id.in_(user_conv_ids),
-        Call.updated_at > last_sync
-    )
-    new_calls = session.exec(call_count_stmt).one()
+    # 2. Count new Participants in those conversations
+    new_parts = session.exec(
+        select(func.count(ConversationParticipant.id)).where(
+            ConversationParticipant.conversation_id.in_(user_conv_ids),
+            ConversationParticipant.joined_at > last_sync
+        )
+    ).one()
 
-    total_new = new_msgs + new_calls
+    # 3. Count new/updated Messages
+    new_msgs = session.exec(
+        select(func.count(Message.id)).where(
+            Message.conversation_id.in_(user_conv_ids),
+            Message.updated_at > last_sync
+        )
+    ).one()
+
+    # 4. Count new/updated Receipts (JOINING to Message to check conv_id)
+    # This finds receipts for ANY message in the user's conversations
+    new_receipts = session.exec(
+        select(func.count(MessageReceipt.id))
+        .join(Message)
+        .where(
+            Message.conversation_id.in_(user_conv_ids),
+            MessageReceipt.updated_at > last_sync
+        )
+    ).one()
+
+    # 5. Count new/updated Calls
+    new_calls = session.exec(
+        select(func.count(Call.id)).where(
+            Call.conversation_id.in_(user_conv_ids),
+            Call.updated_at > last_sync
+        )
+    ).one()
+
+
+    # 6. Count new/updated Call Participants
+    new_call_parts = session.exec(
+        select(func.count(CallParticipant.id)).where(
+            CallParticipant.conversation_id.in_(user_conv_ids),
+            CallParticipant.joined_at > last_sync
+        )
+    ).one()
+
+    total_new = new_parts + new_msgs + new_receipts + new_calls + new_call_parts + new_convs
 
     return {
         "has_updates": total_new > 0,
