@@ -70,7 +70,13 @@ export default function PeerProfile() {
           <>
             <View style={{ alignItems: "center", gap: 20 }}>
               <Avatar.Text size={150} label={peerName[0].toUpperCase()} />
-              <Text style={{ fontWeight: "700", fontSize: 24, color: "#000" }}>
+              <Text
+                style={{
+                  fontWeight: "700",
+                  fontSize: 24,
+                  color: theme.dark ? "#E6ECF5" : "#000",
+                }}
+              >
                 {peerName}
               </Text>
             </View>
@@ -83,7 +89,11 @@ export default function PeerProfile() {
               }}
             >
               <Text
-                style={{ fontSize: 17, fontWeight: "medium", color: "#000" }}
+                style={{
+                  fontSize: 17,
+                  fontWeight: "medium",
+                  color: theme.dark ? "#E6ECF5" : "#000",
+                }}
               >
                 09123456789
               </Text>
@@ -113,7 +123,7 @@ export default function PeerProfile() {
                   style={{
                     fontSize: 15,
                     fontWeight: "semibold",
-                    color: "#000",
+                    color: theme.dark ? "#E6ECF5" : "#000",
                   }}
                 >
                   Add to Contacts
@@ -130,7 +140,7 @@ export default function PeerProfile() {
                   style={{
                     fontSize: 15,
                     fontWeight: "semibold",
-                    color: "#000",
+                    color: theme.dark ? "#E6ECF5" : "#000",
                   }}
                 >
                   Block

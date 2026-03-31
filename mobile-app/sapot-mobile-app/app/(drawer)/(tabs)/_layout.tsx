@@ -155,7 +155,7 @@ export default function TabLayout() {
               <Appbar.Content
                 titleStyle={{
                   fontWeight: "bold",
-                  color: theme.colors.onBackground,
+                  color: theme.dark ? "#E6ECF5" : "#000",
                   fontSize: 24,
                 }}
                 title={options.title ?? "QR Code"}
