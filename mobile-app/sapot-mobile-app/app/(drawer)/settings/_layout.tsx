@@ -46,7 +46,7 @@ export default function SettingsLayout() {
                   return;
                 }
 
-                router.replace(APP_ROUTES.SETTINGS);
+                router.back();
               }}
             />
             <Appbar.Content
@@ -95,6 +95,18 @@ export default function SettingsLayout() {
         name="account/qr-code"
         options={{
           title: "QR Code",
+        }}
+      />
+      <Stack.Screen
+        name="account/email/update-email"
+        options={{
+          title: "Email Address",
+        }}
+      />
+      <Stack.Screen
+        name="account/email/verify-email"
+        options={{
+          title: "Verify with Email Address",
         }}
       />
       <Stack.Screen

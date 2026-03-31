@@ -26,6 +26,9 @@ export const SETTINGS_ROUTES = {
   CONTACTS: "/(drawer)/settings/account/contacts",
   QR_CODE: "/(drawer)/settings/account/qr-code",
   SWITCH_MODE: "/(drawer)/settings/account/switch-mode",
+  // Account email
+  UPDATE_EMAIL: "/(drawer)/settings/account/email/update-email",
+  VERIFY_EMAIL: "/(drawer)/settings/account/email/verify-email",
 
   // Preferences
   THEME: "/(drawer)/settings/preferences/theme",
