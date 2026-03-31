@@ -1,0 +1,54 @@
+
+from uuid import UUID, uuid4
+from sqlmodel import Field, Relationship, SQLModel
+from datetime import datetime, timezone
+
+
+from typing import TYPE_CHECKING, List
+
+if TYPE_CHECKING:
+    from app.models.users import User
+    from app.models.conversation import Conversation
+
+
+
+class CallParticipant(SQLModel, table=True):
+    id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
+    joined_at : datetime= Field(default_factory=lambda: datetime.now(timezone.utc))
+    left_at : datetime | None = None
+
+    # foreign keys
+    conversation_id : UUID | None = Field(foreign_key='conversation.id')
+    user_id : UUID | None = Field(foreign_key='user.id')
+
+    user: List["User"] = Relationship(
+        back_populates="callparticipants"
+    )
+
+    conversation: List["Conversation"] = Relationship(
+        back_populates="callparticipants"
+    )
+
+
+# class MessageReceiptBase(SQLModel):
+#     status : Literal['read', 'delivered', 'sent'] = 'sent'
+#     updated_at : datetime.datetime | None = Field(default_factory=datetime.datetime.now)
+
+#     # foreign keys
+#     message_id : UUID = Field(foreign_key="message.id")
+#     user_id : UUID = Field(foreign_key="user.id")
+
+
+# class MessageReceipt(MessageReceiptBase, table=True):
+#     id : UUID | None = Field(default_factory=uuid4, index=True, primary_key=True)
+
+
+# class AttachmentBase(SQLModel):
+#     message_id : UUID = Field(foreign_key="message.id")
+#     file_path : str = Field(max_length=255, min_length=1)
+#     file_name : str = Field(max_length=200, min_length=1)
+#     file_size : int
+#     mime_type : str = Field(max_length=255, min_length=1)
+
+# class Attachment(AttachmentBase, table=True):
+#     id : UUID | None = Field(default_factory=uuid4, index=True, primary_key=True)

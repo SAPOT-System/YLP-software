@@ -4,6 +4,7 @@ import {
   ConversationParticipantRole,
   ConversationType,
   database,
+  GuestUser,
   Message,
   MessageStatus,
   MessageStatusType,
@@ -67,7 +68,7 @@ export class ChatService {
         discoveredPeer.port
       );
     } catch (error) {
-      console.error(
+      console.warn(
         `[ChatService]: Error connecting to peer id of ${id}: ${error}`
       );
       throw error;
@@ -97,7 +98,7 @@ export class ChatService {
   async handleIncomingChatMessage(data: DataChatMessageI): Promise<void> {
     try {
       console.log("[ChatService]: Handling incoming chat message");
-      const sender = await this.peerService.findPeerById(data.senderId);
+      const sender = await this.peerService.findPeerById(data.from);
       // TODO: create sender if not exists in the database
       const conversation = await this.getOrCreateConversationForIncoming(
         sender,
@@ -171,7 +172,11 @@ export class ChatService {
     senderId: string,
     messageId: string
   ): void {
-    this.connectionService.sendAckMessage(senderId, { messageId });
+    this.connectionService.sendAckMessage(senderId, {
+      messageId,
+      to: senderId,
+      from: this.userStore.user.id,
+    });
   }
 
   /**
@@ -267,7 +272,8 @@ export class ChatService {
         message: message,
         conversationId: this.conversation!.id,
         messageId: newMessage.id,
-        senderId: newMessage.sender.id,
+        to: this.peer!.id,
+        from: this.userStore.user.id,
         sentAt: newMessage.createdAt,
         messageType: newMessage.messageType,
       });
@@ -291,7 +297,7 @@ export class ChatService {
    * @returns Promise<{ newMessage: Message; newMessageStatus: MessageStatus }>
    */
   private async createMessage(params: {
-    sender: Peer;
+    sender: Peer | GuestUser;
     message: string;
     conversation: Conversation;
   }): Promise<{ newMessage: Message; newMessageStatus: MessageStatus }> {
@@ -546,7 +552,8 @@ export class ChatService {
         message: message.content,
         conversationId: message.conversation.id,
         messageId: message.id,
-        senderId: message.sender.id,
+        from: message.sender.id,
+        to: peerId,
         sentAt: message.createdAt,
         messageType: message.messageType,
       });

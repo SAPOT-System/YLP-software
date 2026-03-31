@@ -103,8 +103,16 @@ jest.mock('expo-router', () => {
 jest.mock('react-native-paper', () => {
   const React = require('react');
   const { Text, View, TextInput } = require('react-native');
+  const AvatarText = ({ label, ...props }) =>
+    React.createElement(View, props, React.createElement(Text, null, label));
+
   return {
     Text: ({ children, ...props }) => React.createElement(Text, props, children),
+    Avatar: {
+      Text: AvatarText
+    },
+    ActivityIndicator: (props) =>
+      React.createElement(View, { ...props, testID: props?.testID || 'activity-indicator' }),
     Icon: ({ source, size = 20 }) =>
       React.createElement(View, { accessibilityLabel: typeof source === 'string' ? source : 'icon', style: { width: size, height: size } }),
     TextInput: React.forwardRef((props, ref) => React.createElement(TextInput, { ...props, ref })),

@@ -1,12 +1,19 @@
 import { AxiosError } from "axios";
 import { useState } from "react";
-import { register } from "../api/auth.api";
 import {
-    RegisterApiErrorResponse,
-    RegisterFormState,
-    RegisterFormStateErrors,
+  addSecurityQuestionApi,
+  existsApi,
+  generateNewRecoveryKeyApi,
+  register,
+} from "../api/auth.api";
+import {
+  RegisterApiErrorResponse,
+  RegisterApiResponse,
+  RegisterFormState,
+  RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
+import { setItemAsync } from "expo-secure-store";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
@@ -14,7 +21,11 @@ export const useRegister = () => {
 
   const registerUser = async (
     form: RegisterFormState
-  ): Promise<{ success: boolean }> => {
+  ): Promise<{
+    success: boolean;
+    recoveryKeyFileLink?: string;
+    info?: RegisterApiResponse;
+  }> => {
     setLoading(true);
     setErrors({});
 
@@ -51,11 +62,25 @@ export const useRegister = () => {
         first_name: form.firstName,
         last_name: form.lastName,
         password: form.password,
-        email: form.email,
-        phone_number: form.phoneNumber,
+        email: form.email || undefined,
+        phone_number: form.phoneNumber || undefined,
       });
+      const data = res.data;
 
-      return { success: res.status === 201 };
+      await setItemAsync("token", data.token);
+
+      await addSecurityQuestionApi(
+        [{ question: form.securityQuestion, answer: form.questionAnswer }],
+        data.token
+      );
+
+      const res2 = await generateNewRecoveryKeyApi();
+
+      return {
+        success: res.status === 201,
+        recoveryKeyFileLink: res2.data,
+        info: data,
+      };
     } catch (err) {
       const axiosError = err as AxiosError<RegisterApiErrorResponse>;
 
@@ -111,6 +136,15 @@ export const useRegister = () => {
     }
   };
 
+  const checkIfIdentifierExists = async (identifier: string) => {
+    try {
+      const { exists } = await existsApi(identifier);
+      return exists;
+    } catch {
+      return false;
+    }
+  };
+
   const validateRegisterStep = (form: Partial<RegisterFormState>) => {
     setLoading(true);
     const errors = validateRegistrationForm(form);
@@ -122,5 +156,12 @@ export const useRegister = () => {
     setLoading(false);
     return { success: true };
   };
-  return { registerUser, validateRegisterStep, loading, errors };
+  return {
+    registerUser,
+    validateRegisterStep,
+    checkIfIdentifierExists,
+    loading,
+    setErrors,
+    errors,
+  };
 };

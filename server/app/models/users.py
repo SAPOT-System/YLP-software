@@ -7,6 +7,16 @@ from pydantic import EmailStr, StringConstraints, field_validator, Field as PyFi
 from sqlmodel import SQLModel, Field, Relationship
 from .securityQuestions import UserSecurityQuestion
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.conversation import ConversationParticipant
+    from app.models.call import Call
+    from app.models.call_participant import CallParticipant
+    from app.models.message import Message
+    from app.models.message_receipt import MessageReceipt
+
+
 PhoneStr = Annotated[
     str,
     StringConstraints(pattern=r"^\+?1?\d{9,15}$")
@@ -31,8 +41,27 @@ class User(UserBase, table=True):
 
     security_questions: List["UserSecurityQuestion"] = Relationship(back_populates="user")
 
+    conversation_participants: List["ConversationParticipant"] = Relationship(
+        back_populates="user"
+    )
+
+    messages: List["Message"] = Relationship(
+        back_populates="user"
+    )
+
+    calls: List["Call"] = Relationship(
+        back_populates="user"
+    )
+
+    callparticipants: List["CallParticipant"] = Relationship(
+        back_populates="user"
+    )
 
     email_verifications: List["EmailVerification"] = Relationship(
+        back_populates="user"
+    )
+
+    messagereceipts: List["MessageReceipt"] = Relationship(
         back_populates="user"
     )
 
@@ -40,7 +69,8 @@ class User(UserBase, table=True):
 class UserPublic(UserBase):
     id: uuid.UUID
     detail: str
-    token: str
+    access_token: str
+    refresh_token: str
 
 
 class UserCreate(UserBase):
@@ -155,3 +185,4 @@ class UserPasswordUpdateNoOldPassword(SQLModel):
 class UserInfo(UserBase):
     # (email, phone number, username, first name, last name, and id
     id: uuid.UUID
+    email_verified: bool

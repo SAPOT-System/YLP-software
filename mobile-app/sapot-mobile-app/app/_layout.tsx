@@ -8,7 +8,6 @@ import "react-native-reanimated";
 import Colors from "@/constants/Colors";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
-import { useColorScheme } from "react-native";
 
 import {
   MD3DarkTheme,
@@ -23,9 +22,14 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 
+import { AuthContainerProvider, AuthProvider } from "@/features/auth";
+import {
+  ThemePreferenceProvider,
+  useThemePreference,
+} from "@/features/shared/context";
 import merge from "deepmerge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider } from "@/features/auth";
+// import { usePing } from "@/features/shared/hooks";
 
 const customDarkTheme = { ...MD3DarkTheme, colors: Colors.dark };
 const customLightTheme = { ...MD3LightTheme, colors: Colors.light };
@@ -88,25 +92,31 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  return (
+    <ThemePreferenceProvider>
+      <RootLayoutWithTheme />
+    </ThemePreferenceProvider>
+  );
+}
+
+function RootLayoutWithTheme() {
+  // const { latency } = usePing();
+  const { resolvedTheme } = useThemePreference();
+
   const paperTheme =
-    colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
+    resolvedTheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
+
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <PaperProvider theme={paperTheme}>
-          <ThemeProvider value={paperTheme}>
-            <Stack>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="getting-started"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-            </Stack>
-          </ThemeProvider>
-        </PaperProvider>
-      </AuthProvider>
+      <AuthContainerProvider>
+        <AuthProvider>
+          <PaperProvider theme={paperTheme}>
+            <ThemeProvider value={paperTheme}>
+              <Stack screenOptions={{ headerShown: false }} />
+            </ThemeProvider>
+          </PaperProvider>
+        </AuthProvider>
+      </AuthContainerProvider>
     </SafeAreaProvider>
   );
 }

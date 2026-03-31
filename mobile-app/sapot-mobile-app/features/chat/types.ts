@@ -4,7 +4,8 @@ export interface DataChatMessageI {
   message: string; //TODO: implement enum
   conversationId: string;
   messageId: string;
-  senderId: string;
+  from: string;
+  to: string;
   sentAt: Date;
   messageType: MessageType;
 }

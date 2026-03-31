@@ -12,6 +12,9 @@ describe("ResetOption", () => {
     const { getByText } = render(<ResetOption option="email" />);
 
     fireEvent.press(getByText("Reset via email"));
-    expect(router.push).toHaveBeenCalledWith("/getting-started/email-reset");
+    expect(router.push).toHaveBeenCalledWith({
+      params: { resetOption: "email" },
+      pathname: "/auth/forgot-password/enter-identifier",
+    });
   });
 });

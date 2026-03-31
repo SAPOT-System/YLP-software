@@ -136,7 +136,8 @@ with form-data/request body
   "email": null,
   "id": "f5da3a69-26f7-464f-a3ae-bb25b8bfe124",
   "detail": "Account created.",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOm51bGwsImV4cCI6MTc3MjMyNTQ2Mn0.CeR0uAK3LG8Ewmrn_eWiGAW9W9OAjexE_8shb40I5XQ"
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4E",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4i",
 }
 #+END_SRC
 
@@ -157,9 +158,29 @@ with request body/form-data
 #+BEGIN_SRC json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4E",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMS0wOTU0NkBnLmJhdHN0YXRlLXUuZWR1LnBoIiwiZXhwIjoxNzcxNDcxMzMxfQ.X4Xp250Zafs7mIXDvjPAASfQKZUG6MyEnYZJAzfRK4i",
   "token_type": "bearer"
 }
 #+END_SRC
+
+*NOTE:* Refresh token will be used to refresh the access token in case it expires
+
+** Refresh Token ~/auth/refresh POST~
+send a request with the following form data
+#+BEGIN_SRC json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NmI3MjgzOS1lMDc3LTQ0MTMtOTFlNi1kMzAzOGM2YTk1MzIiLCJqdGkiOiI5NzIxNTlkNy05NTdkLTRhYmQtOWQxNi1iMTRiYjcyYWE1YTAiLCJ0eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4MDA2MTI4OX0.bzVjgg74WikXOFTP6kIav0M2kCvP99WlmX8GGueM6pg"
+}
+#+END_SRC
+sample response
+#+BEGIN_SRC json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NmI3MjgzOS1lMDc3LTQ0MTMtOTFlNi1kMzAzOGM2YTk1MzIiLCJqdGkiOiI1ZWFkNjQ1Yy1lNWQ0LTQ4YzctODI0Yi02ZTk2MDZiMTE5YzIiLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc0ODc5MTg1fQ.1pq4cTmpZEyyBBrZlr5Oe7OmTmsc0zXe-Y0RpsI4e6o",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NmI3MjgzOS1lMDc3LTQ0MTMtOTFlNi1kMzAzOGM2YTk1MzIiLCJqdGkiOiIwMGNkM2YxNC01MjQwLTQ5MTEtOTMzYy0yNDY2NzQ0MDg5OWQiLCJ0eXBlIjoicmVmcmVzaCIsImV4cCI6MTc4MDA2MTM4NX0.DX0L_iDRq858J4a_8v6S-onijwRTqpiRfU5-YVcfaA0",
+  "token_type": "bearer"
+}
+#+END_SRC
+*The response should be the new refresh and access token.* The old ones are now unusable.
 
 ** Generate recovery key ~/auth/forgot-password/generate-new-recovery-key POST~
   - this endpoint requires the user to be /authenticated/
@@ -346,4 +367,168 @@ requires user to be authenticated
         data: {
             from: UUID; to: UUID, ipAddress: string; port: number };
         }
+#+END_SRC
+
+** update user info ~/update/profile POST~
+can take in different fields to update (can leave fields that won't be updated blank)
+with request body/form-data
+#+BEGIN_SRC json
+{
+  "username": "string", // optional
+  "first_name": "string", // optional
+  "last_name": "string", // optional
+  "phone_number": "86410482368", // optional
+  "email": "user@example.com" // optional
+}
+#+END_SRC
+** Check if a sync is available of server ~/sync/check GET~
+Requires users to be authenticated.
+
+use this to check if updates are available from the server
+
+
+send a request like
+~http://localhost:8000/sync/check?last_sync=2026-03-30T06%3A24%3A50.565Z~
+
+*** Sample response
+#+BEGIN_SRC json
+{
+  "has_updates": false,
+  "new_items_count": 0, // count of items to be synced
+  "last_update_at": null // last updated timestamp
+}
+// OR
+{
+  "has_updates": true,
+  "new_items_count": 12,
+  "last_update_at": "2026-03-30T06:25:07.399Z"
+}
+#+END_SRC
+** Sync from server ~/sync/ get~
+Requires users to be authenticated.
+
+Send a request like:
+~http://localhost:8000/sync/?last_sync=2026-03-29T06%3A16%3A02.446Z&limit=50~
+*** /last_sync/ argument
+- meant to be the point where the syncing will start
+*** /limit/ argument
+- amount of data that will be sync in the current connection
+- a device can send multiple sync request if there are a lot of data to sync
+  from server
+
+*** Example response
+#+BEGIN_SRC json
+{
+  "server_time": "2026-03-30T06:16:25.686453Z", // shows the current time in the server (could be used as a comparison to the current device's time)
+  "conversations": [],              // field for conversations to be synced
+  "messages": [],                   // field for messages to be synced
+  "calls": [],                      // field for calls to be synced
+  "call_participants": [], [],      // field for call participants to be synced
+  "conversation_participants": [    // field for conversation participants to be synced
+    {
+      "conversation_id": "252ad3d9-4b9a-4ad3-b604-a11b3019b85d",
+      "id": "ef866642-8997-41db-a286-3bee85d488ae",
+      "joined_at": "2026-03-30T02:05:20.311407",
+      "user_id": "da055078-37e6-4106-9a64-5e0b0b001b6b",
+      "is_deleted": false
+    },
+    {
+      "conversation_id": "252ad3d9-4b9a-4ad3-b604-a11b3019b85d",
+      "id": "ef866642-8997-41db-a286-3bee85d488be",
+      "joined_at": "2026-03-30T02:05:20.311407",
+      "user_id": "96b72839-e077-4413-91e6-d3038c6a9532",
+      "is_deleted": false
+    }
+  ],
+  "message_receipts": [],  // field for message receipts to be synced
+  "new_cursor": "2026-03-30T06:16:25.686389Z", // can be used as the new 'last_synced' value for syncing to the server
+  "has_more": false // shows true if there's more unsynced data in the server, otherwise false
+}
+#+END_SRC
+
+** Sync to server ~/sync/push POST~
+Requires users to be authenticated.
+
+
+use this endpoint to push new data to the server
+*** attach the following as the form-body
+#+BEGIN_SRC json
+{
+  "conversations": [...],
+  "messages": [...],
+  "conversation_participants": [...],
+  "calls": [...],
+  "call_participants": [...],
+  "message_receipts": [...]
+}
+#+END_SRC
+*** Sample response
+
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Data reconciled"
+}
+#+END_SRC
+
+*** Sample data to send (same data format will be sent when syncing from server)
+#+BEGIN_SRC python
+    push_payload = {
+        "conversations": [
+            {
+                "id": conv_id,
+                "title": "Sync Test",
+                "conversation_type": "group",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ],
+        "conversation_participants": [
+            {
+                "id": part_id,
+                "conversation_id": conv_id,
+                "user_id": user_id,
+                "joined_at": datetime.now(timezone.utc).isoformat(),
+                "is_deleted": False
+            }
+        ],
+        "messages": [
+            {
+                "id": msg_id,
+                "conversation_id": conv_id,
+                "content": "Reconciliation check",
+                "message_type": "text",
+                "is_deleted": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+        ],
+        "calls": [
+            {
+                "id": str(call_id),
+                "call_type": "video",  # CallType.AUDIO
+                "status": "completed", # StatusType.COMPLETED
+                "start_time": datetime.now(timezone.utc).isoformat(),
+                "end_time": datetime.now(timezone.utc).isoformat(),
+                "conversation_id": str(conv_id),
+                "initiator_id": str(user_id)
+            }
+        ],
+        "call_participants": [
+            {
+                "id": str(uuid4()),
+                "conversation_id": str(conv_id),
+                "user_id": str(user_id),
+                "joined_at": datetime.now(timezone.utc).isoformat(),
+                "left_at": None
+            }
+        ],
+        "message_receipts": [
+            {
+                "id": str(uuid4()),
+                "status": "read", # StatusType.READ
+                "message_id": str(msg_id),
+                "user_id": str(user_id),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        ]
+    }
 #+END_SRC

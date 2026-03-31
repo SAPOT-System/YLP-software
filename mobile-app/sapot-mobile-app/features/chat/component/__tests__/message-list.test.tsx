@@ -13,7 +13,14 @@ jest.mock("@/features/shared", () => {
                 {
                   id: "msg-1",
                   content: "Hello",
-                  createdAt: new Date("2024-01-01T00:00:00Z")
+                  createdAt: new Date("2024-01-01T00:00:00Z"),
+                  sender: {
+                    observe: () => ({
+                      firstName: "Alice",
+                      lastName: "Doe",
+                      username: "alice",
+                    }),
+                  },
                 }
               ]
             })
@@ -27,7 +34,8 @@ jest.mock("@/features/shared", () => {
       }
     },
     Message: { table: "messages" },
-    MessageStatus: { table: "message_status" }
+    MessageStatus: { table: "message_status" },
+    formatDate: () => "Jan 1, 2024",
   };
 });
 
@@ -37,7 +45,6 @@ describe("MessageList", () => {
       <MessageList conversationId="conversation-1" />
     );
 
-    expect(getByText("Message List")).toBeTruthy();
     expect(getByText(/Hello/)).toBeTruthy();
   });
 });

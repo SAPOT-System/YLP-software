@@ -1,7 +1,19 @@
+import { createTestPeer } from "@/test/factories/user.factory";
+import {
+  createCleanUpServiceMock,
+  createGuestUserRepositoryMock,
+  createPeerServiceMock,
+  createSessionStoreMock,
+  createUserStoreMock,
+  GuestUserRepositoryMock,
+  PeerServiceMock,
+  SessionStoreMock,
+  UserStoreMock,
+} from "@/test/mocks/user-service.mock-builders";
 import * as ExpoSecureStore from "expo-secure-store";
-import uuid from "react-native-uuid";
-import { Peer } from "../../database";
+import { GuestUserRepository } from "../../repositories";
 import { SessionStore, UserStore } from "../../stores";
+import { CleanUpService } from "../clean-up-service";
 import { PeerService } from "../peer-service";
 import { UserService } from "../user-service";
 
@@ -9,17 +21,17 @@ import { UserService } from "../user-service";
 jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
-}));
-
-// Mock react-native-uuid
-jest.mock("react-native-uuid", () => ({
-  v4: jest.fn(),
+  deleteItemAsync: jest.fn(),
 }));
 
 // Mock the stores
 jest.mock("../../stores", () => ({
   UserStore: jest.fn(),
   SessionStore: jest.fn(),
+}));
+
+jest.mock("../../repositories", () => ({
+  GuestUserRepository: jest.fn(),
 }));
 
 // Mock PeerService
@@ -34,49 +46,55 @@ jest.mock("../../database", () => ({
 
 describe("UserService", () => {
   let userService: UserService;
-  let mockUserStore: jest.Mocked<UserStore>;
-  let mockPeerService: jest.Mocked<PeerService>;
-  let mockSessionStore: jest.Mocked<SessionStore>;
-  let mockGetItemAsync: jest.MockedFunction<typeof ExpoSecureStore.getItemAsync>;
-  let mockSetItemAsync: jest.MockedFunction<typeof ExpoSecureStore.setItemAsync>;
-  let mockUuidV4: jest.MockedFunction<typeof uuid.v4>;
+  let mockUserStore: UserStoreMock;
+  let mockPeerService: PeerServiceMock;
+  let mockGuestUserRepository: GuestUserRepositoryMock;
+  let mockSessionStore: SessionStoreMock;
+  let mockGetItemAsync: jest.MockedFunction<
+    typeof ExpoSecureStore.getItemAsync
+  >;
+  let mockSetItemAsync: jest.MockedFunction<
+    typeof ExpoSecureStore.setItemAsync
+  >;
+  let mockDeleteItemAsync: jest.MockedFunction<
+    typeof ExpoSecureStore.deleteItemAsync
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Setup mocks
-    mockUserStore = {
-      user: undefined,
-      setUser: jest.fn(),
-    } as unknown as jest.Mocked<UserStore>;
-
-    mockSessionStore = {
-      userId: undefined,
-      setUserId: jest.fn(),
-    } as unknown as jest.Mocked<SessionStore>;
-
-    mockPeerService = {
-      findPeerById: jest.fn(),
-      createUser: jest.fn(),
-      register: jest.fn(),
-      markOffline: jest.fn(),
-      markOnline: jest.fn(),
-      getAllPeers: jest.fn(),
-      findDiscoveredPeerById: jest.fn(),
-      cleanUp: jest.fn(),
-    } as Partial<PeerService> as jest.Mocked<PeerService>;
+    mockUserStore = createUserStoreMock();
+    mockSessionStore = createSessionStoreMock();
+    mockGuestUserRepository = createGuestUserRepositoryMock();
+    mockPeerService = createPeerServiceMock();
 
     mockGetItemAsync = jest.mocked(ExpoSecureStore.getItemAsync);
     mockSetItemAsync = jest.mocked(ExpoSecureStore.setItemAsync);
-    mockUuidV4 = jest.mocked(uuid.v4);
+    mockDeleteItemAsync = jest.mocked(ExpoSecureStore.deleteItemAsync);
 
     // Mock constructors
-    jest.mocked(UserStore).mockImplementation(() => mockUserStore);
-    jest.mocked(SessionStore).mockImplementation(() => mockSessionStore);
-    jest.mocked(PeerService).mockImplementation(() => mockPeerService);
+    jest
+      .mocked(UserStore)
+      .mockImplementation(() => mockUserStore as unknown as UserStore);
+    jest
+      .mocked(SessionStore)
+      .mockImplementation(() => mockSessionStore as unknown as SessionStore);
+    jest
+      .mocked(PeerService)
+      .mockImplementation(() => mockPeerService as unknown as PeerService);
+    jest
+      .mocked(GuestUserRepository)
+      .mockImplementation(
+        () => mockGuestUserRepository as unknown as GuestUserRepository
+      );
 
     // Create service instance
-    userService = new UserService(mockUserStore, mockPeerService, mockSessionStore);
+    userService = new UserService(
+      mockUserStore as unknown as UserStore,
+      mockPeerService as unknown as PeerService,
+      mockSessionStore as unknown as SessionStore,
+      mockGuestUserRepository as unknown as GuestUserRepository
+    );
   });
 
   afterEach(() => {
@@ -91,116 +109,116 @@ describe("UserService", () => {
 
   describe("initialize", () => {
     it("should use existing UUID and found user", async () => {
+      // Arrange
       const existingUuid = "existing-uuid-123";
-      const mockUser: Peer = {
+      const mockUser = createTestPeer({
         id: existingUuid,
         username: "existinguser",
         isOnline: true,
-      } as unknown as Peer;
+      });
 
       mockGetItemAsync.mockResolvedValue(existingUuid);
-      mockPeerService.findPeerById.mockResolvedValue(mockUser);
+      mockPeerService.findPeerById.mockResolvedValue(mockUser as never);
 
-      await userService.initialize();
+      // Act
+      await userService.initialize({ isGuest: false });
 
+      // Assert
       expect(mockGetItemAsync).toHaveBeenCalledWith("userUUID");
       expect(mockSetItemAsync).not.toHaveBeenCalled();
       expect(mockSessionStore.setUserId).toHaveBeenCalledWith(existingUuid);
       expect(mockPeerService.findPeerById).toHaveBeenCalledWith(existingUuid);
       expect(mockPeerService.createUser).not.toHaveBeenCalled();
-      expect(mockUserStore.setUser).toHaveBeenCalledWith(mockUser);
+      expect(mockUserStore.setUser).toHaveBeenCalledWith(mockUser, false);
     });
 
-    it("should generate new UUID and create new user when UUID doesn't exist", async () => {
-      const newUuid = "23-12-456";
-      const mockUser: Peer = {
-        id: newUuid,
-        username: "User_abc123",
-        isOnline: false,
-      } as unknown as Peer;
-
+    it("should return early when UUID does not exist", async () => {
+      // Arrange
       mockGetItemAsync.mockResolvedValue(null);
-      (mockUuidV4 as jest.Mock).mockReturnValue(newUuid);
-      mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer); // First call returns null
-      mockPeerService.createUser.mockResolvedValue(mockUser);
 
-      await userService.initialize();
+      // Act
+      await userService.initialize({ isGuest: false });
 
+      // Assert
       expect(mockGetItemAsync).toHaveBeenCalledWith("userUUID");
-      expect(mockUuidV4).toHaveBeenCalled();
-      expect(mockSetItemAsync).toHaveBeenCalledWith("userUUID", newUuid);
-      expect(mockSessionStore.setUserId).toHaveBeenCalledWith(newUuid);
-      expect(mockPeerService.findPeerById).toHaveBeenCalledWith(newUuid);
-      expect(mockPeerService.createUser).toHaveBeenCalledWith(
-        newUuid,
-        expect.stringMatching(/^User_/)
-      );
-      expect(mockUserStore.setUser).toHaveBeenCalledWith(mockUser);
+      expect(mockSessionStore.setUserId).not.toHaveBeenCalled();
+      expect(mockPeerService.findPeerById).not.toHaveBeenCalled();
+      expect(mockUserStore.setUser).not.toHaveBeenCalled();
     });
 
-    it("should use existing UUID but create new user when user not found", async () => {
+    it("should use guest repository when isGuest is true", async () => {
+      // Arrange
       const existingUuid = "existing-uuid-123";
-      const mockUser: Peer = {
+      const mockUser = createTestPeer({
         id: existingUuid,
-        username: "User_xyz789",
+        username: "guest-username",
         isOnline: false,
-      } as unknown as Peer;
+      });
 
       mockGetItemAsync.mockResolvedValue(existingUuid);
-      mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer); // User not found in database
-      mockPeerService.createUser.mockResolvedValue(mockUser);
+      mockGuestUserRepository.getCurrentGuestUser.mockResolvedValue(
+        mockUser as unknown as never
+      );
 
-      await userService.initialize();
+      // Act
+      await userService.initialize({ isGuest: true });
 
+      // Assert
       expect(mockGetItemAsync).toHaveBeenCalledWith("userUUID");
       expect(mockSetItemAsync).not.toHaveBeenCalled();
       expect(mockSessionStore.setUserId).toHaveBeenCalledWith(existingUuid);
-      expect(mockPeerService.findPeerById).toHaveBeenCalledWith(existingUuid);
-      expect(mockPeerService.createUser).toHaveBeenCalledWith(
-        existingUuid,
-        expect.stringMatching(/^User_/)
-      );
-      expect(mockUserStore.setUser).toHaveBeenCalledWith(mockUser);
+      expect(mockGuestUserRepository.getCurrentGuestUser).toHaveBeenCalled();
+      expect(mockPeerService.findPeerById).not.toHaveBeenCalled();
+      expect(mockUserStore.setUser).toHaveBeenCalledWith(mockUser, true);
     });
 
     it("should throw error if getItemAsync fails", async () => {
+      // Arrange
       mockGetItemAsync.mockRejectedValue(new Error("SecureStore error"));
 
-      await expect(userService.initialize()).rejects.toThrow("SecureStore error");
-    });
-
-    it("should throw error if setItemAsync fails", async () => {
-      mockGetItemAsync.mockResolvedValue(null);
-      (mockUuidV4 as jest.Mock).mockReturnValue("new-uuid");
-      mockSetItemAsync.mockRejectedValue(new Error("SecureStore write error"));
-
-      await expect(userService.initialize()).rejects.toThrow("SecureStore write error");
+      // Act / Assert
+      await expect(userService.initialize({ isGuest: false })).rejects.toThrow(
+        "SecureStore error"
+      );
     });
 
     it("should throw error if findPeerById fails", async () => {
+      // Arrange
       const existingUuid = "existing-uuid-123";
 
       mockGetItemAsync.mockResolvedValue(existingUuid);
-      mockPeerService.findPeerById.mockRejectedValue(new Error("Database error"));
+      mockPeerService.findPeerById.mockRejectedValue(
+        new Error("Database error")
+      );
 
-      await expect(userService.initialize()).rejects.toThrow("Database error");
+      // Act / Assert
+      await expect(userService.initialize({ isGuest: false })).rejects.toThrow(
+        "Database error"
+      );
     });
 
-    it("should throw error if createUser fails", async () => {
-      const newUuid = "new-uuid-456";
+    it("should throw error if getCurrentGuestUser fails", async () => {
+      // Arrange
+      const existingUuid = "existing-uuid-123";
 
-      mockGetItemAsync.mockResolvedValue(newUuid);
-      mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer);
-      mockPeerService.createUser.mockRejectedValue(new Error("User creation error"));
+      mockGetItemAsync.mockResolvedValue(existingUuid);
+      mockGuestUserRepository.getCurrentGuestUser.mockRejectedValue(
+        new Error("Guest repository error")
+      );
 
-      await expect(userService.initialize()).rejects.toThrow("User creation error");
+      // Act / Assert
+      await expect(userService.initialize({ isGuest: true })).rejects.toThrow(
+        "Guest repository error"
+      );
     });
   });
 
   describe("generateUsername", () => {
     it("should generate username with proper format", () => {
       // Access private method for testing
-      const generateUsername = (userService as unknown as { generateUsername: () => string }).generateUsername.bind(userService);
+      const generateUsername = (
+        userService as unknown as { generateUsername: () => string }
+      ).generateUsername.bind(userService);
 
       const username = generateUsername();
 
@@ -209,7 +227,9 @@ describe("UserService", () => {
     });
 
     it("should generate different usernames on multiple calls", () => {
-      const generateUsername = (userService as unknown as { generateUsername: () => string }).generateUsername.bind(userService);
+      const generateUsername = (
+        userService as unknown as { generateUsername: () => string }
+      ).generateUsername.bind(userService);
 
       const username1 = generateUsername();
       const username2 = generateUsername();
@@ -219,6 +239,77 @@ describe("UserService", () => {
       expect(username1.startsWith("User_")).toBe(true);
       expect(username2.startsWith("User_")).toBe(true);
       // Note: There's a small chance they could be the same, but very unlikely
+    });
+  });
+
+  describe("logout", () => {
+    it("deletes userUUID and clears session id", async () => {
+      // Arrange
+      mockDeleteItemAsync.mockResolvedValue();
+
+      // Act
+      await userService.logout();
+
+      // Assert
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith("userUUID");
+      expect(mockSessionStore.setUserId).toHaveBeenCalledWith(undefined);
+    });
+
+    it("runs cleanUp when cleanUpService is set", async () => {
+      // Arrange
+      mockDeleteItemAsync.mockResolvedValue();
+      const cleanUpService = createCleanUpServiceMock();
+      userService.setCleanUpService(cleanUpService as unknown as CleanUpService);
+
+      // Act
+      await userService.logout();
+
+      // Assert
+      expect(cleanUpService.cleanUp).toHaveBeenCalled();
+    });
+
+    it("throws when secure store delete fails", async () => {
+      // Arrange
+      mockDeleteItemAsync.mockRejectedValue(new Error("delete failed"));
+
+      // Act / Assert
+      await expect(userService.logout()).rejects.toThrow("delete failed");
+    });
+  });
+
+  describe("setCleanUpService", () => {
+    it("sets cleanUpService without throwing", () => {
+      const cleanUpService = { cleanUp: jest.fn() } as unknown as CleanUpService;
+
+      expect(() => userService.setCleanUpService(cleanUpService)).not.toThrow();
+    });
+  });
+
+  describe("getUser", () => {
+    it("returns the current user from store", () => {
+      // Arrange
+      const user = createTestPeer({ id: "user-1", username: "alice" });
+      Object.defineProperty(mockUserStore, "user", {
+        get: () => user,
+      });
+
+      // Act
+      const result = userService.getUser();
+
+      // Assert
+      expect(result).toBe(user);
+    });
+
+    it("throws when user store throws", () => {
+      // Arrange
+      Object.defineProperty(mockUserStore, "user", {
+        get: () => {
+          throw new Error("Current user not initialized");
+        },
+      });
+
+      // Act / Assert
+      expect(() => userService.getUser()).toThrow("Current user not initialized");
     });
   });
 });

@@ -1,34 +1,34 @@
 import { ConversationType } from "@/features/shared";
+import { createTestConversation } from "@/test/factories/chat-model.factory";
+import {
+    createCollectionMock,
+    createWatermelonDbMock,
+} from "@/test/mocks/database.mock-builders";
 import { ConversationRepository } from "../conversation-repository";
 
 describe("ConversationRepository", () => {
   let repository: ConversationRepository;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockDb: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockCollection: any;
+  let mockCollection: ReturnType<typeof createCollectionMock>;
+  let mockDb: ReturnType<typeof createWatermelonDbMock>;
 
   beforeEach(() => {
-    mockCollection = {
-      create: jest.fn(),
-      query: jest.fn().mockReturnValue({
-        fetch: jest.fn(),
-      }),
-      database: {
-        write: jest.fn((fn) => fn()),
-      },
+    mockCollection = createCollectionMock();
+    const collectionWithDatabase = mockCollection as unknown as {
+      database: { write: jest.Mock };
     };
-
-    mockDb = {
-      get: jest.fn().mockReturnValue(mockCollection),
+    collectionWithDatabase.database = {
       write: jest.fn((fn) => fn()),
     };
+    mockDb = createWatermelonDbMock(mockCollection);
 
-    repository = new ConversationRepository(mockDb);
+    repository = new ConversationRepository(mockDb as never);
   });
 
   it("creates a new conversation", async () => {
-    const mockConversation = { id: "conv-1", type: ConversationType.DIRECT };
+    const mockConversation = createTestConversation({
+      id: "conv-1",
+      type: ConversationType.DIRECT,
+    });
     mockCollection.create.mockResolvedValue(mockConversation);
 
     const result = await repository.saveConversation({
@@ -44,7 +44,7 @@ describe("ConversationRepository", () => {
     mockCollection
       .query()
       .fetch.mockResolvedValue([
-        { id: "conv-1", type: ConversationType.DIRECT },
+        createTestConversation({ id: "conv-1", type: ConversationType.DIRECT }),
       ]);
 
     const exists = await repository.isConversationExist("conv-1");
@@ -53,7 +53,10 @@ describe("ConversationRepository", () => {
   });
 
   it("queries conversation by id", async () => {
-    const mockConversation = { id: "conv-1", type: ConversationType.DIRECT };
+    const mockConversation = createTestConversation({
+      id: "conv-1",
+      type: ConversationType.DIRECT,
+    });
     mockCollection.query().fetch.mockResolvedValue([mockConversation]);
 
     const result = await repository.queryConversationById("conv-1");
@@ -62,7 +65,9 @@ describe("ConversationRepository", () => {
   });
 
   it("queries all conversations", async () => {
-    const mockConversations = [{ id: "conv-1", type: ConversationType.DIRECT }];
+    const mockConversations = [
+      createTestConversation({ id: "conv-1", type: ConversationType.DIRECT }),
+    ];
     mockCollection.query().fetch.mockResolvedValue(mockConversations);
 
     const result = await repository.queryAllConversation();
@@ -71,8 +76,11 @@ describe("ConversationRepository", () => {
   });
 
   it("checks if conversation is direct", async () => {
-    const mockConversation = { id: "conv-1", type: ConversationType.DIRECT };
-    mockCollection.query.mockResolvedValue([mockConversation]);
+    const mockConversation = createTestConversation({
+      id: "conv-1",
+      type: ConversationType.DIRECT,
+    });
+    (mockCollection.query as jest.Mock).mockResolvedValue([mockConversation]);
 
     const isDirect = await repository.isDirectConversation("conv-1");
 

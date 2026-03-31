@@ -1,20 +1,45 @@
 import * as Updates from "expo-updates";
 
+const DEV_PORT = "8000";
+const DEV_HOST = "192.168.1.22";
+const STAGING_HOST = "sapot.online";
+
 export const getApiUrl = () => {
   if (__DEV__) {
-    return "http://10.0.2.2:8000";
+    console.log("dev");
+    return `http://${DEV_HOST}:${DEV_PORT}`;
   }
 
   const channel = Updates.channel;
 
   switch (channel) {
     case "preview":
-      return "https://ylp-software.onrender.com";
+      console.log("preview");
+      return `https://${STAGING_HOST}`;
 
     case "production":
-      return "https://ylp-software.onrender.com";
+      return `https://${STAGING_HOST}`;
 
     default:
-      return "http://10.0.2.2:8000";
+      return `http://${DEV_HOST}:${DEV_PORT}`;
+  }
+};
+
+export const getWsUrl = () => {
+  if (__DEV__) {
+    return `ws://${DEV_HOST}:${DEV_PORT}`;
+  }
+
+  const channel = Updates.channel;
+
+  switch (channel) {
+    case "preview":
+      return `wss://${STAGING_HOST}`;
+
+    case "production":
+      return `wss://${STAGING_HOST}`;
+
+    default:
+      return `ws://${DEV_HOST}:${DEV_PORT}`;
   }
 };

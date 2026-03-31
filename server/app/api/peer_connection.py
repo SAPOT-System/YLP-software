@@ -120,7 +120,6 @@ async def sdp_relay(target_id: UUID, token: str, websocket: WebSocket):
 
             if not validate_sender(payload, user_id):
                 continue
-            print("HERE running")
             await relay_signal(user_id, target_id, payload)
     except WebSocketDisconnect:
         manager.disconnect(user_id)

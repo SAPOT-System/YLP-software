@@ -23,7 +23,7 @@ def validate_sender(payload: SignalMessage, user_id: UUID) -> bool:
 async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage):
     message = {
         "type": payload.type,
-        "data": payload.data.model_dump()
+        "data": payload.data.model_dump(exclude_none=True)
     }
 
     if manager.active_connections.get(target_id):

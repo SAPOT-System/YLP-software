@@ -25,7 +25,7 @@ export const ScreenHeader = ({ headerName }: ScreenHeaderProps) => {
           variant="headlineMedium"
           style={{
             fontWeight: "bold",
-            color: theme.colors.onPrimaryContainer,
+            color: theme.colors.inverseOnSurface,
           }}
         >
           {headerName}

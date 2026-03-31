@@ -5,3 +5,4 @@ export * from "./stores";
 export * from "./components";
 export * from "./repositories";
 export * from "./api";
+export * from "./utils";

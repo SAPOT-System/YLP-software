@@ -8,8 +8,13 @@ jest.mock("../../database", () => {
       get: () => ({
         query: () => ({
           observe: () => [
-            { id: "peer-1", username: "Alice", isOnline: true },
-            { id: "peer-2", username: "Bob", isOnline: false }
+            {
+              id: "peer-1",
+              username: "alice",
+              firstName: "Alice",
+              isOnline: true,
+            },
+            { id: "peer-2", username: "bob", firstName: "Bob", isOnline: false }
           ]
         })
       })
@@ -21,7 +26,7 @@ jest.mock("../../database", () => {
 describe("PeerList", () => {
   it("renders peers", () => {
     const { getByText } = render(<PeerList />);
-    expect(getByText("Peer List")).toBeTruthy();
+    expect(getByText("Peer Active")).toBeTruthy();
     expect(getByText("Alice")).toBeTruthy();
     expect(getByText("Bob")).toBeTruthy();
   });

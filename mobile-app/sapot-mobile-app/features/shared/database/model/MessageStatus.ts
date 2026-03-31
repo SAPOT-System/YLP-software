@@ -2,6 +2,7 @@ import { Model, Relation } from "@nozbe/watermelondb";
 import { field, relation } from "@nozbe/watermelondb/decorators";
 import { Peer } from "./Peer";
 import { Message } from "./Message";
+import { GuestUser } from "./guest-user";
 
 // TODO: replace the name for better understanding
 export enum MessageStatusType {
@@ -19,5 +20,5 @@ export class MessageStatus extends Model {
 
   @relation("messages", "message")
   message!: Relation<Message>;
-  @relation("peers", "user") user!: Relation<Peer>;
+  @relation("peers", "user") user!: Relation<Peer | GuestUser>;
 }

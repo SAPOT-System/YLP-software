@@ -1,5 +1,5 @@
-import { useContainer } from "@/features/shared/hooks";
+import { useMainContainer } from "@/features/shared/hooks";
 
 export function useCallService() {
-  return useContainer().callService;
+  return useMainContainer().callService;
 }
