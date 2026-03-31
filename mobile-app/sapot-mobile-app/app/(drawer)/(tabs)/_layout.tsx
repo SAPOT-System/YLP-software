@@ -90,10 +90,14 @@ export default function TabLayout() {
         options={{
           title: "Public Chat",
           tabBarLabel: "Public Chat",
+          headerTitleAlign: "center",
+          headerTitleStyle: { fontWeight: "bold", fontSize: 24 },
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: "transparent" },
           tabBarIcon: ({ color }) => (
             <SimpleLineIcons size={24} name="globe" color={color} />
           ),
-          headerShown: false,
         }}
       />
       <Tabs.Screen
