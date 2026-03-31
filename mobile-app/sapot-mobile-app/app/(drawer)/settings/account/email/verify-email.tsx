@@ -1,12 +1,13 @@
 import { useLocalSearchParams } from "expo-router";
 import { View } from "react-native";
-import { Button, Text } from "react-native-paper";
+import { Button, Text, useTheme } from "react-native-paper";
 
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email: string }>();
+  const theme = useTheme();
   const handleVerify = () => {};
   return (
-    <View style={{ flex: 1, backgroundColor: "#FFF" }}>
+    <View style={{ flex: 1, backgroundColor: theme.dark ? "#0B1020" : "#FFF" }}>
       <View
         style={{
           paddingHorizontal: 24,
@@ -19,20 +20,36 @@ export default function VerifyEmail() {
           style={{
             paddingHorizontal: 40,
             paddingVertical: 46,
-            backgroundColor: "#EAEDF3",
+            backgroundColor: theme.dark ? "#1A233A" : "#EAEDF3",
             borderRadius: 10,
           }}
         >
           <Text
-            style={{ fontWeight: "medium", textAlign: "center", fontSize: 17 }}
+            style={{
+              fontWeight: "medium",
+              textAlign: "center",
+              fontSize: 17,
+              color: theme.dark ? "#E6ECF5" : "#000000",
+            }}
           >
             Verify with Email
           </Text>
-          <Text style={{ fontSize: 17, textAlign: "center" }}>
+          <Text
+            style={{
+              fontSize: 17,
+              textAlign: "center",
+              color: theme.dark ? "#E6ECF5" : "#000000",
+            }}
+          >
             A 6-digit code will be sent to{" "}
           </Text>
           <Text
-            style={{ fontWeight: "medium", fontSize: 17, textAlign: "center" }}
+            style={{
+              fontWeight: "medium",
+              fontSize: 17,
+              textAlign: "center",
+              color: theme.dark ? "#3A7AFE" : "#103462",
+            }}
           >
             {email}
           </Text>

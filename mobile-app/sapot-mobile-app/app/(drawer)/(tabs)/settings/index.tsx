@@ -1,4 +1,7 @@
+import { SETTINGS_ROUTES } from "@/app/routes";
+import { useAuth } from "@/features/auth";
 import { Peer } from "@/features/shared";
+import { useThemePreference } from "@/features/shared/context";
 import { useUserProfile } from "@/features/shared/hooks";
 import { Link } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -9,15 +12,13 @@ import {
   Text,
   useTheme,
 } from "react-native-paper";
-import { SETTINGS_ROUTES } from "@/app/routes";
-import { useThemePreference } from "@/features/shared/context";
-import { useAuth } from "@/features/auth";
 
 export default function Settings() {
   const theme = useTheme();
   const { user, isGuest } = useUserProfile();
   const { themeChoice } = useThemePreference();
   const auth = useAuth();
+  const itemColor = theme.dark ? "#E6ECF5" : "#000";
 
   if (!auth) {
     return <ActivityIndicator />;
@@ -79,7 +80,7 @@ export default function Settings() {
             )}
           </View>
         </View>
-        <Text>Account</Text>
+        <Text style={{ color: "#696969" }}>Account</Text>
         <View
           style={{
             backgroundColor: theme.colors.background,
@@ -90,29 +91,33 @@ export default function Settings() {
           <Link href={SETTINGS_ROUTES.MANAGE_PROFILE}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="account-circle-outline" size={24} />
-                <Text>Manage Profile</Text>
+                <Icon
+                  source="account-circle-outline"
+                  size={24}
+                  color={itemColor}
+                />
+                <Text style={{ color: itemColor }}>Manage Profile</Text>
               </View>
-              <Icon source="arrow-right" size={24} />
+              <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Link>
           <Link href={SETTINGS_ROUTES.SWITCH_MODE}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="nintendo-switch" size={24} />
-                <Text>Switch Mode</Text>
+                <Icon source="nintendo-switch" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>Switch Mode</Text>
               </View>
-              <Icon source="arrow-right" size={24} />
+              <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Link>
           {isGuest ? (
             <Link href={SETTINGS_ROUTES.AUTHENTICATE}>
               <View style={styles.item}>
                 <View style={styles.itemContainer}>
-                  <Icon source="account-check" size={24} />
-                  <Text>Authenticate</Text>
+                  <Icon source="account-check" size={24} color={itemColor} />
+                  <Text style={{ color: itemColor }}>Authenticate</Text>
                 </View>
-                <Icon source="arrow-right" size={24} />
+                <Icon source="arrow-right" size={24} color={itemColor} />
               </View>
             </Link>
           ) : (
@@ -120,19 +125,21 @@ export default function Settings() {
               <Link href={SETTINGS_ROUTES.PASSWORD_AND_SECURITY}>
                 <View style={styles.item}>
                   <View style={styles.itemContainer}>
-                    <Icon source="lock" size={24} />
-                    <Text>Password & Security</Text>
+                    <Icon source="lock" size={24} color={itemColor} />
+                    <Text style={{ color: itemColor }}>
+                      Password & Security
+                    </Text>
                   </View>
-                  <Icon source="arrow-right" size={24} />
+                  <Icon source="arrow-right" size={24} color={itemColor} />
                 </View>
               </Link>
               <Link href={SETTINGS_ROUTES.CONTACTS}>
                 <View style={styles.item}>
                   <View style={styles.itemContainer}>
-                    <Icon source="contacts" size={24} />
-                    <Text>Contacts</Text>
+                    <Icon source="contacts" size={24} color={itemColor} />
+                    <Text style={{ color: itemColor }}>Contacts</Text>
                   </View>
-                  <Icon source="arrow-right" size={24} />
+                  <Icon source="arrow-right" size={24} color={itemColor} />
                 </View>
               </Link>
             </>
@@ -140,14 +147,14 @@ export default function Settings() {
           <Link href={SETTINGS_ROUTES.QR_CODE}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="qrcode" size={24} />
-                <Text>QR Code</Text>
+                <Icon source="qrcode" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>QR Code</Text>
               </View>
-              <Icon source="arrow-right" size={24} />
+              <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Link>
         </View>
-        <Text>Preferences</Text>
+        <Text style={{ color: "#696969" }}>Preferences</Text>
         <View
           style={{
             backgroundColor: theme.colors.background,
@@ -158,14 +165,14 @@ export default function Settings() {
           <Link href={SETTINGS_ROUTES.THEME}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="format-paint" size={24} />
-                <Text>Theme</Text>
+                <Icon source="format-paint" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>Theme</Text>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text>
+                <Text style={{ color: itemColor }}>
                   {themeChoice.charAt(0).toUpperCase() + themeChoice.slice(1)}
                 </Text>
-                <Icon source="arrow-right" size={24} />
+                <Icon source="arrow-right" size={24} color={itemColor} />
               </View>
             </View>
           </Link>
@@ -173,24 +180,24 @@ export default function Settings() {
             <Link href={SETTINGS_ROUTES.GPS}>
               <View style={styles.item}>
                 <View style={styles.itemContainer}>
-                  <Icon source="map-marker" size={24} />
-                  <Text>GPS</Text>
+                  <Icon source="map-marker" size={24} color={itemColor} />
+                  <Text style={{ color: itemColor }}>GPS</Text>
                 </View>
-                <Icon source="arrow-right" size={24} />
+                <Icon source="arrow-right" size={24} color={itemColor} />
               </View>
             </Link>
           )}
           <Link href={SETTINGS_ROUTES.NOTIFICATIONS}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="bell" size={24} />
-                <Text>Notifications</Text>
+                <Icon source="bell" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>Notifications</Text>
               </View>
-              <Icon source="arrow-right" size={24} />
+              <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Link>
         </View>
-        <Text>Support</Text>
+        <Text style={{ color: "#696969" }}>Support</Text>
         <View
           style={{
             backgroundColor: theme.colors.background,
@@ -201,28 +208,28 @@ export default function Settings() {
           <Link href={SETTINGS_ROUTES.HELP_CENTER}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="comment-question" size={24} />
-                <Text>Help Center</Text>
+                <Icon source="comment-question" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>Help Center</Text>
               </View>
-              <Icon source="arrow-right" size={24} />
+              <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Link>
           <Link href={SETTINGS_ROUTES.ABOUT_US}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="account-details" size={24} />
-                <Text>About Us</Text>
+                <Icon source="account-details" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>About Us</Text>
               </View>
-              <Icon source="arrow-right" size={24} />
+              <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Link>
           <Pressable onPress={handleLogout}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
-                <Icon source="exit-to-app" size={24} />
-                <Text>Logout</Text>
+                <Icon source="exit-to-app" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>Logout</Text>
               </View>
-              <Icon source="arrow-right" size={24} />
+              <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Pressable>
         </View>
