@@ -1,11 +1,16 @@
+import VerificationCodeModal from "@/features/settings/components/verification-code-modal";
 import { useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 import { Button, Text, useTheme } from "react-native-paper";
 
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const theme = useTheme();
-  const handleVerify = () => {};
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const handleVerify = () => {
+    setIsModalVisible(true);
+  };
   return (
     <View style={{ flex: 1, backgroundColor: theme.dark ? "#0B1020" : "#FFF" }}>
       <View
@@ -58,6 +63,13 @@ export default function VerifyEmail() {
           Verify Email
         </Button>
       </View>
+      <VerificationCodeModal
+        visible={isModalVisible}
+        email={email}
+        onDismiss={() => setIsModalVisible(false)}
+        onVerifyCode={() => {}}
+        onResendCode={() => {}}
+      />
     </View>
   );
 }
