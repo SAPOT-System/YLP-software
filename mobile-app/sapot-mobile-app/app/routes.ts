@@ -40,4 +40,6 @@ export const APP_ROUTES = {
   HOME: "/(drawer)/(tabs)",
   SETTINGS: "/(drawer)/(tabs)/settings",
   SEARCH: "/(drawer)/search",
+  SCAN_QR: "/(drawer)/(tabs)/scan-qr",
+  PEER_PROFILE: "/(drawer)/(tabs)/peer/[id]",
 } as const;

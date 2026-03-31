@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { APP_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
@@ -14,7 +14,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { TouchableOpacity } from "react-native";
-import { ActivityIndicator, Searchbar, useTheme } from "react-native-paper";
+import {
+  ActivityIndicator,
+  Icon,
+  Searchbar,
+  useTheme,
+} from "react-native-paper";
 
 export default function Chat() {
   const auth = useAuth();
@@ -69,23 +74,42 @@ export default function Chat() {
         end={{ x: 0.5, y: 1 }}
         style={[styles.topSection, { paddingTop: headerHeight + 16 }]}
       >
-        <TouchableOpacity onPress={() => router.push(APP_ROUTES.SEARCH)}>
-          <Searchbar
-            pointerEvents="none"
-            editable={false}
-            value=""
-            placeholder="Search"
-            iconColor={theme.dark ? "#7E8AA6" : "#000000"}
-            placeholderTextColor={theme.dark ? "#7E8AA6" : "#696969"}
-            style={[
-              styles.searchbar,
-              {
-                backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
-                color: theme.dark ? "#7E8AA6" : "#696969",
-              },
-            ]}
-          />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => router.push(APP_ROUTES.SEARCH)}
+            style={{ flexGrow: 1 }}
+          >
+            <Searchbar
+              pointerEvents="none"
+              editable={false}
+              value=""
+              placeholder="Search"
+              iconColor={theme.dark ? "#7E8AA6" : "#000000"}
+              placeholderTextColor={theme.dark ? "#7E8AA6" : "#696969"}
+              style={[
+                styles.searchbar,
+                {
+                  backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
+                  color: theme.dark ? "#7E8AA6" : "#696969",
+                },
+              ]}
+            />
+          </TouchableOpacity>
+          <Pressable onPress={() => router.push(APP_ROUTES.SCAN_QR)}>
+            <View
+              style={{
+                backgroundColor: "#3A7AFE",
+                padding: 12,
+                borderWidth: 1,
+                borderColor: "#000000",
+                elevation: 6,
+                borderRadius: 55,
+              }}
+            >
+              <Icon source="qrcode" size={30} color="white" />
+            </View>
+          </Pressable>
+        </View>
         <PeerList peers={peers} />
       </LinearGradient>
       <View style={[styles.chatListContainer, { backgroundColor: "none" }]}>

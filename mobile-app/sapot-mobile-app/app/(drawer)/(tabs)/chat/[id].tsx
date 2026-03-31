@@ -1,3 +1,4 @@
+import { APP_ROUTES } from "@/app/routes";
 import { useCallService } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
@@ -182,6 +183,13 @@ const ChatRoom = () => {
           <IconButton
             icon="dots-vertical"
             size={20}
+            onPress={() =>
+              peerId &&
+              router.push({
+                pathname: APP_ROUTES.PEER_PROFILE,
+                params: { id: peerId },
+              })
+            }
             style={styles.headerActionButton}
           />
         </View>

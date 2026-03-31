@@ -2,10 +2,10 @@ import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
-import { Tabs } from "expo-router";
+import { router, Tabs } from "expo-router";
 import React from "react";
 import { View } from "react-native";
-import { Text, useTheme } from "react-native-paper";
+import { Appbar, Text, useTheme } from "react-native-paper";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -90,10 +90,14 @@ export default function TabLayout() {
         options={{
           title: "Public Chat",
           tabBarLabel: "Public Chat",
+          headerTitleAlign: "center",
+          headerTitleStyle: { fontWeight: "bold", fontSize: 24 },
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: "transparent" },
           tabBarIcon: ({ color }) => (
             <SimpleLineIcons size={24} name="globe" color={color} />
           ),
-          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -141,6 +145,39 @@ export default function TabLayout() {
           href: null,
           headerShown: false,
           tabBarStyle: { display: "none" },
+        }}
+      />
+      <Tabs.Screen
+        name="scan-qr"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+          header: ({ options }) => (
+            <Appbar.Header statusBarHeight={0} style={{ height: 80 }}>
+              <Appbar.BackAction onPress={() => router.back()} />
+
+              <Appbar.Content
+                titleStyle={{
+                  fontWeight: "bold",
+                  color: theme.dark ? "#E6ECF5" : "#000",
+                  fontSize: 24,
+                }}
+                title={options.title ?? "QR Code"}
+              />
+            </Appbar.Header>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="peer/[id]"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+          header: () => (
+            <Appbar.Header statusBarHeight={0} style={{ height: 80 }}>
+              <Appbar.BackAction onPress={() => router.back()} />
+            </Appbar.Header>
+          ),
         }}
       />
     </Tabs>
