@@ -164,6 +164,18 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="peer/[id]"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+          header: () => (
+            <Appbar.Header statusBarHeight={0} style={{ height: 80 }}>
+              <Appbar.BackAction onPress={() => router.back()} />
+            </Appbar.Header>
+          ),
+        }}
+      />
     </Tabs>
   );
 }
