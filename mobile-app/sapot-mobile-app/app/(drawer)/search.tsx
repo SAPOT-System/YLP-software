@@ -9,12 +9,14 @@ import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import {
   Appbar,
+  Icon,
   Searchbar,
   Snackbar,
   Text,
   useTheme,
 } from "react-native-paper";
 import { useDebounce } from "use-debounce";
+import { APP_ROUTES } from "../routes";
 
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
@@ -35,7 +37,13 @@ export default function SearchScreen() {
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
-      <View style={{ flexDirection: "row", marginBottom: 20 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "flex-start",
+          marginBottom: 20,
+        }}
+      >
         <Appbar.BackAction onPress={() => router.back()} />
         <Searchbar
           placeholder="Search "
@@ -44,12 +52,27 @@ export default function SearchScreen() {
           iconColor={theme.dark ? "#7E8AA6" : "#000000"}
           placeholderTextColor={theme.dark ? "#7E8AA6" : "#103462"}
           style={{
-            flex: 1,
+            flexGrow: 1,
             backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
             color: theme.dark ? "#7E8AA6" : "#696969",
             borderWidth: 1,
+            marginRight: 8,
           }}
         />
+        <Pressable onPress={() => router.push(APP_ROUTES.SCAN_QR)}>
+          <View
+            style={{
+              backgroundColor: "#3A7AFE",
+              padding: 12,
+              borderWidth: 1,
+              borderColor: "#000000",
+              elevation: 6,
+              borderRadius: 55,
+            }}
+          >
+            <Icon source="qrcode" size={30} color="white" />
+          </View>
+        </Pressable>
       </View>
 
       {isLoading && <Text>Searching...</Text>}
