@@ -1,6 +1,6 @@
 import React from "react";
-import { Text, TextInput, TextInputProps, useTheme } from "react-native-paper";
 import { View } from "react-native";
+import { Text, TextInput, TextInputProps, useTheme } from "react-native-paper";
 
 interface SettingsTextInputProps extends TextInputProps {
   placeholder: string;
@@ -8,8 +8,11 @@ interface SettingsTextInputProps extends TextInputProps {
   value: string;
   onChangeText: (text: string) => void;
   icon?: string;
+  onIconPress?: () => void;
   required?: boolean;
   error?: boolean;
+  labelRight?: React.ReactNode;
+  disabled?: boolean;
 }
 
 const SettingsTextInput = ({
@@ -18,20 +21,32 @@ const SettingsTextInput = ({
   value,
   onChangeText,
   icon,
+  onIconPress,
   error,
   required,
+  labelRight,
+  disabled,
   ...props
 }: SettingsTextInputProps) => {
   const theme = useTheme();
   return (
     <View>
-      <Text
-        variant="labelLarge"
-        style={{ fontWeight: "semibold", color: theme.colors.onSurface }}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-start",
+        }}
       >
-        {label}{" "}
-        {required && <Text style={{ color: theme.colors.error }}>*</Text>}
-      </Text>
+        <Text
+          variant="labelLarge"
+          style={{ fontWeight: "semibold", color: theme.colors.onSurface }}
+        >
+          {label}{" "}
+          {required && <Text style={{ color: theme.colors.error }}>*</Text>}
+        </Text>
+        {labelRight}
+      </View>
       <TextInput
         mode="outlined"
         placeholder={placeholder}
@@ -41,7 +56,18 @@ const SettingsTextInput = ({
         onChangeText={onChangeText}
         error={error}
         outlineColor={theme.colors.outlineVariant}
-        right={icon ? <TextInput.Icon icon={icon} /> : ""}
+        right={
+          icon ? (
+            <TextInput.Icon
+              icon={icon}
+              onPress={onIconPress}
+              disabled={false}
+              forceTextInputFocus={false}
+              color={theme.colors.onSurface}
+            />
+          ) : undefined
+        }
+        disabled={disabled}
         {...props}
       />
     </View>

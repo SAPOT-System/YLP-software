@@ -50,12 +50,9 @@ export const validateRegistrationForm = ({
   }
 
   // Email validation
-  if (
-    email !== undefined &&
-    email.length > 0 &&
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  ) {
-    errors.email = "Invalid email address";
+  const emailError = validateEmail(email);
+  if (emailError) {
+    errors.email = emailError;
   }
 
   // Question validation
@@ -76,6 +73,16 @@ export const validateRegistrationForm = ({
   }
 
   return errors;
+};
+
+export const validateEmail = (email?: string) => {
+  if (email !== undefined && email.length > 0) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return "Invalid email address";
+    }
+  }
+
+  return undefined;
 };
 
 export const hasValidationErrors = (
