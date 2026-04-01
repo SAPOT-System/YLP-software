@@ -71,4 +71,4 @@ wheels/
 *.egg
 site/
 .mypy_cache/
-./static/profile_pictures/*
+/static/profile_pictures/*
