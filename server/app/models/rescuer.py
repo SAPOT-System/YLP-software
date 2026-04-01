@@ -22,3 +22,7 @@ class Rescuer(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         index=True
     )
+
+    user: Optional['User'] = Relationship(
+        back_populates='rescuer'
+    )
