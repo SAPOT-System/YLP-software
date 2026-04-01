@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from enum import unique
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 import uuid
 from pydantic import EmailStr, StringConstraints, field_validator, Field as PyField
 from sqlmodel import SQLModel, Field, Relationship
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.call import Call
     from app.models.call_participant import CallParticipant
     from app.models.message import Message
+    from app.models.user_profile_picture import UserProfilePicture
     from app.models.message_receipt import MessageReceipt
 
 
@@ -62,6 +63,10 @@ class User(UserBase, table=True):
     )
 
     messagereceipts: List["MessageReceipt"] = Relationship(
+        back_populates="user"
+    )
+
+    profile_picture: Optional["UserProfilePicture"] = Relationship(
         back_populates="user"
     )
 
