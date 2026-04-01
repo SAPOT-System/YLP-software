@@ -16,8 +16,8 @@ class UserSecurityQuestion(SQLModel, table=True):
 
 
 class SecurityQuestionItem(BaseModel):
-    question: str = PydanticField(..., example="What is your mother's maiden name?")
-    answer: str = PydanticField(..., example="Smith")
+    question: str = PydanticField(..., json_schema_extra={"example": "What is your mother's maiden name?"})
+    answer: str = PydanticField(..., json_schema_extra={"example":"Smith"})
 
 class AddSecurityQuestion(BaseModel):
     questions: list[SecurityQuestionItem]
