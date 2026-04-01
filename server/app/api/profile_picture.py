@@ -22,7 +22,7 @@ router = APIRouter(
 )
 
 
-@router.post("/me/photo")
+@router.post("/me")
 async def upload_photo(
     file: UploadFile,
     session: SessionDep,
@@ -40,7 +40,25 @@ async def upload_photo(
         "url": f"/static/profile_pics/{photo_record.filename}"
     }
 
-@router.get("/{user_id}/photo")
+
+@router.get("/me")
+async def get_my_photo(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user)]
+):
+    user_id = current_user.id
+    statement = select(UserProfilePicture).where(
+        UserProfilePicture.user_id == user_id,
+        UserProfilePicture.is_active == True
+    )
+    photo = session.exec(statement).first()
+
+    if not photo:
+        return {"url": "/static/default.jpg"} # Fallback image
+
+    return {"url": f"/static/profile_pictures/{photo.filename}"}
+
+@router.get("/{user_id}")
 async def get_user_photo(user_id: uuid.UUID, session: SessionDep):
     statement = select(UserProfilePicture).where(
         UserProfilePicture.user_id == user_id,

@@ -33,15 +33,11 @@ run the API with the command ~uvicorn app.main:app --reload --host=0.0.0.0~
   - [ ] ICE servers (optional for remote networks)
 - [ ] calling (through the app, no server is needed)
 
-* TODO ~/sync POST~
-** choose timestamps on how to execute syncing
-
 * TODO server features ~/features~
 ** SMS messaging
-** websockets peer to peer initiate
-** GPS mapping
-** Group messaging
-** Group calls
+** [X] websockets peer to peer initiate
+** [ ] GPS mapping
+** [ ] Group messaging (tentative)
 
 * Note
 Authenticated means the user has to send an authorization header in this format
@@ -100,6 +96,9 @@ function sleep(ms) {
 #+BEGIN_SRC json
 <link>/auth/exists?identifier=<username, email, or phonenumber>
 #+END_SRC
+** Change Password ~/auth/change-password POST~
+    - requires users to be authenticated
+    - send a form body with ~current_password~ and ~new_password~
 ** Get Token Endpoint~/auth/token POST~
 - this endpoint requires two form-data arguments:
   1. username
@@ -473,62 +472,99 @@ use this endpoint to push new data to the server
 
 *** Sample data to send (same data format will be sent when syncing from server)
 #+BEGIN_SRC python
-    push_payload = {
-        "conversations": [
-            {
-                "id": conv_id,
-                "title": "Sync Test",
-                "conversation_type": "group",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-        ],
-        "conversation_participants": [
-            {
-                "id": part_id,
-                "conversation_id": conv_id,
-                "user_id": user_id,
-                "joined_at": datetime.now(timezone.utc).isoformat(),
-                "is_deleted": False
-            }
-        ],
-        "messages": [
-            {
-                "id": msg_id,
-                "conversation_id": conv_id,
-                "content": "Reconciliation check",
-                "message_type": "text",
-                "is_deleted": False,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-        ],
-        "calls": [
-            {
-                "id": str(call_id),
-                "call_type": "video",  # CallType.AUDIO
-                "status": "completed", # StatusType.COMPLETED
-                "start_time": datetime.now(timezone.utc).isoformat(),
-                "end_time": datetime.now(timezone.utc).isoformat(),
-                "conversation_id": str(conv_id),
-                "initiator_id": str(user_id)
-            }
-        ],
-        "call_participants": [
-            {
-                "id": str(uuid4()),
-                "conversation_id": str(conv_id),
-                "user_id": str(user_id),
-                "joined_at": datetime.now(timezone.utc).isoformat(),
-                "left_at": None
-            }
-        ],
-        "message_receipts": [
-            {
-                "id": str(uuid4()),
-                "status": "read", # StatusType.READ
-                "message_id": str(msg_id),
-                "user_id": str(user_id),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-        ]
-    }
+push_payload = {
+    "conversations": [
+        {
+            "id": conv_id,
+            "title": "Sync Test",
+            "conversation_type": "group",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    ],
+    "conversation_participants": [
+        {
+            "id": part_id,
+            "conversation_id": conv_id,
+            "user_id": user_id,
+            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "is_deleted": False
+        }
+    ],
+    "messages": [
+        {
+            "id": msg_id,
+            "conversation_id": conv_id,
+            "content": "Reconciliation check",
+            "message_type": "text",
+            "is_deleted": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ],
+    "calls": [
+        {
+            "id": str(call_id),
+            "call_type": "video",  # CallType.AUDIO
+            "status": "completed", # StatusType.COMPLETED
+            "start_time": datetime.now(timezone.utc).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat(),
+            "conversation_id": str(conv_id),
+            "initiator_id": str(user_id)
+        }
+    ],
+    "call_participants": [
+        {
+            "id": str(uuid4()),
+            "conversation_id": str(conv_id),
+            "user_id": str(user_id),
+            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "left_at": None
+        }
+    ],
+    "message_receipts": [
+        {
+            "id": str(uuid4()),
+            "status": "read", # StatusType.READ
+            "message_id": str(msg_id),
+            "user_id": str(user_id),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+}
+    #+END_SRC
+
+** Profile picture endpoints
+*** /profile-picture/me (GET)
+use this endpoint to get the current user's profile picture link
+**** Response
+#+BEGIN_SRC json
+{
+    "url": "/static/profile_pictures/8c78cb1c-c19f-4442-825c-8099594379be_aa5a9e.jpg"
+}
 #+END_SRC
+use the format "{domain}/{url}" to access the photo
+*** /profile-picture/me (POST)
+use a multi-part form data to upload photos
+**** curl example
+#+BEGIN_SRC bash
+curl -X 'POST' \
+    'http://localhost:8000/profile-picture/me' \
+    -H 'accept: application/json' \
+    -H 'Authorization: Bearer <token> \
+    -H 'Content-Type: multipart/form-data' \
+    -F 'file=@pic.jpg;type=image/jpeg'
+#+END_SRC
+**** Response
+#+BEGIN_SRC json
+{
+    "message": "Photo uploaded successfully",
+    "photo_id": "0b31655b-ce64-4f32-90e7-c7973b726580",
+    "url": "/static/profile_pics/8c78cb1c-c19f-4442-825c-8099594379be_a9ec8c.jpg"
+}
+#+END_SRC
+use the format "{domain}/{url}" to access the photo
+
+*** /profile-picture/{user-id}
+    use this to get the profile picture of other users
+**** sample request ~http://localhost:8000/profile-picture/96b72839-e077-4413-91e6-d3038c6a9532~
+**** sample response ~{"url": "/static/default.jpg"}~
+**** use the format "{domain}/{url}" to access the photo
