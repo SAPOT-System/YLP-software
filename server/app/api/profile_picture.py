@@ -37,7 +37,7 @@ async def upload_photo(
     return {
         "message": "Photo uploaded successfully",
         "photo_id": photo_record.id,
-        "url": f"/static/profile_pics/{photo_record.filename}"
+        "url": f"/static/profile_pictures/{photo_record.filename}"
     }
 
 
