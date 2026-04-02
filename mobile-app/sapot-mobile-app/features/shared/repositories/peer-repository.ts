@@ -118,6 +118,50 @@ export class PeerRepository {
     }
   }
 
+  async updatePeerInfoById(
+    peerId: string,
+    peerInfo: {
+      username?:string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phoneNumber?: string;
+    }
+  ) {
+    try {
+      return await this.db.write(async () => {
+        const peers = await this.peersCollection.query(Q.where("id", peerId));
+
+        if (peers.length > 0) {
+          await peers[0].update((peer) => {
+            if (peerInfo.username !== undefined) {
+              peer.username = peerInfo.username;
+            }
+            if (peerInfo.firstName !== undefined) {
+              peer.firstName = peerInfo.firstName;
+            }
+            if (peerInfo.lastName !== undefined) {
+              peer.lastName = peerInfo.lastName;
+            }
+            if (peerInfo.email !== undefined) {
+              peer.email = peerInfo.email;
+            }
+            if (peerInfo.phoneNumber !== undefined) {
+              peer.phoneNumber = peerInfo.phoneNumber;
+            }
+          });
+        }
+      });
+    } catch (error) {
+      console.error(
+        `[PeerRepository]: Error updating peer info by id\n${JSON.stringify(
+          { peerId, peerInfo }
+        )}\n${error}`
+      );
+      throw error;
+    }
+  }
+
   /**
    * Checks if a peer exists in the database by id.
    * @param id The peer id

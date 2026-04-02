@@ -179,6 +179,29 @@ export class UserService {
     }
   }
 
+  async updateAuthenticatedUser(userInfo: {
+    username?:string
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+  }) {
+    const id = await getItemAsync("userUUID");
+    if (id === null) return; //TODO: inform user of error
+
+    await this.peerService.updatePeerInfo(id, {
+      username: userInfo.username,
+      firstName: userInfo.firstName,
+      lastName: userInfo.lastName,
+      email: userInfo.email,
+      phoneNumber: userInfo.phoneNumber,
+    });
+
+    const user = await this.peerService.findPeerById(id);
+
+    this.userStore.setUser(user, false);
+  }
+
   async isCurrentUserGuest() {
     try {
       return (await this.guestUserRepository.getCurrentGuestUser()) !== null;

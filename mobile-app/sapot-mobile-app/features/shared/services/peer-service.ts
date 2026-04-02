@@ -153,6 +153,36 @@ export class PeerService {
   }
 
   /**
+   * Updates peer profile fields in the repository.
+   * @param id The peer id
+   * @param peerInfo The fields to update
+   * @returns Promise<void>
+   */
+  async updatePeerInfo(
+    id: string,
+    peerInfo: {
+      firstName?: string;
+      username?: string;
+      lastName?: string;
+      email?: string;
+      phoneNumber?: string;
+    }
+  ) {
+    try {
+      await this.peerRepository.updatePeerInfoById(id, peerInfo);
+    } catch (error) {
+      console.error(
+        `[PeerService]: Error updating peer info\n${JSON.stringify(
+          { id, peerInfo },
+          null,
+          2
+        )}\n${error}`
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Finds a discovered peer by id from the in-memory discoveredPeerServices list.
    * @param id The peer id
    * @returns DiscoveredService | undefined
