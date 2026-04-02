@@ -62,7 +62,8 @@ export interface RegisterApiResponse {
   email: string;
   username: string;
   detail: string;
-  token: string;
+  access_token: string;
+  refresh_token: string;
 }
 
 /**
@@ -76,6 +77,7 @@ export interface LoginApiRequest {
 
 export interface LoginApiResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
 }
 

@@ -29,6 +29,19 @@ export const loginApi = async (
   return res;
 };
 
+export const logoutApi = async () => {
+  const res = await apiClient.post("/auth/logout");
+  return res;
+};
+
+export const refreshTokenApi = async (refreshToken: string) => {
+  const res = await apiClient.post<{
+    refresh_token: string;
+    access_token: string;
+  }>("/auth/refresh", { refresh_token: refreshToken });
+  return res.data;
+};
+
 export const existsApi = async (identifier: string) => {
   const res = await apiClient.get<{ exists: boolean }>("/auth/exists/", {
     params: { identifier },
@@ -54,9 +67,17 @@ export const addSecurityQuestionApi = async (
   return res;
 };
 
-export const generateNewRecoveryKeyApi = async () => {
+export const generateNewRecoveryKeyApi = async (token: string) => {
   const res = await apiClient.post<string>(
-    "/auth/forgot-password/generate-new-recovery-key/"
+    "/auth/forgot-password/generate-new-recovery-key",
+    null,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "text/plain",
+        Accept: "text/plain",
+      },
+    }
   );
   return res;
 };
