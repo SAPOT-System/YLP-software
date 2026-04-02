@@ -2,7 +2,7 @@ import { getUserApi } from "@/features/shared";
 import { AxiosError } from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { loginApi } from "../api";
+import { loginApi, logoutApi, refreshTokenApi } from "../api";
 import { useUserService } from "../hooks/use-user-service";
 import {
   LoginApiErrorResponse,
@@ -54,6 +54,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isGuest, setIsGuest] = useState(false);
   const userService = useUserService();
 
+  const refreshSession = async () => {
+    try {
+      const refreshToken = await getItemAsync("refresh_token");
+      if (!refreshToken) {
+        return false;
+      }
+
+      const { access_token, refresh_token } = await refreshTokenApi(
+        refreshToken
+      );
+      await setItemAsync("token", access_token);
+      await setItemAsync("refresh_token", refresh_token);
+
+      const userInfo = await getUserApi(access_token);
+      await userService.syncAuthenticatedUser(userInfo);
+
+      setAccessToken(access_token);
+      setIsAuthenticated(await isAccessTokenValid(access_token));
+      return true;
+    } catch (err) {
+      console.log(err);
+      return false;
+    }
+  };
+
   useEffect(() => {
     (async () => {
       console.log("AuthProvider effect");
@@ -63,7 +88,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (token && uuid) {
         await userService.initialize({ isGuest: false });
         setAccessToken(token);
-        setIsAuthenticated(token ? await isAccessTokenValid(token) : false);
+
+        const isValid = await isAccessTokenValid(token);
+        if (isValid) {
+          setIsAuthenticated(true);
+        } else {
+          await refreshSession();
+        }
       } else if (await userService.isCurrentUserGuest()) {
         await userService.initialize({ isGuest: true });
         setIsGuest(true);
@@ -97,9 +128,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const res = await loginApi(credentials);
       setLoading(false);
 
-      const { access_token } = res.data;
+      const { access_token, refresh_token } = res.data;
 
       await setItemAsync("token", access_token);
+      await setItemAsync("refresh_token", refresh_token);
 
       const userInfo = await getUserApi(access_token);
 
@@ -146,7 +178,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     setAccessToken(token);
     setIsAuthenticated(await isAccessTokenValid(token));
-
   };
 
   const loginAsGuest = async (credentials: {
@@ -183,7 +214,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
+    try {
+      await logoutApi();
+    } catch (err) {
+      console.log(err);
+    }
     await deleteItemAsync("token");
+    await deleteItemAsync("refresh_token");
     await deleteItemAsync("userUUID");
 
     await userService.logout();

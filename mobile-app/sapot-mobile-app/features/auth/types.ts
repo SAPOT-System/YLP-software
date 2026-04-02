@@ -76,6 +76,7 @@ export interface LoginApiRequest {
 
 export interface LoginApiResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
 }
 
