@@ -5,9 +5,13 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from app.db_operations.auth import SessionDep
 from sqlmodel import Session
 from datetime import datetime, timezone
-import uuid
 from fastapi.routing import APIRouter
 import time
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import select, func, desc
+from typing import List
+import uuid
+
 
 from app.db_operations.token import get_current_user
 from app.models.users import User
@@ -80,3 +84,82 @@ async def stream_gps_location(
             code=status.WS_1011_INTERNAL_ERROR,
             reason="Server encountered an error processing GPS data"
         ) from e
+
+
+@router.get("/latest")
+def get_all_latest_locations(session: SessionDep):
+    """
+    Returns the most recent location for every user who has sent a ping.
+    Useful for the initial map load.
+    """
+    # Optimized MariaDB Query: Get the latest timestamp per user
+    # Note: In high-scale apps, we'd store 'latest_location_id' on the User table 
+    # to avoid this subquery, but this is the standard SQLModel way:
+    
+    subquery = (
+        select(UserLocation.user_id, func.max(UserLocation.timestamp).label("max_ts"))
+        .group_by(UserLocation.user_id)
+        .subquery()
+    )
+    
+    statement = (
+        select(UserLocation)
+        .join(subquery, (UserLocation.user_id == subquery.c.user_id) & 
+                       (UserLocation.timestamp == subquery.c.max_ts))
+    )
+    
+    locations = session.exec(statement).all()
+    
+    # Format for the frontend (React Native Map)
+    return [
+        {
+            "user_id": loc.user_id,
+            "latitude": loc.latitude,
+            "longitude": loc.longitude,
+            "timestamp": loc.timestamp
+        } for loc in locations
+    ]
+
+@router.get("/history/{user_id}")
+def get_user_location_history(
+    user_id: uuid.UUID, 
+    session: SessionDep, 
+    limit: int = 50
+):
+    """
+    Returns the last 'X' locations for a specific user to show their path.
+    """
+    statement = (
+        select(UserLocation)
+        .where(UserLocation.user_id == user_id)
+        .order_by(desc(UserLocation.timestamp))
+        .limit(limit)
+    )
+    
+    history = session.exec(statement).all()
+    
+    if not history:
+        raise HTTPException(status_code=404, detail="No location history found for this user")
+        
+    return history
+
+
+@router.websocket("/monitor/rescuers/{rescuer_id}")
+async def monitor_live_feed(
+    websocket: WebSocket, 
+    rescuer_id: str
+):
+    # 1. Connect and add to the broadcast list
+    await gps_manager.connect_monitor(rescuer_id, websocket)
+    
+    try:
+        while True:
+            # Keep the connection open. 
+            # We don't expect data FROM the rescuer, but we need to 
+            # listen for the 'close' event or heartbeats.
+            await websocket.receive_text() 
+            
+    except WebSocketDisconnect as e:
+        gps_manager.disconnect_monitor(rescuer_id)
+        print(f"Rescuer {rescuer_id} stopped monitoring.")
+        # raise e
