@@ -12,4 +12,5 @@ export class Peer extends Model {
   @field("is_online") isOnline!: boolean;
   @field("email") email!: string;
   @field("phone_number") phoneNumber!: string;
+  @field("email_verified") emailVerified!: boolean;
 }

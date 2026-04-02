@@ -1,5 +1,6 @@
 # models/email_verification.py
-
+import string
+import random
 from fastapi import BackgroundTasks, Request
 from sqlmodel import SQLModel, Field, Relationship
 from app.db_operations.forgot_password import generate_and_save_new_recovery_key, sign, send_email, EMAIL_API_KEY
@@ -44,8 +45,8 @@ def generate_verification_token():
     return secrets.token_urlsafe(32)
 
 def send_verification_email(user_id:uuid.UUID, session: SessionDep, background_tasks: BackgroundTasks, request: Request):
-    # generate and save token
-    token = generate_verification_token()
+    # generate and save token (6-digit code)
+    token = "".join(random.choices(string.digits, k=6))
 
     user = get_user(user_id, session)
 
@@ -55,7 +56,7 @@ def send_verification_email(user_id:uuid.UUID, session: SessionDep, background_t
     verification = EmailVerification(
         user_id=user_id,
         token=token,
-        expires_at=datetime.utcnow() + timedelta(hours=1)
+        expires_at=datetime.utcnow() + timedelta(minutes=10)
     )
 
     session.add(verification)
@@ -63,15 +64,12 @@ def send_verification_email(user_id:uuid.UUID, session: SessionDep, background_t
 
     email = user.email
 
-    verification_link = f"{get_domain(request)}:8000/auth/verify/email?token={token}"
-
     html = f"""
     <h3>Email Verification</h3>
-    <p>Click below verify your email:</p>
-    <a href="{verification_link}">Verify Email</a>
-    <p>This link expires in 30 minutes.</p>
+    <p>Your verification code is:</p>
+    <h2 style="letter-spacing: 5px;">{token}</h2>
+    <p>This code expires in 10 minutes.</p>
     """
-
 
     background_tasks.add_task(
         send_email,

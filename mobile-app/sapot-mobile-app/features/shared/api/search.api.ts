@@ -17,7 +17,7 @@ export const searchUsers = async ({
       last_name: string;
       id: string;
     }[];
-  }>("/user-utils", null, {
+  }>("/user-utils/search-user", null, {
     params: { username },
   });
 

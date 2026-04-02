@@ -7,28 +7,14 @@ export default schemaMigrations({
   migrations: [
     // We'll add migration definitions here later
     {
-      toVersion: 3,
+      toVersion: 4,
       steps: [
         addColumns({
           table: "peers",
           columns: [
             {
-              name: "first_name",
-              type: "string",
-            },
-            {
-              name: "last_name",
-              type: "string",
-              isOptional: true,
-            },
-            {
-              name: "email",
-              type: "string",
-              isOptional: true,
-            },
-            {
-              name: "phone_number",
-              type: "string",
+              name: "email_verified",
+              type: "boolean",
               isOptional: true,
             },
           ],

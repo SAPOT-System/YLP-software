@@ -7,3 +7,5 @@ from app.models.message_receipt import MessageReceipt
 from app.models.attachment import Attachment
 from app.models.jti import BlacklistedToken
 from app.models.user_profile_picture import UserProfilePicture
+from app.models.location import UserLocation
+from app.models.rescuer import Rescuer
