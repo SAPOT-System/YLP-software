@@ -30,6 +30,12 @@ export default function DrawerLayout() {
       ? "Server"
       : "LAN";
 
+  const labelIcon = {
+    Auto: "circle",
+    Server: "weather-cloudy",
+    LAN: "network-strength-4",
+  };
+
   if (loading) {
     return <ActivityIndicator />;
   }
@@ -155,7 +161,11 @@ export default function DrawerLayout() {
                         borderColor: "#103462",
                       }}
                     >
-                      <Icon source="sync" size={12} color="#103462" />
+                      <Icon
+                        source={labelIcon[modeLabel]}
+                        size={12}
+                        color="#103462"
+                      />
                       <Text
                         style={{
                           marginLeft: 2,
@@ -165,7 +175,7 @@ export default function DrawerLayout() {
                           color: "#103462",
                         }}
                       >
-                            {modeLabel}
+                        {modeLabel}
                       </Text>
                     </View>
                   ),
