@@ -1,14 +1,14 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import {
-    createTestMessage,
-    createTestMessages,
+  createTestMessage,
+  createTestMessages,
 } from "@/test/factories/chat-model.factory";
 import { createTestZeroconfService } from "@/test/factories/peer-service.factory";
 import { createDiscoveryServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../../adapters";
 import { Message } from "../../database";
-import { NetworkConfig, SessionStore, UserStore } from "../../stores";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../stores";
 import { DiscoveryService } from "../discovery-service";
 import { PeerService } from "../peer-service";
 
@@ -22,6 +22,7 @@ jest.mock("../../stores", () => ({
   NetworkConfig: jest.fn(),
   SessionStore: jest.fn(),
   UserStore: jest.fn(),
+  AppModeStore: jest.fn(),
 }));
 
 // Mock PeerService
@@ -42,6 +43,7 @@ describe("DiscoveryService", () => {
   let mockUserStore: jest.Mocked<UserStore>;
   let mockPeerService: jest.Mocked<PeerService>;
   let mockChatService: jest.Mocked<ChatService>;
+  let mockAppModeStore: jest.Mocked<AppModeStore>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,6 +58,7 @@ describe("DiscoveryService", () => {
     mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
     mockPeerService = mocks.peerService as unknown as jest.Mocked<PeerService>;
     mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
+    mockAppModeStore = mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
 
     // Mock constructors
     jest.mocked(ZeroconfAdapter).mockImplementation(() => mockZeroconfAdapter);
@@ -71,7 +74,8 @@ describe("DiscoveryService", () => {
       mockSessionStore,
       mockNetworkConfig,
       mockUserStore,
-      mockPeerService
+      mockPeerService,
+      mockAppModeStore
     );
   });
 

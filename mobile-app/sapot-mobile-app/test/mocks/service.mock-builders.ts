@@ -19,6 +19,7 @@ export function createConnectionServiceDependencyMocks() {
 			username: "testuser",
 			isOnline: true,
 		}),
+		isGuest: false,
 	};
 
 	const tcpClientAdapter = {
@@ -59,6 +60,14 @@ export function createConnectionServiceDependencyMocks() {
 		handleAckMessage: jest.fn(),
 	};
 
+	const appModeStore = {
+		isTcpAllowed: jest.fn(() => true),
+		isWebSocketAllowed: jest.fn(() => true),
+		isZeroconfAllowed: jest.fn(() => true),
+		getEffectiveMode: jest.fn(() => "auto"),
+		isModeAllowed: jest.fn(() => true),
+	};
+
 	return {
 		tcpServerAdapter,
 		networkConfig,
@@ -67,6 +76,7 @@ export function createConnectionServiceDependencyMocks() {
 		webrtcAdapter,
 		wsSignalingAdapter,
 		chatService,
+		appModeStore,
 	};
 }
 
@@ -96,6 +106,7 @@ export function createDiscoveryServiceDependencyMocks() {
 			isOnline: true,
 		}),
 		setUser: jest.fn(),
+		isGuest: false,
 	};
 
 	const peerService = {
@@ -116,6 +127,14 @@ export function createDiscoveryServiceDependencyMocks() {
 		handleAckMessage: jest.fn(),
 	};
 
+	const appModeStore = {
+		isTcpAllowed: jest.fn(() => true),
+		isWebSocketAllowed: jest.fn(() => true),
+		isZeroconfAllowed: jest.fn(() => true),
+		getEffectiveMode: jest.fn(() => "auto"),
+		isModeAllowed: jest.fn(() => true),
+	};
+
 	return {
 		zeroconfAdapter,
 		sessionStore,
@@ -123,6 +142,7 @@ export function createDiscoveryServiceDependencyMocks() {
 		userStore,
 		peerService,
 		chatService,
+		appModeStore,
 	};
 }
 

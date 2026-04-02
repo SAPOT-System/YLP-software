@@ -1,5 +1,6 @@
 import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { useAppMode } from "@/features/shared/context";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { View } from "react-native";
@@ -10,6 +11,7 @@ const LanLoginScreen = () => {
   const [lastName, setLastName] = useState("");
 
   const auth = useAuth();
+  const { setMode } = useAppMode();
 
   if (!auth) {
     return <ActivityIndicator />;
@@ -19,6 +21,7 @@ const LanLoginScreen = () => {
   const handleLogin = async () => {
     const res = await loginAsGuest({ firstName, lastName });
     if (res.success) {
+      setMode("lan");
       router.replace("/(drawer)/(tabs)");
     }
   };

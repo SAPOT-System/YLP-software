@@ -6,7 +6,7 @@ import {
   ConnectionService,
   DiscoveryService,
 } from "./services";
-import { NetworkConfig } from "./stores";
+import { AppModeStore, NetworkConfig } from "./stores";
 
 import { CallService } from "@/features/call/services/call-service";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
@@ -35,6 +35,7 @@ export class MainContainer {
   readonly guestUserRepository: GuestUserRepository;
   readonly userContainer: AuthContainer;
   readonly cleanUpService: CleanUpService;
+  readonly appModeStore: AppModeStore;
 
   private initPromise?: Promise<void>;
 
@@ -42,8 +43,9 @@ export class MainContainer {
    * Constructs an AppContainer instance and initializes all dependencies and services.
    * Sets up dependency injection and cross-service references.
    */
-  constructor(userContainer: AuthContainer) {
+  constructor(userContainer: AuthContainer, appModeStore: AppModeStore) {
     this.userContainer = userContainer;
+    this.appModeStore = appModeStore;
 
     this.networkConfig = new NetworkConfig();
 
@@ -55,14 +57,16 @@ export class MainContainer {
       this.userContainer.sessionStore,
       this.networkConfig,
       this.userContainer.userStore,
-      this.userContainer.peerService
+      this.userContainer.peerService,
+      this.appModeStore
     );
 
     this.tcpServerAdapter = new TcpServerAdapter();
     this.connectionService = new ConnectionService(
       this.tcpServerAdapter,
       this.networkConfig,
-      this.userContainer.userStore
+      this.userContainer.userStore,
+      this.appModeStore
     );
 
     this.messageRepository = new MessageRepository(database);

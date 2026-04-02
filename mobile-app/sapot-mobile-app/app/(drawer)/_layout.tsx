@@ -1,6 +1,6 @@
 import { useAuth } from "@/features/auth";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
-import { MainContainerProvider } from "@/features/shared/context";
+import { MainContainerProvider, useAppMode } from "@/features/shared/context";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Redirect } from "expo-router";
@@ -15,12 +15,26 @@ const queryClient = new QueryClient();
 export default function DrawerLayout() {
   const auth = useAuth();
   const theme = useTheme();
+  const { store } = useAppMode();
 
   if (!auth) {
     return <ActivityIndicator />;
   }
 
   const { isAuthenticated, loading, isGuest } = auth;
+  const effectiveMode = store.getEffectiveMode(isGuest);
+  const modeLabel =
+    effectiveMode === "auto"
+      ? "Auto"
+      : effectiveMode === "server"
+      ? "Server"
+      : "LAN";
+
+  const labelIcon = {
+    Auto: "circle",
+    Server: "weather-cloudy",
+    LAN: "network-strength-4",
+  };
 
   if (loading) {
     return <ActivityIndicator />;
@@ -147,7 +161,11 @@ export default function DrawerLayout() {
                         borderColor: "#103462",
                       }}
                     >
-                      <Icon source="sync" size={12} color="#103462" />
+                      <Icon
+                        source={labelIcon[modeLabel]}
+                        size={12}
+                        color="#103462"
+                      />
                       <Text
                         style={{
                           marginLeft: 2,
@@ -157,7 +175,7 @@ export default function DrawerLayout() {
                           color: "#103462",
                         }}
                       >
-                        Auto
+                        {modeLabel}
                       </Text>
                     </View>
                   ),
