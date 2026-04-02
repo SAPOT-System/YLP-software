@@ -1,36 +1,132 @@
+import { changePasswordApi } from "@/features/auth/api/auth.api";
+import {
+  hasValidationErrors,
+  validatePassword,
+} from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
+import { useToast } from "@/features/shared/hooks";
+import { router } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
-import { Button, Text, useTheme } from "react-native-paper";
+import {
+  Button,
+  HelperText,
+  Snackbar,
+  Text,
+  useTheme,
+} from "react-native-paper";
 
 export default function ChangePassword() {
   const theme = useTheme();
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
+  const [errors, setErrors] = useState<{
+    currentPassword?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const {
+    visible: toastVisible,
+    message: toastMessage,
+    showToast,
+    hideToast,
+  } = useToast();
+
+  const handleSave = async () => {
+    const nextErrors = {
+      currentPassword: currentPass ? undefined : "Current password is required",
+      ...validatePassword(newPass, confirmPass),
+    };
+
+    setErrors(nextErrors);
+
+    if (hasValidationErrors(nextErrors)) {
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      await changePasswordApi(currentPass, newPass);
+      setCurrentPass("");
+      setNewPass("");
+      setConfirmPass("");
+      setErrors({});
+      showToast("Change password successfully");
+
+      setTimeout(() => {
+        router.back();
+      }, 1000);
+    } catch {
+      setErrors({ currentPassword: "Invalid password" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 16, alignItems: "center", gap: 24 }}>
-        <View style={{ alignItems: "stretch", width: "100%", gap: 16 }}>
-          <SettingsTextInput
-            placeholder="Current Password"
-            label="Current Password"
-            value={currentPass}
-            onChangeText={setCurrentPass}
-          />
-          <SettingsTextInput
-            placeholder="New Password"
-            label="New Password"
-            value={newPass}
-            onChangeText={setNewPass}
-          />
-          <SettingsTextInput
-            placeholder="Confirm Password"
-            label="Confirm Password"
-            value={confirmPass}
-            onChangeText={setConfirmPass}
-          />
+        <View style={{ alignItems: "stretch", width: "100%", gap: 4 }}>
+          <View>
+            <SettingsTextInput
+              placeholder="Current Password"
+              label="Current Password"
+              value={currentPass}
+              onChangeText={(value) => {
+                setCurrentPass(value);
+                if (errors.currentPassword) {
+                  setErrors((prev) => ({
+                    ...prev,
+                    currentPassword: undefined,
+                  }));
+                }
+              }}
+              secureTextEntry
+            />
+            <HelperText type="error" visible={Boolean(errors.currentPassword)}>
+              {errors.currentPassword}
+            </HelperText>
+          </View>
+          <View>
+            <SettingsTextInput
+              placeholder="New Password"
+              label="New Password"
+              value={newPass}
+              onChangeText={(value) => {
+                setNewPass(value);
+                if (errors.password) {
+                  setErrors((prev) => ({ ...prev, password: undefined }));
+                }
+              }}
+              secureTextEntry
+            />
+            <HelperText type="error" visible={Boolean(errors.password)}>
+              {errors.password}
+            </HelperText>
+          </View>
+          <View>
+            <SettingsTextInput
+              placeholder="Confirm Password"
+              label="Confirm Password"
+              value={confirmPass}
+              onChangeText={(value) => {
+                setConfirmPass(value);
+                if (errors.confirmPassword) {
+                  setErrors((prev) => ({
+                    ...prev,
+                    confirmPassword: undefined,
+                  }));
+                }
+              }}
+              secureTextEntry
+            />
+          </View>
+          <HelperText type="error" visible={Boolean(errors.confirmPassword)}>
+            {errors.confirmPassword}
+          </HelperText>
         </View>
         <Text
           variant="bodyMedium"
@@ -43,10 +139,19 @@ export default function ChangePassword() {
         >
           Forgot password?
         </Text>
-        <Button mode="contained" style={{ width: 164 }}>
+        <Button
+          mode="contained"
+          style={{ width: 164 }}
+          onPress={handleSave}
+          loading={isSaving}
+          disabled={isSaving}
+        >
           Save
         </Button>
       </View>
+      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+        {toastMessage}
+      </Snackbar>
     </View>
   );
 }
