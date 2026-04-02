@@ -4,7 +4,9 @@ export const normalizeMediaUrl = (url?: string | null) => {
   if (!url) return null;
 
   try {
+    // eslint-disable-next-line no-undef
     const baseUrl = new URL(getApiUrl());
+    // eslint-disable-next-line no-undef
     const parsedUrl = new URL(url, baseUrl.toString());
 
     if (parsedUrl.hostname === "0.0.0.0" || parsedUrl.hostname === "localhost") {

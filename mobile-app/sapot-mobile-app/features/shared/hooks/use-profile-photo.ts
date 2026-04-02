@@ -75,11 +75,9 @@ export const useProfilePhoto = (userId?: string | null): ProfilePhotoState => {
       const nextUrl = await fetchProfilePhoto(userId);
       const resolved = setCache(key, nextUrl);
       setUrlState(resolved);
-    } catch (err) {
+    } catch {
       const baseUrl = getApiUrl();
-      setError(
-        `Failed to load profile photo. Check server: ${baseUrl}`
-      );
+      setError(`Failed to load profile photo. Check server: ${baseUrl}`);
       setUrlState(getCache(key));
     } finally {
       setLoading(false);
