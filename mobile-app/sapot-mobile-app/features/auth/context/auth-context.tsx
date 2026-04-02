@@ -49,6 +49,7 @@ interface GuestLoginFormErrors {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<LoginFormErrors>({});
+  // TODO: remove
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
@@ -64,7 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { access_token, refresh_token } = await refreshTokenApi(
         refreshToken
       );
-      await setItemAsync("token", access_token);
+      await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
       const userInfo = await getUserApi(access_token);
@@ -83,7 +84,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     (async () => {
       console.log("AuthProvider effect");
       setLoading(true);
-      const token = await getItemAsync("token");
+      const token = await getItemAsync("access_token");
       const uuid = await getItemAsync("userUUID");
       if (token && uuid) {
         await userService.initialize({ isGuest: false });
@@ -130,7 +131,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const { access_token, refresh_token } = res.data;
 
-      await setItemAsync("token", access_token);
+      await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
       const userInfo = await getUserApi(access_token);
@@ -172,12 +173,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const loginAfterRegister = async (data: RegisterApiResponse) => {
-    const { token } = data;
+    const { access_token } = data;
 
     await userService.syncAuthenticatedUser(data);
 
-    setAccessToken(token);
-    setIsAuthenticated(await isAccessTokenValid(token));
+    setIsAuthenticated(await isAccessTokenValid(access_token));
   };
 
   const loginAsGuest = async (credentials: {
@@ -219,7 +219,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (err) {
       console.log(err);
     }
-    await deleteItemAsync("token");
+    await deleteItemAsync("access_token");
     await deleteItemAsync("refresh_token");
     await deleteItemAsync("userUUID");
 

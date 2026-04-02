@@ -67,9 +67,17 @@ export const addSecurityQuestionApi = async (
   return res;
 };
 
-export const generateNewRecoveryKeyApi = async () => {
+export const generateNewRecoveryKeyApi = async (token: string) => {
   const res = await apiClient.post<string>(
-    "/auth/forgot-password/generate-new-recovery-key/"
+    "/auth/forgot-password/generate-new-recovery-key",
+    null,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "text/plain",
+        Accept: "text/plain",
+      },
+    }
   );
   return res;
 };

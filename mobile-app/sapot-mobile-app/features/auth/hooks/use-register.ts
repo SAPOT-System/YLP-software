@@ -67,14 +67,15 @@ export const useRegister = () => {
       });
       const data = res.data;
 
-      await setItemAsync("token", data.token);
+      await setItemAsync("access_token", data.access_token);
+      await setItemAsync("refresh_token", data.refresh_token);
 
       await addSecurityQuestionApi(
         [{ question: form.securityQuestion, answer: form.questionAnswer }],
-        data.token
+        data.access_token
       );
 
-      const res2 = await generateNewRecoveryKeyApi();
+      const res2 = await generateNewRecoveryKeyApi(data.access_token);
 
       return {
         success: res.status === 201,
