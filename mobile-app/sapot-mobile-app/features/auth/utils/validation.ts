@@ -91,7 +91,7 @@ export const hasValidationErrors = (
     | { password?: string; confirmPassword?: string }
     | { firstName?: string; lastName?: string }
 ): boolean => {
-  return Object.keys(errors).length > 0;
+  return Object.values(errors).some(Boolean);
 };
 
 export const validatePassword = (
@@ -106,6 +106,12 @@ export const validatePassword = (
     errors.password = "Password must be at least 8 characters";
   } else if (password !== undefined && password.length > 128) {
     errors.password = "Password must be less than or equal to 128 characters";
+  } else if (password !== undefined && !/[0-9]/.test(password)) {
+    errors.password = "Password must contain at least one number";
+  } else if (password !== undefined && !/[a-z]/.test(password)) {
+    errors.password = "Password must contain at least one lowercase letter";
+  } else if (password !== undefined && !/[A-Z]/.test(password)) {
+    errors.password = "Password must contain at least one uppercase letter";
   }
 
   // Confirm Password validation

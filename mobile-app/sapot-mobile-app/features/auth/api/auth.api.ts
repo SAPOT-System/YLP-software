@@ -119,6 +119,19 @@ export const resetPasswordApi = async (token: string, newPassword: string) => {
   return res;
 };
 
+export const changePasswordApi = async (
+  currentPassword: string,
+  newPassword: string
+) => {
+  const res = await apiClient.post("/auth/change-password", null, {
+    params: {
+      current_password: currentPassword,
+      new_password: newPassword,
+    },
+  });
+  return res;
+};
+
 export type ExpoFileUpload = {
   uri: string;
   name: string;

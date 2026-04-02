@@ -126,6 +126,7 @@ export class UserService {
     last_name?: string;
     email?: string;
     phone_number?: string;
+    email_verified?: boolean;
   }) {
     try {
       this.log("Sync authenticated user started");
@@ -138,7 +139,8 @@ export class UserService {
           userInfo.first_name,
           userInfo.last_name,
           userInfo.email,
-          userInfo.phone_number
+          userInfo.phone_number,
+          userInfo.email_verified
         );
         this.log("Authenticated user created");
       } else {
@@ -177,6 +179,29 @@ export class UserService {
       this.error("Error syncing guest user", error);
       throw error;
     }
+  }
+
+  async updateAuthenticatedUser(userInfo: {
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+  }) {
+    const id = await getItemAsync("userUUID");
+    if (id === null) return; //TODO: inform user of error
+
+    await this.peerService.updatePeerInfo(id, {
+      username: userInfo.username,
+      firstName: userInfo.firstName,
+      lastName: userInfo.lastName,
+      email: userInfo.email,
+      phoneNumber: userInfo.phoneNumber,
+    });
+
+    const user = await this.peerService.findPeerById(id);
+
+    this.userStore.setUser(user, false);
   }
 
   async isCurrentUserGuest() {

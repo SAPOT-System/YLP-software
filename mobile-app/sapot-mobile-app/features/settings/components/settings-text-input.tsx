@@ -1,5 +1,5 @@
 import React from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Text, TextInput, TextInputProps, useTheme } from "react-native-paper";
 
 interface SettingsTextInputProps extends TextInputProps {
@@ -13,6 +13,7 @@ interface SettingsTextInputProps extends TextInputProps {
   error?: boolean;
   labelRight?: React.ReactNode;
   disabled?: boolean;
+  checkIcon?: boolean;
 }
 
 const SettingsTextInput = ({
@@ -26,6 +27,7 @@ const SettingsTextInput = ({
   required,
   labelRight,
   disabled,
+  checkIcon,
   ...props
 }: SettingsTextInputProps) => {
   const theme = useTheme();
@@ -47,31 +49,53 @@ const SettingsTextInput = ({
         </Text>
         {labelRight}
       </View>
-      <TextInput
-        mode="outlined"
-        placeholder={placeholder}
-        outlineStyle={{ borderRadius: 10 }}
-        // label={label}
-        value={value}
-        onChangeText={onChangeText}
-        error={error}
-        outlineColor={theme.colors.outlineVariant}
-        right={
-          icon ? (
+      <View style={{ position: "relative" }}>
+        <TextInput
+          mode="outlined"
+          placeholder={placeholder}
+          outlineStyle={{ borderRadius: 10 }}
+          // label={label}
+          value={value}
+          onChangeText={onChangeText}
+          error={error}
+          outlineColor={theme.colors.outlineVariant}
+          right={
+            icon ? (
+              <TextInput.Icon
+                icon={icon}
+                onPress={onIconPress}
+                disabled={false}
+                forceTextInputFocus={false}
+                color={theme.colors.onSurface}
+              />
+            ) : undefined
+          }
+          disabled={disabled}
+          {...props}
+        />
+        {checkIcon && (
+          <View style={styles.checkIconOverlay} pointerEvents="none">
             <TextInput.Icon
-              icon={icon}
-              onPress={onIconPress}
-              disabled={false}
+              icon="check-circle"
+              color={theme.colors.primary}
               forceTextInputFocus={false}
-              color={theme.colors.onSurface}
+              style={{ marginRight: 0 }}
+              disabled
             />
-          ) : undefined
-        }
-        disabled={disabled}
-        {...props}
-      />
+          </View>
+        )}
+      </View>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  checkIconOverlay: {
+    position: "absolute",
+    right: 80, // adjust this value to position left of the pencil icon
+    top: 15, // adjust for vertical alignment
+    zIndex: 10,
+  },
+});
 
 export default SettingsTextInput;

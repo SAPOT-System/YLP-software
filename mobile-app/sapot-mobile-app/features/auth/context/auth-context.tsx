@@ -175,7 +175,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const loginAfterRegister = async (data: RegisterApiResponse) => {
     const { access_token } = data;
 
-    await userService.syncAuthenticatedUser(data);
+    const userInfo = await getUserApi(access_token);
+    await userService.syncAuthenticatedUser(userInfo);
 
     setIsAuthenticated(await isAccessTokenValid(access_token));
   };

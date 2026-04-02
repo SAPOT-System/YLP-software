@@ -1,7 +1,8 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
+import { useUserService } from "@/features/auth";
 import { validateRegistrationForm } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
-import { Peer } from "@/features/shared";
+import { Peer, updateProfileApi } from "@/features/shared";
 import { useUserProfile } from "@/features/shared/hooks";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -12,6 +13,7 @@ import { Avatar, Button, HelperText, Text, useTheme } from "react-native-paper";
 export default function ManageProfile() {
   const theme = useTheme();
   const { user } = useUserProfile();
+  const userService = useUserService();
   const [username, setUsername] = useState(user.username ?? "");
   const [firstName, setFirstName] = useState(user.firstName ?? "");
   const [lastName, setLastName] = useState(user.lastName ?? "");
@@ -50,12 +52,9 @@ export default function ManageProfile() {
   const hasChanges =
     normalizeValue(username) !== normalizeValue(user.username) ||
     normalizeValue(firstName) !== normalizeValue(user.firstName) ||
-    normalizeValue(lastName) !== normalizeValue(user.lastName) ||
-    (user instanceof Peer &&
-      (normalizeValue(phoneNumber) !== normalizeValue(user.phoneNumber) ||
-        normalizeValue(email) !== normalizeValue(user.email)));
+    normalizeValue(lastName) !== normalizeValue(user.lastName);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!hasChanges) {
       return;
     }
@@ -64,8 +63,6 @@ export default function ManageProfile() {
       username,
       firstName,
       lastName,
-      phoneNumber: user instanceof Peer ? phoneNumber : undefined,
-      email: user instanceof Peer ? email : undefined,
     });
 
     setErrors({
@@ -80,7 +77,19 @@ export default function ManageProfile() {
       return;
     }
 
-    // TODO: submit profile updates
+    await updateProfileApi({
+      username: normalizeValue(username),
+      firstName: normalizeValue(firstName),
+      lastName: normalizeValue(lastName),
+    });
+
+    await userService.updateAuthenticatedUser({
+      username: normalizeValue(username),
+      firstName: normalizeValue(firstName),
+      lastName: normalizeValue(lastName),
+    });
+
+    setEditableField(null);
   };
 
   return (
@@ -191,28 +200,32 @@ export default function ManageProfile() {
                 value={email}
                 onChangeText={setEmail}
                 icon="pencil"
+                checkIcon={user instanceof Peer && user.emailVerified === true}
                 labelRight={
-                  <Pressable
-                    onPress={() => {
-                      router.push({
-                        pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
-                        params: {
-                          email: user instanceof Peer ? user.email : "",
-                        },
-                      });
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#3A7AFE",
-                        fontWeight: "semibold",
-                        textDecorationLine: "underline",
-                        textDecorationColor: "#3A7AFE",
+                  user instanceof Peer &&
+                  user.emailVerified === false && (
+                    <Pressable
+                      onPress={() => {
+                        router.push({
+                          pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+                          params: {
+                            email: user instanceof Peer ? user.email : "",
+                          },
+                        });
                       }}
                     >
-                      Verify
-                    </Text>
-                  </Pressable>
+                      <Text
+                        style={{
+                          color: "#3A7AFE",
+                          fontWeight: "semibold",
+                          textDecorationLine: "underline",
+                          textDecorationColor: "#3A7AFE",
+                        }}
+                      >
+                        Verify
+                      </Text>
+                    </Pressable>
+                  )
                 }
                 onIconPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}
               />
