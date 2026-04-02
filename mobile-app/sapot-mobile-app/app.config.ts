@@ -73,6 +73,30 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-secure-store",
     [
+      "expo-camera",
+      {
+        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera",
+        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
+        recordAudioAndroid: true,
+        barcodeScannerEnabled: true,
+      },
+    ],
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "The app accesses your photos to let you share them with your friends.",
+        colors: {
+          cropToolbarColor: "#000000",
+        },
+        dark: {
+          colors: {
+            cropToolbarColor: "#000000",
+          },
+        },
+      },
+    ],
+    [
       "expo-build-properties",
       {
         android: {
