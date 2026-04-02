@@ -7,6 +7,8 @@ from app.models.location import UserLocation # Import your model
 import uuid
 import json
 
+from app.tests.test_db_utils import get_auth_headers
+
 
 def test_stream_gps_location_success(client: TestClient):
     """
@@ -17,7 +19,7 @@ def test_stream_gps_location_success(client: TestClient):
 
     # 1. Open the WebSocket connection
     # Note: the path must match your router's path
-    with client.websocket_connect(f"/ws/gps/{test_user_id}") as websocket:
+    with client.websocket_connect(f"/gps/ws/{test_user_id}") as websocket:
 
         # 2. Send the JSON data (Simulating the React Native 'send')
         websocket.send_json(payload)
@@ -28,7 +30,7 @@ def test_stream_gps_location_success(client: TestClient):
         # data = websocket.receive_json()
         # assert data["status"] == "received"
 
-        assert websocket.scope["path"] == f"/ws/gps/{test_user_id}"
+        assert websocket.scope["path"] == f"/gps/ws/{test_user_id}"
 
 def test_stream_gps_invalid_data(client: TestClient):
     """
@@ -36,7 +38,7 @@ def test_stream_gps_invalid_data(client: TestClient):
     """
     test_user_id = str(uuid.uuid4())
 
-    with client.websocket_connect(f"/ws/gps/{test_user_id}") as websocket:
+    with client.websocket_connect(f"/gps/ws/{test_user_id}") as websocket:
         # Sending a string instead of the expected JSON object
         websocket.send_text("not-a-json")
 
@@ -46,7 +48,7 @@ def test_stream_gps_invalid_data(client: TestClient):
             websocket.receive_json()
 
 
-def test_get_all_latest_locations(client: TestClient, session):
+def test_get_all_latest_locations(client: TestClient, session, test_user, test_rescuer):
     """
     Test that /gps/latest only returns the MOST RECENT ping per user.
     """
@@ -65,7 +67,9 @@ def test_get_all_latest_locations(client: TestClient, session):
     session.add_all([loc1, loc2, loc3])
     session.commit()
 
-    response = client.get("/ws/gps/latest")
+    headers = get_auth_headers(client, 'testusername', 'test_password')
+
+    response = client.get("/gps/latest", headers=headers)
     assert response.status_code == 200
     data = response.json()
 
@@ -76,7 +80,7 @@ def test_get_all_latest_locations(client: TestClient, session):
     user_a_record = next(item for item in data if item["user_id"] == str(user_a))
     assert user_a_record["latitude"] == 11.0
 
-def test_get_user_location_history(client: TestClient, session):
+def test_get_user_location_history(client: TestClient, session, test_user, test_rescuer):
     """
     Test that /gps/history/{user_id} returns multiple pings for one user.
     """
@@ -94,7 +98,9 @@ def test_get_user_location_history(client: TestClient, session):
     
     session.commit()
 
-    response = client.get(f"/ws/gps/history/{user_id}?limit=3")
+    headers = get_auth_headers(client, 'testusername', 'test_password')
+
+    response = client.get(f"/gps/history/{user_id}?limit=3", headers=headers)
     assert response.status_code == 200
     data = response.json()
 
@@ -104,12 +110,14 @@ def test_get_user_location_history(client: TestClient, session):
     # The first item should be the one with 0 minutes offset (lat 15.0)
     assert data[0]["latitude"] == 15.0
 
-def test_get_history_not_found(client: TestClient):
+def test_get_history_not_found(client: TestClient, test_user, test_rescuer):
     """
     Test 404 behavior for users with no data.
     """
     random_id = uuid.uuid4()
-    response = client.get(f"/ws/gps/history/{random_id}")
+
+    headers = get_auth_headers(client, 'testusername', 'test_password')
+    response = client.get(f"/gps/history/{random_id}", headers=headers)
     assert response.status_code == 404
     assert response.json()["detail"] == "No location history found for this user"
 
@@ -121,11 +129,11 @@ def test_gps_broadcast_to_rescuer(client, session, test_user, test_rescuer):
     payload = {"lat": 14.5, "lng": 121.0}
 
     # 1. Start the Rescuer monitor
-    with client.websocket_connect(f"/ws/gps/monitor/rescuers/{rescuer_id_str}") as rescuer_ws:
+    with client.websocket_connect(f"/gps/ws/monitor/rescuers/{rescuer_id_str}") as rescuer_ws:
         
         # 2. Open AND CLOSE the user connection
         # This triggers the broadcast while the rescuer is still 'alive' inside the 'with' block
-        with client.websocket_connect(f"/ws/gps/{user_id_str}") as user_ws:
+        with client.websocket_connect(f"/gps/ws/{user_id_str}") as user_ws:
             user_ws.send_json(payload)
             
         # 3. Verify the broadcasted data was received

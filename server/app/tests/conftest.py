@@ -274,7 +274,6 @@ def test_user(session):
     user = User(
         id=uuid.uuid4(),
         email="user@test.com",
-        full_name="Test User",
         username="testusername",
         first_name="Test",
         last_name="User",
