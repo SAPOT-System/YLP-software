@@ -13,14 +13,14 @@ from typing import List
 import uuid
 
 
-from app.db_operations.token import get_current_user
+from app.db_operations.token import get_current_user, get_current_user_rescuer
 from app.models.users import User
 from app.models.location import UserLocation
 from app.db_operations.GPS_manager import gps_manager
 
 
 router = APIRouter(
-    prefix='/ws/gps',
+    prefix='/gps',
     tags=['GPS'],
     responses={
         404: {'description': 'Not Found'}
@@ -28,7 +28,7 @@ router = APIRouter(
 )
 
 
-@router.websocket("/{user_id}")
+@router.websocket("/ws/{user_id}")
 async def stream_gps_location(
     websocket: WebSocket,
     user_id: str,
@@ -87,7 +87,10 @@ async def stream_gps_location(
 
 
 @router.get("/latest")
-def get_all_latest_locations(session: SessionDep):
+def get_all_latest_locations(
+        current_user : Annotated[User, Depends(get_current_user_rescuer)],
+        session: SessionDep
+        ):
     """
     Returns the most recent location for every user who has sent a ping.
     Useful for the initial map load.
@@ -122,6 +125,7 @@ def get_all_latest_locations(session: SessionDep):
 
 @router.get("/history/{user_id}")
 def get_user_location_history(
+    current_user : Annotated[User, Depends(get_current_user_rescuer)],
     user_id: uuid.UUID, 
     session: SessionDep, 
     limit: int = 50
@@ -144,7 +148,7 @@ def get_user_location_history(
     return history
 
 
-@router.websocket("/monitor/rescuers/{rescuer_id}")
+@router.websocket("/ws/monitor/rescuers/{rescuer_id}")
 async def monitor_live_feed(
     websocket: WebSocket, 
     rescuer_id: str
