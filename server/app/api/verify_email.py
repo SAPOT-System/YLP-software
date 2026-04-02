@@ -2,13 +2,14 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlmodel import select
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from app.models.email_verification import EmailVerification
 from app.db_operations.auth import SessionDep
 from app.models.users import User
 from app.db_operations.token import get_current_user
 from app.models.email_verification import send_verification_email
+from app.db_operations.forgot_password import generate_reset_code
 
 
 router = APIRouter(
@@ -19,42 +20,77 @@ router = APIRouter(
     }
 )
 
-@router.get("/email", response_class=HTMLResponse)
-def verify_email(token: str, db: SessionDep):
+from pydantic import BaseModel
 
+class VerifyCodeRequest(BaseModel):
+    code: str
+
+@router.post("/verify-code")
+def verify_email_code(payload: VerifyCodeRequest, db: SessionDep):
+    # 1. Find the verification record by code
     verification = db.exec(
         select(EmailVerification).where(
-            EmailVerification.token == token
+            EmailVerification.token == payload.code  # 'token' field now stores the 6-digit code
         )
     ).first()
 
-    print(verification)
-
     if not verification:
-        raise HTTPException(status_code=400, detail="Invalid token")
+        raise HTTPException(status_code=400, detail="Invalid verification code")
 
-    if verification.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Token expired")
+    # 2. Check expiration (using timezone-aware UTC for 2026 standards)
+    expires_at_aware = verification.expires_at.replace(tzinfo=timezone.utc)
+    if expires_at_aware < datetime.now(timezone.utc):
+        db.delete(verification)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Code has expired")
 
+    # 3. Update User
     user = db.get(User, verification.user_id)
-
     if not user:
-        raise HTTPException(404, "User not found")
+        raise HTTPException(status_code=404, detail="User not found")
 
     user.email_verified = True
-
+    
+    # 4. Cleanup
+    db.add(user)
     db.delete(verification)
     db.commit()
 
-    return """Email verified. You can now return to the application."""
+    return {"message": "Email verified successfully"}
 
 
 
-@router.get("/resend-verification-email", response_class=HTMLResponse)
-def resend_verification_email(current_user: Annotated[User, Depends(get_current_user)], session: SessionDep, background_tasks: BackgroundTasks, request: Request):
-    try:
-        send_verification_email(current_user.id, session, background_tasks, request)
-    except:
-        raise HTTPException(400, "Error sending an email. Please try again in a while")
+@router.post("/resend-verification-code")
+def resend_verification_email(
+    current_user: Annotated[User, Depends(get_current_user)], 
+    session: SessionDep, 
+    background_tasks: BackgroundTasks,
+    request: Request
+):
+    if current_user.email_verified:
+        return {"message": "Email already verified"}
 
-    return f"Email verification sent to {current_user.email}"
+    # Generate new 6-digit code
+    otp_code = generate_reset_code()
+    
+    # Update or Create verification record
+    # Note: It's best practice to delete old codes for that user first
+    existing_code = session.exec(
+        select(EmailVerification).where(EmailVerification.user_id == current_user.id)
+    ).first()
+    if existing_code:
+        session.delete(existing_code)
+
+    new_verification = EmailVerification(
+        token=otp_code,
+        user_id=current_user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10) # Shorter expiry for OTPs
+    )
+    
+    session.add(new_verification)
+    session.commit()
+
+    # Pass the otp_code to your background task to send the actual email
+    send_verification_email(current_user.id, session, background_tasks, request)
+
+    return {"message": f"Verification code sent to {current_user.email}"}
