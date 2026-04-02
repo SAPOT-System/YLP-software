@@ -16,12 +16,13 @@ import {
   Text,
   useTheme,
 } from "react-native-paper";
-import { useUserProfile } from "../hooks";
+import { useProfilePhoto, useUserProfile } from "../hooks";
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
   const auth = useAuth();
   const { user } = useUserProfile();
+  const { url: profilePicUrl } = useProfilePhoto();
 
   if (!auth) {
     return <ActivityIndicator />;
@@ -60,11 +61,15 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
               marginBottom: 10,
             }}
           >
-            <Avatar.Text
-              size={60}
-              label={user.username[0].toUpperCase()}
-              style={{ backgroundColor: theme.colors.primary }}
-            />
+            {profilePicUrl ? (
+              <Avatar.Image size={60} source={{ uri: profilePicUrl }} />
+            ) : (
+              <Avatar.Text
+                size={60}
+                label={(user.username[0] ?? "?").toUpperCase()}
+                style={{ backgroundColor: theme.colors.primary }}
+              />
+            )}
             <View style={{ marginLeft: 15, flex: 1 }}>
               <Text
                 variant="titleLarge"

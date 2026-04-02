@@ -45,6 +45,11 @@ jest.mock("@/features/shared/hooks", () => ({
       username: "alice"
     })
   }),
+  useProfilePhoto: () => ({
+    url: null,
+    loading: false,
+    setUrl: jest.fn()
+  }),
   useDiscoveryService: () => ({
     performResendMessagesForPeer: jest.fn().mockResolvedValue(undefined)
   })

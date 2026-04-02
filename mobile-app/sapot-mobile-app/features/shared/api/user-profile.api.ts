@@ -39,3 +39,53 @@ export const updateProfileApi = async (credentials: {
   const res = await apiClient.post("/update/profile", payload);
   return res;
 };
+
+export type ExpoFileUpload = {
+  uri: string;
+  name: string;
+  type: string;
+};
+
+export const uploadProfilePicApi = async (file: ExpoFileUpload) => {
+  // eslint-disable-next-line no-undef
+  const formData = new FormData();
+  formData.append("file", {
+    uri: file.uri,
+    name: file.name,
+    type: file.type,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
+
+  const res = await apiClient.post<{
+    message: string;
+    photo_id: string;
+    url: string;
+  }>("/profile-picture/me", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      Accept: "application/json",
+    },
+  });
+
+  return res;
+};
+
+export const getCurrentUserProfilePicApi = async () => {
+  const res = await apiClient.get<{
+    url: string;
+  }>("/profile-picture/me", {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  return res;
+};
+
+export const getUserProfilePicApi = async (userId: string) => {
+  const res = await apiClient.get<{
+    url: string;
+  }>("/profile-picture", { params: { user_id: userId } });
+
+  return res;
+};

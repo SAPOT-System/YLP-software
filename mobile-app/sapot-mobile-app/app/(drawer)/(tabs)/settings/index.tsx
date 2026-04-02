@@ -2,7 +2,7 @@ import { SETTINGS_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
 import { Peer } from "@/features/shared";
 import { useThemePreference } from "@/features/shared/context";
-import { useUserProfile } from "@/features/shared/hooks";
+import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
 import { Link } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import {
@@ -19,6 +19,7 @@ export default function Settings() {
   const { themeChoice } = useThemePreference();
   const auth = useAuth();
   const itemColor = theme.dark ? "#E6ECF5" : "#000";
+  const { url: profilePicUrl } = useProfilePhoto();
 
   if (!auth) {
     return <ActivityIndicator />;
@@ -49,11 +50,15 @@ export default function Settings() {
             marginBottom: 16,
           }}
         >
-          <Avatar.Text
-            size={60}
-            label={user.username[0].toUpperCase()}
-            style={{ backgroundColor: theme.colors.primary }}
-          />
+          {profilePicUrl ? (
+            <Avatar.Image size={60} source={{ uri: profilePicUrl }} />
+          ) : (
+            <Avatar.Text
+              size={60}
+              label={(user.username[0] ?? "?").toUpperCase()}
+              style={{ backgroundColor: theme.colors.primary }}
+            />
+          )}
           <View style={{ flex: 1 }}>
             <Text
               variant="headlineSmall"

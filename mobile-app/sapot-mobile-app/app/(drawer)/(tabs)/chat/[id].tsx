@@ -3,7 +3,7 @@ import { useCallService } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
-import { usePeerService, useToast } from "@/features/shared/hooks";
+import { usePeerService, useProfilePhoto, useToast } from "@/features/shared/hooks";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -30,6 +30,7 @@ const ChatRoom = () => {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
   const [peer, setPeer] = useState<Peer | undefined>();
+  const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
   const [message, setMessage] = useState("");
   const chatService = useChatService();
   const peerService = usePeerService();
@@ -136,10 +137,14 @@ const ChatRoom = () => {
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
           <Appbar.BackAction onPress={() => router.back()} />
-          <Avatar.Text
-            size={40}
-            label={peer?.firstName?.[0]?.toUpperCase() ?? "?"}
-          />
+          {peerProfilePicUrl ? (
+            <Avatar.Image size={40} source={{ uri: peerProfilePicUrl }} />
+          ) : (
+            <Avatar.Text
+              size={40}
+              label={peer?.firstName?.[0]?.toUpperCase() ?? "?"}
+            />
+          )}
           <View style={styles.identityGroup}>
             <Text
               style={[

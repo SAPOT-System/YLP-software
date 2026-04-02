@@ -6,7 +6,7 @@ import { FlatList, Pressable, View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
 
 import { ChatRoomSource } from "@/features/chat/types";
-import { usePeerService } from "@/features/shared/hooks";
+import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
 import { useChatService } from "../hooks";
 
 const enhanceChats = withObservables([], () => ({
@@ -74,14 +74,17 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
   const chatService = useChatService();
   const peerService = usePeerService();
   const [peerName, setPeerName] = useState("Loading...");
+  const [peerId, setPeerId] = useState<string | null>(null);
+  const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadPeerName = async () => {
       try {
-        const peerId = await chatService.findPeerIdByChatId(chat.id);
-        const peer = await peerService.findPeerById(peerId);
+        const resolvedPeerId = await chatService.findPeerIdByChatId(chat.id);
+        setPeerId(resolvedPeerId);
+        const peer = await peerService.findPeerById(resolvedPeerId);
 
         if (!isMounted) return;
 
@@ -94,6 +97,7 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
           peer.lastName || ""
         }`.trim();
         setPeerName(fullName || peer.username || "Unknown peer");
+
       } catch {
         if (isMounted) setPeerName("Unknown peer");
       }
@@ -148,7 +152,14 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
           justifyContent: "flex-start",
         }}
       >
-        <Avatar.Text size={60} label={peerName[0].toUpperCase() ?? "?"} />
+        {peerProfilePicUrl ? (
+          <Avatar.Image size={60} source={{ uri: peerProfilePicUrl }} />
+        ) : (
+          <Avatar.Text
+            size={60}
+            label={(peerName[0] ?? "?").toUpperCase()}
+          />
+        )}
         <View style={{ flexGrow: 1, marginLeft: 16 }}>
           <Text
             style={{ fontSize: 17, color: theme.dark ? "#E6ECF5" : "#1E1E1E" }}
