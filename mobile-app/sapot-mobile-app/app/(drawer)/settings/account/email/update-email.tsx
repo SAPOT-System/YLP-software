@@ -15,7 +15,7 @@ export default function UpdateEmail() {
     confirmNewEmail?: string;
   }>({});
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const nextErrors: { newEmail?: string; confirmNewEmail?: string } = {};
     const emailError = validateEmail(newEmail);
     if (emailError) {

@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { sendResetEmailCodeApi, verifyEmailCodeApi } from "../api/auth.api";
+import {
+  sendResetEmailCodeApi,
+  verifyResetEmailCodeApi,
+} from "../api/auth.api";
 
 export const useEmailReset = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -30,11 +33,11 @@ export const useEmailReset = () => {
     setError(null);
 
     try {
-      const response = await verifyEmailCodeApi(emailAddress, code);
+      const response = await verifyResetEmailCodeApi(emailAddress, code);
       return {
         success: response.status === 200,
         recoveryLink: response.data.link,
-      }; 
+      };
     } catch {
       setError("Invalid code. Please try again.");
       return { success: false };

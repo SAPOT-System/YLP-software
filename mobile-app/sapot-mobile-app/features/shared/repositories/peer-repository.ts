@@ -130,6 +130,7 @@ export class PeerRepository {
       lastName?: string;
       email?: string;
       phoneNumber?: string;
+      emailVerified?: boolean;
     }
   ) {
     try {
@@ -152,6 +153,9 @@ export class PeerRepository {
             }
             if (peerInfo.phoneNumber !== undefined) {
               peer.phoneNumber = peerInfo.phoneNumber;
+            }
+            if (peerInfo.emailVerified !== undefined) {
+              peer.emailVerified = peerInfo.emailVerified;
             }
           });
         }

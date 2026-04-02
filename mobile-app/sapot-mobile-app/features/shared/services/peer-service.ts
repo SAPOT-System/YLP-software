@@ -166,6 +166,7 @@ export class PeerService {
       lastName?: string;
       email?: string;
       phoneNumber?: string;
+      emailVerified?: boolean;
     }
   ) {
     try {
