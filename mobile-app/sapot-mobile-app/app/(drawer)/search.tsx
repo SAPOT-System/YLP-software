@@ -1,6 +1,7 @@
 import { ChatRoomSource } from "@/features/chat/types";
 import {
   usePeerService,
+  useProfilePhoto,
   useToast,
   useUserSearch,
 } from "@/features/shared/hooks";
@@ -9,6 +10,7 @@ import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import {
   Appbar,
+  Avatar,
   Icon,
   Searchbar,
   Snackbar,
@@ -17,6 +19,53 @@ import {
 } from "react-native-paper";
 import { useDebounce } from "use-debounce";
 import { APP_ROUTES } from "../routes";
+
+type SearchUser = {
+  id: string;
+  username: string;
+  first_name: string;
+  last_name?: string;
+};
+
+const SearchResultItem = ({
+  item,
+  onPress,
+}: {
+  item: SearchUser;
+  onPress: (item: SearchUser) => void;
+}) => {
+  const { url: profilePicUrl } = useProfilePhoto(item.id);
+
+  return (
+    <Pressable onPress={() => onPress(item)}>
+      <View
+        style={{
+          padding: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        {profilePicUrl ? (
+          <Avatar.Image size={48} source={{ uri: profilePicUrl }} />
+        ) : (
+          <Avatar.Text
+            size={48}
+            label={
+              (item.first_name?.[0] ?? item.username?.[0] ?? "?").toUpperCase()
+            }
+          />
+        )}
+        <View>
+          <Text>
+            {item.first_name} {item.last_name}
+          </Text>
+          <Text>@{item.username}</Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+};
 
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
@@ -77,40 +126,36 @@ export default function SearchScreen() {
 
       {isLoading && <Text>Searching...</Text>}
       <FlatList
-        data={data || []}
+        data={(data || []) as SearchUser[]}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={async () => {
+          <SearchResultItem
+            item={item}
+            onPress={async (selected) => {
               try {
-                const existingPeer = await peerService.findPeerById(item.id);
+                const existingPeer = await peerService.findPeerById(
+                  selected.id
+                );
 
                 if (!existingPeer) {
                   await peerService.createUser(
-                    item.id,
-                    item.username,
-                    item.first_name,
-                    item.last_name
+                    selected.id,
+                    selected.username,
+                    selected.first_name,
+                    selected.last_name
                   );
                 }
 
                 router.push({
                   pathname: "/(drawer)/(tabs)/chat/[id]",
-                  params: { id: item.id, source: ChatRoomSource.PEER },
+                  params: { id: selected.id, source: ChatRoomSource.PEER },
                 });
               } catch (error) {
                 console.error("[SearchScreen]: Error opening chat", error);
                 showToast("Unable to open chat");
               }
             }}
-          >
-            <View style={{ padding: 12 }}>
-              <Text>
-                {item.first_name} {item.last_name}
-              </Text>
-              <Text>@{item.username}</Text>
-            </View>
-          </Pressable>
+          />
         )}
         ListEmptyComponent={!isLoading ? <Text>No users found</Text> : null}
       />

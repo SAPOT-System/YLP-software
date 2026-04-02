@@ -1,5 +1,5 @@
 import { useCallService } from "@/features/call";
-import { usePeerService } from "@/features/shared/hooks";
+import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
@@ -16,6 +16,7 @@ export default function PeerProfile() {
   const callService = useCallService();
   const { id } = useLocalSearchParams<{ id: string }>();
   const peerService = usePeerService();
+  const { url: profilePicUrl } = useProfilePhoto(id ?? null);
   const [peerName, setPeerName] = useState("Unknown user");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -69,7 +70,14 @@ export default function PeerProfile() {
         ) : (
           <>
             <View style={{ alignItems: "center", gap: 20 }}>
-              <Avatar.Text size={150} label={peerName[0].toUpperCase()} />
+              {profilePicUrl ? (
+                <Avatar.Image size={150} source={{ uri: profilePicUrl }} />
+              ) : (
+                <Avatar.Text
+                  size={150}
+                  label={(peerName[0] ?? "?").toUpperCase()}
+                />
+              )}
               <Text
                 style={{
                   fontWeight: "700",

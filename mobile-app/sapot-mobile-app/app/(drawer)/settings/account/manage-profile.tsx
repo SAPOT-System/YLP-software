@@ -2,13 +2,26 @@ import { SETTINGS_ROUTES } from "@/app/routes";
 import { useUserService } from "@/features/auth";
 import { validateRegistrationForm } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
-import { Peer, updateProfileApi } from "@/features/shared";
-import { useUserProfile } from "@/features/shared/hooks";
+import {
+  ExpoFileUpload,
+  Peer,
+  updateProfileApi,
+  uploadProfilePicApi,
+} from "@/features/shared";
+import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
+import { pick } from "@react-native-documents/picker";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { Avatar, Button, HelperText, Text, useTheme } from "react-native-paper";
+import {
+  ActivityIndicator,
+  Avatar,
+  Button,
+  HelperText,
+  Text,
+  useTheme,
+} from "react-native-paper";
 
 export default function ManageProfile() {
   const theme = useTheme();
@@ -23,6 +36,12 @@ export default function ManageProfile() {
   const [email, setEmail] = useState(
     (user instanceof Peer ? user.email : "") ?? ""
   );
+  const {
+    url: profilePicUrl,
+    loading: isProfilePicLoading,
+    setUrl: setProfilePicUrl,
+  } = useProfilePhoto();
+  const [isProfilePicUploading, setIsProfilePicUploading] = useState(false);
   const [editableField, setEditableField] = useState<
     "username" | "firstName" | "lastName" | "phoneNumber" | "email" | null
   >(null);
@@ -92,6 +111,34 @@ export default function ManageProfile() {
     setEditableField(null);
   };
 
+  const handlePickProfilePic = async () => {
+    if (isProfilePicUploading) return;
+
+    try {
+      const [pickedFile] = await pick();
+      if (!pickedFile?.uri) return;
+
+      if (pickedFile.type && !pickedFile.type.startsWith("image/")) {
+        console.warn("[ManageProfile]: Invalid profile image type");
+        return;
+      }
+
+      const file: ExpoFileUpload = {
+        uri: pickedFile.uri,
+        name: pickedFile.name ?? "profile.jpg",
+        type: pickedFile.type ?? "image/jpeg",
+      };
+
+      setIsProfilePicUploading(true);
+      const res = await uploadProfilePicApi(file);
+      setProfilePicUrl(res.data?.url ?? null);
+    } catch (error) {
+      console.error("[ManageProfile]: Failed to upload profile photo", error);
+    } finally {
+      setIsProfilePicUploading(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <KeyboardAvoidingView
@@ -103,11 +150,24 @@ export default function ManageProfile() {
           contentContainerStyle={{ padding: 16, gap: 28, paddingBottom: 32 }}
         >
           <View style={{ alignItems: "center", gap: 28 }}>
-            <Avatar.Text
-              size={100}
-              label={user.username[0].toUpperCase()}
-              style={{ backgroundColor: theme.colors.primary }}
-            />
+            {isProfilePicLoading ? (
+              <ActivityIndicator />
+            ) : (
+              <Pressable
+                onPress={handlePickProfilePic}
+                disabled={isProfilePicUploading}
+              >
+                {profilePicUrl ? (
+                  <Avatar.Image size={100} source={{ uri: profilePicUrl }} />
+                ) : (
+                  <Avatar.Text
+                    size={100}
+                    label={(user.username[0] ?? "?").toUpperCase()}
+                    style={{ backgroundColor: theme.colors.primary }}
+                  />
+                )}
+              </Pressable>
+            )}
             <View style={{ alignItems: "stretch", width: "100%", gap: 4 }}>
               <View>
                 <SettingsTextInput
