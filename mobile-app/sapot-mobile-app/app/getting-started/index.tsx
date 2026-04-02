@@ -1,19 +1,20 @@
+import { PrimaryButton } from "@/features/auth";
 import {
   ModeSelect,
   ScreenContent,
   ScreenHeader,
 } from "@/features/getting-started";
-import { useCheckConnection } from "@/features/shared/hooks";
+import { FailedDialog, LoadingOverlay } from "@/features/shared";
+import { useAppMode } from "@/features/shared/context";
+import { useCheckConnection, useLoadingOverlay } from "@/features/shared/hooks";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { View } from "react-native";
-import { FailedDialog, LoadingOverlay } from "@/features/shared";
-import { useLoadingOverlay } from "@/features/shared/hooks";
 import { AUTH_ROUTES } from "../routes";
-import { PrimaryButton } from "@/features/auth";
 
 const ModeSelectScreen = () => {
   const router = useRouter();
+  const { setMode } = useAppMode();
   const { checkBackendConnection, loading: checkingConnection } =
     useCheckConnection();
   const [selectedMode, setSelectedMode] = useState<"server" | "lan" | null>(
@@ -33,9 +34,11 @@ const ModeSelectScreen = () => {
     if (!selectedMode) return;
     if (selectedMode === "server") {
       await handleConnectToServer();
+      setMode("server");
     }
     if (selectedMode === "lan") {
       handleUseLanMode();
+      setMode("lan");
     }
   };
 

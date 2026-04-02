@@ -24,6 +24,7 @@ import {
 
 import { AuthContainerProvider, AuthProvider } from "@/features/auth";
 import {
+  AppModeProvider,
   ThemePreferenceProvider,
   useThemePreference,
 } from "@/features/shared/context";
@@ -44,7 +45,7 @@ const CombinedDarkTheme = merge(DarkTheme, customDarkTheme);
 
 export {
   // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
+  ErrorBoundary
 } from "expo-router";
 
 export const unstable_settings = {
@@ -110,11 +111,13 @@ function RootLayoutWithTheme() {
     <SafeAreaProvider>
       <AuthContainerProvider>
         <AuthProvider>
-          <PaperProvider theme={paperTheme}>
-            <ThemeProvider value={paperTheme}>
-              <Stack screenOptions={{ headerShown: false }} />
-            </ThemeProvider>
-          </PaperProvider>
+          <AppModeProvider>
+            <PaperProvider theme={paperTheme}>
+              <ThemeProvider value={paperTheme}>
+                <Stack screenOptions={{ headerShown: false }} />
+              </ThemeProvider>
+            </PaperProvider>
+          </AppModeProvider>
         </AuthProvider>
       </AuthContainerProvider>
     </SafeAreaProvider>

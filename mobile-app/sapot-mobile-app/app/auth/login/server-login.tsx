@@ -1,6 +1,7 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { useAppMode } from "@/features/shared/context";
 import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -21,6 +22,7 @@ const ServerLoginScreen = () => {
   const [toastMessage, setToastMessage] = useState("");
 
   const auth = useAuth();
+  const { mode, setMode } = useAppMode();
 
   if (!auth) {
     return <ActivityIndicator />;
@@ -46,6 +48,9 @@ const ServerLoginScreen = () => {
     if (result.success) {
       console.log("login successful");
       showToast("Login successful!");
+      if (mode !== "auto") {
+        setMode("server");
+      }
       setTimeout(() => {
         router.replace("/(drawer)/(tabs)");
       }, 1000);
@@ -123,18 +128,23 @@ const ServerLoginScreen = () => {
         >
           {loading ? "Logging in..." : "Login"}
         </PrimaryButton>
-        <Link href={AUTH_ROUTES.LOGIN.LAN_LOGIN} asChild>
-          <Button mode="text" style={{ width: 280 }}>
-            <Text
-              style={{
-                textDecorationLine: "underline",
-                color: theme.colors.inverseOnSurface,
-              }}
-            >
-              Use LAN mode
-            </Text>
-          </Button>
-        </Link>
+        <Button
+          mode="text"
+          style={{ width: 280 }}
+          onPress={() => {
+            setMode("lan");
+            router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
+          }}
+        >
+          <Text
+            style={{
+              textDecorationLine: "underline",
+              color: theme.colors.inverseOnSurface,
+            }}
+          >
+            Use LAN mode
+          </Text>
+        </Button>
         <Text variant="bodyMedium">
           Don't have an account?{" "}
           <Link

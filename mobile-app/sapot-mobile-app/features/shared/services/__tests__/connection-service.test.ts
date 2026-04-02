@@ -9,7 +9,7 @@ import {
   WebrtcAdapter,
   WsSignalingAdapter,
 } from "../../adapters";
-import { NetworkConfig, UserStore } from "../../stores";
+import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
   AudioCallMessage,
   CallEndedMessage,
@@ -52,6 +52,7 @@ jest.mock("../../adapters", () => ({
 jest.mock("../../stores", () => ({
   NetworkConfig: jest.fn(),
   UserStore: jest.fn(),
+  AppModeStore: jest.fn(),
 }));
 
 // Mock ChatService
@@ -68,6 +69,7 @@ describe("ConnectionService", () => {
   let mockWebrtcAdapter: jest.Mocked<WebrtcAdapter>;
   let mockWsSignalingAdapter: jest.Mocked<WsSignalingAdapter>;
   let mockChatService: jest.Mocked<ChatService>;
+  let mockAppModeStore: jest.Mocked<AppModeStore>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,6 +87,7 @@ describe("ConnectionService", () => {
     mockWsSignalingAdapter =
       mocks.wsSignalingAdapter as unknown as jest.Mocked<WsSignalingAdapter>;
     mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
+    mockAppModeStore = mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
 
     // Mock constructors
     jest
@@ -104,6 +107,7 @@ describe("ConnectionService", () => {
       mockTcpServerAdapter,
       mockNetworkConfig,
       mockUserStore,
+      mockAppModeStore,
       mockWsSignalingAdapter,
       "ws://localhost:8000"
     );

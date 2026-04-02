@@ -1,7 +1,7 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../adapters";
-import { NetworkConfig, SessionStore, UserStore } from "../stores";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../stores";
 import { PeerService } from "./peer-service";
 
 /**
@@ -26,7 +26,8 @@ export class DiscoveryService {
     private sessionStore: SessionStore,
     private networkConfig: NetworkConfig,
     private userStore: UserStore,
-    private peerService: PeerService
+    private peerService: PeerService,
+    private appModeStore: AppModeStore
   ) {
     // Handle device/service resolution: register peer and attempt to resend unsent messages
     this.adapter.on("serviceResolved", async (peerService: Service) => {
@@ -125,6 +126,12 @@ export class DiscoveryService {
    */
   startDiscovery() {
     try {
+      if (!this.isZeroconfAllowed()) {
+        console.log(
+          "[DiscoveryService]: Discovery skipped (mode disabled)"
+        );
+        return;
+      }
       this.adapter.startScan();
     } catch (error) {
       console.error("[ChatService]: Error starting discovery:", error);
@@ -150,6 +157,12 @@ export class DiscoveryService {
    */
   publishDevice() {
     try {
+      if (!this.isZeroconfAllowed()) {
+        console.log(
+          "[DiscoveryService]: Publish skipped (mode disabled)"
+        );
+        return;
+      }
       // The service/device name must be unique to avoid conflict/error
       this.publishDeviceName = `Device-${Date.now()}`;
 
@@ -185,5 +198,9 @@ export class DiscoveryService {
       );
       throw error;
     }
+  }
+
+  private isZeroconfAllowed(): boolean {
+    return this.appModeStore.isZeroconfAllowed(this.userStore.isGuest);
   }
 }

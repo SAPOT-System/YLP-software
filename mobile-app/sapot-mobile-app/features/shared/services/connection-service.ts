@@ -8,7 +8,7 @@ import {
   WebrtcAdapter,
   WsSignalingAdapter,
 } from "../adapters";
-import { NetworkConfig, UserStore } from "../stores";
+import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
   DataAckMessage,
   SignalingMessage,
@@ -38,6 +38,7 @@ export class ConnectionService extends EventEmitter {
     private tcpServerAdapter: TcpServerAdapter,
     private networkConfig: NetworkConfig,
     private userStore: UserStore,
+    private appModeStore: AppModeStore,
     private wsSignalingAdapter: WsSignalingAdapter = new WsSignalingAdapter(),
     private wsBaseUrl: string = getWsUrl()
   ) {
@@ -45,6 +46,16 @@ export class ConnectionService extends EventEmitter {
 
     this.wsSignalingAdapter.on("message", async (message: SignalingMessage) => {
       try {
+        if (!this.isWebSocketAllowed()) {
+          console.warn(
+            `${this.logPrefix}: Ignoring websocket signaling message (mode disabled)`,
+            {
+              ...this.summarizeSignalingMessage(message),
+              source: "ws",
+            }
+          );
+          return;
+        }
         console.log(
           `${this.logPrefix}: Signaling message received from websocket`,
           {
@@ -103,6 +114,13 @@ export class ConnectionService extends EventEmitter {
 
     tcpServerAdapter.on("data", async (message: TcpDataMessage) => {
       try {
+        if (!this.isTcpAllowed()) {
+          console.warn(
+            `${this.logPrefix}: Ignoring TCP payload (mode disabled)`,
+            { type: message.type }
+          );
+          return;
+        }
         console.log(`${this.logPrefix}: TCP data received`, {
           type: message.type,
         });
@@ -142,6 +160,15 @@ export class ConnectionService extends EventEmitter {
     console.log(`${this.logPrefix}: Updated signaling token`, {
       hasToken: Boolean(this.signalingToken),
     });
+
+    if (!this.isWebSocketAllowed() && this.wsSignalingAdapter.isConnected) {
+      console.log(
+        `${this.logPrefix}: Websocket signaling disabled by mode, disconnecting`
+      );
+      this.wsSignalingAdapter.disconnect();
+      this.currentWsTargetId = undefined;
+      return;
+    }
 
     if (!this.signalingToken && this.wsSignalingAdapter.isConnected) {
       console.log(
@@ -292,6 +319,12 @@ export class ConnectionService extends EventEmitter {
    */
   start() {
     try {
+      if (!this.isTcpAllowed()) {
+        console.log(
+          `${this.logPrefix}: TCP server start skipped (mode disabled)`
+        );
+        return;
+      }
       // await this.webrtcAdapter.initializeLocalStream();
       this.tcpServerAdapter.start(this.networkConfig.port);
     } catch (error) {
@@ -316,7 +349,9 @@ export class ConnectionService extends EventEmitter {
     });
     const tcpAdapter = this.getTcpClientAdapter(peerId);
     const webrtcAdapter = this.getWebrtcAdapter(peerId);
-    const isWsConfigured = this.ensureWsSignaling(peerId);
+    const isWsConfigured = this.isWebSocketAllowed()
+      ? this.ensureWsSignaling(peerId)
+      : false;
     console.log(`${this.logPrefix}: Signaling transport availability`, {
       peerId,
       tcpConnected: tcpAdapter.isConnected,
@@ -334,7 +369,7 @@ export class ConnectionService extends EventEmitter {
     }
 
     let isTcpConnected = tcpAdapter.isConnected;
-    if (!isTcpConnected && ipAddress && port) {
+    if (this.isTcpAllowed() && !isTcpConnected && ipAddress && port) {
       try {
         await tcpAdapter.connect(ipAddress, port);
         isTcpConnected = true;
@@ -648,6 +683,13 @@ export class ConnectionService extends EventEmitter {
    */
   sendMessage(peerId: string, message: TcpDataMessage) {
     try {
+      if (!this.isTcpAllowed()) {
+        console.warn(
+          `${this.logPrefix}: TCP message blocked (mode disabled)`,
+          { peerId, type: message.type }
+        );
+        return;
+      }
       console.log(`${this.logPrefix}: Sending TCP message`, {
         peerId,
         type: message.type,
@@ -679,17 +721,24 @@ export class ConnectionService extends EventEmitter {
 
   private sendSignalingMessage(peerId: string, message: SignalingMessage) {
     try {
-      const isWsConfigured = this.ensureWsSignaling(peerId);
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling(peerId)
+        : false;
+      const isTcpAllowed = this.isTcpAllowed();
 
       console.log(`${this.logPrefix}: Routing signaling message`, {
         peerId,
         ...this.summarizeSignalingMessage(message),
-        route: isWsConfigured ? "ws" : "tcp",
+        route: isWsConfigured ? "ws" : isTcpAllowed ? "tcp" : "none",
       });
 
       if (isWsConfigured) {
         this.wsSignalingAdapter.sendMessage(message);
         return;
+      }
+
+      if (!isTcpAllowed) {
+        throw new Error("No signaling transport available for this mode");
       }
 
       this.sendMessage(peerId, message);
@@ -707,6 +756,13 @@ export class ConnectionService extends EventEmitter {
 
   private ensureWsSignaling(peerId: string): boolean {
     try {
+      if (!this.isWebSocketAllowed()) {
+        console.log(
+          `${this.logPrefix}: Websocket signaling skipped (mode disabled)`,
+          { peerId }
+        );
+        return false;
+      }
       if (!this.signalingToken) {
         console.log(
           `${this.logPrefix}: Websocket signaling skipped (missing token)`,
@@ -1006,6 +1062,30 @@ export class ConnectionService extends EventEmitter {
       console.error("[ConnectionService]: Error performing stop:", error);
       throw error;
     }
+  }
+
+  /**
+   * Stops TCP transport while keeping WebRTC/WebSocket state intact.
+   */
+  stopTcpTransport() {
+    try {
+      console.log(`${this.logPrefix}: Stopping TCP transport`, {
+        tcpClientAdapters: this.tcpClientAdapters.size,
+      });
+      this.tcpClientAdapters.forEach((client) => client.disconnect());
+      this.tcpServerAdapter.stop();
+    } catch (error) {
+      console.error("[ConnectionService]: Error stopping TCP transport:", error);
+      throw error;
+    }
+  }
+
+  private isTcpAllowed(): boolean {
+    return this.appModeStore.isTcpAllowed(this.userStore.isGuest);
+  }
+
+  private isWebSocketAllowed(): boolean {
+    return this.appModeStore.isWebSocketAllowed(this.userStore.isGuest);
   }
 
   private summarizeSignalingMessage(message: SignalingMessage) {
