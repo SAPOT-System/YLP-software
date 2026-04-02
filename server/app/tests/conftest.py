@@ -16,6 +16,7 @@ from app.models.message_receipt import MessageReceipt, StatusType
 from app.models.call import Call, CallType, StatusType as CallStatus
 from app.models.call_participant import CallParticipant
 from app.tests.assets import sample_users
+from app.models.rescuer import Rescuer
 
 from uuid import uuid4
 from datetime import datetime, timedelta, timezone
@@ -264,3 +265,34 @@ def sync_extra_data_fixture(session: Session):
             "recent": now - timedelta(minutes=15) # Only new/deleted msgs + receipt
         }
     }
+
+
+@pytest.fixture
+def test_user(session):
+    """Creates a standard user in the test database."""
+    from app.db_operations.auth import get_password_hash
+    user = User(
+        id=uuid.uuid4(),
+        email="user@test.com",
+        full_name="Test User",
+        username="testusername",
+        first_name="Test",
+        last_name="User",
+        hashed_password=get_password_hash("test_password"),
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+@pytest.fixture
+def test_rescuer(session, test_user):
+    """Links a Rescuer profile to the test user."""
+    rescuer = Rescuer(
+        id=uuid.uuid4(),
+        user_id=test_user.id
+    )
+    session.add(rescuer)
+    session.commit()
+    session.refresh(rescuer)
+    return rescuer

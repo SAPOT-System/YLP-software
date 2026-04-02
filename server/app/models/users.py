@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from app.models.message import Message
     from app.models.user_profile_picture import UserProfilePicture
     from app.models.message_receipt import MessageReceipt
+    from app.models.location import UserLocation
+    from app.models.rescuer import Rescuer
 
 
 PhoneStr = Annotated[
@@ -70,6 +72,15 @@ class User(UserBase, table=True):
         back_populates="user"
     )
 
+    locations: list["UserLocation"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+    rescuer: Optional["Rescuer"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 class UserPublic(UserBase):
     id: uuid.UUID

@@ -568,3 +568,466 @@ use the format "{domain}/{url}" to access the photo
 **** sample request ~http://localhost:8000/profile-picture/96b72839-e077-4413-91e6-d3038c6a9532~
 **** sample response ~{"url": "/static/default.jpg"}~
 **** use the format "{domain}/{url}" to access the photo
+
+** GPS 
+*** Websocket 
+**** real-time gps data upload (for regular users) ~/gps/ws/{user_id}~ 
+use this end point for users to upload their location
+***** sample usage
+#+BEGIN_SRC json
+const WebSocket = require('ws'); // npm install ws
+
+// Replace with your actual user_id and server URL
+const USER_ID = '8c78cb1c-c19f-4442-825c-8099594379be'; 
+const url = `ws://localhost:8000/gps/ws/${USER_ID}`;
+
+const ws = new WebSocket(url);
+
+ws.on('open', () => {
+    console.log('Connected to FastAPI GPS Stream');
+
+    // Simulate sending a coordinate every 3 seconds
+    setInterval(() => {
+        const payload = {
+            lat: 14.5995 + (Math.random() * 0.01), // Random jitter
+            lng: 120.9842 + (Math.random() * 0.01)
+        };
+        
+        console.log('Sending:', payload);
+        ws.send(JSON.stringify(payload));
+    }, 3000);
+});
+
+ws.on('message', (data) => {
+    console.log('Message from server:', data.toString());
+});
+
+ws.on('error', (err) => {
+    console.error('Connection Error:', err);
+});
+
+ws.on('close', () => {
+    console.log('Connection closed');
+});
+#+END_SRC
+**** real-time monitoring of gps upload of users (for rescuers) ~/gps/ws/monitor/rescuers/{rescuer_id}~ 
+use this end point for rescuers to receive and monitor user locations
+***** sample usage
+#+BEGIN_SRC json
+const WebSocket = require('ws');
+
+// 1. Replace with a valid Rescuer ID from your MariaDB 'rescuer' table
+const RESCUER_ID = "25e00987e2854317a681e83ee57d41b5"; 
+const url = `ws://localhost:8000/gps/ws/monitor/rescuers/${RESCUER_ID}`;
+
+console.log(`Connecting to Monitor as Rescuer: ${RESCUER_ID}...`);
+const ws = new WebSocket(url);
+
+ws.on('open', () => {
+    console.log('✅ Connected! Standing by for live GPS updates from users...');
+});
+
+ws.on('message', (data) => {
+    const payload = JSON.parse(data);
+    
+    console.log('\n--- 📍 LIVE SIGNAL RECEIVED ---');
+    console.log(`User ID:   ${payload.user_id}`);
+    console.log(`Location:  ${payload.latitude}, ${payload.longitude}`);
+    console.log(`Time:      ${payload.timestamp}`);
+    console.log('-------------------------------\n');
+});
+
+ws.on('error', (err) => {
+    console.error('❌ Connection Error:', err.message);
+});
+
+ws.on('close', (code, reason) => {
+    console.log(`\n🔌 Connection Closed (Code: ${code}, Reason: ${reason || 'None'})`);
+});
+#+END_SRC
+*** Endpoints ~GET/POST~
+**** retrieve all latest locations (all hosts) ~/gps/latest GET~
+requires a rescuer to be authenticated
+***** sample output
+#+BEGIN_SRC json
+[
+  {
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be",
+    "latitude": 14.606558629224603,
+    "longitude": 120.98807070190405,
+    "timestamp": "2026-04-02T03:40:56.615873"
+  },
+  {
+    "user_id": "123bj879-c19f-4442-825c-8099594379be",
+    "latitude": 14.606558629224603,
+    "longitude": 123.98807070190405,
+    "timestamp": "2026-04-03T03:40:56.615873"
+  }
+]
+#+END_SRC
+
+**** retrieve all of a specific user's locations ~/gps/history/{user_id}~
+requires a rescuer to be authenticated
+
+
+Returns all the gps history of a user.
+
+
+Use a router parameter like ~http://localhost:8000/gps/history/e51bb26d-e18a-4e30-afe5-a9fbd1697cb1?limit=50~. 
+***** Sample Response
+#+BEGIN_SRC json
+[
+  {
+    "latitude": 14.606558629224603,
+    "id": "c4a2a2c5-d618-4a77-8094-7bd6648d7be2",
+    "timestamp": "2026-04-02T03:40:56.615873",
+    "longitude": 120.98807070190405,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.600755618961887,
+    "id": "433ab19f-f6b8-4c33-8c0a-4d815b1f90e3",
+    "timestamp": "2026-04-02T03:40:53.614636",
+    "longitude": 120.99229108308664,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.601045471500155,
+    "id": "cbadf576-0786-4ac1-88f9-0fd6a4852193",
+    "timestamp": "2026-04-02T03:40:50.611807",
+    "longitude": 120.98925193962702,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.608608377680218,
+    "id": "8fd95f67-88fa-4005-b2db-144b239381aa",
+    "timestamp": "2026-04-02T03:40:47.607335",
+    "longitude": 120.99151386823995,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.600557283850444,
+    "id": "d504405e-afd4-4117-aa14-9b6106210659",
+    "timestamp": "2026-04-02T03:40:44.604044",
+    "longitude": 120.9847839668106,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.601115593510729,
+    "id": "3441322a-1160-480f-b791-3817e4851b9b",
+    "timestamp": "2026-04-02T03:40:41.601114",
+    "longitude": 120.9920237339332,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.603723200573773,
+    "id": "c4ea9ee1-787c-445e-9f26-32fae881740a",
+    "timestamp": "2026-04-02T03:40:38.597178",
+    "longitude": 120.98755365309675,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.6008293763081,
+    "id": "76c5f9cd-bb48-4e74-8015-a91929377f17",
+    "timestamp": "2026-04-02T03:40:35.593107",
+    "longitude": 120.985738955812,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.601966468839759,
+    "id": "0ffced18-785c-4e61-a3eb-bef75fc943a9",
+    "timestamp": "2026-04-02T03:40:32.593173",
+    "longitude": 120.99113153367198,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.602889471352492,
+    "id": "d18894f7-d194-4d02-a1e3-bead120c3294",
+    "timestamp": "2026-04-02T03:40:29.599866",
+    "longitude": 120.98856682197038,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.60685971554244,
+    "id": "760abf67-4686-45c6-9ddb-1d3def4ef310",
+    "timestamp": "2026-04-02T02:57:03.086158",
+    "longitude": 120.98579097626569,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.60363679181401,
+    "id": "fdc3c67d-ed09-4223-abcb-8e3c4bcf528d",
+    "timestamp": "2026-04-02T02:57:00.081247",
+    "longitude": 120.98465649614077,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.607077018033639,
+    "id": "8c52181a-4fb7-46f7-bce7-0cd41f01a1d1",
+    "timestamp": "2026-04-02T02:56:57.079425",
+    "longitude": 120.99254194749294,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.603596652337677,
+    "id": "4da113d7-eaf7-4388-af69-bec831bb7214",
+    "timestamp": "2026-04-02T02:56:54.120250",
+    "longitude": 120.99002974057063,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.599582724610945,
+    "id": "7580a102-c701-47fa-9c3a-6bb919eb564b",
+    "timestamp": "2026-04-02T02:56:54.085186",
+    "longitude": 120.99088677322926,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.602520965545942,
+    "id": "0844e314-5f4c-4c72-8619-74d6bffa5226",
+    "timestamp": "2026-04-02T02:56:51.126538",
+    "longitude": 120.98588492879331,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.603922374078751,
+    "id": "68d752d5-b48b-4339-87db-21446e7a4b27",
+    "timestamp": "2026-04-02T02:49:49.073195",
+    "longitude": 120.9849139052611,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.603904968268075,
+    "id": "d3e41049-bad5-41f7-989a-855abeb41b03",
+    "timestamp": "2026-04-02T02:49:46.070323",
+    "longitude": 120.98670000998804,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.60029975152173,
+    "id": "c1c42901-b05a-4e4f-9122-ec853fa756e5",
+    "timestamp": "2026-04-02T02:49:43.067378",
+    "longitude": 120.98733195726429,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.602567108736677,
+    "id": "afa3d3b6-434e-47cf-a7ad-b437ebec4127",
+    "timestamp": "2026-04-02T02:49:40.063227",
+    "longitude": 120.9883193189707,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.600345171047904,
+    "id": "10bfbe39-35e8-492e-ab50-76531feb75ac",
+    "timestamp": "2026-04-02T02:49:37.062248",
+    "longitude": 120.98494143339833,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.606047580346427,
+    "id": "899c782c-69dc-428a-b659-b81d3e14e007",
+    "timestamp": "2026-04-02T02:49:34.068026",
+    "longitude": 120.98852613903374,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.605990462420985,
+    "id": "2d863905-8c37-4cf8-881e-b75dd220edfb",
+    "timestamp": "2026-04-02T02:30:20.024999",
+    "longitude": 120.99089730633138,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.603717947654456,
+    "id": "7c11c7b7-d4fc-43e9-ac01-a95e91f328bd",
+    "timestamp": "2026-04-02T02:30:17.020718",
+    "longitude": 120.99117005374906,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.605704985823998,
+    "id": "f8f9fab5-16d0-4981-8701-a9d31acd2dfc",
+    "timestamp": "2026-04-02T02:30:14.019117",
+    "longitude": 120.98438451274777,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.607982766242934,
+    "id": "c49be2e5-957e-42bd-a7c0-31fcde1e14e1",
+    "timestamp": "2026-04-02T02:30:11.017697",
+    "longitude": 120.98516675036065,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.608876156323657,
+    "id": "36d36ccb-ac44-49f9-91cb-6706681481da",
+    "timestamp": "2026-04-02T02:30:08.014158",
+    "longitude": 120.98648665485895,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.608085026241573,
+    "id": "ff694bea-3cca-46a3-b168-d65622b11fd7",
+    "timestamp": "2026-04-02T02:30:05.010644",
+    "longitude": 120.99253435981146,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.605254794938972,
+    "id": "bdbf3320-1391-4bf9-9131-09cacfe5ce47",
+    "timestamp": "2026-04-02T02:30:02.010270",
+    "longitude": 120.99121916423687,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.608697808504377,
+    "id": "72277272-088d-4ba2-b34e-343b829a0e19",
+    "timestamp": "2026-04-02T02:29:59.017917",
+    "longitude": 120.99024543520125,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.607334213959602,
+    "id": "6e771b7c-16f1-41c3-883a-f686d082d452",
+    "timestamp": "2026-04-01T22:27:07.951543",
+    "longitude": 120.99195486644723,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.602121816049662,
+    "id": "b7cedcfe-235d-43e6-be27-deadf1e354af",
+    "timestamp": "2026-04-01T22:27:04.950283",
+    "longitude": 120.98883886523085,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.608928718456086,
+    "id": "7ec09fbe-88b1-4fd1-b906-9a6a33ad5654",
+    "timestamp": "2026-04-01T22:27:01.957087",
+    "longitude": 120.98447443078867,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.604874231839656,
+    "id": "316ee009-0b50-480d-9015-57aafc6f57c0",
+    "timestamp": "2026-04-01T22:25:06.330184",
+    "longitude": 120.9888422700312,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.602288373854263,
+    "id": "8609d122-f772-44f3-8e45-305c830eda75",
+    "timestamp": "2026-04-01T22:25:03.326013",
+    "longitude": 120.99066151636902,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.608663054820651,
+    "id": "87eaebc4-48cb-474c-b42b-4215f817ed2c",
+    "timestamp": "2026-04-01T22:25:00.321648",
+    "longitude": 120.98577533671543,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.603278803142178,
+    "id": "baef8be4-afd6-4f29-9754-9bcbad97cbb2",
+    "timestamp": "2026-04-01T22:24:57.318175",
+    "longitude": 120.99378508458786,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.605729601072065,
+    "id": "c0166004-7fc1-4076-be7a-edf30f18f2fc",
+    "timestamp": "2026-04-01T22:24:54.317997",
+    "longitude": 120.98593488628765,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.600383719548532,
+    "id": "c51e2b05-78e9-4444-a9dd-8d9f0c60ac71",
+    "timestamp": "2026-04-01T22:24:51.315125",
+    "longitude": 120.9908577981012,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.607738962339551,
+    "id": "bfd8eabb-064e-413b-8561-8c55043fb8fe",
+    "timestamp": "2026-04-01T22:24:48.312131",
+    "longitude": 120.98840046401102,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.604201839476813,
+    "id": "e3fef08e-ced3-482c-a325-6e10f4c5fe81",
+    "timestamp": "2026-04-01T22:24:45.308708",
+    "longitude": 120.98547535836593,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.607626640181296,
+    "id": "91499234-42d7-47ac-8b2d-c8a93e89c67f",
+    "timestamp": "2026-04-01T22:24:42.305847",
+    "longitude": 120.98902017891639,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.606900453670596,
+    "id": "d035b1b4-7cc5-4b96-a126-c5a8a67dd071",
+    "timestamp": "2026-04-01T22:24:39.302451",
+    "longitude": 120.9897946979055,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.601431390509765,
+    "id": "64731b3a-9b3e-48c5-9bd1-eb6cddc7370f",
+    "timestamp": "2026-04-01T22:24:36.299976",
+    "longitude": 120.99359629760265,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.604504740612574,
+    "id": "edfa2f19-e460-4ad9-b769-ff295bfaf8ef",
+    "timestamp": "2026-04-01T22:24:33.297174",
+    "longitude": 120.98891404888941,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.600631544501828,
+    "id": "1830dcf1-acbd-4a2b-8adb-351a915b0beb",
+    "timestamp": "2026-04-01T22:24:30.294635",
+    "longitude": 120.98584625617286,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.606862426372096,
+    "id": "e5cff5fa-eda6-4688-8a5d-38d0081ddd38",
+    "timestamp": "2026-04-01T22:24:27.291453",
+    "longitude": 120.99373044376074,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.606952886419549,
+    "id": "22e7f227-eb16-4c41-a4cf-27ad48b1a3fd",
+    "timestamp": "2026-04-01T22:24:24.288491",
+    "longitude": 120.993064635643,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.609253071748658,
+    "id": "a65fb8e3-f0b5-4b68-b6e3-7ef37b2b97b6",
+    "timestamp": "2026-04-01T22:24:21.286170",
+    "longitude": 120.98438640759677,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  },
+  {
+    "latitude": 14.605266467090093,
+    "id": "2211a49e-c9ba-4191-9111-353c8b5088c6",
+    "timestamp": "2026-04-01T22:24:18.282085",
+    "longitude": 120.99404368266717,
+    "user_id": "8c78cb1c-c19f-4442-825c-8099594379be"
+  }
+]
+#+END_SRC
+
+

@@ -72,3 +72,4 @@ wheels/
 site/
 .mypy_cache/
 /static/profile_pictures/*
+pyrightconfig.json
