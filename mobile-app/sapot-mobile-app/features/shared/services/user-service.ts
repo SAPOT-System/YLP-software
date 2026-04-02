@@ -126,6 +126,7 @@ export class UserService {
     last_name?: string;
     email?: string;
     phone_number?: string;
+    email_verified?: boolean;
   }) {
     try {
       this.log("Sync authenticated user started");
@@ -138,7 +139,8 @@ export class UserService {
           userInfo.first_name,
           userInfo.last_name,
           userInfo.email,
-          userInfo.phone_number
+          userInfo.phone_number,
+          userInfo.email_verified
         );
         this.log("Authenticated user created");
       } else {
@@ -180,7 +182,7 @@ export class UserService {
   }
 
   async updateAuthenticatedUser(userInfo: {
-    username?:string
+    username?: string;
     firstName?: string;
     lastName?: string;
     email?: string;

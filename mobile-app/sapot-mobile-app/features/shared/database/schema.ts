@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from "@nozbe/watermelondb";
 
 export default appSchema({
-  version: 3,
+  version: 4,
   tables: [
     tableSchema({
       name: "guest_user",
@@ -33,6 +33,11 @@ export default appSchema({
         {
           name: "phone_number",
           type: "string",
+          isOptional: true,
+        },
+        {
+          name: "email_verified",
+          type: "boolean",
           isOptional: true,
         },
       ],

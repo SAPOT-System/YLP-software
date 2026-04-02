@@ -8,6 +8,7 @@ export const getUserApi = async (accessToken?: string) => {
     phone_number: string;
     email: string;
     id: string;
+    email_verified: boolean;
   }>("/user-utils/current-user-info/", {
     headers: accessToken
       ? {
@@ -38,4 +39,3 @@ export const updateProfileApi = async (credentials: {
   const res = await apiClient.post("/update/profile", payload);
   return res;
 };
-

@@ -200,28 +200,32 @@ export default function ManageProfile() {
                 value={email}
                 onChangeText={setEmail}
                 icon="pencil"
+                checkIcon={user instanceof Peer && user.emailVerified === true}
                 labelRight={
-                  <Pressable
-                    onPress={() => {
-                      router.push({
-                        pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
-                        params: {
-                          email: user instanceof Peer ? user.email : "",
-                        },
-                      });
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#3A7AFE",
-                        fontWeight: "semibold",
-                        textDecorationLine: "underline",
-                        textDecorationColor: "#3A7AFE",
+                  user instanceof Peer &&
+                  user.emailVerified === false && (
+                    <Pressable
+                      onPress={() => {
+                        router.push({
+                          pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+                          params: {
+                            email: user instanceof Peer ? user.email : "",
+                          },
+                        });
                       }}
                     >
-                      Verify
-                    </Text>
-                  </Pressable>
+                      <Text
+                        style={{
+                          color: "#3A7AFE",
+                          fontWeight: "semibold",
+                          textDecorationLine: "underline",
+                          textDecorationColor: "#3A7AFE",
+                        }}
+                      >
+                        Verify
+                      </Text>
+                    </Pressable>
+                  )
                 }
                 onIconPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}
               />

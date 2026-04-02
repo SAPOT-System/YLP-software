@@ -29,6 +29,7 @@ export class PeerRepository {
     lastName?: string;
     email?: string;
     phoneNumber?: string;
+    emailVerified?: boolean;
   }) {
     try {
       return await this.db.write(async () => {
@@ -40,6 +41,9 @@ export class PeerRepository {
           peer.lastName = newPeer.lastName || "";
           peer.email = newPeer.email || "";
           peer.phoneNumber = newPeer.phoneNumber || "";
+          if (newPeer.emailVerified !== undefined) {
+            peer.emailVerified = newPeer.emailVerified;
+          }
         });
         return peer;
       });
@@ -121,7 +125,7 @@ export class PeerRepository {
   async updatePeerInfoById(
     peerId: string,
     peerInfo: {
-      username?:string;
+      username?: string;
       firstName?: string;
       lastName?: string;
       email?: string;
@@ -154,9 +158,10 @@ export class PeerRepository {
       });
     } catch (error) {
       console.error(
-        `[PeerRepository]: Error updating peer info by id\n${JSON.stringify(
-          { peerId, peerInfo }
-        )}\n${error}`
+        `[PeerRepository]: Error updating peer info by id\n${JSON.stringify({
+          peerId,
+          peerInfo,
+        })}\n${error}`
       );
       throw error;
     }

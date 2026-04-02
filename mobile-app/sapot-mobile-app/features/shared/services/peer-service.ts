@@ -218,7 +218,8 @@ export class PeerService {
     firstName: string,
     lastName?: string,
     email?: string,
-    phoneNumber?: string
+    phoneNumber?: string,
+    emailVerified?: boolean
   ) {
     try {
       return await this.peerRepository.savePeer({
@@ -228,6 +229,7 @@ export class PeerService {
         lastName,
         email,
         phoneNumber,
+        emailVerified,
       });
     } catch (error) {
       console.error(
