@@ -178,7 +178,7 @@ export const sendResetEmailCodeApi = async (email: string) => {
   return res;
 };
 
-export const verifyEmailCodeApi = async (email: string, code: string) => {
+export const verifyResetEmailCodeApi = async (email: string, code: string) => {
   const res = await apiClient.post<{ link: string; detail: string }>(
     "/auth/forgot-password/email-code",
     null,
@@ -191,4 +191,18 @@ export const verifyEmailCodeApi = async (email: string, code: string) => {
   );
 
   return res;
+};
+
+export const resendVerificationCodeEmail = async () => {
+  const res = await apiClient.post<{ message: string }>(
+    "/auth/verify/resend-verification-code"
+  );
+
+  return res.data;
+};
+
+export const verifyCodeEmail = async (code: string) => {
+  const res = await apiClient.post("/auth/verify/verify-code", { code });
+
+  return res.data;
 };

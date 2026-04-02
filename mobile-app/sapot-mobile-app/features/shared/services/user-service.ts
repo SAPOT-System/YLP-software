@@ -187,6 +187,7 @@ export class UserService {
     lastName?: string;
     email?: string;
     phoneNumber?: string;
+    emailVerified?: boolean;
   }) {
     const id = await getItemAsync("userUUID");
     if (id === null) return; //TODO: inform user of error
@@ -197,6 +198,7 @@ export class UserService {
       lastName: userInfo.lastName,
       email: userInfo.email,
       phoneNumber: userInfo.phoneNumber,
+      emailVerified: userInfo.emailVerified,
     });
 
     const user = await this.peerService.findPeerById(id);
