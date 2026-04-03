@@ -40,6 +40,8 @@ export class MessageRepository {
             message.messageType = MessageType.TEXT;
             message.content = newMessage.content;
             message.createdAt = new Date();
+            message.updatedAt = new Date();
+            message.isDeleted = false;
           }
         );
         return message;

@@ -1,7 +1,6 @@
 import {
     Conversation,
     ConversationParticipant,
-    ConversationParticipantRole,
     GuestUser,
     Peer,
 } from "@/features/shared";
@@ -38,12 +37,10 @@ describe("ConversationParticipantRepository", () => {
   it("saves a conversation participant", async () => {
     const mockParticipant = createTestConversationParticipant({
       id: "participant-1",
-      role: "member",
     }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>;
     mockCollection.create.mockResolvedValue(mockParticipant);
 
     await repository.saveConversationParticipant({
-      role: ConversationParticipantRole.MEMBER,
       conversation: {
         ...createTestConversation({ id: "conv-1" }),
       } as unknown as Partial<Conversation> as jest.Mocked<Conversation>,
@@ -59,12 +56,10 @@ describe("ConversationParticipantRepository", () => {
     mockCollection.create.mockResolvedValue(
       createTestConversationParticipant({
         id: "participant-guest-1",
-        role: ConversationParticipantRole.MEMBER,
       }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>
     );
 
     await repository.saveConversationParticipant({
-      role: ConversationParticipantRole.MEMBER,
       conversation: {
         ...createTestConversation({ id: "conv-guest" }),
       } as unknown as Partial<Conversation> as jest.Mocked<Conversation>,
@@ -80,7 +75,6 @@ describe("ConversationParticipantRepository", () => {
     mockCollection.create.mockResolvedValue(
       createTestConversationParticipant({
         id: "participant-1",
-        role: ConversationParticipantRole.MEMBER,
       }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>
     );
 
@@ -119,8 +113,8 @@ describe("ConversationParticipantRepository", () => {
 
   it("queries all participants", async () => {
     const mockParticipants = [
-      createTestConversationParticipant({ id: "participant-1", role: "member" }),
-      createTestConversationParticipant({ id: "participant-2", role: "member" }),
+      createTestConversationParticipant({ id: "participant-1" }),
+      createTestConversationParticipant({ id: "participant-2" }),
     ];
     mockCollection.query().fetch.mockResolvedValue(mockParticipants);
 

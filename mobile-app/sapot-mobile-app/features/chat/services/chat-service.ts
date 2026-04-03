@@ -1,7 +1,6 @@
 import {
   ConnectionService,
   Conversation,
-  ConversationParticipantRole,
   ConversationType,
   database,
   GuestUser,
@@ -347,7 +346,6 @@ export class ChatService {
         await this.conversationParticipantRepository.saveMultipleConversationParticipant(
           [peer, this.userStore.user],
           conversation,
-          ConversationParticipantRole.MEMBER,
           true
         );
         return conversation;

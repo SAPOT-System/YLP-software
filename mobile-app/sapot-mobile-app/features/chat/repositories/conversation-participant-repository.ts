@@ -1,11 +1,10 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 import {
-  Conversation,
-  ConversationParticipant,
-  ConversationParticipantRole,
-  GuestUser,
-  Peer,
+    Conversation,
+    ConversationParticipant,
+    GuestUser,
+    Peer,
 } from "@/features/shared";
 
 /**
@@ -24,13 +23,12 @@ export class ConversationParticipantRepository {
 
   /**
    * Saves a new conversation participant to the database.
-   * @param newParticipant The participant data (role, conversation, user)
+    * @param newParticipant The participant data (conversation, user)
    * @param isInTransaction Whether to run in an existing transaction
    * @returns Promise<ConversationParticipant> The saved participant
    */
   async saveConversationParticipant(
     newParticipant: {
-      role: ConversationParticipantRole;
       conversation: Conversation;
       user: Peer | GuestUser;
     },
@@ -40,11 +38,10 @@ export class ConversationParticipantRepository {
       const action = async () => {
         return await this.conversationParticipantsCollection.create(
           (participant) => {
-            participant.role = newParticipant.role;
             participant.conversation.set(newParticipant.conversation);
             participant.user.set(newParticipant.user);
             participant.joinedAt = new Date();
-            participant.isDeleted = false; // TODO: find way to make the false as default for isDeleted columns
+            participant.isDeleted = false;
           }
         );
       };
@@ -59,7 +56,6 @@ export class ConversationParticipantRepository {
         `[ConversationParticipantRepository]: Error creating conversation participant:\nConversation Participant:\n${JSON.stringify(
           {
             name: newParticipant.user.username,
-            role: newParticipant.role,
             isInTransaction,
           },
           null,
@@ -74,21 +70,19 @@ export class ConversationParticipantRepository {
    * Saves multiple conversation participants to the database.
    * @param users Array of users (peers)
    * @param conversation The conversation
-   * @param role The participant role (default MEMBER)
    * @param isInTransaction Whether to run in an existing transaction
    * @returns Promise<void>
    */
   async saveMultipleConversationParticipant(
     users: (Peer | GuestUser)[],
     conversation: Conversation,
-    role: ConversationParticipantRole = ConversationParticipantRole.MEMBER,
     isInTransaction = false
   ) {
     try {
       await Promise.all(
         users.map((user) =>
           this.saveConversationParticipant(
-            { role: role, conversation: conversation, user: user },
+            { conversation: conversation, user: user },
             isInTransaction
           )
         )
@@ -98,7 +92,6 @@ export class ConversationParticipantRepository {
         `[ConversationParticipantRepository]: Error creating multiple conversation participant:\nConversation Participants:\n${JSON.stringify(
           {
             names: [...users.map((user) => user.username)],
-            role,
             isInTransaction,
           },
           null,
