@@ -1,6 +1,10 @@
+'use client'
+import { useActionState } from 'react';
+import { loginAction } from '@/actions/auth';
 import Image from 'next/image';
 
 export default function LoginPage() {
+	const [state, formAction, isPending] = useActionState(loginAction, null);
   return (
     <main className="relative min-h-screen w-full flex flex-col  p-4">
       {/* 1. Background Image Layer */}
@@ -36,11 +40,18 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold font-custom-color mb-1">Welcome Admin!</h1>
         <p className="text-gray-400 text-xs mb-8">Please login to continue</p>
 
-        <form className="w-full space-y-5">
+				<form action={formAction} className="w-full space-y-5">
+				{/* Show Error Message if it exists */}
+          {state?.error && (
+            <div className="p-3 bg-red-50 text-red-500 text-xs rounded-xl text-center">
+              {state.error}
+            </div>
+          )}
           <div className="space-y-1">
             <label className="text-sm font-semibold font-custom-color">Username</label>
             <input 
               type="text" 
+							name="username"
               placeholder="Username"
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             />
@@ -50,6 +61,7 @@ export default function LoginPage() {
             <label className="text-sm font-semibold font-custom-color">Password</label>
             <input 
               type="password" 
+							name="password"
               placeholder="Password"
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             />
@@ -58,8 +70,11 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <button className="w-full bg-[#4481eb] text-white py-3 rounded-full font-semibold shadow-lg hover:bg-blue-600 transition-colors mt-4">
-            Login
+          <button 
+						disabled={isPending}
+						className="w-full bg-[#4481eb] text-white py-3 rounded-full font-semibold shadow-lg hover:bg-blue-600 transition-colors mt-4"
+					>
+						{isPending ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
