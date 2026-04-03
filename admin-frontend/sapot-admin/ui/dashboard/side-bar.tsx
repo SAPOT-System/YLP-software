@@ -1,3 +1,6 @@
+'use client';
+
+import clsx from 'clsx';
 import { 
   LayoutDashboard, 
   LineChart, 
@@ -13,33 +16,45 @@ import {
 } from 'lucide-react'; // Standard lucide icons
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export default function SideBar() {
-	const iconSize = 36;
+	const iconSize = 16;
+	const pathname = usePathname();
 	const menuItems = [
-    { icon: <LayoutDashboard size={18} />, label: 'Dashboard', href: '/dashboard' },
-    { icon: <LineChart size={18} />, label: 'Network Analytics', href: '/dashboard/analytics' },
-    { icon: <Users size={18} />, label: 'Users', href: '/dashboard/users' },
-    { icon: <MessageSquare size={18} />, label: 'Messages', href: '/dashboard/messages' },
-    { icon: <Share2 size={18} />, label: 'Node Mapping', href: '/dashboard/nodes' },
-    { icon: <History size={18} />, label: 'Logs', href: '/dashboard/logs', active: true },
-    { icon: <Smartphone size={18} />, label: 'GSM Management', href: '/dashboard/gsm' },
-    { icon: <Megaphone size={18} />, label: 'Announcements', href: '/dashboard/announcements' },
-    { icon: <Settings size={18} />, label: 'Settings', href: '/dashboard/settings' },
+    { icon: <LayoutDashboard size={iconSize} />, label: 'Dashboard', href: '/dashboard' },
+    { icon: <LineChart size={iconSize} />, label: 'Network Analytics', href: '/analytics' },
+    { icon: <Users size={iconSize} />, label: 'Users', href: '/users' },
+    { icon: <MessageSquare size={iconSize} />, label: 'Messages', href: '/messages' },
+    { icon: <Share2 size={iconSize} />, label: 'Node Mapping', href: '/nodes' },
+    { icon: <History size={iconSize} />, label: 'Logs', href: '/logs', active: true },
+    { icon: <Smartphone size={iconSize} />, label: 'GSM Management', href: '/gsm' },
+    { icon: <Megaphone size={iconSize} />, label: 'Announcements', href: '/announcements' },
+    { icon: <Settings size={iconSize} />, label: 'Settings', href: '/settings' },
   ];
 	return (
-				<aside className="w-64 bgwhite flex flex-col border-r border-gray-200 h-screen border rounded-tr-4xl shadow-lg">
+				<aside className="w-64 bg-white flex flex-col border-r border-gray-200 h-screen border rounded-tr-4xl shadow-lg">
 					{/* Navigation Links */}
 					<nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+							<div className={`flex items-center font-bold gap-3 px-4 py-8 rounded-xl transition-all text-sm`}></div>
 						{menuItems.map((item) => (
-							<a
+							<Link
 								key={item.label}
 								href={item.href}
-								className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm font-custom-color`}
+								className={ clsx(
+										`flex items-center font-bold gap-3 px-4 py-3 rounded-xl transition-all text-sm`,
+										{
+											'bg-blue-500 text-white': pathname === item.href,
+										},
+										{
+											'font-custom-color': pathname !== item.href,
+										}
+									)
+								}
 							>
 								{item.icon}
-								{item.label}
-							</a>
+									{item.label}
+							</Link>
 						))}
 					</nav>
 				</aside>
