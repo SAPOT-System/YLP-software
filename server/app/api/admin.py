@@ -1,11 +1,13 @@
 from typing import Annotated
-from fastapi import Depends, HTTPException, Response, status
+from fastapi import Depends, HTTPException, Request, Response, status
+from app.db_operations.token import oauth2_scheme
 from fastapi.routing import APIRouter
+from app.db_operations.token import logout
 import time
 from fastapi.security import  OAuth2PasswordRequestForm
 
 from app.db_operations.auth import SessionDep, authenticate_user
-from app.db_operations.token import create_token_pair, get_current_user_admin
+from app.db_operations.token import RefreshRequest, create_token_pair, get_current_user_admin, refresh_token
 from app.models.token import Token
 from app.models.users import User
 
@@ -54,9 +56,57 @@ async def login_for_access_token(
     response.set_cookie(
         key="refresh_token", value=tokens.refresh_token,
         httponly=True, secure=True, samesite="lax",
-        path="/api/auth/refresh", # Only sent to the refresh endpoint
+        path="/admin/refresh", # Only sent to the refresh endpoint
         max_age=604800 # 7 days
     )
 
     # 4. Return the full dictionary (access_token, refresh_token, token_type)
     return { "status": "ok" }
+
+
+
+@router.post("/refresh")
+async def refresh_access_token(
+        request: Request,
+        response: Response,
+        session: SessionDep
+):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401)
+    try:
+        # Validate the refresh token...
+        token = RefreshRequest(refresh_token=token)
+
+        new_access_token = refresh_token(token, session)
+        
+        response.set_cookie(
+            key="access_token", value=new_access_token.access_token,
+            httponly=True, secure=True, samesite="lax", max_age=900
+        )
+
+        response.set_cookie(
+            key="refresh_token", value=new_access_token.refresh_token,
+            httponly=True, secure=True, samesite="lax",
+            path="/admin/refresh", # Only sent to the refresh endpoint
+            max_age=604800 # 7 days
+        )
+        return {"status": "refreshed"}
+    except:
+        raise HTTPException(status_code=401)
+
+
+
+@router.post("/logout")
+async def logout_user(
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: SessionDep,
+    request: Request
+):
+    token_to_be_invalidated = request.cookies.get("refresh_token")
+    if not token_to_be_invalidated:
+        raise HTTPException(500)
+    return logout(token, session)
+
+
