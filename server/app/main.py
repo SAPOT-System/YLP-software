@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 
 from app.api import user_utils
 from app.db_operations.auth import create_db_and_tables
-from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps
+from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +33,7 @@ app.include_router(update_info.router)
 app.include_router(sync.router)
 app.include_router(profile_picture.router)
 app.include_router(gps.router)
+app.include_router(admin.router)
 
 STATIC_PATH = "static"
 PROFILE_PICS_PATH = os.path.join(STATIC_PATH, "profile_pictures")
