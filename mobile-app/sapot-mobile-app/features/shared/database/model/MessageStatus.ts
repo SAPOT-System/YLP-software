@@ -1,7 +1,7 @@
 import { Model, Relation } from "@nozbe/watermelondb";
-import { field, relation } from "@nozbe/watermelondb/decorators";
-import { Peer } from "./Peer";
+import { date, field, relation } from "@nozbe/watermelondb/decorators";
 import { Message } from "./Message";
+import { Peer } from "./Peer";
 import { GuestUser } from "./guest-user";
 
 // TODO: replace the name for better understanding
@@ -14,9 +14,10 @@ export enum MessageStatusType {
 }
 
 export class MessageStatus extends Model {
-  static table = "message_status";
+  static table = "message_receipts";
 
   @field("status") status!: MessageStatusType;
+  @date("updated_at") updatedAt!: Date;
 
   @relation("messages", "message")
   message!: Relation<Message>;

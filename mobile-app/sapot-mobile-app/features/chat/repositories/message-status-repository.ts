@@ -1,9 +1,9 @@
 import {
-  GuestUser,
-  Message,
-  MessageStatus,
-  MessageStatusType,
-  Peer,
+    GuestUser,
+    Message,
+    MessageStatus,
+    MessageStatusType,
+    Peer,
 } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
@@ -42,6 +42,7 @@ export class MessageStatusRepository {
             messageStatus.message.set(message);
             messageStatus.user.set(user);
             messageStatus.status = status;
+            messageStatus.updatedAt = new Date();
           }
         );
       });
@@ -75,6 +76,7 @@ export class MessageStatusRepository {
           console.log("[MessageStatusRepository]: updating message status...");
           await messageStatus[0].update((messageStatus) => {
             messageStatus.status = status;
+            messageStatus.updatedAt = new Date();
           });
         }
       });
@@ -107,6 +109,7 @@ export class MessageStatusRepository {
         if (messageStatus.length > 0) {
           await messageStatus[0].update((messageStatus) => {
             messageStatus.status = status;
+            messageStatus.updatedAt = new Date();
           });
         }
       });

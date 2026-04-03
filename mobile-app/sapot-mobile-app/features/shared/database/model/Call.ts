@@ -1,0 +1,32 @@
+import { Model, Relation } from "@nozbe/watermelondb";
+import { date, field, relation } from "@nozbe/watermelondb/decorators";
+
+import { Conversation } from "./Conversation";
+import { GuestUser } from "./guest-user";
+import { Peer } from "./Peer";
+
+export enum CallType {
+  AUDIO = "audio",
+  VIDEO = "video",
+}
+
+export enum CallStatus {
+  MISSED = "missed",
+  COMPLETED = "completed",
+  REJECTED = "rejected",
+  BUSY = "busy",
+}
+
+export class Call extends Model {
+  static table = "calls";
+
+  @field("call_type") callType!: CallType;
+  @field("status") status!: CallStatus;
+  @date("start_time") startTime!: Date;
+  @date("end_time") endTime?: Date;
+  @date("updated_at") updatedAt!: Date;
+
+  @relation("conversations", "conversation")
+  conversation!: Relation<Conversation>;
+  @relation("peers", "initiator") initiator!: Relation<Peer | GuestUser>;
+}
