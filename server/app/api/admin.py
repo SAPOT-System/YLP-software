@@ -115,7 +115,7 @@ async def logout_user(
 
 
 
-@router.post("/get-active-users")
+@router.get("/get-active-users")
 def get_all_latest_locations(
     current_user: Annotated[User, Depends(get_current_user_admin)],
         session: SessionDep
