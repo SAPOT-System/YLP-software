@@ -33,7 +33,7 @@ export default function SideBar() {
     { icon: <Settings size={iconSize} />, label: 'Settings', href: '/settings' },
   ];
 	return (
-				<aside className="w-64 bg-white flex flex-col border-r border-gray-200 h-screen border rounded-tr-4xl shadow-lg">
+				<aside className="w-64 bg-white flex flex-col border-r border-gray-200 h-screen border rounded-tr-4xl shadow-md">
 					{/* Navigation Links */}
 					<nav className="flex-1 px-4 space-y-1 overflow-y-auto">
 							<div className={`flex items-center font-bold gap-3 px-4 py-8 rounded-xl transition-all text-sm`}></div>
