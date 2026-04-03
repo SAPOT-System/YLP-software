@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta, timezone
+from app.models.location import UserLocation
+from sqlmodel import select, func, desc
 from typing import Annotated
 from fastapi import Depends, HTTPException, Request, Response, status
 from app.db_operations.token import oauth2_scheme
@@ -108,5 +111,57 @@ async def logout_user(
     if not token_to_be_invalidated:
         raise HTTPException(500)
     return logout(token, session)
+
+
+
+
+@router.post("/get-active-users")
+def get_all_latest_locations(
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+        session: SessionDep
+        ):
+    """
+    Returns the most recent location for every user who has sent a ping.
+    Useful for the initial map load.
+    """
+    # Optimized MariaDB Query: Get the latest timestamp per user
+    # Note: In high-scale apps, we'd store 'latest_location_id' on the User table 
+    # to avoid this subquery, but this is the standard SQLModel way:
+    
+    subquery = (
+        select(UserLocation.user_id, func.max(UserLocation.timestamp).label("max_ts"))
+        .group_by(UserLocation.user_id)
+        .subquery()
+    )
+    
+    statement = (
+        select(UserLocation)
+        .join(subquery, (UserLocation.user_id == subquery.c.user_id) & 
+                       (UserLocation.timestamp == subquery.c.max_ts))
+    )
+    
+    locations = session.exec(statement).all()
+    
+    # Format for the frontend (React Native Map)
+    ret = {}
+    count = 0
+    for loc in locations:
+        loc_time_utc = loc.timestamp.replace(tzinfo=timezone.utc)
+        if loc_time_utc >= datetime.now(timezone.utc) - timedelta(minutes=5):
+            count+=1
+
+
+    ret["active_users"] = count
+
+    total_count = session.exec(
+        select(func.count(User.id))
+    ).one()
+
+    ret["total_users"] = total_count
+
+    ret["inactive_users"] = total_count - count
+    return ret
+
+
 
 
