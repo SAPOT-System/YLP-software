@@ -1,10 +1,10 @@
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID, uuid4
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, Relationship, SQLModel
 from datetime import datetime, timezone
 
-from app.models.message import SyncableModel
+from app.models.message import SyncableModel, now_ms
 
 if TYPE_CHECKING:
     from app.models.users import User
@@ -31,8 +31,16 @@ class Call(SyncableModel, table=True):
     )
     call_type : CallType
     status :  StatusType
-    start_time: datetime | None = Field(default_factory=lambda: datetime.now(timezone.utc))
-    end_time: datetime | None = Field(default=None)
+    start_time: int = Field(
+        default_factory=now_ms,
+        sa_type=BigInteger(),
+        nullable=False,
+    )
+    end_time: int | None = Field(
+        sa_type=BigInteger(),
+        nullable=False,
+        default=None
+    )
 
     # foreign keys
     conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')

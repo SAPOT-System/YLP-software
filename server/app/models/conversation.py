@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 from enum import Enum, auto
 from typing import Annotated, List, Literal, Optional
 from uuid import UUID, uuid4
-from sqlmodel import Field, Relationship, SQLModel, table
+from sqlmodel import BigInteger, Field, Relationship, SQLModel, table
 
 from typing import TYPE_CHECKING
 
-from app.models.message import SyncableModel
+from app.models.message import SyncableModel, now_ms
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.message import Message
@@ -48,7 +48,11 @@ class  ConversationParticipant(SyncableModel, table=True):
     # foreign keys
     conversation_id: UUID | None = Field(default=None, index=True, foreign_key='conversation.id')
     user_id: UUID  = Field(index=True, foreign_key='user.id')
-    joined_at : datetime= Field(default_factory=lambda: datetime.now(timezone.utc))
+    joined_at: int = Field(
+        default_factory=now_ms,
+        sa_type=BigInteger(),
+        nullable=False,
+    )
     is_deleted : bool = False
 
     user: List['User'] = Relationship(

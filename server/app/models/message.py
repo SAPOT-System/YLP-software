@@ -46,7 +46,7 @@ class SyncableModel(SQLModel):
 class Message(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
 
-    message_type : MessageType
+    message_type : MessageType = Field(default=MessageType.TEXT)
     content : str = Field(max_length=255, min_length=1)
     is_deleted : bool = Field(default=False)
 
