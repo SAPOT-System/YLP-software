@@ -6,13 +6,15 @@ from datetime import datetime, timezone
 
 from typing import TYPE_CHECKING, List
 
+from app.models.message import SyncableModel
+
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.conversation import Conversation
 
 
 
-class CallParticipant(SQLModel, table=True):
+class CallParticipant(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
     joined_at : datetime= Field(default_factory=lambda: datetime.now(timezone.utc))
     left_at : datetime | None = None

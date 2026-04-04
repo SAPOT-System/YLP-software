@@ -4,6 +4,8 @@ from uuid import UUID, uuid4
 from sqlmodel import Field, Relationship, SQLModel
 from datetime import datetime, timezone
 
+from app.models.message import SyncableModel
+
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.conversation import Conversation
@@ -21,7 +23,7 @@ class StatusType(str, Enum):
     BUSY = "busy"
 
 
-class Call(SQLModel, table=True):
+class Call(SyncableModel, table=True):
     id : UUID | None = Field(
         default_factory=uuid4,
         primary_key=True,
@@ -35,11 +37,6 @@ class Call(SQLModel, table=True):
     # foreign keys
     conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')
     initiator_id : UUID  | None = Field(default=None, foreign_key='user.id')
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
-        index=True  # Important for query performance
-    )
 
     user: List["User"] = Relationship(
         back_populates="calls"

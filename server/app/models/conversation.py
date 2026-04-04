@@ -8,6 +8,8 @@ from uuid import UUID, uuid4
 from sqlmodel import Field, Relationship, SQLModel, table
 
 from typing import TYPE_CHECKING
+
+from app.models.message import SyncableModel
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.message import Message
@@ -19,17 +21,10 @@ class ConversationType(str, Enum):
     GROUP = 'group'
     SOLO = 'solo'
 
-class Conversation(SQLModel, table=True):
+class Conversation(SyncableModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, primary_key=True, index=True)
     title : str = Field(max_length=100, min_length=2)
     conversation_type : ConversationType = Field(max_length=100, min_length=2)
-    created_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
-        index=True  # Important for query performance
-    )
 
     messages: List['Message'] = Relationship(
         back_populates='conversation'
@@ -48,7 +43,7 @@ class Conversation(SQLModel, table=True):
     )
 
 
-class  ConversationParticipant(SQLModel, table=True):
+class  ConversationParticipant(SyncableModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, index=True, primary_key=True)
     # foreign keys
     conversation_id: UUID | None = Field(default=None, index=True, foreign_key='conversation.id')
