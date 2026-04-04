@@ -3,17 +3,42 @@ import { useEmailReset } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { router, useLocalSearchParams } from "expo-router";
 import { OTPInput } from "input-otp-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { HelperText, Text, useTheme } from "react-native-paper";
 
 const CODE_LENGTH = 6;
+const COUNTDOWN_SECONDS = 5 * 60;
 
 const EnterRecoveryScreen = () => {
   const { identifier: email } = useLocalSearchParams<{ identifier: string }>();
   const { verifyCode, sendCode, error } = useEmailReset();
   const theme = useTheme();
   const [code, setCode] = useState<string>("");
+  const [secondsLeft, setSecondsLeft] = useState<number>(COUNTDOWN_SECONDS);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) {
+      return;
+    }
+
+    const timerId = setInterval(() => {
+      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [secondsLeft]);
+
+  const formatTime = (totalSeconds: number) => {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  const handleResend = () => {
+    sendCode(email);
+    setSecondsLeft(COUNTDOWN_SECONDS);
+  };
 
   const handleOnChange = async (newCode: string) => {
     setCode(newCode);
@@ -42,7 +67,7 @@ const EnterRecoveryScreen = () => {
       <ScreenHeader headerName="Resetting Password" />
       <ScreenContent
         title="Enter Recovery Code"
-        description="We've sent it on your email example@gmail.com"
+        description={`We've sent it on your email ${email}`}
       >
         <HelperText type="error">{error}</HelperText>
         <OTPInput
@@ -92,7 +117,7 @@ const EnterRecoveryScreen = () => {
           variant="bodySmall"
           style={{ color: theme.colors.onPrimaryContainer }}
         >
-          The code will expire in {/* TODO: make a countdown */}
+          The code will expire in {formatTime(secondsLeft)}
         </Text>
         <Text
           variant="bodyMedium"
@@ -105,7 +130,7 @@ const EnterRecoveryScreen = () => {
               fontWeight: "bold",
               color: theme.colors.onPrimaryContainer,
             }}
-            onPress={() => sendCode(email)}
+            onPress={handleResend}
           >
             Resend
           </Text>
