@@ -1,6 +1,9 @@
 'use client'
 import { secureFetch } from "@/api/fetch";
+import GrayTopContainer from "@/ui/dashboard/gray-top-container";
+import SpeedometerGauge from "@/ui/dashboard/speedometer";
 import SummaryCard from "@/ui/dashboard/summary-card";
+import WhiteContainer from "@/ui/dashboard/white-rounded-container";
 import Link from "next/link";
 import { useState, useEffect } from 'react';
 
@@ -27,13 +30,33 @@ export default function Dashboard() {
 		return () => clearInterval(interval);
 	}, []);
   return (
-		<div className="flex w-full gap-2 items-center custom-white p-2 rounded-3xl border-gray-200 shadow-md">
-			<SummaryCard label="Total Nodes" value={nodeData.total_users !== undefined ? nodeData.total_users : "Loading..."} />
-			<SummaryCard label="Active Nodes" value={nodeData.active_users  !== undefined ? nodeData.active_users : "Loading..."}/>
-			<SummaryCard label="Inactive Nodes" value={nodeData.inactive_users !== undefined ? nodeData.inactive_users : "Loading..."} />
-			<Link href="#" key="view-nodes" className="text-white bg-blue-600 hover:bg-blue-500 transition-all duration-150 w-full rounded-3xl px-2 py-1 text-xl text-center font-medium">
-				{ "View Nodes" }
-			</Link>
+		<div className="grid grid-cols-3 gap-2" >
+			<div className="col-span-2 flex flex-col gap-2 row-span-full">
+				<WhiteContainer style="">
+					<SummaryCard label="Total Nodes" value={nodeData.total_users !== undefined ? nodeData.total_users : "Loading..."} />
+					<SummaryCard label="Active Nodes" value={nodeData.active_users  !== undefined ? nodeData.active_users : "Loading..."}/>
+					<SummaryCard label="Inactive Nodes" value={nodeData.inactive_users !== undefined ? nodeData.inactive_users : "Loading..."} />
+					<Link href="#" key="view-nodes" className="text-white bg-blue-600 hover:bg-blue-500 transition-all duration-150 w-full rounded-3xl px-2 py-1 text-xl text-center font-medium">
+						{ "View Nodes" }
+					</Link>
+				</WhiteContainer>
+				<WhiteContainer style="">
+					<GrayTopContainer title="Download Speed">
+						{/* Placed inside the Card component's child slot */}
+						<SpeedometerGauge value={10} max={100} unit="Mbps" />
+					</GrayTopContainer>
+
+					<GrayTopContainer title="Upload Speed">
+						{/* Placed inside the Card component's child slot */}
+						<SpeedometerGauge value={4} max={100} unit="Mbps" />
+					</GrayTopContainer>
+
+				</WhiteContainer>
+			</div>
+			<div className="flex flex-col gap-2 row-span-full">
+				<WhiteContainer style="h-full"> active interfaces </WhiteContainer>
+				<WhiteContainer style="h-full">status</WhiteContainer>
+			</div>
 		</div>
   );
 }
