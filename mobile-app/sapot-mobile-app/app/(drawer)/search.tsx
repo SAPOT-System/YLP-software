@@ -35,6 +35,7 @@ const SearchResultItem = ({
   onPress: (item: SearchUser) => void;
 }) => {
   const { url: profilePicUrl } = useProfilePhoto(item.id);
+  const theme = useTheme();
 
   return (
     <Pressable onPress={() => onPress(item)}>
@@ -51,16 +52,18 @@ const SearchResultItem = ({
         ) : (
           <Avatar.Text
             size={48}
-            label={
-              (item.first_name?.[0] ?? item.username?.[0] ?? "?").toUpperCase()
-            }
+            label={(
+              item.first_name?.[0] ??
+              item.username?.[0] ??
+              "?"
+            ).toUpperCase()}
           />
         )}
         <View>
-          <Text>
+          <Text style={{ color: theme.dark ? "#FFFFFF" : "#1E1E1E", fontWeight: "medium" }}>
             {item.first_name} {item.last_name}
           </Text>
-          <Text>@{item.username}</Text>
+          <Text style={{ color: "#6B7280", fontSize: 14 }}>Not Connected</Text>
         </View>
       </View>
     </Pressable>
