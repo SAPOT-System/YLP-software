@@ -1,6 +1,5 @@
 from datetime import datetime, timezone, timedelta
 import pytest
-from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 from sqlmodel import select
 import uuid
@@ -256,3 +255,21 @@ def test_rescuer(session, test_user):
     session.commit()
     session.refresh(rescuer)
     return rescuer
+
+@pytest.fixture
+def auth_header(client: TestClient):
+    """Fixture to get a valid Bearer token for the test user."""
+    # Assuming 'test' user exists in your sample_users
+    login_data = {"username": "test", "password": "test_password"}
+    response = client.post("/auth/token", data=login_data)
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture
+def sample_ids():
+    """Consistent UUIDs for testing relationships."""
+    return {
+        "conv_id": str(uuid4()),
+        "msg_id": str(uuid4()),
+        "user_id": "550e8400-e29b-41d4-a716-446655440000" # Matches your previous logic
+    }

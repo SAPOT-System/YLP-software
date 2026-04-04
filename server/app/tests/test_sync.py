@@ -1,5 +1,8 @@
 import pytest
 from fastapi.encoders import jsonable_encoder
+from sqlmodel import select, func, Session
+from app.db_operations.auth import SessionDep
+from app.models import Conversation, Message
 import time
 import uuid
 from app.tests.assets import sample_users, sample_invalid_user, sample_valid_user
@@ -13,56 +16,91 @@ from app.models.call import Call, CallType, StatusType
 from app.models.users import User
 from fastapi.testclient import TestClient
 
-# def test_sync_watermelon_incremental(client: TestClient, sync_data):
-#     # 1. Setup Auth
-#     sample_user = sample_users['test']
-#     form_data = {
-#         'username': sample_user.get('phone_number'),
-#         'password': sample_user.get('password'),
-#     }
-#     auth_response = client.post('/auth/token', data=form_data)
-#     token = auth_response.json()["access_token"]
-#     headers = {"Authorization": f"Bearer {token}"}
-#
-#     # 2. Define the "Last Pulled" timestamp in milliseconds
-#     # In your previous code, mid_ts was a datetime. 
-#     # For Watermelon, we use the millisecond integer.
-#     mid_ts_ms = int(sync_data["timestamps"]["mid"] * 1000)
-#
-#     # 3. Send the request using WatermelonDB query parameter name
-#     response = client.get(
-#         "/sync",
-#         params={"last_pulled_at": mid_ts_ms},
-#         headers=headers
-#     )
-#
-#     # 4. Verify Protocol Compliance
-#     assert response.status_code == 200
-#     data = response.json()
-#
-#     # WatermelonDB expects a top-level 'changes' dictionary and a 'timestamp'
-#     assert "changes" in data
-#     assert "timestamp" in data
-#     assert isinstance(data["timestamp"], int)
-#
-#     changes = data["changes"]
-#
-#     # 5. Verify Table Logic (Created vs Updated vs Deleted)
-#     # Based on your logic: 
-#     # - "New Message" was created after mid_ts -> 'created'
-#     # - "Deleted Message" was updated (is_deleted=True) after mid_ts -> 'deleted'
-#     # - "Old Message" was created/updated before mid_ts -> should not appear
-#
-#     msg_changes = changes.get("messages", {"created": [], "updated": [], "deleted": []})
-#
-#     # We expect 1 in 'created' (New Message) and 1 in 'deleted' (Deleted Message ID)
-#     assert len(msg_changes["created"]) == 1
-#     assert len(msg_changes["deleted"]) == 1
-#     assert len(msg_changes["updated"]) == 0
-#
-#     # Check content of the created message
-#     assert msg_changes["created"][0]["content"] == "New Message"
-#
-#     # Check the call log
-#     call_changes = changes.get("calls", {"created": [], "updated": [], "deleted": []})
-#     assert len(call_changes["created"]) == 1
+def test_push_create_records(client: TestClient, auth_header, sample_ids, session: SessionDep):
+    payload = {
+        "changes": {
+            "conversations": {
+                "created": [{
+                    "id": sample_ids["conv_id"],
+                    "title": "New Test Chat",
+                    "conversation_type": "group",
+                    "created_at": 1712234500000,
+                    "updated_at": 1712234500000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            },
+            "messages": {
+                "created": [{
+                    "id": sample_ids["msg_id"],
+                    "content": "Hello World",
+                    "conversation_id": sample_ids["conv_id"],
+                    "sender_id": sample_ids["user_id"],
+                    "created_at": 1712234500001,
+                    "updated_at": 1712234500001,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            }
+        },
+        "last_pulled_at": 1712234000000
+    }
+    print("AUTH", auth_header)
+    response = client.post("/sync/push", json=payload, headers=auth_header)
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_push_record_count_integrity(client: TestClient, auth_header, sample_ids, session: SessionDep):
+    # 1. Get initial count from the database
+    initial_conv_count = session.exec(select(func.count(Conversation.id))).one()
+    initial_msg_count = session.exec(select(func.count(Message.id))).one()
+
+    # 2. Define payload with 2 new records
+    payload = {
+        "changes": {
+            "conversations": {
+                "created": [{
+                    "id": sample_ids["conv_id"],
+                    "title": "Count Test Chat",
+                    "conversation_type": "group",
+                    "created_at": 1712234500000,
+                    "updated_at": 1712234500000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            },
+            "messages": {
+                "created": [{
+                    "id": sample_ids["msg_id"],
+                    "content": "Verify count",
+                    "conversation_id": sample_ids["conv_id"],
+                    "sender_id": sample_ids["user_id"],
+                    "created_at": 1712234500001,
+                    "updated_at": 1712234500001,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            }
+        },
+        "last_pulled_at": 1712234000000
+    }
+
+    # 3. Execute the Push
+    response = client.post("/sync/push", json=payload, headers=auth_header)
+    assert response.status_code == 200
+
+    # 4. Verify the counts increased by exactly 1 for each table
+    final_conv_count = session.exec(select(func.count(Conversation.id))).one()
+    final_msg_count = session.exec(select(func.count(Message.id))).one()
+
+    assert final_conv_count == initial_conv_count + 1
+    assert final_msg_count == initial_msg_count + 1
+    
+    # 5. Verify data integrity: Check the content of the specific record
+    pushed_msg = session.get(Message, UUID(sample_ids["msg_id"]))
+    assert pushed_msg.content == "Verify count"
