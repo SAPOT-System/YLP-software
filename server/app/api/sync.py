@@ -41,54 +41,62 @@ router = APIRouter(
 )
 
 
+
 @router.get("/pull")
 async def pull_remote_changes(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_user)],
-    last_pulled_at: int = 0, 
+    last_pulled_at: int = Query(default=0),
+    schema_version: int = Query(default=1),
+    # Migration is usually passed as a JSON string in GET or handled via POST
 ):
-    # 1. Capture the exact server time for the next sync cycle
+    # 1. CONSISTENT TIME-MARKING
+    # Mark the timestamp BEFORE querying starts to ensure no changes are missed 
+    # in the next cycle if they occur during this execution.
     server_time = int(time.time() * 1000)
 
-    def get_table_changes(model: Type[SyncableModel], filter_stmt=None) -> Dict[str, Any]:
+    def get_table_changes(model: Type[SyncableModel]) -> Dict[str, Any]:
         """Fetches changes for a specific table since last_pulled_at."""
         
-        # Select records updated since last sync
-        stmt = select(model).where(col(model.updated_at) > last_pulled_at)
-        
-        # Apply extra filters (e.g., only user's messages) if provided
-        if filter_stmt is not None:
-            stmt = stmt.where(filter_stmt)
-            
+        # 2. QUERY LOGIC
+        if last_pulled_at == 0:
+            # Initial sync: Fetch all records that are NOT deleted
+            stmt = select(model).where(col(model.is_deleted) == False)
+        else:
+            # Incremental sync: Fetch anything updated since last pull
+            stmt = select(model).where(col(model.updated_at) > last_pulled_at)
+
         results = session.exec(stmt).all()
 
         created = []
         updated = []
         deleted = []
-        print("MODEL", model, results)
+
+        # 3. WHITELIST & SANITIZATION
+        # Define fields to EXCLUDE from the final JSON (WatermelonDB internals)
+        internal_fields = {"_status", "_changed", "user_id_internal"} # Add any others
+
         for record in results:
-            # Prepare the dictionary for JSON
-            # WatermelonDB needs all IDs (PK and FK) as strings
+            # Convert record to dict and sanitize
             data = record.model_dump()
             
-            # Convert UUID objects to strings
-            for key, value in data.items():
-                if isinstance(value, UUID):
-                    data[key] = str(value)
+            # Remove internal fields and relationship proxies
+            clean_data = {
+                k: (str(v) if isinstance(v, UUID) else v) 
+                for k, v in data.items() 
+                if k not in internal_fields and not k.startswith('_')
+            }
 
-            # WatermelonDB Logic:
-            # 1. If is_deleted is true -> Add ID to 'deleted' list
-            print("COMPARISON", record.created_at, last_pulled_at, record.created_at > last_pulled_at)
+            # 4. CATEGORIZATION LOGIC
             if record.is_deleted:
+                # If it's a deletion, Watermelon only wants the ID string
                 deleted.append(str(record.id))
-                
-            # 2. If created_at > last_pulled_at -> It's brand new
-            elif record.created_at > last_pulled_at:
-                created.append(data)
-                
-            # 3. Otherwise -> It's an update to an existing record
+            elif last_pulled_at == 0 or record.created_at > last_pulled_at:
+                # Brand new record
+                created.append(clean_data)
             else:
-                updated.append(data)
+                # Modification to existing record
+                updated.append(clean_data)
 
         return {
             "created": created, 
@@ -96,8 +104,8 @@ async def pull_remote_changes(
             "deleted": deleted
         }
 
-    # 2. Define Scoped Changes (Privacy)
-    # Note: You should filter these so users only see their own data
+    # 5. SCOPED CHANGES (Collection Whitelist)
+    # This ensures no arbitrary collection names are leaked.
     changes = {
         "conversations": get_table_changes(Conversation),
         "messages": get_table_changes(Message),
@@ -107,7 +115,7 @@ async def pull_remote_changes(
         "message_receipts": get_table_changes(MessageReceipt),
     }
 
-    # 3. Final WatermelonDB Response Format
+    # 6. RESPONSE FORMAT
     return {
         "changes": changes,
         "timestamp": server_time

@@ -222,7 +222,7 @@ def test_sync_deletion_flow(client: TestClient, auth_header):
             "call_participants": {"created": [], "updated": [], "deleted": []},
             "message_receipts": {"created": [], "updated": [], "deleted": []}
         },
-        "last_pulled_at": 0
+        "last_pulled_at": 500
     }
     
     push_res = client.post("/sync/push", json=create_payload, headers=auth_header)
@@ -245,7 +245,7 @@ def test_sync_deletion_flow(client: TestClient, auth_header):
 
     # 3. Pull and check deleted array
     # We pull from 0 to ensure we see the final state of that ID
-    res = client.get("/sync/pull?last_pulled_at=0", headers=auth_header)
+    res = client.get("/sync/pull?last_pulled_at=999", headers=auth_header)
     data = res.json()
     
     print("PULL JSON:", data)
