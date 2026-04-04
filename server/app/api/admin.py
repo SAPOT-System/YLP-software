@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import psutil
 from app.models.location import UserLocation
 from sqlmodel import select, func, desc
 from typing import Annotated
@@ -163,5 +164,22 @@ def get_all_latest_locations(
     return ret
 
 
+@router.get("/get-network-speed")
+async def get_live_speed(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+    ):
+    # 1. Get initial bytes sent/received
+    old_value = psutil.net_io_counters()
+    time.sleep(1) # Measure the difference over 1 second
+    new_value = psutil.net_io_counters()
 
+    # 2. Calculate the delta (Bytes per second)
+    # bytes -> megabits: (bytes * 8) / 1024 / 1024
+    download = (new_value.bytes_recv - old_value.bytes_recv) * 8 / 1024 / 1024
+    upload = (new_value.bytes_sent - old_value.bytes_sent) * 8 / 1024 / 1024
 
+    return {
+        "download_mbps": round(download, 2),
+        "upload_mbps": round(upload, 2),
+        "interface": "all"
+    }
