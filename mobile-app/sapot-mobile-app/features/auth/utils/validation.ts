@@ -25,6 +25,12 @@ export const validateRegistrationForm = ({
   // First Name validation
   if (firstName !== undefined && !firstName.trim()) {
     errors.firstName = "First name is required";
+  } else if (
+    firstName !== undefined &&
+    firstName.trim().length > 0 &&
+    !/^[\p{L}\s'-]+$/u.test(firstName)
+  ) {
+    errors.firstName = "First name must contain only letters";
   } else if (firstName !== undefined && firstName.trim().length <= 2) {
     errors.firstName = "First name must be at least 2 characters";
   } else if (firstName !== undefined && firstName.trim().length >= 50) {
@@ -34,6 +40,12 @@ export const validateRegistrationForm = ({
   // Last Name validation
   if (lastName !== undefined && !lastName.trim()) {
     errors.lastName = "Last name is required";
+  } else if (
+    lastName !== undefined &&
+    lastName.trim().length > 0 &&
+    !/^[\p{L}\s'-]+$/u.test(lastName)
+  ) {
+    errors.lastName = "Last name must contain only letters";
   } else if (lastName !== undefined && lastName.trim().length < 2) {
     errors.lastName = "Last name must be at least 2 characters";
   } else if (lastName !== undefined && lastName.trim().length > 50) {
@@ -41,12 +53,10 @@ export const validateRegistrationForm = ({
   }
 
   // Phone Number validation
-  if (
-    phoneNumber !== undefined &&
-    phoneNumber.length > 0 &&
-    !/^\d{10,}$/.test(phoneNumber.replace(/\D/g, ""))
-  ) {
-    errors.phoneNumber = "Phone number must be at least 10 digits";
+  if (phoneNumber !== undefined && phoneNumber.length !== 11) {
+    errors.phoneNumber = "Phone number must be at least 11 digits";
+  } else if (phoneNumber !== undefined && !/^09\d{9}$/.test(phoneNumber)) {
+    errors.phoneNumber = "Phone number must be in the format 09XXXXXXXXX";
   }
 
   // Email validation
@@ -131,6 +141,8 @@ export const validateGuestLoginForm = (firstName: string, lastName: string) => {
     errors.firstName = "First name is required";
   } else if (firstName.trim().length <= 2) {
     errors.firstName = "First name must be at least 2 characters";
+  } else if (!/^[\p{L}\s'-]+$/u.test(firstName)) {
+    errors.firstName = "First name must contain only letters";
   } else if (firstName.trim().length >= 50) {
     errors.firstName = "First name must be less than 50 characters";
   }
@@ -138,6 +150,8 @@ export const validateGuestLoginForm = (firstName: string, lastName: string) => {
   // Last Name validation
   if (lastName.trim().length < 2 && lastName.trim().length > 0) {
     errors.lastName = "Last name must be at least 2 characters";
+  } else if (!/^[\p{L}\s'-]+$/u.test(lastName)) {
+    errors.lastName = "Last name must contain only letters";
   } else if (lastName.trim().length > 50 && lastName.trim().length > 0) {
     errors.lastName = "First name must be less than or equal to 50 characters";
   }
