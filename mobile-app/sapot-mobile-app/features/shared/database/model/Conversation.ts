@@ -11,7 +11,8 @@ export class Conversation extends Model {
 
   @field("type") type!: ConversationType;
   @date("created_at") createdAt!: Date;
-  @date("is_deleted") isDeleted!: boolean;
+  @date("updated_at") updatedAt!: Date;
+  @field("title") title?: string;
 }
 
 

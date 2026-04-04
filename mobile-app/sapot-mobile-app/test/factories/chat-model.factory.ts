@@ -7,7 +7,6 @@ export interface TestConversation {
 
 export interface TestConversationParticipant {
   id: string;
-  role: string;
   conversation?: { id: string };
 }
 
@@ -34,7 +33,6 @@ export const createTestConversation = createFactory<TestConversation>(() => ({
 export const createTestConversationParticipant =
   createFactory<TestConversationParticipant>(() => ({
     id: "participant-1",
-    role: "member",
     conversation: { id: "conv-1" },
   }));
 

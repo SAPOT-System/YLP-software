@@ -44,10 +44,6 @@ enum MessageType {
 jest.mock("@/features/shared", () => ({
   ConnectionService: jest.fn(),
   Conversation: jest.fn(),
-  ConversationParticipantRole: {
-    MEMBER: "member",
-    ADMIN: "admin",
-  },
   ConversationType: {
     DIRECT: "direct",
     GROUP: "group",

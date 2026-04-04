@@ -23,7 +23,7 @@ export class ConversationRepository {
    * @returns Promise<Conversation> The saved conversation
    */
   async saveConversation(
-    newConversation: { type: ConversationType; id?: string },
+    newConversation: { type: ConversationType; id?: string; title?: string },
     isInTransaction = false
   ) {
     try {
@@ -35,9 +35,10 @@ export class ConversationRepository {
 
           conversation.type = newConversation.type;
           conversation.createdAt = new Date();
-          conversation.isDeleted = false;
-          // conversation.name = newConversation.name;
-          // conversation.updatedAt = newConversation.unreadCount;
+          conversation.updatedAt = new Date();
+          if (newConversation.title) {
+            conversation.title = newConversation.title;
+          }
         });
       };
       if (isInTransaction) {
