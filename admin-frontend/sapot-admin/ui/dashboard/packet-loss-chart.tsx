@@ -42,7 +42,8 @@ export default function PacketLossChart({ currentLoss, history }: PacketLossChar
             
             {/* We hide the axes but keep them for scaling */}
             <XAxis dataKey="time" hide />
-            <YAxis hide domain={[0, 'auto']} />
+            <YAxis hide domain={[0, 'auto']}  padding={{ bottom: 10 }}/>
+						
             
             <Tooltip 
               contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
