@@ -4,8 +4,6 @@ import { canResetPasswordApi, resetPasswordApi } from "../api/auth.api";
 import { hasValidationErrors, validatePassword } from "../utils";
 
 export const useChangePassword = (token: string) => {
-  if (!token) return;
-
   const [loading, setLoading] = useState(false);
   const [isTokenValid, setIsTokenValid] = useState<boolean | null>(null);
 
@@ -17,6 +15,10 @@ export const useChangePassword = (token: string) => {
 
   useEffect(() => {
     const validateToken = async () => {
+      if (!token) {
+        setIsTokenValid(null);
+        return;
+      }
       try {
         const canChangePassword = await canResetPasswordApi(token);
         setIsTokenValid(canChangePassword);
@@ -25,13 +27,17 @@ export const useChangePassword = (token: string) => {
       }
     };
     validateToken();
-  }, []);
+  }, [token]);
 
   const changePassword = async (form: {
     password: string;
     confirmPassword: string;
     identifier: string;
   }) => {
+    if (!token) {
+      setErrors({ general: "Reset token is missing. Please start again." });
+      return { success: false };
+    }
     setLoading(true);
     setErrors({});
 

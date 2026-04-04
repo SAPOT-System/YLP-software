@@ -1,28 +1,35 @@
-import { StyleSheet, View } from "react-native";
-import React, { useState } from "react";
-import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import {
-  ActivityIndicator,
-  HelperText,
-  Snackbar,
-  Text,
-} from "react-native-paper";
-import { router, useLocalSearchParams } from "expo-router";
+import { AUTH_ROUTES } from "@/app/routes";
 import {
   AuthTextInput,
   PrimaryButton,
   SecondaryButton,
   useChangePassword,
 } from "@/features/auth";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useToast } from "@/features/shared/hooks";
-import { AUTH_ROUTES } from "@/app/routes";
+import { router, useLocalSearchParams } from "expo-router";
+import {
+  deleteItemAsync,
+  getItemAsync,
+  setItemAsync,
+} from "expo-secure-store";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  HelperText,
+  Snackbar,
+  Text,
+} from "react-native-paper";
 
 const ChangePasswordScreen = () => {
   const { token, identifier } = useLocalSearchParams<{
     token: string;
     identifier: string;
   }>();
-  const changePasswordResult = useChangePassword(token);
+  const [tokenValue, setTokenValue] = useState("");
+  const [identifierValue, setIdentifierValue] = useState("");
+  const changePasswordResult = useChangePassword(tokenValue);
   const {
     visible: toastVisible,
     message: toastMessage,
@@ -32,6 +39,36 @@ const ChangePasswordScreen = () => {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  useEffect(() => {
+    const normalizeParam = (value?: string | string[]) =>
+      Array.isArray(value) ? value[0] ?? "" : value ?? "";
+
+    const hydrateFromStorage = async () => {
+      const tokenParam = normalizeParam(token);
+      const identifierParam = normalizeParam(identifier);
+
+      if (tokenParam) {
+        setTokenValue(tokenParam);
+        await setItemAsync("reset_password_token", tokenParam);
+      } else {
+        const storedToken = await getItemAsync("reset_password_token");
+        if (storedToken) setTokenValue(storedToken);
+      }
+
+      if (identifierParam) {
+        setIdentifierValue(identifierParam);
+        await setItemAsync("reset_password_identifier", identifierParam);
+      } else {
+        const storedIdentifier = await getItemAsync(
+          "reset_password_identifier"
+        );
+        if (storedIdentifier) setIdentifierValue(storedIdentifier);
+      }
+    };
+
+    hydrateFromStorage();
+  }, [token, identifier]);
 
   if (!changePasswordResult) {
     return <ActivityIndicator />;
@@ -48,8 +85,14 @@ const ChangePasswordScreen = () => {
   }
 
   const handleChangePassword = async () => {
-    const res = await changePassword({ password, confirmPassword, identifier });
+    const res = await changePassword({
+      password,
+      confirmPassword,
+      identifier: identifierValue,
+    });
     if (res.success) {
+      await deleteItemAsync("reset_password_token");
+      await deleteItemAsync("reset_password_identifier");
       showToast("Change password successfully");
       router.replace(AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS);
     } else {
