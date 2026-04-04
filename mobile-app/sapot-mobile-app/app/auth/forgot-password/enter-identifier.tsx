@@ -1,8 +1,4 @@
-import { View } from "react-native";
-import React, { useState } from "react";
-import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { HelperText } from "react-native-paper";
-import { router, useLocalSearchParams } from "expo-router";
+import { AUTH_ROUTES } from "@/app/routes";
 import {
   AuthTextInput,
   PrimaryButton,
@@ -10,7 +6,13 @@ import {
   useEmailReset,
   useValidateIdentifier,
 } from "@/features/auth";
-import { AUTH_ROUTES } from "@/app/routes";
+import { canResetPasswordApi } from "@/features/auth/api/auth.api";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { router, useLocalSearchParams } from "expo-router";
+import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import React, { useEffect, useState } from "react";
+import { View } from "react-native";
+import { HelperText } from "react-native-paper";
 
 const EnterIdentifierScreen = () => {
   const {
@@ -25,11 +27,66 @@ const EnterIdentifierScreen = () => {
     sendCode,
   } = useEmailReset();
   const [identifier, setIdentfier] = useState("");
+  const [storedToken, setStoredToken] = useState<string | null>(null);
+  const [storedIdentifier, setStoredIdentifier] =
+    useState<string | null>(null);
+  const [hasCheckedStoredToken, setHasCheckedStoredToken] = useState(false);
+
+  useEffect(() => {
+    const loadStoredReset = async () => {
+      try {
+        const tokenValue = await getItemAsync("reset_password_token");
+        const identifierValue = await getItemAsync(
+          "reset_password_identifier"
+        );
+        setStoredToken(tokenValue);
+        setStoredIdentifier(identifierValue);
+      } catch {
+        setStoredToken(null);
+        setStoredIdentifier(null);
+      } finally {
+        setHasCheckedStoredToken(false);
+      }
+    };
+
+    loadStoredReset();
+  }, []);
 
   const handleContinue = async () => {
     const result = await validateIdentfier(identifier);
 
     if (result.success) {
+      if (
+        !hasCheckedStoredToken &&
+        storedToken &&
+        storedIdentifier &&
+        identifier === storedIdentifier
+      ) {
+        setHasCheckedStoredToken(true);
+
+        try {
+          const isValid = await canResetPasswordApi(storedToken);
+
+          if (isValid) {
+            router.replace({
+              pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+              params: { token: storedToken, identifier: storedIdentifier },
+            });
+            return;
+          }
+
+          await deleteItemAsync("reset_password_token");
+          await deleteItemAsync("reset_password_identifier");
+          setStoredToken(null);
+          setStoredIdentifier(null);
+        } catch {
+          await deleteItemAsync("reset_password_token");
+          await deleteItemAsync("reset_password_identifier");
+          setStoredToken(null);
+          setStoredIdentifier(null);
+        }
+      }
+
       if (resetOption === "question")
         router.push({
           pathname: AUTH_ROUTES.FORGOT_PASSWORD.QUESTION_RESET,
