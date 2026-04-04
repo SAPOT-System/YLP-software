@@ -53,9 +53,17 @@ export const validateRegistrationForm = ({
   }
 
   // Phone Number validation
-  if (phoneNumber !== undefined && phoneNumber.length !== 11) {
+  if (
+    phoneNumber !== undefined &&
+    phoneNumber.length !== 11 &&
+    phoneNumber.length > 0
+  ) {
     errors.phoneNumber = "Phone number must be at least 11 digits";
-  } else if (phoneNumber !== undefined && !/^09\d{9}$/.test(phoneNumber)) {
+  } else if (
+    phoneNumber !== undefined &&
+    phoneNumber.length > 0 &&
+    !/^09\d{9}$/.test(phoneNumber)
+  ) {
     errors.phoneNumber = "Phone number must be in the format 09XXXXXXXXX";
   }
 
