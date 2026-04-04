@@ -1,8 +1,4 @@
-import { View } from "react-native";
-import React, { useState } from "react";
-import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { ActivityIndicator, Button, HelperText } from "react-native-paper";
-import { router, useLocalSearchParams } from "expo-router";
+import { AUTH_ROUTES } from "@/app/routes";
 import {
   ExpoFileUpload,
   FileUploadResultCard,
@@ -10,10 +6,16 @@ import {
   SecondaryButton,
   useVerifyRecoveryKey,
 } from "@/features/auth";
-import { pick } from "@react-native-documents/picker";
-import { AUTH_ROUTES } from "@/app/routes";
+import { canResetPasswordApi } from "@/features/auth/api/auth.api";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { FailedDialog } from "@/features/shared";
 import { useDialogVisibility } from "@/features/shared/hooks";
+import { pick } from "@react-native-documents/picker";
+import { router, useLocalSearchParams } from "expo-router";
+import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import React, { useEffect, useState } from "react";
+import { View } from "react-native";
+import { ActivityIndicator, Button, HelperText } from "react-native-paper";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
@@ -22,6 +24,7 @@ const RecoveryKeyResetScreen = () => {
   const insertFailedDialog = useDialogVisibility();
 
   const [file, setFile] = useState<ExpoFileUpload>();
+  const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
   const getVerifyRecoveryKey = useVerifyRecoveryKey(identifier);
 
@@ -30,6 +33,48 @@ const RecoveryKeyResetScreen = () => {
   }
 
   const { loading, error, verifyRecoveryKey } = getVerifyRecoveryKey;
+
+  useEffect(() => {
+    const checkStoredToken = async () => {
+      try {
+        const storedToken = await getItemAsync("reset_password_token");
+        const storedIdentifier = await getItemAsync(
+          "reset_password_identifier"
+        );
+
+        if (!storedToken || !storedIdentifier) {
+          return;
+        }
+
+        if (storedIdentifier !== identifier) {
+          return;
+        }
+
+        const isValid = await canResetPasswordApi(storedToken);
+
+        if (isValid) {
+          router.replace({
+            pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+            params: { token: storedToken, identifier: storedIdentifier },
+          });
+        } else {
+          await deleteItemAsync("reset_password_token");
+          await deleteItemAsync("reset_password_identifier");
+        }
+      } catch {
+        await deleteItemAsync("reset_password_token");
+        await deleteItemAsync("reset_password_identifier");
+      } finally {
+        setCheckingStoredToken(false);
+      }
+    };
+
+    checkStoredToken();
+  }, [identifier]);
+
+  if (checkingStoredToken) {
+    return <ActivityIndicator />;
+  }
 
   const handleFileUpload = async () => {
     insertFailedDialog.hide();

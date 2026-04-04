@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { getSecurityQuestionApi } from "../api";
 
 export const useGetQuestion = (identfier: string) => {
-  if (!identfier) return;
   const [loading, setLoading] = useState(false);
   const [question, setQuestion] = useState("");
 
   useEffect(() => {
     const getQuestion = async () => {
+      if (!identfier) {
+        setQuestion("");
+        return;
+      }
       setLoading(true);
 
       try {
@@ -24,7 +27,7 @@ export const useGetQuestion = (identfier: string) => {
     };
 
     getQuestion();
-  }, []);
+  }, [identfier]);
 
   return { loading, question };
 };
