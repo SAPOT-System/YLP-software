@@ -85,7 +85,7 @@ export const getCurrentUserProfilePicApi = async () => {
 export const getUserProfilePicApi = async (userId: string) => {
   const res = await apiClient.get<{
     url: string;
-  }>("/profile-picture", { params: { user_id: userId } });
+  }>(`/profile-picture/${userId}`);
 
   return res;
 };
