@@ -21,11 +21,16 @@ from app.models.sync import SyncResponse, SyncRequest, SyncCheckResponse, PushSy
 
 from app.db_operations.token import get_current_user
 from app.models.users import User
-from app.models.message import Message
+from app.models.message import Message, SyncableModel
 from app.models.message_receipt import MessageReceipt
 from app.models.call import Call
 from app.models.conversation import ConversationParticipant
 
+import time
+from typing import Type, List, Dict, Any
+from uuid import UUID
+from sqlmodel import select, col, and_
+from fastapi import Depends
 
 router = APIRouter(
     prefix='/sync',
@@ -35,22 +40,79 @@ router = APIRouter(
     }
 )
 
-@router.get("/", response_model=SyncResponse)
-def pull_updates(
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: SessionDep,
-    # Watermelon sends last_pulled_at as milliseconds (int)
-    last_pulled_at: int = Query(0), 
-):
-    pass
 
-@router.get("/check", response_model=SyncCheckResponse)
-async def check_for_updates(
-    current_user: Annotated[User, Depends(get_current_user)],
+@router.get("/pull")
+async def pull_remote_changes(
     session: SessionDep,
-    last_pull: int = Query(0), # Changed from datetime to int
+    current_user: Annotated[User, Depends(get_current_user)],
+    last_pulled_at: int = 0, 
 ):
-    pass
+    # 1. Capture the exact server time for the next sync cycle
+    server_time = int(time.time() * 1000)
+
+    def get_table_changes(model: Type[SyncableModel], filter_stmt=None) -> Dict[str, Any]:
+        """Fetches changes for a specific table since last_pulled_at."""
+        
+        # Select records updated since last sync
+        stmt = select(model).where(col(model.updated_at) > last_pulled_at)
+        
+        # Apply extra filters (e.g., only user's messages) if provided
+        if filter_stmt is not None:
+            stmt = stmt.where(filter_stmt)
+            
+        results = session.exec(stmt).all()
+
+        created = []
+        updated = []
+        deleted = []
+        print("MODEL", model, results)
+        for record in results:
+            # Prepare the dictionary for JSON
+            # WatermelonDB needs all IDs (PK and FK) as strings
+            data = record.model_dump()
+            
+            # Convert UUID objects to strings
+            for key, value in data.items():
+                if isinstance(value, UUID):
+                    data[key] = str(value)
+
+            # WatermelonDB Logic:
+            # 1. If is_deleted is true -> Add ID to 'deleted' list
+            print("COMPARISON", record.created_at, last_pulled_at, record.created_at > last_pulled_at)
+            if record.is_deleted:
+                deleted.append(str(record.id))
+                
+            # 2. If created_at > last_pulled_at -> It's brand new
+            elif record.created_at > last_pulled_at:
+                created.append(data)
+                
+            # 3. Otherwise -> It's an update to an existing record
+            else:
+                updated.append(data)
+
+        return {
+            "created": created, 
+            "updated": updated, 
+            "deleted": deleted
+        }
+
+    # 2. Define Scoped Changes (Privacy)
+    # Note: You should filter these so users only see their own data
+    changes = {
+        "conversations": get_table_changes(Conversation),
+        "messages": get_table_changes(Message),
+        "conversation_participants": get_table_changes(ConversationParticipant),
+        "calls": get_table_changes(Call),
+        "call_participants": get_table_changes(CallParticipant),
+        "message_receipts": get_table_changes(MessageReceipt),
+    }
+
+    # 3. Final WatermelonDB Response Format
+    return {
+        "changes": changes,
+        "timestamp": server_time
+    }
+
 
 def cast_to_uuids(model, datum: dict):
     # 1. ID is mandatory for both Created and Updated
@@ -83,79 +145,90 @@ def cast_to_uuids(model, datum: dict):
     return datum
 
 
+# sanitize this
 @router.post("/push")
 async def push_local_data(
+    current_user: Annotated[User, Depends(get_current_user)],
     data: PushSyncRequest,
     session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_user)],
 ):
-    print(data)
     changes = data.changes
+    last_pulled_at = data.last_pulled_at or 0
+    
+    # Tables in order to respect Foreign Key constraints
     data_table = {
-            Conversation:  changes.get('conversations'), 
-            Message:  changes.get('messages'), 
-            ConversationParticipant:  changes.get('conversation_participants'), 
-            Call:  changes.get('calls'), 
-            CallParticipant:  changes.get('call_participants'), 
-            MessageReceipt:  changes.get('message_receipts'), 
-            }
-    # for the create objects
-    def save_to_db(model , data):
-        if not data: 
-            return
-        for datum in data.created:
-            cast_to_uuids(model, datum)
-            record = session.get(model, datum["id"])
-
-            if record:
-                # 2. Update fields dynamically
-                # Use .items() to loop through the incoming JSON data
-                for key, value in record.model_dump().items():
-                    # Only update if the attribute actually exists on the model
-                    print("DATUM", datum[key])
-                    if hasattr(record, key) and datum[key]:
-                        setattr(record, key, datum[key])
-                session.add(record)
-                continue
-
-            new_record = model(**datum)
-            session.add(new_record)
-
-        session.flush()
-
-        for datum in data.updated:
-            cast_to_uuids(model, datum)
-            record = session.get(model, datum["id"])
-            if not record:
-                new_record = model(**datum)
-                session.add(new_record)
-                continue
-            if record.is_deleted:
-                raise HTTPException(404, "Record not found. Local state may be out of sync. Pull data from the server.")
-            for key, value in datum.items():
-                print("DATUM", datum[key])
-                if hasattr(datum, key) and datum[key]:
-                    setattr(record, key, datum[key])
-            session.add(record)
-        session.flush()
-        
-        for datum in data.deleted:
-            datum = UUID(datum)
-            record = session.get(model, datum)
-            if not record:
-                continue
-            setattr(record, "is_deleted", True)
-            session.add(record)
-        session.flush()
+        Conversation: changes.get('conversations'),
+        Message: changes.get('messages'),
+        ConversationParticipant: changes.get('conversation_participants'),
+        Call: changes.get('calls'),
+        CallParticipant: changes.get('call_participants'),
+        MessageReceipt: changes.get('message_receipts'),
+    }
 
     try:
-        for model, data in data_table.items():
-            save_to_db(model, data)
+        for model, table_changes in data_table.items():
+            if not table_changes:
+                continue
 
-    except:
-        raise HTTPException(404, "You local client may ba out of sync. Pull from the server first")
+            # --- 1. HANDLE CREATED & UPDATED (Upsert Logic) ---
+            # Protocol: If created ID exists -> Update. If updated ID missing -> Create.
+            all_upserts = table_changes.created + table_changes.updated
+            
+            for datum in all_upserts:
+                cast_to_uuids(model, datum)
+                record = session.get(model, datum["id"])
 
-    # for updated block
+                if record:
+                    # CONFLICT DETECTION: 
+                    # If record was modified on server after user's last pull, abort.
+                    if record.updated_at > last_pulled_at:
+                        raise HTTPException(status_code=409, detail="Conflict: Record updated remotely.")
 
-    session.commit()
-    return {"status": "ok"}
+                    # If record is already deleted on server, Protocol says throw error on 'updated' block
+                    # but usually, we just force a re-sync.
+                    if record.is_deleted:
+                        raise HTTPException(status_code=404, detail="Record deleted on server.")
+
+                    # UPDATE existing record
+                    for key, value in datum.items():
+                        # Protocol: Ignore _status, _changed. Only update valid columns.
+                        if key not in ["id", "_status", "_changed"] and hasattr(record, key):
+                            setattr(record, key, value)
+                    session.add(record)
+                
+                else:
+                    # CREATE new record (if not found in 'updated' or 'created')
+                    # Protocol: Sanitize data (handled by model validation/SQLModel)
+                    new_record = model(**datum)
+                    session.add(new_record)
+
+            # --- 2. HANDLE DELETED ---
+            for datum_id in table_changes.deleted:
+                try:
+                    target_uuid = UUID(datum_id) if isinstance(datum_id, str) else datum_id
+                    record = session.get(model, target_uuid)
+                    
+                    if record:
+                        record.is_deleted = True
+                        record.updated_at = int(time.time() * 1000)
+                        session.add(record)
+                        
+                        # TODO: (Optional) Delete descendants here if needed 
+                        # e.g., if record is Conversation, delete Messages.
+                except ValueError:
+                    continue # Ignore invalid ID formats as per Protocol
+
+            # Flush after each table to maintain FK integrity for the next table
+            session.flush()
+
+        # Finalize everything
+        session.commit()
+        return {"status": "ok"}
+
+    except HTTPException as he:
+        session.rollback()
+        raise he
+    except Exception as e:
+        session.rollback()
+        print(f"Sync Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Sync Error")
