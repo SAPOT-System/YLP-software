@@ -1,4 +1,10 @@
 from datetime import datetime, timedelta, timezone
+import platform
+import subprocess
+import time
+from collections import deque
+from fastapi import APIRouter
+from pythonping import ping
 import psutil
 from app.models.location import UserLocation
 from sqlmodel import select, func, desc
@@ -163,23 +169,57 @@ def get_all_latest_locations(
     ret["inactive_users"] = total_count - count
     return ret
 
+ping_history = deque(maxlen=300)
 
-@router.get("/get-network-speed")
+def perform_ping_probe():
+    """Run a quick ping using the system binary to avoid permission issues."""
+    host = "192.168.254.124"
+    # -c for Linux/macOS, -n for Windows
+    flag = "-n" if platform.system().lower() == "windows" else "-c"
+    
+    try:
+        # We send 1 packet with a 1-second timeout
+        # Using subprocess avoids the 100% loss/root permission bug
+        result = subprocess.run(
+            ["ping", flag, "1", "-W", "1", host] if flag == "-c" else ["ping", flag, "1", host],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2 # Safety timeout for the process itself
+        )
+        # Success if return code is 0
+        ping_history.append(result.returncode == 0)
+    except Exception:
+        ping_history.append(False)
+
+@router.get("/get-network-usage")
 async def get_live_speed(
-        current_user: Annotated[User, Depends(get_current_user_admin)],
-    ):
-    # 1. Get initial bytes sent/received
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+):
+    # 1. Measure Network Traffic (1 second delta)
     old_value = psutil.net_io_counters()
-    time.sleep(1) # Measure the difference over 1 second
+    time.sleep(1) 
     new_value = psutil.net_io_counters()
 
-    # 2. Calculate the delta (Bytes per second)
-    # bytes -> megabits: (bytes * 8) / 1024 / 1024
+    # Calculate Mbps
     download = (new_value.bytes_recv - old_value.bytes_recv) * 8 / 1024 / 1024
     upload = (new_value.bytes_sent - old_value.bytes_sent) * 8 / 1024 / 1024
 
+    # 2. Run a fresh ping probe
+    perform_ping_probe()
+    
+    # 3. Calculate Loss Rate from history
+    total_samples = len(ping_history)
+    if total_samples == 0:
+        loss_percentage = 0.0
+    else:
+        lost_packets = ping_history.count(False)
+        loss_percentage = (lost_packets / total_samples) * 100
+    
     return {
         "download_mbps": round(download, 2),
         "upload_mbps": round(upload, 2),
-        "interface": "all"
+        "loss_percent": round(loss_percentage, 2),
+        "interface": "all",
+        "samples_in_memory": total_samples,
+        "time_window": "5 minutes (max)"
     }
