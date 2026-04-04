@@ -118,8 +118,14 @@ async def sdp_relay(target_id: UUID, token: str, websocket: WebSocket):
             if not payload:
                 continue
 
-            if not validate_sender(payload, user_id):
+            if isinstance(payload, dict) and payload.get("type") == "ping":
+                # --- THIS IS HOW YOU SEND THE PONG ---
+                await manager.send_personal_message(target_id, {"type": "pong"})
                 continue
-            await relay_signal(user_id, target_id, payload)
+
+            if isinstance(payload, SignalMessage) and not validate_sender(payload, user_id):
+                continue
+            if isinstance(payload, SignalMessage):
+                await relay_signal(user_id, target_id, payload)
     except WebSocketDisconnect:
         manager.disconnect(user_id)

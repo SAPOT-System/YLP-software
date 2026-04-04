@@ -32,12 +32,13 @@ async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage)
         raise Exception("Receiver not connected")
 
 
-async def receive_signal_message(websocket: WebSocket) -> SignalMessage|None:
+async def receive_signal_message(websocket: WebSocket) -> SignalMessage|dict:
     raw_payload = await websocket.receive_json()
 
     try:
         payload = SignalMessage(**raw_payload)
         return  payload
     except ValidationError:
+        return raw_payload
         print("ERRORR: receive signal message")
         return None
