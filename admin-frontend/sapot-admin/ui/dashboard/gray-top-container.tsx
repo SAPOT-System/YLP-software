@@ -22,7 +22,7 @@ export default function GrayTopContainer({
     >
       {/* 1. The Header: Gray background top area */}
       <div className="px-6 py-4 custom-gray border-b border-gray-100">
-        <h3 className="text-lg font-semibold text-center text-slate-800">
+        <h3 className="text-lg font-semibold text-center">
           {title}
         </h3>
       </div>
