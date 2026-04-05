@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta, timezone
+import os
+import socket
+from fastapi import FastAPI
 import platform
 import subprocess
 import time
@@ -223,3 +226,52 @@ async def get_live_speed(
         "samples_in_memory": total_samples,
         "time_window": "5 minutes (max)"
     }
+
+
+def get_network_details():
+    interfaces_dict = {}
+    base_path = '/sys/class/net/'
+    
+    # List all interface directories in /sys/class/net/
+    for iface in os.listdir(base_path):
+        # 1. Get Operational State (up/down/unknown)
+        with open(os.path.join(base_path, iface, 'operstate'), 'r') as f:
+            state = f.read().strip()
+            
+        # 2. Get MAC Address
+        with open(os.path.join(base_path, iface, 'address'), 'r') as f:
+            mac = f.read().strip()
+            
+        # 3. Get IP Address (if available)
+        # We use a dummy socket to find the IP associated with the interface
+        ip_addr = None
+        try:
+            # This is a Linux-specific way to get the IP for a specific interface
+            import fcntl
+            import struct
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            ip_addr = socket.inet_ntoa(fcntl.ioctl(
+                s.fileno(),
+                0x8915,  # SIOCGIFADDR
+                struct.pack('256s', iface[:15].encode('utf-8'))
+            )[20:24])
+        except Exception:
+            # Likely no IPv4 assigned to this interface
+            ip_addr = "N/A"
+
+        interfaces_dict[iface] = {
+            "status": state,
+            "mac_address": mac,
+            "ipv4": ip_addr,
+            "is_loopback": iface == "lo"
+        }
+        
+    return interfaces_dict
+
+
+@router.get("/network/interfaces")
+async def read_interfaces(
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+        ):
+    # FastAPI automatically converts this dict to a JSON response
+    return get_network_details()
