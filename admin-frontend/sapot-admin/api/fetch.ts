@@ -14,8 +14,27 @@ export async function secureFetch(endpoint: string, options: RequestInit = {}) {
     'Content-Type': 'application/json',
   };
 
-  return fetch(`${baseUrl}${endpoint}`, {
+  let response = await fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers,
   });
+
+	if (!response) 
+		throw Error("Authentication error")
+
+  if (response.status === 401) {
+    const refreshRes = await fetch('/api/auth/refresh', { method: 'POST' });
+    
+    if (refreshRes.ok) {
+      // Refresh worked! Now retry the original request
+      response = await fetch(`${baseUrl}${endpoint}`, options);
+    } else {
+      // Refresh failed (token expired), redirect to login
+      window.location.href = '/login';
+    }
+  }
+
+  return response;
+
+
 }
