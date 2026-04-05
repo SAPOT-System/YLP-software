@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import os
+from sqlmodel import select, func, desc
+from typing import Annotated, List, Optional
 import socket
 from fastapi import FastAPI
 import platform
@@ -278,22 +280,49 @@ async def read_interfaces(
     return get_network_details()
 
 
+
 @router.get("/users-activity")
 def get_admin_users(
-        current_user: Annotated[User, Depends(get_current_user_admin)],
-        session: SessionDep
-        ):
-    # SQLModel automatically handles the join if we use the relationship
-    statement = select(User, UserActivity).join(UserActivity, isouter=True)
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    session: SessionDep,
+    page: int = 1,          # Default to page 1
+    size: int = 10          # Default to 10 items per page
+):
+    # Calculate offset
+    offset = (page - 1) * size
+
+    # 1. Base statement with Join and Sorting (Latest last_active first)
+    # We use desc(UserActivity.last_active) to put newest at the top
+    statement = (
+        select(User, UserActivity)
+        .join(UserActivity, isouter=True)
+        .order_by(desc(UserActivity.last_active)) 
+        .offset(offset)
+        .limit(size)
+    )
+    
+    # 2. Get total count for pagination metadata
+    total_statement = select(func.count()).select_from(User)
+    total = session.exec(total_statement).one()
+
     results = session.exec(statement).all()
     
-    output = []
+    users_data = []
     for user, activity in results:
-        output.append({
+        users_data.append({
             "id": user.id,
             "username": user.username,
+            "phone": user.phone_number,
             "email": user.email,
             "status": activity.status if activity else "Inactive",
-            "lastActive": activity.last_active.isoformat() if activity else "Never"
+            # We append 'Z' here to ensure the JS 'new Date()' treats it as UTC!
+            "lastActive": f"{activity.last_active.isoformat()}Z" if activity else "Never"
         })
-    return output
+
+    return {
+        "items": users_data,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size  # Quick ceiling division for total pages
+    }
