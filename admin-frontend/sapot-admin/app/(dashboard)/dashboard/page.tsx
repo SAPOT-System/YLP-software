@@ -214,8 +214,8 @@ export default function Dashboard() {
 							</div>
 
 					</GrayTopContainer>
-					<WhiteContainer style="h-full flex-col">
-						<div className="flex items-center gap-1">
+					<WhiteContainer style="h-full justify-center  flex-col">
+						<div className="flex  items-center gap-1">
 							<span className="font-bold text-sm">Node Data: </span>
 							<StatusBadge className="fixed bottom-0 right-0" isLive={nodeDataStatus.val} lastUpdated={nodeDataStatus.date} />
 						</div>
