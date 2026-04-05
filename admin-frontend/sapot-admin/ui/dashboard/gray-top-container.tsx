@@ -3,14 +3,18 @@ import { ReactNode } from 'react';
 
 interface DashboardMetricCardProps {
   title: string;
-  children: ReactNode; // This is where the actual gauge will go
+  children?: ReactNode; // This is where the actual gauge will go
   className?: string; // Optional: To override default card styles (like width)
+	border?: Boolean;
+	classNameContent?: string;
 }
 
 export default function GrayTopContainer({
   title,
   children,
-  className,
+	classNameContent = "",
+  className = "",
+	border = true,
 }: DashboardMetricCardProps) {
   return (
     <div
@@ -28,7 +32,9 @@ export default function GrayTopContainer({
       </div>
 
       {/* 2. The Content: White background area for the gauge */}
-      <div className="p-10 flex flex-col items-center justify-center space-y-4">
+      <div className={clsx("flex flex-col items-center justify-center",
+													 classNameContent,
+													 {"p-10 space-y-4": border }) }>
         {children}
       </div>
     </div>
