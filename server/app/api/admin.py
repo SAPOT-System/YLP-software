@@ -291,6 +291,7 @@ def get_admin_users(
     # Calculate offset
     offset = (page - 1) * size
 
+    fifteen_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=15)
     # 1. Base statement with Join and Sorting (Latest last_active first)
     # We use desc(UserActivity.last_active) to put newest at the top
     statement = (
@@ -306,15 +307,19 @@ def get_admin_users(
     total = session.exec(total_statement).one()
 
     results = session.exec(statement).all()
-    
+
     users_data = []
     for user, activity in results:
+        is_active = (
+            activity is not None and 
+            activity.last_active.replace(tzinfo=timezone.utc) > fifteen_minutes_ago
+        )
         users_data.append({
             "id": user.id,
             "username": user.username,
             "phone": user.phone_number,
             "email": user.email,
-            "status": activity.status if activity else "Inactive",
+            "status": "Active" if is_active else "Inactive",
             # We append 'Z' here to ensure the JS 'new Date()' treats it as UTC!
             "lastActive": f"{activity.last_active.isoformat()}Z" if activity else "Never"
         })
