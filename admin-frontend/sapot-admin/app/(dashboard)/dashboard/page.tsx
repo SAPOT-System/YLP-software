@@ -13,61 +13,12 @@ import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
 	const [nodeData, setNodeData] = useState({});
+	const [userActivityData, setUserActivityData] = useState([]);
 	const [nicData, setNicData] = useState({});
 	const [netData, setNetData] = useState({});
 	const [lossHistory, setLossHistory] = useState([]);
 	const [isMounted, setIsMounted] = useState(false);
 
-const sampleUserData = [
-  {
-    id: 429,
-    username: "Ronald Richards",
-    email: "michelle.rivera@example.com",
-    phone: "(704) 555-0127",
-    status: "Active",
-    lastActive: "Just now",
-  },
-  {
-    id: 540,
-    username: "Cameron Williamson",
-    email: "felicia.reid@example.com",
-    phone: "(316) 555-0116",
-    status: "Active",
-    lastActive: "Just now",
-  },
-  {
-    id: 492,
-    username: "Cody Fisher",
-    email: "jackson.graham@example.com",
-    phone: "(702) 555-0122",
-    status: "Inactive",
-    lastActive: "1:30 pm",
-  },
-  {
-    id: 312,
-    username: "Savannah Nguyen",
-    email: "savannah.n@example.com",
-    phone: "(206) 555-0198",
-    status: "Active",
-    lastActive: "5 mins ago",
-  },
-  {
-    id: 215,
-    username: "Bessie Cooper",
-    email: "bessie.c@example.com",
-    phone: "(408) 555-0103",
-    status: "Inactive",
-    lastActive: "Yesterday",
-  },
-  {
-    id: 884,
-    username: "Devin Shelton",
-    email: "devin.s@example.com",
-    phone: "(864) 555-0144",
-    status: "Active",
-    lastActive: "Just now",
-  }
-];
 	useEffect(() => {
 		const fetchData = async () => {
 			try {
@@ -103,6 +54,11 @@ const sampleUserData = [
 					Object.entries(nicData).filter(([name, info]) => info.status === "up")
 				);
 				setNicData(activeInterfaces)
+
+				const fetchUserActivity = await fetch('/api/get-users-activity'); 
+				const userData = await fetchUserActivity.json();
+				console.log(userData)
+				setUserActivityData(userData)
 
 				setIsMounted(true);
 			} catch (err) {
@@ -177,7 +133,7 @@ const sampleUserData = [
 
 				<div className="col-span-1 flex flex-col gap-2 row-span-full w-full">
 					<WhiteContainer style="h-full">
-						<UserTable data={sampleUserData}/>
+						<UserTable data={userActivityData}/>
 
 					</WhiteContainer>
 				</div>
