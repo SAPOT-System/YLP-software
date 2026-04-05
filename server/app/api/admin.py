@@ -194,7 +194,7 @@ def perform_ping_probe():
     except Exception:
         ping_history.append(False)
 
-@router.get("/get-network-usage")
+@router.get("/network/usage")
 async def get_live_speed(
     current_user: Annotated[User, Depends(get_current_user_admin)],
 ):
