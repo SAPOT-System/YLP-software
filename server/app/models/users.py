@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from app.models.location import UserLocation
     from app.models.rescuer import Rescuer
     from app.models.admin import Admin
+    from app.models.activity import UserActivity, ActivityLog
 
 
 PhoneStr = Annotated[
@@ -44,6 +45,8 @@ class User(UserBase, table=True):
     email_verified : bool =  Field(default=False)
 
     security_questions: List["UserSecurityQuestion"] = Relationship(back_populates="user")
+
+    activity: Optional["UserActivity"] = Relationship(back_populates="user")
 
     conversation_participants: List["ConversationParticipant"] = Relationship(
         back_populates="user"

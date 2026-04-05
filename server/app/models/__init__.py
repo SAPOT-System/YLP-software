@@ -12,4 +12,4 @@ from app.models.rescuer import Rescuer
 from app.models.admin import Admin
 from app.models.websocketComms import MessageData
 from app.models.queued import Queue
-
+from app.models.activity import UserActivity, ActivityLog

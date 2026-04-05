@@ -9,6 +9,7 @@ from collections import deque
 from fastapi import APIRouter
 from pythonping import ping
 import psutil
+from app.models.activity import UserActivity
 from app.models.location import UserLocation
 from sqlmodel import select, func, desc
 from typing import Annotated
@@ -275,3 +276,24 @@ async def read_interfaces(
         ):
     # FastAPI automatically converts this dict to a JSON response
     return get_network_details()
+
+
+@router.get("/users-activity")
+def get_admin_users(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+        session: SessionDep
+        ):
+    # SQLModel automatically handles the join if we use the relationship
+    statement = select(User, UserActivity).join(UserActivity, isouter=True)
+    results = session.exec(statement).all()
+    
+    output = []
+    for user, activity in results:
+        output.append({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "status": activity.status if activity else "Inactive",
+            "lastActive": activity.last_active.isoformat() if activity else "Never"
+        })
+    return output
