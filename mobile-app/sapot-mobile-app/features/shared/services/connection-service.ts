@@ -39,7 +39,7 @@ export class ConnectionService extends EventEmitter {
     private networkConfig: NetworkConfig,
     private userStore: UserStore,
     private appModeStore: AppModeStore,
-    private wsSignalingAdapter: WsSignalingAdapter = new WsSignalingAdapter(),
+    private wsSignalingAdapter: WsSignalingAdapter,
     private wsBaseUrl: string = getWsUrl()
   ) {
     super();
@@ -319,14 +319,13 @@ export class ConnectionService extends EventEmitter {
    */
   start() {
     try {
-      if (!this.isTcpAllowed()) {
-        console.log(
-          `${this.logPrefix}: TCP server start skipped (mode disabled)`
-        );
-        return;
+      if (this.isTcpAllowed()) {
+        this.tcpServerAdapter.start(this.networkConfig.port);
+      }
+      if (this.isWebSocketAllowed()) {
+        this.ensureWsSignaling();
       }
       // await this.webrtcAdapter.initializeLocalStream();
-      this.tcpServerAdapter.start(this.networkConfig.port);
     } catch (error) {
       console.error("[ConnectionService]: Error starting connection:", error);
       throw error;
@@ -350,7 +349,7 @@ export class ConnectionService extends EventEmitter {
     const tcpAdapter = this.getTcpClientAdapter(peerId);
     const webrtcAdapter = this.getWebrtcAdapter(peerId);
     const isWsConfigured = this.isWebSocketAllowed()
-      ? this.ensureWsSignaling(peerId)
+      ? this.ensureWsSignaling()
       : false;
     console.log(`${this.logPrefix}: Signaling transport availability`, {
       peerId,
@@ -513,7 +512,7 @@ export class ConnectionService extends EventEmitter {
       });
       const tcpAdapter = this.getTcpClientAdapter(peerId);
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
-      const isWsConfigured = this.ensureWsSignaling(peerId);
+      const isWsConfigured = this.ensureWsSignaling();
 
       if (!webrtcAdapter.isConnected) {
         throw new Error("Webrtc not connected");
@@ -684,10 +683,10 @@ export class ConnectionService extends EventEmitter {
   sendMessage(peerId: string, message: TcpDataMessage) {
     try {
       if (!this.isTcpAllowed()) {
-        console.warn(
-          `${this.logPrefix}: TCP message blocked (mode disabled)`,
-          { peerId, type: message.type }
-        );
+        console.warn(`${this.logPrefix}: TCP message blocked (mode disabled)`, {
+          peerId,
+          type: message.type,
+        });
         return;
       }
       console.log(`${this.logPrefix}: Sending TCP message`, {
@@ -722,7 +721,7 @@ export class ConnectionService extends EventEmitter {
   private sendSignalingMessage(peerId: string, message: SignalingMessage) {
     try {
       const isWsConfigured = this.isWebSocketAllowed()
-        ? this.ensureWsSignaling(peerId)
+        ? this.ensureWsSignaling()
         : false;
       const isTcpAllowed = this.isTcpAllowed();
 
@@ -754,77 +753,34 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
-  private ensureWsSignaling(peerId: string): boolean {
+  private ensureWsSignaling(): boolean {
     try {
       if (!this.isWebSocketAllowed()) {
-        console.log(
-          `${this.logPrefix}: Websocket signaling skipped (mode disabled)`,
-          { peerId }
-        );
         return false;
       }
       if (!this.signalingToken) {
-        console.log(
-          `${this.logPrefix}: Websocket signaling skipped (missing token)`,
-          {
-            peerId,
-          }
-        );
         return false;
       }
 
-      const wsAdapterWithState = this.wsSignalingAdapter as unknown as {
-        isConnectingTo?: (targetId?: string) => boolean;
-      };
-
-      if (
-        typeof wsAdapterWithState.isConnectingTo === "function" &&
-        wsAdapterWithState.isConnectingTo(peerId)
-      ) {
+      if (this.wsSignalingAdapter.isConnected) {
         console.log(
-          `${this.logPrefix}: Reusing in-flight websocket signaling connection`,
-          {
-            peerId,
-          }
+          `${this.logPrefix}: Reusing existing websocket signaling connection`
         );
         return true;
       }
 
-      if (
-        this.wsSignalingAdapter.isConnected &&
-        this.currentWsTargetId === peerId
-      ) {
-        console.log(
-          `${this.logPrefix}: Reusing existing websocket signaling connection`,
-          {
-            peerId,
-          }
-        );
-        return true;
-      }
-
-      if (
-        this.wsSignalingAdapter.isConnected &&
-        this.currentWsTargetId !== peerId
-      ) {
-        console.log(`${this.logPrefix}: Switching websocket signaling target`, {
-          fromPeerId: this.currentWsTargetId,
-          toPeerId: peerId,
-        });
+      if (this.wsSignalingAdapter.isConnected) {
         this.wsSignalingAdapter.disconnect();
       }
 
-      this.currentWsTargetId = peerId;
       console.log(`${this.logPrefix}: Initializing websocket signaling`, {
-        peerId,
         wsBaseUrl: this.wsBaseUrl,
         hasToken: Boolean(this.signalingToken),
       });
+
       this.wsSignalingAdapter.connect({
         baseUrl: this.wsBaseUrl,
         token: this.signalingToken,
-        targetId: peerId,
-        path: "/ws/",
       });
 
       return true;
@@ -1075,7 +1031,10 @@ export class ConnectionService extends EventEmitter {
       this.tcpClientAdapters.forEach((client) => client.disconnect());
       this.tcpServerAdapter.stop();
     } catch (error) {
-      console.error("[ConnectionService]: Error stopping TCP transport:", error);
+      console.error(
+        "[ConnectionService]: Error stopping TCP transport:",
+        error
+      );
       throw error;
     }
   }

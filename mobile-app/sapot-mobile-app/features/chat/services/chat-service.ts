@@ -57,15 +57,19 @@ export class ChatService {
       if (!foundUser) throw new Error("Peer not found");
       this.peer = foundUser;
 
-      const discoveredPeer = this.peerService.findDiscoveredPeerById(id);
+      try {
+        const discoveredPeer = this.peerService.findDiscoveredPeerById(id);
 
-      if (!discoveredPeer) throw new Error("Peer not discovered");
+        if (!discoveredPeer) throw new Error("Peer not discovered");
 
-      await this.connectionService.connectToPeer(
-        discoveredPeer.id,
-        discoveredPeer.ipAddress,
-        discoveredPeer.port
-      );
+        await this.connectionService.connectToPeer(
+          discoveredPeer.id,
+          discoveredPeer.ipAddress,
+          discoveredPeer.port
+        );
+      } catch {
+        await this.connectionService.connectToPeer(id);
+      }
     } catch (error) {
       console.warn(
         `[ChatService]: Error connecting to peer id of ${id}: ${error}`
