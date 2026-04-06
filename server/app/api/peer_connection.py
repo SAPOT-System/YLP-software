@@ -100,7 +100,7 @@ async def testing_area(target_id: UUID, my_id: UUID, token: str):
     return HTMLResponse(html)
 
 @router.websocket("/")
-async def sdp_relay(target_id: UUID, token: str, websocket: WebSocket):
+async def sdp_relay(token: str, websocket: WebSocket, target_id: UUID|None = None ):
     """
     will relay the sdp between different users
     can handle
@@ -118,14 +118,16 @@ async def sdp_relay(target_id: UUID, token: str, websocket: WebSocket):
             if not payload:
                 continue
 
+            print("PAYLOAD",user_id, payload)
             if isinstance(payload, dict) and payload.get("type") == "ping":
-                # --- THIS IS HOW YOU SEND THE PONG ---
-                await manager.send_personal_message(target_id, {"type": "pong"})
+                await manager.send_personal_message(UUID(user_id), {"type": "pong"})
                 continue
 
             if isinstance(payload, SignalMessage) and not validate_sender(payload, user_id):
+                print("HERE1")
                 continue
+
             if isinstance(payload, SignalMessage):
-                await relay_signal(user_id, target_id, payload)
+                await relay_signal(user_id, payload.data.to, payload)
     except WebSocketDisconnect:
         manager.disconnect(user_id)

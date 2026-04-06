@@ -18,6 +18,7 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
 
 def validate_sender(payload: SignalMessage, user_id: UUID) -> bool:
     data = payload.data.model_dump()
+    print("VALIDATE", str(UUID(data.get('sender'))) , str(user_id))
     return str(UUID(data.get('sender'))) == str(user_id)
 
 async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage):
@@ -25,6 +26,8 @@ async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage)
         "type": payload.type,
         "data": payload.data.model_dump(exclude_none=True)
     }
+    if not isinstance(target_id, UUID):
+        target_id = UUID(target_id)
 
     if manager.active_connections.get(target_id):
         await manager.send_personal_message(target_id, message)
