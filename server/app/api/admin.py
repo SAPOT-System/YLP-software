@@ -11,6 +11,7 @@ from collections import deque
 from fastapi import APIRouter
 from pythonping import ping
 import psutil
+import time
 from app.models.activity import UserActivity
 from app.models.location import UserLocation
 from sqlmodel import select, func, desc
@@ -231,6 +232,39 @@ async def get_live_speed(
     }
 
 
+
+def get_network_speed(interface="eth0", interval=1):
+    def format_value(speed_bytes):
+        """Helper to scale bytes to the appropriate unit string."""
+        for unit in ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s']:
+            if speed_bytes < 1024:
+                return f"{speed_bytes:.2f} {unit}"
+            speed_bytes /= 1024
+        return f"{speed_bytes:.2f} PB/s"
+
+    # Get initial bytes sent/received
+    stats_start = psutil.net_io_counters(pernic=True)[interface]
+    start_recv = stats_start.bytes_recv
+    start_sent = stats_start.bytes_sent
+
+    time.sleep(interval)
+
+    # Get bytes sent/received after the interval
+    stats_end = psutil.net_io_counters(pernic=True)[interface]
+    end_recv = stats_end.bytes_recv
+    end_sent = stats_end.bytes_sent
+
+    # Calculate raw bytes per second
+    download_raw = (end_recv - start_recv) / interval
+    upload_raw = (end_sent - start_sent) / interval
+
+    # Convert to formatted strings
+    download_speed = format_value(download_raw)
+    upload_speed = format_value(upload_raw)
+
+    return download_speed, upload_speed
+
+
 def get_network_details():
     interfaces_dict = {}
     base_path = '/sys/class/net/'
@@ -262,9 +296,13 @@ def get_network_details():
             # Likely no IPv4 assigned to this interface
             ip_addr = "N/A"
 
+        dl, ul = get_network_speed(iface)
+
         interfaces_dict[iface] = {
             "status": state,
             "mac_address": mac,
+            "inbound": dl,
+            "outbound": ul,
             "ipv4": ip_addr,
             "is_loopback": iface == "lo"
         }
