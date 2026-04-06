@@ -20,7 +20,7 @@ export default function GrayTopContainer({
     <div
       className={clsx(
         // Core Card Styles: Border, rounded corners, slight shadow
-        'w-full max-w-sm overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl custom-white ',
+        'w-full overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl custom-white ',
         className
       )}
     >
