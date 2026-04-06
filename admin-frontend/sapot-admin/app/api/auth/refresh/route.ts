@@ -13,10 +13,16 @@ export async function POST(request: NextRequest) {
   formData.append('refresh_token', refreshToken);
 
   try {
-    const response = await fetch(`${process.env.API_DOMAIN}/auth/refresh`, {
-      method: 'POST',
-      body: formData, // Sending as form-data as requested
-    });
+		const response = await fetch(`${process.env.API_DOMAIN}/auth/refresh`, {
+			method: "POST",
+			headers: {
+				'accept': 'application/json',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				refresh_token: refreshToken
+			})
+		})
 
     if (!response.ok) {
       throw new Error('Refresh failed');
