@@ -1,4 +1,4 @@
-export default function MetricSkeleton() {
+export default function MetricSkeleton({ className="" }: {className?: string}) {
   return (
     <div className="flex-1 min-w-[300px] overflow-hidden bg-white border border-gray-100 shadow-sm rounded-2xl animate-pulse">
       {/* Fake Header Area */}

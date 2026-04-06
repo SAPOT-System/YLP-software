@@ -159,17 +159,19 @@ export default function Dashboard() {
 		})()
 	}, [page])
 
-	if (!isMounted || !isMounted2) {
-		return <div className="flex flex-row items-stretch gap-6 p-10">
-        <MetricSkeleton />
-        <MetricSkeleton />
-        <MetricSkeleton />
-      </div>
-  }
+	// if (!isMounted || !isMounted2) {
+	// 	return <div className="flex flex-row items-stretch gap-6 p-10">
+	//        <MetricSkeleton />
+	//        <MetricSkeleton />
+	//        <MetricSkeleton />
+	//      </div>
+	//  }
   return (
 		<div>
 			<div className="grid grid-cols-4 gap-2" >
 				<div className="col-span-3 flex flex-col gap-2 row-span-full">
+				{
+					JSON.stringify(nodeData) !== "{}" ?
 					<WhiteContainer style="relative">
 						<SummaryCard label="Total Nodes" value={nodeData.total_users !== undefined ? nodeData.total_users : "Loading..."} />
 						<SummaryCard label="Active Nodes" value={nodeData.active_users  !== undefined ? nodeData.active_users : "Loading..."}/>
@@ -177,7 +179,10 @@ export default function Dashboard() {
 						<Link href="#" key="view-nodes" className="text-white bg-blue-600 hover:bg-blue-500 transition-all duration-150 w-full rounded-3xl px-2 py-1 text-xl text-center font-medium">
 							{ "View Nodes" }
 						</Link>
-					</WhiteContainer>
+					</WhiteContainer> : <MetricSkeleton />
+				}
+				{
+					JSON.stringify(netData) !== "{}" ?
 					<WhiteContainer style="flex-col items-stretch relative flex-wrap xl:flex-nowrap">
 						<div className="flex gap-2 items-stretch relative flex-wrap xl:flex-nowrap">
 							<GrayTopContainer title="Download Speed">
@@ -193,9 +198,13 @@ export default function Dashboard() {
 								<PacketLossChart currentLoss={netData.loss_percent !== undefined ? netData.loss_percent : 0} history={lossHistory} />
 							</GrayTopContainer>
 						</div>
-					</WhiteContainer>
+					</WhiteContainer>:  <MetricSkeleton className=""/>
+
+				}
 		 </div>
 				<div className="col-span-1 flex flex-col gap-2 row-span-full w-full">
+				{
+					JSON.stringify(nicData) !== "{}" ?
 					<GrayTopContainer border={false} title="Active Interfaces" className="w-full h-full flex flex-col" classNameContent="flex flex-col h-full overflow-hidden"> 
 							<div className="flex-1 w-full min-h-0 overflow-y-auto [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 									<div className="flex flex-col gap-2 w-full p-0">
@@ -213,7 +222,9 @@ export default function Dashboard() {
 									</span>
 							</div>
 
-					</GrayTopContainer>
+					</GrayTopContainer> : <MetricSkeleton/>
+				}
+
 					<WhiteContainer style="h-full justify-center  flex-col">
 						<div className="flex  items-center gap-1">
 							<span className="font-bold text-sm">Node Data: </span>
@@ -237,6 +248,8 @@ export default function Dashboard() {
 			</div>
 
 				<div className="col-span-1 pt-2 flex flex-col gap-2 row-span-full w-full">
+				{
+					JSON.stringify(userActivityData) !== "{}" ?
 					<WhiteContainer style="h-full">
 						<UserTable 
 							data={userActivityData.items} 
@@ -245,7 +258,8 @@ export default function Dashboard() {
 							totalPages={userActivityData.pages}
 						/>
 
-					</WhiteContainer>
+					</WhiteContainer>:  <MetricSkeleton/>
+				}
 				</div>
 		</div>
   );
