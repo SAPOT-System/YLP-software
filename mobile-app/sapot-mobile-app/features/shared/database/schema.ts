@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from "@nozbe/watermelondb";
 
 export default appSchema({
-  version: 5,
+  version: 6,
   tables: [
     tableSchema(
       // For current guest user data:
@@ -68,6 +68,8 @@ export default appSchema({
         { name: "start_time", type: "number" },
         { name: "end_time", type: "number", isOptional: true },
         { name: "updated_at", type: "number" },
+        { name: "created_at", type: "number" },
+        { name: "is_deleted", type: "boolean" },
       ],
     }),
     tableSchema({
@@ -77,6 +79,9 @@ export default appSchema({
         { name: "user", type: "string" },
         { name: "joined_at", type: "number" },
         { name: "left_at", type: "number", isOptional: true },
+        { name: "updated_at", type: "number" },
+        { name: "created_at", type: "number" },
+        { name: "is_deleted", type: "boolean" },
       ],
     }),
     tableSchema({
@@ -85,16 +90,19 @@ export default appSchema({
         { name: "message", type: "string" },
         { name: "user", type: "string" },
         { name: "status", type: "string" },
+        { name: "created_at", type: "number" },
         { name: "updated_at", type: "number" },
+        { name: "is_deleted", type: "boolean" },
       ],
     }),
     tableSchema({
       name: "conversations",
       columns: [
         { name: "type", type: "string" },
+        { name: "title", type: "string", isOptional: true },
         { name: "created_at", type: "number" },
         { name: "updated_at", type: "number" },
-        { name: "title", type: "string", isOptional: true },
+        { name: "is_deleted", type: "boolean" },
       ],
     }),
     tableSchema({
@@ -104,6 +112,8 @@ export default appSchema({
         { name: "user", type: "string" },
         { name: "joined_at", type: "number" },
         { name: "is_deleted", type: "boolean" },
+        { name: "created_at", type: "number" },
+        { name: "updated_at", type: "number" },
       ],
     }),
     // sync_queue table

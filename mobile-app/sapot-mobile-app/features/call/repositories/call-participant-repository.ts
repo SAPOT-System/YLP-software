@@ -16,6 +16,9 @@ export class CallParticipantRepository {
       user: Peer | GuestUser;
       joinedAt?: Date;
       leftAt?: Date;
+      createdAt?: Date;
+      updatedAt?: Date;
+      isDeleted?: boolean;
     },
     isInTransaction = false
   ) {
@@ -27,6 +30,9 @@ export class CallParticipantRepository {
         if (newParticipant.leftAt) {
           participant.leftAt = newParticipant.leftAt;
         }
+        participant.createdAt = newParticipant.createdAt ?? new Date();
+        participant.updatedAt = newParticipant.updatedAt ?? new Date();
+        participant.isDeleted = newParticipant.isDeleted ?? false;
       });
     };
 

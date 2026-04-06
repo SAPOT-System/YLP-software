@@ -42,6 +42,8 @@ export class ConversationParticipantRepository {
             participant.user.set(newParticipant.user);
             participant.joinedAt = new Date();
             participant.isDeleted = false;
+            participant.createdAt = new Date();
+            participant.updatedAt = new Date();
           }
         );
       };

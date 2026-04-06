@@ -36,6 +36,7 @@ export class ConversationRepository {
           conversation.type = newConversation.type;
           conversation.createdAt = new Date();
           conversation.updatedAt = new Date();
+          conversation.isDeleted = false;
           if (newConversation.title) {
             conversation.title = newConversation.title;
           }

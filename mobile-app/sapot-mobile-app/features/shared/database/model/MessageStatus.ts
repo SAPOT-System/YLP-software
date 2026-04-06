@@ -17,7 +17,9 @@ export class MessageStatus extends Model {
   static table = "message_receipts";
 
   @field("status") status!: MessageStatusType;
+  @date("created_at") createdAt!: Date;
   @date("updated_at") updatedAt!: Date;
+  @field("is_deleted") isDeleted!: boolean;
 
   @relation("messages", "message")
   message!: Relation<Message>;

@@ -70,5 +70,43 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 6,
+      steps: [
+        addColumns({
+          table: "message_receipts",
+          columns: [
+            { name: "created_at", type: "number" },
+            { name: "is_deleted", type: "boolean" },
+          ],
+        }),
+        addColumns({
+          table: "calls",
+          columns: [
+            { name: "created_at", type: "number" },
+            { name: "is_deleted", type: "boolean" },
+          ],
+        }),
+        addColumns({
+          table: "call_participants",
+          columns: [
+            { name: "updated_at", type: "number" },
+            { name: "created_at", type: "number" },
+            { name: "is_deleted", type: "boolean" },
+          ],
+        }),
+        addColumns({
+          table: "conversations",
+          columns: [{ name: "is_deleted", type: "boolean" }],
+        }),
+        addColumns({
+          table: "conversation_participants",
+          columns: [
+            { name: "created_at", type: "number" },
+            { name: "updated_at", type: "number" },
+          ],
+        }),
+      ],
+    },
   ],
 });

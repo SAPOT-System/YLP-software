@@ -17,10 +17,12 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useProfilePhoto, useUserProfile } from "../hooks";
+import { useSyncService } from "../hooks/use-sync-service";
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
   const auth = useAuth();
+  const syncService = useSyncService();
   const { user } = useUserProfile();
   const { url: profilePicUrl } = useProfilePhoto();
 
@@ -40,6 +42,10 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
     } else {
       await logoutAsGuest();
     }
+  };
+
+  const handleSyncNow = async () => {
+    await syncService.syncNow();
   };
 
   return (
@@ -161,6 +167,14 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
               }
               icon={({ color, size }) => (
                 <Icon source="format-paint" color={color} size={size ?? 24} />
+              )}
+              style={{ marginHorizontal: 0, borderRadius: 0 }}
+            />
+            <DrawerItem
+              label="Sync"
+              onPress={handleSyncNow}
+              icon={({ color, size }) => (
+                <Icon source="seed" color={color} size={size ?? 24} />
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />

@@ -6,11 +6,11 @@ export class Peer extends Model {
 
   @field("username") username!: string;
   @field("first_name") firstName!: string;
-  @field("last_name") lastName!: string;
+  @field("last_name") lastName?: string;
 
   // Peer-specific fields
   @field("is_online") isOnline!: boolean;
-  @field("email") email!: string;
-  @field("phone_number") phoneNumber!: string;
-  @field("email_verified") emailVerified!: boolean;
+  @field("email") email?: string;
+  @field("phone_number") phoneNumber?: string;
+  @field("email_verified") emailVerified?: boolean;
 }

@@ -13,6 +13,7 @@ export class Conversation extends Model {
   @date("created_at") createdAt!: Date;
   @date("updated_at") updatedAt!: Date;
   @field("title") title?: string;
+  @field("is_deleted") isDeleted!: boolean;
 }
 
 

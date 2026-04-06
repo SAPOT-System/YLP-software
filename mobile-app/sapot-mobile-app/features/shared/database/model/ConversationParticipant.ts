@@ -9,6 +9,8 @@ export class ConversationParticipant extends Model {
 
   @date("joined_at") joinedAt!: Date;
   @field("is_deleted") isDeleted!: boolean;
+  @date("created_at") createdAt!: Date;
+  @date("updated_at") updatedAt!: Date;
 
   @relation("conversations", "conversation")
   conversation!: Relation<Conversation>;
