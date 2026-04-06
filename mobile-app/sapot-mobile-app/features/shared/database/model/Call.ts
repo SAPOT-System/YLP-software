@@ -25,6 +25,8 @@ export class Call extends Model {
   @date("start_time") startTime!: Date;
   @date("end_time") endTime?: Date;
   @date("updated_at") updatedAt!: Date;
+  @date("created_at") createdAt!: Date;
+  @field("is_deleted") isDeleted!: boolean;
 
   @relation("conversations", "conversation")
   conversation!: Relation<Conversation>;

@@ -17,6 +17,8 @@ export class CallRepository {
       startTime?: Date;
       endTime?: Date;
       updatedAt?: Date;
+      createdAt?: Date;
+      isDeleted?: boolean;
       id?: string;
     },
     isInTransaction = false
@@ -35,6 +37,8 @@ export class CallRepository {
           call.endTime = newCall.endTime;
         }
         call.updatedAt = newCall.updatedAt ?? new Date();
+        call.createdAt = newCall.createdAt ?? new Date();
+        call.isDeleted = newCall.isDeleted ?? false;
       });
     };
 

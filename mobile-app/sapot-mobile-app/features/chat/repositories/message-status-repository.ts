@@ -1,9 +1,9 @@
 import {
-    GuestUser,
-    Message,
-    MessageStatus,
-    MessageStatusType,
-    Peer,
+  GuestUser,
+  Message,
+  MessageStatus,
+  MessageStatusType,
+  Peer,
 } from "@/features/shared";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
@@ -42,7 +42,9 @@ export class MessageStatusRepository {
             messageStatus.message.set(message);
             messageStatus.user.set(user);
             messageStatus.status = status;
+            messageStatus.createdAt = new Date();
             messageStatus.updatedAt = new Date();
+            messageStatus.isDeleted = false;
           }
         );
       });
