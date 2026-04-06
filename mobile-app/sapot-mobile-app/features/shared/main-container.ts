@@ -15,6 +15,7 @@ import { MessageRepository } from "@/features/chat/repositories/message-reposito
 import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 import { ChatService } from "@/features/chat/services/chat-service";
 import { AuthContainer } from "../auth/auth-container";
+import { SyncService } from "../sync";
 
 /**
  * AppContainer is responsible for initializing and wiring up all core services, repositories, and stores for the mobile app.
@@ -36,6 +37,7 @@ export class MainContainer {
   readonly userContainer: AuthContainer;
   readonly cleanUpService: CleanUpService;
   readonly appModeStore: AppModeStore;
+  readonly syncService: SyncService;
 
   private initPromise?: Promise<void>;
 
@@ -93,6 +95,11 @@ export class MainContainer {
     this.discoveryService.setChatService(this.chatService);
 
     this.guestUserRepository = new GuestUserRepository(database);
+
+    this.syncService = new SyncService({
+      peerService: userContainer.peerService,
+      db: database,
+    });
 
     // Clean up
     this.cleanUpService = new CleanUpService(
