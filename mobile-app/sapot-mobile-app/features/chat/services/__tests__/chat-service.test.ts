@@ -181,16 +181,20 @@ describe("ChatService", () => {
       );
     });
 
-    it("should throw error if peer not discovered", async () => {
+    it("should fall back to direct connect if peer not discovered", async () => {
       const peerId = "peer-1";
       const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
 
       mockPeerService.findPeerById.mockResolvedValue(mockPeer);
       mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
 
-      await expect(chatService.connect(peerId)).rejects.toThrow(
-        "Peer not discovered"
+      await chatService.connect(peerId);
+
+      expect(mockPeerService.findPeerById).toHaveBeenCalledWith(peerId);
+      expect(mockPeerService.findDiscoveredPeerById).toHaveBeenCalledWith(
+        peerId
       );
+      expect(mockConnectionService.connectToPeer).toHaveBeenCalledWith(peerId);
     });
   });
 
