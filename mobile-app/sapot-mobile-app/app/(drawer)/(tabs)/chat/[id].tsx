@@ -26,6 +26,9 @@ import {
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<
+    "connecting" | "connected" | "failed" | "timeout" | "idle"
+  >("idle");
   const [isRendered, setIsRendered] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
@@ -78,7 +81,14 @@ const ChatRoom = () => {
 
     connect();
 
+    const unsubscribe = chatService.onConnectionState((payload) => {
+      if (payload.peerId !== peerId) return;
+      setConnectionState(payload.state);
+      setIsConnected(payload.state === "connected");
+    });
+
     return () => {
+      unsubscribe();
       chatService.disconnect();
     };
   }, [peerId, chatService, showToast]);
@@ -127,6 +137,17 @@ const ChatRoom = () => {
   const peerDisplayName = peer
     ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
     : "Unknown user";
+  const connectionStatusLabel = isConnected
+    ? "Connected"
+    : connectionState === "connecting"
+    ? "Connecting..."
+    : connectionState === "timeout"
+    ? "Connection timeout"
+    : connectionState === "failed"
+    ? "Connection failed"
+    : peer?.isOnline
+    ? "Active now"
+    : "Offline";
 
   return (
     <KeyboardAvoidingView
@@ -164,9 +185,7 @@ const ChatRoom = () => {
             >
               {isConnected
                 ? "Connected"
-                : peer?.isOnline
-                ? "Active now"
-                : "Offline"}
+                : connectionStatusLabel}
             </Text>
           </View>
         </View>

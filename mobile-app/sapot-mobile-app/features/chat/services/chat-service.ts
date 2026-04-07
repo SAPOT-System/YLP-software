@@ -46,6 +46,25 @@ export class ChatService {
     private userStore: UserStore
   ) {}
 
+  onConnectionState(
+    listener: (payload: {
+      peerId: string;
+      state: "connecting" | "connected" | "failed" | "timeout";
+      transport: "ws" | "tcp" | "none";
+      mode: "auto" | "server" | "lan";
+      error?: unknown;
+    }) => void
+  ) {
+    this.connectionService.on("connection-state", listener);
+    return () => {
+      if (typeof this.connectionService.off === "function") {
+        this.connectionService.off("connection-state", listener);
+        return;
+      }
+      this.connectionService.removeListener("connection-state", listener);
+    };
+  }
+
   /**
    * Connects to a peer by id, establishing a network connection for chat.
    * @param id The peer id to connect to

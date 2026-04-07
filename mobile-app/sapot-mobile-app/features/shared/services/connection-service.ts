@@ -348,13 +348,22 @@ export class ConnectionService extends EventEmitter {
     });
     const tcpAdapter = this.getTcpClientAdapter(peerId);
     const webrtcAdapter = this.getWebrtcAdapter(peerId);
-    const isWsConfigured = this.isWebSocketAllowed()
-      ? this.ensureWsSignaling()
-      : false;
+    const effectiveMode = this.appModeStore.getEffectiveMode(
+      this.userStore.isGuest
+    );
+    const canUseWebsocket = this.isWebSocketAllowed();
+    const canUseTcp = this.isTcpAllowed();
+    const isWsConfigured = canUseWebsocket ? this.ensureWsSignaling() : false;
+    const signalingTransport: "ws" | "tcp" | "none" = isWsConfigured
+      ? "ws"
+      : canUseTcp
+      ? "tcp"
+      : "none";
     console.log(`${this.logPrefix}: Signaling transport availability`, {
       peerId,
       tcpConnected: tcpAdapter.isConnected,
       websocketConfigured: isWsConfigured,
+      mode: effectiveMode,
     });
 
     if (webrtcAdapter.isConnected) {
@@ -364,29 +373,67 @@ export class ConnectionService extends EventEmitter {
           peerId,
         }
       );
+      this.emit("connection-state", {
+        peerId,
+        state: "connected",
+        transport: signalingTransport,
+        mode: effectiveMode,
+      });
       return;
     }
 
     let isTcpConnected = tcpAdapter.isConnected;
-    if (this.isTcpAllowed() && !isTcpConnected && ipAddress && port) {
-      try {
+
+    if (effectiveMode === "server") {
+      if (!isWsConfigured) {
+        throw new Error("Websocket signaling is required in server mode");
+      }
+    } else if (effectiveMode === "lan") {
+      if (!canUseTcp) {
+        throw new Error("TCP transport is required in lan mode");
+      }
+      if (!isTcpConnected) {
+        if (!ipAddress || !port) {
+          throw new Error("TCP connection requires ipAddress and port");
+        }
         await tcpAdapter.connect(ipAddress, port);
         isTcpConnected = true;
-      } catch (error) {
-        if (!isWsConfigured) {
-          throw error;
+      }
+    } else {
+      if (!isWsConfigured && canUseTcp && !isTcpConnected) {
+        if (ipAddress && port) {
+          try {
+            await tcpAdapter.connect(ipAddress, port);
+            isTcpConnected = true;
+          } catch (error) {
+            console.warn(
+              "[ConnectionService]: TCP connect failed; no websocket available",
+              error
+            );
+            throw error;
+          }
+        } else if (!isWsConfigured) {
+          throw new Error("No signaling transport available in auto mode");
         }
-
-        console.warn(
-          "[ConnectionService]: TCP connect failed; continuing with websocket signaling",
-          error
-        );
       }
     }
 
     return new Promise<void>((resolve, reject) => {
       let isSettled = false;
       let timeout: ReturnType<typeof setTimeout>;
+      const timeoutMs =
+        effectiveMode === "lan"
+          ? 7000
+          : effectiveMode === "server"
+          ? 15000
+          : 10000;
+
+      this.emit("connection-state", {
+        peerId,
+        state: "connecting",
+        transport: signalingTransport,
+        mode: effectiveMode,
+      });
 
       const removeListenerIfExists = (
         eventName: string,
@@ -426,6 +473,12 @@ export class ConnectionService extends EventEmitter {
         console.log(`${this.logPrefix}: WebRTC connection established`, {
           peerId,
         });
+        this.emit("connection-state", {
+          peerId,
+          state: "connected",
+          transport: signalingTransport,
+          mode: effectiveMode,
+        });
         resolve();
       };
 
@@ -435,6 +488,13 @@ export class ConnectionService extends EventEmitter {
         cleanup();
         console.error(`${this.logPrefix}: WebRTC connection failed`, {
           peerId,
+          error,
+        });
+        this.emit("connection-state", {
+          peerId,
+          state: "failed",
+          transport: signalingTransport,
+          mode: effectiveMode,
           error,
         });
         reject(error);
@@ -449,10 +509,16 @@ export class ConnectionService extends EventEmitter {
         cleanup();
         console.warn(`${this.logPrefix}: connectToPeer timeout`, {
           peerId,
-          timeoutMs: 10000,
+          timeoutMs,
+        });
+        this.emit("connection-state", {
+          peerId,
+          state: "timeout",
+          transport: signalingTransport,
+          mode: effectiveMode,
         });
         reject(new Error("Connection timeout"));
-      }, 10000);
+      }, timeoutMs);
 
       webrtcAdapter
         .createOffer()
@@ -488,13 +554,20 @@ export class ConnectionService extends EventEmitter {
           });
         })
         .catch((error) => {
-          console.error(
+          console.warn(
             `[ConnectionService]: Error connecting to peer\n${JSON.stringify(
               { peerId, ipAddress, port },
               null,
               2
             )}\n${error}`
           );
+          this.emit("connection-state", {
+            peerId,
+            state: "failed",
+            transport: signalingTransport,
+            mode: effectiveMode,
+            error,
+          });
           reject(error);
         });
     });
