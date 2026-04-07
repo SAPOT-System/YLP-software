@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 export const useToast = () => {
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState("");
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setMessage(msg);
     setVisible(true);
-  };
+  }, []);
 
-  const hideToast = () => setVisible(false);
+  const hideToast = useCallback(() => setVisible(false), []);
 
   return { visible, message, showToast, hideToast };
 };

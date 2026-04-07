@@ -50,7 +50,7 @@ export class TcpClientAdapter extends EventEmitter {
         );
 
         const onError = (error: Error) => {
-          console.error(
+          console.warn(
             "[TcpClientAdapter]: Error on connection client:",
             error
           );
@@ -67,7 +67,7 @@ export class TcpClientAdapter extends EventEmitter {
         socket.on("error", onError);
         socket.on("close", onClose);
       } catch (error) {
-        console.error(
+        console.warn(
           `[TcpClientAdapter]: Error connecting\n${JSON.stringify({
             host: host,
             port: port,

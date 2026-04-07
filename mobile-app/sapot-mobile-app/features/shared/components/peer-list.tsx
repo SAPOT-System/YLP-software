@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { database, Peer } from "../database";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Avatar, useTheme } from "react-native-paper";
+import { useProfilePhoto } from "../hooks";
 
 const enhancePeers = withObservables([], () => ({
   peers: database.get<Peer>("peers").query().observe(),
@@ -44,6 +45,8 @@ const enhancePeer = withObservables(["peer"], ({ peer }: { peer: Peer }) => ({
 const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
   const router = useRouter();
   const theme = useTheme();
+
+  const { url: profilePicUrl } = useProfilePhoto(peer.id);
   return (
     <Pressable
       onPress={() =>
@@ -54,11 +57,18 @@ const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
       }
       style={{ display: "flex", alignItems: "center" }}
     >
-      <Avatar.Text
-        size={60}
-        label={peer.username[0].toUpperCase()}
-        style={{ backgroundColor: theme.colors.primary }}
-      />
+      {profilePicUrl ? (
+        <Avatar.Image size={60} source={{ uri: profilePicUrl }} />
+      ) : (
+        <Avatar.Text
+          size={60}
+          label={(
+            peer.firstName?.[0] ??
+            peer.username?.[0] ??
+            "?"
+          ).toUpperCase()}
+        />
+      )}
       <Text style={{ color: theme.dark ? "#9AA7C1" : "#103462" }}>
         {peer.firstName}
       </Text>

@@ -21,7 +21,6 @@ interface WsConstructor {
 interface ConnectOptions {
   baseUrl: string;
   token: string;
-  targetId?: string;
   path?: string;
   autoReconnect?: boolean;
   maxReconnectAttempts?: number;
@@ -38,7 +37,6 @@ interface QueuedSignalingMessage {
   payload: string;
   createdAt: number;
   type: SignalingMessage["type"];
-  targetId?: string;
 }
 
 /**
@@ -48,7 +46,6 @@ interface QueuedSignalingMessage {
 export class WsSignalingAdapter extends EventEmitter {
   private socket?: WsLike;
   private state: AdapterState = "idle";
-  private currentTargetId?: string;
   private socketEpoch = 0;
 
   private outboundQueue: QueuedSignalingMessage[] = [];
@@ -73,30 +70,19 @@ export class WsSignalingAdapter extends EventEmitter {
    */
   connect(options: ConnectOptions): Promise<void> {
     try {
-      if (
-        this.state === "connecting" &&
-        this.connectPromise &&
-        this.currentTargetId === options.targetId
-      ) {
+      if (this.state === "connecting" && this.connectPromise) {
         console.log(
-          `${this.logPrefix}: Reusing in-flight websocket connection attempt`,
-          {
-            targetId: options.targetId,
-          }
+          `${this.logPrefix}: Reusing in-flight websocket connection attempt`
         );
         return this.connectPromise;
       }
 
       if (
         this.state === "open" &&
-        this.socket?.readyState === this.getWebSocketCtor().OPEN &&
-        this.currentTargetId === options.targetId
+        this.socket?.readyState === this.getWebSocketCtor().OPEN
       ) {
         console.log(
-          `${this.logPrefix}: Websocket already open for target, skipping connect`,
-          {
-            targetId: options.targetId,
-          }
+          `${this.logPrefix}: Websocket already open for target, skipping connect`
         );
         return Promise.resolve();
       }
@@ -109,13 +95,12 @@ export class WsSignalingAdapter extends EventEmitter {
 
       if (
         this.socket &&
-        (this.state === "connecting" || this.state === "open") &&
-        this.currentTargetId !== options.targetId
+        (this.state === "connecting" || this.state === "open")
       ) {
-        console.log(`${this.logPrefix}: Closing stale websocket before reconnect`, {
-          previousTargetId: this.currentTargetId,
-          newTargetId: options.targetId,
-        });
+        console.log(
+          `${this.logPrefix}: Closing stale websocket before reconnect`,
+          {}
+        );
         this.state = "closing";
         this.socket.close(1000, "switch_target");
       }
@@ -123,14 +108,12 @@ export class WsSignalingAdapter extends EventEmitter {
       const wsUrl = this.buildWsUrl(options);
       console.log(`${this.logPrefix}: Connecting websocket`, {
         url: this.redactUrl(wsUrl),
-        hasTargetId: Boolean(options.targetId),
         autoReconnect: options.autoReconnect !== false,
         reconnectAttempts: this.reconnectAttempts,
       });
 
       const socket = new (this.getWebSocketCtor())(wsUrl);
       this.socket = socket;
-      this.currentTargetId = options.targetId;
       this.state = "connecting";
       const socketEpoch = ++this.socketEpoch;
 
@@ -235,7 +218,6 @@ export class WsSignalingAdapter extends EventEmitter {
       payload,
       createdAt: Date.now(),
       type: message.type,
-      targetId: message.data.to,
     });
   }
 
@@ -283,8 +265,8 @@ export class WsSignalingAdapter extends EventEmitter {
     return this.state;
   }
 
-  isConnectingTo(targetId?: string) {
-    return this.state === "connecting" && this.currentTargetId === targetId;
+  isConnecting() {
+    return this.state === "connecting";
   }
 
   private handleIncomingMessage(rawData: unknown) {
@@ -371,12 +353,9 @@ export class WsSignalingAdapter extends EventEmitter {
     if (this.outboundQueue.length === 0) return;
 
     const now = Date.now();
-    const targetId = this.currentTargetId;
     const freshQueue = this.outboundQueue.filter((item) => {
       const isExpired = now - item.createdAt > this.queueTtlMs;
-      const targetMismatch =
-        Boolean(targetId) && Boolean(item.targetId) && item.targetId !== targetId;
-      return !isExpired && !targetMismatch;
+      return !isExpired;
     });
 
     const droppedCount = this.outboundQueue.length - freshQueue.length;
@@ -509,7 +488,6 @@ export class WsSignalingAdapter extends EventEmitter {
   private resetSessionState() {
     this.outboundQueue = [];
     this.reconnectAttempts = 0;
-    this.currentTargetId = undefined;
     this.lastConnectOptions = undefined;
   }
 
@@ -550,8 +528,6 @@ export class WsSignalingAdapter extends EventEmitter {
     const normalizedBase = this.normalizeBaseUrl(options.baseUrl);
     const query: Record<string, string | number | boolean | undefined> = {
       token: options.token,
-      target_id: options.targetId,
-      ...options.extraQuery,
     };
 
     const queryString = Object.entries(query)

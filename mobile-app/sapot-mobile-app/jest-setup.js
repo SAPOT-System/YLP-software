@@ -99,6 +99,14 @@ jest.mock('expo-router', () => {
   };
 });
 
+// Mock document picker (native module)
+jest.mock('@react-native-documents/picker', () => ({
+  saveDocuments: jest.fn(),
+  pick: jest.fn(),
+  getCacheDir: jest.fn(),
+  isKnownType: jest.fn()
+}));
+
 // Mock react-native-paper minimal API
 jest.mock('react-native-paper', () => {
   const React = require('react');
