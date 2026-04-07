@@ -1,4 +1,8 @@
-import { TcpServerAdapter, ZeroconfAdapter } from "./adapters";
+import {
+  TcpServerAdapter,
+  WsSignalingAdapter,
+  ZeroconfAdapter,
+} from "./adapters";
 import { database } from "./database";
 import { GuestUserRepository } from "./repositories";
 import {
@@ -36,6 +40,7 @@ export class MainContainer {
   readonly userContainer: AuthContainer;
   readonly cleanUpService: CleanUpService;
   readonly appModeStore: AppModeStore;
+  readonly wsSignalingAdapter: WsSignalingAdapter;
 
   private initPromise?: Promise<void>;
 
@@ -61,12 +66,14 @@ export class MainContainer {
       this.appModeStore
     );
 
+    this.wsSignalingAdapter = new WsSignalingAdapter();
     this.tcpServerAdapter = new TcpServerAdapter();
     this.connectionService = new ConnectionService(
       this.tcpServerAdapter,
       this.networkConfig,
       this.userContainer.userStore,
-      this.appModeStore
+      this.appModeStore,
+      this.wsSignalingAdapter
     );
 
     this.messageRepository = new MessageRepository(database);
