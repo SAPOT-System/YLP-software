@@ -12,8 +12,9 @@ import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
   DataAckMessage,
   SignalingMessage,
-  TcpDataMessage,
+  Message,
   WebrtcDataMessage,
+  CallMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 
@@ -88,6 +89,32 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       }
     });
 
+    this.wsSignalingAdapter.on("call-message", async (message: CallMessage) => {
+      try {
+        if (message.type === "audio-call") {
+          await this.initializeStream(message.data.from);
+          this.emit("audio-call", message.data.from);
+        }
+
+        if (message.type === "video-call") {
+          await this.initializeStream(message.data.from);
+          this.emit("audio-call", message.data.from);
+        }
+
+        if (message.type === "call-ended") {
+          // TODO: check if needed to reinitialize local stream
+          // TODO: validate that the caller id is the sender
+          console.log("call ended");
+          this.emit("call-ended");
+        }
+      } catch (error) {
+        console.error(
+          "[ConnectionService]: Error handling call message",
+          error
+        );
+      }
+    });
+
     this.wsSignalingAdapter.on("reconnecting", ({ attempt, delayMs }) => {
       console.log(
         `[ConnectionService]: Reconnecting websocket signaling (attempt ${attempt}) in ${delayMs}ms`
@@ -128,7 +155,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       );
     });
 
-    tcpServerAdapter.on("data", async (message: TcpDataMessage) => {
+    tcpServerAdapter.on("data", async (message: Message) => {
       try {
         if (!this.isTcpAllowed()) {
           console.warn(
@@ -777,7 +804,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           break;
       }
     } catch (error) {
-      console.error(
+      console.warn(
         `[ConnectionService]: Error handling webrtc connection\n${JSON.stringify(
           message,
           null,
@@ -811,11 +838,11 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   // TODO: Probably this method can insert the id of the sender/current user
   /**
-   * Sends a TCP data message to the specified peer.
+   * Sends a message to the specified peer.
    * @param peerId - Unique identifier of the peer
-   * @param message - TcpDataMessage to send
+   * @param message - Message to send
    */
-  sendMessage(peerId: string, message: TcpDataMessage) {
+  sendMessage(peerId: string, message: Message) {
     try {
       if (!this.isTcpAllowed()) {
         console.warn(`${this.logPrefix}: TCP message blocked (mode disabled)`, {
@@ -844,6 +871,35 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     } catch (error) {
       console.error(
         `[ConnectionService]: Error sending message\n${JSON.stringify(
+          { peerId, ...message },
+          null,
+          2
+        )}\n${error}`
+      );
+      throw error;
+    }
+  }
+
+  sendCallMessage(peerId: string, message: CallMessage) {
+    try {
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
+      const isTcpAllowed = this.isTcpAllowed();
+
+      if (isWsConfigured) {
+        this.wsSignalingAdapter.sendMessage(message);
+        return;
+      }
+
+      if (!isTcpAllowed) {
+        throw new Error("No signaling transport available for this mode");
+      }
+
+      this.sendMessage(peerId, message);
+    } catch (error) {
+      console.error(
+        `[ConnectionService]: Error sending call message\n${JSON.stringify(
           { peerId, ...message },
           null,
           2

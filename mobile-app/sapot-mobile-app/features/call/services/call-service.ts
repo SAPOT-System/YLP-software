@@ -58,7 +58,7 @@ export class CallService extends EventEmitter {
    */
   informPeerForIncomingAudioCall(peerId: string) {
     try {
-      this.connectionService.sendMessage(peerId, {
+      this.connectionService.sendCallMessage(peerId, {
         type: "audio-call",
         data: { from: this.userStore.user.id, to: peerId },
       });
@@ -80,7 +80,7 @@ export class CallService extends EventEmitter {
       if (this.connectedState === "disconnected") return;
       this.connectionService.terminateCallConnection(peerId);
       await this.connectionService.renegotiate(peerId);
-      this.connectionService.sendMessage(peerId, {
+      this.connectionService.sendCallMessage(peerId, {
         type: "call-ended",
         data: { from: this.userStore.user.id, to: peerId },
       });

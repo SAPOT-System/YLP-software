@@ -54,6 +54,10 @@ export type AudioCallMessage = {
   type: "audio-call";
   data: { from: string; to: string };
 };
+export type VideoCallMessage = {
+  type: "video-call";
+  data: { from: string; to: string };
+};
 export type CallEndedMessage = {
   type: "call-ended";
   data: { from: string; to: string };
@@ -62,15 +66,17 @@ export type CallEndedMessage = {
 /**
  * For sent and received message via webrtc
  */
-export type WebrtcDataMessage = ChatMessage | AckMessage;
+export type WebrtcDataMessage = ChatMessage | AckMessage | CallMessage;
 
 /**
  * For sent and received message via tcp
  */
-export type TcpDataMessage =
-  | SignalingMessage
+export type Message = SignalingMessage | CallMessage;
+
+export type CallMessage =
   | AudioCallMessage
-  | CallEndedMessage;
+  | CallEndedMessage
+  | VideoCallMessage;
 
 export interface Peer {
   id: string;
