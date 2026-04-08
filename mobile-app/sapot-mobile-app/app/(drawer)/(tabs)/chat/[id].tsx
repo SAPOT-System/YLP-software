@@ -1,5 +1,5 @@
 import { APP_ROUTES } from "@/app/routes";
-import { useCallService } from "@/features/call";
+import { useCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
@@ -42,7 +42,7 @@ const ChatRoom = () => {
   const chatService = useChatService();
   const peerService = usePeerService();
   const router = useRouter();
-  const callService = useCallService();
+  const call = useCall();
   const {
     visible: toastVisible,
     message: toastMessage,
@@ -129,15 +129,6 @@ const ChatRoom = () => {
     }
   };
 
-  const handleCall = async (type: "audio" | "video", peerId: string) => {
-    callService.informPeerForIncomingCall(type, peerId);
-    await callService.startCall(type, peerId);
-    router.push({
-      pathname: "/(drawer)/(tabs)/call/[id]",
-      params: { id: peerId! },
-    });
-  };
-
   const peerDisplayName = peer
     ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
     : "Unknown user";
@@ -197,13 +188,13 @@ const ChatRoom = () => {
             icon="phone"
             size={20}
             iconColor="#00E700"
-            onPress={() => peerId && handleCall("audio", peerId)}
+            onPress={() => peerId && call("audio", peerId)}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="video"
             size={20}
-            onPress={() => peerId && handleCall("video", peerId)}
+            onPress={() => peerId && call("video", peerId)}
             style={styles.headerActionButton}
           />
           <IconButton

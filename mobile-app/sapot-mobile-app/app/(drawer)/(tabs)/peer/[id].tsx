@@ -1,6 +1,6 @@
-import { useCallService } from "@/features/call";
+import { useCall} from "@/features/call";
 import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import {
@@ -13,9 +13,9 @@ import {
 
 export default function PeerProfile() {
   const theme = useTheme();
-  const callService = useCallService();
   const { id } = useLocalSearchParams<{ id: string }>();
   const peerService = usePeerService();
+  const call = useCall();
   const { url: profilePicUrl } = useProfilePhoto(id ?? null);
   const [peerName, setPeerName] = useState("Unknown user");
   const [isLoading, setIsLoading] = useState(true);
@@ -52,15 +52,6 @@ export default function PeerProfile() {
       isMounted = false;
     };
   }, [id, peerService]);
-
-  const handleCall = async (type: "audio" | "video", peerId: string) => {
-    callService.informPeerForIncomingCall(type, peerId);
-    await callService.startCall(type, peerId);
-    router.push({
-      pathname: "/(drawer)/(tabs)/call/[id]",
-      params: { id: peerId! },
-    });
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
@@ -109,12 +100,12 @@ export default function PeerProfile() {
                 icon="phone"
                 size={20}
                 iconColor="#00E700"
-                onPress={() => id && handleCall("audio", id)}
+                onPress={() => id && call("audio", id)}
               />
               <IconButton
                 icon="video"
                 size={20}
-                onPress={() => id && handleCall("video", id)}
+                onPress={() => id && call("video", id)}
               />
               <IconButton icon="email" size={20} />
             </View>
