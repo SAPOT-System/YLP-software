@@ -40,7 +40,8 @@ export class PeerService {
         await this.peerRepository.savePeer({
           id: peerService.txt.id,
           username: peerService.txt.username,
-          firstName: peerService.txt.firstName || "Guest User",
+          firstName: peerService.txt.firstName || "Guest",
+          lastName: peerService.txt.lastName || "",
         });
       }
 
