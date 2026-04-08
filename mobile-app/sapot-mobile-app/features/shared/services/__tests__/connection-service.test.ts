@@ -39,7 +39,6 @@ const mockIceCandidate: RTCIceCandidate = {
   sdpMLineIndex: 0,
 } as RTCIceCandidate;
 
-
 // Mock the adapters
 jest.mock("../../adapters", () => ({
   TcpClientAdapter: jest.fn(),
@@ -87,7 +86,8 @@ describe("ConnectionService", () => {
     mockWsSignalingAdapter =
       mocks.wsSignalingAdapter as unknown as jest.Mocked<WsSignalingAdapter>;
     mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
-    mockAppModeStore = mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
+    mockAppModeStore =
+      mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
 
     // Mock constructors
     jest
@@ -154,7 +154,7 @@ describe("ConnectionService", () => {
 
       await dataHandler?.(audioCallMessage);
 
-      expect(initializeSpy).toHaveBeenCalledWith("peer-1");
+      expect(initializeSpy).toHaveBeenCalledWith("audio", "peer-1");
       expect(emitSpy).toHaveBeenCalledWith("audio-call", "peer-1");
     });
 
@@ -703,7 +703,7 @@ describe("ConnectionService", () => {
     it("should initialize local stream for connected peer", async () => {
       const peerId = "peer-1";
 
-      await connectionService.initializeStream(peerId);
+      await connectionService.initializeStream("video", peerId);
 
       expect(mockWebrtcAdapter.initializeLocalStream).toHaveBeenCalledWith(
         true,
@@ -718,9 +718,9 @@ describe("ConnectionService", () => {
       });
       const peerId = "peer-1";
 
-      await expect(connectionService.initializeStream(peerId)).rejects.toThrow(
-        "Not connected"
-      );
+      await expect(
+        connectionService.initializeStream("video", peerId)
+      ).rejects.toThrow("Not connected");
     });
   });
 

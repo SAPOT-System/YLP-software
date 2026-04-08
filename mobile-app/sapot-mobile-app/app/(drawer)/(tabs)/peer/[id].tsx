@@ -53,9 +53,9 @@ export default function PeerProfile() {
     };
   }, [id, peerService]);
 
-  const handleCall = async (peerId: string) => {
-    callService.informPeerForIncomingAudioCall(peerId);
-    await callService.startCall(peerId);
+  const handleCall = async (type: "audio" | "video", peerId: string) => {
+    callService.informPeerForIncomingCall(type, peerId);
+    await callService.startCall(type, peerId);
     router.push({
       pathname: "/(drawer)/(tabs)/call/[id]",
       params: { id: peerId! },
@@ -109,12 +109,12 @@ export default function PeerProfile() {
                 icon="phone"
                 size={20}
                 iconColor="#00E700"
-                onPress={() => id && handleCall(id)}
+                onPress={() => id && handleCall("audio", id)}
               />
               <IconButton
                 icon="video"
                 size={20}
-                onPress={() => id && handleCall(id)}
+                onPress={() => id && handleCall("video", id)}
               />
               <IconButton icon="email" size={20} />
             </View>

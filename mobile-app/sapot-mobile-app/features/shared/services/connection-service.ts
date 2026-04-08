@@ -92,13 +92,13 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.wsSignalingAdapter.on("call-message", async (message: CallMessage) => {
       try {
         if (message.type === "audio-call") {
-          await this.initializeStream(message.data.from);
+          await this.initializeStream("audio", message.data.from);
           this.emit("audio-call", message.data.from);
         }
 
         if (message.type === "video-call") {
-          await this.initializeStream(message.data.from);
-          this.emit("audio-call", message.data.from);
+          await this.initializeStream("video", message.data.from);
+          this.emit("video-call", message.data.from);
         }
 
         if (message.type === "call-ended") {
@@ -179,8 +179,13 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         // TODO: soon, implement tcp for fallback of webrtc
 
         if (message.type === "audio-call" && "from" in message.data) {
-          await this.initializeStream(message.data.from);
+          await this.initializeStream("audio", message.data.from);
           this.emit("audio-call", message.data.from);
+        }
+
+        if (message.type === "video-call" && "from" in message.data) {
+          await this.initializeStream("video", message.data.from);
+          this.emit("video-call", message.data.from);
         }
 
         if (message.type === "call-ended" && "from" in message.data) {
@@ -1072,15 +1077,11 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     }
   }
 
-  /**
-   * Initializes the local media stream for the specified peer.
-   * @param peerId - Unique identifier of the peer
-   */
-  async initializeStream(peerId: string) {
+  async initializeStream(stream: "audio" | "video", peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) throw new Error("Not connected");
-      await webrtcAdapter.initializeLocalStream(true, true);
+      await webrtcAdapter.initializeLocalStream(true, stream === "video");
     } catch (error) {
       console.error(
         `[ConnectionService]: Error initializing the stream\n${JSON.stringify(

@@ -3,7 +3,11 @@ import { useCallService } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
-import { usePeerService, useProfilePhoto, useToast } from "@/features/shared/hooks";
+import {
+  usePeerService,
+  useProfilePhoto,
+  useToast,
+} from "@/features/shared/hooks";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -125,9 +129,9 @@ const ChatRoom = () => {
     }
   };
 
-  const handleCall = async (peerId: string) => {
-    callService.informPeerForIncomingAudioCall(peerId);
-    await callService.startCall(peerId);
+  const handleCall = async (type: "audio" | "video", peerId: string) => {
+    callService.informPeerForIncomingCall(type, peerId);
+    await callService.startCall(type, peerId);
     router.push({
       pathname: "/(drawer)/(tabs)/call/[id]",
       params: { id: peerId! },
@@ -183,9 +187,7 @@ const ChatRoom = () => {
               ]}
               numberOfLines={1}
             >
-              {isConnected
-                ? "Connected"
-                : connectionStatusLabel}
+              {isConnected ? "Connected" : connectionStatusLabel}
             </Text>
           </View>
         </View>
@@ -195,13 +197,13 @@ const ChatRoom = () => {
             icon="phone"
             size={20}
             iconColor="#00E700"
-            onPress={() => peerId && handleCall(peerId)}
+            onPress={() => peerId && handleCall("audio", peerId)}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="video"
             size={20}
-            onPress={() => peerId && handleCall(peerId)}
+            onPress={() => peerId && handleCall("video", peerId)}
             style={styles.headerActionButton}
           />
           <IconButton
