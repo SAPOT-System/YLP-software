@@ -7,7 +7,7 @@ import { MediaStream, RTCView } from "react-native-webrtc";
 // TODO: This component can minimized
 const CallRoom = () => {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id, type } = useLocalSearchParams<{ id: string; type: string }>();
   const callService = useCallService();
   const [mic, setMic] = useState(true);
   const [cam, setCam] = useState(true);
@@ -15,11 +15,12 @@ const CallRoom = () => {
   const [remoteStream, setRemoteStream] = useState<MediaStream>();
 
   useEffect(() => {
+    if (type === "audio") return;
     setLocalStream(callService.getLocalCam(id as string));
     return () => {
       callService.terminateCallConnection(id as string);
     };
-  }, [callService, id]);
+  }, [callService, id, type]);
 
   useEffect(() => {
     callService.listenToRemoteStream();

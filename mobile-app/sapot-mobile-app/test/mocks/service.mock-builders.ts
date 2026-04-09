@@ -151,6 +151,7 @@ export function createCallServiceDependencyMocks() {
 		initializeStream: jest.fn(),
 		renegotiate: jest.fn(),
 		terminateCallConnection: jest.fn(),
+		sendCallMessage: jest.fn(),
 		sendMessage: jest.fn(),
 		toggleMic: jest.fn(),
 		toggleCamera: jest.fn(),

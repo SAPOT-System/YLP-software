@@ -1,9 +1,13 @@
 import { APP_ROUTES } from "@/app/routes";
-import { useCallService } from "@/features/call";
+import { useCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
-import { usePeerService, useProfilePhoto, useToast } from "@/features/shared/hooks";
+import {
+  usePeerService,
+  useProfilePhoto,
+  useToast,
+} from "@/features/shared/hooks";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -38,7 +42,7 @@ const ChatRoom = () => {
   const chatService = useChatService();
   const peerService = usePeerService();
   const router = useRouter();
-  const callService = useCallService();
+  const call = useCall();
   const {
     visible: toastVisible,
     message: toastMessage,
@@ -125,15 +129,6 @@ const ChatRoom = () => {
     }
   };
 
-  const handleCall = async (peerId: string) => {
-    callService.informPeerForIncomingAudioCall(peerId);
-    await callService.startCall(peerId);
-    router.push({
-      pathname: "/(drawer)/(tabs)/call/[id]",
-      params: { id: peerId! },
-    });
-  };
-
   const peerDisplayName = peer
     ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
     : "Unknown user";
@@ -183,9 +178,7 @@ const ChatRoom = () => {
               ]}
               numberOfLines={1}
             >
-              {isConnected
-                ? "Connected"
-                : connectionStatusLabel}
+              {isConnected ? "Connected" : connectionStatusLabel}
             </Text>
           </View>
         </View>
@@ -195,13 +188,13 @@ const ChatRoom = () => {
             icon="phone"
             size={20}
             iconColor="#00E700"
-            onPress={() => peerId && handleCall(peerId)}
+            onPress={() => peerId && call("audio", peerId)}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="video"
             size={20}
-            onPress={() => peerId && handleCall(peerId)}
+            onPress={() => peerId && call("video", peerId)}
             style={styles.headerActionButton}
           />
           <IconButton

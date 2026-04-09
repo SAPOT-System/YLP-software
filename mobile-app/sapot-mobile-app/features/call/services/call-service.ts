@@ -25,12 +25,12 @@ export class CallService extends EventEmitter {
    * @param peerId The peer id to call
    * @returns Promise<void>
    */
-  async startCall(peerId: string) {
+  async startCall(type: "video" | "audio", peerId: string) {
     try {
       if (this.connectedState === "connected") return;
       this.listenToRemoteStream();
       // Initialize local audio and video
-      await this.connectionService.initializeStream(peerId);
+      await this.connectionService.initializeStream(type, peerId);
 
       // Renegotiate the webrtc to include the audio and video
       await this.connectionService.renegotiate(peerId);
@@ -56,10 +56,10 @@ export class CallService extends EventEmitter {
    * Informs a peer of an incoming audio call by sending a signaling message.
    * @param peerId The peer id to inform
    */
-  informPeerForIncomingAudioCall(peerId: string) {
+  informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
     try {
-      this.connectionService.sendMessage(peerId, {
-        type: "audio-call",
+      this.connectionService.sendCallMessage(peerId, {
+        type: type === "audio" ? "audio-call" : "video-call",
         data: { from: this.userStore.user.id, to: peerId },
       });
     } catch (error) {
@@ -80,7 +80,7 @@ export class CallService extends EventEmitter {
       if (this.connectedState === "disconnected") return;
       this.connectionService.terminateCallConnection(peerId);
       await this.connectionService.renegotiate(peerId);
-      this.connectionService.sendMessage(peerId, {
+      this.connectionService.sendCallMessage(peerId, {
         type: "call-ended",
         data: { from: this.userStore.user.id, to: peerId },
       });

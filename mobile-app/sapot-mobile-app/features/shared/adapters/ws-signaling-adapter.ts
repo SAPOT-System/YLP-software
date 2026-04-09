@@ -1,5 +1,5 @@
 import EventEmitter from "events";
-import { SignalingMessage } from "../types";
+import { CallMessage, SignalingMessage } from "../types";
 
 interface WsLike {
   readyState: number;
@@ -36,7 +36,7 @@ type AdapterState = "idle" | "connecting" | "open" | "closing";
 interface QueuedSignalingMessage {
   payload: string;
   createdAt: number;
-  type: SignalingMessage["type"];
+  type: SignalingMessage["type"] | CallMessage["type"];
 }
 
 /**
@@ -98,8 +98,7 @@ export class WsSignalingAdapter extends EventEmitter {
         (this.state === "connecting" || this.state === "open")
       ) {
         console.log(
-          `${this.logPrefix}: Closing stale websocket before reconnect`,
-          {}
+          `${this.logPrefix}: Closing stale websocket before reconnect`
         );
         this.state = "closing";
         this.socket.close(1000, "switch_target");
@@ -144,6 +143,7 @@ export class WsSignalingAdapter extends EventEmitter {
         };
 
         socket.onmessage = (event) => {
+          console.log(`${this.logPrefix}: onmessage ${event.data}`);
           if (!this.isCurrentSocket(socket, socketEpoch)) return;
           this.handleIncomingMessage(event.data);
         };
@@ -200,20 +200,20 @@ export class WsSignalingAdapter extends EventEmitter {
   /**
    * Sends a signaling payload. If socket is not open yet, the payload is queued.
    */
-  sendMessage(message: SignalingMessage) {
+  sendMessage(message: SignalingMessage | CallMessage) {
     const payload = JSON.stringify(message);
-    const summary = this.summarizeSignalingMessage(message);
+    // const summary = this.summarizeSignalingMessage(message);
 
     if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
-      console.log(`${this.logPrefix}: Sending signaling message`, summary);
+      // console.log(`${this.logPrefix}: Sending signaling message`, summary);
       this.socket.send(payload);
       return;
     }
 
-    console.log(`${this.logPrefix}: Queueing signaling message`, {
-      ...summary,
-      queueSizeBefore: this.outboundQueue.length,
-    });
+    // console.log(`${this.logPrefix}: Queueing signaling message`, {
+    //   ...summary,
+    //   queueSizeBefore: this.outboundQueue.length,
+    // });
     this.enqueueMessage({
       payload,
       createdAt: Date.now(),
@@ -284,8 +284,10 @@ export class WsSignalingAdapter extends EventEmitter {
         length: rawData.length,
       });
       const parsed = JSON.parse(rawData);
+      console.log(`${this.logPrefix}, ${parsed}`);
 
       if (this.isControlMessage(parsed, "pong")) {
+        console.log("pong received");
         this.clearHeartbeatTimeoutTimer();
         return;
       }
@@ -293,6 +295,11 @@ export class WsSignalingAdapter extends EventEmitter {
       if (this.isControlMessage(parsed, "ping")) {
         this.sendControlMessage("pong");
         return;
+      }
+
+      if (this.isCallMessage(parsed)) {
+        console.log("Call message");
+        this.emit("call-message", rawData);
       }
 
       if (!this.isSignalingMessage(parsed)) {
@@ -343,6 +350,36 @@ export class WsSignalingAdapter extends EventEmitter {
     if (typeof data.to !== "string") return false;
 
     if (typeof data.sender === "string") return true;
+
+    return false;
+  }
+
+  private isCallMessage(value: unknown): value is CallMessage {
+    if (!value || typeof value !== "object") return false;
+
+    const call = value as {
+      type?: unknown;
+      data?: unknown;
+    };
+
+    if (
+      call.type !== "audio-call" &&
+      call.type !== "video-call" &&
+      call.type !== "call-ended"
+    ) {
+      return false;
+    }
+
+    if (!call.data || typeof call.data !== "object") return false;
+
+    const data = call.data as {
+      from?: unknown;
+      to?: unknown;
+    };
+
+    if (typeof data.to !== "string") return false;
+
+    if (typeof data.from === "string") return true;
 
     return false;
   }
