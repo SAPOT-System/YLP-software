@@ -1,7 +1,7 @@
 import { getWsUrl } from "@/config/runtime";
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
-import { EventEmitter } from "events";
+import { MediaStream } from "react-native-webrtc";
 import {
   TcpClientAdapter,
   TcpServerAdapter,
@@ -15,8 +15,24 @@ import {
   TcpDataMessage,
   WebrtcDataMessage,
 } from "../types";
+import { TypedEventEmitter } from "../utils/typed-event-emitter";
 
-// TODO: make a custom typed event emitter
+export type ConnectionStatePayload = {
+  peerId: string;
+  state: "connecting" | "connected" | "failed" | "timeout";
+  transport: "ws" | "tcp" | "none";
+  mode: "auto" | "server" | "lan";
+  error?: unknown;
+};
+
+export type ConnectionServiceEvents = {
+  "audio-call": [peerId: string];
+  "call-ended": [];
+  remoteStream: [stream: MediaStream];
+  "peer-reconnected": [peerId: string];
+  "connection-state": [payload: ConnectionStatePayload];
+};
+
 /**
  * ConnectionService handles peer-to-peer connections, message routing, and event management
  * for both TCP and WebRTC communication in the app.
@@ -26,7 +42,7 @@ import {
  * - Emits events for call and stream management
  * - Ensures resource cleanup and robust error handling
  */
-export class ConnectionService extends EventEmitter {
+export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
@@ -255,6 +271,26 @@ export class ConnectionService extends EventEmitter {
       this.emit("peer-reconnected", peerId);
     });
 
+    webrtcAdapter.on("connection-closed", () => {
+      this.evictWebrtcAdapter(peerId);
+    });
+
+    webrtcAdapter.on("connection-failed", () => {
+      this.evictWebrtcAdapter(peerId);
+    });
+  }
+
+  /**
+   * Removes a WebRTC adapter from the map and cleans it up. Listeners are
+   * removed first to prevent re-entrant events during cleanup.
+   */
+  private evictWebrtcAdapter(peerId: string): void {
+    const adapter = this.webrtcAdapters.get(peerId);
+    if (!adapter) return;
+    this.webrtcAdapters.delete(peerId);
+    adapter.removeAllListeners();
+    adapter.cleanup();
+    console.log(`${this.logPrefix}: Evicted WebRTC adapter for peer ${peerId}`);
   }
 
   /**

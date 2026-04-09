@@ -118,7 +118,7 @@ describe("CallService", () => {
 
     it("should emit remoteStream event when received", () => {
       const mockStream = createMockMediaStream("remote-stream");
-      let streamCallback: (stream: unknown) => void;
+      let streamCallback: (stream: MediaStream) => void;
 
       mockConnectionService.on.mockImplementation((event, callback) => {
         if (event === "remoteStream") {

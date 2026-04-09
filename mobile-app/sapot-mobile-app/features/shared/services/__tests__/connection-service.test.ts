@@ -407,6 +407,43 @@ describe("ConnectionService", () => {
       expect(emitSpy).toHaveBeenCalledWith("remoteStream", mockStream);
     });
 
+    it("removes webrtc adapter from map when connection-closed fires", () => {
+      const peerId = "peer-1";
+      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+
+      // adapter is in the map via getWebrtcAdapter
+      connectionService.getWebrtcAdapter(peerId);
+
+      const closedHandler = mockWebrtcAdapter.on.mock.calls.find(
+        (call) => call[0] === "connection-closed"
+      )?.[1];
+      expect(closedHandler).toBeDefined();
+
+      closedHandler?.();
+
+      expect(mockWebrtcAdapter.removeAllListeners).toHaveBeenCalled();
+      expect(mockWebrtcAdapter.cleanup).toHaveBeenCalled();
+      // Subsequent getWebrtcAdapter creates a new adapter
+      connectionService.getWebrtcAdapter(peerId);
+      expect(WebrtcAdapter).toHaveBeenCalledTimes(2);
+    });
+
+    it("removes webrtc adapter from map when connection-failed fires", () => {
+      const peerId = "peer-1";
+      connectionService.getWebrtcAdapter(peerId);
+      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+
+      const failedHandler = mockWebrtcAdapter.on.mock.calls.find(
+        (call) => call[0] === "connection-failed"
+      )?.[1];
+      expect(failedHandler).toBeDefined();
+
+      failedHandler?.();
+
+      expect(mockWebrtcAdapter.removeAllListeners).toHaveBeenCalled();
+      expect(mockWebrtcAdapter.cleanup).toHaveBeenCalled();
+    });
+
     it("should emit peer-reconnected when datachannel-open fires", () => {
       const peerId = "peer-1";
       const emitSpy = jest.spyOn(connectionService, "emit");

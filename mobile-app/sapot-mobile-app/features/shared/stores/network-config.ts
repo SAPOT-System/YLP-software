@@ -1,3 +1,4 @@
+import NetInfo from "@react-native-community/netinfo";
 import { NetworkInfo } from "react-native-network-info";
 
 /**
@@ -6,6 +7,7 @@ import { NetworkInfo } from "react-native-network-info";
 export class NetworkConfig {
   readonly port: number;
   ipAddress: string;
+  private unsubscribeNetInfo?: () => void;
 
   /**
    * Constructs a NetworkConfig instance and generates a random port.
@@ -33,6 +35,29 @@ export class NetworkConfig {
       );
       throw error;
     }
+  }
+
+  /**
+   * Subscribes to network state changes and updates ipAddress when the WiFi IP changes.
+   */
+  startWatching(): void {
+    this.unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+      if (state.type === "wifi") {
+        const newIp = (state.details as { ipAddress?: string } | null)?.ipAddress;
+        if (newIp && newIp !== this.ipAddress) {
+          console.log(`[NetworkConfig]: IP changed from ${this.ipAddress} to ${newIp}`);
+          this.ipAddress = newIp;
+        }
+      }
+    });
+  }
+
+  /**
+   * Unsubscribes from network state change listener.
+   */
+  stopWatching(): void {
+    this.unsubscribeNetInfo?.();
+    this.unsubscribeNetInfo = undefined;
   }
 
   /**
