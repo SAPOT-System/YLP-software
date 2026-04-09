@@ -28,6 +28,7 @@ export type ConnectionStatePayload = {
 
 export type ConnectionServiceEvents = {
   "audio-call": [peerId: string];
+  "video-call": [peerId: string];
   "call-ended": [];
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
