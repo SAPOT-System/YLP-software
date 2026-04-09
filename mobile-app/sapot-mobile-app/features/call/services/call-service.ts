@@ -48,6 +48,7 @@ export class CallService extends EventEmitter {
    */
   listenToRemoteStream() {
     this.connectionService.on("remoteStream", (stream) => {
+      console.log("remotestream")
       this.emit("remoteStream", stream);
     });
   }

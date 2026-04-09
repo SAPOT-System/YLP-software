@@ -10,11 +10,11 @@ import {
 } from "../adapters";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
-  DataAckMessage,
-  SignalingMessage,
-  Message,
-  WebrtcDataMessage,
   CallMessage,
+  DataAckMessage,
+  Message,
+  SignalingMessage,
+  WebrtcDataMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 
@@ -29,7 +29,7 @@ export type ConnectionStatePayload = {
 export type ConnectionServiceEvents = {
   "audio-call": [peerId: string];
   "video-call": [peerId: string];
-  "call-ended": [];
+  "call-ended": [peerId:string];
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
   "connection-state": [payload: ConnectionStatePayload];
@@ -106,7 +106,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           // TODO: check if needed to reinitialize local stream
           // TODO: validate that the caller id is the sender
           console.log("call ended");
-          this.emit("call-ended");
+          this.emit("call-ended", message.data.from);
         }
       } catch (error) {
         console.error(
@@ -180,12 +180,10 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         // TODO: soon, implement tcp for fallback of webrtc
 
         if (message.type === "audio-call" && "from" in message.data) {
-          await this.initializeStream("audio", message.data.from);
           this.emit("audio-call", message.data.from);
         }
 
         if (message.type === "video-call" && "from" in message.data) {
-          await this.initializeStream("video", message.data.from);
           this.emit("video-call", message.data.from);
         }
 
@@ -193,7 +191,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           // TODO: check if needed to reinitialize local stream
           // TODO: validate that the caller id is the sender
           console.log("call ended");
-          this.emit("call-ended");
+          this.emit("call-ended", message.data.from);
         }
       } catch (error) {
         console.error("[ConnectionService]: Error in TCP data handler", error);
@@ -311,6 +309,33 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     webrtcAdapter.on("connection-failed", () => {
       this.evictWebrtcAdapter(peerId);
     });
+
+    webrtcAdapter.on(
+      "signal-offer",
+      (payload: {
+        type: "offer";
+        sdp: string | undefined;
+        iceRestart?: boolean;
+        reason?: string;
+      }) => {
+        try {
+          this.sendSignalingMessage(peerId, {
+            type: payload.type,
+            data: {
+              sdp: { type: payload.type, sdp: payload.sdp! },
+              iceRestart: payload.iceRestart,
+              reason: payload.reason,
+              ...this.buildSignalSenderData(peerId),
+            },
+          });
+        } catch (error) {
+          console.error(
+            "[ConnectionService]: Error sending signaling offer from adapter",
+            error
+          );
+        }
+      }
+    );
   }
 
   /**

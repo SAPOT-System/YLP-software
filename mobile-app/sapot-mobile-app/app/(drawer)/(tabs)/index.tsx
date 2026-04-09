@@ -49,22 +49,10 @@ export default function Chat() {
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
     connectionService.start();
-    const audioCallHandler = (peerId: string) =>
-      router.push({
-        pathname: "/(drawer)/(tabs)/call/[id]",
-        params: { id: peerId },
-      });
-    const callEndedHandler = () => router.back();
-    connectionService.on("audio-call", audioCallHandler);
-    connectionService.on("call-ended", callEndedHandler);
-    connectionService.on("video-call", callEndedHandler);
 
     return () => {
       discoveryService.destroy();
       connectionService.stop();
-      connectionService.off("audio-call", audioCallHandler);
-      connectionService.off("video-call", callEndedHandler);
-      connectionService.off("call-ended", callEndedHandler);
     };
   }, []);
 

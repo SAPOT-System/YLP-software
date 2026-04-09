@@ -21,6 +21,8 @@ export type SignalingMessage =
       data: {
         to: string;
         sdp: RTCSessionDescriptionInit;
+        iceRestart?: boolean;
+        reason?: string;
         sender: string;
         ipAddress: string;
         port: number;
