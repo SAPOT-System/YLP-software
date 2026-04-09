@@ -406,6 +406,71 @@ describe("ConnectionService", () => {
 
       expect(emitSpy).toHaveBeenCalledWith("remoteStream", mockStream);
     });
+
+    it("should emit peer-reconnected when datachannel-open fires", () => {
+      const peerId = "peer-1";
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+
+      const dataChannelOpenHandler = mockWebrtcAdapter.on.mock.calls.find(
+        (call) => call[0] === "datachannel-open"
+      )?.[1];
+
+      expect(dataChannelOpenHandler).toBeDefined();
+      dataChannelOpenHandler?.();
+
+      expect(emitSpy).toHaveBeenCalledWith("peer-reconnected", peerId);
+    });
+  });
+
+  describe("waitForDataChannel", () => {
+    it("resolves immediately if adapter is already connected", async () => {
+      const peerId = "peer-1";
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(true),
+        configurable: true,
+      });
+
+      await expect(
+        connectionService.waitForDataChannel(peerId)
+      ).resolves.toBeUndefined();
+    });
+
+    it("resolves when datachannel-open fires", async () => {
+      const peerId = "peer-1";
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+
+      let capturedCallback: (() => void) | undefined;
+      mockWebrtcAdapter.once = jest.fn().mockImplementation((event, cb) => {
+        if (event === "datachannel-open") capturedCallback = cb;
+        return mockWebrtcAdapter;
+      });
+
+      const waitPromise = connectionService.waitForDataChannel(peerId);
+      capturedCallback?.();
+
+      await expect(waitPromise).resolves.toBeUndefined();
+    });
+
+    it("rejects after timeout if datachannel-open never fires", async () => {
+      jest.useFakeTimers();
+      const peerId = "peer-1";
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+      mockWebrtcAdapter.once = jest.fn().mockImplementation(() => mockWebrtcAdapter);
+
+      const waitPromise = connectionService.waitForDataChannel(peerId, 5000);
+      jest.advanceTimersByTime(5001);
+
+      await expect(waitPromise).rejects.toThrow("waitForDataChannel: timeout");
+      jest.useRealTimers();
+    });
   });
 
   describe("setChatService", () => {

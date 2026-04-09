@@ -201,6 +201,7 @@ export function createChatServiceDependencyMocks() {
 		toggleCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		renegotiate: jest.fn(),
+		waitForDataChannel: jest.fn().mockResolvedValue(undefined),
 	};
 
 	const conversationRepository = {

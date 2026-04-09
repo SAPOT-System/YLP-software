@@ -2,6 +2,7 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../adapters";
 import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../stores";
+import type { ConnectionService } from "./connection-service";
 import { PeerService } from "./peer-service";
 
 /**
@@ -119,6 +120,35 @@ export class DiscoveryService {
    */
   setChatService(chatService: ChatService) {
     this.chatService = chatService;
+  }
+
+  /**
+   * Subscribes to ConnectionService's "peer-reconnected" event to drain the
+   * outbound queue whenever a WebRTC data channel reopens for a peer.
+   * Call this once after both services are constructed (e.g. in MainContainer).
+   */
+  setConnectionService(connectionService: ConnectionService): void {
+    connectionService.on("peer-reconnected", async (peerId: string) => {
+      try {
+        const discoveredPeer = this.peerService.findDiscoveredPeerById(peerId);
+        if (!discoveredPeer) {
+          console.warn(
+            `[DiscoveryService]: peer-reconnected for ${peerId} but peer not in discovered cache — skipping retry`
+          );
+          return;
+        }
+        await this.performResendMessagesForPeer(
+          peerId,
+          discoveredPeer.ipAddress,
+          discoveredPeer.port
+        );
+      } catch (error) {
+        console.error(
+          `[DiscoveryService]: Error handling peer-reconnected for peer ${peerId}:`,
+          error
+        );
+      }
+    });
   }
 
   /**

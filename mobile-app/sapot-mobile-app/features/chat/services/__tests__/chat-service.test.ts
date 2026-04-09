@@ -348,6 +348,95 @@ describe("ChatService", () => {
         "Database error"
       );
     });
+
+    it("cancels ack timeout when DELIVERED arrives before expiry", async () => {
+      jest.useFakeTimers();
+      const message = "Hello World";
+      const mockConversation = createTestConversation({ id: "conv-1", type: ConversationType.DIRECT });
+      const mockMessage = createTestMessage({ id: "msg-1", content: message, createdAt: new Date(), messageType: MessageType.TEXT }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
+
+      (chatService as unknown as { peer: Peer }).peer = {
+        ...createTestPeer({ id: "peer-1", username: "peeruser" }),
+      } as unknown as Peer;
+      (chatService as unknown as { conversation: typeof mockConversation }).conversation = mockConversation as unknown as typeof mockConversation;
+
+      mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
+      mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(mockMessageStatus);
+
+      await chatService.sendChatMessage(message);
+
+      // ACK arrives before 12s
+      await chatService.handleAckMessage("msg-1");
+      jest.advanceTimersByTime(13000);
+      await Promise.resolve(); // flush microtasks
+
+      // Should only have been called once (SENT), not twice (no NOT_SENT flip)
+      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledTimes(1);
+      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledWith("status-1", MessageStatusType.SENT);
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe("ACK timeout", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      (chatService as unknown as { peer: Peer }).peer = {
+        ...createTestPeer({ id: "peer-1", username: "peeruser" }),
+      } as unknown as Peer;
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("flips status to NOT_SENT when no DELIVERED arrives within 12 seconds", async () => {
+      const message = "Hello";
+      const mockConversation = createTestConversation({ id: "conv-1", type: ConversationType.DIRECT });
+      const mockMessage = createTestMessage({ id: "msg-1", content: message, createdAt: new Date(), messageType: MessageType.TEXT }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
+
+      (chatService as unknown as { conversation: typeof mockConversation }).conversation = mockConversation as unknown as typeof mockConversation;
+      mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
+      mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(mockMessageStatus);
+
+      await chatService.sendChatMessage(message);
+
+      // Advance past 12-second timeout
+      jest.advanceTimersByTime(12001);
+      await Promise.resolve(); // flush microtasks
+
+      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledWith(
+        "status-1",
+        MessageStatusType.NOT_SENT
+      );
+    });
+
+    it("does not flip to NOT_SENT when DELIVERED arrives before 12 seconds", async () => {
+      const message = "Hello";
+      const mockConversation = createTestConversation({ id: "conv-1", type: ConversationType.DIRECT });
+      const mockMessage = createTestMessage({ id: "msg-1", content: message, createdAt: new Date(), messageType: MessageType.TEXT }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
+
+      (chatService as unknown as { conversation: typeof mockConversation }).conversation = mockConversation as unknown as typeof mockConversation;
+      mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
+      mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(mockMessageStatus);
+
+      await chatService.sendChatMessage(message);
+
+      // DELIVERED arrives at 5s
+      jest.advanceTimersByTime(5000);
+      await chatService.handleAckMessage("msg-1");
+
+      // Advance past where the timeout would have fired
+      jest.advanceTimersByTime(8000);
+      await Promise.resolve();
+
+      const allCalls = mockMessageStatusRepository.updateMessageStatusById.mock.calls;
+      const notSentCalls = allCalls.filter(([, status]) => status === MessageStatusType.NOT_SENT);
+      expect(notSentCalls).toHaveLength(0);
+    });
   });
 
   describe("sendChatMessage", () => {
@@ -672,6 +761,7 @@ describe("ChatService", () => {
         "192.168.1.101",
         8080
       );
+      expect(mockConnectionService.waitForDataChannel).toHaveBeenCalledWith("peer-1");
       expect(mockConnectionService.sendChatMessage).toHaveBeenCalledWith(
         "peer-1",
         expect.objectContaining({
