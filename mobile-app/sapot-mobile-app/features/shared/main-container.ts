@@ -133,6 +133,7 @@ export class MainContainer {
       this.initPromise = (async () => {
         console.log("Initializing...");
         await this.networkConfig.initialize();
+        this.networkConfig.startWatching();
       })();
 
       return this.initPromise;
