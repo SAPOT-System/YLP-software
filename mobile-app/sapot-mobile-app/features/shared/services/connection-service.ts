@@ -250,6 +250,11 @@ export class ConnectionService extends EventEmitter {
     webrtcAdapter.on("remoteStream", (stream) => {
       this.emit("remoteStream", stream);
     });
+
+    webrtcAdapter.on("datachannel-open", () => {
+      this.emit("peer-reconnected", peerId);
+    });
+
   }
 
   /**
@@ -745,6 +750,27 @@ export class ConnectionService extends EventEmitter {
       );
       throw error;
     }
+  }
+
+  /**
+   * Resolves when the WebRTC data channel for the given peer is open.
+   * Resolves immediately if already connected. Rejects after timeoutMs if the
+   * channel never opens.
+   */
+  waitForDataChannel(peerId: string, timeoutMs = 5000): Promise<void> {
+    const adapter = this.getWebrtcAdapter(peerId);
+    if (adapter.isConnected) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`waitForDataChannel: timeout for peer ${peerId}`));
+      }, timeoutMs);
+      adapter.once("datachannel-open", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
   }
 
   // TODO: Probably this method can insert the id of the sender/current user

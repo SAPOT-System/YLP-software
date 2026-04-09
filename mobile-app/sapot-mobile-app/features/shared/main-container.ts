@@ -100,6 +100,7 @@ export class MainContainer {
 
     this.connectionService.setChatService(this.chatService);
     this.discoveryService.setChatService(this.chatService);
+    this.discoveryService.setConnectionService(this.connectionService);
 
     this.guestUserRepository = new GuestUserRepository(database);
 

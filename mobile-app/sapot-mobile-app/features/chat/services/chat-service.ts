@@ -26,6 +26,7 @@ import { DataChatMessageI } from "../types";
 export class ChatService {
   private peer?: Peer;
   private conversation?: Conversation;
+  private ackTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
   /**
    * Constructs a ChatService instance.
    * @param connectionService Handles peer-to-peer network connections
@@ -212,6 +213,12 @@ export class ChatService {
         `[ChatService]: Handling acknowledge message with a message id of ${messageId}...`
       );
 
+      const timeout = this.ackTimeouts.get(messageId);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.ackTimeouts.delete(messageId);
+      }
+
       await this.messageStatusRepository.updateMessageStatusByMessage(
         messageId,
         MessageStatusType.DELIVERED
@@ -303,6 +310,16 @@ export class ChatService {
         newMessageStatus.id,
         MessageStatusType.SENT
       );
+      // Start 12s ACK timeout — if no DELIVERED arrives, flip back to NOT_SENT
+      // so the message becomes eligible for the retry queue on next reconnect.
+      const timeout = setTimeout(async () => {
+        this.ackTimeouts.delete(newMessage.id);
+        await this.messageStatusRepository.updateMessageStatusById(
+          newMessageStatus.id,
+          MessageStatusType.NOT_SENT
+        );
+      }, 12000);
+      this.ackTimeouts.set(newMessage.id, timeout);
     } catch {
       await this.messageStatusRepository.updateMessageStatusById(
         newMessageStatus.id,
@@ -568,6 +585,7 @@ export class ChatService {
   ): Promise<void> {
     try {
       await this.connectionService.connectToPeer(peerId, ipAddress, port);
+      await this.connectionService.waitForDataChannel(peerId);
 
       this.connectionService.sendChatMessage(peerId, {
         message: message.content,
@@ -601,6 +619,8 @@ export class ChatService {
   cleanUp(): void {
     this.peer = undefined;
     this.conversation = undefined;
+    this.ackTimeouts.forEach((timeout) => clearTimeout(timeout));
+    this.ackTimeouts.clear();
   }
 
   /**
