@@ -279,6 +279,8 @@ describe("DiscoveryService", () => {
         txt: {
           id: mockSessionStore.userId,
           username: mockUserStore.user.username,
+          firstName: mockUserStore.user.firstName,
+          lastName: mockUserStore.user.lastName || "",
         },
       });
     });
