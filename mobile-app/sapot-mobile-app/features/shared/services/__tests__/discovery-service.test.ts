@@ -168,6 +168,66 @@ describe("DiscoveryService", () => {
     });
   });
 
+  describe("setConnectionService", () => {
+    let mockConnectionService: { on: jest.Mock };
+
+    beforeEach(() => {
+      mockConnectionService = { on: jest.fn() };
+    });
+
+    it("subscribes to peer-reconnected event on ConnectionService", () => {
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      expect(mockConnectionService.on).toHaveBeenCalledWith(
+        "peer-reconnected",
+        expect.any(Function)
+      );
+    });
+
+    it("calls performResendMessagesForPeer when peer is in discovered cache", async () => {
+      const peerId = "peer-1";
+      const discoveredPeer = { id: peerId, ipAddress: "192.168.1.101", port: 8080, serviceName: "dev" };
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(discoveredPeer);
+      discoveryService.setChatService(mockChatService);
+      mockChatService.getAllNotSentMessageForPeer.mockResolvedValue([]);
+
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      const handler = mockConnectionService.on.mock.calls.find(
+        (call) => call[0] === "peer-reconnected"
+      )?.[1];
+
+      await handler?.(peerId);
+
+      expect(mockPeerService.findDiscoveredPeerById).toHaveBeenCalledWith(peerId);
+      expect(mockChatService.getAllNotSentMessageForPeer).toHaveBeenCalledWith(peerId);
+    });
+
+    it("skips retry when peer is not in discovered cache", async () => {
+      const peerId = "peer-unknown";
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      discoveryService.setChatService(mockChatService);
+
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      const handler = mockConnectionService.on.mock.calls.find(
+        (call) => call[0] === "peer-reconnected"
+      )?.[1];
+
+      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+      await handler?.(peerId);
+
+      expect(mockChatService.getAllNotSentMessageForPeer).not.toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+  });
+
   describe("startDiscovery", () => {
     it("should start network discovery", () => {
       discoveryService.startDiscovery();

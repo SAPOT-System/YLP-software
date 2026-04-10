@@ -151,6 +151,7 @@ export function createCallServiceDependencyMocks() {
 		initializeStream: jest.fn(),
 		renegotiate: jest.fn(),
 		terminateCallConnection: jest.fn(),
+		sendCallMessage: jest.fn(),
 		sendMessage: jest.fn(),
 		toggleMic: jest.fn(),
 		toggleCamera: jest.fn(),
@@ -201,6 +202,7 @@ export function createChatServiceDependencyMocks() {
 		toggleCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		renegotiate: jest.fn(),
+		waitForDataChannel: jest.fn().mockResolvedValue(undefined),
 	};
 
 	const conversationRepository = {

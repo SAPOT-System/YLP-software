@@ -100,6 +100,7 @@ export class MainContainer {
 
     this.connectionService.setChatService(this.chatService);
     this.discoveryService.setChatService(this.chatService);
+    this.discoveryService.setConnectionService(this.connectionService);
 
     this.guestUserRepository = new GuestUserRepository(database);
 
@@ -132,6 +133,7 @@ export class MainContainer {
       this.initPromise = (async () => {
         console.log("Initializing...");
         await this.networkConfig.initialize();
+        this.networkConfig.startWatching();
       })();
 
       return this.initPromise;

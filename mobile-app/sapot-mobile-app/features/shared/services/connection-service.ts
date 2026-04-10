@@ -1,7 +1,7 @@
 import { getWsUrl } from "@/config/runtime";
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
-import { EventEmitter } from "events";
+import { MediaStream } from "react-native-webrtc";
 import {
   TcpClientAdapter,
   TcpServerAdapter,
@@ -10,13 +10,31 @@ import {
 } from "../adapters";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
+  CallMessage,
   DataAckMessage,
+  Message,
   SignalingMessage,
-  TcpDataMessage,
   WebrtcDataMessage,
 } from "../types";
+import { TypedEventEmitter } from "../utils/typed-event-emitter";
 
-// TODO: make a custom typed event emitter
+export type ConnectionStatePayload = {
+  peerId: string;
+  state: "connecting" | "connected" | "failed" | "timeout";
+  transport: "ws" | "tcp" | "none";
+  mode: "auto" | "server" | "lan";
+  error?: unknown;
+};
+
+export type ConnectionServiceEvents = {
+  "audio-call": [peerId: string];
+  "video-call": [peerId: string];
+  "call-ended": [peerId:string];
+  remoteStream: [stream: MediaStream];
+  "peer-reconnected": [peerId: string];
+  "connection-state": [payload: ConnectionStatePayload];
+};
+
 /**
  * ConnectionService handles peer-to-peer connections, message routing, and event management
  * for both TCP and WebRTC communication in the app.
@@ -26,7 +44,7 @@ import {
  * - Emits events for call and stream management
  * - Ensures resource cleanup and robust error handling
  */
-export class ConnectionService extends EventEmitter {
+export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
@@ -72,6 +90,32 @@ export class ConnectionService extends EventEmitter {
       }
     });
 
+    this.wsSignalingAdapter.on("call-message", async (message: CallMessage) => {
+      try {
+        if (message.type === "audio-call") {
+          await this.initializeStream("audio", message.data.from);
+          this.emit("audio-call", message.data.from);
+        }
+
+        if (message.type === "video-call") {
+          await this.initializeStream("video", message.data.from);
+          this.emit("video-call", message.data.from);
+        }
+
+        if (message.type === "call-ended") {
+          // TODO: check if needed to reinitialize local stream
+          // TODO: validate that the caller id is the sender
+          console.log("call ended");
+          this.emit("call-ended", message.data.from);
+        }
+      } catch (error) {
+        console.error(
+          "[ConnectionService]: Error handling call message",
+          error
+        );
+      }
+    });
+
     this.wsSignalingAdapter.on("reconnecting", ({ attempt, delayMs }) => {
       console.log(
         `[ConnectionService]: Reconnecting websocket signaling (attempt ${attempt}) in ${delayMs}ms`
@@ -112,7 +156,7 @@ export class ConnectionService extends EventEmitter {
       );
     });
 
-    tcpServerAdapter.on("data", async (message: TcpDataMessage) => {
+    tcpServerAdapter.on("data", async (message: Message) => {
       try {
         if (!this.isTcpAllowed()) {
           console.warn(
@@ -136,15 +180,18 @@ export class ConnectionService extends EventEmitter {
         // TODO: soon, implement tcp for fallback of webrtc
 
         if (message.type === "audio-call" && "from" in message.data) {
-          await this.initializeStream(message.data.from);
           this.emit("audio-call", message.data.from);
+        }
+
+        if (message.type === "video-call" && "from" in message.data) {
+          this.emit("video-call", message.data.from);
         }
 
         if (message.type === "call-ended" && "from" in message.data) {
           // TODO: check if needed to reinitialize local stream
           // TODO: validate that the caller id is the sender
           console.log("call ended");
-          this.emit("call-ended");
+          this.emit("call-ended", message.data.from);
         }
       } catch (error) {
         console.error("[ConnectionService]: Error in TCP data handler", error);
@@ -250,6 +297,58 @@ export class ConnectionService extends EventEmitter {
     webrtcAdapter.on("remoteStream", (stream) => {
       this.emit("remoteStream", stream);
     });
+
+    webrtcAdapter.on("datachannel-open", () => {
+      this.emit("peer-reconnected", peerId);
+    });
+
+    webrtcAdapter.on("connection-closed", () => {
+      this.evictWebrtcAdapter(peerId);
+    });
+
+    webrtcAdapter.on("connection-failed", () => {
+      this.evictWebrtcAdapter(peerId);
+    });
+
+    webrtcAdapter.on(
+      "signal-offer",
+      (payload: {
+        type: "offer";
+        sdp: string | undefined;
+        iceRestart?: boolean;
+        reason?: string;
+      }) => {
+        try {
+          this.sendSignalingMessage(peerId, {
+            type: payload.type,
+            data: {
+              sdp: { type: payload.type, sdp: payload.sdp! },
+              iceRestart: payload.iceRestart,
+              reason: payload.reason,
+              ...this.buildSignalSenderData(peerId),
+            },
+          });
+        } catch (error) {
+          console.error(
+            "[ConnectionService]: Error sending signaling offer from adapter",
+            error
+          );
+        }
+      }
+    );
+  }
+
+  /**
+   * Removes a WebRTC adapter from the map and cleans it up. Listeners are
+   * removed first to prevent re-entrant events during cleanup.
+   */
+  private evictWebrtcAdapter(peerId: string): void {
+    const adapter = this.webrtcAdapters.get(peerId);
+    if (!adapter) return;
+    this.webrtcAdapters.delete(peerId);
+    adapter.removeAllListeners();
+    adapter.cleanup();
+    console.log(`${this.logPrefix}: Evicted WebRTC adapter for peer ${peerId}`);
   }
 
   /**
@@ -736,7 +835,7 @@ export class ConnectionService extends EventEmitter {
           break;
       }
     } catch (error) {
-      console.error(
+      console.warn(
         `[ConnectionService]: Error handling webrtc connection\n${JSON.stringify(
           message,
           null,
@@ -747,13 +846,34 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
+  /**
+   * Resolves when the WebRTC data channel for the given peer is open.
+   * Resolves immediately if already connected. Rejects after timeoutMs if the
+   * channel never opens.
+   */
+  waitForDataChannel(peerId: string, timeoutMs = 5000): Promise<void> {
+    const adapter = this.getWebrtcAdapter(peerId);
+    if (adapter.isConnected) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`waitForDataChannel: timeout for peer ${peerId}`));
+      }, timeoutMs);
+      adapter.once("datachannel-open", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  }
+
   // TODO: Probably this method can insert the id of the sender/current user
   /**
-   * Sends a TCP data message to the specified peer.
+   * Sends a message to the specified peer.
    * @param peerId - Unique identifier of the peer
-   * @param message - TcpDataMessage to send
+   * @param message - Message to send
    */
-  sendMessage(peerId: string, message: TcpDataMessage) {
+  sendMessage(peerId: string, message: Message) {
     try {
       if (!this.isTcpAllowed()) {
         console.warn(`${this.logPrefix}: TCP message blocked (mode disabled)`, {
@@ -782,6 +902,35 @@ export class ConnectionService extends EventEmitter {
     } catch (error) {
       console.error(
         `[ConnectionService]: Error sending message\n${JSON.stringify(
+          { peerId, ...message },
+          null,
+          2
+        )}\n${error}`
+      );
+      throw error;
+    }
+  }
+
+  sendCallMessage(peerId: string, message: CallMessage) {
+    try {
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
+      const isTcpAllowed = this.isTcpAllowed();
+
+      if (isWsConfigured) {
+        this.wsSignalingAdapter.sendMessage(message);
+        return;
+      }
+
+      if (!isTcpAllowed) {
+        throw new Error("No signaling transport available for this mode");
+      }
+
+      this.sendMessage(peerId, message);
+    } catch (error) {
+      console.error(
+        `[ConnectionService]: Error sending call message\n${JSON.stringify(
           { peerId, ...message },
           null,
           2
@@ -954,15 +1103,11 @@ export class ConnectionService extends EventEmitter {
     }
   }
 
-  /**
-   * Initializes the local media stream for the specified peer.
-   * @param peerId - Unique identifier of the peer
-   */
-  async initializeStream(peerId: string) {
+  async initializeStream(stream: "audio" | "video", peerId: string) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) throw new Error("Not connected");
-      await webrtcAdapter.initializeLocalStream(true, true);
+      await webrtcAdapter.initializeLocalStream(true, stream === "video");
     } catch (error) {
       console.error(
         `[ConnectionService]: Error initializing the stream\n${JSON.stringify(

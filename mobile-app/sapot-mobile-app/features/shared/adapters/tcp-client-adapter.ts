@@ -1,6 +1,6 @@
 import EventEmitter from "events";
 import TcpSocket from "react-native-tcp-socket";
-import { TcpDataMessage } from "../types";
+import { Message } from "../types";
 
 /**
  * TcpClientAdapter manages a TCP client socket connection for peer-to-peer communication.
@@ -84,7 +84,7 @@ export class TcpClientAdapter extends EventEmitter {
    * @param message The message to send
    * @throws Error if not connected or sending fails
    */
-  sendMessage(message: TcpDataMessage) {
+  sendMessage(message: Message) {
     if (!this.socket) throw new Error("TCP not connected");
     try {
       const data = JSON.stringify(message) + "\n";
