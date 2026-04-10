@@ -101,5 +101,5 @@ export interface PublishedService {
   domain: string;
   name: string;
   port: number;
-  txt: { id: string; username: string };
+  txt: { id: string; username: string; firstName: string; lastName?: string };
 }

@@ -157,9 +157,7 @@ export class DiscoveryService {
   startDiscovery() {
     try {
       if (!this.isZeroconfAllowed()) {
-        console.log(
-          "[DiscoveryService]: Discovery skipped (mode disabled)"
-        );
+        console.log("[DiscoveryService]: Discovery skipped (mode disabled)");
         return;
       }
       this.adapter.startScan();
@@ -188,9 +186,7 @@ export class DiscoveryService {
   publishDevice() {
     try {
       if (!this.isZeroconfAllowed()) {
-        console.log(
-          "[DiscoveryService]: Publish skipped (mode disabled)"
-        );
+        console.log("[DiscoveryService]: Publish skipped (mode disabled)");
         return;
       }
       // The service/device name must be unique to avoid conflict/error
@@ -205,6 +201,8 @@ export class DiscoveryService {
         txt: {
           id: this.sessionStore.userId,
           username: this.userStore.user.username,
+          firstName: this.userStore.user.firstName,
+          lastName: this.userStore.user.lastName || "",
         },
       });
     } catch (error) {
