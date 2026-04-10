@@ -1,3 +1,4 @@
+import { getWsUrl } from "@/config/runtime";
 import {
   TcpServerAdapter,
   WsSignalingAdapter,
@@ -6,9 +7,12 @@ import {
 import { database } from "./database";
 import { GuestUserRepository } from "./repositories";
 import {
+  CallMediaService,
   CleanUpService,
   ConnectionService,
   DiscoveryService,
+  SignalingService,
+  WebrtcSessionManager,
 } from "./services";
 import { AppModeStore, NetworkConfig } from "./stores";
 
@@ -30,6 +34,9 @@ export class MainContainer {
   readonly networkConfig: NetworkConfig;
   readonly discoveryService: DiscoveryService;
   readonly tcpServerAdapter: TcpServerAdapter;
+  readonly webrtcSessionManager: WebrtcSessionManager;
+  readonly signalingService: SignalingService;
+  readonly callMediaService: CallMediaService;
   readonly connectionService: ConnectionService;
   readonly chatService: ChatService;
   readonly messageRepository: MessageRepository;
@@ -70,12 +77,35 @@ export class MainContainer {
 
     this.wsSignalingAdapter = new WsSignalingAdapter();
     this.tcpServerAdapter = new TcpServerAdapter();
+
+    // Construction order: WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService
+    this.webrtcSessionManager = new WebrtcSessionManager(
+      this.userContainer.userStore,
+      this.networkConfig
+    );
+
+    this.signalingService = new SignalingService(
+      this.webrtcSessionManager.getWebrtcAdapter.bind(this.webrtcSessionManager),
+      this.wsSignalingAdapter,
+      getWsUrl(),
+      this.userContainer.userStore,
+      this.networkConfig,
+      this.appModeStore
+    );
+
+    this.callMediaService = new CallMediaService(
+      this.webrtcSessionManager.getWebrtcAdapter.bind(this.webrtcSessionManager)
+    );
+
     this.connectionService = new ConnectionService(
       this.tcpServerAdapter,
       this.networkConfig,
       this.userContainer.userStore,
       this.appModeStore,
-      this.wsSignalingAdapter
+      this.wsSignalingAdapter,
+      this.webrtcSessionManager,
+      this.signalingService,
+      this.callMediaService
     );
 
     this.messageRepository = new MessageRepository(database);
