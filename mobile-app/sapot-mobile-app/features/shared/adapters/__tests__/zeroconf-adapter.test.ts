@@ -1,6 +1,6 @@
 import {
-    createTestDiscoveredService,
-    createTestZeroconfService,
+  createTestDiscoveredService,
+  createTestZeroconfService,
 } from "@/test/factories/peer-service.factory";
 import { ZeroconfAdapter } from "../zeroconf-adapter";
 
@@ -34,7 +34,7 @@ describe("ZeroconfAdapter", () => {
 
   it("starts scanning for services", () => {
     adapter.startScan();
-    
+
     // The adapter's zeroconf instance should have been called
     expect(adapter).toBeDefined();
   });
@@ -65,7 +65,7 @@ describe("ZeroconfAdapter", () => {
 
   it("stops scanning", () => {
     adapter.stopScan();
-    
+
     expect(adapter).toBeDefined();
   });
 
@@ -77,14 +77,14 @@ describe("ZeroconfAdapter", () => {
       name: createTestDiscoveredService({ serviceName: "test-device" })
         .serviceName,
       port: 3000,
-      txt: { id: "device-1", username: "Alice" },
+      txt: { id: "device-1", username: "Alice", firstName: "Alice" },
     };
 
     adapter.publishService(service);
 
     // Fast-forward timers to trigger the setTimeout
     jest.advanceTimersByTime(500);
-    
+
     expect(adapter).toBeDefined();
   });
 
