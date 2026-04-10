@@ -16,7 +16,10 @@ import {
   ChatMessage,
   SignalingMessage,
 } from "../../types";
+import { CallMediaService } from "../call-media-service";
 import { ConnectionService } from "../connection-service";
+import { SignalingService } from "../signaling-service";
+import { WebrtcSessionManager } from "../webrtc-session-manager";
 
 export enum MessageType {
   TEXT = "text",
@@ -61,6 +64,9 @@ jest.mock("@/features/chat/services/chat-service", () => ({
 
 describe("ConnectionService", () => {
   let connectionService: ConnectionService;
+  let webrtcSessionManager: WebrtcSessionManager;
+  let signalingService: SignalingService;
+  let callMediaService: CallMediaService;
   let mockTcpServerAdapter: jest.Mocked<TcpServerAdapter>;
   let mockNetworkConfig: jest.Mocked<NetworkConfig>;
   let mockUserStore: jest.Mocked<UserStore>;
@@ -102,6 +108,23 @@ describe("ConnectionService", () => {
       .mockImplementation(() => mockWsSignalingAdapter);
     jest.mocked(ChatService).mockImplementation(() => mockChatService);
 
+    // Create sub-services (real instances; WebrtcAdapter constructor is mocked above)
+    webrtcSessionManager = new WebrtcSessionManager(
+      mockUserStore,
+      mockNetworkConfig
+    );
+    signalingService = new SignalingService(
+      webrtcSessionManager.getWebrtcAdapter.bind(webrtcSessionManager),
+      mockWsSignalingAdapter,
+      "ws://localhost:8000",
+      mockUserStore,
+      mockNetworkConfig,
+      mockAppModeStore
+    );
+    callMediaService = new CallMediaService(
+      webrtcSessionManager.getWebrtcAdapter.bind(webrtcSessionManager)
+    );
+
     // Create service instance
     connectionService = new ConnectionService(
       mockTcpServerAdapter,
@@ -109,7 +132,9 @@ describe("ConnectionService", () => {
       mockUserStore,
       mockAppModeStore,
       mockWsSignalingAdapter,
-      "ws://localhost:8000"
+      webrtcSessionManager,
+      signalingService,
+      callMediaService
     );
   });
 
@@ -197,13 +222,9 @@ describe("ConnectionService", () => {
       };
 
       const handleSpy = jest
-        .spyOn(
-          connectionService as unknown as {
-            handleWebrtcConnection: (msg: unknown) => Promise<void>;
-          },
-          "handleWebrtcConnection"
-        )
+        .spyOn(signalingService, "handleIncomingSignaling")
         .mockResolvedValue(undefined);
+
       await dataHandler?.(iceCandidateMessage);
       expect(handleSpy).toHaveBeenCalledWith(iceCandidateMessage);
 
@@ -287,7 +308,7 @@ describe("ConnectionService", () => {
 
     it("should setup WebRTC events for new adapter", () => {
       const peerId = "peer-1";
-      const setupSpy = jest.spyOn(connectionService, "setupWebrtcEvents");
+      const setupSpy = jest.spyOn(webrtcSessionManager, "setupWebrtcEvents");
 
       connectionService.getWebrtcAdapter(peerId);
 
@@ -305,14 +326,14 @@ describe("ConnectionService", () => {
     });
   });
 
-  describe("setupWebrtcEvents", () => {
+  describe("setupWebrtcEvents (via WebrtcSessionManager)", () => {
     it("should setup ice candidate event handler", () => {
       const peerId = "peer-1";
       const sendMessageSpy = jest
         .spyOn(connectionService, "sendMessage")
         .mockImplementation();
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       // Simulate ice candidate event
       const onIceCandidateHandler = mockWebrtcAdapter.on.mock.calls.find(
@@ -341,7 +362,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       connectionService.setChatService(mockChatService);
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const receivedMessageHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "receivedMessage"
@@ -371,7 +392,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       connectionService.setChatService(mockChatService);
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const receivedMessageHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "receivedMessage"
@@ -391,7 +412,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       const emitSpy = jest.spyOn(connectionService, "emit");
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const remoteStreamHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "remoteStream"
@@ -405,7 +426,7 @@ describe("ConnectionService", () => {
 
     it("removes webrtc adapter from map when connection-closed fires", () => {
       const peerId = "peer-1";
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       // adapter is in the map via getWebrtcAdapter
       connectionService.getWebrtcAdapter(peerId);
@@ -427,7 +448,7 @@ describe("ConnectionService", () => {
     it("removes webrtc adapter from map when connection-failed fires", () => {
       const peerId = "peer-1";
       connectionService.getWebrtcAdapter(peerId);
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const failedHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "connection-failed"
@@ -444,7 +465,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       const emitSpy = jest.spyOn(connectionService, "emit");
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const dataChannelOpenHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "datachannel-open"
