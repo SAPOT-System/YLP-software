@@ -9,7 +9,7 @@ export const useCall = () => {
     await callService.startCall(type, peerId);
     router.push({
       pathname: "/(drawer)/(tabs)/call/[id]",
-      params: { id: peerId!, type },
+      params: { id: peerId!, type, status: "calling" },
     });
   };
 

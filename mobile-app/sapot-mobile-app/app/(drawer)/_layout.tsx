@@ -78,6 +78,8 @@ export default function DrawerLayout() {
                   "calls",
                   "server",
                   "chat/[id]",
+                  "call/[id]",
+                  "call/incoming",
                   "peer/[id]",
                   "scan-qr",
                 ];

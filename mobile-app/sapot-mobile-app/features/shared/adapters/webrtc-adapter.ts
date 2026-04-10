@@ -54,6 +54,16 @@ export class WebrtcAdapter extends EventEmitter {
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
 
   /**
+   * Tracks ICE restart retry attempts and timers.
+   */
+  private iceRestartTimer?: ReturnType<typeof setTimeout>;
+  private iceRestartAttempts = 0;
+  private isIceRestarting = false;
+  private isMakingOffer = false;
+  private readonly maxIceRestartAttempts = 3;
+  private readonly iceRestartDelayMs = 1500;
+
+  /**
    * This flag will be used to by the app to know if remote description is set which is useful on forming connection
    */
   private remoteDescriptionSet: boolean = false;
@@ -125,12 +135,20 @@ export class WebrtcAdapter extends EventEmitter {
       // Add local stream to connection for audio calls and video calls
       if (this.localStream) {
         console.log("[WebrtcAdapter]: Adding local stream to connection");
-        this.localStream.getTracks().forEach((track) => {
+        for (const track of this.localStream.getTracks()) {
           console.log("[WebrtcAdapter]: Adding track: ", track.kind);
           if (!this.peerConnection)
             throw new Error("Peer connection not initialized");
-          this.peerConnection.addTrack(track, this.localStream!);
-        });
+          const existingSender = this.peerConnection
+            .getSenders()
+            .find((sender) => sender.track?.kind === track.kind);
+
+          if (existingSender) {
+            await existingSender.replaceTrack(track);
+          } else {
+            this.peerConnection.addTrack(track, this.localStream!);
+          }
+        }
       } else {
         console.log("[WebrtcAdapter]: No local stream to connection");
       }
@@ -156,8 +174,18 @@ export class WebrtcAdapter extends EventEmitter {
 
       // This will receive media such as audio and video of peers
       this.peerConnection.ontrack = (event) => {
-        this.remoteStream = event.streams[0];
-        this.emit("remoteStream", event.streams[0]);
+        const [stream] = event.streams;
+        if (stream) {
+          this.remoteStream = stream;
+        } else if (this.remoteStream) {
+          this.remoteStream.addTrack(event.track);
+        } else {
+          this.remoteStream = new MediaStream();
+          this.remoteStream.addTrack(event.track);
+        }
+        if (this.remoteStream) {
+          this.emit("remoteStream", this.remoteStream);
+        }
       };
 
       this.peerConnection.onconnectionstatechange = (_event) => {
@@ -187,11 +215,41 @@ export class WebrtcAdapter extends EventEmitter {
         );
         switch (this.peerConnection?.iceConnectionState) {
           case "connected":
-            console.log("[WebrtcAdapter]: ICE connection connected");
-            break;
           case "completed":
-            console.log("[WebrtcAdapter]: ICE connection completed");
+            this.resetIceRestartState();
+            if (this.peerConnection?.iceConnectionState === "connected") {
+              console.log("[WebrtcAdapter]: ICE connection connected");
+            }
+            if (this.peerConnection?.iceConnectionState === "completed") {
+              console.log("[WebrtcAdapter]: ICE connection completed");
+            }
             break;
+          case "disconnected":
+            this.scheduleIceRestart("disconnected");
+            break;
+          case "failed":
+            this.scheduleIceRestart("failed", true);
+            break;
+        }
+      };
+
+      this.peerConnection.onnegotiationneeded = async () => {
+        try {
+          if (!this.peerConnection) return;
+          if (
+            this.isMakingOffer ||
+            this.peerConnection.signalingState !== "stable" ||
+            this.isIceRestarting
+          ) {
+            return;
+          }
+          this.isMakingOffer = true;
+          const { type, sdp } = await this.createOffer();
+          this.emit("signal-offer", { type, sdp, reason: "negotiationneeded" });
+        } catch (error) {
+          console.warn("[WebrtcAdapter]: Negotiation needed failed", error);
+        } finally {
+          this.isMakingOffer = false;
         }
       };
 
@@ -246,7 +304,17 @@ export class WebrtcAdapter extends EventEmitter {
             );
             this.createPeerConnection();
           }
+          if (this.isMakingOffer) {
+            reject(new Error("Offer already in progress"));
+            return;
+          }
+          this.isMakingOffer = true;
           console.log(`[WebrtcAdapter]: Creating offer...`);
+          if (this.peerConnection?.signalingState === "have-remote-offer") {
+            this.isMakingOffer = false;
+            reject(new Error("Signaling state has remote offer"));
+            return;
+          }
           if (this.peerConnection?.signalingState === "stable") {
             console.log("stable");
             this.peerConnection!.createOffer()
@@ -258,8 +326,12 @@ export class WebrtcAdapter extends EventEmitter {
                   type: "offer",
                   sdp: offer.sdp,
                 });
+                this.isMakingOffer = false;
               })
-              .catch(reject);
+              .catch((error) => {
+                this.isMakingOffer = false;
+                reject(error);
+              });
           } else {
             console.log("Not stable");
             const onStable = async () => {
@@ -274,6 +346,7 @@ export class WebrtcAdapter extends EventEmitter {
                   type: "offer",
                   sdp: offer.sdp,
                 });
+                this.isMakingOffer = false;
               }
             };
             this.peerConnection!.onsignalingstatechange = async () =>
@@ -282,10 +355,73 @@ export class WebrtcAdapter extends EventEmitter {
         } catch (error) {
           console.error("[WebrtcAdapter]: Error creating offer:", error);
 
+          this.isMakingOffer = false;
+
           reject(error);
         }
       }
     );
+  }
+
+  /**
+   * Creates a WebRTC offer for ICE restart and emits signaling payload.
+   */
+  async restartIce() {
+    try {
+      if (!this.peerConnection) {
+        console.log("[WebrtcAdapter]: No peer connection for ICE restart");
+        return;
+      }
+      if (this.peerConnection.signalingState !== "stable") {
+        console.warn(
+          "[WebrtcAdapter]: Skipping ICE restart due to signaling state",
+          this.peerConnection.signalingState
+        );
+        return;
+      }
+      if (this.isIceRestarting) return;
+      this.isIceRestarting = true;
+
+      console.log("[WebrtcAdapter]: Performing ICE restart");
+      const offer = await this.peerConnection.createOffer({ iceRestart: true });
+      await this.peerConnection.setLocalDescription(offer);
+      this.emit("signal-offer", {
+        type: "offer",
+        sdp: offer.sdp,
+        iceRestart: true,
+      });
+    } catch (error) {
+      console.warn("[WebrtcAdapter]: ICE restart failed", error);
+    } finally {
+      this.isIceRestarting = false;
+    }
+  }
+
+  private resetIceRestartState() {
+    this.iceRestartAttempts = 0;
+    if (this.iceRestartTimer) {
+      clearTimeout(this.iceRestartTimer);
+      this.iceRestartTimer = undefined;
+    }
+  }
+
+  private scheduleIceRestart(reason: "disconnected" | "failed", immediate = false) {
+    if (this.isIceRestarting) return;
+    if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
+      console.warn("[WebrtcAdapter]: ICE restart attempts exceeded", { reason });
+      return;
+    }
+
+    if (this.iceRestartTimer) {
+      clearTimeout(this.iceRestartTimer);
+      this.iceRestartTimer = undefined;
+    }
+
+    const delayMs = immediate ? 0 : this.iceRestartDelayMs;
+    this.iceRestartTimer = setTimeout(() => {
+      this.iceRestartAttempts += 1;
+      this.restartIce();
+    }, delayMs);
   }
 
   /**
@@ -341,6 +477,14 @@ export class WebrtcAdapter extends EventEmitter {
     try {
       if (!this.peerConnection) {
         console.log("[WebrtcAdapter]: No peer connection");
+        return;
+      }
+
+      if (this.peerConnection.signalingState !== "have-local-offer") {
+        console.warn(
+          "[WebrtcAdapter]: Ignoring answer due to signaling state",
+          this.peerConnection.signalingState
+        );
         return;
       }
 
@@ -575,6 +719,7 @@ export class WebrtcAdapter extends EventEmitter {
       this.dataChannel = undefined;
       this.pendingIceCandidates = [];
       this.remoteDescriptionSet = false;
+      this.resetIceRestartState();
       console.log("[WebrtcAdapter]: Cleanup");
     } catch (error) {
       console.error("[WebrtcAdapter]: Error getting local stream:", error);

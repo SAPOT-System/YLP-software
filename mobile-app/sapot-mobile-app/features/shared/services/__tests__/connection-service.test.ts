@@ -147,14 +147,10 @@ describe("ConnectionService", () => {
         data: { from: "peer-1", to: "peer-2" },
       };
 
-      const initializeSpy = jest
-        .spyOn(connectionService, "initializeStream")
-        .mockResolvedValue();
       const emitSpy = jest.spyOn(connectionService, "emit");
 
       await dataHandler?.(audioCallMessage);
 
-      expect(initializeSpy).toHaveBeenCalledWith("audio", "peer-1");
       expect(emitSpy).toHaveBeenCalledWith("audio-call", "peer-1");
     });
 
@@ -237,7 +233,7 @@ describe("ConnectionService", () => {
 
       await dataHandler?.(callEndedMessage);
 
-      expect(emitSpy).toHaveBeenCalledWith("call-ended");
+      expect(emitSpy).toHaveBeenCalledWith("call-ended", "peer-1");
     });
   });
 

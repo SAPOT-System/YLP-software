@@ -1,7 +1,4 @@
-import {
-  RTCDataChannelEvent,
-  RTCTrackEvent,
-} from "react-native-webrtc";
+import { RTCDataChannelEvent, RTCTrackEvent } from "react-native-webrtc";
 
 declare module "react-native-webrtc" {
   interface RTCPeerConnection {
@@ -9,6 +6,7 @@ declare module "react-native-webrtc" {
     ontrack: ((event: RTCTrackEvent) => void) | null;
     onconnectionstatechange: ((event: Event) => void) | null;
     oniceconnectionstatechange: ((event: Event) => void) | null;
+    onnegotiationneeded: () => void;
     onsignalingstatechange: (event: Event) => void;
     ondatachannel: (event: RTCDataChannelEvent) => void;
   }
