@@ -4,28 +4,28 @@ import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
 import {
-  usePeerService,
-  useProfilePhoto,
-  useToast,
+    usePeerService,
+    useProfilePhoto,
+    useToast,
 } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import {
-  Appbar,
-  Avatar,
-  IconButton,
-  Snackbar,
-  useTheme,
+    Appbar,
+    Avatar,
+    IconButton,
+    Snackbar,
+    useTheme,
 } from "react-native-paper";
 
 const ChatRoom = () => {
@@ -52,8 +52,19 @@ const ChatRoom = () => {
   } = useToast();
   const theme = useTheme();
 
+  useEffect(() => {
+    uiLog.info("[ChatRoom] mounted");
+    return () => {
+      uiLog.info("[ChatRoom] unmounted");
+    };
+  }, []);
+
   // This will initialize the connection to the peer and conversations by the id params
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
+      id,
+      source,
+    });
     const connect = async () => {
       if (source === ChatRoomSource.PEER) {
         setPeerId(id as string);
@@ -71,6 +82,7 @@ const ChatRoom = () => {
   }, [chatService, id, source]);
 
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
 
     const connect = async () => {
@@ -99,6 +111,7 @@ const ChatRoom = () => {
   }, [peerId, chatService, showToast]);
 
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
 
     const getPeer = async () => {
@@ -116,6 +129,10 @@ const ChatRoom = () => {
   if (!isRendered) return <ActivityIndicator />;
 
   const handleSendMessage = async () => {
+    uiLog.debug("[ChatRoom] handleSendMessage called", {
+      hasMessage: Boolean(message.trim()),
+      conversationId,
+    });
     if (!message.trim()) return;
     try {
       const chatId = await chatService.sendChatMessage(message);
@@ -156,7 +173,12 @@ const ChatRoom = () => {
     >
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
-          <Appbar.BackAction onPress={() => router.back()} />
+          <Appbar.BackAction
+            onPress={() => {
+              uiLog.info("[Navigation] goBack triggered from ChatRoom");
+              router.back();
+            }}
+          />
           {peerProfilePicUrl ? (
             <Avatar.Image size={40} source={{ uri: peerProfilePicUrl }} />
           ) : (
@@ -192,25 +214,43 @@ const ChatRoom = () => {
             icon="phone"
             size={20}
             iconColor="#00E700"
-            onPress={() => peerId && call("audio", peerId)}
+            onPress={() => {
+              uiLog.debug("[ChatRoom] onPress triggered");
+              if (peerId) {
+                uiLog.info("[ChatRoom] start call", { type: "audio", peerId });
+                call("audio", peerId);
+              }
+            }}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="video"
             size={20}
-            onPress={() => peerId && call("video", peerId)}
+            onPress={() => {
+              uiLog.debug("[ChatRoom] onPress triggered");
+              if (peerId) {
+                uiLog.info("[ChatRoom] start call", { type: "video", peerId });
+                call("video", peerId);
+              }
+            }}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="dots-vertical"
             size={20}
-            onPress={() =>
-              peerId &&
-              router.push({
-                pathname: APP_ROUTES.PEER_PROFILE,
-                params: { id: peerId },
-              })
-            }
+            onPress={() => {
+              uiLog.debug("[ChatRoom] onPress triggered");
+              if (peerId) {
+                uiLog.info("[Navigation] Navigating to PeerProfile", {
+                  screen: APP_ROUTES.PEER_PROFILE,
+                  peerId,
+                });
+                router.push({
+                  pathname: APP_ROUTES.PEER_PROFILE,
+                  params: { id: peerId },
+                });
+              }
+            }}
             style={styles.headerActionButton}
           />
         </View>

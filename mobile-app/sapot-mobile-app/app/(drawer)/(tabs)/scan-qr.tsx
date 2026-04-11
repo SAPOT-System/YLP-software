@@ -1,3 +1,4 @@
+import { uiLog } from "@/features/shared/utils/logger";
 import { Camera, CameraView, type BarcodeScanningResult } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
@@ -20,6 +21,7 @@ export default function QRScannerScreen() {
   const [isScanning, setIsScanning] = useState(true);
 
   useEffect(() => {
+    uiLog.info("[QRScannerScreen] mounted");
     let isMounted = true;
     const requestPermission = async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
@@ -29,28 +31,33 @@ export default function QRScannerScreen() {
     };
     requestPermission();
     return () => {
+      uiLog.info("[QRScannerScreen] unmounted");
       isMounted = false;
     };
   }, []);
 
   const handleBarcodeScanned = ({ data, type }: BarcodeScanningResult) => {
+    uiLog.info("[QRScannerScreen] barcode scanned", { type });
     setIsScanning(false);
     setScanState({ data, type });
   };
 
   const handleScanAgain = () => {
+    uiLog.debug("[QRScannerScreen] handleScanAgain called");
     setScanState({ data: null, type: null });
     setPickedImageUri(null);
     setIsScanning(true);
   };
 
   const handlePickImage = async () => {
+    uiLog.debug("[QRScannerScreen] handlePickImage called");
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 1,
     });
 
     if (result.canceled) {
+      uiLog.info("[QRScannerScreen] image pick canceled");
       return;
     }
 
@@ -64,9 +71,13 @@ export default function QRScannerScreen() {
     const decoded = await Camera.scanFromURLAsync(imageUri, ["qr"]);
 
     if (decoded.length > 0) {
+      uiLog.info("[QRScannerScreen] qr decoded", {
+        type: decoded[0].type,
+      });
       setIsScanning(false);
       setScanState({ data: decoded[0].data, type: decoded[0].type });
     } else {
+      uiLog.warn("[QRScannerScreen] no qr found in image");
       setScanState({
         data: "No QR code found in this image.",
         type: "image",

@@ -1,10 +1,18 @@
-import { View } from "react-native";
-import React from "react";
-import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { ResetOption, SecondaryButton } from "@/features/auth";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
+import React, { useEffect } from "react";
+import { View } from "react-native";
 
 const ForgotPasswordScreen = () => {
+  useEffect(() => {
+    authLog.info("[ForgotPasswordScreen] mounted");
+    return () => {
+      authLog.info("[ForgotPasswordScreen] unmounted");
+    };
+  }, []);
+
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
@@ -23,7 +31,14 @@ const ForgotPasswordScreen = () => {
           <ResetOption option="recoveryKey" />
         </View>
       </ScreenContent>
-      <SecondaryButton onPress={() => router.back()}>Back</SecondaryButton>
+      <SecondaryButton
+        onPress={() => {
+          authLog.info("[Navigation] goBack triggered from ForgotPassword");
+          router.back();
+        }}
+      >
+        Back
+      </SecondaryButton>
     </View>
   );
 };

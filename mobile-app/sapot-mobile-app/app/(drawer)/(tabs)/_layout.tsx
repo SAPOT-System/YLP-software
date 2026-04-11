@@ -1,3 +1,5 @@
+import { useConnectionService } from "@/features/shared/hooks";
+import { navLog } from "@/features/shared/utils/logger";
 import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
@@ -6,7 +8,6 @@ import { router, Tabs } from "expo-router";
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import { Appbar, Text, useTheme } from "react-native-paper";
-import { useConnectionService } from "@/features/shared/hooks";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -15,13 +16,24 @@ function IncomingCallListener() {
   const connectionService = useConnectionService();
 
   useEffect(() => {
+    navLog.info("[IncomingCallListener] mounted");
     const handleAudioCall = (peerId: string) => {
+      navLog.info("[Navigation] Navigating to IncomingCall", {
+        screen: "/(drawer)/(tabs)/call/incoming",
+        peerId,
+        type: "audio",
+      });
       router.push({
         pathname: "/(drawer)/(tabs)/call/incoming",
         params: { id: peerId, type: "audio" },
       });
     };
     const handleVideoCall = (peerId: string) => {
+      navLog.info("[Navigation] Navigating to IncomingCall", {
+        screen: "/(drawer)/(tabs)/call/incoming",
+        peerId,
+        type: "video",
+      });
       router.push({
         pathname: "/(drawer)/(tabs)/call/incoming",
         params: { id: peerId, type: "video" },
@@ -30,6 +42,7 @@ function IncomingCallListener() {
     connectionService.on("audio-call", handleAudioCall);
     connectionService.on("video-call", handleVideoCall);
     return () => {
+      navLog.info("[IncomingCallListener] unmounted");
       connectionService.off("audio-call", handleAudioCall);
       connectionService.off("video-call", handleVideoCall);
     };
@@ -49,6 +62,14 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
+
+  useEffect(() => {
+    navLog.info("[TabLayout] mounted");
+    return () => {
+      navLog.info("[TabLayout] unmounted");
+    };
+  }, []);
+
   return (
     <>
       <IncomingCallListener />
@@ -195,7 +216,12 @@ export default function TabLayout() {
             tabBarStyle: { display: "none" },
             header: ({ options }) => (
               <Appbar.Header statusBarHeight={0} style={{ height: 80 }}>
-                <Appbar.BackAction onPress={() => router.back()} />
+                <Appbar.BackAction
+                  onPress={() => {
+                    navLog.info("[Navigation] goBack triggered from ScanQr");
+                    router.back();
+                  }}
+                />
 
                 <Appbar.Content
                   titleStyle={{
@@ -216,7 +242,12 @@ export default function TabLayout() {
             tabBarStyle: { display: "none" },
             header: () => (
               <Appbar.Header statusBarHeight={0} style={{ height: 80 }}>
-                <Appbar.BackAction onPress={() => router.back()} />
+                <Appbar.BackAction
+                  onPress={() => {
+                    navLog.info("[Navigation] goBack triggered from Peer");
+                    router.back();
+                  }}
+                />
               </Appbar.Header>
             ),
           }}

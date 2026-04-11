@@ -1,22 +1,22 @@
 import { ChatRoomSource } from "@/features/chat/types";
 import {
-  usePeerService,
-  useProfilePhoto,
-  useToast,
-  useUserSearch,
+    usePeerService,
+    useProfilePhoto,
+    useToast,
+    useUserSearch,
 } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import {
-  Appbar,
-  Avatar,
-  Icon,
-  Searchbar,
-  Snackbar,
-  Text,
-  useTheme,
+    Appbar,
+    Avatar,
+    Icon,
+    Searchbar,
+    Snackbar,
+    Text,
+    useTheme,
 } from "react-native-paper";
 import { useDebounce } from "use-debounce";
 import { APP_ROUTES } from "../routes";
@@ -88,6 +88,20 @@ export default function SearchScreen() {
     hideToast,
   } = useToast();
 
+  useEffect(() => {
+    uiLog.info("[SearchScreen] mounted");
+    return () => {
+      uiLog.info("[SearchScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[SearchScreen] useEffect triggered, deps:", {
+      queryLength: query.length,
+      debouncedQueryLength: debouncedQuery.length,
+    });
+  }, [query, debouncedQuery]);
+
   return (
     <View style={{ flex: 1, padding: 16 }}>
       <View
@@ -97,11 +111,21 @@ export default function SearchScreen() {
           marginBottom: 20,
         }}
       >
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction
+          onPress={() => {
+            uiLog.info("[Navigation] goBack triggered from Search");
+            router.back();
+          }}
+        />
         <Searchbar
           placeholder="Search "
           value={query}
-          onChangeText={setQuery}
+          onChangeText={(value) => {
+            uiLog.debug("[SearchScreen] onChangeText", {
+              queryLength: value.length,
+            });
+            setQuery(value);
+          }}
           iconColor={theme.dark ? "#7E8AA6" : "#000000"}
           placeholderTextColor={theme.dark ? "#7E8AA6" : "#103462"}
           style={{
@@ -112,7 +136,15 @@ export default function SearchScreen() {
             marginRight: 8,
           }}
         />
-        <Pressable onPress={() => router.push(APP_ROUTES.SCAN_QR)}>
+        <Pressable
+          onPress={() => {
+            uiLog.debug("[SearchScreen] onPress triggered");
+            uiLog.info("[Navigation] Navigating to ScanQr", {
+              screen: APP_ROUTES.SCAN_QR,
+            });
+            router.push(APP_ROUTES.SCAN_QR);
+          }}
+        >
           <View
             style={{
               backgroundColor: "#3A7AFE",
@@ -136,6 +168,9 @@ export default function SearchScreen() {
           <SearchResultItem
             item={item}
             onPress={async (selected) => {
+              uiLog.debug("[SearchScreen] onPress triggered", {
+                peerId: selected.id,
+              });
               try {
                 const existingPeer = await peerService.findPeerById(
                   selected.id
@@ -150,6 +185,10 @@ export default function SearchScreen() {
                   );
                 }
 
+                uiLog.info("[Navigation] Navigating to ChatRoom", {
+                  screen: "/(drawer)/(tabs)/chat/[id]",
+                  peerId: selected.id,
+                });
                 router.push({
                   pathname: "/(drawer)/(tabs)/chat/[id]",
                   params: { id: selected.id, source: ChatRoomSource.PEER },

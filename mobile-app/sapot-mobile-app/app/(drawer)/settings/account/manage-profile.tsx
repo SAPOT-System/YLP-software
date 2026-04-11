@@ -12,7 +12,7 @@ import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     Image,
     KeyboardAvoidingView,
@@ -65,8 +65,16 @@ export default function ManageProfile() {
     email?: string;
   }>({});
 
+  useEffect(() => {
+    uiLog.info("[ManageProfile] mounted");
+    return () => {
+      uiLog.info("[ManageProfile] unmounted");
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
+      uiLog.debug("[ManageProfile] useFocusEffect triggered");
       return () => {
         setUsername(user.username ?? "");
         setFirstName(user.firstName ?? "");
@@ -86,6 +94,9 @@ export default function ManageProfile() {
     normalizeValue(lastName) !== normalizeValue(user.lastName);
 
   const handleSave = async () => {
+    uiLog.debug("[ManageProfile] handleSave called", {
+      hasChanges,
+    });
     if (!hasChanges) {
       return;
     }
@@ -105,6 +116,7 @@ export default function ManageProfile() {
     });
 
     if (Object.keys(validationErrors).length > 0) {
+      uiLog.warn("[ManageProfile] validation failed");
       return;
     }
 
@@ -121,11 +133,13 @@ export default function ManageProfile() {
     });
 
     setEditableField(null);
+    uiLog.info("[ManageProfile] profile updated");
   };
 
   const uploadProfilePhotoAsset = async (
     asset: ImagePicker.ImagePickerAsset
   ) => {
+    uiLog.debug("[ManageProfile] uploadProfilePhotoAsset called");
     if (!asset?.uri) return;
 
     const file: ExpoFileUpload = {
@@ -140,6 +154,7 @@ export default function ManageProfile() {
   };
 
   const handleUploadFromLibrary = async () => {
+    uiLog.debug("[ManageProfile] handleUploadFromLibrary called");
     if (isProfilePicUploading) return;
 
     try {
@@ -165,6 +180,7 @@ export default function ManageProfile() {
   };
 
   const handleTakePhoto = async () => {
+    uiLog.debug("[ManageProfile] handleTakePhoto called");
     if (isProfilePicUploading) return;
 
     try {
@@ -213,7 +229,10 @@ export default function ManageProfile() {
                   />
                 )}
                 <Pressable
-                  onPress={() => setIsPhotoOptionsVisible(true)}
+                  onPress={() => {
+                    uiLog.debug("[ManageProfile] onPress triggered");
+                    setIsPhotoOptionsVisible(true);
+                  }}
                   disabled={isProfilePicUploading}
                 >
                   <Text style={{ color: "#3A7AFE" }}>Change Photo</Text>
@@ -234,7 +253,10 @@ export default function ManageProfile() {
                     }
                   }}
                   icon="pencil"
-                  onIconPress={() => setEditableField("username")}
+                  onIconPress={() => {
+                    uiLog.debug("[ManageProfile] onIconPress triggered");
+                    setEditableField("username");
+                  }}
                   error={Boolean(errors.username)}
                 />
                 <HelperText type="error" visible={Boolean(errors.username)}>
@@ -254,7 +276,10 @@ export default function ManageProfile() {
                     }
                   }}
                   icon="pencil"
-                  onIconPress={() => setEditableField("firstName")}
+                  onIconPress={() => {
+                    uiLog.debug("[ManageProfile] onIconPress triggered");
+                    setEditableField("firstName");
+                  }}
                   error={Boolean(errors.firstName)}
                 />
                 <HelperText type="error" visible={Boolean(errors.firstName)}>
@@ -274,7 +299,10 @@ export default function ManageProfile() {
                     }
                   }}
                   icon="pencil"
-                  onIconPress={() => setEditableField("lastName")}
+                  onIconPress={() => {
+                    uiLog.debug("[ManageProfile] onIconPress triggered");
+                    setEditableField("lastName");
+                  }}
                   error={Boolean(errors.lastName)}
                 />
                 <HelperText type="error" visible={Boolean(errors.lastName)}>
@@ -318,6 +346,9 @@ export default function ManageProfile() {
                   user.emailVerified === false && (
                     <Pressable
                       onPress={() => {
+                        uiLog.info("[Navigation] Navigating to VerifyEmail", {
+                          screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+                        });
                         router.push({
                           pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
                           params: {
@@ -339,7 +370,12 @@ export default function ManageProfile() {
                     </Pressable>
                   )
                 }
-                onIconPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}
+                onIconPress={() => {
+                  uiLog.info("[Navigation] Navigating to UpdateEmail", {
+                    screen: SETTINGS_ROUTES.UPDATE_EMAIL,
+                  });
+                  router.push(SETTINGS_ROUTES.UPDATE_EMAIL);
+                }}
               />
             </View>
             <Button

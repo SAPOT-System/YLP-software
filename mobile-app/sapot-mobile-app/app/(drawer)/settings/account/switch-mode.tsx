@@ -4,6 +4,8 @@ import {
   useDiscoveryService,
   useUserProfile,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
+import { useEffect } from "react";
 import { View } from "react-native";
 import { RadioButton, Text, useTheme } from "react-native-paper";
 
@@ -13,6 +15,20 @@ export default function SwitchMode() {
   const { isGuest } = useUserProfile();
   const connectionService = useConnectionService();
   const discoveryService = useDiscoveryService();
+
+  useEffect(() => {
+    uiLog.info("[SwitchMode] mounted");
+    return () => {
+      uiLog.info("[SwitchMode] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[SwitchMode] useEffect triggered, deps:", {
+      mode,
+      isGuest,
+    });
+  }, [mode, isGuest]);
 
   const allowedModes: Array<"auto" | "server" | "lan"> = isGuest
     ? ["lan"]
@@ -26,6 +42,7 @@ export default function SwitchMode() {
   };
 
   const applyMode = (nextMode: "auto" | "server" | "lan") => {
+    uiLog.debug("[SwitchMode] applyMode called", { nextMode });
     if (mode === nextMode) return;
     setMode(nextMode);
 
@@ -33,16 +50,20 @@ export default function SwitchMode() {
     const allowTcp = store.isTcpAllowed(isGuest);
 
     if (allowZeroconf) {
+      uiLog.info("[SwitchMode] enabling zeroconf");
       discoveryService.publishDevice();
       discoveryService.startDiscovery();
     } else {
+      uiLog.info("[SwitchMode] disabling zeroconf");
       discoveryService.stopDiscovery();
       discoveryService.destroy();
     }
 
     if (allowTcp) {
+      uiLog.info("[SwitchMode] enabling tcp transport");
       connectionService.start();
     } else {
+      uiLog.info("[SwitchMode] disabling tcp transport");
       connectionService.stopTcpTransport();
     }
   };

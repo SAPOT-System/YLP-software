@@ -1,16 +1,31 @@
-import { useState } from "react";
+import { uiLog } from "@/features/shared/utils/logger";
+import { useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TextInput,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    TextInput,
+    View,
 } from "react-native";
 import { IconButton, Text, useTheme } from "react-native-paper";
 
 export default function PublicChat() {
   const theme = useTheme();
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    uiLog.info("[PublicChat] mounted");
+    return () => {
+      uiLog.info("[PublicChat] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[PublicChat] useEffect triggered, deps:", {
+      messageLength: message.length,
+    });
+  }, [message]);
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}

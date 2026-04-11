@@ -1,10 +1,12 @@
 import { useAuth } from "@/features/auth";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
 import { MainContainerProvider, useAppMode } from "@/features/shared/context";
+import { navLog } from "@/features/shared/utils/logger";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Redirect } from "expo-router";
 import { Drawer } from "expo-router/drawer";
+import { useEffect } from "react";
 import { TouchableOpacity, View } from "react-native";
 import { ActivityIndicator, Icon, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,15 +15,17 @@ import { AUTH_ROUTES } from "../routes";
 const queryClient = new QueryClient();
 
 export default function DrawerLayout() {
-  const auth = useAuth();
+  const { isAuthenticated, loading, isGuest } = useAuth();
   const theme = useTheme();
   const { store } = useAppMode();
 
-  if (!auth) {
-    return <ActivityIndicator />;
-  }
+  useEffect(() => {
+    navLog.info("[DrawerLayout] mounted");
+    return () => {
+      navLog.info("[DrawerLayout] unmounted");
+    };
+  }, []);
 
-  const { isAuthenticated, loading, isGuest } = auth;
   const effectiveMode = store.getEffectiveMode(isGuest);
   const modeLabel =
     effectiveMode === "auto"
@@ -36,11 +40,23 @@ export default function DrawerLayout() {
     LAN: "network-strength-4",
   };
 
+  useEffect(() => {
+    navLog.debug("[DrawerLayout] useEffect triggered, deps:", {
+      isAuthenticated,
+      isGuest,
+      loading,
+    });
+  }, [isAuthenticated, isGuest, loading]);
+
   if (loading) {
+    navLog.info("[DrawerLayout] auth loading");
     return <ActivityIndicator />;
   }
 
   if (!isAuthenticated && !isGuest) {
+    navLog.info("[Navigation] Navigating to GettingStarted", {
+      screen: AUTH_ROUTES.GETTING_STARTED,
+    });
     return <Redirect href={AUTH_ROUTES.GETTING_STARTED} />;
   }
 
@@ -107,7 +123,10 @@ export default function DrawerLayout() {
                   headerShadowVisible: focusedRoute !== "index",
                   headerLeft: () => (
                     <TouchableOpacity
-                      onPress={navigation.toggleDrawer}
+                      onPress={() => {
+                        navLog.debug("[DrawerLayout] onPress triggered");
+                        navigation.toggleDrawer();
+                      }}
                       style={{
                         width: 35,
                         height: 23,

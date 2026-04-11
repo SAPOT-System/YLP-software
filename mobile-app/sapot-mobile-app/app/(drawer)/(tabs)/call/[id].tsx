@@ -63,9 +63,21 @@ export default function CallRoom() {
     ? [peer.firstName, peer.lastName].filter(Boolean).join(" ")
     : "";
 
+  useEffect(() => {
+    uiLog.info("[CallRoom] mounted");
+    return () => {
+      uiLog.info("[CallRoom] unmounted");
+    };
+  }, []);
+
   // Reset state when the screen gains focus
   useFocusEffect(
     useCallback(() => {
+      uiLog.debug("[CallRoom] useFocusEffect triggered, deps:", {
+        id,
+        type,
+        status,
+      });
       setCallState(status === "connected" ? "connected" : "calling");
       setElapsed(0);
       setLocalStream(undefined);
@@ -78,14 +90,18 @@ export default function CallRoom() {
 
   // Load peer info
   useEffect(() => {
+    uiLog.debug("[CallRoom] useEffect triggered, deps:", { id });
     peerService
       .findPeerById(id as string)
       .then((p: unknown) => setPeer(p as Peer))
-      .catch(() => {});
-  }, [id]);
+      .catch((error) => {
+        uiLog.error("[CallRoom] Error in load peer", { error });
+      });
+  }, [id, peerService]);
 
   // Timer for ongoing call
   useEffect(() => {
+    uiLog.debug("[CallRoom] useEffect triggered, deps:", { callState });
     if (callState !== "connected") return;
     const interval = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(interval);
@@ -93,14 +109,22 @@ export default function CallRoom() {
 
   // Get local stream for video calls
   useEffect(() => {
+    uiLog.debug("[CallRoom] useEffect triggered, deps:", { type });
     if (type !== "video") return;
     try {
       setLocalStream(callService.getLocalCam(id as string));
-    } catch {}
-  }, []);
+    } catch (error) {
+      uiLog.error("[CallRoom] Error in get local cam", { error });
+    }
+  }, [callService, id, type]);
 
   // Retry fetching local stream if not available yet
   useEffect(() => {
+    uiLog.debug("[CallRoom] useEffect triggered, deps:", {
+      type,
+      callState,
+      hasLocalStream: Boolean(localStream),
+    });
     if (type !== "video" || callState !== "connected" || localStream) return;
     let attempts = 0;
     const interval = setInterval(() => {
@@ -112,7 +136,9 @@ export default function CallRoom() {
           clearInterval(interval);
           return;
         }
-      } catch {}
+      } catch (error) {
+        uiLog.error("[CallRoom] Error in retry local cam", { error });
+      }
       if (attempts >= 5) {
         clearInterval(interval);
       }
@@ -123,6 +149,7 @@ export default function CallRoom() {
   // Listen for remote stream → call connected
   useEffect(() => {
     const handler = (stream: MediaStream) => {
+      uiLog.info("[CallRoom] remote stream received");
       setRemoteStream(stream);
       setCallState("connected");
     };
@@ -147,6 +174,7 @@ export default function CallRoom() {
 
   // No-answer timeout (30s)
   useEffect(() => {
+    uiLog.debug("[CallRoom] useEffect triggered, deps:", { callState });
     if (callState !== "calling") return;
     const timer = setTimeout(() => setCallState("no-answer"), 30_000);
     return () => clearTimeout(timer);
@@ -154,39 +182,56 @@ export default function CallRoom() {
 
   // Auto-navigate back from terminal states after a delay
   useEffect(() => {
+    uiLog.debug("[CallRoom] useEffect triggered, deps:", { callState });
     if (callState !== "ended") return;
     uiLog.info("call › ended", { peerId: id });
-    const timer = setTimeout(() => router.back(), 3000);
+    const timer = setTimeout(() => {
+      uiLog.info("[Navigation] goBack triggered from CallRoom");
+      router.back();
+    }, 3000);
     return () => clearTimeout(timer);
-  }, [callState]);
+  }, [callState, router, id]);
 
   // Terminate on unmount if still active
   useEffect(() => {
     return () => {
       if (!hasTerminated.current) {
-        callService.terminateCallConnection(id as string).catch(() => {});
+        callService.terminateCallConnection(id as string).catch((error) => {
+          uiLog.error("[CallRoom] Error in terminate on unmount", { error });
+        });
       }
     };
-  }, []);
+  }, [callService, id]);
 
   const terminate = useCallback(async () => {
+    uiLog.debug("[CallRoom] terminate called");
     if (hasTerminated.current) return;
     hasTerminated.current = true;
     try {
       await callService.terminateCallConnection(id as string);
-    } catch {}
+    } catch (error) {
+      uiLog.error("[CallRoom] Error in terminate", { error });
+    }
   }, [callService, id]);
 
   const handleEndCall = useCallback(async () => {
+    uiLog.debug("[CallRoom] handleEndCall called");
     await terminate();
     setCallState("ended");
   }, [terminate]);
 
   const handleClose = useCallback(() => {
+    uiLog.info("[Navigation] goBack triggered from CallRoom");
     router.back();
   }, [router]);
 
   const handleCallAgain = useCallback(() => {
+    uiLog.info("[Navigation] Navigating to CallRoom", {
+      screen: "/(drawer)/(tabs)/call/[id]",
+      peerId: id,
+      type,
+      status: "calling",
+    });
     router.replace({
       pathname: "/(drawer)/(tabs)/call/[id]" as never,
       params: { id: id!, type, status: "calling" },
@@ -194,18 +239,24 @@ export default function CallRoom() {
   }, [router, id, type]);
 
   const handleToggleMic = useCallback(() => {
+    uiLog.debug("[CallRoom] handleToggleMic called", { mic });
     try {
       callService.toggleMic(id as string);
       setMic((v) => !v);
-    } catch {}
-  }, [callService, id]);
+    } catch (error) {
+      uiLog.error("[CallRoom] Error in toggle mic", { error });
+    }
+  }, [callService, id, mic]);
 
   const handleToggleCam = useCallback(() => {
+    uiLog.debug("[CallRoom] handleToggleCam called", { cam });
     try {
       callService.toggleCamera(id as string);
       setCam((v) => !v);
-    } catch {}
-  }, [callService, id]);
+    } catch (error) {
+      uiLog.error("[CallRoom] Error in toggle camera", { error });
+    }
+  }, [callService, id, cam]);
 
   const isActive = callState === "calling" || callState === "connected";
   const showVideoStreams = type === "video" && callState === "connected";

@@ -1,6 +1,7 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import { useEmailReset } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { OTPInput } from "input-otp-native";
 import React, { useEffect, useState } from "react";
@@ -16,6 +17,13 @@ const EnterRecoveryScreen = () => {
   const theme = useTheme();
   const [code, setCode] = useState<string>("");
   const [secondsLeft, setSecondsLeft] = useState<number>(COUNTDOWN_SECONDS);
+
+  useEffect(() => {
+    authLog.info("[EnterRecoveryScreen] mounted");
+    return () => {
+      authLog.info("[EnterRecoveryScreen] unmounted");
+    };
+  }, []);
 
   useEffect(() => {
     if (secondsLeft <= 0) {
@@ -36,6 +44,7 @@ const EnterRecoveryScreen = () => {
   };
 
   const handleResend = () => {
+    authLog.debug("[EnterRecoveryScreen] handleResend called");
     sendCode(email);
     setSecondsLeft(COUNTDOWN_SECONDS);
   };

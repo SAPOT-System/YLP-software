@@ -1,10 +1,10 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import {
-    ExpoFileUpload,
-    FileUploadResultCard,
-    PrimaryButton,
-    SecondaryButton,
-    useVerifyRecoveryKey,
+  ExpoFileUpload,
+  FileUploadResultCard,
+  PrimaryButton,
+  SecondaryButton,
+  useVerifyRecoveryKey,
 } from "@/features/auth";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
@@ -27,13 +27,15 @@ const RecoveryKeyResetScreen = () => {
   const [file, setFile] = useState<ExpoFileUpload>();
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
-  const getVerifyRecoveryKey = useVerifyRecoveryKey(identifier);
+  const { loading, error, verifyRecoveryKey } =
+    useVerifyRecoveryKey(identifier);
 
-  if (!getVerifyRecoveryKey) {
-    return <ActivityIndicator />;
-  }
-
-  const { loading, error, verifyRecoveryKey } = getVerifyRecoveryKey;
+  useEffect(() => {
+    authLog.info("[RecoveryKeyResetScreen] mounted");
+    return () => {
+      authLog.info("[RecoveryKeyResetScreen] unmounted");
+    };
+  }, []);
 
   useEffect(() => {
     const checkStoredToken = async () => {
@@ -54,6 +56,9 @@ const RecoveryKeyResetScreen = () => {
         const isValid = await canResetPasswordApi(storedToken);
 
         if (isValid) {
+          authLog.info("[Navigation] Navigating to ResetPassword", {
+            screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+          });
           router.replace({
             pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
             params: { token: storedToken, identifier: storedIdentifier },
@@ -62,7 +67,10 @@ const RecoveryKeyResetScreen = () => {
           await deleteItemAsync("reset_password_token");
           await deleteItemAsync("reset_password_identifier");
         }
-      } catch {
+      } catch (error) {
+        authLog.error("[RecoveryKeyResetScreen] Error in check stored token", {
+          error,
+        });
         await deleteItemAsync("reset_password_token");
         await deleteItemAsync("reset_password_identifier");
       } finally {
@@ -100,6 +108,9 @@ const RecoveryKeyResetScreen = () => {
   };
 
   const handleVerify = async () => {
+    authLog.debug("[RecoveryKeyResetScreen] handleVerify called", {
+      hasFile: Boolean(file),
+    });
     if (!file) return;
 
     const res = await verifyRecoveryKey(file);
@@ -107,6 +118,9 @@ const RecoveryKeyResetScreen = () => {
     if (res.success && res.resetLink) {
       const token = res.resetLink.split("token=")[1];
 
+      authLog.info("[Navigation] Navigating to ResetPassword", {
+        screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+      });
       router.push({
         pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
         params: { token, identifier },
@@ -115,6 +129,7 @@ const RecoveryKeyResetScreen = () => {
   };
 
   const handleDeleteFile = () => {
+    authLog.debug("[RecoveryKeyResetScreen] handleDeleteFile called");
     setFile(undefined);
   };
 
@@ -152,7 +167,10 @@ const RecoveryKeyResetScreen = () => {
         <SecondaryButton
           mode="outlined"
           style={{ width: 280, marginTop: 16 }}
-          onPress={() => router.back()}
+          onPress={() => {
+            authLog.info("[Navigation] goBack triggered from RecoveryKeyReset");
+            router.back();
+          }}
           disabled={loading}
         >
           Back

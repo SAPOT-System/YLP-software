@@ -6,6 +6,7 @@ import {
   useProfilePhoto,
   useUserStore,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -28,31 +29,51 @@ export default function IncomingCall() {
     : "";
 
   useEffect(() => {
+    uiLog.info("[IncomingCall] mounted");
+    return () => {
+      uiLog.info("[IncomingCall] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[IncomingCall] useEffect triggered, deps:", { id });
     peerService
       .findPeerById(id as string)
       .then((p: unknown) => setPeer(p as Peer))
-      .catch(() => {});
-  }, [id]);
+      .catch((error) => {
+        uiLog.error("[IncomingCall] Error in load peer", { error });
+      });
+  }, [id, peerService]);
 
   // If the caller cancels before we accept, go back
   useEffect(() => {
     const handler = (fromId?: string) => {
       if (fromId && fromId !== id) return;
+      uiLog.info("[Navigation] goBack triggered from IncomingCall");
       router.back();
     };
     connectionService.on("call-ended", handler);
     return () => {
       connectionService.off("call-ended", handler);
     };
-  }, [connectionService, id]);
+  }, [connectionService, id, router]);
 
   const handleAccept = async () => {
+    uiLog.debug("[IncomingCall] handleAccept called", { id, type });
     try {
       await callService.startCall(
         (type as "audio" | "video") ?? "audio",
         id as string
       );
-    } catch {}
+    } catch (error) {
+      uiLog.error("[IncomingCall] Error in start call", { error });
+    }
+    uiLog.info("[Navigation] Navigating to CallRoom", {
+      screen: "/(drawer)/(tabs)/call/[id]",
+      peerId: id,
+      type: type ?? "audio",
+      status: "connected",
+    });
     router.replace({
       pathname: "/(drawer)/(tabs)/call/[id]" as never,
       params: { id: id!, type: type ?? "audio", status: "connected" },
@@ -60,12 +81,16 @@ export default function IncomingCall() {
   };
 
   const handleReject = () => {
+    uiLog.debug("[IncomingCall] handleReject called", { id });
     try {
       connectionService.sendCallMessage(id as string, {
         type: "call-ended",
         data: { from: userStore.user.id, to: id as string },
       });
-    } catch {}
+    } catch (error) {
+      uiLog.error("[IncomingCall] Error in reject call", { error });
+    }
+    uiLog.info("[Navigation] goBack triggered from IncomingCall");
     router.back();
   };
 

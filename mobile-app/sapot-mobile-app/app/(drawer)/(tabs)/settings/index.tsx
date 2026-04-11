@@ -3,10 +3,11 @@ import { useAuth } from "@/features/auth";
 import { Peer } from "@/features/shared";
 import { useThemePreference } from "@/features/shared/context";
 import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { Link } from "expo-router";
+import { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import {
-  ActivityIndicator,
   Avatar,
   Icon,
   Text,
@@ -17,21 +18,36 @@ export default function Settings() {
   const theme = useTheme();
   const { user, isGuest } = useUserProfile();
   const { themeChoice } = useThemePreference();
-  const auth = useAuth();
+  const { isAuthenticated, logout, logoutAsGuest } = useAuth();
   const itemColor = theme.dark ? "#E6ECF5" : "#000";
   const { url: profilePicUrl } = useProfilePhoto();
 
-  if (!auth) {
-    return <ActivityIndicator />;
-  }
+  useEffect(() => {
+    uiLog.info("[Settings] mounted");
+    return () => {
+      uiLog.info("[Settings] unmounted");
+    };
+  }, []);
 
-  const { isAuthenticated, logout, logoutAsGuest } = auth;
+  useEffect(() => {
+    uiLog.debug("[Settings] useEffect triggered, deps:", {
+      isAuthenticated,
+      isGuest,
+      themeChoice,
+    });
+  }, [isAuthenticated, isGuest, themeChoice]);
 
   const handleLogout = async () => {
-    if (isAuthenticated) {
-      await logout();
-    } else {
-      await logoutAsGuest();
+    uiLog.debug("[Settings] handleLogout called", { isAuthenticated, isGuest });
+    try {
+      if (isAuthenticated) {
+        await logout();
+      } else {
+        await logoutAsGuest();
+      }
+    } catch (error) {
+      uiLog.error("[Settings] Error in handleLogout", { error });
+      throw error;
     }
   };
 

@@ -1,11 +1,20 @@
 import { useChatService } from "@/features/chat";
 import { useDatabase } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
+import { useEffect } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
 
 export default function Debug() {
   const { createPeer, showPeers, deletePeers, deleteDatabase } = useDatabase();
   const chatService = useChatService();
+
+  useEffect(() => {
+    uiLog.info("[Debug] mounted");
+    return () => {
+      uiLog.info("[Debug] unmounted");
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -14,22 +23,41 @@ export default function Debug() {
         <View style={styles.buttonContainer}>
           <Pressable
             style={styles.button}
-            onPress={() =>
+            onPress={() => {
+              uiLog.debug("[Debug] onPress triggered");
               createPeer({
                 username: "Pixel_4a",
                 id: "0e9f1e5a-415b-4dfd-84f1-73916f74fc27",
-              })
-            }
+              });
+            }}
           >
             <Text style={styles.buttonText}>Create Peer</Text>
           </Pressable>
-          <Pressable style={styles.button} onPress={showPeers}>
+          <Pressable
+            style={styles.button}
+            onPress={() => {
+              uiLog.debug("[Debug] onPress triggered");
+              showPeers();
+            }}
+          >
             <Text style={styles.buttonText}>Show Peer</Text>
           </Pressable>
-          <Pressable style={styles.button} onPress={deletePeers}>
+          <Pressable
+            style={styles.button}
+            onPress={() => {
+              uiLog.debug("[Debug] onPress triggered");
+              deletePeers();
+            }}
+          >
             <Text style={styles.buttonText}>Delete Peers</Text>
           </Pressable>
-          <Pressable style={styles.button} onPress={deleteDatabase}>
+          <Pressable
+            style={styles.button}
+            onPress={() => {
+              uiLog.debug("[Debug] onPress triggered");
+              deleteDatabase();
+            }}
+          >
             <Text style={styles.buttonText}>Delete database</Text>
           </Pressable>
         </View>
@@ -39,19 +67,28 @@ export default function Debug() {
         <View style={styles.buttonContainer}>
           <Pressable
             style={styles.button}
-            onPress={async () => await chatService.deleteAllConversations()}
+            onPress={async () => {
+              uiLog.debug("[Debug] onPress triggered");
+              await chatService.deleteAllConversations();
+            }}
           >
             <Text style={styles.buttonText}>Delete conversations</Text>
           </Pressable>
           <Pressable
             style={styles.button}
-            onPress={async () => await chatService.getAllParticipants()}
+            onPress={async () => {
+              uiLog.debug("[Debug] onPress triggered");
+              await chatService.getAllParticipants();
+            }}
           >
             <Text style={styles.buttonText}>Get participants</Text>
           </Pressable>
           <Pressable
             style={styles.button}
-            onPress={async () => await chatService.getAllStatus()}
+            onPress={async () => {
+              uiLog.debug("[Debug] onPress triggered");
+              await chatService.getAllStatus();
+            }}
           >
             <Text style={styles.buttonText}>Get Status</Text>
           </Pressable>

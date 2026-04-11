@@ -1,10 +1,24 @@
 import { useAppMode } from "@/features/shared/context";
+import { uiLog } from "@/features/shared/utils/logger";
+import { useEffect } from "react";
 import { View } from "react-native";
 import { Button, Icon, Text, useTheme } from "react-native-paper";
 
 export default function Server() {
   const theme = useTheme();
   const { mode } = useAppMode();
+
+  useEffect(() => {
+    uiLog.info("[Server] mounted");
+    return () => {
+      uiLog.info("[Server] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[Server] useEffect triggered, deps:", { mode });
+  }, [mode]);
+
   return (
     <View
       style={{

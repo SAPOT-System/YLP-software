@@ -1,14 +1,14 @@
 import { PrimaryButton } from "@/features/auth";
 import {
-  ModeSelect,
-  ScreenContent,
-  ScreenHeader,
+    ModeSelect,
+    ScreenContent,
+    ScreenHeader,
 } from "@/features/getting-started";
 import { FailedDialog, LoadingOverlay, navLog } from "@/features/shared";
 import { useAppMode } from "@/features/shared/context";
 import { useCheckConnection, useLoadingOverlay } from "@/features/shared/hooks";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { AUTH_ROUTES } from "../routes";
 
@@ -30,7 +30,23 @@ const ModeSelectScreen = () => {
   const { loading, loadingMessage, showLoading, hideLoading } =
     useLoadingOverlay();
 
+  useEffect(() => {
+    navLog.info("[ModeSelectScreen] mounted");
+    return () => {
+      navLog.info("[ModeSelectScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    navLog.debug("[ModeSelectScreen] useEffect triggered, deps:", {
+      selectedMode,
+      checkingConnection,
+      loading,
+    });
+  }, [selectedMode, checkingConnection, loading]);
+
   const handleProceed = async () => {
+    navLog.debug("[ModeSelectScreen] handleProceed called", { selectedMode });
     if (!selectedMode) return;
     if (selectedMode === "server") {
       await handleConnectToServer();
@@ -45,20 +61,26 @@ const ModeSelectScreen = () => {
   const handleUseLanMode = () => {
     hideConnectionFailedDialog();
     hideLoading();
-    navLog.info("navigate", { screen: AUTH_ROUTES.LOGIN.LAN_LOGIN });
+    navLog.info("[Navigation] Navigating to LanLogin", {
+      screen: AUTH_ROUTES.LOGIN.LAN_LOGIN,
+    });
     router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
   };
 
   const handleConnectToServer = async () => {
+    navLog.debug("[ModeSelectScreen] handleConnectToServer called");
     hideConnectionFailedDialog();
     showLoading("Connecting to server");
     const result = await checkBackendConnection();
     if (result === true) {
       hideLoading();
-      navLog.info("navigate", { screen: AUTH_ROUTES.LOGIN.SERVER_LOGIN });
+      navLog.info("[Navigation] Navigating to ServerLogin", {
+        screen: AUTH_ROUTES.LOGIN.SERVER_LOGIN,
+      });
       router.push(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
     } else {
       hideLoading();
+      navLog.warn("[ModeSelectScreen] connection check failed");
       showConnectionFailedDialog();
     }
   };
@@ -84,12 +106,18 @@ const ModeSelectScreen = () => {
           <ModeSelect
             mode="server"
             selected={selectedMode === "server"}
-            onPress={() => setSelectedMode("server")}
+            onPress={() => {
+              navLog.debug("[ModeSelectScreen] onPress triggered");
+              setSelectedMode("server");
+            }}
           />
           <ModeSelect
             mode="lan"
             selected={selectedMode === "lan"}
-            onPress={() => setSelectedMode("lan")}
+            onPress={() => {
+              navLog.debug("[ModeSelectScreen] onPress triggered");
+              setSelectedMode("lan");
+            }}
           />
         </View>
         <PrimaryButton

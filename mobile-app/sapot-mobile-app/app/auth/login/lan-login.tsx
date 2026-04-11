@@ -1,28 +1,48 @@
 import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useAppMode } from "@/features/shared/context";
+import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, HelperText } from "react-native-paper";
+import { HelperText } from "react-native-paper";
 
 const LanLoginScreen = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
-  const auth = useAuth();
+  const { loginAsGuest, errors } = useAuth();
   const { setMode } = useAppMode();
 
-  if (!auth) {
-    return <ActivityIndicator />;
-  }
-  const { loginAsGuest, errors } = auth;
+  useEffect(() => {
+    authLog.info("[LanLoginScreen] mounted");
+    return () => {
+      authLog.info("[LanLoginScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    authLog.debug("[LanLoginScreen] useEffect triggered, deps:", {
+      hasFirstName: Boolean(firstName.trim()),
+      hasLastName: Boolean(lastName.trim()),
+    });
+  }, [firstName, lastName]);
 
   const handleLogin = async () => {
+    authLog.debug("[LanLoginScreen] handleLogin called", {
+      hasFirstName: Boolean(firstName.trim()),
+      hasLastName: Boolean(lastName.trim()),
+    });
     const res = await loginAsGuest({ firstName, lastName });
     if (res.success) {
+      authLog.info("[LanLoginScreen] guest login success");
       setMode("lan");
+      authLog.info("[Navigation] Navigating to Home", {
+        screen: "/(drawer)/(tabs)",
+      });
       router.replace("/(drawer)/(tabs)");
+    } else {
+      authLog.warn("[LanLoginScreen] guest login failed");
     }
   };
 

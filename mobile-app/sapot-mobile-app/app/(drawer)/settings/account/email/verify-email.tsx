@@ -1,13 +1,14 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
 import { useUserService } from "@/features/auth";
 import {
-  resendVerificationCodeEmail,
-  verifyCodeEmail,
+    resendVerificationCodeEmail,
+    verifyCodeEmail,
 } from "@/features/auth/api/auth.api";
 import VerificationCodeModal from "@/features/settings/components/verification-code-modal";
 import { updateProfileApi } from "@/features/shared/api/user-profile.api";
+import { uiLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Button, Text, useTheme } from "react-native-paper";
 
@@ -17,7 +18,15 @@ export default function VerifyEmail() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalError, setModalError] = useState<string | undefined>(undefined);
   const userService = useUserService();
+
+  useEffect(() => {
+    uiLog.info("[VerifyEmail] mounted");
+    return () => {
+      uiLog.info("[VerifyEmail] unmounted");
+    };
+  }, []);
   const handleVerify = async () => {
+    uiLog.debug("[VerifyEmail] handleVerify called");
     await resendVerificationCodeEmail();
     setModalError(undefined);
     setIsModalVisible(true);
@@ -37,8 +46,12 @@ export default function VerifyEmail() {
       setIsModalVisible(false);
 
       await userService.updateAuthenticatedUser({ emailVerified: true });
+      uiLog.info("[Navigation] Navigating to ManageProfile", {
+        screen: SETTINGS_ROUTES.MANAGE_PROFILE,
+      });
       router.replace(SETTINGS_ROUTES.MANAGE_PROFILE);
-    } catch {
+    } catch (error) {
+      uiLog.error("[VerifyEmail] Error in verify code", { error });
       setModalError("Invalid or expired code.");
     }
   };
@@ -53,7 +66,8 @@ export default function VerifyEmail() {
 
     try {
       await resendVerificationCodeEmail();
-    } catch {
+    } catch (error) {
+      uiLog.error("[VerifyEmail] Error in resend code", { error });
       setModalError("Failed to resend code. Please try again.");
     }
   };
@@ -112,7 +126,10 @@ export default function VerifyEmail() {
       <VerificationCodeModal
         visible={isModalVisible}
         email={email}
-        onDismiss={() => setIsModalVisible(false)}
+        onDismiss={() => {
+          uiLog.debug("[VerifyEmail] modal dismissed");
+          setIsModalVisible(false);
+        }}
         error={modalError}
         onVerifyCode={handleVerifyCode}
         onResendCode={handleResendCode}

@@ -1,24 +1,33 @@
-import { Redirect, Stack } from "expo-router";
-import { HealthProvider } from "@/features/shared/context";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/features/auth";
-import { APP_ROUTES } from "../routes";
-import { ActivityIndicator } from "react-native-paper";
 import { navLog } from "@/features/shared";
+import { HealthProvider } from "@/features/shared/context";
+import { Redirect, Stack } from "expo-router";
+import { useEffect } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { APP_ROUTES } from "../routes";
 
 export default function Layout() {
-  const auth = useAuth();
+  const { isAuthenticated, isGuest } = useAuth();
 
-  if (!auth) {
-    return <ActivityIndicator />;
-  }
+  useEffect(() => {
+    navLog.info("[GettingStartedLayout] mounted");
+    return () => {
+      navLog.info("[GettingStartedLayout] unmounted");
+    };
+  }, []);
 
-  const { isAuthenticated, isGuest } = auth;
+  useEffect(() => {
+    navLog.debug("[GettingStartedLayout] useEffect triggered, deps:", {
+      isAuthenticated,
+      isGuest,
+    });
+  }, [isAuthenticated, isGuest]);
 
   if (isAuthenticated || isGuest) {
-    navLog.info("navigate", {
+    navLog.info("[Navigation] Navigating to Home", {
       screen: APP_ROUTES.HOME,
       isAuthenticated,
+      isGuest,
     });
     return <Redirect href={APP_ROUTES.HOME} />;
   }

@@ -1,14 +1,15 @@
-import { useCall} from "@/features/call";
+import { useCall } from "@/features/call";
 import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import {
-  ActivityIndicator,
-  Avatar,
-  IconButton,
-  Text,
-  useTheme,
+    ActivityIndicator,
+    Avatar,
+    IconButton,
+    Text,
+    useTheme,
 } from "react-native-paper";
 
 export default function PeerProfile() {
@@ -21,10 +22,19 @@ export default function PeerProfile() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    uiLog.info("[PeerProfile] mounted");
+    return () => {
+      uiLog.info("[PeerProfile] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[PeerProfile] useEffect triggered, deps:", { id });
     let isMounted = true;
 
     const loadPeer = async () => {
       if (!id) {
+        uiLog.warn("[PeerProfile] missing peer id");
         if (isMounted) setIsLoading(false);
         return;
       }
@@ -39,7 +49,8 @@ export default function PeerProfile() {
             "Unknown user"
           : "Unknown user";
         setPeerName(displayName);
-      } catch {
+      } catch (error) {
+        uiLog.error("[PeerProfile] Error in load peer", { error });
         if (isMounted) setPeerName("Unknown user");
       } finally {
         if (isMounted) setIsLoading(false);
@@ -100,12 +111,30 @@ export default function PeerProfile() {
                 icon="phone"
                 size={20}
                 iconColor="#00E700"
-                onPress={() => id && call("audio", id)}
+                onPress={() => {
+                  uiLog.debug("[PeerProfile] onPress triggered");
+                  if (id) {
+                    uiLog.info("[PeerProfile] start call", {
+                      type: "audio",
+                      peerId: id,
+                    });
+                    call("audio", id);
+                  }
+                }}
               />
               <IconButton
                 icon="video"
                 size={20}
-                onPress={() => id && call("video", id)}
+                onPress={() => {
+                  uiLog.debug("[PeerProfile] onPress triggered");
+                  if (id) {
+                    uiLog.info("[PeerProfile] start call", {
+                      type: "video",
+                      peerId: id,
+                    });
+                    call("video", id);
+                  }
+                }}
               />
               <IconButton icon="email" size={20} />
             </View>
