@@ -1,14 +1,20 @@
 from typing import Annotated
 from uuid import UUID
+import json
+import ast
+
+from sqlmodel import except_, select
 from app.db_operations.auth import SessionDep 
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.db_operations.token import verify_token
+from app.models.queued import Queue
 from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
-from app.db_operations.websockets import authenticate_websocket, validate_sender, relay_signal, receive_signal_message
+from app.db_operations.websockets import authenticate_websocket, relay_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message
 from app.db_operations.connection_manager import manager
+from app.models.websocketComms import MessageData
 
 router = APIRouter(
     prefix='/ws',
@@ -100,6 +106,47 @@ html = """
 async def testing_area(target_id: UUID, my_id: UUID, token: str):
     return HTMLResponse(html)
 
+
+def get_queued_messages(user_id: UUID, session: SessionDep):
+    try:
+        statement = select(Queue).where(Queue.to == user_id)
+        results = session.exec(statement).all()
+        print("res", results)
+        return results
+    except Exception as e:
+        print("EX", e)
+        return None
+
+
+
+def deep_parse_dict(data):
+    # 1. If it's a string, try to turn it into a dict or list
+    if isinstance(data, str):
+        data = data.strip()
+        if (data.startswith('{') and data.endswith('}')) or (data.startswith('[') and data.endswith(']')):
+            try:
+                # Try standard JSON first
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                try:
+                    # Fallback for Python-style single quoted strings
+                    data = ast.literal_eval(data)
+                except (ValueError, SyntaxError):
+                    # Not a valid dict/list string, keep as original string
+                    return data
+        else:
+            return data
+
+    # 2. If it's a dict, recurse into values
+    if isinstance(data, dict):
+        return {k: deep_parse_dict(v) for k, v in data.items()}
+
+    # 3. If it's a list, recurse into elements
+    if isinstance(data, list):
+        return [deep_parse_dict(item) for item in data]
+
+    return data
+
 @router.websocket("/")
 async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep, target_id: UUID|None = None):
     """
@@ -112,13 +159,44 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
     """
     user_id = await authenticate_websocket(websocket, token)
     await manager.connect(UUID(user_id), websocket)
-    await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
+    try:
+        await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
+    except:
+        pass
+
+    try:
+        messages = get_queued_messages(UUID(user_id), session)
+        if messages:
+            for message in messages:
+                try:
+                    # print("DUMPED", dumped)
+                    parsed = deep_parse_dict(message.data)
+                    parsed["data"]["from"] = parsed["data"]["from_user"]
+                    # data = MessageData.model_validate(**deep_parse_dict(message.data))
+                    data = MessageData(
+                            type=parsed.get("type"),
+                            data=parsed.get("data")
+                            )
+                    await relay_message(user_id, user_id, data, session)
+
+                    session.delete(message)
+                    session.commit()
+                except Exception as e:
+                    pass
+    except:
+        pass
+
     try:
         while True:
-            payload = await receive_signal_message(websocket)
+            raw_payload = await receive_signal_message(websocket)
 
-            if not payload:
+            if not raw_payload:
                 continue
+
+            try:
+                payload = MessageData.model_validate(raw_payload)
+            except Exception as e:
+                payload = raw_payload
 
             if isinstance(payload, dict) and payload.get("type") == "ping":
                 await manager.send_personal_message(UUID(user_id), {"type": "pong"})
@@ -129,13 +207,17 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                 await manager.send_personal_message(UUID(user_id), manager.get_active_connections())
                 continue
 
+            # relay message data
+            if isinstance(payload, MessageData):
+                print("PAYLOAD", payload)
+                await relay_message(user_id, UUID(payload.data.to), payload, session)
 
-            if isinstance(payload, SignalMessage) and not validate_sender(payload, user_id):
-                continue
-
-            if isinstance(payload, SignalMessage):
+            if isinstance(payload, SignalMessage) and validate_sender(payload, user_id):
                 await relay_signal(user_id, UUID(payload.data.to), payload, session)
 
     except WebSocketDisconnect:
-        await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
+        try:
+            await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
+        except:
+            pass
         manager.disconnect(user_id)

@@ -15,6 +15,8 @@ class ConnectionManager:
 
 
     async def send_personal_message(self, target_id: UUID, message: dict):
+        if not isinstance(target_id, UUID):
+            target_id = UUID(target_id)
         websocket = self.active_connections.get(target_id)
         if websocket:
             await websocket.send_json(message)

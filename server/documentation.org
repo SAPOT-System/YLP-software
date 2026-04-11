@@ -1072,4 +1072,37 @@ Use a router parameter like ~http://localhost:8000/gps/history/e51bb26d-e18a-4e3
 ]
 #+END_SRC
 
+** websocket responses
+*** get online users
+To get the online users, send a ws request to ~/ws/~ containing ~{ type: 'get-active-users' }~
 
+
+The server would response with the list of user IDs that are currently active
+
+
+Everytime a user connected to his/her dedicated websocket, a ~{type: "status-update", "user_id": user_id, "status": "online"}~ json will be broadcasted to everyone
+
+
+Everytime a user disconnects, a ~{"type": "status-update","user_id": user_id, 'status': "offline"}~ will be broadcasted
+
+*** Relay New Message TYPES
+For now let's call it MessageData
+
+
+use a request like:
+#+BEGIN_SRC json
+{
+	type: 'call-ended', // Options: 'audio-call', 'video-call', 'call-ended'
+	data: {
+		from: '550e8400-e29b-41d4-a716-446655440000', // Your sender ID
+		to: '96eaba99-3797-4c2c-9174-92e3a7dfe7bc'    // Target user UUID
+	}
+}
+#+END_SRC
+to the ~/ws/~ websocket endpoint
+
+
+this will be queued in the webserver in case the user receiving was offline 
+
+
+this will also be sent to the user in case the user comes online (connect to the websocket again)
