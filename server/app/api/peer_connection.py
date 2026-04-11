@@ -1,5 +1,6 @@
 from typing import Annotated
 from uuid import UUID
+from app.db_operations.auth import SessionDep 
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -100,7 +101,7 @@ async def testing_area(target_id: UUID, my_id: UUID, token: str):
     return HTMLResponse(html)
 
 @router.websocket("/")
-async def sdp_relay(token: str, websocket: WebSocket, target_id: UUID|None = None ):
+async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep, target_id: UUID|None = None):
     """
     will relay the sdp between different users
     can handle
@@ -111,6 +112,7 @@ async def sdp_relay(token: str, websocket: WebSocket, target_id: UUID|None = Non
     """
     user_id = await authenticate_websocket(websocket, token)
     await manager.connect(UUID(user_id), websocket)
+    await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
     try:
         while True:
             payload = await receive_signal_message(websocket)
@@ -118,17 +120,22 @@ async def sdp_relay(token: str, websocket: WebSocket, target_id: UUID|None = Non
             if not payload:
                 continue
 
-            print("PAYLOAD",user_id, payload)
             if isinstance(payload, dict) and payload.get("type") == "ping":
                 await manager.send_personal_message(UUID(user_id), {"type": "pong"})
                 continue
 
+            # get online users
+            if isinstance(payload, dict) and payload.get("type") == "get-active-users":
+                await manager.send_personal_message(UUID(user_id), manager.get_active_connections())
+                continue
+
+
             if isinstance(payload, SignalMessage) and not validate_sender(payload, user_id):
-                print("HERE1")
                 continue
 
             if isinstance(payload, SignalMessage):
-                await relay_signal(user_id, UUID(payload.data.to), payload)
+                await relay_signal(user_id, UUID(payload.data.to), payload, session)
 
     except WebSocketDisconnect:
+        await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
         manager.disconnect(user_id)

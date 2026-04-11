@@ -3,6 +3,8 @@ from uuid import UUID
 from fastapi import WebSocket
 from pydantic import ValidationError
 
+from app.db_operations.auth import SessionDep
+from app.models.message import Message
 from app.models.signalling import SignalMessage
 from app.db_operations.token import verify_token
 from app.db_operations.connection_manager import manager
@@ -18,10 +20,12 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
 
 def validate_sender(payload: SignalMessage, user_id: UUID) -> bool:
     data = payload.data.model_dump()
-    print("VALIDATE", str(UUID(data.get('sender'))) , str(user_id))
-    return str(UUID(data.get('sender'))) == str(user_id)
+    id = data.get('sender'), UUID
+    if not isinstance(id, UUID):
+        id = UUID(data.get('sender'))
+    return str(id) == str(user_id)
 
-async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage):
+async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage, session: SessionDep):
     message = {
         "type": payload.type,
         "data": payload.data.model_dump(exclude_none=True)

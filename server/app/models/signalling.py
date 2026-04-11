@@ -20,6 +20,3 @@ class SignalMessage(BaseModel):
     data: SDPData
 
 
-class OnlineUsers(BaseModel):
-    users: List[UserPublic]
-

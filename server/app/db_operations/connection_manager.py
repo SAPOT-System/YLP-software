@@ -19,9 +19,12 @@ class ConnectionManager:
         if websocket:
             await websocket.send_json(message)
 
-    async def broadcast(self, message: str):
+    async def broadcast(self, message: dict):
         for _, connection in self.active_connections.items():
             await connection.send_json(message)
+
+    def get_active_connections(self):
+        return [str(x) for x in self.active_connections.keys()]
 
 
 manager = ConnectionManager()
