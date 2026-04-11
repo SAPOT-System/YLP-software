@@ -12,6 +12,10 @@ export const useVerifyRecoveryKey = (identifier: string) => {
   }>({});
 
   const verifyRecoveryKey = async (file: ExpoFileUpload) => {
+    authLog.debug("[useVerifyRecoveryKey] verifyRecoveryKey called", {
+      hasIdentifier: Boolean(identifier),
+      hasFile: Boolean(file),
+    });
     setLoading(true);
 
     try {
@@ -26,6 +30,9 @@ export const useVerifyRecoveryKey = (identifier: string) => {
         expiration: res.data.expire_in_seconds,
       };
     } catch (err) {
+      authLog.error("[useVerifyRecoveryKey] Error in verifyRecoveryKey", {
+        error: err,
+      });
       const axiosError = err as AxiosError<{ detail: string }>;
 
       // Network error

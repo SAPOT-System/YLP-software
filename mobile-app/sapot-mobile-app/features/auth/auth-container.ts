@@ -9,6 +9,8 @@ import {
 } from "../shared";
 import { authLog } from "../shared/utils/logger";
 
+authLog.debug("[auth-container] module loaded");
+
 export class AuthContainer {
   readonly userService: UserService;
   readonly peerService: PeerService;
@@ -19,6 +21,7 @@ export class AuthContainer {
   private initPromise?: Promise<void>;
 
   constructor() {
+    authLog.debug("[AuthContainer] constructor");
     this.sessionStore = new SessionStore();
     this.peerRepository = new PeerRepository(database);
     this.peerService = new PeerService(this.peerRepository);

@@ -1,4 +1,5 @@
 import { AUTH_ROUTES } from "@/app/routes";
+import { authLog } from "@/features/shared/utils/logger";
 import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { Checkbox, HelperText, Text, useTheme } from "react-native-paper";
@@ -42,7 +43,9 @@ export const RegisterStep2 = ({
           label="Security Question"
           options={SECURITY_QUESTIONS}
           value={values.securityQuestion}
-          onSelect={(value) => onChange("securityQuestion", value!)}
+          onSelect={(value) => {
+            onChange("securityQuestion", value!);
+          }}
           placeholder="Select question"
           error={!!errors.securityQuestion}
         />
@@ -57,7 +60,9 @@ export const RegisterStep2 = ({
           label="Answer"
           placeholder="Answer"
           value={values.questionAnswer}
-          onChangeText={(value) => onChange("questionAnswer", value)}
+          onChangeText={(value) => {
+            onChange("questionAnswer", value);
+          }}
           style={styles.textInput}
           required={true}
           error={!!errors.questionAnswer}
@@ -73,7 +78,9 @@ export const RegisterStep2 = ({
           label="Password"
           placeholder="Password"
           value={values.password}
-          onChangeText={(value) => onChange("password", value)}
+          onChangeText={(value) => {
+            onChange("password", value);
+          }}
           secureTextEntry
           style={styles.textInput}
           required={true}
@@ -91,7 +98,9 @@ export const RegisterStep2 = ({
           label="Confirm Password"
           placeholder="Confirm Password"
           value={values.confirmPassword}
-          onChangeText={(value) => onChange("confirmPassword", value)}
+          onChangeText={(value) => {
+            onChange("confirmPassword", value);
+          }}
           secureTextEntry
           style={styles.textInput}
           required={true}
@@ -133,7 +142,9 @@ export const RegisterStep2 = ({
       <View style={{ alignItems: "center" }}>
         {/* Submit Button */}
         <PrimaryButton
-          onPress={() => onSubmit(values)}
+          onPress={() => {
+            onSubmit(values);
+          }}
           style={{ marginBottom: 8 }}
           loading={loading}
           disabled={loading}
@@ -141,7 +152,9 @@ export const RegisterStep2 = ({
           Create Account
         </PrimaryButton>
         <SecondaryButton
-          onPress={() => onBack?.()}
+          onPress={() => {
+            onBack?.();
+          }}
           style={{ marginBottom: 8 }}
           disabled={loading}
         >

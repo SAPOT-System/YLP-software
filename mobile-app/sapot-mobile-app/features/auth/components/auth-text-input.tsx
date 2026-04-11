@@ -1,3 +1,4 @@
+import { authLog } from "@/features/shared/utils/logger";
 import React from "react";
 import { Text, TextInput, TextInputProps, useTheme } from "react-native-paper";
 
@@ -35,7 +36,9 @@ const AuthTextInput = ({
         outlineStyle={{ borderRadius: 10 }}
         // label={label}
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={(text) => {
+          onChangeText(text);
+        }}
         error={error}
         outlineColor={theme.colors.outlineVariant}
         {...props}

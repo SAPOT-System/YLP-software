@@ -1,5 +1,6 @@
-import { View, Text } from "react-native";
+import { authLog } from "@/features/shared/utils/logger";
 import React from "react";
+import { Text, View } from "react-native";
 import { Button, Icon, useTheme } from "react-native-paper";
 
 interface FileUploadResultCardProps {
@@ -40,7 +41,15 @@ export const FileUploadResultCard = ({
         }}
       >
         <Text style={{ color: theme.colors.onSecondary }}>{fileName}</Text>
-        <Button mode="text" onPress={onDelete}>
+        <Button
+          mode="text"
+          onPress={() => {
+            authLog.debug("[FileUploadResultCard] onPress triggered", {
+              fileName,
+            });
+            onDelete();
+          }}
+        >
           <Icon source="trash-can" size={20} color={theme.colors.onSecondary} />
         </Button>
       </View>

@@ -14,6 +14,11 @@ export const useVerifyAnswer = (identifier: string) => {
     question: string;
     answer: string;
   }) => {
+    authLog.debug("[useVerifyAnswer] verifyAnswer called", {
+      hasIdentifier: Boolean(identifier),
+      hasQuestion: Boolean(question),
+      hasAnswer: Boolean(answer),
+    });
     setLoading(true);
 
     try {
@@ -32,6 +37,7 @@ export const useVerifyAnswer = (identifier: string) => {
         return { success: false };
       }
     } catch (err) {
+      authLog.error("[useVerifyAnswer] Error in verifyAnswer", { error: err });
       const axiosError = err as AxiosError<{ detail: string }>;
 
       // Network error
