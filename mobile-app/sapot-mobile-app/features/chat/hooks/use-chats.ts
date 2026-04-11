@@ -11,7 +11,7 @@ const useChats = () => {
       setChats(await chatService.getAllConversations());
     };
     init();
-  }, []);
+  }, [chatService]);
   return { chats };
 };
 
