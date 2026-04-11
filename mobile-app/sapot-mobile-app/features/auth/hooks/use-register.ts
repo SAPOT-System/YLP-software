@@ -1,19 +1,20 @@
+import { authLog } from "@/features/shared/utils/logger";
 import { AxiosError } from "axios";
+import { setItemAsync } from "expo-secure-store";
 import { useState } from "react";
 import {
-  addSecurityQuestionApi,
-  existsApi,
-  generateNewRecoveryKeyApi,
-  register,
+    addSecurityQuestionApi,
+    existsApi,
+    generateNewRecoveryKeyApi,
+    register,
 } from "../api/auth.api";
 import {
-  RegisterApiErrorResponse,
-  RegisterApiResponse,
-  RegisterFormState,
-  RegisterFormStateErrors,
+    RegisterApiErrorResponse,
+    RegisterApiResponse,
+    RegisterFormState,
+    RegisterFormStateErrors,
 } from "../types";
 import { hasValidationErrors, validateRegistrationForm } from "../utils";
-import { setItemAsync } from "expo-secure-store";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
@@ -26,12 +27,21 @@ export const useRegister = () => {
     recoveryKeyFileLink?: string;
     info?: RegisterApiResponse;
   }> => {
+    authLog.debug("[useRegister] registerUser called", {
+      hasUsername: Boolean(form.username?.trim()),
+      hasFirstName: Boolean(form.firstName?.trim()),
+      hasLastName: Boolean(form.lastName?.trim()),
+      hasEmail: Boolean(form.email?.trim()),
+      hasPhoneNumber: Boolean(form.phoneNumber?.trim()),
+      password: "[REDACTED]",
+    });
     setLoading(true);
     setErrors({});
 
     const errors = validateRegistrationForm(form);
 
     if (hasValidationErrors(errors)) {
+      authLog.warn("[useRegister] validation failed");
       setErrors(errors);
       setLoading(false);
       return { success: false };
@@ -83,6 +93,7 @@ export const useRegister = () => {
         info: data,
       };
     } catch (err) {
+      authLog.error("[useRegister] Error in registerUser", { error: err });
       const axiosError = err as AxiosError<RegisterApiErrorResponse>;
 
       // Network error
@@ -98,6 +109,7 @@ export const useRegister = () => {
 
       // 422 Unprocessable Entity - validation errors
       if (status === 422 && Array.isArray(data.detail)) {
+        authLog.warn("[useRegister] validation error response", { status });
         const fieldErrors = {};
         data.detail.forEach((detail) => {
           const fieldName = String(detail.loc[1]); // Convert to string explicitly
@@ -111,6 +123,7 @@ export const useRegister = () => {
       }
 
       if (status === 400 && !Array.isArray(data.detail)) {
+        authLog.warn("[useRegister] bad request response", { status });
         const serverErrors = data.detail;
 
         setErrors(mapServerErrors(serverErrors));
@@ -120,6 +133,7 @@ export const useRegister = () => {
 
       // 500 Server error
       if (status === 500) {
+        authLog.error("[useRegister] server error response", { status });
         setErrors({ general: "Server error. Please try again later." });
 
         return { success: false };
@@ -139,17 +153,36 @@ export const useRegister = () => {
 
   const checkIfIdentifierExists = async (identifier: string) => {
     try {
+      authLog.debug("[useRegister] checkIfIdentifierExists called", {
+        identifierLength: identifier.length,
+      });
       const { exists } = await existsApi(identifier);
       return exists;
-    } catch {
+    } catch (error) {
+      authLog.error("[useRegister] Error in checkIfIdentifierExists", {
+        error,
+      });
       return false;
     }
   };
 
   const validateRegisterStep = (form: Partial<RegisterFormState>) => {
+    authLog.debug("[useRegister] validateRegisterStep called", {
+      hasUsername: Boolean(form.username?.trim()),
+      hasFirstName: Boolean(form.firstName?.trim()),
+      hasLastName: Boolean(form.lastName?.trim()),
+      hasEmail: Boolean(form.email?.trim()),
+      hasPhoneNumber: Boolean(form.phoneNumber?.trim()),
+      hasPassword: Boolean(form.password),
+      hasConfirmPassword: Boolean(form.confirmPassword),
+      hasSecurityQuestion: Boolean(form.securityQuestion),
+      hasQuestionAnswer: Boolean(form.questionAnswer),
+      termsChecked: Boolean(form.termsChecked),
+    });
     setLoading(true);
     const errors = validateRegistrationForm(form);
     if (hasValidationErrors(errors)) {
+      authLog.warn("[useRegister] validateRegisterStep failed");
       setErrors(errors);
       setLoading(false);
       return { success: false };

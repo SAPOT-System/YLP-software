@@ -1,5 +1,7 @@
 import { Model } from "@nozbe/watermelondb";
 import { field } from "@nozbe/watermelondb/decorators";
+import { modelLog } from "../../utils/logger";
+modelLog.debug("[model] Peer loaded");
 
 export class Peer extends Model {
   static table = "peers";

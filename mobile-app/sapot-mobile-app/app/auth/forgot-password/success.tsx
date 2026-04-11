@@ -1,11 +1,21 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import { PrimaryButton } from "@/features/auth";
+import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
+import { useEffect } from "react";
 import { View } from "react-native";
 import { Icon, Text, useTheme } from "react-native-paper";
 
 const SuccessScreen = () => {
   const theme = useTheme();
+
+  useEffect(() => {
+    authLog.info("[SuccessScreen] mounted");
+    return () => {
+      authLog.info("[SuccessScreen] unmounted");
+    };
+  }, []);
+
   return (
     <View
       style={{
@@ -35,7 +45,12 @@ const SuccessScreen = () => {
         </Text>
         <PrimaryButton
           style={{ width: "100%" }}
-          onPress={() => router.replace(AUTH_ROUTES.LOGIN.SERVER_LOGIN)}
+          onPress={() => {
+            authLog.info("[Navigation] Navigating to ServerLogin", {
+              screen: AUTH_ROUTES.LOGIN.SERVER_LOGIN,
+            });
+            router.replace(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
+          }}
         >
           Login
         </PrimaryButton>

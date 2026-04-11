@@ -1,8 +1,10 @@
 import {
-  addColumns,
-  createTable,
-  schemaMigrations,
+    addColumns,
+    createTable,
+    schemaMigrations,
 } from "@nozbe/watermelondb/Schema/migrations";
+import { migrationLog } from "../utils/logger";
+migrationLog.debug("[database-migrations] module loaded");
 
 export default schemaMigrations({
   migrations: [

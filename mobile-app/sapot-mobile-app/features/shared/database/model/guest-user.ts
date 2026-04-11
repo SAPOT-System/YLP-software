@@ -1,5 +1,7 @@
 import { Model } from "@nozbe/watermelondb";
 import { field } from "@nozbe/watermelondb/decorators";
+import { modelLog } from "../../utils/logger";
+modelLog.debug("[model] GuestUser loaded");
 
 export class GuestUser extends Model {
   static table = "guest_user";

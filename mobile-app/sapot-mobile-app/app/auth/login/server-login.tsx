@@ -2,11 +2,11 @@ import { AUTH_ROUTES } from "@/app/routes";
 import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useAppMode } from "@/features/shared/context";
+import { authLog } from "@/features/shared/utils/logger";
 import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import {
-  ActivityIndicator,
   Button,
   HelperText,
   Snackbar,
@@ -21,14 +21,15 @@ const ServerLoginScreen = () => {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
-  const auth = useAuth();
+  const { login, loading, errors } = useAuth();
   const { mode, setMode } = useAppMode();
 
-  if (!auth) {
-    return <ActivityIndicator />;
-  }
-
-  const { login, loading, errors } = auth;
+  useEffect(() => {
+    authLog.info("[ServerLoginScreen] mounted");
+    return () => {
+      authLog.info("[ServerLoginScreen] unmounted");
+    };
+  }, []);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -37,24 +38,44 @@ const ServerLoginScreen = () => {
 
   // Handle general errors
   useEffect(() => {
+    authLog.debug("[ServerLoginScreen] useEffect triggered, deps:", {
+      hasUsername: Boolean(username.trim()),
+      hasPassword: Boolean(password),
+      mode,
+    });
+  }, [username, password, mode]);
+
+  // Handle general errors
+  useEffect(() => {
     if (errors.general) {
+      authLog.warn("[ServerLoginScreen] general error", {
+        message: errors.general,
+      });
       showToast(errors.general);
     }
   }, [errors.general]);
 
   const handleLogin = async () => {
+    authLog.debug("[ServerLoginScreen] handleLogin called", {
+      hasUsername: Boolean(username.trim()),
+      password: "[REDACTED]",
+    });
     const result = await login({ username, password });
 
     if (result.success) {
-      console.log("login successful");
+      authLog.info("auth › login success");
       showToast("Login successful!");
       if (mode !== "auto") {
         setMode("server");
       }
       setTimeout(() => {
+        authLog.info("[Navigation] Navigating to Home", {
+          screen: "/(drawer)/(tabs)",
+        });
         router.replace("/(drawer)/(tabs)");
       }, 1000);
     } else {
+      authLog.warn("auth › login failed");
       showToast("Login failed");
     }
   };
@@ -132,7 +153,11 @@ const ServerLoginScreen = () => {
           mode="text"
           style={{ width: 280 }}
           onPress={() => {
+            authLog.debug("[ServerLoginScreen] onPress triggered");
             setMode("lan");
+            authLog.info("[Navigation] Navigating to LanLogin", {
+              screen: AUTH_ROUTES.LOGIN.LAN_LOGIN,
+            });
             router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
           }}
         >

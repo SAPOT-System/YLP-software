@@ -1,13 +1,14 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import {
-  AuthTextInput,
-  canResetPasswordApi,
-  PrimaryButton,
-  SecondaryButton,
-  useGetQuestion,
-  useVerifyAnswer,
+    AuthTextInput,
+    canResetPasswordApi,
+    PrimaryButton,
+    SecondaryButton,
+    useGetQuestion,
+    useVerifyAnswer,
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
@@ -30,6 +31,13 @@ const QuestionResetScreen = () => {
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
   useEffect(() => {
+    authLog.info("[QuestionResetScreen] mounted");
+    return () => {
+      authLog.info("[QuestionResetScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
     const checkStoredToken = async () => {
       try {
         const storedToken = await getItemAsync("reset_password_token");
@@ -48,6 +56,9 @@ const QuestionResetScreen = () => {
         const isValid = await canResetPasswordApi(storedToken);
 
         if (isValid) {
+          authLog.info("[Navigation] Navigating to ResetPassword", {
+            screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+          });
           router.replace({
             pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
             params: { token: storedToken, identifier: storedIdentifier },
@@ -56,7 +67,10 @@ const QuestionResetScreen = () => {
           await deleteItemAsync("reset_password_token");
           await deleteItemAsync("reset_password_identifier");
         }
-      } catch {
+      } catch (error) {
+        authLog.error("[QuestionResetScreen] Error in check stored token", {
+          error,
+        });
         await deleteItemAsync("reset_password_token");
         await deleteItemAsync("reset_password_identifier");
       } finally {
@@ -75,11 +89,17 @@ const QuestionResetScreen = () => {
     return <ActivityIndicator />;
   }
   const handleVerify = async () => {
+    authLog.debug("[QuestionResetScreen] handleVerify called", {
+      hasAnswer: Boolean(answer.trim()),
+    });
     const res = await verifyAnswer({ question, answer });
 
     if (res.success && res.resetLink) {
       const token = res.resetLink.split("token=")[1];
 
+      authLog.info("[Navigation] Navigating to ResetPassword", {
+        screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+      });
       router.push({
         pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
         params: { token, identifier },
@@ -119,7 +139,10 @@ const QuestionResetScreen = () => {
         </PrimaryButton>
         <SecondaryButton
           style={{ marginTop: 16 }}
-          onPress={() => router.back()}
+          onPress={() => {
+            authLog.info("[Navigation] goBack triggered from QuestionReset");
+            router.back();
+          }}
           disabled={verifyAnswerLoading}
         >
           Back

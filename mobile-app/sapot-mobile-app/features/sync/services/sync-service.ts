@@ -3,11 +3,14 @@ import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 
 import { PeerService } from "@/features/shared/services/peer-service";
+import { syncLog } from "@/features/shared/utils/logger";
 import {
   pushLocalDataApi,
   sync as syncApi,
   type PushLocalDataRequestBody,
 } from "../api/sync.api";
+
+syncLog.debug("[sync-service] module loaded");
 
 export type SyncEntity =
   | "conversations"
@@ -185,6 +188,12 @@ export class SyncService {
     this.lastSyncKey = lastSyncKey;
     this.peerService = peerService;
     this.syncLogger = new SyncLogger(20);
+    syncLog.info("sync › service constructed", {
+      hasDb: Boolean(db),
+      hasPeerService: Boolean(peerService),
+      queueKey,
+      lastSyncKey,
+    });
   }
 
   get syncLogs() {
@@ -196,10 +205,12 @@ export class SyncService {
   }
 
   async initialize() {
+    syncLog.info("sync › initialize");
     await this.syncNow();
   }
 
   async handleConnectivityChange(isOnline: boolean) {
+    syncLog.info("sync › connectivity", { isOnline });
     if (isOnline) {
       await this.syncNow();
     }
@@ -210,6 +221,11 @@ export class SyncService {
     operation: SyncOperationType,
     payload: EntityLocalPayloadMap[SyncEntity]
   ) {
+    syncLog.debug("sync › enqueue", {
+      entity,
+      operation,
+      hasId: Boolean(payload?.id),
+    });
     const queue = await this.loadQueue();
     const opId = `${entity}-${payload.id ?? "no-id"}-${Date.now()}`;
     const mergedPayload = this.applyDeleteFlag(entity, operation, payload);
@@ -226,6 +242,12 @@ export class SyncService {
     queue.push(item);
     await this.saveQueue(queue);
 
+    syncLog.debug("sync › enqueue complete", {
+      entity,
+      operation,
+      queueLength: queue.length,
+    });
+
     return item;
   }
 
@@ -234,12 +256,13 @@ export class SyncService {
     this.isSyncing = true;
 
     try {
+      syncLog.info("sync › start");
       const log = this.syncLogger.newLog();
       await synchronize({
         database: this.db,
         log,
         pullChanges: async ({ lastPulledAt, schemaVersion }) => {
-          console.log("PULL START", lastPulledAt, schemaVersion);
+          syncLog.info("sync › pull start", { lastPulledAt, schemaVersion });
 
           const { changes, timestamp } = await this.pullFromServer(
             schemaVersion,
@@ -249,19 +272,45 @@ export class SyncService {
           // await this.ensureConversationParticipantUsers(normalizedChanges);
           await this.setLastSync(timestamp);
 
-          console.log(
-            "PULL CHANGES",
-            JSON.stringify(normalizedChanges, null, 2)
-          );
+          const pullCounts = {
+            conversations:
+              normalizedChanges.conversations.created.length +
+              normalizedChanges.conversations.updated.length +
+              normalizedChanges.conversations.deleted.length,
+            conversationParticipants:
+              normalizedChanges.conversation_participants.created.length +
+              normalizedChanges.conversation_participants.updated.length +
+              normalizedChanges.conversation_participants.deleted.length,
+            messages:
+              normalizedChanges.messages.created.length +
+              normalizedChanges.messages.updated.length +
+              normalizedChanges.messages.deleted.length,
+            calls:
+              normalizedChanges.calls.created.length +
+              normalizedChanges.calls.updated.length +
+              normalizedChanges.calls.deleted.length,
+            callParticipants:
+              normalizedChanges.call_participants.created.length +
+              normalizedChanges.call_participants.updated.length +
+              normalizedChanges.call_participants.deleted.length,
+            messageReceipts:
+              normalizedChanges.message_receipts.created.length +
+              normalizedChanges.message_receipts.updated.length +
+              normalizedChanges.message_receipts.deleted.length,
+          };
+          syncLog.debug("sync › pull changes", { counts: pullCounts });
 
           return { changes: normalizedChanges, timestamp };
         },
         pushChanges: async ({ changes }) => {
-          console.log("PUSH CHANGES", JSON.stringify(changes, null, 2));
-
+          syncLog.debug("sync › push changes");
           await this.pushToServer(changes as SyncChanges);
         },
       });
+      syncLog.info("sync › complete");
+    } catch (error) {
+      syncLog.error("sync › failed", { error });
+      throw error;
     } finally {
       this.isSyncing = false;
     }
@@ -285,7 +334,10 @@ export class SyncService {
     const lastPulledAt = await this.getLastSync();
 
     const payload = this.buildPushPayload(changes, ready, lastPulledAt);
-    console.log("TO SERVER PAYLOAD", JSON.stringify(payload, null, 2));
+    syncLog.debug("sync › push payload", {
+      hasChanges: this.hasPayload(payload.changes),
+      queued: ready.length,
+    });
     if (!this.hasPayload(payload.changes)) return;
 
     try {

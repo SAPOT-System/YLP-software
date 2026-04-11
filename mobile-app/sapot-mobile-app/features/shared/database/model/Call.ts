@@ -1,9 +1,11 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
 
+import { modelLog } from "../../utils/logger";
 import { Conversation } from "./Conversation";
 import { GuestUser } from "./guest-user";
 import { Peer } from "./Peer";
+modelLog.debug("[model] Call loaded");
 
 export enum CallType {
   AUDIO = "audio",

@@ -1,12 +1,13 @@
-import { View, FlatList, Pressable } from "react-native";
-import { Text } from "react-native-paper";
-import React from "react";
+import { ChatRoomSource } from "@/features/chat/types";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
+import React from "react";
+import { FlatList, Pressable, View } from "react-native";
+import { Avatar, Text, useTheme } from "react-native-paper";
 import { database, Peer } from "../database";
-import { ChatRoomSource } from "@/features/chat/types";
-import { Avatar, useTheme } from "react-native-paper";
 import { useProfilePhoto } from "../hooks";
+import { uiLog } from "../utils/logger";
+uiLog.debug("[peer-list] module loaded");
 
 const enhancePeers = withObservables([], () => ({
   peers: database.get<Peer>("peers").query().observe(),
@@ -47,14 +48,16 @@ const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
   const theme = useTheme();
 
   const { url: profilePicUrl } = useProfilePhoto(peer.id);
+  const handlePress = () => {
+    uiLog.info("peer-list › open chat", { peerId: peer.id });
+    router.push({
+      pathname: "/(drawer)/(tabs)/chat/[id]",
+      params: { id: peer.id, source: ChatRoomSource.PEER },
+    });
+  };
   return (
     <Pressable
-      onPress={() =>
-        router.push({
-          pathname: "/(drawer)/(tabs)/chat/[id]",
-          params: { id: peer.id, source: ChatRoomSource.PEER },
-        })
-      }
+      onPress={handlePress}
       style={{ display: "flex", alignItems: "center" }}
     >
       {profilePicUrl ? (

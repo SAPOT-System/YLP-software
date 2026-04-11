@@ -1,4 +1,6 @@
 import { EventEmitter } from "events";
+import { utilLog } from "./logger";
+utilLog.debug("[typed-event-emitter] module loaded");
 
 /**
  * A typed wrapper around Node's EventEmitter.

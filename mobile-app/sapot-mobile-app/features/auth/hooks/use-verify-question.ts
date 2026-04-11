@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { verifySecurityQuestionApi } from "../api";
 import { AxiosError } from "axios";
+import { useState } from "react";
+import { authLog } from "../../shared/utils/logger";
+import { verifySecurityQuestionApi } from "../api";
 
 export const useVerifyAnswer = (identifier: string) => {
   const [loading, setLoading] = useState(false);
@@ -13,6 +14,11 @@ export const useVerifyAnswer = (identifier: string) => {
     question: string;
     answer: string;
   }) => {
+    authLog.debug("[useVerifyAnswer] verifyAnswer called", {
+      hasIdentifier: Boolean(identifier),
+      hasQuestion: Boolean(question),
+      hasAnswer: Boolean(answer),
+    });
     setLoading(true);
 
     try {
@@ -20,8 +26,9 @@ export const useVerifyAnswer = (identifier: string) => {
         question,
         answer,
       });
-
-      console.log(res.data);
+      authLog.debug("auth › security question verified", {
+        correct: res.data.correct,
+      });
 
       if (res.data.correct) {
         return { success: res.data.correct, resetLink: res.data.reset_link };
@@ -30,6 +37,7 @@ export const useVerifyAnswer = (identifier: string) => {
         return { success: false };
       }
     } catch (err) {
+      authLog.error("[useVerifyAnswer] Error in verifyAnswer", { error: err });
       const axiosError = err as AxiosError<{ detail: string }>;
 
       // Network error

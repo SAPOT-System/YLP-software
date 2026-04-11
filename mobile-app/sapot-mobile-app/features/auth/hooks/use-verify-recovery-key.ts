@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { ExpoFileUpload, verifyRecoveryKeyApi } from "../api";
 import { AxiosError } from "axios";
+import { useState } from "react";
+import { authLog } from "../../shared/utils/logger";
+import { ExpoFileUpload, verifyRecoveryKeyApi } from "../api";
 
 export const useVerifyRecoveryKey = (identifier: string) => {
   const [loading, setLoading] = useState(false);
@@ -11,12 +12,17 @@ export const useVerifyRecoveryKey = (identifier: string) => {
   }>({});
 
   const verifyRecoveryKey = async (file: ExpoFileUpload) => {
+    authLog.debug("[useVerifyRecoveryKey] verifyRecoveryKey called", {
+      hasIdentifier: Boolean(identifier),
+      hasFile: Boolean(file),
+    });
     setLoading(true);
 
     try {
       const res = await verifyRecoveryKeyApi(file, identifier);
-
-      console.log(res.data);
+      authLog.debug("auth › recovery key verified", {
+        expiresInSeconds: res.data.expire_in_seconds,
+      });
 
       return {
         success: true,
@@ -24,6 +30,9 @@ export const useVerifyRecoveryKey = (identifier: string) => {
         expiration: res.data.expire_in_seconds,
       };
     } catch (err) {
+      authLog.error("[useVerifyRecoveryKey] Error in verifyRecoveryKey", {
+        error: err,
+      });
       const axiosError = err as AxiosError<{ detail: string }>;
 
       // Network error
@@ -36,7 +45,7 @@ export const useVerifyRecoveryKey = (identifier: string) => {
 
       const status = axiosError.response.status;
       const data = axiosError.response.data;
-      console.log(JSON.stringify(data, null, 2), status);
+      authLog.warn("auth › recovery key verification failed", { status });
 
       // 400 Bad request
       if (status === 400) {

@@ -1,5 +1,7 @@
 import { Model } from "@nozbe/watermelondb";
 import { date, field } from "@nozbe/watermelondb/decorators";
+import { modelLog } from "../../utils/logger";
+modelLog.debug("[model] Conversation loaded");
 
 export enum ConversationType {
   DIRECT = "direct",

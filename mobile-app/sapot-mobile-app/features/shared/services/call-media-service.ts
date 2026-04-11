@@ -1,12 +1,17 @@
 import { MediaStream } from "react-native-webrtc";
 import { WebrtcAdapter } from "../adapters";
+import { callLog } from "../utils/logger";
+
+callLog.debug("[call-media-service] module loaded");
 
 export class CallMediaService {
-  private readonly logPrefix = "[CallMediaService]";
-
   constructor(
     private readonly getWebrtcAdapter: (peerId: string) => WebrtcAdapter
-  ) {}
+  ) {
+    callLog.info("call › media service constructed", {
+      hasWebrtcAdapter: Boolean(getWebrtcAdapter),
+    });
+  }
 
   async initializeStream(stream: "audio" | "video", peerId: string): Promise<void> {
     try {
@@ -14,9 +19,7 @@ export class CallMediaService {
       if (!webrtcAdapter.isConnected) throw new Error("Not connected");
       await webrtcAdapter.initializeLocalStream(true, stream === "video");
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error initializing stream\n${JSON.stringify({ peerId }, null, 2)}\n${error}`
-      );
+      callLog.error("call › stream init failed", { peerId, error });
       throw error;
     }
   }
@@ -27,9 +30,7 @@ export class CallMediaService {
       if (!webrtcAdapter.isConnected) return;
       webrtcAdapter.terminateCall();
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error terminating call connection\n${JSON.stringify({ peerId }, null, 2)}\n${error}`
-      );
+      callLog.error("call › terminate failed", { peerId, error });
       throw error;
     }
   }
@@ -40,9 +41,7 @@ export class CallMediaService {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       webrtcAdapter.toggleMic();
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error toggling mic\n${JSON.stringify({ peerId }, null, 2)}\n${error}`
-      );
+      callLog.error("call › mic toggle failed", { peerId, error });
       throw error;
     }
   }
@@ -53,9 +52,7 @@ export class CallMediaService {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       webrtcAdapter.toggleCamera();
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error toggling camera\n${JSON.stringify({ peerId }, null, 2)}\n${error}`
-      );
+      callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
     }
   }
@@ -66,9 +63,7 @@ export class CallMediaService {
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       return webrtcAdapter.getLocalStream();
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error getting local stream\n${JSON.stringify({ peerId }, null, 2)}\n${error}`
-      );
+      callLog.error("call › get local stream failed", { peerId, error });
       throw error;
     }
   }

@@ -1,5 +1,7 @@
 import { ConnectionService, UserStore } from "@/features/shared";
+import { callLog } from "@/features/shared/utils/logger";
 import { EventEmitter } from "events";
+callLog.debug("[call-service] module loaded");
 // TODO: probably store the peerId state
 /**
  * CallService manages call connections, including starting/terminating calls, handling streams,
@@ -17,6 +19,10 @@ export class CallService extends EventEmitter {
     private userStore: UserStore
   ) {
     super();
+    callLog.info("call › service constructed", {
+      hasConnectionService: Boolean(connectionService),
+      hasUserStore: Boolean(userStore),
+    });
   }
 
   /**
@@ -28,6 +34,7 @@ export class CallService extends EventEmitter {
   async startCall(type: "video" | "audio", peerId: string) {
     try {
       if (this.connectedState === "connected") return;
+      callLog.info("call › start", { peerId, type });
       this.listenToRemoteStream();
       // Initialize local audio and video
       await this.connectionService.initializeStream(type, peerId);
@@ -36,9 +43,7 @@ export class CallService extends EventEmitter {
       await this.connectionService.renegotiate(peerId);
       this.connectedState = "connected";
     } catch (error) {
-      console.error(
-        `[CallService]: Error starting call for peer ID of ${peerId}: ${error}`
-      );
+      callLog.error("call › start failed", { peerId, error });
       throw error;
     }
   }
@@ -48,7 +53,7 @@ export class CallService extends EventEmitter {
    */
   listenToRemoteStream() {
     this.connectionService.on("remoteStream", (stream) => {
-      console.log("remotestream")
+      callLog.debug("call › remote stream received");
       this.emit("remoteStream", stream);
     });
   }
@@ -59,14 +64,13 @@ export class CallService extends EventEmitter {
    */
   informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
     try {
+      callLog.info("call › incoming notify", { peerId, type });
       this.connectionService.sendCallMessage(peerId, {
         type: type === "audio" ? "audio-call" : "video-call",
         data: { from: this.userStore.user.id, to: peerId },
       });
     } catch (error) {
-      console.error(
-        `[CallService]: Error infroming peer for incoming audio call for peer ID of ${peerId}: ${error}`
-      );
+      callLog.error("call › incoming notify failed", { peerId, error });
       throw error;
     }
   }
@@ -79,6 +83,7 @@ export class CallService extends EventEmitter {
   async terminateCallConnection(peerId: string) {
     try {
       if (this.connectedState === "disconnected") return;
+      callLog.info("call › terminate", { peerId });
       this.connectionService.terminateCallConnection(peerId);
       await this.connectionService.renegotiate(peerId);
       this.connectionService.sendCallMessage(peerId, {
@@ -87,9 +92,7 @@ export class CallService extends EventEmitter {
       });
       this.connectedState = "disconnected";
     } catch (error) {
-      console.error(
-        `[CallService]: Error terminating call for peer ID of ${peerId}: ${error}`
-      );
+      callLog.error("call › terminate failed", { peerId, error });
       throw error;
     }
   }
@@ -102,9 +105,7 @@ export class CallService extends EventEmitter {
     try {
       this.connectionService.toggleMic(peerId);
     } catch (error) {
-      console.error(
-        `[CallService]: Error toggling mic for peer ID of ${peerId}: ${error}`
-      );
+      callLog.error("call › mic toggle failed", { peerId, error });
       throw error;
     }
   }
@@ -117,9 +118,7 @@ export class CallService extends EventEmitter {
     try {
       this.connectionService.toggleCamera(peerId);
     } catch (error) {
-      console.error(
-        `[CallService]: Error toggling camera for peer ID of ${peerId}: ${error}`
-      );
+      callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
     }
   }
@@ -133,9 +132,7 @@ export class CallService extends EventEmitter {
     try {
       return this.connectionService.getLocalStream(peerId);
     } catch (error) {
-      console.error(
-        `[CallService]: Error getting local camera for peer ID of ${peerId}: ${error}`
-      );
+      callLog.error("call › get local stream failed", { peerId, error });
       throw error;
     }
   }

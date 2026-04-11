@@ -1,8 +1,10 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
+import { modelLog } from "../../utils/logger";
 import { Conversation } from "./Conversation";
 import { Peer } from "./Peer";
 import { GuestUser } from "./guest-user";
+modelLog.debug("[model] ConversationParticipant loaded");
 
 export class ConversationParticipant extends Model {
   static table = "conversation_participants";

@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
 import { checkBackEndHealth } from "@/features/shared";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { healthLog } from "../utils/logger";
+healthLog.debug("[health-context] module loaded");
 
 const HealthContext = createContext<boolean>(false);
 
@@ -8,7 +10,15 @@ export const HealthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const check = async () => {
-      setHealth(await checkBackEndHealth());
+      try {
+        healthLog.debug("health › check start");
+        const ok = await checkBackEndHealth();
+        setHealth(ok);
+        healthLog.info("health › check result", { ok });
+      } catch (error) {
+        healthLog.warn("health › check failed", { error });
+        setHealth(false);
+      }
     };
     check();
   }, []);

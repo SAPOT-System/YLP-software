@@ -1,5 +1,6 @@
 import { ThemeChoice, useThemePreference } from "@/features/shared/context";
-import React from "react";
+import { uiLog } from "@/features/shared/utils/logger";
+import React, { useEffect } from "react";
 import { View } from "react-native";
 import { RadioButton, Text, useTheme } from "react-native-paper";
 
@@ -7,7 +8,21 @@ const ThemeScreen = () => {
   const theme = useTheme();
   const { themeChoice, setThemeChoice } = useThemePreference();
 
+  useEffect(() => {
+    uiLog.info("[ThemeScreen] mounted");
+    return () => {
+      uiLog.info("[ThemeScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[ThemeScreen] useEffect triggered, deps:", { themeChoice });
+  }, [themeChoice]);
+
   const handleThemeChange = (newValue: string) => {
+    uiLog.debug("[ThemeScreen] handleThemeChange called", {
+      newValue,
+    });
     if (
       newValue === "light" ||
       newValue === "dark" ||

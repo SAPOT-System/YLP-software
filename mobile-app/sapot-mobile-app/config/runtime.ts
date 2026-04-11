@@ -1,3 +1,4 @@
+import { configLog } from "@/features/shared/utils/logger";
 import * as Updates from "expo-updates";
 
 const DEV_PORT = "8000";
@@ -6,7 +7,7 @@ const STAGING_HOST = "sapot.online";
 
 export const getApiUrl = () => {
   if (__DEV__) {
-    console.log("dev");
+    configLog.debug("config › env dev");
     return `http://${DEV_HOST}:${DEV_PORT}`;
   }
 
@@ -14,7 +15,7 @@ export const getApiUrl = () => {
 
   switch (channel) {
     case "preview":
-      console.log("preview");
+      configLog.debug("config › env preview", { channel });
       return `https://${STAGING_HOST}`;
 
     case "production":

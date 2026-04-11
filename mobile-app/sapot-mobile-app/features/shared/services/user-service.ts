@@ -1,3 +1,4 @@
+import { authLog } from "@/features/shared/utils/logger";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import uuid from "react-native-uuid";
 import { GuestUser, Peer } from "../database";
@@ -5,6 +6,8 @@ import { GuestUserRepository } from "../repositories";
 import { SessionStore, UserStore } from "../stores";
 import { CleanUpService } from "./clean-up-service";
 import { PeerService } from "./peer-service";
+
+authLog.debug("[user-service] module loaded");
 
 /**
  * UserService manages user initialization, user identity, and user persistence in the app.
@@ -19,35 +22,31 @@ export class UserService {
    */
 
   private cleanUpService?: CleanUpService;
-  private readonly logPrefix = "[UserService]";
 
   constructor(
     private userStore: UserStore,
     private peerService: PeerService,
     private sessionStore: SessionStore,
     private guestUserRepository: GuestUserRepository
-  ) {}
+  ) {
+    this.log("service constructed", {
+      hasUserStore: Boolean(userStore),
+      hasPeerService: Boolean(peerService),
+      hasSessionStore: Boolean(sessionStore),
+      hasGuestUserRepository: Boolean(guestUserRepository),
+    });
+  }
 
   private log(message: string, meta?: Record<string, unknown>) {
-    if (meta) {
-      console.log(`${this.logPrefix}: ${message}`, meta);
-      return;
-    }
-
-    console.log(`${this.logPrefix}: ${message}`);
+    authLog.info(`user › ${message}`, meta);
   }
 
   private warn(message: string, meta?: Record<string, unknown>) {
-    if (meta) {
-      console.warn(`${this.logPrefix}: ${message}`, meta);
-      return;
-    }
-
-    console.warn(`${this.logPrefix}: ${message}`);
+    authLog.warn(`user › ${message}`, meta);
   }
 
   private error(message: string, error: unknown) {
-    console.error(`${this.logPrefix}: ${message}`, error);
+    authLog.error(`user › ${message}`, { error });
   }
 
   /**
@@ -57,11 +56,11 @@ export class UserService {
    */
   async initialize({ isGuest }: { isGuest: boolean }) {
     try {
-      this.log("Initializing user", { isGuest });
+      this.log("initialize start", { isGuest });
       let id = await getItemAsync("userUUID");
       if (!id) {
         // TODO: Handle empty userUUID
-        this.warn("User UUID is missing");
+        this.warn("missing user id");
         return;
       }
 
@@ -77,31 +76,31 @@ export class UserService {
 
       // store the user's peer object
       this.userStore.setUser(user, isGuest);
-      this.log("User initialization completed", {
+      this.log("initialize complete", {
         isGuest,
         hasUser: Boolean(user),
       });
     } catch (error) {
-      this.error("Error initializing user", error);
+      this.error("initialize failed", error);
       throw error;
     }
   }
 
   async logout() {
     try {
-      this.log("Logout started");
+      this.log("logout start");
       await deleteItemAsync("userUUID");
       this.sessionStore.setUserId(undefined);
-      this.log("Logout completed");
+      this.log("logout complete");
       // TODO: handle if clean up service is undefined
       if (this.cleanUpService) {
         this.cleanUpService.cleanUp();
-        this.log("Cleanup completed");
+        this.log("cleanup complete");
       } else {
-        this.warn("Cleanup skipped because service is not set");
+        this.warn("cleanup skipped", { reason: "service not set" });
       }
     } catch (error) {
-      this.error("Error during logout", error);
+      this.error("logout failed", error);
       throw error;
     }
   }
@@ -114,7 +113,7 @@ export class UserService {
     try {
       return `User_${Math.random().toString(36).substring(7)}`;
     } catch (error) {
-      this.error("Error generating username", error);
+      this.error("generate username failed", error);
       throw error;
     }
   }
@@ -129,7 +128,7 @@ export class UserService {
     email_verified?: boolean;
   }) {
     try {
-      this.log("Sync authenticated user started");
+      this.log("sync auth start");
       await setItemAsync("userUUID", userInfo.id);
       const userExist = await this.peerService.findPeerById(userInfo.id);
       if (!userExist) {
@@ -142,14 +141,14 @@ export class UserService {
           userInfo.phone_number,
           userInfo.email_verified
         );
-        this.log("Authenticated user created");
+        this.log("sync auth user created");
       } else {
-        this.log("Authenticated user already exists");
+        this.log("sync auth user exists");
       }
       await this.initialize({ isGuest: false });
-      this.log("Sync authenticated user completed");
+      this.log("sync auth complete");
     } catch (error) {
-      this.error("Error syncing authenticated user", error);
+      this.error("sync auth failed", error);
       throw error;
     }
   }
@@ -161,7 +160,7 @@ export class UserService {
   }) {
     try {
       const generatedUuid = uuid.v4();
-      this.log("Sync guest user started");
+      this.log("sync guest start");
       await setItemAsync("userUUID", generatedUuid);
       const userExist = await this.guestUserRepository.getCurrentGuestUser();
       if (!userExist) {
@@ -169,14 +168,14 @@ export class UserService {
           ...userInfo,
           id: generatedUuid,
         });
-        this.log("Guest user saved");
+        this.log("sync guest saved");
       } else {
-        this.log("Guest user already exists, skipping save");
+        this.log("sync guest exists");
       }
       await this.initialize({ isGuest: true });
-      this.log("Sync guest user completed");
+      this.log("sync guest complete");
     } catch (error) {
-      this.error("Error syncing guest user", error);
+      this.error("sync guest failed", error);
       throw error;
     }
   }
@@ -189,6 +188,14 @@ export class UserService {
     phoneNumber?: string;
     emailVerified?: boolean;
   }) {
+    this.log("update auth start", {
+      hasUsername: Boolean(userInfo.username),
+      hasFirstName: Boolean(userInfo.firstName),
+      hasLastName: Boolean(userInfo.lastName),
+      hasEmail: Boolean(userInfo.email),
+      hasPhoneNumber: Boolean(userInfo.phoneNumber),
+      emailVerified: userInfo.emailVerified,
+    });
     const id = await getItemAsync("userUUID");
     if (id === null) return; //TODO: inform user of error
 
@@ -204,18 +211,22 @@ export class UserService {
     const user = await this.peerService.findPeerById(id);
 
     this.userStore.setUser(user, false);
+    this.log("update auth complete", { hasUser: Boolean(user) });
   }
 
   async isCurrentUserGuest() {
     try {
       return (await this.guestUserRepository.getCurrentGuestUser()) !== null;
     } catch (error) {
-      this.error("Error checking guest user status", error);
+      this.error("guest check failed", error);
       throw error;
     }
   }
 
   setCleanUpService(cleanUpService: CleanUpService) {
+    this.log("cleanup service set", {
+      hasCleanUpService: Boolean(cleanUpService),
+    });
     this.cleanUpService = cleanUpService;
   }
 

@@ -3,8 +3,8 @@ import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { HelperText, Text, useTheme } from "react-native-paper";
 import { RegisterStepProps } from "../types";
-import PrimaryButton from "./primary-button";
 import AuthTextInput from "./auth-text-input";
+import PrimaryButton from "./primary-button";
 
 export const RegisterStep1 = ({
   values,
@@ -96,7 +96,9 @@ export const RegisterStep1 = ({
           label="Username"
           placeholder="Username"
           value={values.username}
-          onChangeText={(value) => onChange("username", value)}
+          onChangeText={(value) => {
+            onChange("username", value);
+          }}
           style={styles.textInput}
           required={true}
           error={!!errors.username}
@@ -128,7 +130,9 @@ export const RegisterStep1 = ({
           label="Email Address"
           placeholder="Email Address"
           value={values.email}
-          onChangeText={(value) => onChange("email", value)}
+          onChangeText={(value) => {
+            onChange("email", value);
+          }}
           keyboardType="email-address"
           style={styles.textInput}
           error={!!errors.email}
@@ -142,7 +146,9 @@ export const RegisterStep1 = ({
       <View style={{ alignItems: "center" }}>
         {/* Submit Button */}
         <PrimaryButton
-          onPress={() => onSubmit(values)}
+          onPress={() => {
+            onSubmit(values);
+          }}
           style={{ marginBottom: 8 }}
           loading={loading}
           disabled={loading}

@@ -1,3 +1,4 @@
+import { authLog } from "@/features/shared/utils/logger";
 import { AxiosError } from "axios";
 import { useEffect, useState } from "react";
 import { canResetPasswordApi, resetPasswordApi } from "../api/auth.api";
@@ -15,6 +16,9 @@ export const useChangePassword = (token: string) => {
 
   useEffect(() => {
     const validateToken = async () => {
+      authLog.debug("[useChangePassword] validateToken called", {
+        hasToken: Boolean(token),
+      });
       if (!token) {
         setIsTokenValid(null);
         return;
@@ -22,7 +26,8 @@ export const useChangePassword = (token: string) => {
       try {
         const canChangePassword = await canResetPasswordApi(token);
         setIsTokenValid(canChangePassword);
-      } catch {
+      } catch (error) {
+        authLog.error("[useChangePassword] Error in validateToken", { error });
         setIsTokenValid(false);
       }
     };
@@ -34,6 +39,11 @@ export const useChangePassword = (token: string) => {
     confirmPassword: string;
     identifier: string;
   }) => {
+    authLog.debug("[useChangePassword] changePassword called", {
+      password: "[REDACTED]",
+      confirmPassword: "[REDACTED]",
+      identifierLength: form.identifier.length,
+    });
     if (!token) {
       setErrors({ general: "Reset token is missing. Please start again." });
       return { success: false };
@@ -44,6 +54,7 @@ export const useChangePassword = (token: string) => {
     const errors = validatePassword(form.password, form.confirmPassword);
 
     if (hasValidationErrors(errors)) {
+      authLog.warn("[useChangePassword] validation failed");
       setErrors(errors);
       setLoading(false);
       return { success: false };
@@ -54,6 +65,9 @@ export const useChangePassword = (token: string) => {
 
       return { success: res.status === 200 };
     } catch (err) {
+      authLog.error("[useChangePassword] Error in changePassword", {
+        error: err,
+      });
       const axiosError = err as AxiosError<{ detail: string }>;
 
       // Network error

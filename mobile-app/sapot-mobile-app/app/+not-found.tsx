@@ -1,9 +1,18 @@
 import { Link, Stack } from "expo-router";
 import { StyleSheet, View } from "react-native";
 
+import { uiLog } from "@/features/shared/utils/logger";
+import { useEffect } from "react";
 import { Text } from "react-native-paper";
 
 export default function NotFoundScreen() {
+  useEffect(() => {
+    uiLog.info("[NotFoundScreen] mounted");
+    return () => {
+      uiLog.info("[NotFoundScreen] unmounted");
+    };
+  }, []);
+
   return (
     <>
       <Stack.Screen options={{ title: "Oops!" }} />

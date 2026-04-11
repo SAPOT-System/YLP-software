@@ -5,7 +5,12 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 
+if (__DEV__) {
+  import("../features/shared/utils/reactotron");
+}
+
 import Colors from "@/constants/Colors";
+import { layoutLog } from "@/features/shared/utils/logger";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
 
@@ -66,11 +71,17 @@ export default function RootLayout() {
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
+    layoutLog.debug("[RootLayout] useEffect triggered, deps:", { error });
+    if (error) {
+      layoutLog.error("[RootLayout] Error in font loading", { error });
+      throw error;
+    }
   }, [error]);
 
   useEffect(() => {
+    layoutLog.debug("[RootLayout] useEffect triggered, deps:", { loaded });
     if (loaded) {
+      layoutLog.info("[RootLayout] fonts loaded");
       SplashScreen.hideAsync();
       setTimeout(() => {
         setShowSplash(false);
@@ -78,10 +89,18 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  useEffect(() => {
+    layoutLog.info("[RootLayout] mounted");
+    return () => {
+      layoutLog.info("[RootLayout] unmounted");
+    };
+  }, []);
+
   if (!loaded || showSplash) {
     return (
       <AnimatedSplash
         onFinish={async () => {
+          layoutLog.info("[RootLayout] splash finished");
           await SplashScreen.hideAsync();
           setShowSplash(false);
         }}
@@ -93,6 +112,13 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
+  useEffect(() => {
+    layoutLog.info("[RootLayoutNav] mounted");
+    return () => {
+      layoutLog.info("[RootLayoutNav] unmounted");
+    };
+  }, []);
+
   return (
     <ThemePreferenceProvider>
       <RootLayoutWithTheme />
@@ -106,6 +132,19 @@ function RootLayoutWithTheme() {
 
   const paperTheme =
     resolvedTheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
+
+  useEffect(() => {
+    layoutLog.debug("[RootLayoutWithTheme] useEffect triggered, deps:", {
+      resolvedTheme,
+    });
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    layoutLog.info("[RootLayoutWithTheme] mounted");
+    return () => {
+      layoutLog.info("[RootLayoutWithTheme] unmounted");
+    };
+  }, []);
 
   return (
     <SafeAreaProvider>

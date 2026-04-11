@@ -1,3 +1,4 @@
+import { authLog } from "../shared/utils/logger";
 import { AuthContainer } from "./auth-container";
 
 jest.mock("../shared", () => {
@@ -36,7 +37,7 @@ describe("AuthContainer", () => {
 
   it("returns same initialize promise across calls", async () => {
     const container = new AuthContainer();
-    const logSpy = jest.spyOn(console, "log");
+    const logSpy = jest.spyOn(authLog, "info");
 
     const p1 = container.initialize();
     const p2 = container.initialize();

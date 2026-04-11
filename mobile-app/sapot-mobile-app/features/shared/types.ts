@@ -1,6 +1,8 @@
 /// <reference lib="dom" />
 import type { DataChatMessageI } from "@/features/chat/types";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
+import { typeLog } from "./utils/logger";
+typeLog.debug("[shared/types] module loaded");
 
 /**
  * For establishing webrtc connection

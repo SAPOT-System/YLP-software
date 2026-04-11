@@ -1,8 +1,10 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
+import { modelLog } from "../../utils/logger";
 import { Message } from "./Message";
 import { Peer } from "./Peer";
 import { GuestUser } from "./guest-user";
+modelLog.debug("[model] MessageStatus loaded");
 
 // TODO: replace the name for better understanding
 export enum MessageStatusType {

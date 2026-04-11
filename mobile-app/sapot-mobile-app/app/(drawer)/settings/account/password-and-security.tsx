@@ -1,10 +1,19 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
+import { uiLog } from "@/features/shared/utils/logger";
 import { Link } from "expo-router";
+import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Icon, Text, useTheme } from "react-native-paper";
 
 export default function PasswordAndSecurity() {
   const theme = useTheme();
+
+  useEffect(() => {
+    uiLog.info("[PasswordAndSecurity] mounted");
+    return () => {
+      uiLog.info("[PasswordAndSecurity] unmounted");
+    };
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>

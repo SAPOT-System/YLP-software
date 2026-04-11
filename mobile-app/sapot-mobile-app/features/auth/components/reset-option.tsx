@@ -1,4 +1,5 @@
 import { AUTH_ROUTES } from "@/app/routes";
+import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, View } from "react-native";
@@ -40,12 +41,17 @@ export const ResetOption = ({ option }: ResetOptionProps) => {
   const theme = useTheme();
   return (
     <Pressable
-      onPress={() =>
+      onPress={() => {
+        authLog.debug("[ResetOption] onPress triggered", { option });
+        authLog.info("[Navigation] Navigating to EnterIdentifier", {
+          screen: resetOptionData[option].link,
+          resetOption: option,
+        });
         router.push({
           pathname: resetOptionData[option].link,
           params: { resetOption: option },
-        })
-      }
+        });
+      }}
       style={({ pressed }) => [
         {
           backgroundColor: pressed

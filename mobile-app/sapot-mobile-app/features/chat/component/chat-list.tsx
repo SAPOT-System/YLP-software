@@ -7,7 +7,9 @@ import { Avatar, Text, useTheme } from "react-native-paper";
 
 import { ChatRoomSource } from "@/features/chat/types";
 import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useChatService } from "../hooks";
+uiLog.debug("[chat-list] module loaded");
 
 const enhanceChats = withObservables([], () => ({
   chats: database.get<Conversation>("conversations").query().observe(),
@@ -82,6 +84,7 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
 
     const loadPeerName = async () => {
       try {
+        uiLog.debug("chat-list › load peer", { chatId: chat.id });
         const resolvedPeerId = await chatService.findPeerIdByChatId(chat.id);
         setPeerId(resolvedPeerId);
         const peer = await peerService.findPeerById(resolvedPeerId);
@@ -98,7 +101,11 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
         }`.trim();
         setPeerName(fullName || peer.username || "Unknown peer");
 
-      } catch {
+      } catch (error) {
+        uiLog.warn("chat-list › load peer failed", {
+          chatId: chat.id,
+          error,
+        });
         if (isMounted) setPeerName("Unknown peer");
       }
     };
@@ -129,12 +136,13 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
 
   return (
     <Pressable
-      onPress={() =>
+      onPress={() => {
+        uiLog.info("chat-list › open chat", { chatId: chat.id });
         router.push({
           pathname: "/(drawer)/(tabs)/chat/[id]",
           params: { id: chat.id, source: ChatRoomSource.CHAT },
-        })
-      }
+        });
+      }}
       style={{
         paddingVertical: 12,
         paddingHorizontal: 16,

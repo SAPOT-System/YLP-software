@@ -1,15 +1,21 @@
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
+import { hookLog } from "../utils/logger";
+hookLog.debug("[use-loading-overlay] module loaded");
 
 export function useLoadingOverlay(initialMessage = "") {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(initialMessage);
 
   const showLoading = useCallback((message?: string) => {
+    hookLog.debug("[useLoadingOverlay] show", {
+      hasMessage: Boolean(message?.trim()),
+    });
     setLoading(true);
     if (message !== undefined) setLoadingMessage(message);
   }, []);
 
   const hideLoading = useCallback(() => {
+    hookLog.debug("[useLoadingOverlay] hide");
     setLoading(false);
     setLoadingMessage("");
   }, []);

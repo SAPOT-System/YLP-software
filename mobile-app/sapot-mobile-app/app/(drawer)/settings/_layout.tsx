@@ -1,5 +1,7 @@
 import { APP_ROUTES, SETTINGS_ROUTES } from "@/app/routes";
+import { navLog } from "@/features/shared/utils/logger";
 import { router, Stack, useGlobalSearchParams, usePathname } from "expo-router";
+import { useEffect } from "react";
 import { Appbar, useTheme } from "react-native-paper";
 
 export default function SettingsLayout() {
@@ -25,6 +27,20 @@ export default function SettingsLayout() {
     removeRouteGroups(SETTINGS_ROUTES.HELP_CENTER),
   ]);
 
+  useEffect(() => {
+    navLog.info("[SettingsLayout] mounted");
+    return () => {
+      navLog.info("[SettingsLayout] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    navLog.debug("[SettingsLayout] useEffect triggered, deps:", {
+      pathname,
+      fromDrawer,
+    });
+  }, [pathname, fromDrawer]);
+
   return (
     <Stack
       screenOptions={{
@@ -33,19 +49,27 @@ export default function SettingsLayout() {
           <Appbar.Header statusBarHeight={0} style={{ height: 80 }}>
             <Appbar.BackAction
               onPress={() => {
+                navLog.debug("[SettingsLayout] onPress triggered");
                 const isTopLevelSettingsRoute =
                   topLevelSettingsRoutes.has(normalizedPathname);
 
                 if (isTopLevelSettingsRoute && fromDrawer !== "1") {
+                  navLog.info("[Navigation] Navigating to Settings", {
+                    screen: APP_ROUTES.SETTINGS,
+                  });
                   router.replace(APP_ROUTES.SETTINGS);
                   return;
                 }
 
                 if (fromDrawer == "1") {
+                  navLog.info("[Navigation] Navigating to Home", {
+                    screen: APP_ROUTES.HOME,
+                  });
                   router.replace(APP_ROUTES.HOME);
                   return;
                 }
 
+                navLog.info("[Navigation] goBack triggered from Settings");
                 router.back();
               }}
             />

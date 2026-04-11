@@ -1,4 +1,6 @@
 import { appSchema, tableSchema } from "@nozbe/watermelondb";
+import { schemaLog } from "../utils/logger";
+schemaLog.debug("[database-schema] module loaded");
 
 export default appSchema({
   version: 6,

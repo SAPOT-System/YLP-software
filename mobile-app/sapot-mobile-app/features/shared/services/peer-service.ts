@@ -1,6 +1,9 @@
 import { Service } from "react-native-zeroconf";
 import { PeerRepository } from "../repositories";
 import { DiscoveredService } from "../types";
+import { peerLog } from "../utils/logger";
+
+peerLog.debug("[peer-service] module loaded");
 
 /**
  * PeerService manages peer discovery, registration, online/offline state, and peer repository operations.
@@ -20,7 +23,11 @@ export class PeerService {
    * Constructs a PeerService instance.
    * @param peerRepository Repository for peer data
    */
-  constructor(private peerRepository: PeerRepository) {}
+  constructor(private peerRepository: PeerRepository) {
+    peerLog.info("peer › service constructed", {
+      hasPeerRepository: Boolean(peerRepository),
+    });
+  }
 
   /**
    * Registers a discovered peer service. If the peer exists, marks it online; otherwise, saves it.
@@ -57,13 +64,11 @@ export class PeerService {
         });
       }
     } catch (error) {
-      console.error(
-        `[PeerService]: Error regestring peer\n${JSON.stringify(
-          peerService,
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › register failed", {
+        peerId: peerService.txt.id,
+        serviceName: peerService.name,
+        error,
+      });
       throw error;
     }
   }
@@ -77,13 +82,7 @@ export class PeerService {
     try {
       await this.peerRepository.markPeerOnline(id);
     } catch (error) {
-      console.error(
-        `[PeerService]: Error marking peer online\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › mark online failed", { peerId: id, error });
       throw error;
     }
   }
@@ -107,13 +106,10 @@ export class PeerService {
 
       await this.peerRepository.markPeerOffline(removedService.id);
     } catch (error) {
-      console.error(
-        `[PeerService]: Error marking peer offline\n${JSON.stringify(
-          { serviceName },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › mark offline failed", {
+        serviceName,
+        error,
+      });
       throw error;
     }
   }
@@ -127,7 +123,7 @@ export class PeerService {
       const peers = await this.peerRepository.queryAllPeers();
       return peers;
     } catch (error) {
-      console.error("[PeerService]: Error getting all peers:", error);
+      peerLog.error("peer › list failed", { error });
       throw error;
     }
   }
@@ -142,13 +138,7 @@ export class PeerService {
       const peer = await this.peerRepository.queryPeerById(id);
       return peer;
     } catch (error) {
-      console.error(
-        `[PeerService]: Error finding peer\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › find failed", { peerId: id, error });
       throw error;
     }
   }
@@ -173,13 +163,14 @@ export class PeerService {
     try {
       await this.peerRepository.updatePeerInfoById(id, peerInfo);
     } catch (error) {
-      console.error(
-        `[PeerService]: Error updating peer info\n${JSON.stringify(
-          { id, peerInfo },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › update failed", {
+        peerId: id,
+        hasEmail: peerInfo.email !== undefined,
+        hasPhoneNumber: peerInfo.phoneNumber !== undefined,
+        hasLastName: peerInfo.lastName !== undefined,
+        emailVerified: peerInfo.emailVerified,
+        error,
+      });
       throw error;
     }
   }
@@ -191,17 +182,13 @@ export class PeerService {
    */
   findDiscoveredPeerById(id: string) {
     try {
-      console.log(this.discoveredPeerServices);
+      peerLog.debug("peer › discovered list checked", {
+        count: this.discoveredPeerServices.length,
+      });
       const peer = this.discoveredPeerServices.find((peer) => peer.id === id);
       return peer;
     } catch (error) {
-      console.error(
-        `[PeerService]: Error finding discovered peer\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › discover find failed", { peerId: id, error });
       throw error;
     }
   }
@@ -234,13 +221,7 @@ export class PeerService {
         emailVerified,
       });
     } catch (error) {
-      console.error(
-        `[PeerService]: Error creating user\n${JSON.stringify(
-          { id, username },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › create failed", { peerId: id, error });
       throw error;
     }
   }

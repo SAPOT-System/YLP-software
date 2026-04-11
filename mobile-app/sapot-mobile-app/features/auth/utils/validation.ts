@@ -1,4 +1,6 @@
+import { authUtilsLog } from "@/features/shared/utils/logger";
 import { RegisterFormState, RegisterFormStateErrors } from "../types";
+authUtilsLog.debug("[validation] module loaded");
 
 export const validateRegistrationForm = ({
   username,
@@ -12,6 +14,18 @@ export const validateRegistrationForm = ({
   confirmPassword,
   termsChecked,
 }: Partial<RegisterFormState>): RegisterFormStateErrors => {
+  authUtilsLog.debug("[validateRegistrationForm] called", {
+    hasUsername: Boolean(username?.trim()),
+    hasFirstName: Boolean(firstName?.trim()),
+    hasLastName: Boolean(lastName?.trim()),
+    hasEmail: Boolean(email?.trim()),
+    hasPhoneNumber: Boolean(phoneNumber?.trim()),
+    hasPassword: Boolean(password),
+    hasConfirmPassword: Boolean(confirmPassword),
+    hasSecurityQuestion: Boolean(securityQuestion),
+    hasQuestionAnswer: Boolean(questionAnswer),
+    termsChecked: Boolean(termsChecked),
+  });
   const errors: RegisterFormStateErrors = {};
   // First Name validation
   if (username !== undefined && !username.trim()) {
@@ -94,6 +108,9 @@ export const validateRegistrationForm = ({
 };
 
 export const validateEmail = (email?: string) => {
+  authUtilsLog.debug("[validateEmail] called", {
+    hasEmail: Boolean(email?.trim()),
+  });
   if (email !== undefined && email.length > 0) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return "Invalid email address";
@@ -109,6 +126,9 @@ export const hasValidationErrors = (
     | { password?: string; confirmPassword?: string }
     | { firstName?: string; lastName?: string }
 ): boolean => {
+  authUtilsLog.debug("[hasValidationErrors] called", {
+    hasErrors: Object.values(errors).some(Boolean),
+  });
   return Object.values(errors).some(Boolean);
 };
 
@@ -116,6 +136,10 @@ export const validatePassword = (
   password?: string,
   confirmPassword?: string
 ) => {
+  authUtilsLog.debug("[validatePassword] called", {
+    hasPassword: Boolean(password),
+    hasConfirmPassword: Boolean(confirmPassword),
+  });
   const errors: { password?: string; confirmPassword?: string } = {};
   // Password validation
   if (password !== undefined && !password) {
@@ -143,6 +167,10 @@ export const validatePassword = (
 };
 
 export const validateGuestLoginForm = (firstName: string, lastName: string) => {
+  authUtilsLog.debug("[validateGuestLoginForm] called", {
+    hasFirstName: Boolean(firstName?.trim()),
+    hasLastName: Boolean(lastName?.trim()),
+  });
   const errors: { firstName?: string; lastName?: string } = {};
   // First Name validation
   if (!firstName.trim()) {

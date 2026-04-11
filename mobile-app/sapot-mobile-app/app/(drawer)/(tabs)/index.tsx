@@ -9,17 +9,13 @@ import {
   useDiscoveryService,
   usePeers,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { TouchableOpacity } from "react-native";
-import {
-  ActivityIndicator,
-  Icon,
-  Searchbar,
-  useTheme,
-} from "react-native-paper";
+import { Icon, Searchbar, useTheme } from "react-native-paper";
 
 export default function Chat() {
   const auth = useAuth();
@@ -36,16 +32,22 @@ export default function Chat() {
   const discoveryService = useDiscoveryService();
   const connectionService = useConnectionService();
 
-  if (!auth) {
-    return <ActivityIndicator />;
-  }
-
   useEffect(() => {
+    uiLog.debug("[Chat] useEffect triggered, deps:", {
+      accessToken: auth.accessToken ? "[REDACTED]" : undefined,
+    });
     connectionService.setSignalingToken(auth.accessToken ?? undefined);
   }, [auth.accessToken, connectionService]);
 
   useEffect(() => {
-    console.log("home mount");
+    uiLog.info("[Chat] mounted");
+
+    return () => {
+      uiLog.info("[Chat] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
     connectionService.start();
@@ -54,7 +56,7 @@ export default function Chat() {
       discoveryService.destroy();
       connectionService.stop();
     };
-  }, []);
+  }, [discoveryService, connectionService]);
 
   return (
     <View style={styles.container}>
@@ -66,7 +68,13 @@ export default function Chat() {
       >
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TouchableOpacity
-            onPress={() => router.push(APP_ROUTES.SEARCH)}
+            onPress={() => {
+              uiLog.debug("[Chat] onPress triggered");
+              uiLog.info("[Navigation] Navigating to Search", {
+                screen: APP_ROUTES.SEARCH,
+              });
+              router.push(APP_ROUTES.SEARCH);
+            }}
             style={{ flexGrow: 1 }}
           >
             <Searchbar
@@ -85,7 +93,15 @@ export default function Chat() {
               ]}
             />
           </TouchableOpacity>
-          <Pressable onPress={() => router.push(APP_ROUTES.SCAN_QR)}>
+          <Pressable
+            onPress={() => {
+              uiLog.debug("[Chat] onPress triggered");
+              uiLog.info("[Navigation] Navigating to ScanQr", {
+                screen: APP_ROUTES.SCAN_QR,
+              });
+              router.push(APP_ROUTES.SCAN_QR);
+            }}
+          >
             <View
               style={{
                 backgroundColor: "#3A7AFE",

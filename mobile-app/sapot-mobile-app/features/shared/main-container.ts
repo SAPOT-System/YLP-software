@@ -1,18 +1,18 @@
 import { getWsUrl } from "@/config/runtime";
 import {
-  TcpServerAdapter,
-  WsSignalingAdapter,
-  ZeroconfAdapter,
+    TcpServerAdapter,
+    WsSignalingAdapter,
+    ZeroconfAdapter,
 } from "./adapters";
 import { database } from "./database";
 import { GuestUserRepository } from "./repositories";
 import {
-  CallMediaService,
-  CleanUpService,
-  ConnectionService,
-  DiscoveryService,
-  SignalingService,
-  WebrtcSessionManager,
+    CallMediaService,
+    CleanUpService,
+    ConnectionService,
+    DiscoveryService,
+    SignalingService,
+    WebrtcSessionManager,
 } from "./services";
 import { AppModeStore, NetworkConfig } from "./stores";
 
@@ -24,6 +24,9 @@ import { MessageStatusRepository } from "@/features/chat/repositories/message-st
 import { ChatService } from "@/features/chat/services/chat-service";
 import { AuthContainer } from "../auth/auth-container";
 import { SyncService } from "../sync";
+import { appLog } from "./utils/logger";
+
+appLog.debug("[main-container] module loaded");
 
 /**
  * AppContainer is responsible for initializing and wiring up all core services, repositories, and stores for the mobile app.
@@ -58,6 +61,10 @@ export class MainContainer {
    * Sets up dependency injection and cross-service references.
    */
   constructor(userContainer: AuthContainer, appModeStore: AppModeStore) {
+    appLog.info("app › container constructed", {
+      hasUserContainer: Boolean(userContainer),
+      hasAppModeStore: Boolean(appModeStore),
+    });
     this.userContainer = userContainer;
     this.appModeStore = appModeStore;
 
@@ -161,17 +168,14 @@ export class MainContainer {
       if (this.initPromise) return this.initPromise;
 
       this.initPromise = (async () => {
-        console.log("Initializing...");
+        appLog.info("app › init start");
         await this.networkConfig.initialize();
         this.networkConfig.startWatching();
       })();
 
       return this.initPromise;
     } catch (error) {
-      console.error(
-        "[AppContainer]: Error initializing the application:",
-        error
-      );
+      appLog.error("app › init failed", { error });
       throw error;
     }
   }
