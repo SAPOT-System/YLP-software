@@ -5,20 +5,21 @@ import { useAuth } from "@/features/auth";
 import { ChatList, useChats } from "@/features/chat";
 import { PeerList } from "@/features/shared";
 import {
-  useConnectionService,
-  useDiscoveryService,
-  usePeers,
+    useConnectionService,
+    useDiscoveryService,
+    usePeers,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { TouchableOpacity } from "react-native";
 import {
-  ActivityIndicator,
-  Icon,
-  Searchbar,
-  useTheme,
+    ActivityIndicator,
+    Icon,
+    Searchbar,
+    useTheme,
 } from "react-native-paper";
 
 export default function Chat() {
@@ -45,7 +46,7 @@ export default function Chat() {
   }, [auth.accessToken, connectionService]);
 
   useEffect(() => {
-    console.log("home mount");
+    uiLog.info("home › mount");
     discoveryService.publishDevice();
     discoveryService.startDiscovery();
     connectionService.start();

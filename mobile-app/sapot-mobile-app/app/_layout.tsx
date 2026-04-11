@@ -5,6 +5,10 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 
+if (__DEV__) {
+  import("../features/shared/utils/reactotron");
+}
+
 import Colors from "@/constants/Colors";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
@@ -45,7 +49,7 @@ const CombinedDarkTheme = merge(DarkTheme, customDarkTheme);
 
 export {
   // Catch any errors thrown by the Layout component.
-  ErrorBoundary
+  ErrorBoundary,
 } from "expo-router";
 
 export const unstable_settings = {

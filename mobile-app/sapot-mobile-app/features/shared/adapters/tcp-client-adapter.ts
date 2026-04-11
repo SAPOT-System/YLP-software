@@ -1,6 +1,9 @@
 import EventEmitter from "events";
 import TcpSocket from "react-native-tcp-socket";
 import { Message } from "../types";
+import baseLogger from "../utils/logger";
+
+const tcpLog = baseLogger.extend("tcp");
 
 /**
  * TcpClientAdapter manages a TCP client socket connection for peer-to-peer communication.
@@ -30,9 +33,10 @@ export class TcpClientAdapter extends EventEmitter {
   connect(host: string, port: number) {
     return new Promise<void>((resolve, reject) => {
       try {
-        console.log(
-          `[TcpClientAdapter]: Trying to connect to the client: ${host}:${port}`
-        );
+        tcpLog.info("tcp › connect start", {
+          hasHost: Boolean(host),
+          hasPort: Boolean(port),
+        });
 
         this.connectionState = "connecting";
 
@@ -42,7 +46,7 @@ export class TcpClientAdapter extends EventEmitter {
             port: port,
           },
           () => {
-            console.log("[TcpClientAdapter]: TCP connected");
+            tcpLog.info("tcp › connected");
             this.socket = socket;
             this.connectionState = "connected";
             resolve();
@@ -50,16 +54,13 @@ export class TcpClientAdapter extends EventEmitter {
         );
 
         const onError = (error: Error) => {
-          console.warn(
-            "[TcpClientAdapter]: Error on connection client:",
-            error
-          );
+          tcpLog.warn("tcp › connect failed", { error });
           this.connectionState = "disconnected";
           reject(error);
         };
 
         const onClose = () => {
-          console.log("[TcpClientAdapter]: TCP connection closed");
+          tcpLog.info("tcp › connection closed");
           this.connectionState = "disconnected";
           this.socket = undefined;
         };
@@ -67,12 +68,11 @@ export class TcpClientAdapter extends EventEmitter {
         socket.on("error", onError);
         socket.on("close", onClose);
       } catch (error) {
-        console.warn(
-          `[TcpClientAdapter]: Error connecting\n${JSON.stringify({
-            host: host,
-            port: port,
-          })}\n${error}`
-        );
+        tcpLog.warn("tcp › connect threw", {
+          hasHost: Boolean(host),
+          hasPort: Boolean(port),
+          error,
+        });
         this.socket = undefined;
         throw error;
       }
@@ -90,11 +90,7 @@ export class TcpClientAdapter extends EventEmitter {
       const data = JSON.stringify(message) + "\n";
       this.socket.write(data);
     } catch (error) {
-      console.error(
-        `[TcpClientAdapter]: Error sending message\n${JSON.stringify({
-          message: message,
-        })}\n${error}`
-      );
+      tcpLog.error("tcp › send failed", { type: message.type, error });
       throw error;
     }
   }
@@ -108,7 +104,7 @@ export class TcpClientAdapter extends EventEmitter {
       this.socket?.destroy();
       this.socket = undefined;
     } catch (error) {
-      console.error("[TcpClientAdapter]: Error socket disconnecting:", error);
+      tcpLog.error("tcp › disconnect failed", { error });
       throw error;
     }
   }
@@ -121,10 +117,7 @@ export class TcpClientAdapter extends EventEmitter {
     try {
       return this.connectionState === "connected";
     } catch (error) {
-      console.error(
-        "[TcpClientAdapter]: Error getting if tcp is connected:",
-        error
-      );
+      tcpLog.error("tcp › connection state read failed", { error });
       return false;
     }
   }

@@ -67,8 +67,7 @@ const MessageListItem = enhanceMessage(
     sender?: Peer | GuestUser;
     status: MessageStatus[];
   }) => {
-    // console.log("[MessageListItem] messageId:", message.id);
-    // console.log("[MessageListItem] status rows:", status.length);
+    // chatLog.debug("chat › message status", { messageId: message.id, count: status.length });
     const statusObj = status?.[0];
     const senderName = getSenderName(sender);
     const theme = useTheme();

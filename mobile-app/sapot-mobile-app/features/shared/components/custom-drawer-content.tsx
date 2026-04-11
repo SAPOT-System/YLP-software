@@ -1,23 +1,24 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
 import {
-  DrawerContentComponentProps,
-  DrawerItem,
-  DrawerItemList,
+    DrawerContentComponentProps,
+    DrawerItem,
+    DrawerItemList,
 } from "@react-navigation/drawer";
 import { router } from "expo-router";
 import React from "react";
 import { ScrollView, View } from "react-native";
 import {
-  ActivityIndicator,
-  Avatar,
-  Button,
-  Icon,
-  Text,
-  useTheme,
+    ActivityIndicator,
+    Avatar,
+    Button,
+    Icon,
+    Text,
+    useTheme,
 } from "react-native-paper";
 import { useProfilePhoto, useUserProfile } from "../hooks";
 import { useSyncService } from "../hooks/use-sync-service";
+import { uiLog } from "../utils/logger";
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
@@ -33,7 +34,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { isAuthenticated, logout, logoutAsGuest } = auth;
 
   const handleEditProfile = () => {
-    console.log("Edit profile pressed");
+    uiLog.info("drawer › edit profile pressed");
   };
 
   const handleLogout = async () => {

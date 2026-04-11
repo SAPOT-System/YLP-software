@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/features/auth";
 import { APP_ROUTES } from "../routes";
 import { ActivityIndicator } from "react-native-paper";
+import { navLog } from "@/features/shared";
 
 export default function Layout() {
   const auth = useAuth();
@@ -15,7 +16,10 @@ export default function Layout() {
   const { isAuthenticated, isGuest } = auth;
 
   if (isAuthenticated || isGuest) {
-    console.log("getting started layout redirecting to home");
+    navLog.info("navigate", {
+      screen: APP_ROUTES.HOME,
+      isAuthenticated,
+    });
     return <Redirect href={APP_ROUTES.HOME} />;
   }
 

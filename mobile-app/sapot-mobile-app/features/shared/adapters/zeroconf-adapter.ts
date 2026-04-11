@@ -1,6 +1,9 @@
 import { EventEmitter } from "events";
 import Zeroconf from "react-native-zeroconf";
 import { PublishedService } from "../types";
+import baseLogger from "../utils/logger";
+
+const zeroconfLog = baseLogger.extend("zeroconf");
 
 /**
  * ZeroconfAdapter manages network service discovery and publishing using mDNS/ZeroConf.
@@ -25,44 +28,40 @@ export class ZeroconfAdapter extends EventEmitter {
   startScan(): void {
     try {
       if (!this.zeroconf) {
-        console.warn("[ZeroconfAdapter]: ZeroConf not initialized");
+        zeroconfLog.warn("zeroconf › not initialized");
       }
 
       this.zeroconf.on("start", () => {});
-      console.log("[ZeroconfAdapter]: ZeroConf scan started");
+      zeroconfLog.info("zeroconf › scan started");
 
       this.zeroconf.on("stop", () => {
-        console.log("[ZeroconfAdapter]: ZeroConf stopped");
+        zeroconfLog.info("zeroconf › scan stopped");
       });
 
       // this.zeroconf.on("update", () => {
-      //   console.log("[ZeroconfAdapter]: ZeroConf updated");
+      //   zeroconfLog.debug("zeroconf › updated");
       // });
 
       // this.zeroconf.on("found", (serviceName) => {
-      //   console.log("[ZeroconfAdapter]: Service found:", serviceName);
+      //   zeroconfLog.debug("zeroconf › service found", { hasService: true });
       // });
 
       this.zeroconf.on("resolved", (service) => {
-        // console.log(
-        //   "[ZeroconfAdapter]: Service resolved:",
-        //   service.name,
-        //   service.txt.username
-        // );
+        // zeroconfLog.debug("zeroconf › service resolved", { hasService: true });
         // The resolved device/service will inform the service that use this class
         this.emit("serviceResolved", service);
       });
 
       this.zeroconf.on("remove", (serviceName) => {
-        // console.log("[ZeroconfAdapter]: Service removed:", serviceName);
+        // zeroconfLog.debug("zeroconf › service removed", { hasService: true });
         // The removej device/service will inform the service that use this class
         this.emit("serviceRemoved", serviceName);
       });
 
       this.zeroconf.scan("lanchat", "tcp", "local.");
-      console.log("[ZeroconfAdapter]: Start scanning...");
+      zeroconfLog.info("zeroconf › scanning");
     } catch (error) {
-      console.error("[ZeroconfAdapter]: Error starting discovery:", error);
+      zeroconfLog.error("zeroconf › scan start failed", { error });
       throw error;
     }
   }
@@ -74,9 +73,9 @@ export class ZeroconfAdapter extends EventEmitter {
   stopScan(): void {
     try {
       this.zeroconf.stop();
-      console.log("[ZeroconfService]: Stop scanning...");
+      zeroconfLog.info("zeroconf › scan stop requested");
     } catch (error) {
-      console.error("[ZeroconfService]: Error stopping scan:", error);
+      zeroconfLog.error("zeroconf › scan stop failed", { error });
       throw error;
     }
   }
@@ -89,26 +88,24 @@ export class ZeroconfAdapter extends EventEmitter {
   publishService(service: PublishedService): void {
     try {
       if (!this.zeroconf) {
-        console.warn("[ZeroconfAdapter]: ZeroConf not initialized");
+        zeroconfLog.warn("zeroconf › not initialized");
         return;
       }
 
       this.zeroconf.on("published", (service) => {
-        console.log(
-          "[ZeroconfAdapter]: Service published successfully:",
-          service.name
-        );
+        zeroconfLog.info("zeroconf › service published", {
+          hasServiceName: Boolean(service?.name),
+        });
       });
 
       this.zeroconf.on("unpublished", (service) => {
-        console.log(
-          "[ZeroconfAdapter]: Service unpublished successfully:",
-          service.name
-        );
+        zeroconfLog.info("zeroconf › service unpublished", {
+          hasServiceName: Boolean(service?.name),
+        });
       });
 
       this.zeroconf.on("error", (err) => {
-        console.error("[ZeroconfAdapter]: Publish error:", err);
+        zeroconfLog.error("zeroconf › publish error", { error: err });
       });
 
       setTimeout(() => {
@@ -122,13 +119,7 @@ export class ZeroconfAdapter extends EventEmitter {
         );
       }, 500);
     } catch (error) {
-      console.error(
-        `[ZeroconfAdapter]: Error publishing service\n${JSON.stringify(
-          service,
-          null,
-          2
-        )}`
-      );
+      zeroconfLog.error("zeroconf › publish failed", { error });
       throw error;
     }
   }
@@ -142,18 +133,17 @@ export class ZeroconfAdapter extends EventEmitter {
     if (!this.zeroconf) return;
 
     try {
-      console.log(
-        "[ZeroconfAdapter]: Unpublishsing service:",
-        publishedServiceName
-      );
+      zeroconfLog.info("zeroconf › unpublish", {
+        hasServiceName: Boolean(publishedServiceName),
+      });
 
       this.zeroconf.unpublishService(publishedServiceName);
       this.stopScan();
       this.zeroconf.removeDeviceListeners();
 
-      console.log("[ZeroConf]: Zeroconf successfully cleanup");
+      zeroconfLog.info("zeroconf › cleanup complete");
     } catch (error) {
-      console.error("[ZeroConf]: Error closing zeroconf:", error);
+      zeroconfLog.error("zeroconf › cleanup failed", { error });
       throw error;
     }
   }

@@ -3,32 +3,33 @@ import { useUserService } from "@/features/auth";
 import { validateRegistrationForm } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import {
-  ExpoFileUpload,
-  Peer,
-  updateProfileApi,
-  uploadProfilePicApi,
+    ExpoFileUpload,
+    Peer,
+    updateProfileApi,
+    uploadProfilePicApi,
 } from "@/features/shared";
 import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  View,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-  ActivityIndicator,
-  Avatar,
-  Button,
-  HelperText,
-  Modal,
-  Portal,
-  Text,
-  useTheme,
+    ActivityIndicator,
+    Avatar,
+    Button,
+    HelperText,
+    Modal,
+    Portal,
+    Text,
+    useTheme,
 } from "react-native-paper";
 
 export default function ManageProfile() {
@@ -156,10 +157,7 @@ export default function ManageProfile() {
       if (result.canceled) return;
       await uploadProfilePhotoAsset(result.assets[0]);
     } catch (error) {
-      console.error(
-        "[ManageProfile]: Failed to upload profile photo from library",
-        error
-      );
+      uiLog.error("profile › upload from library failed", { error });
     } finally {
       setIsProfilePicUploading(false);
       setIsPhotoOptionsVisible(false);
@@ -183,7 +181,7 @@ export default function ManageProfile() {
       if (result.canceled) return;
       await uploadProfilePhotoAsset(result.assets[0]);
     } catch (error) {
-      console.error("[ManageProfile]: Failed to take profile photo", error);
+      uiLog.error("profile › capture failed", { error });
     } finally {
       setIsProfilePicUploading(false);
       setIsPhotoOptionsVisible(false);

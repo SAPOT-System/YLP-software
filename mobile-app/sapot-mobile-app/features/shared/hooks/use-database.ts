@@ -1,4 +1,7 @@
 import { database, Peer } from "../database";
+import baseLogger from "../utils/logger";
+
+const dbLog = baseLogger.extend("database");
 
 const useDatabase = () => {
   const createPeer = async (newPeer: {
@@ -13,21 +16,19 @@ const useDatabase = () => {
         });
         return peer;
       });
-      console.log(
-        `[useDatabase]: New peer created: \nName: ${createdPeer.username} ID: ${createdPeer.id}`
-      );
+      dbLog.info("database › peer created", { peerId: createdPeer.id });
     } catch (error) {
-      console.error("[useDatabase]: Error creating a peer:", error);
+      dbLog.error("database › peer create failed", { error });
     }
   };
 
   const showPeers = async () => {
     try {
       const allPeers = await database.get<Peer>("peers").query().fetch();
-      console.log("[useDatabase]: All stored peers:", allPeers);
+      dbLog.debug("database › peers listed", { count: allPeers.length });
       return allPeers;
     } catch (error) {
-      console.error("[useDatabase]: Error showing peers:", error);
+      dbLog.error("database › peers list failed", { error });
     }
   };
 
@@ -41,7 +42,7 @@ const useDatabase = () => {
         await database.batch(...ops);
       });
     } catch (error) {
-      console.error("[useDatabase]: Error deleting peers:", error);
+      dbLog.error("database › peers delete failed", { error });
     }
   };
 
@@ -51,7 +52,7 @@ const useDatabase = () => {
         await database.unsafeResetDatabase();
       });
     } catch (error) {
-      console.error("[useDatabase] Error deleting database:", error);
+      dbLog.error("database › reset failed", { error });
     }
   };
 

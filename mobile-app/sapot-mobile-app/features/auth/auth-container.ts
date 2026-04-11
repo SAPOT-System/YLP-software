@@ -1,12 +1,13 @@
 import {
-  database,
-  GuestUserRepository,
-  PeerRepository,
-  PeerService,
-  SessionStore,
-  UserService,
-  UserStore,
+    database,
+    GuestUserRepository,
+    PeerRepository,
+    PeerService,
+    SessionStore,
+    UserService,
+    UserStore,
 } from "../shared";
+import { authLog } from "../shared/utils/logger";
 
 export class AuthContainer {
   readonly userService: UserService;
@@ -39,13 +40,13 @@ export class AuthContainer {
       if (this.initPromise) return this.initPromise;
 
       this.initPromise = (async () => {
-        console.log("User container Initializing...");
+        authLog.info("auth › container initializing");
         // await this.userService.initialize();
       })();
 
       return this.initPromise;
     } catch (error) {
-      console.error("[Container]: Error initializing the application:", error);
+      authLog.error("auth › container init failed", { error });
       throw error;
     }
   }

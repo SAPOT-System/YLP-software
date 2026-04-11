@@ -7,9 +7,10 @@ import {
 } from "@/features/auth";
 import { RegisterFormState } from "@/features/auth/types";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { useToast } from "@/features/shared/hooks";
+import { authLog } from "@/features/shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { useToast } from "@/features/shared/hooks";
 import { ActivityIndicator, Snackbar } from "react-native-paper";
 
 type RegisterFormField = keyof RegisterFormState;
@@ -96,7 +97,9 @@ const Register = () => {
     const serverSideResult = await registerUser(fullForm);
 
     if (serverSideResult.success) {
-      console.log("register success");
+      authLog.info("auth › register success", {
+        hasRecoveryKeyLink: Boolean(serverSideResult.recoveryKeyFileLink),
+      });
       showToast("Account created successfully!");
       setModalData(serverSideResult.recoveryKeyFileLink!);
       showModal();
@@ -105,7 +108,7 @@ const Register = () => {
       // TODO: Update auth state
       // TODO: Reset navigation to main app
     } else if (!serverSideResult.success) {
-      console.log("register failed");
+      authLog.warn("auth › register failed");
       showToast("Account creation failed!");
     }
   };

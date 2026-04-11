@@ -1,15 +1,16 @@
 import { AUTH_ROUTES } from "@/app/routes";
 import {
-  ExpoFileUpload,
-  FileUploadResultCard,
-  PrimaryButton,
-  SecondaryButton,
-  useVerifyRecoveryKey,
+    ExpoFileUpload,
+    FileUploadResultCard,
+    PrimaryButton,
+    SecondaryButton,
+    useVerifyRecoveryKey,
 } from "@/features/auth";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { FailedDialog } from "@/features/shared";
 import { useDialogVisibility } from "@/features/shared/hooks";
+import { authLog } from "@/features/shared/utils/logger";
 import { pick } from "@react-native-documents/picker";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
@@ -78,7 +79,9 @@ const RecoveryKeyResetScreen = () => {
 
   const handleFileUpload = async () => {
     insertFailedDialog.hide();
-    console.log(file);
+    authLog.debug("auth › recovery key file select", {
+      hasExistingFile: Boolean(file),
+    });
     try {
       const [pickedFile] = await pick();
 
@@ -92,7 +95,7 @@ const RecoveryKeyResetScreen = () => {
         insertFailedDialog.show();
       }
     } catch (error: unknown) {
-      console.error(error);
+      authLog.error("auth › recovery key file pick failed", { error });
     }
   };
 

@@ -1,5 +1,8 @@
 import { EventEmitter } from "events";
 import TcpSocket from "react-native-tcp-socket";
+import baseLogger from "../utils/logger";
+
+const tcpLog = baseLogger.extend("tcp");
 /**
  * TcpServerAdapter manages a TCP server socket for accepting peer-to-peer connections.
  * It handles starting, stopping, and emitting data events for incoming messages.
@@ -26,7 +29,7 @@ export class TcpServerAdapter extends EventEmitter {
         this.server = TcpSocket.createServer((socket) => {
           let buffer = "";
           socket.on("data", (data) => {
-            console.log("[TcpServerAdapter]: Data recieved");
+            tcpLog.debug("tcp › data received");
             const dataStr = typeof data === "string" ? data : data.toString();
             buffer += dataStr;
 
@@ -36,47 +39,37 @@ export class TcpServerAdapter extends EventEmitter {
 
             for (const messageStr of messages) {
               if (!messageStr.trim()) continue;
-              // console.log("[TcpServerAdapter]: ", messageStr, typeof messageStr);
+              // tcpLog.debug("tcp › message buffer", { hasMessage: true });
               let message;
               try {
                 message = JSON.parse(messageStr);
                 this.emit("data", message);
               } catch (error) {
-                console.error(
-                  "[TcpServerAdapter]: Failed to parse message:",
-                  error,
-                  messageStr
-                );
+                tcpLog.error("tcp › parse failed", { error });
               }
             }
           });
 
           socket.on("close", () => {
-            console.log("[TcpServerAdapter]: Client disconnected");
+            tcpLog.info("tcp › client disconnected");
           });
 
           socket.on("error", (error) => {
-            console.error("[TcpServerAdapter]: Client error:", error);
+            tcpLog.error("tcp › client error", { error });
           });
         });
 
         this.server?.listen({ port, host: "0.0.0.0" }, () => {
-          console.log("[TcpServerAdapter]: TCP Server listening on port", port);
+          tcpLog.info("tcp › server listening", { port });
           resolve();
         });
 
         this.server.on("error", (error) => {
-          console.error("[TcpServerAdapter]: TCP server error:", error);
+          tcpLog.error("tcp › server error", { error });
           reject(error);
         });
       } catch (error) {
-        console.error(
-          `[TcpServerAdapter]: Error starting\n${JSON.stringify(
-            { port: port },
-            null,
-            2
-          )}`
-        );
+        tcpLog.error("tcp › start failed", { port, error });
         reject(error);
       }
       // TODO: store the socket connection
@@ -94,10 +87,7 @@ export class TcpServerAdapter extends EventEmitter {
         this.server = undefined;
       }
     } catch (error) {
-      console.error(
-        "[TcpServerAdapter]: Error stopping the tcp server:",
-        error
-      );
+      tcpLog.error("tcp › stop failed", { error });
       throw error;
     }
   }

@@ -5,6 +5,7 @@ import {
   usePeerService,
   useProfilePhoto,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -44,7 +45,7 @@ export default function CallRoom() {
   const [callState, setCallState] = useState<CallState>(
     status === "connected" ? "connected" : "calling"
   );
-  console.log(callState);
+  uiLog.debug("call › state updated", { callState });
   const [mic, setMic] = useState(true);
   const [cam, setCam] = useState(true);
   const [peer, setPeer] = useState<Peer | null>(null);
@@ -135,7 +136,7 @@ export default function CallRoom() {
   useEffect(() => {
     const handler = (fromId?: string) => {
       if (fromId && fromId !== id) return;
-      console.log("ending call...");
+      uiLog.info("call › remote ended", { peerId: id });
       setCallState((prev) => (prev === "calling" ? "no-answer" : "ended"));
     };
     connectionService.on("call-ended", handler);
@@ -154,7 +155,7 @@ export default function CallRoom() {
   // Auto-navigate back from terminal states after a delay
   useEffect(() => {
     if (callState !== "ended") return;
-    console.log("ending call.");
+    uiLog.info("call › ended", { peerId: id });
     const timer = setTimeout(() => router.back(), 3000);
     return () => clearTimeout(timer);
   }, [callState]);

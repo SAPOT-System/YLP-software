@@ -1,5 +1,8 @@
 import NetInfo from "@react-native-community/netinfo";
 import { NetworkInfo } from "react-native-network-info";
+import baseLogger from "../utils/logger";
+
+const networkLog = baseLogger.extend("network");
 
 /**
  * NetworkConfig manages network-related configuration such as port and IP address.
@@ -29,10 +32,7 @@ export class NetworkConfig {
       }
       this.ipAddress = ip;
     } catch (error) {
-      console.error(
-        "[NetworkConfig]: Error initializing network configuration:",
-        error
-      );
+      networkLog.error("network › init failed", { error });
       throw error;
     }
   }
@@ -45,7 +45,10 @@ export class NetworkConfig {
       if (state.type === "wifi") {
         const newIp = (state.details as { ipAddress?: string } | null)?.ipAddress;
         if (newIp && newIp !== this.ipAddress) {
-          console.log(`[NetworkConfig]: IP changed from ${this.ipAddress} to ${newIp}`);
+          networkLog.info("network › ip changed", {
+            hadIp: Boolean(this.ipAddress),
+            hasNewIp: true,
+          });
           this.ipAddress = newIp;
         }
       }
@@ -69,7 +72,7 @@ export class NetworkConfig {
     try {
       return Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152;
     } catch (error) {
-      console.error("[NetworkConfig]: Error generating port:", error);
+      networkLog.error("network › port generation failed", { error });
       throw error;
     }
   }

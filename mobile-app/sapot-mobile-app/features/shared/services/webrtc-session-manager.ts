@@ -1,10 +1,13 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
+import baseLogger from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import { WebrtcAdapter } from "../adapters";
 import { NetworkConfig, UserStore } from "../stores";
 import { DataAckMessage, SignalingMessage, WebrtcDataMessage } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
+
+const webrtcLog = baseLogger.extend("webrtc");
 
 type WebrtcSessionManagerEvents = {
   remoteStream: [stream: MediaStream];
@@ -15,7 +18,6 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
   private chatService?: ChatService;
   private sendSignaling?: (peerId: string, msg: SignalingMessage) => void;
-  private readonly logPrefix = "[WebrtcSessionManager]";
 
   constructor(
     private readonly userStore: UserStore,
@@ -44,7 +46,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
   }
 
   setupWebrtcEvents(webrtcAdapter: WebrtcAdapter, peerId: string) {
-    console.log(`${this.logPrefix}: Setting up WebRTC events`, { peerId });
+    webrtcLog.debug("webrtc › setup events", { peerId });
 
     webrtcAdapter.on("onicecandidate", (candidate) => {
       try {
@@ -57,7 +59,10 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
           },
         });
       } catch (error) {
-        console.error(`${this.logPrefix}: Error sending ICE candidate`, error);
+        webrtcLog.error("webrtc › ice candidate send failed", {
+          peerId,
+          error,
+        });
       }
     });
 
@@ -76,13 +81,18 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
             break;
           case "ack":
             if (message.data) {
-              console.log(`${this.logPrefix}: Ack received`);
+              webrtcLog.debug("webrtc › ack received", {
+                messageId: message.data.messageId,
+              });
               await this.chatService.handleAckMessage(message.data.messageId);
             }
             break;
         }
       } catch (error) {
-        console.error(`${this.logPrefix}: Error in receivedMessage handler`, error);
+        webrtcLog.error("webrtc › message handler failed", {
+          peerId,
+          error,
+        });
       }
     });
 
@@ -122,7 +132,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
             },
           });
         } catch (error) {
-          console.error(`${this.logPrefix}: Error sending signal-offer`, error);
+          webrtcLog.error("webrtc › offer send failed", { peerId, error });
         }
       }
     );
@@ -134,7 +144,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     this.webrtcAdapters.delete(peerId);
     adapter.removeAllListeners();
     adapter.cleanup();
-    console.log(`${this.logPrefix}: Evicted WebRTC adapter for peer`, { peerId });
+    webrtcLog.info("webrtc › adapter evicted", { peerId });
   }
 
   getWebrtcAdapter(peerId: string): WebrtcAdapter {
@@ -144,11 +154,11 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         adapter = new WebrtcAdapter(peerId);
         this.setupWebrtcEvents(adapter, peerId);
         this.webrtcAdapters.set(peerId, adapter);
-        console.log(`${this.logPrefix}: Created WebRTC adapter`, { peerId });
+        webrtcLog.info("webrtc › adapter created", { peerId });
       }
       return adapter;
     } catch (error) {
-      console.error(`${this.logPrefix}: Error getting WebRTC adapter`, { peerId }, error);
+      webrtcLog.error("webrtc › adapter get failed", { peerId, error });
       throw error;
     }
   }
@@ -178,13 +188,14 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         data: { message, conversationId, messageId, from, to, sentAt, messageType },
       });
     } catch (error) {
-      console.warn(
-        `${this.logPrefix}: Error sending chat message\n${JSON.stringify(
-          { peerId, message, conversationId, messageId, from, sentAt, messageType },
-          null,
-          2
-        )}\n${error}`
-      );
+      webrtcLog.warn("webrtc › chat send failed", {
+        peerId,
+        conversationId,
+        messageId,
+        messageType,
+        hasMessage: Boolean(message),
+        error,
+      });
       throw error;
     }
   }
@@ -192,7 +203,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
   sendAckMessage(peerId: string, ackData: DataAckMessage) {
     const { messageId } = ackData;
     try {
-      console.log(`${this.logPrefix}: Sending ack message`);
+      webrtcLog.debug("webrtc › ack send", { peerId, messageId });
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       webrtcAdapter.sendDataMessage({
         type: "ack",
@@ -203,13 +214,11 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         },
       });
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error sending ack message\n${JSON.stringify(
-          { peerId, messageId },
-          null,
-          2
-        )}\n${error}`
-      );
+      webrtcLog.error("webrtc › ack send failed", {
+        peerId,
+        messageId,
+        error,
+      });
       throw error;
     }
   }

@@ -1,13 +1,15 @@
 import { getWsUrl } from "@/config/runtime";
+import baseLogger from "@/features/shared/utils/logger";
 import { TcpClientAdapter, WebrtcAdapter, WsSignalingAdapter } from "../adapters";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import { CallMessage, Message, SignalingMessage } from "../types";
+
+const signalingLog = baseLogger.extend("signaling");
 
 export class SignalingService {
   private signalingToken?: string;
   private getTcpAdapter?: (peerId: string) => TcpClientAdapter | undefined;
   private sendTcpMessage?: (peerId: string, message: Message) => void;
-  private readonly logPrefix = "[SignalingService]";
 
   constructor(
     private readonly getWebrtcAdapter: (peerId: string) => WebrtcAdapter,
@@ -28,18 +30,18 @@ export class SignalingService {
 
   setSignalingToken(token?: string) {
     this.signalingToken = token || undefined;
-    console.log(`${this.logPrefix}: Updated signaling token`, {
+    signalingLog.debug("signaling › token updated", {
       hasToken: Boolean(this.signalingToken),
     });
 
     if (!this.isWebSocketAllowed() && this.wsSignalingAdapter.isConnected) {
-      console.log(`${this.logPrefix}: Websocket disabled by mode, disconnecting`);
+      signalingLog.info("signaling › ws disconnect", { reason: "mode" });
       this.wsSignalingAdapter.disconnect();
       return;
     }
 
     if (!this.signalingToken && this.wsSignalingAdapter.isConnected) {
-      console.log(`${this.logPrefix}: Token removed, disconnecting signaling`);
+      signalingLog.info("signaling › ws disconnect", { reason: "token" });
       this.wsSignalingAdapter.disconnect();
     }
   }
@@ -50,12 +52,11 @@ export class SignalingService {
       if (!this.signalingToken) return false;
 
       if (this.wsSignalingAdapter.isConnected) {
-        console.log(`${this.logPrefix}: Reusing existing websocket signaling connection`);
+        signalingLog.debug("signaling › ws reuse");
         return true;
       }
 
-      console.log(`${this.logPrefix}: Initializing websocket signaling`, {
-        wsBaseUrl: this.wsBaseUrl,
+      signalingLog.debug("signaling › ws init", {
         hasToken: Boolean(this.signalingToken),
       });
 
@@ -66,7 +67,7 @@ export class SignalingService {
 
       return true;
     } catch (error) {
-      console.warn(`${this.logPrefix}: Could not initialize websocket signaling`, error);
+      signalingLog.warn("signaling › ws init failed", { error });
       return false;
     }
   }
@@ -74,7 +75,7 @@ export class SignalingService {
   async handleIncomingSignaling(message: SignalingMessage): Promise<void> {
     try {
       if (message.data.to !== this.userStore.user.id) {
-        console.log(`${this.logPrefix}: Ignoring signaling not addressed to self`, {
+        signalingLog.debug("signaling › message ignored", {
           expectedRecipient: this.userStore.user.id,
           actualRecipient: message.data.to,
           messageType: message.type,
@@ -87,7 +88,7 @@ export class SignalingService {
         throw new Error("Invalid signaling payload: missing sender");
       }
 
-      console.log(`${this.logPrefix}: Handling signaling message`, {
+      signalingLog.debug("signaling › message handling", {
         ...this.summarizeSignalingMessage(message),
         resolvedSenderId: senderId,
       });
@@ -97,17 +98,17 @@ export class SignalingService {
       switch (message.type) {
         case "ice-candidate":
           if (webrtcAdapter.isConnected) {
-            console.log(`${this.logPrefix}: Ignoring ICE candidate, WebRTC already connected`, { senderId });
+            signalingLog.debug("signaling › ice ignored", { senderId });
             return;
           }
-          console.log(`${this.logPrefix}: Applying remote ICE candidate`, { senderId });
+          signalingLog.debug("signaling › ice apply", { senderId });
           if (message.data.candidate !== null) {
             webrtcAdapter.addIceCandidate(message.data.candidate);
           }
           break;
 
         case "offer": {
-          console.log(`${this.logPrefix}: Handling offer message`);
+          signalingLog.debug("signaling › offer received", { senderId });
           const { type, sdp } = await webrtcAdapter.handleOffer({
             type: "offer",
             sdp: message.data.sdp.sdp || "",
@@ -119,12 +120,12 @@ export class SignalingService {
               ...this.buildSignalSenderData(senderId),
             },
           });
-          console.log(`${this.logPrefix}: Sent answer to offer`, { senderId, type });
+          signalingLog.debug("signaling › offer answered", { senderId, type });
           break;
         }
 
         case "answer":
-          console.log(`${this.logPrefix}: Handling answer message`);
+          signalingLog.debug("signaling › answer received", { senderId });
           await webrtcAdapter.handleAnswer({
             type: "answer",
             sdp: message.data.sdp.sdp || "",
@@ -132,9 +133,9 @@ export class SignalingService {
           break;
 
         case "handshake": {
-          console.log(`${this.logPrefix}: Handling handshake message`);
+          signalingLog.debug("signaling › handshake received", { senderId });
           if (webrtcAdapter.isConnected) {
-            console.log(`${this.logPrefix}: Ignoring handshake, WebRTC already connected`, { senderId });
+            signalingLog.debug("signaling › handshake ignored", { senderId });
             return;
           }
           if (!this.getTcpAdapter) {
@@ -145,26 +146,33 @@ export class SignalingService {
             throw new Error(`No TCP adapter available for peer ${senderId}`);
           }
           if (tcpClientAdapter.isConnected) {
-            console.log(`${this.logPrefix}: Ignoring handshake, TCP already connected`, { senderId });
+            signalingLog.debug("signaling › handshake ignored", {
+              senderId,
+              reason: "tcp connected",
+            });
             return;
           }
-          console.log(`${this.logPrefix}: Connecting TCP from handshake`, {
+          signalingLog.info("signaling › tcp connect from handshake", {
             senderId,
-            ipAddress: message.data.ipAddress,
-            port: message.data.port,
+            hasIpAddress: Boolean(message.data.ipAddress),
+            hasPort: Boolean(message.data.port),
           });
           await tcpClientAdapter.connect(message.data.ipAddress, message.data.port);
           break;
         }
 
         default:
-          console.log(`${this.logPrefix}: Unhandled signaling type`);
+          signalingLog.debug("signaling › unhandled type", {
+            messageType: message.type,
+          });
           break;
       }
     } catch (error) {
-      console.warn(
-        `${this.logPrefix}: Error handling signaling\n${JSON.stringify(message, null, 2)}\n${error}`
-      );
+      signalingLog.warn("signaling › message handling failed", {
+        messageType: message.type,
+        sender: message.data.sender,
+        error,
+      });
       throw error;
     }
   }
@@ -174,9 +182,9 @@ export class SignalingService {
       const isWsConfigured = this.isWebSocketAllowed() ? this.ensureWsSignaling() : false;
       const isTcpAllowed = this.isTcpAllowed();
 
-      console.log(`${this.logPrefix}: Routing signaling message`, {
+      signalingLog.debug("signaling › route", {
         peerId,
-        ...this.summarizeSignalingMessage(message),
+        messageType: message.type,
         route: isWsConfigured ? "ws" : isTcpAllowed ? "tcp" : "none",
       });
 
@@ -194,13 +202,11 @@ export class SignalingService {
       }
       this.sendTcpMessage(peerId, message);
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error sending signaling message\n${JSON.stringify(
-          { peerId, ...message },
-          null,
-          2
-        )}\n${error}`
-      );
+      signalingLog.error("signaling › send failed", {
+        peerId,
+        messageType: message.type,
+        error,
+      });
       throw error;
     }
   }
@@ -224,13 +230,11 @@ export class SignalingService {
       }
       this.sendTcpMessage(peerId, message);
     } catch (error) {
-      console.error(
-        `${this.logPrefix}: Error sending call message\n${JSON.stringify(
-          { peerId, ...message },
-          null,
-          2
-        )}\n${error}`
-      );
+      signalingLog.error("signaling › call send failed", {
+        peerId,
+        messageType: message.type,
+        error,
+      });
       throw error;
     }
   }

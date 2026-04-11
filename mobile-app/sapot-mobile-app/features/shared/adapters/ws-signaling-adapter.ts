@@ -1,5 +1,8 @@
 import EventEmitter from "events";
 import { CallMessage, SignalingMessage } from "../types";
+import baseLogger from "../utils/logger";
+
+const wsLog = baseLogger.extend("ws");
 
 interface WsLike {
   readyState: number;
@@ -63,17 +66,13 @@ export class WsSignalingAdapter extends EventEmitter {
   private connectPromise?: Promise<void>;
   private pendingConnectReject?: (error: Error) => void;
 
-  private readonly logPrefix = "[WsSignalingAdapter]";
-
   /**
    * Opens a websocket connection using the provided options.
    */
   connect(options: ConnectOptions): Promise<void> {
     try {
       if (this.state === "connecting" && this.connectPromise) {
-        console.log(
-          `${this.logPrefix}: Reusing in-flight websocket connection attempt`
-        );
+        wsLog.debug("ws › connect reuse pending");
         return this.connectPromise;
       }
 
@@ -81,9 +80,7 @@ export class WsSignalingAdapter extends EventEmitter {
         this.state === "open" &&
         this.socket?.readyState === this.getWebSocketCtor().OPEN
       ) {
-        console.log(
-          `${this.logPrefix}: Websocket already open for target, skipping connect`
-        );
+        wsLog.debug("ws › connect skipped", { reason: "already open" });
         return Promise.resolve();
       }
 
@@ -97,18 +94,16 @@ export class WsSignalingAdapter extends EventEmitter {
         this.socket &&
         (this.state === "connecting" || this.state === "open")
       ) {
-        console.log(
-          `${this.logPrefix}: Closing stale websocket before reconnect`
-        );
+        wsLog.info("ws › close stale connection");
         this.state = "closing";
         this.socket.close(1000, "switch_target");
       }
 
       const wsUrl = this.buildWsUrl(options);
-      console.log(`${this.logPrefix}: Connecting websocket`, {
-        url: this.redactUrl(wsUrl),
+      wsLog.info("ws › connect start", {
         autoReconnect: options.autoReconnect !== false,
         reconnectAttempts: this.reconnectAttempts,
+        hasToken: Boolean(options.token),
       });
 
       const socket = new (this.getWebSocketCtor())(wsUrl);
@@ -134,7 +129,7 @@ export class WsSignalingAdapter extends EventEmitter {
           if (!this.isCurrentSocket(socket, socketEpoch)) return;
           this.reconnectAttempts = 0;
           this.state = "open";
-          console.log(`${this.logPrefix}: Websocket connection opened`);
+          wsLog.info("ws › open");
           this.emit("open");
           this.flushQueue();
           this.startHeartbeat(options);
@@ -143,14 +138,13 @@ export class WsSignalingAdapter extends EventEmitter {
         };
 
         socket.onmessage = (event) => {
-          console.log(`${this.logPrefix}: onmessage ${event.data}`);
           if (!this.isCurrentSocket(socket, socketEpoch)) return;
           this.handleIncomingMessage(event.data);
         };
 
         socket.onerror = (event) => {
           if (!this.isCurrentSocket(socket, socketEpoch)) return;
-          console.warn(`${this.logPrefix}: WebSocket transport error`, event);
+          wsLog.warn("ws › transport error", { error: event });
           this.emit("ws-error", event);
           if (this.state === "connecting") {
             rejectConnect(new Error("[WsSignalingAdapter]: WebSocket error"));
@@ -163,7 +157,7 @@ export class WsSignalingAdapter extends EventEmitter {
           this.clearHeartbeatTimeoutTimer();
           this.socket = undefined;
           this.state = "idle";
-          console.warn(`${this.logPrefix}: Websocket closed`, {
+          wsLog.warn("ws › closed", {
             code: event.code,
             reason: event.reason,
             wasClean: event.wasClean,
@@ -205,12 +199,12 @@ export class WsSignalingAdapter extends EventEmitter {
     // const summary = this.summarizeSignalingMessage(message);
 
     if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
-      // console.log(`${this.logPrefix}: Sending signaling message`, summary);
+      // wsLog.debug("ws › signaling send", summary);
       this.socket.send(payload);
       return;
     }
 
-    // console.log(`${this.logPrefix}: Queueing signaling message`, {
+    // wsLog.debug("ws › signaling queued", {
     //   ...summary,
     //   queueSizeBefore: this.outboundQueue.length,
     // });
@@ -225,7 +219,7 @@ export class WsSignalingAdapter extends EventEmitter {
    * Closes the websocket and disables auto-reconnect for this disconnect cycle.
    */
   disconnect(code = 1000, reason = "client_closed") {
-    console.log(`${this.logPrefix}: Disconnect requested`, {
+    wsLog.info("ws › disconnect requested", {
       code,
       reason,
       hadSocket: Boolean(this.socket),
@@ -272,22 +266,18 @@ export class WsSignalingAdapter extends EventEmitter {
   private handleIncomingMessage(rawData: unknown) {
     try {
       if (typeof rawData !== "string") {
-        console.warn(
-          `${this.logPrefix}: Received non-string websocket message payload`,
-          { payloadType: typeof rawData }
-        );
+        wsLog.warn("ws › payload non-string", {
+          payloadType: typeof rawData,
+        });
         this.emit("raw-message", rawData);
         return;
       }
 
-      console.log(`${this.logPrefix}: Received websocket payload`, {
-        length: rawData.length,
-      });
+      wsLog.debug("ws › payload received", { length: rawData.length });
       const parsed = JSON.parse(rawData);
-      console.log(`${this.logPrefix}, ${parsed}`);
 
       if (this.isControlMessage(parsed, "pong")) {
-        console.log("pong received");
+        wsLog.debug("ws › pong received");
         this.clearHeartbeatTimeoutTimer();
         return;
       }
@@ -298,27 +288,20 @@ export class WsSignalingAdapter extends EventEmitter {
       }
 
       if (this.isCallMessage(parsed)) {
-        console.log("Call message");
+        wsLog.debug("ws › call message", { messageType: parsed.type });
         this.emit("call-message", rawData);
       }
 
       if (!this.isSignalingMessage(parsed)) {
-        console.warn(
-          `${this.logPrefix}: Incoming payload is not signaling data`
-        );
+        wsLog.warn("ws › payload not signaling");
         this.emit("raw-message", rawData);
         return;
       }
 
-      console.log(
-        `${this.logPrefix}: Received signaling message`,
-        this.summarizeSignalingMessage(parsed)
-      );
+      wsLog.debug("ws › signaling message", this.summarizeSignalingMessage(parsed));
       this.emit("message", parsed);
     } catch {
-      console.warn(
-        `${this.logPrefix}: Failed to parse incoming websocket payload as JSON`
-      );
+      wsLog.warn("ws › payload parse failed");
       this.emit("raw-message", rawData);
     }
   }
@@ -397,7 +380,7 @@ export class WsSignalingAdapter extends EventEmitter {
 
     const droppedCount = this.outboundQueue.length - freshQueue.length;
 
-    console.log(`${this.logPrefix}: Flushing queued signaling messages`, {
+    wsLog.info("ws › queue flush", {
       queuedMessages: freshQueue.length,
       droppedMessages: droppedCount,
     });
@@ -412,21 +395,17 @@ export class WsSignalingAdapter extends EventEmitter {
   private tryReconnect() {
     const options = this.lastConnectOptions;
     if (!options) {
-      console.warn(
-        `${this.logPrefix}: Reconnect skipped because no previous options exist`
-      );
+      wsLog.warn("ws › reconnect skipped", { reason: "no options" });
       return;
     }
     if (options.autoReconnect === false) {
-      console.log(
-        `${this.logPrefix}: Reconnect disabled, skipping reconnect attempt`
-      );
+      wsLog.info("ws › reconnect disabled");
       return;
     }
 
     const maxAttempts = options.maxReconnectAttempts ?? 8;
     if (this.reconnectAttempts >= maxAttempts) {
-      console.error(`${this.logPrefix}: Reconnect exhausted`, {
+      wsLog.error("ws › reconnect exhausted", {
         attempts: this.reconnectAttempts,
         maxAttempts,
       });
@@ -449,7 +428,7 @@ export class WsSignalingAdapter extends EventEmitter {
     );
 
     this.reconnectAttempts += 1;
-    console.warn(`${this.logPrefix}: Scheduling reconnect`, {
+    wsLog.warn("ws › reconnect scheduled", {
       attempt: this.reconnectAttempts,
       delayMs: backoffDelay,
     });
@@ -461,22 +440,18 @@ export class WsSignalingAdapter extends EventEmitter {
     this.clearReconnectTimer();
     this.reconnectTimer = setTimeout(() => {
       if (this.manuallyClosed) {
-        console.log(
-          `${this.logPrefix}: Reconnect timer fired but socket is manually closed`
-        );
+        wsLog.info("ws › reconnect aborted", { reason: "manual close" });
         return;
       }
 
-      console.log(`${this.logPrefix}: Executing reconnect attempt`, {
-        attempt: this.reconnectAttempts,
-      });
+      wsLog.info("ws › reconnect attempt", { attempt: this.reconnectAttempts });
       void this.connect(options);
     }, backoffDelay);
   }
 
   private clearReconnectTimer() {
     if (!this.reconnectTimer) return;
-    console.log(`${this.logPrefix}: Clearing reconnect timer`);
+    wsLog.debug("ws › reconnect timer cleared");
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = undefined;
   }
@@ -497,7 +472,7 @@ export class WsSignalingAdapter extends EventEmitter {
       this.clearHeartbeatTimeoutTimer();
       this.heartbeatTimeoutTimer = setTimeout(() => {
         if (!this.isConnected || !this.socket) return;
-        console.warn(`${this.logPrefix}: Heartbeat timeout, closing socket`);
+        wsLog.warn("ws › heartbeat timeout");
         this.socket.close(4000, "heartbeat_timeout");
       }, heartbeatTimeoutMs);
     }, heartbeatIntervalMs);

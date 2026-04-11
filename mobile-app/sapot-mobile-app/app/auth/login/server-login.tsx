@@ -2,6 +2,7 @@ import { AUTH_ROUTES } from "@/app/routes";
 import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useAppMode } from "@/features/shared/context";
+import { authLog } from "@/features/shared/utils/logger";
 import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -46,7 +47,7 @@ const ServerLoginScreen = () => {
     const result = await login({ username, password });
 
     if (result.success) {
-      console.log("login successful");
+      authLog.info("auth › login success");
       showToast("Login successful!");
       if (mode !== "auto") {
         setMode("server");

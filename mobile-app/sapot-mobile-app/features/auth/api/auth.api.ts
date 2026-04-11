@@ -1,10 +1,11 @@
 import { apiClient } from "@/features/shared";
+import { apiLog } from "@/features/shared/utils/logger";
 import { AxiosResponse } from "axios";
 import {
-  LoginApiRequest,
-  LoginApiResponse,
-  RegisterApiRequest,
-  RegisterApiResponse,
+    LoginApiRequest,
+    LoginApiResponse,
+    RegisterApiRequest,
+    RegisterApiResponse,
 } from "../types";
 
 export const register = async (
@@ -144,7 +145,9 @@ export const verifyRecoveryKeyApi = async (
 ) => {
   // eslint-disable-next-line no-undef
   const formData = new FormData();
-  console.log(identifier);
+  apiLog.debug("auth › verify recovery key", {
+    hasIdentifier: Boolean(identifier),
+  });
   formData.append("key_file", {
     uri: file.uri,
     name: file.name,

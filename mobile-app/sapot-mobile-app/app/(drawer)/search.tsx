@@ -5,6 +5,7 @@ import {
   useToast,
   useUserSearch,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
@@ -154,7 +155,10 @@ export default function SearchScreen() {
                   params: { id: selected.id, source: ChatRoomSource.PEER },
                 });
               } catch (error) {
-                console.error("[SearchScreen]: Error opening chat", error);
+                uiLog.error("search › open chat failed", {
+                  peerId: selected.id,
+                  error,
+                });
                 showToast("Unable to open chat");
               }
             }}

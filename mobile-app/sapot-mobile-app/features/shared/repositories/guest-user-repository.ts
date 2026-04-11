@@ -1,5 +1,8 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { GuestUser } from "../database";
+import baseLogger from "../utils/logger";
+
+const guestUserLog = baseLogger.extend("guest-user");
 
 export class GuestUserRepository {
   private db: Database;
@@ -29,14 +32,10 @@ export class GuestUserRepository {
         return guestUser;
       });
     } catch (error) {
-      console.error(
-        `[GuestUserRepository]: Error creating a guest user\n${JSON.stringify(
-          newGuestUser,
-          null,
-          2
-        )}`,
-        error
-      );
+      guestUserLog.error("guest-user › create failed", {
+        guestUserId: newGuestUser.id,
+        error,
+      });
       throw error;
     }
   }
@@ -48,13 +47,10 @@ export class GuestUserRepository {
         .fetch();
       return existing.length > 0;
     } catch (error) {
-      console.error(
-        `[GuestUserRepository]: Error checking if guest user exist\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      guestUserLog.error("guest-user › check exists failed", {
+        guestUserId: id,
+        error,
+      });
       throw error;
     }
   }
@@ -64,10 +60,7 @@ export class GuestUserRepository {
       const users = await this.guestUserCollection.query().fetch();
       return users[0] || null;
     } catch (error) {
-      console.error(
-        "[GuestUserRepository]: Error retrieving current guest user:",
-        error
-      );
+      guestUserLog.error("guest-user › fetch current failed", { error });
       throw error;
     }
   }
@@ -82,10 +75,7 @@ export class GuestUserRepository {
         await this.db.batch(...ops);
       });
     } catch (error) {
-      console.error(
-        "[GuestUserRepository]: Error deleting guest users:",
-        error
-      );
+      guestUserLog.error("guest-user › delete all failed", { error });
       throw error;
     }
   }

@@ -8,6 +8,7 @@ import {
   useProfilePhoto,
   useToast,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -77,7 +78,7 @@ const ChatRoom = () => {
         await chatService.connect(peerId);
         setIsConnected(true);
       } catch (error) {
-        console.warn("Connection failed", error);
+        uiLog.warn("chat › connect failed", { peerId, error });
         showToast("Connection failed");
         // TODO: try reconnect
       }
@@ -105,7 +106,7 @@ const ChatRoom = () => {
         const foundPeer = await peerService.findPeerById(peerId);
         setPeer(foundPeer);
       } catch (error) {
-        console.error("[ChatRoom]: Error retrieving peer data", error);
+        uiLog.error("chat › load peer failed", { peerId, error });
       }
     };
 
@@ -125,7 +126,10 @@ const ChatRoom = () => {
 
       setMessage("");
     } catch (error) {
-      console.error("[ChatRoom]: Error handling message:", error);
+      uiLog.error("chat › send message failed", {
+        conversationId,
+        error,
+      });
     }
   };
 

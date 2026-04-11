@@ -4,6 +4,7 @@ import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
 import { View, Image, useColorScheme } from "react-native";
 import { APP_ROUTES, AUTH_ROUTES } from "./routes";
 import { useAuth } from "@/features/auth";
+import { navLog } from "@/features/shared/utils/logger";
 
 const Index = () => {
   const theme = useTheme();
@@ -17,7 +18,7 @@ const Index = () => {
   const { isAuthenticated, isGuest } = auth;
 
   if (isAuthenticated || isGuest) {
-    console.log("app index redirecting to home");
+    navLog.info("navigate", { screen: APP_ROUTES.HOME, isAuthenticated});
     return <Redirect href={APP_ROUTES.HOME} />;
   }
 

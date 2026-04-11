@@ -1,19 +1,20 @@
 import { getUserApi } from "@/features/shared";
+import { authLog } from "@/features/shared/utils/logger";
 import { AxiosError } from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { loginApi, logoutApi, refreshTokenApi } from "../api";
 import { useUserService } from "../hooks/use-user-service";
 import {
-  LoginApiErrorResponse,
-  LoginApiRequest,
-  RegisterApiResponse,
+    LoginApiErrorResponse,
+    LoginApiRequest,
+    RegisterApiResponse,
 } from "../types";
 import {
-  generateGuestUsername,
-  hasValidationErrors,
-  isAccessTokenValid,
-  validateGuestLoginForm,
+    generateGuestUsername,
+    hasValidationErrors,
+    isAccessTokenValid,
+    validateGuestLoginForm,
 } from "../utils/";
 
 interface AuthContextI {
@@ -75,14 +76,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsAuthenticated(await isAccessTokenValid(access_token));
       return true;
     } catch (err) {
-      console.log(err);
+      authLog.warn("auth › refresh session failed", { error: err });
       return false;
     }
   };
 
   useEffect(() => {
     (async () => {
-      console.log("AuthProvider effect");
+      authLog.debug("auth › bootstrap start");
       setLoading(true);
       const token = await getItemAsync("access_token");
       const uuid = await getItemAsync("userUUID");
@@ -144,7 +145,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         success: true,
       };
     } catch (err) {
-      console.log(err);
+      authLog.error("auth › login failed", { error: err });
       setLoading(false);
 
       const axiosError = err as AxiosError<LoginApiErrorResponse>;
@@ -159,7 +160,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const status = axiosError.response.status;
       const data = axiosError.response.data;
-      console.log(status, data);
+      authLog.warn("auth › login error response", {
+        status,
+        hasData: Boolean(data),
+      });
 
       if (status === 401) {
         setErrors({ general: data.detail });
@@ -218,7 +222,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       await logoutApi();
     } catch (err) {
-      console.log(err);
+      authLog.warn("auth › logout api failed", { error: err });
     }
     await deleteItemAsync("access_token");
     await deleteItemAsync("refresh_token");

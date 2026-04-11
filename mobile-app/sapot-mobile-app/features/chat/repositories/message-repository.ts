@@ -1,5 +1,14 @@
-import { Conversation, GuestUser, Message, MessageType, Peer } from "@/features/shared";
+import {
+    Conversation,
+    GuestUser,
+    Message,
+    MessageType,
+    Peer,
+} from "@/features/shared";
+import baseLogger from "@/features/shared/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
+
+const chatLog = baseLogger.extend("chat");
 
 /**
  * MessageRepository handles CRUD operations for messages in the database.
@@ -48,18 +57,12 @@ export class MessageRepository {
       });
       return savedMessage;
     } catch (error) {
-      console.error(
-        `[MessageRepository]: Error saving a message\n${JSON.stringify(
-          {
-            senderName: newMessage.sender.username,
-            content: newMessage.content,
-            conversationId: newMessage.conversation.id,
-            messageId: newMessage.messageId,
-          },
-          null,
-          2
-        )}\n${error}`
-      );
+      chatLog.error("chat › message save failed", {
+        conversationId: newMessage.conversation.id,
+        messageId: newMessage.messageId,
+        hasContent: Boolean(newMessage.content),
+        error,
+      });
       throw error;
     }
   }
@@ -86,13 +89,12 @@ export class MessageRepository {
         )
         .fetch();
     } catch (error) {
-      console.error(
-        `[MessageRepository]: Error querying messgae by conversation\n${JSON.stringify(
-          { conversationId, limit, offset },
-          null,
-          2
-        )}\n${error}`
-      );
+      chatLog.error("chat › messages query failed", {
+        conversationId,
+        limit,
+        offset,
+        error,
+      });
       throw error;
     }
   }
@@ -105,7 +107,7 @@ export class MessageRepository {
     try {
       return await this.messagesCollection.query().fetch();
     } catch (error) {
-      console.error("[MessageRepository]: Error querying messages:", error);
+      chatLog.error("chat › messages list failed", { error });
       throw error;
     }
   }

@@ -1,14 +1,17 @@
 import { EventEmitter } from "events";
 import {
-  mediaDevices,
-  MediaStream,
-  MediaStreamTrack,
-  RTCIceCandidate,
-  RTCPeerConnection,
-  RTCSessionDescription,
+    mediaDevices,
+    MediaStream,
+    MediaStreamTrack,
+    RTCIceCandidate,
+    RTCPeerConnection,
+    RTCSessionDescription,
 } from "react-native-webrtc";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { WebrtcDataMessage } from "../types";
+import baseLogger from "../utils/logger";
+
+const webrtcLog = baseLogger.extend("webrtc");
 
 interface RTCIceCandidateInit {
   candidate: string;
@@ -134,9 +137,9 @@ export class WebrtcAdapter extends EventEmitter {
 
       // Add local stream to connection for audio calls and video calls
       if (this.localStream) {
-        console.log("[WebrtcAdapter]: Adding local stream to connection");
+        webrtcLog.debug("webrtc › local stream add");
         for (const track of this.localStream.getTracks()) {
-          console.log("[WebrtcAdapter]: Adding track: ", track.kind);
+          webrtcLog.debug("webrtc › track add", { kind: track.kind });
           if (!this.peerConnection)
             throw new Error("Peer connection not initialized");
           const existingSender = this.peerConnection
@@ -150,16 +153,14 @@ export class WebrtcAdapter extends EventEmitter {
           }
         }
       } else {
-        console.log("[WebrtcAdapter]: No local stream to connection");
+        webrtcLog.warn("webrtc › local stream missing");
       }
     } catch (error) {
-      console.error(
-        `[WebrtcAdapter]: Error initializing local stream\n${JSON.stringify(
-          { audio, video },
-          null,
-          2
-        )}`
-      );
+      webrtcLog.error("webrtc › local stream init failed", {
+        audio,
+        video,
+        error,
+      });
       throw error;
     }
   }
@@ -169,7 +170,7 @@ export class WebrtcAdapter extends EventEmitter {
    */
   createPeerConnection() {
     try {
-      console.log("[WebrtcAdapter]: Creating peer connection...");
+      webrtcLog.debug("webrtc › peer connection create");
       this.peerConnection = new RTCPeerConnection(this.configuration);
 
       // This will receive media such as audio and video of peers
@@ -189,10 +190,12 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       this.peerConnection.onconnectionstatechange = (_event) => {
-        console.log("[WebrtcAdapter]:",this.peerConnection?.connectionState);
+        webrtcLog.debug("webrtc › connection state", {
+          state: this.peerConnection?.connectionState,
+        });
         switch (this.peerConnection?.connectionState) {
           case "closed":
-            console.log("[WebrtcAdapter]: Call being disconnected");
+            webrtcLog.info("webrtc › connection closed");
             this.emit("connection-closed");
             break;
           case "connected":
@@ -204,24 +207,23 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       this.peerConnection.ondatachannel = (event) => {
-        console.log(`Data channel received: ${event.channel}`);
+        webrtcLog.debug("webrtc › data channel received");
         this.setDataChannel(event.channel);
       };
 
       this.peerConnection.oniceconnectionstatechange = (_event) => {
-        console.log(
-          "[WebrtcAdapter]: ICE Connection state:",
-          this.peerConnection?.iceConnectionState
-        );
+        webrtcLog.debug("webrtc › ice state", {
+          state: this.peerConnection?.iceConnectionState,
+        });
         switch (this.peerConnection?.iceConnectionState) {
           case "connected":
           case "completed":
             this.resetIceRestartState();
             if (this.peerConnection?.iceConnectionState === "connected") {
-              console.log("[WebrtcAdapter]: ICE connection connected");
+              webrtcLog.info("webrtc › ice connected");
             }
             if (this.peerConnection?.iceConnectionState === "completed") {
-              console.log("[WebrtcAdapter]: ICE connection completed");
+              webrtcLog.info("webrtc › ice completed");
             }
             break;
           case "disconnected":
@@ -247,7 +249,7 @@ export class WebrtcAdapter extends EventEmitter {
           const { type, sdp } = await this.createOffer();
           this.emit("signal-offer", { type, sdp, reason: "negotiationneeded" });
         } catch (error) {
-          console.warn("[WebrtcAdapter]: Negotiation needed failed", error);
+          webrtcLog.warn("webrtc › negotiation needed failed", { error });
         } finally {
           this.isMakingOffer = false;
         }
@@ -255,7 +257,7 @@ export class WebrtcAdapter extends EventEmitter {
 
       this.peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
+          webrtcLog.debug("webrtc › ice candidate send");
           this.emit("onicecandidate", event.candidate);
         }
       };
@@ -265,12 +267,12 @@ export class WebrtcAdapter extends EventEmitter {
         "chat"
       ) as unknown as RTCDataChannel;
       this.dataChannel = channel;
-      // console.log(this.dataChannel ? "Data channel on" : "Data channel off");
+      // webrtcLog.debug("webrtc › data channel state", { hasChannel: Boolean(this.dataChannel) });
       this.setupDataChannel(channel);
 
-      // console.log("Peer connection created:", this.peerConnection ? true : false);
+      // webrtcLog.debug("webrtc › peer connection created", { hasConnection: Boolean(this.peerConnection) });
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error creating peer connection:", error);
+      webrtcLog.error("webrtc › peer connection create failed", { error });
       throw error;
     }
   }
@@ -284,7 +286,7 @@ export class WebrtcAdapter extends EventEmitter {
       this.dataChannel = channel;
       this.setupDataChannel(channel);
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error to set data channel:", error);
+      webrtcLog.error("webrtc › data channel set failed", { error });
       throw error;
     }
   }
@@ -299,9 +301,7 @@ export class WebrtcAdapter extends EventEmitter {
       (resolve, reject) => {
         try {
           if (!this.peerConnection) {
-            console.log(
-              "[WebrtcAdapter]: Creating peer connection in create offer method"
-            );
+            webrtcLog.debug("webrtc › offer init peer connection");
             this.createPeerConnection();
           }
           if (this.isMakingOffer) {
@@ -309,17 +309,16 @@ export class WebrtcAdapter extends EventEmitter {
             return;
           }
           this.isMakingOffer = true;
-          console.log(`[WebrtcAdapter]: Creating offer...`);
+          webrtcLog.debug("webrtc › offer create");
           if (this.peerConnection?.signalingState === "have-remote-offer") {
             this.isMakingOffer = false;
             reject(new Error("Signaling state has remote offer"));
             return;
           }
           if (this.peerConnection?.signalingState === "stable") {
-            console.log("stable");
             this.peerConnection!.createOffer()
               .then(async (offer) => {
-                console.log(`[WebrtcAdapter-createOffer]: Setting local description...`);
+                webrtcLog.debug("webrtc › offer set local description");
                 await this.peerConnection!.setLocalDescription(offer);
 
                 resolve({
@@ -333,13 +332,12 @@ export class WebrtcAdapter extends EventEmitter {
                 reject(error);
               });
           } else {
-            console.log("Not stable");
+            webrtcLog.debug("webrtc › offer wait stable");
             const onStable = async () => {
               if (this.peerConnection?.signalingState === "stable") {
-                console.log("run");
                 this.peerConnection.onsignalingstatechange = () => null;
                 const offer = await this.peerConnection!.createOffer();
-                console.log(`[WebrtcAdapter-createOffer]: Setting local description...`);
+                webrtcLog.debug("webrtc › offer set local description");
                 await this.peerConnection!.setLocalDescription(offer);
 
                 resolve({
@@ -353,7 +351,7 @@ export class WebrtcAdapter extends EventEmitter {
               await onStable();
           }
         } catch (error) {
-          console.error("[WebrtcAdapter]: Error creating offer:", error);
+          webrtcLog.error("webrtc › offer create failed", { error });
 
           this.isMakingOffer = false;
 
@@ -369,20 +367,22 @@ export class WebrtcAdapter extends EventEmitter {
   async restartIce() {
     try {
       if (!this.peerConnection) {
-        console.log("[WebrtcAdapter]: No peer connection for ICE restart");
+        webrtcLog.warn("webrtc › ice restart skipped", {
+          reason: "no peer connection",
+        });
         return;
       }
       if (this.peerConnection.signalingState !== "stable") {
-        console.warn(
-          "[WebrtcAdapter]: Skipping ICE restart due to signaling state",
-          this.peerConnection.signalingState
-        );
+        webrtcLog.warn("webrtc › ice restart skipped", {
+          reason: "signaling state",
+          state: this.peerConnection.signalingState,
+        });
         return;
       }
       if (this.isIceRestarting) return;
       this.isIceRestarting = true;
 
-      console.log("[WebrtcAdapter]: Performing ICE restart");
+      webrtcLog.info("webrtc › ice restart");
       const offer = await this.peerConnection.createOffer({ iceRestart: true });
       await this.peerConnection.setLocalDescription(offer);
       this.emit("signal-offer", {
@@ -391,7 +391,7 @@ export class WebrtcAdapter extends EventEmitter {
         iceRestart: true,
       });
     } catch (error) {
-      console.warn("[WebrtcAdapter]: ICE restart failed", error);
+      webrtcLog.warn("webrtc › ice restart failed", { error });
     } finally {
       this.isIceRestarting = false;
     }
@@ -408,7 +408,7 @@ export class WebrtcAdapter extends EventEmitter {
   private scheduleIceRestart(reason: "disconnected" | "failed", immediate = false) {
     if (this.isIceRestarting) return;
     if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
-      console.warn("[WebrtcAdapter]: ICE restart attempts exceeded", { reason });
+      webrtcLog.warn("webrtc › ice restart attempts exceeded", { reason });
       return;
     }
 
@@ -434,20 +434,18 @@ export class WebrtcAdapter extends EventEmitter {
   ): Promise<{ type: "answer"; sdp: string }> {
     try {
       if (!this.peerConnection) {
-        console.log(
-          "[WebrtcAdapter]: Creating peer connection in handle offer method"
-        );
+        webrtcLog.debug("webrtc › offer init peer connection");
         this.createPeerConnection();
       }
 
-      console.log(`[WebrtcAdapter]: Setting remote description`);
+      webrtcLog.debug("webrtc › offer set remote description");
 
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(offer)
       );
 
       const answer = await this.peerConnection!.createAnswer();
-      console.log(`[WebrtcAdapter-handleOffer]: Setting local description`);
+      webrtcLog.debug("webrtc › offer set local description");
       await this.peerConnection!.setLocalDescription(answer);
 
       this.remoteDescriptionSet = true;
@@ -463,7 +461,7 @@ export class WebrtcAdapter extends EventEmitter {
         sdp: answer.sdp,
       };
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error handling offer:", error);
+      webrtcLog.error("webrtc › offer handle failed", { error });
       throw error;
     }
   }
@@ -476,19 +474,18 @@ export class WebrtcAdapter extends EventEmitter {
   async handleAnswer(answer: RTCSessionDescriptionInit | undefined) {
     try {
       if (!this.peerConnection) {
-        console.log("[WebrtcAdapter]: No peer connection");
+        webrtcLog.warn("webrtc › answer skipped", { reason: "no peer connection" });
         return;
       }
 
       if (this.peerConnection.signalingState !== "have-local-offer") {
-        console.warn(
-          "[WebrtcAdapter]: Ignoring answer due to signaling state",
-          this.peerConnection.signalingState
-        );
+        webrtcLog.warn("webrtc › answer ignored", {
+          state: this.peerConnection.signalingState,
+        });
         return;
       }
 
-      console.log(`[WebrtcAdapter-handleAnswer]: Setting remote description`);
+      webrtcLog.debug("webrtc › answer set remote description");
 
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(answer)
@@ -501,7 +498,7 @@ export class WebrtcAdapter extends EventEmitter {
       }
       this.pendingIceCandidates = [];
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error handling answer:", error);
+      webrtcLog.error("webrtc › answer handle failed", { error });
     }
   }
 
@@ -513,23 +510,23 @@ export class WebrtcAdapter extends EventEmitter {
   async addIceCandidate(candidate: RTCIceCandidateInit) {
     try {
       if (!this.peerConnection) {
-        console.log("[WebrtcAdapter]: No peer connection");
+        webrtcLog.warn("webrtc › ice add skipped", { reason: "no peer connection" });
         return;
       }
 
       if (!this.remoteDescriptionSet) {
-        console.log("[WebrtcAdapter]: Queueing ICE candidate");
+        webrtcLog.debug("webrtc › ice queued");
         this.pendingIceCandidates.push(candidate);
         return;
       }
 
-      console.log(`[WebrtcAdapter]: Adding ice candidate`);
+      webrtcLog.debug("webrtc › ice add");
 
       await this.peerConnection!.addIceCandidate(
         new RTCIceCandidate(candidate)
       );
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error adding ice candidate:", error);
+      webrtcLog.error("webrtc › ice add failed", { error });
       throw error;
     }
   }
@@ -540,9 +537,9 @@ export class WebrtcAdapter extends EventEmitter {
    */
   setupDataChannel(channel: RTCDataChannel) {
     try {
-      // console.log(`[WebrtcAdapter]: Setup data channel`);
+      // webrtcLog.debug("webrtc › data channel setup");
       channel.onopen = () => {
-        console.log("[WebrtcAdapter]: Data channel opened");
+        webrtcLog.info("webrtc › data channel open");
         this.emit("datachannel-open");
 
         if (this.peerConnection?.connectionState === "connected")
@@ -553,10 +550,10 @@ export class WebrtcAdapter extends EventEmitter {
       channel.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          // console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
+          // webrtcLog.debug("webrtc › data channel message", { hasMessage: true });
           this.emit("receivedMessage", message);
         } catch (error) {
-          console.error("Error parsing receive message:", error);
+          webrtcLog.error("webrtc › data channel parse failed", { error });
         }
       };
 
@@ -565,10 +562,10 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       channel.onclose = () => {
-        console.log("[WebrtcAdapter]: Data channel closed");
+        webrtcLog.info("webrtc › data channel closed");
       };
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error to setup data channel:", error);
+      webrtcLog.error("webrtc › data channel setup failed", { error });
       throw error;
     }
   }
@@ -586,19 +583,16 @@ export class WebrtcAdapter extends EventEmitter {
         this.dataChannel.readyState === "open" &&
         this.isConnected
       ) {
-        // console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
+        // webrtcLog.debug("webrtc › data send", { messageType: payload.type });
         this.dataChannel.send(JSON.stringify(payload));
       } else {
         throw new Error("Unable to send payload`");
       }
     } catch (error) {
-      console.warn(
-        `[WebrtcAdapter]: Error sending data message\n${JSON.stringify(
-          payload,
-          null,
-          2
-        )}`
-      );
+      webrtcLog.warn("webrtc › data send failed", {
+        messageType: payload.type,
+        error,
+      });
       throw error;
     }
   }
@@ -610,11 +604,15 @@ export class WebrtcAdapter extends EventEmitter {
   terminateCall() {
     try {
       if (!this.localStream) {
-        console.log("local stream null");
+        webrtcLog.warn("webrtc › terminate skipped", {
+          reason: "no local stream",
+        });
         return;
       }
       if (!this.peerConnection) {
-        console.log("peer connection null");
+        webrtcLog.warn("webrtc › terminate skipped", {
+          reason: "no peer connection",
+        });
         return;
       }
       // stop local media tracks
@@ -630,7 +628,7 @@ export class WebrtcAdapter extends EventEmitter {
         }
       });
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error terminating the call:", error);
+      webrtcLog.error("webrtc › terminate failed", { error });
       throw error;
     }
   }
@@ -643,9 +641,11 @@ export class WebrtcAdapter extends EventEmitter {
     try {
       if (!this.audioTrack) throw Error("Audio track not initialized");
       this.audioTrack.enabled = this.audioTrack.enabled ? false : true;
-      console.log("toggling mic to", this.audioTrack.enabled);
+      webrtcLog.debug("webrtc › mic toggled", {
+        enabled: this.audioTrack.enabled,
+      });
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error toggling the microphone:", error);
+      webrtcLog.error("webrtc › mic toggle failed", { error });
       throw error;
     }
   }
@@ -658,9 +658,11 @@ export class WebrtcAdapter extends EventEmitter {
     try {
       if (!this.videoTrack) throw Error("Video track not initialized");
       this.videoTrack.enabled = this.videoTrack.enabled ? false : true;
-      console.log("toggling camera to", this.videoTrack.enabled);
+      webrtcLog.debug("webrtc › camera toggled", {
+        enabled: this.videoTrack.enabled,
+      });
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error toggling the camera:", error);
+      webrtcLog.error("webrtc › camera toggle failed", { error });
       throw error;
     }
   }
@@ -676,10 +678,7 @@ export class WebrtcAdapter extends EventEmitter {
         this.dataChannel?.readyState === "open"
       );
     } catch (error) {
-      console.error(
-        "[WebrtcAdapter]: Error getting if webrtc is connected:",
-        error
-      );
+      webrtcLog.error("webrtc › connection state read failed", { error });
       throw error;
     }
   }
@@ -694,7 +693,7 @@ export class WebrtcAdapter extends EventEmitter {
       if (!this.localStream) throw new Error("Local stream is undefined");
       return this.localStream;
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error getting local stream:", error);
+      webrtcLog.error("webrtc › local stream get failed", { error });
       throw error;
     }
   }
@@ -720,9 +719,9 @@ export class WebrtcAdapter extends EventEmitter {
       this.pendingIceCandidates = [];
       this.remoteDescriptionSet = false;
       this.resetIceRestartState();
-      console.log("[WebrtcAdapter]: Cleanup");
+      webrtcLog.info("webrtc › cleanup");
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error getting local stream:", error);
+      webrtcLog.error("webrtc › cleanup failed", { error });
       throw error;
     }
   }

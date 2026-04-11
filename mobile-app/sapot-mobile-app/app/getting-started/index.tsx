@@ -4,7 +4,7 @@ import {
   ScreenContent,
   ScreenHeader,
 } from "@/features/getting-started";
-import { FailedDialog, LoadingOverlay } from "@/features/shared";
+import { FailedDialog, LoadingOverlay, navLog } from "@/features/shared";
 import { useAppMode } from "@/features/shared/context";
 import { useCheckConnection, useLoadingOverlay } from "@/features/shared/hooks";
 import { useRouter } from "expo-router";
@@ -45,6 +45,7 @@ const ModeSelectScreen = () => {
   const handleUseLanMode = () => {
     hideConnectionFailedDialog();
     hideLoading();
+    navLog.info("navigate", { screen: AUTH_ROUTES.LOGIN.LAN_LOGIN });
     router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
   };
 
@@ -54,6 +55,7 @@ const ModeSelectScreen = () => {
     const result = await checkBackendConnection();
     if (result === true) {
       hideLoading();
+      navLog.info("navigate", { screen: AUTH_ROUTES.LOGIN.SERVER_LOGIN });
       router.push(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
     } else {
       hideLoading();

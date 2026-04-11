@@ -1,6 +1,6 @@
-import { useDatabase } from "@/features/shared/hooks";
 import { useChatService } from "@/features/chat";
-import { View, Pressable, StyleSheet } from "react-native";
+import { useDatabase } from "@/features/shared/hooks";
+import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
 
 export default function Debug() {
@@ -59,19 +59,19 @@ export default function Debug() {
         {/* <View style={styles.buttonContainer}>
           <Pressable
             style={styles.button}
-            onPress={() => console.log(tcpSocket.getServer())}
+            onPress={() => uiLog.debug("debug › tcp server", { server: tcpSocket.getServer() })}
           >
             <Text style={styles.buttonText}>Get Server</Text>
           </Pressable>
           <Pressable
             style={styles.button}
-            onPress={async () => console.log(await tcpSocket.stopServer())}
+            onPress={async () => uiLog.debug("debug › tcp stop", { result: await tcpSocket.stopServer() })}
           >
             <Text style={styles.buttonText}>Stop Server</Text>
           </Pressable>
           <Pressable
             style={styles.button}
-            onPress={() => console.log(tcpSocket.startServer())}
+            onPress={() => uiLog.debug("debug › tcp start", { result: tcpSocket.startServer() })}
           >
             <Text style={styles.buttonText}>Start Server</Text>
           </Pressable>
