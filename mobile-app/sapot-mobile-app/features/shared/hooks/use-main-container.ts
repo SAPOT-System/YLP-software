@@ -1,8 +1,15 @@
 import { useContext } from "react";
 import { MainContainerContext } from "../context";
+import baseLogger from "../utils/logger";
+
+const hookLog = baseLogger.extend("hook");
+hookLog.debug("[use-main-container] module loaded");
 
 export function useMainContainer() {
   const container = useContext(MainContainerContext);
-  if (!container) throw new Error("Container not initialized");
+  if (!container) {
+    hookLog.error("[useMainContainer] container missing");
+    throw new Error("Container not initialized");
+  }
   return container;
 }

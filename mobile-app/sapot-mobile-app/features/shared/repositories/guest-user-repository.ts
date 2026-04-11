@@ -4,6 +4,8 @@ import baseLogger from "../utils/logger";
 
 const guestUserLog = baseLogger.extend("guest-user");
 
+guestUserLog.debug("[guest-user-repository] module loaded");
+
 export class GuestUserRepository {
   private db: Database;
   private guestUserCollection: Collection<GuestUser>;
@@ -11,6 +13,9 @@ export class GuestUserRepository {
   constructor(db: Database) {
     this.db = db;
     this.guestUserCollection = this.db.get<GuestUser>(GuestUser.table);
+    guestUserLog.info("guest-user › repository constructed", {
+      hasDatabase: Boolean(db),
+    });
   }
 
   async saveGuestUser(newGuestUser: {
@@ -81,6 +86,7 @@ export class GuestUserRepository {
   }
 
   async getGuestUserDestroyOps() {
+    guestUserLog.debug("guest-user › destroy ops requested");
     const records = await this.guestUserCollection.query().fetch();
 
     return records.map((r) => r.prepareDestroyPermanently());

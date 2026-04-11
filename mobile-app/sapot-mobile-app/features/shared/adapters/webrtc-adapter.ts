@@ -1,17 +1,19 @@
 import { EventEmitter } from "events";
 import {
-    mediaDevices,
-    MediaStream,
-    MediaStreamTrack,
-    RTCIceCandidate,
-    RTCPeerConnection,
-    RTCSessionDescription,
+  mediaDevices,
+  MediaStream,
+  MediaStreamTrack,
+  RTCIceCandidate,
+  RTCPeerConnection,
+  RTCSessionDescription,
 } from "react-native-webrtc";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { WebrtcDataMessage } from "../types";
 import baseLogger from "../utils/logger";
 
 const webrtcLog = baseLogger.extend("webrtc");
+
+webrtcLog.debug("[webrtc-adapter] module loaded");
 
 interface RTCIceCandidateInit {
   candidate: string;
@@ -49,6 +51,7 @@ export class WebrtcAdapter extends EventEmitter {
   /**
    * This property holds the information whether the app will use servers or not
    */
+  // eslint-disable-next-line no-undef
   private configuration: RTCConfiguration;
 
   /**
@@ -93,6 +96,7 @@ export class WebrtcAdapter extends EventEmitter {
   constructor(peerId: string) {
     super();
     this.peerId = peerId;
+    webrtcLog.info("webrtc › adapter constructed", { peerId });
     this.configuration = {
       iceServers: [
         // No turn server for physical devices

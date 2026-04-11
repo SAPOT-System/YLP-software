@@ -5,6 +5,8 @@ import baseLogger from "../utils/logger";
 
 const tcpLog = baseLogger.extend("tcp");
 
+tcpLog.debug("[tcp-client-adapter] module loaded");
+
 /**
  * TcpClientAdapter manages a TCP client socket connection for peer-to-peer communication.
  * It handles connecting, sending messages, disconnecting, and connection state management.
@@ -22,6 +24,7 @@ export class TcpClientAdapter extends EventEmitter {
   constructor(peerId: string) {
     super();
     this.peerId = peerId;
+    tcpLog.info("tcp › client constructed", { peerId });
   }
 
   /**

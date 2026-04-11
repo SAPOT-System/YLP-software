@@ -4,10 +4,16 @@ import baseLogger from "../utils/logger";
 
 const callLog = baseLogger.extend("call");
 
+callLog.debug("[call-media-service] module loaded");
+
 export class CallMediaService {
   constructor(
     private readonly getWebrtcAdapter: (peerId: string) => WebrtcAdapter
-  ) {}
+  ) {
+    callLog.info("call › media service constructed", {
+      hasWebrtcAdapter: Boolean(getWebrtcAdapter),
+    });
+  }
 
   async initializeStream(stream: "audio" | "video", peerId: string): Promise<void> {
     try {

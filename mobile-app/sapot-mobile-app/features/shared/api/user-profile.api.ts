@@ -1,6 +1,11 @@
+import baseLogger from "@/features/shared/utils/logger";
 import { apiClient } from "./client";
 
+const apiLog = baseLogger.extend("api");
+apiLog.debug("[user-profile-api] module loaded");
+
 export const getUserApi = async (accessToken?: string) => {
+  apiLog.debug("api › get user", { hasAccessToken: Boolean(accessToken) });
   const res = await apiClient.get<{
     username: string;
     first_name: string;
@@ -26,6 +31,13 @@ export const updateProfileApi = async (credentials: {
   phoneNumber?: string;
   email?: string;
 }) => {
+  apiLog.info("api › update profile", {
+    hasUsername: Boolean(credentials.username),
+    hasFirstName: Boolean(credentials.firstName),
+    hasLastName: Boolean(credentials.lastName),
+    hasPhoneNumber: Boolean(credentials.phoneNumber),
+    hasEmail: Boolean(credentials.email),
+  });
   const payload = Object.fromEntries(
     Object.entries({
       username: credentials.username,
@@ -47,7 +59,11 @@ export type ExpoFileUpload = {
 };
 
 export const uploadProfilePicApi = async (file: ExpoFileUpload) => {
-  // eslint-disable-next-line no-undef
+  apiLog.info("api › upload profile pic", {
+    hasFileUri: Boolean(file?.uri),
+    hasFileName: Boolean(file?.name),
+    hasFileType: Boolean(file?.type),
+  });
   const formData = new FormData();
   formData.append("file", {
     uri: file.uri,
@@ -71,6 +87,7 @@ export const uploadProfilePicApi = async (file: ExpoFileUpload) => {
 };
 
 export const getCurrentUserProfilePicApi = async () => {
+  apiLog.debug("api › get current profile pic");
   const res = await apiClient.get<{
     url: string;
   }>("/profile-picture/me", {
@@ -83,6 +100,7 @@ export const getCurrentUserProfilePicApi = async () => {
 };
 
 export const getUserProfilePicApi = async (userId: string) => {
+  apiLog.debug("api › get user profile pic", { hasUserId: Boolean(userId) });
   const res = await apiClient.get<{
     url: string;
   }>(`/profile-picture/${userId}`);

@@ -1,4 +1,4 @@
-import { logger, consoleTransport } from "react-native-logs";
+import { consoleTransport, logger } from "react-native-logs";
 import Reactotron from "reactotron-react-native";
 
 type ReactotronTransportProps = {
@@ -17,7 +17,7 @@ const reactotronTransport = (props: ReactotronTransportProps) => {
   }
 };
 
-const config = {
+const baseLogger = logger.createLogger({
   severity: __DEV__ ? "debug" : "error",
   transport: __DEV__
     ? [reactotronTransport, consoleTransport]
@@ -28,14 +28,22 @@ const config = {
     warn: 2,
     error: 3,
   },
+  transportOptions: {
+    colors: {
+      debug: "green",
+      info: "blueBright",
+      warn: "yellowBright",
+      error: "redBright",
+    },
+  },
   async: true,
   dateFormat: "time",
   printDate: false,
   printLevel: true,
   enabled: true,
-};
+});
 
-const baseLogger = logger.createLogger(config);
+baseLogger.debug("[logger] module loaded");
 
 export const authLog = baseLogger.extend("auth");
 export const apiLog = baseLogger.extend("api");

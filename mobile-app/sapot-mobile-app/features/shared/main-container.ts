@@ -28,6 +28,8 @@ import baseLogger from "./utils/logger";
 
 const appLog = baseLogger.extend("app");
 
+appLog.debug("[main-container] module loaded");
+
 /**
  * AppContainer is responsible for initializing and wiring up all core services, repositories, and stores for the mobile app.
  * It acts as a dependency injection container and provides a single point of initialization for the application.
@@ -61,6 +63,10 @@ export class MainContainer {
    * Sets up dependency injection and cross-service references.
    */
   constructor(userContainer: AuthContainer, appModeStore: AppModeStore) {
+    appLog.info("app › container constructed", {
+      hasUserContainer: Boolean(userContainer),
+      hasAppModeStore: Boolean(appModeStore),
+    });
     this.userContainer = userContainer;
     this.appModeStore = appModeStore;
 

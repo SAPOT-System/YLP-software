@@ -5,6 +5,8 @@ import baseLogger from "../utils/logger";
 
 const zeroconfLog = baseLogger.extend("zeroconf");
 
+zeroconfLog.debug("[zeroconf-adapter] module loaded");
+
 /**
  * ZeroconfAdapter manages network service discovery and publishing using mDNS/ZeroConf.
  * It emits events for service resolution and removal, and provides methods to scan, publish, and clean up services.
@@ -18,6 +20,7 @@ export class ZeroconfAdapter extends EventEmitter {
   constructor() {
     super();
     this.zeroconf = new Zeroconf();
+    zeroconfLog.info("zeroconf › adapter constructed");
   }
 
   /**

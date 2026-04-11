@@ -3,6 +3,8 @@ import TcpSocket from "react-native-tcp-socket";
 import baseLogger from "../utils/logger";
 
 const tcpLog = baseLogger.extend("tcp");
+
+tcpLog.debug("[tcp-server-adapter] module loaded");
 /**
  * TcpServerAdapter manages a TCP server socket for accepting peer-to-peer connections.
  * It handles starting, stopping, and emitting data events for incoming messages.
@@ -15,6 +17,7 @@ export class TcpServerAdapter extends EventEmitter {
    */
   constructor() {
     super();
+    tcpLog.info("tcp › server constructed");
   }
 
   /**

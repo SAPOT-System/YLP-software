@@ -6,6 +6,8 @@ import { CallMessage, Message, SignalingMessage } from "../types";
 
 const signalingLog = baseLogger.extend("signaling");
 
+signalingLog.debug("[signaling-service] module loaded");
+
 export class SignalingService {
   private signalingToken?: string;
   private getTcpAdapter?: (peerId: string) => TcpClientAdapter | undefined;
@@ -18,7 +20,16 @@ export class SignalingService {
     private readonly userStore: UserStore,
     private readonly networkConfig: NetworkConfig,
     private readonly appModeStore: AppModeStore
-  ) {}
+  ) {
+    signalingLog.info("signaling › service constructed", {
+      hasWebrtcAdapter: Boolean(getWebrtcAdapter),
+      hasWsSignalingAdapter: Boolean(wsSignalingAdapter),
+      hasWsBaseUrl: Boolean(wsBaseUrl),
+      hasUserStore: Boolean(userStore),
+      hasNetworkConfig: Boolean(networkConfig),
+      hasAppModeStore: Boolean(appModeStore),
+    });
+  }
 
   setTcpCallbacks(
     getTcpAdapter: (peerId: string) => TcpClientAdapter | undefined,

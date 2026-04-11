@@ -4,6 +4,8 @@ import baseLogger from "../utils/logger";
 
 const networkLog = baseLogger.extend("network");
 
+networkLog.debug("[network-config] module loaded");
+
 /**
  * NetworkConfig manages network-related configuration such as port and IP address.
  */
@@ -18,6 +20,7 @@ export class NetworkConfig {
   constructor() {
     this.port = this.generatePort();
     this.ipAddress = "";
+    networkLog.info("network › config constructed", { port: this.port });
   }
 
   /**
@@ -26,11 +29,15 @@ export class NetworkConfig {
    */
   async initialize() {
     try {
+      networkLog.info("network › init start");
       const ip = await NetworkInfo.getIPV4Address();
       if (!ip) {
         throw new Error("Failed to obtain a valid IP address.");
       }
       this.ipAddress = ip;
+      networkLog.info("network › init complete", {
+        hasIp: Boolean(this.ipAddress),
+      });
     } catch (error) {
       networkLog.error("network › init failed", { error });
       throw error;
@@ -41,6 +48,7 @@ export class NetworkConfig {
    * Subscribes to network state changes and updates ipAddress when the WiFi IP changes.
    */
   startWatching(): void {
+    networkLog.info("network › watch start");
     this.unsubscribeNetInfo = NetInfo.addEventListener((state) => {
       if (state.type === "wifi") {
         const newIp = (state.details as { ipAddress?: string } | null)?.ipAddress;
@@ -59,6 +67,7 @@ export class NetworkConfig {
    * Unsubscribes from network state change listener.
    */
   stopWatching(): void {
+    networkLog.info("network › watch stop");
     this.unsubscribeNetInfo?.();
     this.unsubscribeNetInfo = undefined;
   }

@@ -1,3 +1,8 @@
+import baseLogger from "@/features/shared/utils/logger";
+
+const hookLog = baseLogger.extend("hook");
+hookLog.debug("[shared/hooks] module loaded");
+
 export * from "./use-check-connection";
 export * from "./use-connection-service";
 export { default as useDatabase } from "./use-database";

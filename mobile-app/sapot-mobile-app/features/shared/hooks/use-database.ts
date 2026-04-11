@@ -3,6 +3,8 @@ import baseLogger from "../utils/logger";
 
 const dbLog = baseLogger.extend("database");
 
+dbLog.debug("[use-database] module loaded");
+
 const useDatabase = () => {
   const createPeer = async (newPeer: {
     id: string;
@@ -34,6 +36,7 @@ const useDatabase = () => {
 
   const deletePeers = async () => {
     try {
+      dbLog.info("database › peers delete start");
       await database.write(async () => {
         const records = await database.get<Peer>("peers").query().fetch();
 
@@ -41,6 +44,7 @@ const useDatabase = () => {
 
         await database.batch(...ops);
       });
+      dbLog.info("database › peers delete complete");
     } catch (error) {
       dbLog.error("database › peers delete failed", { error });
     }
@@ -48,9 +52,11 @@ const useDatabase = () => {
 
   const deleteDatabase = async () => {
     try {
+      dbLog.warn("database › reset requested");
       await database.write(async () => {
         await database.unsafeResetDatabase();
       });
+      dbLog.info("database › reset complete");
     } catch (error) {
       dbLog.error("database › reset failed", { error });
     }

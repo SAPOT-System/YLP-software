@@ -11,6 +11,8 @@ if (__DEV__) {
       },
     })
     .connect();
+
+  Reactotron.log?.("[reactotron] configured");
 }
 
 export default Reactotron;

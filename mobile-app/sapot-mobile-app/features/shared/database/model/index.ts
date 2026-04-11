@@ -1,3 +1,8 @@
+import baseLogger from "@/features/shared/utils/logger";
+
+const modelLog = baseLogger.extend("database");
+modelLog.debug("[database/models] module loaded");
+
 export * from "./Call";
 export * from "./CallParticipant";
 export * from "./Conversation";

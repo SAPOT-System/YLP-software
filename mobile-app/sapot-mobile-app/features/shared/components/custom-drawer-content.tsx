@@ -20,6 +20,8 @@ import { useProfilePhoto, useUserProfile } from "../hooks";
 import { useSyncService } from "../hooks/use-sync-service";
 import { uiLog } from "../utils/logger";
 
+uiLog.debug("[custom-drawer-content] module loaded");
+
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
   const auth = useAuth();
@@ -38,6 +40,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   };
 
   const handleLogout = async () => {
+    uiLog.info("drawer › logout pressed", { isAuthenticated });
     if (isAuthenticated) {
       await logout();
     } else {
@@ -46,6 +49,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   };
 
   const handleSyncNow = async () => {
+    uiLog.info("drawer › sync now pressed");
     await syncService.syncNow();
   };
 

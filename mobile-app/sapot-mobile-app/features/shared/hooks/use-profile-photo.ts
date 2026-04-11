@@ -1,10 +1,14 @@
 import { getApiUrl } from "@/config/runtime";
 import {
-  getCurrentUserProfilePicApi,
-  getUserProfilePicApi,
+    getCurrentUserProfilePicApi,
+    getUserProfilePicApi,
 } from "@/features/shared/api/user-profile.api";
 import { normalizeMediaUrl } from "@/features/shared/utils/normalize-media-url";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import baseLogger from "../utils/logger";
+
+const photoLog = baseLogger.extend("profile-photo");
+photoLog.debug("[use-profile-photo] module loaded");
 
 type ProfilePhotoState = {
   url: string | null;
@@ -20,6 +24,7 @@ const listeners = new Map<string, Set<(url: string | null) => void>>();
 const buildKey = (userId?: string | null) => (userId ? userId : "me");
 
 const fetchProfilePhoto = async (userId?: string | null) => {
+  photoLog.debug("profile-photo › fetch", { hasUserId: Boolean(userId) });
   const res = userId
     ? await getUserProfilePicApi(userId)
     : await getCurrentUserProfilePicApi();
@@ -63,11 +68,13 @@ export const useProfilePhoto = (userId?: string | null): ProfilePhotoState => {
 
   const refresh = useCallback(async () => {
     if (userId === null) {
+      photoLog.info("profile-photo › refresh skipped", { reason: "null user" });
       setLoading(false);
       setUrlState(null);
       return;
     }
 
+    photoLog.info("profile-photo › refresh start", { hasUserId: Boolean(userId) });
     setLoading(true);
     setError(null);
 
@@ -75,7 +82,11 @@ export const useProfilePhoto = (userId?: string | null): ProfilePhotoState => {
       const nextUrl = await fetchProfilePhoto(userId);
       const resolved = setCache(key, nextUrl);
       setUrlState(resolved);
-    } catch {
+      photoLog.info("profile-photo › refresh success", {
+        hasUrl: Boolean(resolved),
+      });
+    } catch (error) {
+      photoLog.warn("profile-photo › refresh failed", { error });
       const baseUrl = getApiUrl();
       setError(`Failed to load profile photo. Check server: ${baseUrl}`);
       setUrlState(getCache(key));

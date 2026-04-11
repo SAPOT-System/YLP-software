@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import { AppMode, AppModeStore } from "../stores/app-mode-store";
+import baseLogger from "../utils/logger";
+
+const modeLog = baseLogger.extend("mode");
+modeLog.debug("[app-mode-context] module loaded");
 
 const AppModeContext = createContext<AppModeStore | null>(null);
 
@@ -34,7 +38,10 @@ export function useAppMode() {
     () => store.mode
   );
 
-  const setMode = (nextMode: AppMode) => store.setMode(nextMode);
+  const setMode = (nextMode: AppMode) => {
+    modeLog.info("mode › set", { from: store.mode, to: nextMode });
+    store.setMode(nextMode);
+  };
 
   return {
     mode,

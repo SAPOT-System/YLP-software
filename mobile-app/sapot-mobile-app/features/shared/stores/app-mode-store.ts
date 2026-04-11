@@ -1,3 +1,8 @@
+import baseLogger from "../utils/logger";
+
+const modeLog = baseLogger.extend("mode");
+modeLog.debug("[app-mode-store] module loaded");
+
 export type AppMode = "auto" | "server" | "lan";
 
 type AppModeListener = () => void;
@@ -18,6 +23,7 @@ export class AppModeStore {
 
   setMode(mode: AppMode) {
     if (this._mode === mode) return;
+    modeLog.info("mode › set", { from: this._mode, to: mode });
     this._mode = mode;
     this.emit();
   }

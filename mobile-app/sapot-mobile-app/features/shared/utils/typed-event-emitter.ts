@@ -1,4 +1,8 @@
 import { EventEmitter } from "events";
+import baseLogger from "./logger";
+
+const utilLog = baseLogger.extend("util");
+utilLog.debug("[typed-event-emitter] module loaded");
 
 /**
  * A typed wrapper around Node's EventEmitter.

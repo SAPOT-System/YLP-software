@@ -1,8 +1,12 @@
 import {
-  addColumns,
-  createTable,
-  schemaMigrations,
+    addColumns,
+    createTable,
+    schemaMigrations,
 } from "@nozbe/watermelondb/Schema/migrations";
+import baseLogger from "../utils/logger";
+
+const migrationLog = baseLogger.extend("database");
+migrationLog.debug("[database-migrations] module loaded");
 
 export default schemaMigrations({
   migrations: [

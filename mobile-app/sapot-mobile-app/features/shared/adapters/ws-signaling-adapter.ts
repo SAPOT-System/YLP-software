@@ -4,6 +4,8 @@ import baseLogger from "../utils/logger";
 
 const wsLog = baseLogger.extend("ws");
 
+wsLog.debug("[ws-signaling-adapter] module loaded");
+
 interface WsLike {
   readyState: number;
   onopen: (() => void) | null;

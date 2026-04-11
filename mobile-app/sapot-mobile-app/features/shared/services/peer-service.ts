@@ -5,6 +5,8 @@ import baseLogger from "../utils/logger";
 
 const peerLog = baseLogger.extend("peer");
 
+peerLog.debug("[peer-service] module loaded");
+
 /**
  * PeerService manages peer discovery, registration, online/offline state, and peer repository operations.
  * It maintains a list of discovered peers and coordinates with the repository for persistent peer data.
@@ -23,7 +25,11 @@ export class PeerService {
    * Constructs a PeerService instance.
    * @param peerRepository Repository for peer data
    */
-  constructor(private peerRepository: PeerRepository) {}
+  constructor(private peerRepository: PeerRepository) {
+    peerLog.info("peer › service constructed", {
+      hasPeerRepository: Boolean(peerRepository),
+    });
+  }
 
   /**
    * Registers a discovered peer service. If the peer exists, marks it online; otherwise, saves it.

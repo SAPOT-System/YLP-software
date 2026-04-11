@@ -3,6 +3,10 @@ import { DataChatMessageI } from "@/features/chat/types";
 import { MediaStream } from "react-native-webrtc";
 import { TcpClientAdapter, WebrtcAdapter } from "../adapters";
 import { CallMessage, DataAckMessage, Message, SignalingMessage } from "../types";
+import baseLogger from "../utils/logger";
+
+const serviceLog = baseLogger.extend("service");
+serviceLog.debug("[service-interfaces] module loaded");
 
 export interface IWebrtcSessionManager {
   getWebrtcAdapter(peerId: string): WebrtcAdapter;

@@ -7,6 +7,8 @@ import { SessionStore, UserStore } from "../stores";
 import { CleanUpService } from "./clean-up-service";
 import { PeerService } from "./peer-service";
 
+authLog.debug("[user-service] module loaded");
+
 /**
  * UserService manages user initialization, user identity, and user persistence in the app.
  * It ensures a user exists in the database and is available in the session and user stores.
@@ -26,7 +28,14 @@ export class UserService {
     private peerService: PeerService,
     private sessionStore: SessionStore,
     private guestUserRepository: GuestUserRepository
-  ) {}
+  ) {
+    this.log("service constructed", {
+      hasUserStore: Boolean(userStore),
+      hasPeerService: Boolean(peerService),
+      hasSessionStore: Boolean(sessionStore),
+      hasGuestUserRepository: Boolean(guestUserRepository),
+    });
+  }
 
   private log(message: string, meta?: Record<string, unknown>) {
     authLog.info(`user › ${message}`, meta);
@@ -179,6 +188,14 @@ export class UserService {
     phoneNumber?: string;
     emailVerified?: boolean;
   }) {
+    this.log("update auth start", {
+      hasUsername: Boolean(userInfo.username),
+      hasFirstName: Boolean(userInfo.firstName),
+      hasLastName: Boolean(userInfo.lastName),
+      hasEmail: Boolean(userInfo.email),
+      hasPhoneNumber: Boolean(userInfo.phoneNumber),
+      emailVerified: userInfo.emailVerified,
+    });
     const id = await getItemAsync("userUUID");
     if (id === null) return; //TODO: inform user of error
 
@@ -194,6 +211,7 @@ export class UserService {
     const user = await this.peerService.findPeerById(id);
 
     this.userStore.setUser(user, false);
+    this.log("update auth complete", { hasUser: Boolean(user) });
   }
 
   async isCurrentUserGuest() {
@@ -206,6 +224,9 @@ export class UserService {
   }
 
   setCleanUpService(cleanUpService: CleanUpService) {
+    this.log("cleanup service set", {
+      hasCleanUpService: Boolean(cleanUpService),
+    });
     this.cleanUpService = cleanUpService;
   }
 

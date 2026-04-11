@@ -1,5 +1,9 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { useColorScheme } from "react-native";
+import baseLogger from "../utils/logger";
+
+const uiLog = baseLogger.extend("ui");
+uiLog.debug("[theme-preference-context] module loaded");
 
 export type ThemeChoice = "light" | "dark" | "system";
 type AppTheme = "light" | "dark";
@@ -22,16 +26,21 @@ export function ThemePreferenceProvider({
   const systemTheme = useColorScheme();
   const [themeChoice, setThemeChoice] = useState<ThemeChoice>("system");
 
+  const handleSetThemeChoice = useCallback((choice: ThemeChoice) => {
+    uiLog.info("theme › set", { choice });
+    setThemeChoice(choice);
+  }, []);
+
   const resolvedTheme: AppTheme =
     themeChoice === "system" ? (systemTheme === "dark" ? "dark" : "light") : themeChoice;
 
   const value = useMemo(
     () => ({
       themeChoice,
-      setThemeChoice,
+      setThemeChoice: handleSetThemeChoice,
       resolvedTheme,
     }),
-    [themeChoice, resolvedTheme]
+    [handleSetThemeChoice, themeChoice, resolvedTheme]
   );
 
   return (

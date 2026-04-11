@@ -4,6 +4,8 @@ import baseLogger from "../utils/logger";
 
 const peerLog = baseLogger.extend("peer");
 
+peerLog.debug("[peer-repository] module loaded");
+
 /**
  * PeerRepository communicates with the peers table in the database and manages CRUD operations for peers.
  */
@@ -18,6 +20,7 @@ export class PeerRepository {
   constructor(db: Database) {
     this.db = db;
     this.peersCollection = this.db.get<Peer>(Peer.table);
+    peerLog.info("peer › repository constructed", { hasDatabase: Boolean(db) });
   }
 
   /**
@@ -232,6 +235,7 @@ export class PeerRepository {
   }
 
   async getPeerDestroyOps() {
+    peerLog.debug("peer › destroy ops requested");
     const records = await this.peersCollection.query().fetch();
 
     return records.map((r) => r.prepareDestroyPermanently());

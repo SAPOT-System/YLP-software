@@ -22,6 +22,8 @@ import { WebrtcSessionManager } from "./webrtc-session-manager";
 
 const connectionLog = baseLogger.extend("connection");
 
+connectionLog.debug("[connection-service] module loaded");
+
 export type ConnectionStatePayload = {
   peerId: string;
   state: "connecting" | "connected" | "failed" | "timeout";
@@ -58,6 +60,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     private readonly callMediaService: CallMediaService
   ) {
     super();
+
+    connectionLog.info("connection › service constructed", {
+      hasTcpServerAdapter: Boolean(tcpServerAdapter),
+      hasNetworkConfig: Boolean(networkConfig),
+      hasUserStore: Boolean(userStore),
+      hasAppModeStore: Boolean(appModeStore),
+      hasWsSignalingAdapter: Boolean(wsSignalingAdapter),
+      hasWebrtcSessionManager: Boolean(webrtcSessionManager),
+      hasSignalingService: Boolean(signalingService),
+      hasCallMediaService: Boolean(callMediaService),
+    });
 
     // Wire sub-services — ConnectionService is constructed last so all exist here.
     // Closures (not .bind) so jest.spyOn replacements on this instance are respected.

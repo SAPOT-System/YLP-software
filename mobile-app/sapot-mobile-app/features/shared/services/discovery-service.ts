@@ -8,6 +8,8 @@ import { PeerService } from "./peer-service";
 
 const discoveryLog = baseLogger.extend("discovery");
 
+discoveryLog.debug("[discovery-service] module loaded");
+
 /**
  * DiscoveryService is responsible for discovering devices on the local network and making this device discoverable to others.
  * It manages peer registration, handles service resolution/removal, and coordinates message resending for peers that come online.
@@ -33,6 +35,14 @@ export class DiscoveryService {
     private peerService: PeerService,
     private appModeStore: AppModeStore
   ) {
+    discoveryLog.info("discovery › service constructed", {
+      hasAdapter: Boolean(adapter),
+      hasSessionStore: Boolean(sessionStore),
+      hasNetworkConfig: Boolean(networkConfig),
+      hasUserStore: Boolean(userStore),
+      hasPeerService: Boolean(peerService),
+      hasAppModeStore: Boolean(appModeStore),
+    });
     // Handle device/service resolution: register peer and attempt to resend unsent messages
     this.adapter.on("serviceResolved", async (peerService: Service) => {
       try {

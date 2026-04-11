@@ -9,6 +9,8 @@ import { TypedEventEmitter } from "../utils/typed-event-emitter";
 
 const webrtcLog = baseLogger.extend("webrtc");
 
+webrtcLog.debug("[webrtc-session-manager] module loaded");
+
 type WebrtcSessionManagerEvents = {
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
@@ -24,6 +26,10 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     private readonly networkConfig: NetworkConfig
   ) {
     super();
+    webrtcLog.info("webrtc › session manager constructed", {
+      hasUserStore: Boolean(userStore),
+      hasNetworkConfig: Boolean(networkConfig),
+    });
   }
 
   setSignalingSender(fn: (peerId: string, msg: SignalingMessage) => void) {

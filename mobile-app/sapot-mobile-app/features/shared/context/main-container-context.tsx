@@ -2,7 +2,11 @@ import { useAuthContainer } from "@/features/auth";
 import React, { createContext, useEffect, useState } from "react";
 import { ActivityIndicator } from "react-native-paper";
 import { MainContainer } from "../main-container";
+import baseLogger from "../utils/logger";
 import { useAppModeStore } from "./app-mode-context";
+
+const appLog = baseLogger.extend("app");
+appLog.debug("[main-container-context] module loaded");
 
 export const MainContainerContext = createContext<MainContainer | null>(null);
 
@@ -18,8 +22,14 @@ export function MainContainerProvider({
   useEffect(() => {
     const c = new MainContainer(userContainer, appModeStore);
     const init = async () => {
-      await c.initialize();
-      setContainer(c);
+      try {
+        appLog.info("app › container init start");
+        await c.initialize();
+        setContainer(c);
+        appLog.info("app › container init complete");
+      } catch (error) {
+        appLog.error("app › container init failed", { error });
+      }
     };
     init();
   }, [appModeStore, userContainer]);
