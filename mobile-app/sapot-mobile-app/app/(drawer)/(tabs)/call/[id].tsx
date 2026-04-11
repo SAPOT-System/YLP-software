@@ -5,7 +5,7 @@ import {
   usePeerService,
   useProfilePhoto,
 } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { callLog, uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -35,7 +35,7 @@ export default function CallRoom() {
   const router = useRouter();
   const { id, type, status } = useLocalSearchParams<{
     id: string;
-    type: string;
+    type: "video" | "audio";
     status?: string;
   }>();
   const callService = useCallService();
@@ -51,11 +51,10 @@ export default function CallRoom() {
   const [peer, setPeer] = useState<Peer | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [localStream, setLocalStream] = useState<MediaStream | undefined>();
-  const [remoteStream, setRemoteStream] = useState<MediaStream | undefined>();
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const [remoteStreamUrl, setRemoteStreamUrl] = useState<string>();
   const hasTerminated = useRef(false);
-
-  const localStreamUrl = localStream ? localStream.toURL() : undefined;
-  const remoteStreamUrl = remoteStream ? remoteStream.toURL() : undefined;
+  const [ready, setReady] = useState(false);
 
   const { url: peerPhotoUrl } = useProfilePhoto(id);
 
@@ -63,12 +62,56 @@ export default function CallRoom() {
     ? [peer.firstName, peer.lastName].filter(Boolean).join(" ")
     : "";
 
+  const navigateAway = useCallback(() => {
+    router.replace("/(drawer)/(tabs)");
+  }, [router]);
+
   useEffect(() => {
     uiLog.info("[CallRoom] mounted");
     return () => {
       uiLog.info("[CallRoom] unmounted");
     };
   }, []);
+
+  useEffect(() => {
+    const callReadyHandler = (peerId: string) => {
+      callLog.info("[CallRoom] Call ready received");
+      if (peerId !== id) {
+        callLog.warn("[CallRoom] Peer id does not match");
+        return;
+      }
+      callLog.info("[CallRoom] Starting call");
+      callService.startCall(type, peerId); // TODO: persistently try to start call since it is acknowledge by the receiver
+    };
+
+    connectionService.on("call-ready", callReadyHandler);
+
+    return () => {
+      connectionService.off("call-ready", callReadyHandler);
+    };
+  }, [callService, connectionService, id, type]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const interval = setInterval(() => {
+        callLog.debug("[CallRoom]", {
+          hasRemoteStream: !!remoteStreamRef.current,
+          streamId: remoteStreamRef.current?.id,
+          trackCount: remoteStreamRef.current?.getTracks().length,
+          streamUrl: remoteStreamRef.current?.toURL(),
+        });
+      }, 2000);
+
+      return () => clearInterval(interval);
+    }, [])
+  );
+
+  useEffect(() => {
+    if (remoteStreamRef) {
+      const timer = setTimeout(() => setReady(true), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [remoteStreamRef]);
 
   // Reset state when the screen gains focus
   useFocusEffect(
@@ -81,8 +124,6 @@ export default function CallRoom() {
       setCallState(status === "connected" ? "connected" : "calling");
       setElapsed(0);
       setLocalStream(undefined);
-      setRemoteStream(undefined);
-      setMic(true);
       setCam(true);
       hasTerminated.current = false;
     }, [id, type, status])
@@ -150,7 +191,8 @@ export default function CallRoom() {
   useEffect(() => {
     const handler = (stream: MediaStream) => {
       uiLog.info("[CallRoom] remote stream received");
-      setRemoteStream(stream);
+      remoteStreamRef.current = stream;
+      setRemoteStreamUrl(stream.toURL());
       setCallState("connected");
     };
     callService.on("remoteStream", handler);
@@ -158,19 +200,6 @@ export default function CallRoom() {
       callService.off("remoteStream", handler);
     };
   }, [callService]);
-
-  // Listen for remote peer ending the call
-  useEffect(() => {
-    const handler = (fromId?: string) => {
-      if (fromId && fromId !== id) return;
-      uiLog.info("call › remote ended", { peerId: id });
-      setCallState((prev) => (prev === "calling" ? "no-answer" : "ended"));
-    };
-    connectionService.on("call-ended", handler);
-    return () => {
-      connectionService.off("call-ended", handler);
-    };
-  }, [connectionService, id]);
 
   // No-answer timeout (30s)
   useEffect(() => {
@@ -187,10 +216,10 @@ export default function CallRoom() {
     uiLog.info("call › ended", { peerId: id });
     const timer = setTimeout(() => {
       uiLog.info("[Navigation] goBack triggered from CallRoom");
-      router.back();
+      navigateAway();
     }, 3000);
     return () => clearTimeout(timer);
-  }, [callState, router, id]);
+  }, [callState, id, navigateAway]);
 
   // Terminate on unmount if still active
   useEffect(() => {
@@ -216,14 +245,28 @@ export default function CallRoom() {
 
   const handleEndCall = useCallback(async () => {
     uiLog.debug("[CallRoom] handleEndCall called");
-    await terminate();
     setCallState("ended");
+    await terminate();
   }, [terminate]);
 
+  // Listen for remote peer ending the call
+  useEffect(() => {
+    const handler = async (fromId?: string) => {
+      if (fromId && fromId !== id) return;
+      uiLog.info("call › remote ended", { peerId: id });
+      await terminate();
+      setCallState("ended");
+    };
+    connectionService.on("call-ended", handler);
+    return () => {
+      connectionService.off("call-ended", handler);
+    };
+  }, [connectionService, id, terminate]);
+
   const handleClose = useCallback(() => {
-    uiLog.info("[Navigation] goBack triggered from CallRoom");
-    router.back();
-  }, [router]);
+    uiLog.info("[Navigation] handleClose triggered from CallRoom");
+    navigateAway();
+  }, [navigateAway]);
 
   const handleCallAgain = useCallback(() => {
     uiLog.info("[Navigation] Navigating to CallRoom", {
@@ -303,7 +346,7 @@ export default function CallRoom() {
       {/* Video streams (video call, connected state) */}
       {showVideoStreams && (
         <View style={styles.videoContainer}>
-          {remoteStreamUrl ? (
+          {ready ? (
             <RTCView
               streamURL={remoteStreamUrl}
               mirror={false}
@@ -314,9 +357,9 @@ export default function CallRoom() {
           ) : (
             <View style={styles.remoteVideo} />
           )}
-          {localStreamUrl && (
+          {localStream && (
             <RTCView
-              streamURL={localStreamUrl}
+              streamURL={localStream?.toURL()}
               mirror={true}
               objectFit="cover"
               zOrder={1}

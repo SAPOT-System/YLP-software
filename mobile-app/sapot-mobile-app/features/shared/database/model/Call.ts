@@ -13,6 +13,7 @@ export enum CallType {
 }
 
 export enum CallStatus {
+  INITIATING = "initiating",
   MISSED = "missed",
   COMPLETED = "completed",
   REJECTED = "rejected",

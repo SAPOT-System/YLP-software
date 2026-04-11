@@ -61,7 +61,7 @@ export default function IncomingCall() {
   const handleAccept = async () => {
     uiLog.debug("[IncomingCall] handleAccept called", { id, type });
     try {
-      await callService.startCall(
+      await callService.answerCall(
         (type as "audio" | "video") ?? "audio",
         id as string
       );

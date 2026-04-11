@@ -13,7 +13,10 @@ export class CallMediaService {
     });
   }
 
-  async initializeStream(stream: "audio" | "video", peerId: string): Promise<void> {
+  async initializeStream(
+    stream: "audio" | "video",
+    peerId: string
+  ): Promise<void> {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) throw new Error("Not connected");

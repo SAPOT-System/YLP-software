@@ -3,17 +3,17 @@ import { DataChatMessageI } from "@/features/chat/types";
 import { connectionLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import {
-    TcpClientAdapter,
-    TcpServerAdapter,
-    WebrtcAdapter,
-    WsSignalingAdapter,
+  TcpClientAdapter,
+  TcpServerAdapter,
+  WebrtcAdapter,
+  WsSignalingAdapter,
 } from "../adapters";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
-    CallMessage,
-    DataAckMessage,
-    Message,
-    SignalingMessage,
+  CallMessage,
+  DataAckMessage,
+  Message,
+  SignalingMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
@@ -34,6 +34,7 @@ export type ConnectionServiceEvents = {
   "audio-call": [peerId: string];
   "video-call": [peerId: string];
   "call-ended": [peerId: string];
+  "call-ready": [peerId: string];
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
   "connection-state": [payload: ConnectionStatePayload];
@@ -55,7 +56,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     private readonly wsSignalingAdapter: WsSignalingAdapter,
     private readonly webrtcSessionManager: WebrtcSessionManager,
     private readonly signalingService: SignalingService,
-    private readonly callMediaService: CallMediaService
+    private readonly callMediaService: CallMediaService,
   ) {
     super();
 
@@ -76,8 +77,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       (peerId) => this.getTcpClientAdapter(peerId),
       (peerId, msg) => this.sendMessage(peerId, msg)
     );
-    this.webrtcSessionManager.setSignalingSender(
-      (peerId, msg) => this.signalingService.sendSignalingMessage(peerId, msg)
+    this.webrtcSessionManager.setSignalingSender((peerId, msg) =>
+      this.signalingService.sendSignalingMessage(peerId, msg)
     );
 
     // Forward WebrtcSessionManager events onto ConnectionService.
@@ -198,6 +199,9 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             peerId: message.data.from,
           });
           this.emit("call-ended", message.data.from);
+        }
+        if (message.type === "call-ready" && "from" in message.data) {
+          this.emit("call-ready", message.data.from);
         }
       } catch (error) {
         connectionLog.error("connection › tcp handler failed", { error });
@@ -583,6 +587,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   terminateCallConnection(peerId: string) {
     this.callMediaService.terminateCallConnection(peerId);
+    this.webrtcSessionManager.evictWebrtcAdapter(peerId);
   }
 
   toggleMic(peerId: string) {
@@ -630,6 +635,11 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       connectionLog.error("connection › tcp stop failed", { error });
       throw error;
     }
+  }
+
+  isWebrtcConnected(peerId: string) {
+    const adapter = this.getWebrtcAdapter(peerId);
+    return adapter.isConnected;
   }
 
   private buildSignalSenderData(to: string) {

@@ -66,6 +66,10 @@ export type CallEndedMessage = {
   type: "call-ended";
   data: { from: string; to: string };
 };
+export type CallReadyMessage = {
+  type: "call-ready";
+  data: { from: string; to: string };
+};
 
 /**
  * For sent and received message via webrtc
@@ -73,14 +77,15 @@ export type CallEndedMessage = {
 export type WebrtcDataMessage = ChatMessage | AckMessage | CallMessage;
 
 /**
- * For sent and received message via tcp
+ * For sent and received message via tcp and web socket
  */
 export type Message = SignalingMessage | CallMessage;
 
 export type CallMessage =
   | AudioCallMessage
   | CallEndedMessage
-  | VideoCallMessage;
+  | VideoCallMessage
+  | CallReadyMessage;
 
 export interface Peer {
   id: string;

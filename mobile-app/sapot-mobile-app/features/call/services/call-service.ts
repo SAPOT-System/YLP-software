@@ -1,4 +1,4 @@
-import { ConnectionService, UserStore } from "@/features/shared";
+import { ConnectionService, PeerService, UserStore } from "@/features/shared";
 import { callLog } from "@/features/shared/utils/logger";
 import { EventEmitter } from "events";
 callLog.debug("[call-service] module loaded");
@@ -16,7 +16,8 @@ export class CallService extends EventEmitter {
    */
   constructor(
     private connectionService: ConnectionService,
-    private userStore: UserStore
+    private userStore: UserStore,
+    private peerService: PeerService
   ) {
     super();
     callLog.info("call › service constructed", {
@@ -33,9 +34,22 @@ export class CallService extends EventEmitter {
    */
   async startCall(type: "video" | "audio", peerId: string) {
     try {
-      if (this.connectedState === "connected") return;
+      const isWebrtcConnected =
+        this.connectionService.isWebrtcConnected(peerId);
+      if (this.connectedState === "connected" && isWebrtcConnected) {
+        callLog.warn("call › already connected", { peerId, type });
+        return;
+      }
       callLog.info("call › start", { peerId, type });
+
+      if (!isWebrtcConnected) {
+        callLog.info("call › connecting to peer", { peerId, type });
+        await this.connect(peerId);
+      }
+
+      callLog.info("call › connecting to peer", { peerId, type });
       this.listenToRemoteStream();
+
       // Initialize local audio and video
       await this.connectionService.initializeStream(type, peerId);
 
@@ -43,7 +57,57 @@ export class CallService extends EventEmitter {
       await this.connectionService.renegotiate(peerId);
       this.connectedState = "connected";
     } catch (error) {
-      callLog.error("call › start failed", { peerId, error });
+      callLog.error("call › starting call failed", { peerId, error });
+      throw error;
+    }
+  }
+
+  async answerCall(type: "video" | "audio", peerId: string) {
+    try {
+      if (this.connectedState === "connected") {
+        callLog.warn("call › already connected", { peerId, type });
+        return;
+      }
+      callLog.info("call › start answer call", { peerId, type });
+
+      this.connectionService.sendCallMessage(peerId, {
+        type: "call-ready",
+        data: {
+          from: this.userStore.user.id,
+          to: peerId,
+        },
+      });
+
+      // Initialize local audio and video
+      await this.connectionService.initializeStream(type, peerId);
+      this.listenToRemoteStream();
+
+      this.connectedState = "connected";
+    } catch (error) {
+      callLog.error("call › answering call failed", { peerId, error });
+      throw error;
+    }
+  }
+
+  async connect(id: string): Promise<void> {
+    try {
+      callLog.info("call › connect start", { peerId: id });
+      try {
+        const discoveredPeer = this.peerService.findDiscoveredPeerById(id);
+
+        if (!discoveredPeer) throw new Error("Peer not discovered");
+
+        await this.connectionService.connectToPeer(
+          discoveredPeer.id,
+          discoveredPeer.ipAddress,
+          discoveredPeer.port
+        );
+      } catch {
+        await this.connectionService.connectToPeer(id);
+      }
+      callLog.info("call › connect complete", { peerId: id });
+    } catch (error) {
+      callLog.warn("call › connect failed", { peerId: id, error });
       throw error;
     }
   }
@@ -62,8 +126,14 @@ export class CallService extends EventEmitter {
    * Informs a peer of an incoming audio call by sending a signaling message.
    * @param peerId The peer id to inform
    */
-  informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
+  async informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
     try {
+      const isWebrtcConnected =
+        this.connectionService.isWebrtcConnected(peerId);
+
+      if (!isWebrtcConnected) {
+        await this.connect(peerId);
+      }
       callLog.info("call › incoming notify", { peerId, type });
       this.connectionService.sendCallMessage(peerId, {
         type: type === "audio" ? "audio-call" : "video-call",
@@ -82,10 +152,14 @@ export class CallService extends EventEmitter {
    */
   async terminateCallConnection(peerId: string) {
     try {
-      if (this.connectedState === "disconnected") return;
+      if (this.connectedState === "disconnected") {
+        callLog.warn("call › already disconnected", {
+          peerId,
+        });
+        return;
+      }
       callLog.info("call › terminate", { peerId });
       this.connectionService.terminateCallConnection(peerId);
-      await this.connectionService.renegotiate(peerId);
       this.connectionService.sendCallMessage(peerId, {
         type: "call-ended",
         data: { from: this.userStore.user.id, to: peerId },

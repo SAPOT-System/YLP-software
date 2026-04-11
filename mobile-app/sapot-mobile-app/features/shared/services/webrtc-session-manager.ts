@@ -54,7 +54,8 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
 
     webrtcAdapter.on("onicecandidate", (candidate) => {
       try {
-        if (!this.sendSignaling) throw new Error("Signaling sender not configured");
+        if (!this.sendSignaling)
+          throw new Error("Signaling sender not configured");
         this.sendSignaling(peerId, {
           type: "ice-candidate",
           data: {
@@ -125,7 +126,8 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         reason?: string;
       }) => {
         try {
-          if (!this.sendSignaling) throw new Error("Signaling sender not configured");
+          if (!this.sendSignaling)
+            throw new Error("Signaling sender not configured");
           this.sendSignaling(peerId, {
             type: payload.type,
             data: {
@@ -142,7 +144,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     );
   }
 
-  private evictWebrtcAdapter(peerId: string): void {
+  evictWebrtcAdapter(peerId: string): void {
     const adapter = this.webrtcAdapters.get(peerId);
     if (!adapter) return;
     this.webrtcAdapters.delete(peerId);
@@ -184,12 +186,28 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
   }
 
   sendChatMessage(peerId: string, messageData: DataChatMessageI) {
-    const { message, conversationId, messageId, from, sentAt, messageType, to } = messageData;
+    const {
+      message,
+      conversationId,
+      messageId,
+      from,
+      sentAt,
+      messageType,
+      to,
+    } = messageData;
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       webrtcAdapter.sendDataMessage({
         type: "chat",
-        data: { message, conversationId, messageId, from, to, sentAt, messageType },
+        data: {
+          message,
+          conversationId,
+          messageId,
+          from,
+          to,
+          sentAt,
+          messageType,
+        },
       });
     } catch (error) {
       webrtcLog.warn("webrtc › chat send failed", {
