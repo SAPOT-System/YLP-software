@@ -17,9 +17,9 @@ if TYPE_CHECKING:
     from app.models.call_participant import CallParticipant
 
 class ConversationType(str, Enum):
-    DIRECT = 'direct_message'
-    GROUP = 'group'
-    SOLO = 'solo'
+    direct = 'direct'
+    group = 'group'
+    solo = 'solo'
 
 class Conversation(SyncableModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, primary_key=True, index=True)

@@ -13,9 +13,9 @@ if TYPE_CHECKING:
 
 
 class StatusType(str, Enum):
-    READ = 'read'
-    DELIVERED = 'delivered'
-    SENT = 'sent'
+    read = 'read'
+    delivered = 'delivered'
+    sent = 'sent'
 
 class MessageReceipt(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, index=True, primary_key=True)

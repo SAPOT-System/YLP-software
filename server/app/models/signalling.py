@@ -1,6 +1,8 @@
 from uuid import UUID
 from pydantic import BaseModel
-from typing import Literal, Optional, Dict, Any
+from typing import List, Literal, Optional, Dict, Any
+
+from app.models.users import UserPublic
 
 class SDPData(BaseModel):
     sender: str
@@ -16,3 +18,8 @@ class SDPData(BaseModel):
 class SignalMessage(BaseModel):
     type: Literal["offer", "answer", "ice-candidate", "handshake", ]
     data: SDPData
+
+
+class OnlineUsers(BaseModel):
+    users: List[UserPublic]
+

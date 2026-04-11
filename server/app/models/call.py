@@ -12,15 +12,15 @@ if TYPE_CHECKING:
 
 
 class CallType(str, Enum):
-    AUDIO = "audio"
-    VIDEO = "video"
+    audio = "audio"
+    video = "video"
 
 
 class StatusType(str, Enum):
-    MISSED = "missed"
-    COMPLETED = "completed"
-    REJECTED = "rejected"
-    BUSY = "busy"
+    missed = "missed"
+    completed = "completed"
+    rejected = "rejected"
+    busy = "busy"
 
 
 class Call(SyncableModel, table=True):

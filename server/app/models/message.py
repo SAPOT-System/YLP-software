@@ -15,9 +15,9 @@ if TYPE_CHECKING:
     from app.models.attachment import Attachment
 
 class MessageType(str, Enum):
-    TEXT = 'text'
-    ATTACHMENT = 'attachment'
-    CALL_LOG = 'call_log'
+    text = 'text'
+    attachment = 'attachment'
+    call_log = 'call_log'
 
 
 def now_ms():
@@ -46,7 +46,7 @@ class SyncableModel(SQLModel):
 class Message(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
 
-    message_type : MessageType = Field(default=MessageType.TEXT)
+    message_type : MessageType = Field(default=MessageType.text)
     content : str = Field(max_length=255, min_length=1)
     is_deleted : bool = Field(default=False)
 
