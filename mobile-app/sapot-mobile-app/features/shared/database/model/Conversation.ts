@@ -1,8 +1,6 @@
 import { Model } from "@nozbe/watermelondb";
 import { date, field } from "@nozbe/watermelondb/decorators";
-import baseLogger from "../../utils/logger";
-
-const modelLog = baseLogger.extend("database");
+import { modelLog } from "../../utils/logger";
 modelLog.debug("[model] Conversation loaded");
 
 export enum ConversationType {

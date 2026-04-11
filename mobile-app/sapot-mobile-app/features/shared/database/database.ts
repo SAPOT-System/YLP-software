@@ -2,7 +2,7 @@ import { Database } from "@nozbe/watermelondb";
 import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
 import { setGenerator } from "@nozbe/watermelondb/utils/common/randomId";
 import uuid from "react-native-uuid";
-import baseLogger from "../utils/logger";
+import { dbLog } from "../utils/logger";
 import migrations from "./migrations";
 import {
     Call,
@@ -16,7 +16,6 @@ import {
 } from "./model";
 import schema from "./schema";
 
-const dbLog = baseLogger.extend("database");
 dbLog.debug("[database] module loaded");
 
 const adapter = new SQLiteAdapter({

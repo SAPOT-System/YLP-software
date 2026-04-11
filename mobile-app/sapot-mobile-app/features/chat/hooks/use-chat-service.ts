@@ -1,7 +1,5 @@
 import { useMainContainer } from "@/features/shared/hooks";
-import baseLogger from "@/features/shared/utils/logger";
-
-const hookLog = baseLogger.extend("hook");
+import { hookLog } from "@/features/shared/utils/logger";
 hookLog.debug("[use-chat-service] module loaded");
 
 export function useChatService() {

@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import { AppMode, AppModeStore } from "../stores/app-mode-store";
-import baseLogger from "../utils/logger";
-
-const modeLog = baseLogger.extend("mode");
+import { modeLog } from "../utils/logger";
 modeLog.debug("[app-mode-context] module loaded");
 
 const AppModeContext = createContext<AppModeStore | null>(null);

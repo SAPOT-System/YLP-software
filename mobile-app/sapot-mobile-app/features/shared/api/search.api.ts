@@ -1,7 +1,5 @@
-import baseLogger from "@/features/shared/utils/logger";
+import { apiLog } from "@/features/shared/utils/logger";
 import { apiClient } from "./client";
-
-const apiLog = baseLogger.extend("api");
 apiLog.debug("[search-api] module loaded");
 
 export const searchUsers = async ({

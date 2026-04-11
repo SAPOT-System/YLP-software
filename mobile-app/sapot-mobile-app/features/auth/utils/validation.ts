@@ -1,8 +1,6 @@
-import baseLogger from "@/features/shared/utils/logger";
+import { authUtilsLog } from "@/features/shared/utils/logger";
 import { RegisterFormState, RegisterFormStateErrors } from "../types";
-
-const utilsLog = baseLogger.extend("auth-utils");
-utilsLog.debug("[validation] module loaded");
+authUtilsLog.debug("[validation] module loaded");
 
 export const validateRegistrationForm = ({
   username,
@@ -16,7 +14,7 @@ export const validateRegistrationForm = ({
   confirmPassword,
   termsChecked,
 }: Partial<RegisterFormState>): RegisterFormStateErrors => {
-  utilsLog.debug("[validateRegistrationForm] called", {
+  authUtilsLog.debug("[validateRegistrationForm] called", {
     hasUsername: Boolean(username?.trim()),
     hasFirstName: Boolean(firstName?.trim()),
     hasLastName: Boolean(lastName?.trim()),
@@ -110,7 +108,7 @@ export const validateRegistrationForm = ({
 };
 
 export const validateEmail = (email?: string) => {
-  utilsLog.debug("[validateEmail] called", {
+  authUtilsLog.debug("[validateEmail] called", {
     hasEmail: Boolean(email?.trim()),
   });
   if (email !== undefined && email.length > 0) {
@@ -128,7 +126,7 @@ export const hasValidationErrors = (
     | { password?: string; confirmPassword?: string }
     | { firstName?: string; lastName?: string }
 ): boolean => {
-  utilsLog.debug("[hasValidationErrors] called", {
+  authUtilsLog.debug("[hasValidationErrors] called", {
     hasErrors: Object.values(errors).some(Boolean),
   });
   return Object.values(errors).some(Boolean);
@@ -138,7 +136,7 @@ export const validatePassword = (
   password?: string,
   confirmPassword?: string
 ) => {
-  utilsLog.debug("[validatePassword] called", {
+  authUtilsLog.debug("[validatePassword] called", {
     hasPassword: Boolean(password),
     hasConfirmPassword: Boolean(confirmPassword),
   });
@@ -169,7 +167,7 @@ export const validatePassword = (
 };
 
 export const validateGuestLoginForm = (firstName: string, lastName: string) => {
-  utilsLog.debug("[validateGuestLoginForm] called", {
+  authUtilsLog.debug("[validateGuestLoginForm] called", {
     hasFirstName: Boolean(firstName?.trim()),
     hasLastName: Boolean(lastName?.trim()),
   });

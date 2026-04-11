@@ -1,8 +1,6 @@
+import { chatTypesLog } from "@/features/shared/utils/logger";
 import { MessageType } from "../shared";
-import baseLogger from "@/features/shared/utils/logger";
-
-const typeLog = baseLogger.extend("chat-types");
-typeLog.debug("[chat/types] module loaded");
+chatTypesLog.debug("[chat/types] module loaded");
 
 export interface DataChatMessageI {
   message: string; //TODO: implement enum

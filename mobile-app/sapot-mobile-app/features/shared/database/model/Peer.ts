@@ -1,8 +1,6 @@
 import { Model } from "@nozbe/watermelondb";
 import { field } from "@nozbe/watermelondb/decorators";
-import baseLogger from "../../utils/logger";
-
-const modelLog = baseLogger.extend("database");
+import { modelLog } from "../../utils/logger";
 modelLog.debug("[model] Peer loaded");
 
 export class Peer extends Model {

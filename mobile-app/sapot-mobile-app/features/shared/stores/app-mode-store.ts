@@ -1,6 +1,4 @@
-import baseLogger from "../utils/logger";
-
-const modeLog = baseLogger.extend("mode");
+import { modeLog } from "../utils/logger";
 modeLog.debug("[app-mode-store] module loaded");
 
 export type AppMode = "auto" | "server" | "lan";

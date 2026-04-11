@@ -1,4 +1,5 @@
 import { ConnectionService, UserStore } from "@/features/shared";
+import { callLog } from "@/features/shared/utils/logger";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createCallServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { MediaStream } from "react-native-webrtc";
@@ -330,7 +331,7 @@ describe("CallService", () => {
 
   describe("error handling", () => {
     it("should log errors with peer ID context", async () => {
-      const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+      const logSpy = jest.spyOn(callLog, "error");
       const peerId = "peer-1";
       const error = new Error("Test error");
 
@@ -342,33 +343,29 @@ describe("CallService", () => {
         // Expected to throw
       }
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `[CallService]: Error starting call for peer ID of ${peerId}`
-        )
-      );
-
-      consoleSpy.mockRestore();
+      expect(logSpy).toHaveBeenCalledWith("call › start failed", {
+        peerId,
+        error,
+      });
     });
 
     it("should maintain proper error context for all methods", () => {
-      const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+      const logSpy = jest.spyOn(callLog, "error");
       const peerId = "peer-1";
 
       // Test error handling for synchronous methods
+      const micError = new Error("Mic error");
+
       mockConnectionService.toggleMic.mockImplementation(() => {
-        throw new Error("Mic error");
+        throw micError;
       });
 
       expect(() => callService.toggleMic(peerId)).toThrow("Mic error");
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `[CallService]: Error toggling mic for peer ID of ${peerId}`
-        )
-      );
-
-      consoleSpy.mockRestore();
+      expect(logSpy).toHaveBeenCalledWith("call › mic toggle failed", {
+        peerId,
+        error: micError,
+      });
     });
   });
 

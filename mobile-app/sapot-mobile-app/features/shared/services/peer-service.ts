@@ -1,9 +1,7 @@
 import { Service } from "react-native-zeroconf";
 import { PeerRepository } from "../repositories";
 import { DiscoveredService } from "../types";
-import baseLogger from "../utils/logger";
-
-const peerLog = baseLogger.extend("peer");
+import { peerLog } from "../utils/logger";
 
 peerLog.debug("[peer-service] module loaded");
 

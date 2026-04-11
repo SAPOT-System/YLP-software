@@ -3,14 +3,12 @@ import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 
 import { PeerService } from "@/features/shared/services/peer-service";
-import baseLogger from "@/features/shared/utils/logger";
+import { syncLog } from "@/features/shared/utils/logger";
 import {
   pushLocalDataApi,
   sync as syncApi,
   type PushLocalDataRequestBody,
 } from "../api/sync.api";
-
-const syncLog = baseLogger.extend("sync");
 
 syncLog.debug("[sync-service] module loaded");
 
@@ -305,34 +303,7 @@ export class SyncService {
           return { changes: normalizedChanges, timestamp };
         },
         pushChanges: async ({ changes }) => {
-          const pushCounts = {
-            conversations:
-              changes.conversations.created.length +
-              changes.conversations.updated.length +
-              changes.conversations.deleted.length,
-            conversationParticipants:
-              changes.conversation_participants.created.length +
-              changes.conversation_participants.updated.length +
-              changes.conversation_participants.deleted.length,
-            messages:
-              changes.messages.created.length +
-              changes.messages.updated.length +
-              changes.messages.deleted.length,
-            calls:
-              changes.calls.created.length +
-              changes.calls.updated.length +
-              changes.calls.deleted.length,
-            callParticipants:
-              changes.call_participants.created.length +
-              changes.call_participants.updated.length +
-              changes.call_participants.deleted.length,
-            messageReceipts:
-              changes.message_receipts.created.length +
-              changes.message_receipts.updated.length +
-              changes.message_receipts.deleted.length,
-          };
-          syncLog.debug("sync › push changes", { counts: pushCounts });
-
+          syncLog.debug("sync › push changes");
           await this.pushToServer(changes as SyncChanges);
         },
       });

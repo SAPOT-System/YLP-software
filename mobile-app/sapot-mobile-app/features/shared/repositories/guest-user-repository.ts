@@ -1,8 +1,6 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { GuestUser } from "../database";
-import baseLogger from "../utils/logger";
-
-const guestUserLog = baseLogger.extend("guest-user");
+import { guestUserLog } from "../utils/logger";
 
 guestUserLog.debug("[guest-user-repository] module loaded");
 

@@ -1,7 +1,5 @@
-import baseLogger from "@/features/shared/utils/logger";
+import { configLog } from "@/features/shared/utils/logger";
 import * as Updates from "expo-updates";
-
-const configLog = baseLogger.extend("config");
 
 const DEV_PORT = "8000";
 const DEV_HOST = "192.168.1.22";

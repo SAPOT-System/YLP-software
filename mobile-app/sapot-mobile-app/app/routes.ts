@@ -1,4 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
+import { routesLog } from "@/features/shared/utils/logger";
 
 export const AUTH_ROUTES = {
   LOGIN: {
@@ -49,5 +49,4 @@ export const APP_ROUTES = {
   PEER_PROFILE: "/(drawer)/(tabs)/peer/[id]",
 } as const;
 
-const routesLog = baseLogger.extend("routes");
 routesLog.debug("[Routes] loaded");

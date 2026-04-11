@@ -10,6 +10,27 @@ global.console = {
   debug: jest.fn(),
 };
 
+// Mock Reactotron to avoid XMLHttpRequest usage in Jest
+jest.mock('reactotron-react-native', () => ({
+  display: jest.fn(),
+}));
+
+// Mock axios to avoid fetch adapter issues in Jest
+jest.mock('axios', () => {
+  const create = jest.fn(() => ({
+    defaults: {},
+    interceptors: {
+      request: { use: jest.fn() },
+    },
+  }));
+
+  return {
+    __esModule: true,
+    default: { create },
+    create,
+  };
+});
+
 // Mock react-native-webrtc
 jest.mock('react-native-webrtc', () => ({
   RTCPeerConnection: jest.fn(),

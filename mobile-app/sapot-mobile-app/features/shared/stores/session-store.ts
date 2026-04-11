@@ -1,6 +1,4 @@
-import baseLogger from "../utils/logger";
-
-const sessionLog = baseLogger.extend("session");
+import { sessionLog } from "../utils/logger";
 sessionLog.debug("[session-store] module loaded");
 
 /**

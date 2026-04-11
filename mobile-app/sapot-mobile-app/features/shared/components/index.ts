@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const uiLog = baseLogger.extend("ui");
+import { uiLog } from "@/features/shared/utils/logger";
 uiLog.debug("[shared/components] module loaded");
 
 export * from "./failed-dialog";

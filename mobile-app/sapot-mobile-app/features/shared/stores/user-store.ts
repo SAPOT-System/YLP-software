@@ -1,7 +1,5 @@
 import { GuestUser, Peer } from "../database";
-import baseLogger from "../utils/logger";
-
-const userLog = baseLogger.extend("user");
+import { userLog } from "../utils/logger";
 userLog.debug("[user-store] module loaded");
 
 /**

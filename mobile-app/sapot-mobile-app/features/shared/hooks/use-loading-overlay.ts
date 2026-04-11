@@ -1,7 +1,5 @@
 import { useCallback, useState } from "react";
-import baseLogger from "../utils/logger";
-
-const hookLog = baseLogger.extend("hook");
+import { hookLog } from "../utils/logger";
 hookLog.debug("[use-loading-overlay] module loaded");
 
 export function useLoadingOverlay(initialMessage = "") {

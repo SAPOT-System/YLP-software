@@ -1,12 +1,10 @@
 import { ChatService } from "@/features/chat/services/chat-service";
-import baseLogger from "@/features/shared/utils/logger";
+import { discoveryLog } from "@/features/shared/utils/logger";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../adapters";
 import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../stores";
 import type { ConnectionService } from "./connection-service";
 import { PeerService } from "./peer-service";
-
-const discoveryLog = baseLogger.extend("discovery");
 
 discoveryLog.debug("[discovery-service] module loaded");
 

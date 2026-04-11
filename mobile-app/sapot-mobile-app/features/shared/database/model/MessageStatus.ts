@@ -1,11 +1,9 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
-import baseLogger from "../../utils/logger";
+import { modelLog } from "../../utils/logger";
 import { Message } from "./Message";
 import { Peer } from "./Peer";
 import { GuestUser } from "./guest-user";
-
-const modelLog = baseLogger.extend("database");
 modelLog.debug("[model] MessageStatus loaded");
 
 // TODO: replace the name for better understanding

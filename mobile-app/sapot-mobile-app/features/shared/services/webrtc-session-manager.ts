@@ -1,13 +1,11 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
-import baseLogger from "@/features/shared/utils/logger";
+import { webrtcLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import { WebrtcAdapter } from "../adapters";
 import { NetworkConfig, UserStore } from "../stores";
 import { DataAckMessage, SignalingMessage, WebrtcDataMessage } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
-
-const webrtcLog = baseLogger.extend("webrtc");
 
 webrtcLog.debug("[webrtc-session-manager] module loaded");
 

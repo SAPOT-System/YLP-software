@@ -1,7 +1,5 @@
 import { EventEmitter } from "events";
-import baseLogger from "./logger";
-
-const utilLog = baseLogger.extend("util");
+import { utilLog } from "./logger";
 utilLog.debug("[typed-event-emitter] module loaded");
 
 /**

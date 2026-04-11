@@ -1,7 +1,5 @@
 import { getApiUrl } from "@/config/runtime";
-import baseLogger from "./logger";
-
-const utilLog = baseLogger.extend("util");
+import { utilLog } from "./logger";
 utilLog.debug("[normalize-media-url] module loaded");
 
 export const normalizeMediaUrl = (url?: string | null) => {

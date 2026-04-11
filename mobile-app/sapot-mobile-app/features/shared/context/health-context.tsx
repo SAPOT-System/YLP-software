@@ -1,8 +1,6 @@
 import { checkBackEndHealth } from "@/features/shared";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import baseLogger from "../utils/logger";
-
-const healthLog = baseLogger.extend("health");
+import { healthLog } from "../utils/logger";
 healthLog.debug("[health-context] module loaded");
 
 const HealthContext = createContext<boolean>(false);

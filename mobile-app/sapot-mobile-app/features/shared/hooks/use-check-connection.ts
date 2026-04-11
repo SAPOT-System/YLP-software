@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { checkBackEndHealth } from "../api";
-import baseLogger from "../utils/logger";
-
-const hookLog = baseLogger.extend("hook");
+import { hookLog } from "../utils/logger";
 hookLog.debug("[use-check-connection] module loaded");
 
 export const useCheckConnection = () => {

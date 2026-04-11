@@ -1,9 +1,7 @@
 import EventEmitter from "events";
 import TcpSocket from "react-native-tcp-socket";
 import { Message } from "../types";
-import baseLogger from "../utils/logger";
-
-const tcpLog = baseLogger.extend("tcp");
+import { tcpLog } from "../utils/logger";
 
 tcpLog.debug("[tcp-client-adapter] module loaded");
 

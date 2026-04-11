@@ -1,8 +1,6 @@
 import { ConnectionService, UserStore } from "@/features/shared";
-import baseLogger from "@/features/shared/utils/logger";
+import { callLog } from "@/features/shared/utils/logger";
 import { EventEmitter } from "events";
-
-const callLog = baseLogger.extend("call");
 callLog.debug("[call-service] module loaded");
 // TODO: probably store the peerId state
 /**

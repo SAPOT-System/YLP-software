@@ -6,9 +6,7 @@ import {
     GuestUser,
     Peer,
 } from "@/features/shared";
-import baseLogger from "@/features/shared/utils/logger";
-
-const chatLog = baseLogger.extend("chat");
+import { chatLog } from "@/features/shared/utils/logger";
 
 chatLog.debug("[conversation-participant-repository] module loaded");
 

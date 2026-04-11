@@ -1,8 +1,6 @@
 import NetInfo from "@react-native-community/netinfo";
 import { NetworkInfo } from "react-native-network-info";
-import baseLogger from "../utils/logger";
-
-const networkLog = baseLogger.extend("network");
+import { networkLog } from "../utils/logger";
 
 networkLog.debug("[network-config] module loaded");
 

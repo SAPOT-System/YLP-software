@@ -1,6 +1,4 @@
-import baseLogger from "./logger";
-
-const utilLog = baseLogger.extend("util");
+import { utilLog } from "./logger";
 utilLog.debug("[format-date] module loaded");
 
 export const formatDate = (date: Date) => {

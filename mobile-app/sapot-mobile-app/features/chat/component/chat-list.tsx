@@ -7,10 +7,8 @@ import { Avatar, Text, useTheme } from "react-native-paper";
 
 import { ChatRoomSource } from "@/features/chat/types";
 import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useChatService } from "../hooks";
-import baseLogger from "@/features/shared/utils/logger";
-
-const uiLog = baseLogger.extend("ui");
 uiLog.debug("[chat-list] module loaded");
 
 const enhanceChats = withObservables([], () => ({

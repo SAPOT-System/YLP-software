@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const hookLog = baseLogger.extend("hook");
+import { hookLog } from "@/features/shared/utils/logger";
 hookLog.debug("[shared/hooks] module loaded");
 
 export * from "./use-check-connection";

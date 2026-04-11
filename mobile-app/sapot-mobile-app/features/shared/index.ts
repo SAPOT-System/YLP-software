@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const sharedLog = baseLogger.extend("shared");
+import { sharedLog } from "@/features/shared/utils/logger";
 sharedLog.debug("[shared/index] module loaded");
 
 export * from "./adapters";

@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const authIndexLog = baseLogger.extend("auth-index");
+import { authIndexLog } from "@/features/shared/utils/logger";
 authIndexLog.debug("[auth] module loaded");
 
 export * from "./api";

@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { pingServer } from "../api";
-import baseLogger from "../utils/logger";
-
-const hookLog = baseLogger.extend("hook");
+import { hookLog } from "../utils/logger";
 hookLog.debug("[use-ping] module loaded");
 
 export const usePing = () => {

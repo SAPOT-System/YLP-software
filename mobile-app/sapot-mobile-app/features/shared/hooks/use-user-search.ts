@@ -1,8 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { searchUsers } from "../api";
-import baseLogger from "../utils/logger";
-
-const hookLog = baseLogger.extend("hook");
+import { hookLog } from "../utils/logger";
 hookLog.debug("[use-user-search] module loaded");
 
 export function useUserSearch(username: string) {

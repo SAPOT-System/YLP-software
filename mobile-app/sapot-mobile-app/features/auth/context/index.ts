@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const authLog = baseLogger.extend("auth");
+import { authLog } from "@/features/shared/utils/logger";
 authLog.debug("[auth/context] module loaded");
 
 export * from "./auth-container-context";

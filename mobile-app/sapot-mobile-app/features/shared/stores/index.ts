@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const storeLog = baseLogger.extend("store");
+import { storeLog } from "@/features/shared/utils/logger";
 storeLog.debug("[shared/stores] module loaded");
 
 export { AppModeStore } from "./app-mode-store";

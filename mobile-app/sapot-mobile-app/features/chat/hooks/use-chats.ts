@@ -1,9 +1,7 @@
 import { Conversation } from "@/features/shared";
+import { hookLog } from "@/features/shared/utils/logger";
 import { useEffect, useState } from "react";
 import { useChatService } from "./use-chat-service";
-import baseLogger from "@/features/shared/utils/logger";
-
-const hookLog = baseLogger.extend("hook");
 hookLog.debug("[use-chats] module loaded");
 
 const useChats = () => {

@@ -6,9 +6,7 @@ import {
 } from "@/features/chat";
 import { database } from "../database";
 import { GuestUserRepository, PeerRepository } from "../repositories";
-import baseLogger from "../utils/logger";
-
-const cleanUpLog = baseLogger.extend("cleanup");
+import { cleanUpLog } from "../utils/logger";
 
 cleanUpLog.debug("[clean-up-service] module loaded");
 

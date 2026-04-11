@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const contextLog = baseLogger.extend("context");
+import { contextLog } from "@/features/shared/utils/logger";
 contextLog.debug("[shared/context] module loaded");
 
 export * from "./app-mode-context";

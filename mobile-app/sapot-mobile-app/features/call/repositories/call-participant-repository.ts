@@ -1,8 +1,6 @@
 import { Call, CallParticipant, GuestUser, Peer } from "@/features/shared";
+import { callLog } from "@/features/shared/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
-import baseLogger from "@/features/shared/utils/logger";
-
-const callLog = baseLogger.extend("call");
 callLog.debug("[call-participant-repository] module loaded");
 
 export class CallParticipantRepository {

@@ -1,7 +1,5 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const componentsLog = baseLogger.extend("auth-components");
-componentsLog.debug("[auth components] module loaded");
+import { authComponentsLog } from "@/features/shared/utils/logger";
+authComponentsLog.debug("[auth components] module loaded");
 
 export { default as AuthTextInput } from "./auth-text-input";
 export * from "./file-upload-result-card";

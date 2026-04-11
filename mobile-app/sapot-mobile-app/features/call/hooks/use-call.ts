@@ -1,8 +1,6 @@
+import { hookLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useCallService } from "./use-call-service";
-import baseLogger from "@/features/shared/utils/logger";
-
-const hookLog = baseLogger.extend("hook");
 hookLog.debug("[use-call] module loaded");
 
 export const useCall = () => {

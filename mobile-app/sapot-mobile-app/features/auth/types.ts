@@ -1,7 +1,6 @@
-import baseLogger from "@/features/shared/utils/logger";
+import { authTypesLog } from "@/features/shared/utils/logger";
 
-const typesLog = baseLogger.extend("auth-types");
-typesLog.debug("[auth types] module loaded");
+authTypesLog.debug("[auth types] module loaded");
 
 /**
  * Register types and interfaces

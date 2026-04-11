@@ -1,4 +1,3 @@
-import { authLog } from "@/features/shared/utils/logger";
 import React from "react";
 import { Text, TextInput, TextInputProps, useTheme } from "react-native-paper";
 

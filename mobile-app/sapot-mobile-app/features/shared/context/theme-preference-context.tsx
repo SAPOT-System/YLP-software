@@ -1,8 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { useColorScheme } from "react-native";
-import baseLogger from "../utils/logger";
-
-const uiLog = baseLogger.extend("ui");
+import { uiLog } from "../utils/logger";
 uiLog.debug("[theme-preference-context] module loaded");
 
 export type ThemeChoice = "light" | "dark" | "system";

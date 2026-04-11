@@ -1,13 +1,12 @@
-import baseLogger from "@/features/shared/utils/logger";
+import { authUtilsLog } from "@/features/shared/utils/logger";
 
-const utilsLog = baseLogger.extend("auth-utils");
-utilsLog.debug("[guest-username-generator] module loaded");
+authUtilsLog.debug("[guest-username-generator] module loaded");
 
 export function generateGuestUsername(
   firstName: string,
   lastName: string
 ): string {
-  utilsLog.debug("[generateGuestUsername] called", {
+  authUtilsLog.debug("[generateGuestUsername] called", {
     hasFirstName: Boolean(firstName?.trim()),
     hasLastName: Boolean(lastName?.trim()),
   });

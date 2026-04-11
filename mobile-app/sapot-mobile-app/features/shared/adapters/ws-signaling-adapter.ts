@@ -1,8 +1,6 @@
 import EventEmitter from "events";
 import { CallMessage, SignalingMessage } from "../types";
-import baseLogger from "../utils/logger";
-
-const wsLog = baseLogger.extend("ws");
+import { wsLog } from "../utils/logger";
 
 wsLog.debug("[ws-signaling-adapter] module loaded");
 

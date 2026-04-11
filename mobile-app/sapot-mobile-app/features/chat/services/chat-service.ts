@@ -1,26 +1,24 @@
 import {
-    ConnectionService,
-    Conversation,
-    ConversationType,
-    database,
-    GuestUser,
-    Message,
-    MessageStatus,
-    MessageStatusType,
-    Peer,
-    PeerService,
-    UserStore,
+  ConnectionService,
+  Conversation,
+  ConversationType,
+  database,
+  GuestUser,
+  Message,
+  MessageStatus,
+  MessageStatusType,
+  Peer,
+  PeerService,
+  UserStore,
 } from "@/features/shared";
-import baseLogger from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/utils/logger";
 import {
-    ConversationParticipantRepository,
-    ConversationRepository,
-    MessageRepository,
-    MessageStatusRepository,
+  ConversationParticipantRepository,
+  ConversationRepository,
+  MessageRepository,
+  MessageStatusRepository,
 } from "../repositories";
 import { DataChatMessageI } from "../types";
-
-const chatLog = baseLogger.extend("chat");
 
 chatLog.debug("[chat-service] module loaded");
 

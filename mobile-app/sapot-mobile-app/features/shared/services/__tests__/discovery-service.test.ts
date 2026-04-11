@@ -1,7 +1,8 @@
 import { ChatService } from "@/features/chat/services/chat-service";
+import { discoveryLog } from "@/features/shared/utils/logger";
 import {
-  createTestMessage,
-  createTestMessages,
+    createTestMessage,
+    createTestMessages,
 } from "@/test/factories/chat-model.factory";
 import { createTestZeroconfService } from "@/test/factories/peer-service.factory";
 import { createDiscoveryServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
@@ -220,11 +221,11 @@ describe("DiscoveryService", () => {
         (call) => call[0] === "peer-reconnected"
       )?.[1];
 
-      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+      const warnSpy = jest.spyOn(discoveryLog, "warn");
       await handler?.(peerId);
 
       expect(mockChatService.getAllNotSentMessageForPeer).not.toHaveBeenCalled();
-      consoleWarnSpy.mockRestore();
+      warnSpy.mockRestore();
     });
   });
 
@@ -348,11 +349,13 @@ describe("DiscoveryService", () => {
       mockChatService.getAllNotSentMessageForPeer.mockResolvedValue(
         mockMessages
       );
+      const resendError = new Error("Resend failed");
+
       mockChatService.tryResendMessage
-        .mockRejectedValueOnce(new Error("Resend failed"))
+        .mockRejectedValueOnce(resendError)
         .mockResolvedValueOnce();
 
-      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+      const warnSpy = jest.spyOn(discoveryLog, "warn");
 
       await discoveryService.performResendMessagesForPeer(
         peerId,
@@ -361,12 +364,10 @@ describe("DiscoveryService", () => {
       );
 
       expect(mockChatService.tryResendMessage).toHaveBeenCalledTimes(2);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        "Failed to resend the message:",
-        mockMessages[0]
-      );
-
-      consoleWarnSpy.mockRestore();
+      expect(warnSpy).toHaveBeenCalledWith("discovery › resend failed", {
+        peerId,
+        error: resendError,
+      });
     });
 
     it("should throw error if chat service not initialized", async () => {

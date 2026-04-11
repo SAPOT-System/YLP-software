@@ -1,12 +1,10 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
 
-import baseLogger from "../../utils/logger";
+import { modelLog } from "../../utils/logger";
 import { Call } from "./Call";
 import { GuestUser } from "./guest-user";
 import { Peer } from "./Peer";
-
-const modelLog = baseLogger.extend("database");
 modelLog.debug("[model] CallParticipant loaded");
 
 export class CallParticipant extends Model {

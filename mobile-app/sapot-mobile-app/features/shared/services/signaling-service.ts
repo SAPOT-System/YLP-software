@@ -1,10 +1,12 @@
 import { getWsUrl } from "@/config/runtime";
-import baseLogger from "@/features/shared/utils/logger";
-import { TcpClientAdapter, WebrtcAdapter, WsSignalingAdapter } from "../adapters";
+import { signalingLog } from "@/features/shared/utils/logger";
+import {
+  TcpClientAdapter,
+  WebrtcAdapter,
+  WsSignalingAdapter,
+} from "../adapters";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import { CallMessage, Message, SignalingMessage } from "../types";
-
-const signalingLog = baseLogger.extend("signaling");
 
 signalingLog.debug("[signaling-service] module loaded");
 
@@ -168,14 +170,15 @@ export class SignalingService {
             hasIpAddress: Boolean(message.data.ipAddress),
             hasPort: Boolean(message.data.port),
           });
-          await tcpClientAdapter.connect(message.data.ipAddress, message.data.port);
+          await tcpClientAdapter.connect(
+            message.data.ipAddress,
+            message.data.port
+          );
           break;
         }
 
         default:
-          signalingLog.debug("signaling › unhandled type", {
-            messageType: message.type,
-          });
+          signalingLog.debug("signaling › unhandled type");
           break;
       }
     } catch (error) {
@@ -190,7 +193,9 @@ export class SignalingService {
 
   sendSignalingMessage(peerId: string, message: SignalingMessage) {
     try {
-      const isWsConfigured = this.isWebSocketAllowed() ? this.ensureWsSignaling() : false;
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
       const isTcpAllowed = this.isTcpAllowed();
 
       signalingLog.debug("signaling › route", {
@@ -224,7 +229,9 @@ export class SignalingService {
 
   sendCallMessage(peerId: string, message: CallMessage) {
     try {
-      const isWsConfigured = this.isWebSocketAllowed() ? this.ensureWsSignaling() : false;
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
       const isTcpAllowed = this.isTcpAllowed();
 
       if (isWsConfigured) {

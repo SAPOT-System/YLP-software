@@ -1,8 +1,6 @@
 import { Conversation, ConversationType } from "@/features/shared";
-import baseLogger from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
-
-const chatLog = baseLogger.extend("chat");
 
 chatLog.debug("[conversation-repository] module loaded");
 

@@ -1,8 +1,6 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { Peer } from "../database";
-import baseLogger from "../utils/logger";
-
-const peerLog = baseLogger.extend("peer");
+import { peerLog } from "../utils/logger";
 
 peerLog.debug("[peer-repository] module loaded");
 

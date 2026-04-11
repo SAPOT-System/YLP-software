@@ -3,9 +3,7 @@ import {
     createTable,
     schemaMigrations,
 } from "@nozbe/watermelondb/Schema/migrations";
-import baseLogger from "../utils/logger";
-
-const migrationLog = baseLogger.extend("database");
+import { migrationLog } from "../utils/logger";
 migrationLog.debug("[database-migrations] module loaded");
 
 export default schemaMigrations({

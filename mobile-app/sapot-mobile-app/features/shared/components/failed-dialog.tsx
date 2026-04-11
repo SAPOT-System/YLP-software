@@ -8,9 +8,7 @@ import {
     Text,
     useTheme,
 } from "react-native-paper";
-import baseLogger from "../utils/logger";
-
-const uiLog = baseLogger.extend("ui");
+import { uiLog } from "../utils/logger";
 uiLog.debug("[failed-dialog] module loaded");
 
 const failedOption = {

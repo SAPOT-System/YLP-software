@@ -1,6 +1,6 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
-import baseLogger from "@/features/shared/utils/logger";
+import { connectionLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import {
     TcpClientAdapter,
@@ -19,8 +19,6 @@ import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
 import { SignalingService } from "./signaling-service";
 import { WebrtcSessionManager } from "./webrtc-session-manager";
-
-const connectionLog = baseLogger.extend("connection");
 
 connectionLog.debug("[connection-service] module loaded");
 

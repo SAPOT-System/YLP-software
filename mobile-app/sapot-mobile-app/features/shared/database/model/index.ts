@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const modelLog = baseLogger.extend("database");
+import { modelLog } from "@/features/shared/utils/logger";
 modelLog.debug("[database/models] module loaded");
 
 export * from "./Call";

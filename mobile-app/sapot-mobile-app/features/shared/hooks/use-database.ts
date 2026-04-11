@@ -1,7 +1,5 @@
 import { database, Peer } from "../database";
-import baseLogger from "../utils/logger";
-
-const dbLog = baseLogger.extend("database");
+import { dbLog } from "../utils/logger";
 
 dbLog.debug("[use-database] module loaded");
 

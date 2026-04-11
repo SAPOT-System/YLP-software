@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const serviceLog = baseLogger.extend("service");
+import { serviceLog } from "@/features/shared/utils/logger";
 serviceLog.debug("[shared/services] module loaded");
 
 export { CallMediaService } from "./call-media-service";

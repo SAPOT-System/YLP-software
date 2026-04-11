@@ -5,9 +5,7 @@ import {
 } from "@/features/shared/api/user-profile.api";
 import { normalizeMediaUrl } from "@/features/shared/utils/normalize-media-url";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import baseLogger from "../utils/logger";
-
-const photoLog = baseLogger.extend("profile-photo");
+import { photoLog } from "../utils/logger";
 photoLog.debug("[use-profile-photo] module loaded");
 
 type ProfilePhotoState = {

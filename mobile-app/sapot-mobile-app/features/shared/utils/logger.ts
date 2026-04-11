@@ -7,13 +7,13 @@ const isModuleEnabled = (module: string) => {
   return LOG_MODULES[module];
 };
 
-const createScopedLogger = (scope: string) => {
+export const createScopedLogger = (scope: string) => {
   const scoped = baseLogger.extend(scope);
 
   // wrap methods to filter logging
   const wrap =
-    (fn: any) =>
-    (msg: string, ...args: any[]) => {
+    (fn: (msg: string, ...args: unknown[]) => void) =>
+    (msg: string, ...args: unknown[]) => {
       if (!isModuleEnabled(scope)) return;
       return fn(msg, ...args);
     };
@@ -75,4 +75,49 @@ export const authLog = createScopedLogger("auth");
 export const apiLog = createScopedLogger("api");
 export const navLog = createScopedLogger("nav");
 export const uiLog = createScopedLogger("ui");
+
+export const adapterLog = createScopedLogger("adapter");
+export const appLog = createScopedLogger("app");
+export const authApiLog = createScopedLogger("auth-api");
+export const authComponentsLog = createScopedLogger("auth-components");
+export const authHooksLog = createScopedLogger("auth-hooks");
+export const authIndexLog = createScopedLogger("auth-index");
+export const authTypesLog = createScopedLogger("auth-types");
+export const authUtilsLog = createScopedLogger("auth-utils");
+export const callLog = createScopedLogger("call");
+export const chatLog = createScopedLogger("chat");
+export const chatTypesLog = createScopedLogger("chat-types");
+export const cleanUpLog = createScopedLogger("cleanup");
+export const configLog = createScopedLogger("config");
+export const connectionLog = createScopedLogger("connection");
+export const contextLog = createScopedLogger("context");
+export const databaseLog = createScopedLogger("database");
+export const dbLog = createScopedLogger("database");
+export const discoveryLog = createScopedLogger("discovery");
+export const guestUserLog = createScopedLogger("guest-user");
+export const healthLog = createScopedLogger("health");
+export const hookLog = createScopedLogger("hook");
+export const layoutLog = createScopedLogger("layout");
+export const migrationLog = createScopedLogger("database");
+export const modeLog = createScopedLogger("mode");
+export const modelLog = createScopedLogger("database");
+export const networkLog = createScopedLogger("network");
+export const peerLog = createScopedLogger("peer");
+export const photoLog = createScopedLogger("profile-photo");
+export const repoLog = createScopedLogger("repository");
+export const routesLog = createScopedLogger("routes");
+export const schemaLog = createScopedLogger("database");
+export const serviceLog = createScopedLogger("service");
+export const sessionLog = createScopedLogger("session");
+export const sharedLog = createScopedLogger("shared");
+export const signalingLog = createScopedLogger("signaling");
+export const storeLog = createScopedLogger("store");
+export const syncLog = createScopedLogger("sync");
+export const tcpLog = createScopedLogger("tcp");
+export const typeLog = createScopedLogger("types");
+export const userLog = createScopedLogger("user");
+export const utilLog = createScopedLogger("util");
+export const webrtcLog = createScopedLogger("webrtc");
+export const wsLog = createScopedLogger("ws");
+export const zeroconfLog = createScopedLogger("zeroconf");
 export default baseLogger;

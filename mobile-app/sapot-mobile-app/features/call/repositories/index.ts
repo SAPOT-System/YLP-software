@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const callLog = baseLogger.extend("call");
+import { callLog } from "@/features/shared/utils/logger";
 callLog.debug("[call/repositories] module loaded");
 
 export { CallParticipantRepository } from "./call-participant-repository";

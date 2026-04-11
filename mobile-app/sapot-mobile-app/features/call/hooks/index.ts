@@ -1,7 +1,6 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const hookLog = baseLogger.extend("hook");
+import { hookLog } from "@/features/shared/utils/logger";
 hookLog.debug("[call/hooks] module loaded");
 
-export * from "./use-call-service"
-export * from "./use-call"
+export * from "./use-call";
+export * from "./use-call-service";
+

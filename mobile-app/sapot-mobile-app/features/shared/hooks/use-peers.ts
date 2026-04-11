@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { Peer } from "../database";
-import baseLogger from "../utils/logger";
+import { hookLog } from "../utils/logger";
 import { usePeerService } from "./use-peer-service";
-
-const hookLog = baseLogger.extend("hook");
 hookLog.debug("[use-peers] module loaded");
 
 const usePeers = () => {

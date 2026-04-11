@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const adapterLog = baseLogger.extend("adapter");
+import { adapterLog } from "@/features/shared/utils/logger";
 adapterLog.debug("[shared/adapters] module loaded");
 
 export { TcpClientAdapter } from "./tcp-client-adapter";

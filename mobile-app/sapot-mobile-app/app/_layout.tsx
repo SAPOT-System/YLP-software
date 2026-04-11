@@ -10,7 +10,7 @@ if (__DEV__) {
 }
 
 import Colors from "@/constants/Colors";
-import baseLogger from "@/features/shared/utils/logger";
+import { layoutLog } from "@/features/shared/utils/logger";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
 
@@ -47,8 +47,6 @@ const { LightTheme, DarkTheme } = adaptNavigationTheme({
 
 const CombinedDefaultTheme = merge(LightTheme, customLightTheme);
 const CombinedDarkTheme = merge(DarkTheme, customDarkTheme);
-
-const layoutLog = baseLogger.extend("layout");
 
 export {
   // Catch any errors thrown by the Layout component.

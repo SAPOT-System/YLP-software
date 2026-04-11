@@ -1,6 +1,4 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const utilLog = baseLogger.extend("util");
+import { utilLog } from "@/features/shared/utils/logger";
 utilLog.debug("[shared/utils] module loaded");
 
 export * from "./format-date";

@@ -24,9 +24,7 @@ import { MessageStatusRepository } from "@/features/chat/repositories/message-st
 import { ChatService } from "@/features/chat/services/chat-service";
 import { AuthContainer } from "../auth/auth-container";
 import { SyncService } from "../sync";
-import baseLogger from "./utils/logger";
-
-const appLog = baseLogger.extend("app");
+import { appLog } from "./utils/logger";
 
 appLog.debug("[main-container] module loaded");
 

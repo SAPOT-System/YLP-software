@@ -6,9 +6,7 @@ import { FlatList, Pressable, View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
 import { database, Peer } from "../database";
 import { useProfilePhoto } from "../hooks";
-import baseLogger from "../utils/logger";
-
-const uiLog = baseLogger.extend("ui");
+import { uiLog } from "../utils/logger";
 uiLog.debug("[peer-list] module loaded");
 
 const enhancePeers = withObservables([], () => ({

@@ -1,7 +1,5 @@
-import baseLogger from "@/features/shared/utils/logger";
-
-const hooksLog = baseLogger.extend("auth-hooks");
-hooksLog.debug("[auth hooks] module loaded");
+import { authHooksLog } from "@/features/shared/utils/logger";
+authHooksLog.debug("[auth hooks] module loaded");
 
 export * from "./use-auth-container";
 export * from "./use-change-password";

@@ -9,9 +9,7 @@ import {
 } from "react-native-webrtc";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { WebrtcDataMessage } from "../types";
-import baseLogger from "../utils/logger";
-
-const webrtcLog = baseLogger.extend("webrtc");
+import { webrtcLog } from "../utils/logger";
 
 webrtcLog.debug("[webrtc-adapter] module loaded");
 
