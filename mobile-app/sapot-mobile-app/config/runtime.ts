@@ -2,7 +2,7 @@ import { configLog } from "@/features/shared/utils/logger";
 import * as Updates from "expo-updates";
 
 const DEV_PORT = "8000";
-const DEV_HOST = "192.168.1.22";
+const DEV_HOST = "192.168.1.10";
 const STAGING_HOST = "sapot.online";
 
 export const getApiUrl = () => {
