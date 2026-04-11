@@ -1,72 +1,57 @@
-const js = require('@eslint/js');
-const tseslint = require('@typescript-eslint/eslint-plugin');
-const tsparser = require('@typescript-eslint/parser');
+import js from "@eslint/js";
+import tseslint from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
+import reactHooks from "eslint-plugin-react-hooks";
+import globals from "globals";
+import { defineConfig } from "eslint/config";
 
-module.exports = [
+export default defineConfig([
+  // Base JavaScript rules
   js.configs.recommended,
+
   {
-    files: ['**/*.{js,jsx,ts,tsx}'],
+    files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
-      parser: tsparser,
+      parser: tsParser,
       parserOptions: {
-        ecmaVersion: 12,
-        sourceType: 'module',
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ecmaFeatures: {
+          jsx: true,
+        },
       },
       globals: {
-        // Node.js
-        console: 'readonly',
-        process: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-        Buffer: 'readonly',
-        module: 'readonly',
-        require: 'readonly',
-        exports: 'readonly',
-        global: 'readonly',
-        // Browser
-        window: 'readonly',
-        document: 'readonly',
-        navigator: 'readonly',
-        fetch: 'readonly',
-        setTimeout: 'readonly',
-        clearTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearInterval: 'readonly',
-        Event: 'readonly',
-        // WebRTC
-        RTCPeerConnection: 'readonly',
-        RTCDataChannel: 'readonly',
-        RTCConfiguration: 'readonly',
-        RTCPeerConnectionIceEvent: 'readonly',
-        RTCIceCandidate: 'readonly',
-        RTCSessionDescriptionInit: 'readonly',
-        MediaStream: 'readonly',
-        // Jest
-        jest: 'readonly',
-        describe: 'readonly',
-        it: 'readonly',
-        expect: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-        beforeAll: 'readonly',
-        afterAll: 'readonly',
-        test: 'readonly',
-        // Others
-        __DEV__: "readonly"
+        ...globals.browser,
+        ...globals.node,
+        ...globals.jest,
+        __DEV__: "readonly",
       },
     },
     plugins: {
-      '@typescript-eslint': tseslint,
+      "@typescript-eslint": tseslint,
+      "react-hooks": reactHooks,
     },
     rules: {
+      // TypeScript recommended rules
       ...tseslint.configs.recommended.rules,
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-require-imports': 'off',
-      'no-useless-catch': 'warn',
-      'getter-return': 'warn',
-      'no-async-promise-executor': 'warn',
-      'no-case-declarations': 'warn',
+
+      // Custom TypeScript rules
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_" },
+      ],
+      "@typescript-eslint/no-require-imports": "off",
+
+      // General JavaScript rules
+      "no-useless-catch": "warn",
+      "getter-return": "warn",
+      "no-async-promise-executor": "warn",
+      "no-case-declarations": "warn",
+
+      // React Hooks rules
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
-];
+]);
