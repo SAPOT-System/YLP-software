@@ -39,7 +39,9 @@ export async function secureFetch(endpoint: string, options: RequestInit = {}) {
 				})
 			})
 
+
 			if (!response.ok) {
+				if (response.status === 401 ) redirect("/")
 				throw new Error('Refresh failed');
 			}
 
@@ -61,7 +63,7 @@ export async function secureFetch(endpoint: string, options: RequestInit = {}) {
 				path: '/',
 			});
 		} catch (error) {
-			redirect('/login');
+			redirect('/');
 		}
 	}
 
