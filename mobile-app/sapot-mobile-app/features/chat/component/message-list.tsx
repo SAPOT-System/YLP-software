@@ -12,6 +12,10 @@ import {
     formatDate,
 } from "@/features/shared";
 import { useTheme } from "react-native-paper";
+import baseLogger from "@/features/shared/utils/logger";
+
+const uiLog = baseLogger.extend("ui");
+uiLog.debug("[message-list] module loaded");
 
 const enhanceMessages = withObservables(
   ["conversationId"],

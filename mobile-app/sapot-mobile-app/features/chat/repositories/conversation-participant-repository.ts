@@ -10,6 +10,8 @@ import baseLogger from "@/features/shared/utils/logger";
 
 const chatLog = baseLogger.extend("chat");
 
+chatLog.debug("[conversation-participant-repository] module loaded");
+
 /**
  * ConversationParticipantRepository manages CRUD operations for conversation participants in the database.
  */
@@ -22,6 +24,9 @@ export class ConversationParticipantRepository {
   constructor(private db: Database) {
     this.conversationParticipantsCollection =
       this.db.get<ConversationParticipant>(ConversationParticipant.table);
+    chatLog.info("chat › participant repo constructed", {
+      hasDatabase: Boolean(db),
+    });
   }
 
   /**
@@ -137,7 +142,12 @@ export class ConversationParticipantRepository {
    * @returns Promise<ConversationParticipant[]> Array of all participants
    */
   async queryAllParticipants() {
-    return await this.conversationParticipantsCollection.query().fetch();
+    try {
+      return await this.conversationParticipantsCollection.query().fetch();
+    } catch (error) {
+      chatLog.error("chat › participants list failed", { error });
+      throw error;
+    }
   }
 
   /**
@@ -204,6 +214,7 @@ export class ConversationParticipantRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getParticipantDestroyOps() {
+    chatLog.debug("chat › participant destroy ops requested");
     const records = await this.conversationParticipantsCollection
       .query()
       .fetch();

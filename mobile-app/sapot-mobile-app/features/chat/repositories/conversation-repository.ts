@@ -4,6 +4,8 @@ import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 const chatLog = baseLogger.extend("chat");
 
+chatLog.debug("[conversation-repository] module loaded");
+
 /**
  * ConversationRepository manages CRUD operations for conversations in the database.
  */
@@ -17,6 +19,9 @@ export class ConversationRepository {
     this.conversationCollections = this.db.get<Conversation>(
       Conversation.table
     );
+    chatLog.info("chat › conversation repo constructed", {
+      hasDatabase: Boolean(db),
+    });
   }
 
   /**

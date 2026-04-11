@@ -6,6 +6,10 @@ import {
   MessageStatusType,
   MessageType,
 } from "@/features/shared";
+import baseLogger from "@/features/shared/utils/logger";
+
+const apiLog = baseLogger.extend("api");
+apiLog.debug("[sync-api] module loaded");
 
 interface SyncResponse {
   changes: PushLocalDataRequestBody["changes"];
@@ -13,6 +17,7 @@ interface SyncResponse {
 }
 
 export const sync = async (lastPulledAt: number, schemaVersion: number) => {
+  apiLog.info("api › sync pull", { lastPulledAt, schemaVersion });
   const res = await apiClient.get<SyncResponse>("/sync/pull", {
     params: { last_pulled_at: lastPulledAt, schema_version: schemaVersion },
   });
@@ -164,6 +169,9 @@ interface PushLocalDataResponse {
 }
 
 export const pushLocalDataApi = async (data: PushLocalDataRequestBody) => {
+  apiLog.info("api › sync push", {
+    hasChanges: Boolean(data?.changes),
+  });
   const res = await apiClient.post<PushLocalDataResponse>("/sync/push", data);
   return res;
 };

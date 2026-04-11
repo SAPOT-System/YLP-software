@@ -3,6 +3,7 @@ import baseLogger from "@/features/shared/utils/logger";
 import { EventEmitter } from "events";
 
 const callLog = baseLogger.extend("call");
+callLog.debug("[call-service] module loaded");
 // TODO: probably store the peerId state
 /**
  * CallService manages call connections, including starting/terminating calls, handling streams,
@@ -20,6 +21,10 @@ export class CallService extends EventEmitter {
     private userStore: UserStore
   ) {
     super();
+    callLog.info("call › service constructed", {
+      hasConnectionService: Boolean(connectionService),
+      hasUserStore: Boolean(userStore),
+    });
   }
 
   /**
@@ -31,6 +36,7 @@ export class CallService extends EventEmitter {
   async startCall(type: "video" | "audio", peerId: string) {
     try {
       if (this.connectedState === "connected") return;
+      callLog.info("call › start", { peerId, type });
       this.listenToRemoteStream();
       // Initialize local audio and video
       await this.connectionService.initializeStream(type, peerId);
@@ -60,6 +66,7 @@ export class CallService extends EventEmitter {
    */
   informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
     try {
+      callLog.info("call › incoming notify", { peerId, type });
       this.connectionService.sendCallMessage(peerId, {
         type: type === "audio" ? "audio-call" : "video-call",
         data: { from: this.userStore.user.id, to: peerId },
@@ -78,6 +85,7 @@ export class CallService extends EventEmitter {
   async terminateCallConnection(peerId: string) {
     try {
       if (this.connectedState === "disconnected") return;
+      callLog.info("call › terminate", { peerId });
       this.connectionService.terminateCallConnection(peerId);
       await this.connectionService.renegotiate(peerId);
       this.connectionService.sendCallMessage(peerId, {

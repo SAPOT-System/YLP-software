@@ -22,6 +22,8 @@ import { DataChatMessageI } from "../types";
 
 const chatLog = baseLogger.extend("chat");
 
+chatLog.debug("[chat-service] module loaded");
+
 /**
  * ChatService is responsible for managing chat/conversation logic, including peer connections, message sending/receiving,
  * repository coordination, and state management. It encapsulates business rules for chat flows and ensures ACID principles where possible.
@@ -48,7 +50,19 @@ export class ChatService {
     private messageStatusRepository: MessageStatusRepository,
     private peerService: PeerService,
     private userStore: UserStore
-  ) {}
+  ) {
+    chatLog.info("chat › service constructed", {
+      hasConnectionService: Boolean(connectionService),
+      hasConversationRepository: Boolean(conversationRepository),
+      hasConversationParticipantRepository: Boolean(
+        conversationParticipantRepository
+      ),
+      hasMessageRepository: Boolean(messageRepository),
+      hasMessageStatusRepository: Boolean(messageStatusRepository),
+      hasPeerService: Boolean(peerService),
+      hasUserStore: Boolean(userStore),
+    });
+  }
 
   onConnectionState(
     listener: (payload: {
@@ -76,6 +90,7 @@ export class ChatService {
    */
   async connect(id: string): Promise<void> {
     try {
+      chatLog.info("chat › connect start", { peerId: id });
       const foundUser = await this.peerService.findPeerById(id);
       if (!foundUser) throw new Error("Peer not found");
       this.peer = foundUser;
@@ -93,6 +108,7 @@ export class ChatService {
       } catch {
         await this.connectionService.connectToPeer(id);
       }
+      chatLog.info("chat › connect complete", { peerId: id });
     } catch (error) {
       chatLog.warn("chat › connect failed", { peerId: id, error });
       throw error;
@@ -104,6 +120,10 @@ export class ChatService {
    */
   disconnect(): void {
     try {
+      chatLog.info("chat › disconnect", {
+        hadPeer: Boolean(this.peer),
+        hadConversation: Boolean(this.conversation),
+      });
       this.conversation = undefined;
       this.peer = undefined;
     } catch (error) {
@@ -248,6 +268,10 @@ export class ChatService {
   async sendChatMessage(message: string): Promise<string> {
     try {
       if (!this.peer) throw new Error("No peer state stored");
+      chatLog.debug("chat › send start", {
+        peerId: this.peer.id,
+        messageLength: message.length,
+      });
       await this.ensureConversationInitialized();
       const { newMessage, newMessageStatus } = await this.createMessage({
         sender: this.userStore.user,
@@ -259,6 +283,11 @@ export class ChatService {
         newMessageStatus,
         message
       );
+      chatLog.debug("chat › send complete", {
+        peerId: this.peer.id,
+        conversationId: this.conversation?.id,
+        messageId: newMessage.id,
+      });
       return this.conversation!.id;
     } catch (error) {
       chatLog.error("chat › send failed", {
@@ -304,6 +333,12 @@ export class ChatService {
     message: string
   ): Promise<void> {
     try {
+      chatLog.debug("chat › send message", {
+        messageId: newMessage.id,
+        conversationId: this.conversation?.id,
+        peerId: this.peer?.id,
+        messageLength: message.length,
+      });
       this.connectionService.sendChatMessage(this.peer!.id, {
         message: message,
         conversationId: this.conversation!.id,
@@ -327,7 +362,13 @@ export class ChatService {
         );
       }, 12000);
       this.ackTimeouts.set(newMessage.id, timeout);
-    } catch {
+    } catch (error) {
+      chatLog.warn("chat › send failed", {
+        messageId: newMessage.id,
+        conversationId: this.conversation?.id,
+        peerId: this.peer?.id,
+        error,
+      });
       await this.messageStatusRepository.updateMessageStatusById(
         newMessageStatus.id,
         MessageStatusType.NOT_SENT
@@ -384,6 +425,10 @@ export class ChatService {
   ): Promise<Conversation> {
     // Wrap into write method to ensure ACID for safety transaction
     try {
+      chatLog.info("chat › room create", {
+        peerId: peer.id,
+        hasConversationId: Boolean(conversationId),
+      });
       return await database.write(async () => {
         const conversation = await this.conversationRepository.saveConversation(
           {

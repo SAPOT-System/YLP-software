@@ -1,5 +1,4 @@
 import { AUTH_ROUTES } from "@/app/routes";
-import { authLog } from "@/features/shared/utils/logger";
 import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { Checkbox, HelperText, Text, useTheme } from "react-native-paper";

@@ -10,6 +10,8 @@ import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 const chatLog = baseLogger.extend("chat");
 
+chatLog.debug("[message-repository] module loaded");
+
 /**
  * MessageRepository handles CRUD operations for messages in the database.
  */
@@ -22,6 +24,7 @@ export class MessageRepository {
    */
   constructor(private db: Database) {
     this.messagesCollection = db.get<Message>(Message.table);
+    chatLog.info("chat › message repo constructed", { hasDatabase: Boolean(db) });
   }
 
   // TODO: make the content type flexible for other type of messages
@@ -117,6 +120,7 @@ export class MessageRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getAllMessageDestroyOps() {
+    chatLog.debug("chat › message destroy ops requested");
     const records = await this.messagesCollection.query().fetch();
 
     return records.map((r) => r.prepareDestroyPermanently());

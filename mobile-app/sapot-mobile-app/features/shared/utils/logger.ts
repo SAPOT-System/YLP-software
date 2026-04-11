@@ -1,10 +1,31 @@
 import { consoleTransport, logger } from "react-native-logs";
 import Reactotron from "reactotron-react-native";
+import { LOG_MODULES } from "./logger.config";
 
-type ReactotronTransportProps = {
-  level: { text: string; severity: number };
-  rawMsg: unknown;
+const isModuleEnabled = (module: string) => {
+  if (LOG_MODULES[module] === undefined) return true; // default ON
+  return LOG_MODULES[module];
 };
+
+const createScopedLogger = (scope: string) => {
+  const scoped = baseLogger.extend(scope);
+
+  // wrap methods to filter logging
+  const wrap =
+    (fn: any) =>
+    (msg: string, ...args: any[]) => {
+      if (!isModuleEnabled(scope)) return;
+      return fn(msg, ...args);
+    };
+
+  return {
+    debug: wrap(scoped.debug),
+    info: wrap(scoped.info),
+    warn: wrap(scoped.warn),
+    error: wrap(scoped.error),
+  };
+};
+
 // Custom transport: sends to Reactotron in dev, noop in prod
 const reactotronTransport = (props: ReactotronTransportProps) => {
   if (__DEV__ && Reactotron.display) {
@@ -15,6 +36,11 @@ const reactotronTransport = (props: ReactotronTransportProps) => {
       important: props.level.severity >= 2, // warn + error
     });
   }
+};
+
+type ReactotronTransportProps = {
+  level: { text: string; severity: number };
+  rawMsg: unknown;
 };
 
 const baseLogger = logger.createLogger({
@@ -45,8 +71,8 @@ const baseLogger = logger.createLogger({
 
 baseLogger.debug("[logger] module loaded");
 
-export const authLog = baseLogger.extend("auth");
-export const apiLog = baseLogger.extend("api");
-export const navLog = baseLogger.extend("nav");
-export const uiLog = baseLogger.extend("ui");
+export const authLog = createScopedLogger("auth");
+export const apiLog = createScopedLogger("api");
+export const navLog = createScopedLogger("nav");
+export const uiLog = createScopedLogger("ui");
 export default baseLogger;

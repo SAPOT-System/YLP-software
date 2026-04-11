@@ -10,6 +10,8 @@ import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 const chatLog = baseLogger.extend("chat");
 
+chatLog.debug("[message-status-repository] module loaded");
+
 /**
  * MessageStatusRepository manages CRUD operations for message statuses in the database.
  */
@@ -22,6 +24,9 @@ export class MessageStatusRepository {
    */
   constructor(private db: Database) {
     this.messageStatusCollection = db.get<MessageStatus>(MessageStatus.table);
+    chatLog.info("chat › message status repo constructed", {
+      hasDatabase: Boolean(db),
+    });
   }
 
   /**
@@ -186,7 +191,12 @@ export class MessageStatusRepository {
    * @returns Promise<MessageStatus[]> Array of all message statuses
    */
   async queryAllStatuses() {
-    return await this.messageStatusCollection.query().fetch();
+    try {
+      return await this.messageStatusCollection.query().fetch();
+    } catch (error) {
+      chatLog.error("chat › status list failed", { error });
+      throw error;
+    }
   }
 
   /**
@@ -194,6 +204,7 @@ export class MessageStatusRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getStatusDestroyOps() {
+    chatLog.debug("chat › status destroy ops requested");
     const records = await this.messageStatusCollection.query().fetch();
 
     return records.map((r) => r.prepareDestroyPermanently());

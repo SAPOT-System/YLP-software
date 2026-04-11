@@ -12,6 +12,8 @@ import {
 
 const syncLog = baseLogger.extend("sync");
 
+syncLog.debug("[sync-service] module loaded");
+
 export type SyncEntity =
   | "conversations"
   | "conversation_participants"
@@ -188,6 +190,12 @@ export class SyncService {
     this.lastSyncKey = lastSyncKey;
     this.peerService = peerService;
     this.syncLogger = new SyncLogger(20);
+    syncLog.info("sync › service constructed", {
+      hasDb: Boolean(db),
+      hasPeerService: Boolean(peerService),
+      queueKey,
+      lastSyncKey,
+    });
   }
 
   get syncLogs() {
@@ -199,10 +207,12 @@ export class SyncService {
   }
 
   async initialize() {
+    syncLog.info("sync › initialize");
     await this.syncNow();
   }
 
   async handleConnectivityChange(isOnline: boolean) {
+    syncLog.info("sync › connectivity", { isOnline });
     if (isOnline) {
       await this.syncNow();
     }
@@ -213,6 +223,11 @@ export class SyncService {
     operation: SyncOperationType,
     payload: EntityLocalPayloadMap[SyncEntity]
   ) {
+    syncLog.debug("sync › enqueue", {
+      entity,
+      operation,
+      hasId: Boolean(payload?.id),
+    });
     const queue = await this.loadQueue();
     const opId = `${entity}-${payload.id ?? "no-id"}-${Date.now()}`;
     const mergedPayload = this.applyDeleteFlag(entity, operation, payload);
@@ -229,6 +244,12 @@ export class SyncService {
     queue.push(item);
     await this.saveQueue(queue);
 
+    syncLog.debug("sync › enqueue complete", {
+      entity,
+      operation,
+      queueLength: queue.length,
+    });
+
     return item;
   }
 
@@ -237,6 +258,7 @@ export class SyncService {
     this.isSyncing = true;
 
     try {
+      syncLog.info("sync › start");
       const log = this.syncLogger.newLog();
       await synchronize({
         database: this.db,
@@ -314,6 +336,10 @@ export class SyncService {
           await this.pushToServer(changes as SyncChanges);
         },
       });
+      syncLog.info("sync › complete");
+    } catch (error) {
+      syncLog.error("sync › failed", { error });
+      throw error;
     } finally {
       this.isSyncing = false;
     }
