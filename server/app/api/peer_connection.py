@@ -128,6 +128,7 @@ async def sdp_relay(token: str, websocket: WebSocket, target_id: UUID|None = Non
                 continue
 
             if isinstance(payload, SignalMessage):
-                await relay_signal(user_id, payload.data.to, payload)
+                await relay_signal(user_id, UUID(payload.data.to), payload)
+
     except WebSocketDisconnect:
         manager.disconnect(user_id)
