@@ -185,6 +185,8 @@ export default function CallRoom() {
       setElapsed(0);
       setLocalStream(undefined);
       setLocalCam(true);
+      setRemoteMic(true);
+      setRemoteCam(true);
       hasTerminated.current = false;
     }, [id, type, status])
   );
@@ -328,18 +330,16 @@ export default function CallRoom() {
     navigateAway();
   }, [navigateAway]);
 
-  const handleCallAgain = useCallback(() => {
+  const handleCallAgain = useCallback(async () => {
     uiLog.info("[Navigation] Navigating to CallRoom", {
       screen: "/(drawer)/(tabs)/call/[id]",
       peerId: id,
       type,
       status: "calling",
     });
-    router.replace({
-      pathname: "/(drawer)/(tabs)/call/[id]" as never,
-      params: { id: id!, type, status: "calling" },
-    });
-  }, [router, id, type]);
+    await callService.informPeerForIncomingCall(type, id);
+    setCallState("calling");
+  }, [id, type, callService]);
 
   const handleToggleMic = useCallback(() => {
     uiLog.debug("[CallRoom] handleToggleMic called", { localMic });
@@ -371,7 +371,7 @@ export default function CallRoom() {
   }, [callService]);
 
   const isActive = callState === "calling" || callState === "connected";
-  const showVideoStreams = type === "video" && callState === "connected";
+  const showVideoStreams = callState === "connected";
 
   return (
     <LinearGradient
