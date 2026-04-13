@@ -1,10 +1,12 @@
 import { consoleTransport, logger } from "react-native-logs";
 import Reactotron from "reactotron-react-native";
-import { LOG_MODULES } from "./logger.config";
+
+const raw = process.env.EXPO_PUBLIC_ENABLED_LOG_MODULES ?? "";
+const ENABLED_MODULES = raw ? raw.split(",").map((m) => m.trim()) : []; // empty = allow ALL modules
 
 const isModuleEnabled = (module: string) => {
-  if (LOG_MODULES[module] === undefined) return true; // default ON
-  return LOG_MODULES[module];
+  if (ENABLED_MODULES.length === 0) return true;
+  return ENABLED_MODULES.indexOf(module) + 1;
 };
 
 export const createScopedLogger = (scope: string) => {
