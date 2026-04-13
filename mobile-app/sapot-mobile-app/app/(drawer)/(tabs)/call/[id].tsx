@@ -1,4 +1,4 @@
-import { AudioRouteTypes, CallService, useCallService } from "@/features/call";
+import { AudioRouteTypes, useCallService } from "@/features/call";
 import { Peer } from "@/features/shared/database/model/Peer";
 import {
   useConnectionService,
@@ -45,15 +45,11 @@ export default function CallRoom() {
   const [callState, setCallState] = useState<CallState>(
     status === "connected" ? "connected" : "calling"
   );
-  uiLog.debug("call › state updated", { callState });
   const [localMic, setLocalMic] = useState(true);
   const [localCam, setLocalCam] = useState(true);
   const [remoteMic, setRemoteMic] = useState(true);
   const [remoteCam, setRemoteCam] = useState(true);
-  const [currentRoute, setCurrentRoute] = useState<AudioRouteTypes>("earpiece");
-  const [availableRoutes, setAvailableRoutes] = useState<
-    { type: AudioRouteTypes; label: string }[]
-  >([]);
+  const currentRouteRef = useRef<AudioRouteTypes | undefined>(undefined);
 
   const [peer, setPeer] = useState<Peer | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -86,22 +82,13 @@ export default function CallRoom() {
     }: {
       route: AudioRouteTypes;
     }) => {
-      setCurrentRoute(route);
-    };
-    const audioRoutesUpdatedHandler = ({
-      routes,
-    }: {
-      routes: { type: AudioRouteTypes; label: string }[];
-    }) => {
-      setAvailableRoutes(routes);
+      currentRouteRef.current = route;
     };
 
     callService.on("audio-route-changed", audioRouteChangedHandler);
-    callService.on("audio-routes-updated", audioRoutesUpdatedHandler);
 
     return () => {
       callService.off("audio-route-changed", audioRouteChangedHandler);
-      callService.off("audio-routes-updated", audioRoutesUpdatedHandler);
     };
   }, [callService]);
 
@@ -428,17 +415,31 @@ export default function CallRoom() {
       {/* Video streams (video call, connected state) */}
       {showVideoStreams && (
         <View style={styles.videoContainer}>
-          {ready && remoteCam ? (
-            <RTCView
-              streamURL={remoteStreamUrl}
-              mirror={false}
-              objectFit="cover"
-              zOrder={0}
-              style={styles.remoteVideo}
-            />
-          ) : (
-            <View style={styles.remoteVideo} />
-          )}
+          <View style={styles.remoteVideoWrap}>
+            {ready && remoteCam ? (
+              <RTCView
+                streamURL={remoteStreamUrl}
+                mirror={false}
+                objectFit="cover"
+                zOrder={0}
+                style={styles.remoteVideo}
+              />
+            ) : (
+              <View style={styles.remoteVideo} />
+            )}
+            <View
+              style={[
+                styles.remoteMicBadge,
+                !remoteMic && styles.remoteMicBadgeMuted,
+              ]}
+            >
+              <Feather
+                name={remoteMic ? "mic" : "mic-off"}
+                size={16}
+                color="#FFFFFF"
+              />
+            </View>
+          </View>
           {localStream && localCam ? (
             <RTCView
               streamURL={localStream?.toURL()}
@@ -479,7 +480,11 @@ export default function CallRoom() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.controlBtn} onPress={handleVolume}>
               <Feather
-                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
+                name={
+                  currentRouteRef.current === "earpiece"
+                    ? "volume-1"
+                    : "volume-2"
+                }
                 size={22}
                 color={COLORS.primary}
               />
@@ -601,9 +606,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
   },
+  remoteVideoWrap: {
+    flex: 1,
+    position: "relative",
+  },
   remoteVideo: {
     flex: 1,
     backgroundColor: "#000",
+  },
+  remoteMicBadge: {
+    position: "absolute",
+    left: 14,
+    bottom: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+  },
+  remoteMicBadgeMuted: {
+    backgroundColor: "rgba(234, 67, 53, 0.85)",
   },
   localVideo: {
     position: "absolute",
