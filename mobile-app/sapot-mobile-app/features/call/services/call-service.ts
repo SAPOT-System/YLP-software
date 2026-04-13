@@ -1,14 +1,42 @@
-import { ConnectionService, PeerService, UserStore } from "@/features/shared";
+import {
+  ConnectionService,
+  PeerService,
+  TypedEventEmitter,
+  UserStore,
+} from "@/features/shared";
+import { MediaStream } from "react-native-webrtc";
+import InCallManager from "react-native-incall-manager";
 import { callLog } from "@/features/shared/utils/logger";
-import { EventEmitter } from "events";
+import { DeviceEventEmitter } from "react-native";
 callLog.debug("[call-service] module loaded");
+
+export type AudioRouteTypes = "earpiece" | "speaker" | "headset" | "bluetooth";
+
+export type CallServiceEvents = {
+  "audio-routes-updated": [
+    { routes: { type: AudioRouteTypes; label: string }[] }
+  ];
+  "audio-route-changed": [
+    {
+      route: AudioRouteTypes;
+      available: { type: AudioRouteTypes; label: string }[];
+    }
+  ];
+  remoteStream: [stream: MediaStream];
+};
+
 // TODO: probably store the peerId state
 /**
  * CallService manages call connections, including starting/terminating calls, handling streams,
  * and toggling audio/video for peer-to-peer calls. It extends EventEmitter to emit call-related events.
  */
-export class CallService extends EventEmitter {
+export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private connectedState: "connected" | "disconnected" = "disconnected";
+  private currentAudioRoute: AudioRouteTypes = "earpiece";
+  private availableRoutes: { type: AudioRouteTypes; label: string }[] = [];
+  private isBluetoothConnected = false;
+  private isHeadsetConnected = false;
+
   /**
    * Constructs a CallService instance.
    * @param connectionService Handles network and media stream operations
@@ -47,7 +75,27 @@ export class CallService extends EventEmitter {
         await this.connect(peerId);
       }
 
-      callLog.info("call › connecting to peer", { peerId, type });
+      callLog.info("call › connecting to peer");
+
+      // For audio-only calls, default to earpiece
+      // For video calls, default to speaker
+      InCallManager.start({
+        media: type,
+        auto: true,
+      });
+
+      // Force initial route based on call type
+      if (type === "audio") {
+        InCallManager.setForceSpeakerphoneOn(false); // Use earpiece
+        this.currentAudioRoute = "earpiece";
+      } else {
+        InCallManager.setForceSpeakerphoneOn(true); // Use speaker
+        this.currentAudioRoute = "speaker";
+      }
+
+      // Set keep screen on during call
+      InCallManager.setKeepScreenOn(true);
+
       this.listenToRemoteStream();
 
       // Initialize local audio and video
@@ -112,6 +160,113 @@ export class CallService extends EventEmitter {
     }
   }
 
+  setupAudioEventListeners() {
+    // Listen for wired headset plug/unplug events
+    DeviceEventEmitter.addListener("WiredHeadset", (data) => {
+      callLog.info("call › wired headset event:", data);
+      this.isHeadsetConnected = data.device === "WiredHeadset";
+      this.updateAvailableRoutes();
+
+      // Auto-route to headset if just plugged in
+      if (this.isHeadsetConnected) {
+        this.setAudioRoute("headset");
+      }
+    });
+
+    // Listen for Bluetooth headset connection events
+    DeviceEventEmitter.addListener("BluetoothHeadset", (data) => {
+      callLog.info("call › bluetooth headset event:", data);
+      this.isBluetoothConnected = data.device === "BluetoothHeadset";
+      this.updateAvailableRoutes();
+
+      // Auto-route to Bluetooth if just connected
+      if (this.isBluetoothConnected) {
+        this.setAudioRoute("bluetooth");
+      }
+    });
+
+    // Proximity sensor - auto-switch to earpiece when phone near ear
+    DeviceEventEmitter.addListener("Proximity", (data) => {
+      if (data.isNear) {
+        // Phone near ear - switch to earpiece
+        if (
+          this.currentAudioRoute !== "earpiece" &&
+          this.currentAudioRoute !== "headset" &&
+          this.currentAudioRoute !== "bluetooth"
+        ) {
+          this.setAudioRoute("earpiece");
+        }
+      } else if (this.currentAudioRoute === "earpiece") {
+        // Phone away from ear - restore previous route (speaker if video call)
+        // This requires tracking previous route separately
+      }
+    });
+  }
+
+  private cleanAudioEventListeners() {
+    DeviceEventEmitter.removeAllListeners();
+  }
+
+  updateAvailableRoutes() {
+    const routes: { type: AudioRouteTypes; label: string }[] = [];
+
+    // Always available
+    routes.push({ type: "earpiece", label: "Earpiece" });
+    routes.push({ type: "speaker", label: "Speaker" });
+
+    // Check for headset (platform-specific)
+    if (this.isHeadsetConnected) {
+      routes.push({ type: "headset", label: "Wired Headset" });
+    }
+
+    // Check for Bluetooth
+    if (this.isBluetoothConnected) {
+      routes.push({ type: "bluetooth", label: "Bluetooth" });
+    }
+
+    this.availableRoutes = routes;
+    this.emit("audio-routes-updated", {
+      routes: this.availableRoutes,
+    });
+  }
+
+  async setAudioRoute(route: AudioRouteTypes) {
+    callLog.debug("call › setting audio route to:", route);
+
+    switch (route) {
+      case "speaker":
+        InCallManager.setForceSpeakerphoneOn(true);
+        this.currentAudioRoute = "speaker";
+        break;
+
+      case "earpiece":
+        InCallManager.setForceSpeakerphoneOn(false);
+        this.currentAudioRoute = "earpiece";
+        break;
+
+      case "headset":
+        // For wired headsets, just turn off speaker - system auto-routes
+        InCallManager.setForceSpeakerphoneOn(false);
+        this.currentAudioRoute = "headset";
+        break;
+
+      case "bluetooth":
+        // For Bluetooth, ensure SCO is enabled for call audio
+        InCallManager.setForceSpeakerphoneOn(false);
+        // Note: On some Android versions, additional native code may be needed
+        this.currentAudioRoute = "bluetooth";
+        break;
+
+      default:
+        callLog.warn("call › unknown audio route:", route);
+    }
+
+    this.emit("audio-route-changed", {
+      route: this.currentAudioRoute,
+      available: this.availableRoutes,
+    });
+  }
+
   /**
    * Listens for remote media streams from the connection service and emits them to listeners.
    */
@@ -160,6 +315,9 @@ export class CallService extends EventEmitter {
       }
       callLog.info("call › terminate", { peerId });
       this.connectionService.terminateCallConnection(peerId);
+      InCallManager.stop();
+      InCallManager.setKeepScreenOn(false);
+      this.cleanAudioEventListeners();
       this.connectionService.sendCallMessage(peerId, {
         type: "call-ended",
         data: { from: this.userStore.user.id, to: peerId },
@@ -195,6 +353,12 @@ export class CallService extends EventEmitter {
       callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
     }
+  }
+
+  toggleSpeaker() {
+    const newRoute =
+      this.currentAudioRoute === "speaker" ? "earpiece" : "speaker";
+    this.setAudioRoute(newRoute);
   }
 
   /**
