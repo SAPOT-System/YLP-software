@@ -6,11 +6,12 @@ import {
   useProfilePhoto,
   useUserStore,
 } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { navLog, uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function IncomingCall() {
@@ -44,6 +45,17 @@ export default function IncomingCall() {
         uiLog.error("[IncomingCall] Error in load peer", { error });
       });
   }, [id, peerService]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
+        navLog.info("[IncomingCall] did not answer");
+        router.replace("/(drawer)/(tabs)");
+      }, 30_000);
+
+      return () => clearTimeout(timer);
+    }, [router])
+  );
 
   // If the caller cancels before we accept, go back
   useEffect(() => {
