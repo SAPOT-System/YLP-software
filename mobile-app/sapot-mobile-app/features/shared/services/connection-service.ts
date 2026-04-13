@@ -15,6 +15,7 @@ import {
   DataAckMessage,
   Message,
   SignalingMessage,
+  WsCallMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
@@ -128,28 +129,34 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       }
     });
 
-    this.wsSignalingAdapter.on("call-message", async (message: CallMessage) => {
-      try {
-        if (message.type === "audio-call") {
-          this.emit("audio-call", message.data.from);
-        }
-        if (message.type === "video-call") {
-          this.emit("video-call", message.data.from);
-        }
-        if (message.type === "call-ended") {
-          // TODO: check if needed to reinitialize local stream
-          // TODO: validate that the caller id is the sender
-          connectionLog.info("connection › call ended", {
-            peerId: message.data.from,
+    this.wsSignalingAdapter.on(
+      "call-message",
+      async (message: WsCallMessage) => {
+        try {
+          if (message.type === "audio-call") {
+            this.emit("audio-call", message.data.from_user);
+          }
+          if (message.type === "video-call") {
+            this.emit("video-call", message.data.from_user);
+          }
+          if (message.type === "call-ended") {
+            // TODO: check if needed to reinitialize local stream
+            // TODO: validate that the caller id is the sender
+            connectionLog.info("connection › call ended", {
+              peerId: message.data.from_user,
+            });
+            this.emit("call-ended", message.data.from_user);
+          }
+          if (message.type === "call-ready") {
+            this.emit("call-ready", message.data.from_user);
+          }
+        } catch (error) {
+          connectionLog.error("connection › call message handling failed", {
+            error,
           });
-          this.emit("call-ended", message.data.from);
         }
-      } catch (error) {
-        connectionLog.error("connection › call message handling failed", {
-          error,
-        });
       }
-    });
+    );
 
     this.wsSignalingAdapter.on("reconnecting", ({ attempt, delayMs }) => {
       connectionLog.info("connection › ws reconnecting", {
