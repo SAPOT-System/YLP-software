@@ -222,7 +222,7 @@ export default function Dashboard() {
 									</span>
 							</div>
 
-					</GrayTopContainer> : <MetricSkeleton/>
+					</GrayTopContainer> : <MetricSkeleton className="flex w-full gap-2 items-center custom-white p-2 rounded-3xl border-gray-200 shadow-md h-full justify-center  flex-col"/>
 				}
 
 					<WhiteContainer style="h-full justify-center  flex-col">

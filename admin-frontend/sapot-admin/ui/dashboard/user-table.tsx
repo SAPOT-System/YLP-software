@@ -103,7 +103,11 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
         
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onPageChange(currentPage - 1)}
+            onClick={() => {
+							console.log("currentPage", currentPage)
+							onPageChange(currentPage - 1);
+							console.log("currentPage after", currentPage);
+						}}
             disabled={currentPage === 1}
             className="p-2 border border-gray-200 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
@@ -111,7 +115,11 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
           </button>
           
           <button
-            onClick={() => onPageChange(currentPage + 1)}
+            onClick={() => {
+							onPageChange(currentPage + 1)
+							console.log("currentPage after", currentPage);
+						}
+						}
             disabled={currentPage >= totalPages}
             className="p-2 border border-gray-200 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
