@@ -19,7 +19,7 @@ class data(BaseModel):
 
 
 class MessageData(BaseModel):
-    type: Literal['audio-call', 'chat', 'video-call', 'call-ended'] = Field(alias="type")
+    type: Literal['audio-call', 'chat', 'video-call', 'call-ended', 'call-ready'] = Field(alias="type")
     data: data
 
 

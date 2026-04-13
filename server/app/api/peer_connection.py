@@ -209,7 +209,6 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
 
             # relay message data
             if isinstance(payload, MessageData):
-                print("PAYLOAD", payload)
                 await relay_message(user_id, UUID(payload.data.to), payload, session)
 
             if isinstance(payload, SignalMessage) and validate_sender(payload, user_id):
