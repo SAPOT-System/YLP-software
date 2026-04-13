@@ -6,6 +6,7 @@ import { getTime } from "../dashboard/page";
 import MetricSkeleton from "@/ui/dashboard/skeleton";
 import { LoaderIcon, PlusIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
+import Modal from "@/ui/dashboard/popup";
 
 export default function Users() {
 	const [userActivityData, setUserActivityData] = useState({});
@@ -66,6 +67,10 @@ export default function Users() {
 											currentPage={userActivityData.page} 
 											totalPages={userActivityData.pages}
 										/>
+										<Modal>
+											<h1>hi world</h1>
+
+										</Modal>
 					</div>
   );
 }
