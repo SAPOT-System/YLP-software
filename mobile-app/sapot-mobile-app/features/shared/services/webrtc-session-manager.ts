@@ -4,7 +4,12 @@ import { webrtcLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import { WebrtcAdapter } from "../adapters";
 import { NetworkConfig, UserStore } from "../stores";
-import { DataAckMessage, SignalingMessage, WebrtcDataMessage } from "../types";
+import {
+  CallControlData,
+  DataAckMessage,
+  SignalingMessage,
+  WebrtcDataMessage,
+} from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 
 webrtcLog.debug("[webrtc-session-manager] module loaded");
@@ -12,6 +17,10 @@ webrtcLog.debug("[webrtc-session-manager] module loaded");
 type WebrtcSessionManagerEvents = {
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
+  "camera-off": [peerId: string];
+  "camera-on": [peerId: string];
+  "mic-off": [peerId: string];
+  "mic-on": [peerId: string];
 };
 
 export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManagerEvents> {
@@ -90,6 +99,30 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
                 messageId: message.data.messageId,
               });
               await this.chatService.handleAckMessage(message.data.messageId);
+            }
+            break;
+          case "camera_toggle":
+            if (message.data) {
+              webrtcLog.debug("webrtc › call control camera received", {
+                messageId: message.data,
+              });
+              if (message.data.enabled) {
+                this.emit("camera-on", message.data.from);
+              } else {
+                this.emit("camera-off", message.data.from);
+              }
+            }
+            break;
+          case "mic_toggle":
+            if (message.data) {
+              webrtcLog.debug("webrtc › call control mic received", {
+                messageId: message.data,
+              });
+              if (message.data.enabled) {
+                this.emit("mic-on", message.data.from);
+              } else {
+                this.emit("mic-off", message.data.from);
+              }
             }
             break;
         }
@@ -239,6 +272,31 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
       webrtcLog.error("webrtc › ack send failed", {
         peerId,
         messageId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  sendCallControlMessage(
+    peerId: string,
+    type: "camera_toggle" | "mic_toggle",
+    { enabled, from }: CallControlData
+  ) {
+    try {
+      webrtcLog.debug("webrtc › call control send", { peerId, type, enabled });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: type,
+        data: {
+          from: from,
+          enabled: enabled,
+        },
+      });
+    } catch (error) {
+      webrtcLog.error("webrtc › call control send failed", {
+        peerId,
+        enabled,
         error,
       });
       throw error;
