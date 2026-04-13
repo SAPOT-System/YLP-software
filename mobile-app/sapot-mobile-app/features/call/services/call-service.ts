@@ -4,10 +4,10 @@ import {
   TypedEventEmitter,
   UserStore,
 } from "@/features/shared";
-import { MediaStream } from "react-native-webrtc";
-import InCallManager from "react-native-incall-manager";
 import { callLog } from "@/features/shared/utils/logger";
 import { DeviceEventEmitter } from "react-native";
+import InCallManager from "react-native-incall-manager";
+import { MediaStream } from "react-native-webrtc";
 callLog.debug("[call-service] module loaded");
 
 export type AudioRouteTypes = "earpiece" | "speaker" | "headset" | "bluetooth";
@@ -32,10 +32,11 @@ export type CallServiceEvents = {
  */
 export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private connectedState: "connected" | "disconnected" = "disconnected";
-  private currentAudioRoute: AudioRouteTypes = "earpiece";
+  private currentAudioRoute: AudioRouteTypes = "speaker";
   private availableRoutes: { type: AudioRouteTypes; label: string }[] = [];
   private isBluetoothConnected = false;
   private isHeadsetConnected = false;
+  private initialRouteSetFor: Set<string> = new Set();
 
   /**
    * Constructs a CallService instance.
@@ -84,13 +85,14 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         auto: true,
       });
 
-      // Force initial route based on call type
-      if (type === "audio") {
-        InCallManager.setForceSpeakerphoneOn(false); // Use earpiece
-        this.currentAudioRoute = "earpiece";
-      } else {
-        InCallManager.setForceSpeakerphoneOn(true); // Use speaker
-        this.currentAudioRoute = "speaker";
+      // Force initial route based on call type (only once per call)
+      if (!this.initialRouteSetFor.has(peerId)) {
+        if (type === "audio") {
+          this.setAudioRoute("earpiece");
+        } else {
+          this.setAudioRoute("speaker");
+        }
+        this.initialRouteSetFor.add(peerId);
       }
 
       // Set keep screen on during call
@@ -116,7 +118,28 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         callLog.warn("call › already connected", { peerId, type });
         return;
       }
+
       callLog.info("call › start answer call", { peerId, type });
+
+      // For audio-only calls, default to earpiece
+      // For video calls, default to speaker
+      InCallManager.start({
+        media: type,
+        auto: true,
+      });
+
+      // Force initial route based on call type (only once per call)
+      if (!this.initialRouteSetFor.has(peerId)) {
+        if (type === "audio") {
+          this.setAudioRoute("earpiece");
+        } else {
+          this.setAudioRoute("speaker");
+        }
+        this.initialRouteSetFor.add(peerId);
+      }
+
+      // Set keep screen on during call
+      InCallManager.setKeepScreenOn(true);
 
       this.connectionService.sendCallMessage(peerId, {
         type: "call-ready",
@@ -144,6 +167,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         const discoveredPeer = this.peerService.findDiscoveredPeerById(id);
 
         if (!discoveredPeer) throw new Error("Peer not discovered");
+        callLog.info("call › connect with ip and port", { peerId: id });
 
         await this.connectionService.connectToPeer(
           discoveredPeer.id,
@@ -151,6 +175,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
           discoveredPeer.port
         );
       } catch {
+        callLog.info("call › connect with no ip and port", { peerId: id });
         await this.connectionService.connectToPeer(id);
       }
       callLog.info("call › connect complete", { peerId: id });
@@ -201,10 +226,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         // This requires tracking previous route separately
       }
     });
-  }
-
-  private cleanAudioEventListeners() {
-    DeviceEventEmitter.removeAllListeners();
   }
 
   updateAvailableRoutes() {
@@ -317,12 +338,12 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       this.connectionService.terminateCallConnection(peerId);
       InCallManager.stop();
       InCallManager.setKeepScreenOn(false);
-      this.cleanAudioEventListeners();
       this.connectionService.sendCallMessage(peerId, {
         type: "call-ended",
         data: { from: this.userStore.user.id, to: peerId },
       });
       this.connectedState = "disconnected";
+      this.initialRouteSetFor.delete(peerId);
     } catch (error) {
       callLog.error("call › terminate failed", { peerId, error });
       throw error;
