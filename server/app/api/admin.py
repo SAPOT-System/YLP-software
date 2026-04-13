@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import os
-from sqlmodel import select, func, desc
+from sqlmodel import String, select, func, desc, cast
 from typing import Annotated, List, Optional
 import socket
 from fastapi import FastAPI
@@ -323,6 +323,7 @@ async def read_interfaces(
 def get_admin_users(
     current_user: Annotated[User, Depends(get_current_user_admin)],
     session: SessionDep,
+    keyword: str = "",
     page: int = 1,          # Default to page 1
     size: int = 10          # Default to 10 items per page
 ):
@@ -332,10 +333,35 @@ def get_admin_users(
     fifteen_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=15)
     # 1. Base statement with Join and Sorting (Latest last_active first)
     # We use desc(UserActivity.last_active) to put newest at the top
+    from sqlmodel import select, desc, or_
+
+    # ... inside your function ...
+
+    # Base statement
     statement = (
         select(User, UserActivity)
         .join(UserActivity, isouter=True)
-        .order_by(desc(UserActivity.last_active)) 
+    )
+
+    # Apply filter only if keyword is provided
+    if keyword and keyword.strip():
+        search_pattern = f"%{keyword}%"
+        conditions = [
+            User.username.ilike(search_pattern),
+            User.email.ilike(search_pattern),
+            User.phone_number.ilike(search_pattern),
+            User.first_name.ilike(search_pattern),
+            User.last_name.ilike(search_pattern),
+            # If 'id' is a string/UUID use ilike; if it's an integer, cast it:
+            cast(User.id, String).ilike(search_pattern)
+            # User.id.ilike(search_pattern) 
+        ]
+        statement = statement.where(or_(*conditions))
+
+    # Apply ordering and pagination
+    statement = (
+        statement
+        .order_by(desc(UserActivity.last_active))
         .offset(offset)
         .limit(size)
     )
