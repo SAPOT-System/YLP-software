@@ -289,7 +289,8 @@ export class WsSignalingAdapter extends EventEmitter {
 
       if (this.isCallMessage(parsed)) {
         wsLog.debug("ws › call message", { messageType: parsed.type });
-        this.emit("call-message", rawData);
+        this.emit("call-message", parsed);
+        return;
       }
 
       if (!this.isSignalingMessage(parsed)) {
@@ -298,10 +299,13 @@ export class WsSignalingAdapter extends EventEmitter {
         return;
       }
 
-      wsLog.debug("ws › signaling message", this.summarizeSignalingMessage(parsed));
+      wsLog.debug(
+        "ws › signaling message",
+        this.summarizeSignalingMessage(parsed)
+      );
       this.emit("message", parsed);
     } catch {
-      wsLog.warn("ws › payload parse failed");
+      wsLog.warn("ws › payload parse failed", { messageType: typeof rawData });
       this.emit("raw-message", rawData);
     }
   }
@@ -356,13 +360,13 @@ export class WsSignalingAdapter extends EventEmitter {
     if (!call.data || typeof call.data !== "object") return false;
 
     const data = call.data as {
-      from?: unknown;
+      from_user?: unknown;
       to?: unknown;
     };
 
     if (typeof data.to !== "string") return false;
 
-    if (typeof data.from === "string") return true;
+    if (typeof data.from_user === "string") return true;
 
     return false;
   }

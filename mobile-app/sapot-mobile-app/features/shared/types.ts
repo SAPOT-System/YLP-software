@@ -71,6 +71,23 @@ export type CallReadyMessage = {
   data: { from: string; to: string };
 };
 
+export type WsAudioCallMessage = {
+  type: "audio-call";
+  data: { from_user: string; to: string };
+};
+export type WsVideoCallMessage = {
+  type: "video-call";
+  data: { from_user: string; to: string };
+};
+export type WsCallEndedMessage = {
+  type: "call-ended";
+  data: { from_user: string; to: string };
+};
+export type WsCallReadyMessage = {
+  type: "call-ready";
+  data: { from_user: string; to: string };
+};
+
 export type CallControlData = {
   enabled: boolean;
   from: string;
@@ -99,6 +116,12 @@ export type CallMessage =
   | CallEndedMessage
   | VideoCallMessage
   | CallReadyMessage;
+
+export type WsCallMessage =
+  | WsAudioCallMessage
+  | WsCallEndedMessage
+  | WsVideoCallMessage
+  | WsCallReadyMessage;
 
 export interface Peer {
   id: string;
