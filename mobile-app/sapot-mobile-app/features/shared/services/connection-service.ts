@@ -10,6 +10,7 @@ import {
 } from "../adapters";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
+  CallControlData,
   CallMessage,
   DataAckMessage,
   Message,
@@ -35,6 +36,10 @@ export type ConnectionServiceEvents = {
   "video-call": [peerId: string];
   "call-ended": [peerId: string];
   "call-ready": [peerId: string];
+  "camera-off": [peerId: string];
+  "camera-on": [peerId: string];
+  "mic-off": [peerId: string];
+  "mic-on": [peerId: string];
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
   "connection-state": [payload: ConnectionStatePayload];
@@ -56,7 +61,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     private readonly wsSignalingAdapter: WsSignalingAdapter,
     private readonly webrtcSessionManager: WebrtcSessionManager,
     private readonly signalingService: SignalingService,
-    private readonly callMediaService: CallMediaService,
+    private readonly callMediaService: CallMediaService
   ) {
     super();
 
@@ -87,6 +92,18 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     });
     this.webrtcSessionManager.on("peer-reconnected", (peerId) => {
       this.emit("peer-reconnected", peerId);
+    });
+    this.webrtcSessionManager.on("camera-on", (peerId) => {
+      this.emit("camera-on", peerId);
+    });
+    this.webrtcSessionManager.on("camera-off", (peerId) => {
+      this.emit("camera-off", peerId);
+    });
+    this.webrtcSessionManager.on("mic-on", (peerId) => {
+      this.emit("mic-on", peerId);
+    });
+    this.webrtcSessionManager.on("mic-off", (peerId) => {
+      this.emit("mic-off", peerId);
     });
 
     // WS adapter event listeners stay in ConnectionService (constraint).
@@ -581,6 +598,18 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.sendAckMessage(peerId, ackData);
   }
 
+  sendCallControlMessage(
+    peerId: string,
+    type: "camera_toggle" | "mic_toggle",
+    callControlData: CallControlData
+  ) {
+    this.webrtcSessionManager.sendCallControlMessage(
+      peerId,
+      type,
+      callControlData
+    );
+  }
+
   async initializeStream(stream: "audio" | "video", peerId: string) {
     return this.callMediaService.initializeStream(stream, peerId);
   }
@@ -591,11 +620,19 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   }
 
   toggleMic(peerId: string) {
-    this.callMediaService.toggleMic(peerId);
+    const res = this.callMediaService.toggleMic(peerId);
+    this.sendCallControlMessage(peerId, "mic_toggle", {
+      from: this.userStore.user.id,
+      enabled: res,
+    });
   }
 
   toggleCamera(peerId: string) {
-    this.callMediaService.toggleCamera(peerId);
+    const res = this.callMediaService.toggleCamera(peerId);
+    this.sendCallControlMessage(peerId, "camera_toggle", {
+      from: this.userStore.user.id,
+      enabled: res,
+    });
   }
 
   getLocalStream(peerId: string) {

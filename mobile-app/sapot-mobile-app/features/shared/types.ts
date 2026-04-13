@@ -71,10 +71,23 @@ export type CallReadyMessage = {
   data: { from: string; to: string };
 };
 
+export type CallControlData = {
+  enabled: boolean;
+  from: string;
+};
+export type CallControlMessage = {
+  type: "camera_toggle" | "mic_toggle";
+  data: CallControlData;
+};
+
 /**
  * For sent and received message via webrtc
  */
-export type WebrtcDataMessage = ChatMessage | AckMessage | CallMessage;
+export type WebrtcDataMessage =
+  | ChatMessage
+  | AckMessage
+  | CallMessage
+  | CallControlMessage;
 
 /**
  * For sent and received message via tcp and web socket

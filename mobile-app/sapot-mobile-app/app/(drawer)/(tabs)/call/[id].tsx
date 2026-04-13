@@ -46,8 +46,10 @@ export default function CallRoom() {
     status === "connected" ? "connected" : "calling"
   );
   uiLog.debug("call › state updated", { callState });
-  const [mic, setMic] = useState(true);
-  const [cam, setCam] = useState(true);
+  const [localMic, setLocalMic] = useState(true);
+  const [localCam, setLocalCam] = useState(true);
+  const [remoteMic, setRemoteMic] = useState(true);
+  const [remoteCam, setRemoteCam] = useState(true);
   const [peer, setPeer] = useState<Peer | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [localStream, setLocalStream] = useState<MediaStream | undefined>();
@@ -84,10 +86,51 @@ export default function CallRoom() {
       callService.startCall(type, peerId); // TODO: persistently try to start call since it is acknowledge by the receiver
     };
 
+    const micOnHandler = (peerId: string) => {
+      if (id !== peerId) {
+        uiLog.warn("[CallRoom] Call control rejected");
+        return;
+      }
+      callLog.info("[CallRoom] Remote mic on");
+      setRemoteMic(true);
+    };
+    const micOffHandler = (peerId: string) => {
+      if (id !== peerId) {
+        uiLog.warn("[CallRoom] Call control rejected");
+        return;
+      }
+      callLog.info("[CallRoom] Remote mic off");
+      setRemoteMic(false);
+    };
+    const camOnHandler = (peerId: string) => {
+      if (id !== peerId) {
+        uiLog.warn("[CallRoom] Call control rejected");
+        return;
+      }
+      callLog.info("[CallRoom] Remote camera on");
+      setRemoteCam(true);
+    };
+    const camOffHandler = (peerId: string) => {
+      if (id !== peerId) {
+        uiLog.warn("[CallRoom] Call control rejected");
+        return;
+      }
+      callLog.info("[CallRoom] Remote camera off");
+      setRemoteCam(false);
+    };
+
     connectionService.on("call-ready", callReadyHandler);
+    connectionService.on("mic-on", micOnHandler);
+    connectionService.on("mic-off", micOffHandler);
+    connectionService.on("camera-on", camOnHandler);
+    connectionService.on("camera-off", camOffHandler);
 
     return () => {
       connectionService.off("call-ready", callReadyHandler);
+      connectionService.off("mic-on", micOffHandler);
+      connectionService.off("mic-off", micOnHandler);
+      connectionService.off("camera-on", camOffHandler);
+      connectionService.off("camera-off", camOnHandler);
     };
   }, [callService, connectionService, id, type]);
 
@@ -124,7 +167,7 @@ export default function CallRoom() {
       setCallState(status === "connected" ? "connected" : "calling");
       setElapsed(0);
       setLocalStream(undefined);
-      setCam(true);
+      setLocalCam(true);
       hasTerminated.current = false;
     }, [id, type, status])
   );
@@ -282,24 +325,24 @@ export default function CallRoom() {
   }, [router, id, type]);
 
   const handleToggleMic = useCallback(() => {
-    uiLog.debug("[CallRoom] handleToggleMic called", { mic });
+    uiLog.debug("[CallRoom] handleToggleMic called", { localMic });
     try {
       callService.toggleMic(id as string);
-      setMic((v) => !v);
+      setLocalMic((v) => !v);
     } catch (error) {
-      uiLog.error("[CallRoom] Error in toggle mic", { error });
+      uiLog.error("[CallRoom] Error in toggle localMic", { error });
     }
-  }, [callService, id, mic]);
+  }, [callService, id, localMic]);
 
   const handleToggleCam = useCallback(() => {
-    uiLog.debug("[CallRoom] handleToggleCam called", { cam });
+    uiLog.debug("[CallRoom] handleToggleCam called", { localCam });
     try {
       callService.toggleCamera(id as string);
-      setCam((v) => !v);
+      setLocalCam((v) => !v);
     } catch (error) {
       uiLog.error("[CallRoom] Error in toggle camera", { error });
     }
-  }, [callService, id, cam]);
+  }, [callService, id, localCam]);
 
   const isActive = callState === "calling" || callState === "connected";
   const showVideoStreams = type === "video" && callState === "connected";
@@ -346,7 +389,7 @@ export default function CallRoom() {
       {/* Video streams (video call, connected state) */}
       {showVideoStreams && (
         <View style={styles.videoContainer}>
-          {ready ? (
+          {ready && remoteCam ? (
             <RTCView
               streamURL={remoteStreamUrl}
               mirror={false}
@@ -357,7 +400,7 @@ export default function CallRoom() {
           ) : (
             <View style={styles.remoteVideo} />
           )}
-          {localStream && (
+          {localStream && localCam ? (
             <RTCView
               streamURL={localStream?.toURL()}
               mirror={true}
@@ -365,6 +408,8 @@ export default function CallRoom() {
               zOrder={1}
               style={styles.localVideo}
             />
+          ) : (
+            <View style={styles.localVideo} />
           )}
         </View>
       )}
@@ -374,21 +419,21 @@ export default function CallRoom() {
         <View style={styles.controls}>
           <View style={styles.controlRow}>
             <TouchableOpacity
-              style={[styles.controlBtn, !mic && styles.controlBtnOff]}
+              style={[styles.controlBtn, !localMic && styles.controlBtnOff]}
               onPress={handleToggleMic}
             >
               <Feather
-                name={mic ? "mic" : "mic-off"}
+                name={localMic ? "mic" : "mic-off"}
                 size={22}
                 color={COLORS.primary}
               />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.controlBtn, !cam && styles.controlBtnOff]}
+              style={[styles.controlBtn, !localCam && styles.controlBtnOff]}
               onPress={handleToggleCam}
             >
               <Feather
-                name={cam ? "video" : "video-off"}
+                name={localCam ? "video" : "video-off"}
                 size={22}
                 color={COLORS.primary}
               />

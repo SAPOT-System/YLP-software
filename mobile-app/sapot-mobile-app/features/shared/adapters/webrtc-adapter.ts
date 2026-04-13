@@ -611,7 +611,7 @@ export class WebrtcAdapter extends EventEmitter {
         this.dataChannel.readyState === "open" &&
         this.isConnected
       ) {
-        // webrtcLog.debug("webrtc › data send", { messageType: payload.type });
+        webrtcLog.debug("webrtc › data send", { messageType: payload.type });
         this.dataChannel.send(JSON.stringify(payload));
       } else {
         throw new Error("Unable to send payload`");
@@ -669,6 +669,7 @@ export class WebrtcAdapter extends EventEmitter {
       webrtcLog.debug("webrtc › mic toggled", {
         enabled: this.audioTrack.enabled,
       });
+      return this.audioTrack.enabled;
     } catch (error) {
       webrtcLog.error("webrtc › mic toggle failed", { error });
       throw error;
@@ -686,6 +687,7 @@ export class WebrtcAdapter extends EventEmitter {
       webrtcLog.debug("webrtc › camera toggled", {
         enabled: this.videoTrack.enabled,
       });
+      return this.videoTrack.enabled;
     } catch (error) {
       webrtcLog.error("webrtc › camera toggle failed", { error });
       throw error;

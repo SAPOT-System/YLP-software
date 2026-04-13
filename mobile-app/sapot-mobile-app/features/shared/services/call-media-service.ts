@@ -38,22 +38,22 @@ export class CallMediaService {
     }
   }
 
-  toggleMic(peerId: string): void {
+  toggleMic(peerId: string): boolean {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
-      webrtcAdapter.toggleMic();
+      return webrtcAdapter.toggleMic();
     } catch (error) {
       callLog.error("call › mic toggle failed", { peerId, error });
       throw error;
     }
   }
 
-  toggleCamera(peerId: string): void {
+  toggleCamera(peerId: string): boolean {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
-      webrtcAdapter.toggleCamera();
+      return webrtcAdapter.toggleCamera();
     } catch (error) {
       callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
