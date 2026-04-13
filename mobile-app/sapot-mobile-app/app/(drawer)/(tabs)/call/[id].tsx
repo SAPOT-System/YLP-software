@@ -1,4 +1,4 @@
-import { useCallService } from "@/features/call";
+import { AudioRouteTypes, CallService, useCallService } from "@/features/call";
 import { Peer } from "@/features/shared/database/model/Peer";
 import {
   useConnectionService,
@@ -50,6 +50,11 @@ export default function CallRoom() {
   const [localCam, setLocalCam] = useState(true);
   const [remoteMic, setRemoteMic] = useState(true);
   const [remoteCam, setRemoteCam] = useState(true);
+  const [currentRoute, setCurrentRoute] = useState<AudioRouteTypes>("earpiece");
+  const [availableRoutes, setAvailableRoutes] = useState<
+    { type: AudioRouteTypes; label: string }[]
+  >([]);
+
   const [peer, setPeer] = useState<Peer | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [localStream, setLocalStream] = useState<MediaStream | undefined>();
@@ -74,6 +79,31 @@ export default function CallRoom() {
       uiLog.info("[CallRoom] unmounted");
     };
   }, []);
+
+  useEffect(() => {
+    const audioRouteChangedHandler = ({
+      route,
+    }: {
+      route: AudioRouteTypes;
+    }) => {
+      setCurrentRoute(route);
+    };
+    const audioRoutesUpdatedHandler = ({
+      routes,
+    }: {
+      routes: { type: AudioRouteTypes; label: string }[];
+    }) => {
+      setAvailableRoutes(routes);
+    };
+
+    callService.on("audio-route-changed", audioRouteChangedHandler);
+    callService.on("audio-routes-updated", audioRoutesUpdatedHandler);
+
+    return () => {
+      callService.off("audio-route-changed", audioRouteChangedHandler);
+      callService.off("audio-routes-updated", audioRoutesUpdatedHandler);
+    };
+  }, [callService]);
 
   useEffect(() => {
     const callReadyHandler = (peerId: string) => {
@@ -344,6 +374,15 @@ export default function CallRoom() {
     }
   }, [callService, id, localCam]);
 
+  const handleVolume = useCallback(() => {
+    uiLog.debug("[CallRoom] handleVolume called");
+    try {
+      callService.toggleSpeaker();
+    } catch (error) {
+      uiLog.error("[CallRoom] Error in toggle speaker", { error });
+    }
+  }, [callService]);
+
   const isActive = callState === "calling" || callState === "connected";
   const showVideoStreams = type === "video" && callState === "connected";
 
@@ -438,8 +477,12 @@ export default function CallRoom() {
                 color={COLORS.primary}
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.controlBtn}>
-              <Feather name="volume-2" size={22} color={COLORS.primary} />
+            <TouchableOpacity style={styles.controlBtn} onPress={handleVolume}>
+              <Feather
+                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
+                size={22}
+                color={COLORS.primary}
+              />
             </TouchableOpacity>
           </View>
 
