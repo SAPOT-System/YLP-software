@@ -84,11 +84,11 @@ export default function IncomingCall() {
       screen: "/(drawer)/(tabs)/call/[id]",
       peerId: id,
       type: type ?? "audio",
-      status: "connected",
+      status: "answering",
     });
     router.replace({
       pathname: "/(drawer)/(tabs)/call/[id]" as never,
-      params: { id: id!, type: type ?? "audio", status: "connected" },
+      params: { id: id!, type: type ?? "audio", status: "answering"},
     });
   };
 

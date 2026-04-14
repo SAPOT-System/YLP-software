@@ -3,6 +3,16 @@ jest.mock("expo-updates", () => ({
   channel: "preview",
 }));
 
+const originalDevHost = process.env.EXPO_PUBLIC_DEV_HOST;
+
+beforeEach(() => {
+  process.env.EXPO_PUBLIC_DEV_HOST = "192.168.1.10";
+});
+
+afterEach(() => {
+  process.env.EXPO_PUBLIC_DEV_HOST = originalDevHost;
+});
+
 describe("getApiUrl", () => {
   beforeEach(() => {
     jest.resetModules();

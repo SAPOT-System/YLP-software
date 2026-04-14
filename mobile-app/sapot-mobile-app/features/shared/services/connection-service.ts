@@ -5,9 +5,9 @@ import { MediaStream } from "react-native-webrtc";
 import {
   TcpClientAdapter,
   TcpServerAdapter,
-  WebrtcAdapter,
   WsSignalingAdapter,
 } from "../adapters";
+import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
   CallControlData,

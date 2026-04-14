@@ -148,6 +148,7 @@ export function createDiscoveryServiceDependencyMocks() {
 
 export function createCallServiceDependencyMocks() {
 	const connectionService = {
+		isWebrtcConnected: jest.fn(),
 		initializeStream: jest.fn(),
 		renegotiate: jest.fn(),
 		terminateCallConnection: jest.fn(),
@@ -163,6 +164,10 @@ export function createCallServiceDependencyMocks() {
 		sendAckMessage: jest.fn(),
 	};
 
+	const peerService = {
+		findDiscoveredPeerById: jest.fn(),
+	};
+
 	connectionService.on.mockImplementation(() => connectionService);
 
 	const userStore = {
@@ -175,6 +180,7 @@ export function createCallServiceDependencyMocks() {
 
 	return {
 		connectionService,
+		peerService,
 		userStore,
 	};
 }

@@ -1,22 +1,22 @@
-import { useCall } from "@/features/call";
+import { useInformCall } from "@/features/call";
 import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import {
-    ActivityIndicator,
-    Avatar,
-    IconButton,
-    Text,
-    useTheme,
+  ActivityIndicator,
+  Avatar,
+  IconButton,
+  Text,
+  useTheme,
 } from "react-native-paper";
 
 export default function PeerProfile() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const peerService = usePeerService();
-  const call = useCall();
+  const call = useInformCall();
   const { url: profilePicUrl } = useProfilePhoto(id ?? null);
   const [peerName, setPeerName] = useState("Unknown user");
   const [isLoading, setIsLoading] = useState(true);
