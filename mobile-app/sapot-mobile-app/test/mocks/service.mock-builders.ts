@@ -148,6 +148,7 @@ export function createDiscoveryServiceDependencyMocks() {
 
 export function createCallServiceDependencyMocks() {
 	const connectionService = {
+		isWebrtcConnected: jest.fn(),
 		initializeStream: jest.fn(),
 		renegotiate: jest.fn(),
 		terminateCallConnection: jest.fn(),
@@ -155,12 +156,17 @@ export function createCallServiceDependencyMocks() {
 		sendMessage: jest.fn(),
 		toggleMic: jest.fn(),
 		toggleCamera: jest.fn(),
+		switchCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		on: jest.fn(),
 		emit: jest.fn(),
 		connectToPeer: jest.fn(),
 		sendChatMessage: jest.fn(),
 		sendAckMessage: jest.fn(),
+	};
+
+	const peerService = {
+		findDiscoveredPeerById: jest.fn(),
 	};
 
 	connectionService.on.mockImplementation(() => connectionService);
@@ -175,6 +181,7 @@ export function createCallServiceDependencyMocks() {
 
 	return {
 		connectionService,
+		peerService,
 		userStore,
 	};
 }

@@ -1,18 +1,18 @@
 import { getWsUrl } from "@/config/runtime";
 import {
-    TcpServerAdapter,
-    WsSignalingAdapter,
-    ZeroconfAdapter,
+  TcpServerAdapter,
+  WsSignalingAdapter,
+  ZeroconfAdapter,
 } from "./adapters";
 import { database } from "./database";
 import { GuestUserRepository } from "./repositories";
 import {
-    CallMediaService,
-    CleanUpService,
-    ConnectionService,
-    DiscoveryService,
-    SignalingService,
-    WebrtcSessionManager,
+  CallMediaService,
+  CleanUpService,
+  ConnectionService,
+  DiscoveryService,
+  SignalingService,
+  WebrtcSessionManager,
 } from "./services";
 import { AppModeStore, NetworkConfig } from "./stores";
 
@@ -92,7 +92,9 @@ export class MainContainer {
     );
 
     this.signalingService = new SignalingService(
-      this.webrtcSessionManager.getWebrtcAdapter.bind(this.webrtcSessionManager),
+      this.webrtcSessionManager.getWebrtcAdapter.bind(
+        this.webrtcSessionManager
+      ),
       this.wsSignalingAdapter,
       getWsUrl(),
       this.userContainer.userStore,
@@ -132,7 +134,8 @@ export class MainContainer {
 
     this.callService = new CallService(
       this.connectionService,
-      this.userContainer.userStore
+      this.userContainer.userStore,
+      this.userContainer.peerService
     );
 
     this.connectionService.setChatService(this.chatService);

@@ -177,17 +177,38 @@ export class WebrtcAdapter extends EventEmitter {
 
       // This will receive media such as audio and video of peers
       this.peerConnection.ontrack = (event) => {
-        const [stream] = event.streams;
+        webrtcLog.debug("webrtc › ontrack event:", {
+          hasStreams: !!event.streams,
+          streamsLength: event.streams?.length,
+          trackKind: event.track?.kind,
+          trackId: event.track?.id,
+        });
+
+        let stream = event.streams?.[0];
+
+        if (!stream && this.remoteStream) {
+          // Renegotiation case
+          stream = this.remoteStream;
+          stream.addTrack(event.track);
+        } else if (!stream && !this.remoteStream) {
+          // First track - create new stream (React Native safe way)
+          stream = new MediaStream();
+          stream.addTrack(event.track);
+        }
+
         if (stream) {
           this.remoteStream = stream;
-        } else if (this.remoteStream) {
-          this.remoteStream.addTrack(event.track);
+
+          // Small delay to ensure tracks are attached (fixes RN New Architecture issue)
+          setTimeout(() => {
+            if (this.remoteStream && this.remoteStream.getTracks().length > 0) {
+              this.emit("remoteStream", this.remoteStream);
+            } else {
+              webrtcLog.warn("webrtc › Stream has no tracks after delay");
+            }
+          }, 100);
         } else {
-          this.remoteStream = new MediaStream();
-          this.remoteStream.addTrack(event.track);
-        }
-        if (this.remoteStream) {
-          this.emit("remoteStream", this.remoteStream);
+          webrtcLog.error("webrtc › Failed to get or create remote stream");
         }
       };
 
@@ -299,68 +320,66 @@ export class WebrtcAdapter extends EventEmitter {
    * @returns Promise<{ type: "offer"; sdp: any }>
    */
   async createOffer() {
-    return new Promise<{ type: "offer"; sdp: string }>(
-      (resolve, reject) => {
-        try {
-          if (!this.peerConnection) {
-            webrtcLog.debug("webrtc › offer init peer connection");
-            this.createPeerConnection();
-          }
-          if (this.isMakingOffer) {
-            reject(new Error("Offer already in progress"));
-            return;
-          }
-          this.isMakingOffer = true;
-          webrtcLog.debug("webrtc › offer create");
-          if (this.peerConnection?.signalingState === "have-remote-offer") {
-            this.isMakingOffer = false;
-            reject(new Error("Signaling state has remote offer"));
-            return;
-          }
-          if (this.peerConnection?.signalingState === "stable") {
-            this.peerConnection!.createOffer()
-              .then(async (offer) => {
-                webrtcLog.debug("webrtc › offer set local description");
-                await this.peerConnection!.setLocalDescription(offer);
-
-                resolve({
-                  type: "offer",
-                  sdp: offer.sdp,
-                });
-                this.isMakingOffer = false;
-              })
-              .catch((error) => {
-                this.isMakingOffer = false;
-                reject(error);
-              });
-          } else {
-            webrtcLog.debug("webrtc › offer wait stable");
-            const onStable = async () => {
-              if (this.peerConnection?.signalingState === "stable") {
-                this.peerConnection.onsignalingstatechange = () => null;
-                const offer = await this.peerConnection!.createOffer();
-                webrtcLog.debug("webrtc › offer set local description");
-                await this.peerConnection!.setLocalDescription(offer);
-
-                resolve({
-                  type: "offer",
-                  sdp: offer.sdp,
-                });
-                this.isMakingOffer = false;
-              }
-            };
-            this.peerConnection!.onsignalingstatechange = async () =>
-              await onStable();
-          }
-        } catch (error) {
-          webrtcLog.error("webrtc › offer create failed", { error });
-
-          this.isMakingOffer = false;
-
-          reject(error);
+    return new Promise<{ type: "offer"; sdp: string }>((resolve, reject) => {
+      try {
+        if (!this.peerConnection) {
+          webrtcLog.debug("webrtc › offer init peer connection");
+          this.createPeerConnection();
         }
+        if (this.isMakingOffer) {
+          reject(new Error("Offer already in progress"));
+          return;
+        }
+        this.isMakingOffer = true;
+        webrtcLog.debug("webrtc › offer create");
+        if (this.peerConnection?.signalingState === "have-remote-offer") {
+          this.isMakingOffer = false;
+          reject(new Error("Signaling state has remote offer"));
+          return;
+        }
+        if (this.peerConnection?.signalingState === "stable") {
+          this.peerConnection!.createOffer()
+            .then(async (offer) => {
+              webrtcLog.debug("webrtc › offer set local description");
+              await this.peerConnection!.setLocalDescription(offer);
+
+              resolve({
+                type: "offer",
+                sdp: offer.sdp,
+              });
+              this.isMakingOffer = false;
+            })
+            .catch((error) => {
+              this.isMakingOffer = false;
+              reject(error);
+            });
+        } else {
+          webrtcLog.debug("webrtc › offer wait stable");
+          const onStable = async () => {
+            if (this.peerConnection?.signalingState === "stable") {
+              this.peerConnection.onsignalingstatechange = () => null;
+              const offer = await this.peerConnection!.createOffer();
+              webrtcLog.debug("webrtc › offer set local description");
+              await this.peerConnection!.setLocalDescription(offer);
+
+              resolve({
+                type: "offer",
+                sdp: offer.sdp,
+              });
+              this.isMakingOffer = false;
+            }
+          };
+          this.peerConnection!.onsignalingstatechange = async () =>
+            await onStable();
+        }
+      } catch (error) {
+        webrtcLog.error("webrtc › offer create failed", { error });
+
+        this.isMakingOffer = false;
+
+        reject(error);
       }
-    );
+    });
   }
 
   /**
@@ -407,7 +426,10 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
-  private scheduleIceRestart(reason: "disconnected" | "failed", immediate = false) {
+  private scheduleIceRestart(
+    reason: "disconnected" | "failed",
+    immediate = false
+  ) {
     if (this.isIceRestarting) return;
     if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
       webrtcLog.warn("webrtc › ice restart attempts exceeded", { reason });
@@ -476,7 +498,9 @@ export class WebrtcAdapter extends EventEmitter {
   async handleAnswer(answer: RTCSessionDescriptionInit | undefined) {
     try {
       if (!this.peerConnection) {
-        webrtcLog.warn("webrtc › answer skipped", { reason: "no peer connection" });
+        webrtcLog.warn("webrtc › answer skipped", {
+          reason: "no peer connection",
+        });
         return;
       }
 
@@ -512,7 +536,9 @@ export class WebrtcAdapter extends EventEmitter {
   async addIceCandidate(candidate: RTCIceCandidateInit) {
     try {
       if (!this.peerConnection) {
-        webrtcLog.warn("webrtc › ice add skipped", { reason: "no peer connection" });
+        webrtcLog.warn("webrtc › ice add skipped", {
+          reason: "no peer connection",
+        });
         return;
       }
 
@@ -585,7 +611,7 @@ export class WebrtcAdapter extends EventEmitter {
         this.dataChannel.readyState === "open" &&
         this.isConnected
       ) {
-        // webrtcLog.debug("webrtc › data send", { messageType: payload.type });
+        webrtcLog.debug("webrtc › data send", { messageType: payload.type });
         this.dataChannel.send(JSON.stringify(payload));
       } else {
         throw new Error("Unable to send payload`");
@@ -617,18 +643,15 @@ export class WebrtcAdapter extends EventEmitter {
         });
         return;
       }
-      // stop local media tracks
-      this.localStream.getTracks().forEach((track) => track.stop());
 
-      // remove tracks from connection
-      this.peerConnection.getSenders().forEach((sender) => {
-        if (
-          sender.track &&
-          (sender.track.kind === "audio" || sender.track.kind === "video")
-        ) {
-          this.peerConnection!.removeTrack(sender);
-        }
-      });
+      if (this.remoteStream) {
+        webrtcLog.info("webrtc › terminating remote stream");
+        this.remoteStream.getTracks().forEach((track) => track.stop());
+        this.remoteStream.release();
+        this.remoteStream = undefined;
+      }
+
+      this.cleanup();
     } catch (error) {
       webrtcLog.error("webrtc › terminate failed", { error });
       throw error;
@@ -646,6 +669,7 @@ export class WebrtcAdapter extends EventEmitter {
       webrtcLog.debug("webrtc › mic toggled", {
         enabled: this.audioTrack.enabled,
       });
+      return this.audioTrack.enabled;
     } catch (error) {
       webrtcLog.error("webrtc › mic toggle failed", { error });
       throw error;
@@ -663,8 +687,54 @@ export class WebrtcAdapter extends EventEmitter {
       webrtcLog.debug("webrtc › camera toggled", {
         enabled: this.videoTrack.enabled,
       });
+      return this.videoTrack.enabled;
     } catch (error) {
       webrtcLog.error("webrtc › camera toggle failed", { error });
+      throw error;
+    }
+  }
+
+  async switchCamera(isFrontCamera: boolean) {
+    try {
+      if (!this.videoTrack) throw Error("Video track not initialized");
+      webrtcLog.debug("webrtc › camera switch");
+
+      const newFacingMode = isFrontCamera ? "environment" : "user";
+
+      // Stop existing video track
+      this.getLocalStream()
+        .getVideoTracks()
+        .forEach((track) => track.stop());
+
+      // Get new stream with the opposite camera
+      const newStream = await mediaDevices.getUserMedia({
+        audio: false, // Don't re-request audio — reuse existing audio track
+        video: {
+          facingMode: newFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+
+      // Replace the video track in the local stream
+      const audioTrack = this.getLocalStream().getAudioTracks()[0];
+      const updatedStream = new MediaStream([audioTrack, newVideoTrack]);
+      this.localStream = updatedStream;
+
+      // If in an active call, replace the track in the peer connection
+      if (this.peerConnection) {
+        const senders = this.peerConnection.getSenders();
+        const videoSender = senders.find((s) => s.track?.kind === "video");
+        if (videoSender) {
+          await videoSender.replaceTrack(newVideoTrack); // No renegotiation needed
+        }
+      }
+
+      this.emit("switch-cam", updatedStream);
+    } catch (error) {
+      webrtcLog.error("webrtc › camera switch failed", { error });
       throw error;
     }
   }

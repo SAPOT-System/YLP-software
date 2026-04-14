@@ -3,17 +3,19 @@ import { DataChatMessageI } from "@/features/chat/types";
 import { connectionLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import {
-    TcpClientAdapter,
-    TcpServerAdapter,
-    WebrtcAdapter,
-    WsSignalingAdapter,
+  TcpClientAdapter,
+  TcpServerAdapter,
+  WsSignalingAdapter,
 } from "../adapters";
+import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
-    CallMessage,
-    DataAckMessage,
-    Message,
-    SignalingMessage,
+  CallControlData,
+  CallMessage,
+  DataAckMessage,
+  Message,
+  SignalingMessage,
+  WsCallMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
@@ -34,6 +36,12 @@ export type ConnectionServiceEvents = {
   "audio-call": [peerId: string];
   "video-call": [peerId: string];
   "call-ended": [peerId: string];
+  "call-ready": [peerId: string];
+  "camera-off": [peerId: string];
+  "camera-on": [peerId: string];
+  "switch-cam": [stream: MediaStream];
+  "mic-off": [peerId: string];
+  "mic-on": [peerId: string];
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
   "connection-state": [payload: ConnectionStatePayload];
@@ -76,8 +84,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       (peerId) => this.getTcpClientAdapter(peerId),
       (peerId, msg) => this.sendMessage(peerId, msg)
     );
-    this.webrtcSessionManager.setSignalingSender(
-      (peerId, msg) => this.signalingService.sendSignalingMessage(peerId, msg)
+    this.webrtcSessionManager.setSignalingSender((peerId, msg) =>
+      this.signalingService.sendSignalingMessage(peerId, msg)
     );
 
     // Forward WebrtcSessionManager events onto ConnectionService.
@@ -86,6 +94,21 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     });
     this.webrtcSessionManager.on("peer-reconnected", (peerId) => {
       this.emit("peer-reconnected", peerId);
+    });
+    this.webrtcSessionManager.on("camera-on", (peerId) => {
+      this.emit("camera-on", peerId);
+    });
+    this.webrtcSessionManager.on("camera-off", (peerId) => {
+      this.emit("camera-off", peerId);
+    });
+    this.webrtcSessionManager.on("mic-on", (peerId) => {
+      this.emit("mic-on", peerId);
+    });
+    this.webrtcSessionManager.on("mic-off", (peerId) => {
+      this.emit("mic-off", peerId);
+    });
+    this.webrtcSessionManager.on("switch-cam", (stream) => {
+      this.emit("switch-cam", stream);
     });
 
     // WS adapter event listeners stay in ConnectionService (constraint).
@@ -110,28 +133,34 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       }
     });
 
-    this.wsSignalingAdapter.on("call-message", async (message: CallMessage) => {
-      try {
-        if (message.type === "audio-call") {
-          this.emit("audio-call", message.data.from);
-        }
-        if (message.type === "video-call") {
-          this.emit("video-call", message.data.from);
-        }
-        if (message.type === "call-ended") {
-          // TODO: check if needed to reinitialize local stream
-          // TODO: validate that the caller id is the sender
-          connectionLog.info("connection › call ended", {
-            peerId: message.data.from,
+    this.wsSignalingAdapter.on(
+      "call-message",
+      async (message: WsCallMessage) => {
+        try {
+          if (message.type === "audio-call") {
+            this.emit("audio-call", message.data.from_user);
+          }
+          if (message.type === "video-call") {
+            this.emit("video-call", message.data.from_user);
+          }
+          if (message.type === "call-ended") {
+            // TODO: check if needed to reinitialize local stream
+            // TODO: validate that the caller id is the sender
+            connectionLog.info("connection › call ended", {
+              peerId: message.data.from_user,
+            });
+            this.emit("call-ended", message.data.from_user);
+          }
+          if (message.type === "call-ready") {
+            this.emit("call-ready", message.data.from_user);
+          }
+        } catch (error) {
+          connectionLog.error("connection › call message handling failed", {
+            error,
           });
-          this.emit("call-ended", message.data.from);
         }
-      } catch (error) {
-        connectionLog.error("connection › call message handling failed", {
-          error,
-        });
       }
-    });
+    );
 
     this.wsSignalingAdapter.on("reconnecting", ({ attempt, delayMs }) => {
       connectionLog.info("connection › ws reconnecting", {
@@ -198,6 +227,9 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             peerId: message.data.from,
           });
           this.emit("call-ended", message.data.from);
+        }
+        if (message.type === "call-ready" && "from" in message.data) {
+          this.emit("call-ready", message.data.from);
         }
       } catch (error) {
         connectionLog.error("connection › tcp handler failed", { error });
@@ -577,20 +609,45 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.sendAckMessage(peerId, ackData);
   }
 
+  sendCallControlMessage(
+    peerId: string,
+    type: "camera_toggle" | "mic_toggle",
+    callControlData: CallControlData
+  ) {
+    this.webrtcSessionManager.sendCallControlMessage(
+      peerId,
+      type,
+      callControlData
+    );
+  }
+
   async initializeStream(stream: "audio" | "video", peerId: string) {
     return this.callMediaService.initializeStream(stream, peerId);
   }
 
   terminateCallConnection(peerId: string) {
     this.callMediaService.terminateCallConnection(peerId);
+    this.webrtcSessionManager.evictWebrtcAdapter(peerId);
   }
 
   toggleMic(peerId: string) {
-    this.callMediaService.toggleMic(peerId);
+    const res = this.callMediaService.toggleMic(peerId);
+    this.sendCallControlMessage(peerId, "mic_toggle", {
+      from: this.userStore.user.id,
+      enabled: res,
+    });
   }
 
   toggleCamera(peerId: string) {
-    this.callMediaService.toggleCamera(peerId);
+    const res = this.callMediaService.toggleCamera(peerId);
+    this.sendCallControlMessage(peerId, "camera_toggle", {
+      from: this.userStore.user.id,
+      enabled: res,
+    });
+  }
+
+  async switchCamera(peerId: string, isFrontCamera: boolean) {
+    await this.callMediaService.switchCamera(peerId, isFrontCamera);
   }
 
   getLocalStream(peerId: string) {
@@ -630,6 +687,11 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       connectionLog.error("connection › tcp stop failed", { error });
       throw error;
     }
+  }
+
+  isWebrtcConnected(peerId: string) {
+    const adapter = this.getWebrtcAdapter(peerId);
+    return adapter.isConnected;
   }
 
   private buildSignalSenderData(to: string) {

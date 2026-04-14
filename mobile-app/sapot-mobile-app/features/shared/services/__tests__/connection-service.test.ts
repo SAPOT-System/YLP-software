@@ -4,17 +4,17 @@ import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createConnectionServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import {
-  TcpClientAdapter,
-  TcpServerAdapter,
-  WebrtcAdapter,
-  WsSignalingAdapter,
+    TcpClientAdapter,
+    TcpServerAdapter,
+    WsSignalingAdapter,
 } from "../../adapters";
+import { WebrtcAdapter } from "../../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
-  AudioCallMessage,
-  CallEndedMessage,
-  ChatMessage,
-  SignalingMessage,
+    AudioCallMessage,
+    CallEndedMessage,
+    ChatMessage,
+    SignalingMessage,
 } from "../../types";
 import { CallMediaService } from "../call-media-service";
 import { ConnectionService } from "../connection-service";
@@ -46,8 +46,11 @@ const mockIceCandidate: RTCIceCandidate = {
 jest.mock("../../adapters", () => ({
   TcpClientAdapter: jest.fn(),
   TcpServerAdapter: jest.fn(),
-  WebrtcAdapter: jest.fn(),
   WsSignalingAdapter: jest.fn(),
+}));
+
+jest.mock("../../adapters/webrtc-adapter", () => ({
+  WebrtcAdapter: jest.fn(),
 }));
 
 // Mock the stores

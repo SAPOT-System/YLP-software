@@ -2,9 +2,14 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
 import { webrtcLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
-import { WebrtcAdapter } from "../adapters";
+import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { NetworkConfig, UserStore } from "../stores";
-import { DataAckMessage, SignalingMessage, WebrtcDataMessage } from "../types";
+import {
+  CallControlData,
+  DataAckMessage,
+  SignalingMessage,
+  WebrtcDataMessage,
+} from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 
 webrtcLog.debug("[webrtc-session-manager] module loaded");
@@ -12,6 +17,11 @@ webrtcLog.debug("[webrtc-session-manager] module loaded");
 type WebrtcSessionManagerEvents = {
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
+  "camera-off": [peerId: string];
+  "camera-on": [peerId: string];
+  "switch-cam": [stream: MediaStream];
+  "mic-off": [peerId: string];
+  "mic-on": [peerId: string];
 };
 
 export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManagerEvents> {
@@ -54,7 +64,8 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
 
     webrtcAdapter.on("onicecandidate", (candidate) => {
       try {
-        if (!this.sendSignaling) throw new Error("Signaling sender not configured");
+        if (!this.sendSignaling)
+          throw new Error("Signaling sender not configured");
         this.sendSignaling(peerId, {
           type: "ice-candidate",
           data: {
@@ -91,6 +102,30 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
               await this.chatService.handleAckMessage(message.data.messageId);
             }
             break;
+          case "camera_toggle":
+            if (message.data) {
+              webrtcLog.debug("webrtc › call control camera received", {
+                messageId: message.data,
+              });
+              if (message.data.enabled) {
+                this.emit("camera-on", message.data.from);
+              } else {
+                this.emit("camera-off", message.data.from);
+              }
+            }
+            break;
+          case "mic_toggle":
+            if (message.data) {
+              webrtcLog.debug("webrtc › call control mic received", {
+                messageId: message.data,
+              });
+              if (message.data.enabled) {
+                this.emit("mic-on", message.data.from);
+              } else {
+                this.emit("mic-off", message.data.from);
+              }
+            }
+            break;
         }
       } catch (error) {
         webrtcLog.error("webrtc › message handler failed", {
@@ -99,6 +134,10 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         });
       }
     });
+
+    webrtcAdapter.on("switch-cam", (stream: MediaStream) =>
+      this.emit("switch-cam", stream)
+    );
 
     webrtcAdapter.on("remoteStream", (stream) => {
       this.emit("remoteStream", stream);
@@ -125,7 +164,8 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         reason?: string;
       }) => {
         try {
-          if (!this.sendSignaling) throw new Error("Signaling sender not configured");
+          if (!this.sendSignaling)
+            throw new Error("Signaling sender not configured");
           this.sendSignaling(peerId, {
             type: payload.type,
             data: {
@@ -142,7 +182,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     );
   }
 
-  private evictWebrtcAdapter(peerId: string): void {
+  evictWebrtcAdapter(peerId: string): void {
     const adapter = this.webrtcAdapters.get(peerId);
     if (!adapter) return;
     this.webrtcAdapters.delete(peerId);
@@ -184,12 +224,28 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
   }
 
   sendChatMessage(peerId: string, messageData: DataChatMessageI) {
-    const { message, conversationId, messageId, from, sentAt, messageType, to } = messageData;
+    const {
+      message,
+      conversationId,
+      messageId,
+      from,
+      sentAt,
+      messageType,
+      to,
+    } = messageData;
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       webrtcAdapter.sendDataMessage({
         type: "chat",
-        data: { message, conversationId, messageId, from, to, sentAt, messageType },
+        data: {
+          message,
+          conversationId,
+          messageId,
+          from,
+          to,
+          sentAt,
+          messageType,
+        },
       });
     } catch (error) {
       webrtcLog.warn("webrtc › chat send failed", {
@@ -221,6 +277,31 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
       webrtcLog.error("webrtc › ack send failed", {
         peerId,
         messageId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  sendCallControlMessage(
+    peerId: string,
+    type: "camera_toggle" | "mic_toggle",
+    { enabled, from }: CallControlData
+  ) {
+    try {
+      webrtcLog.debug("webrtc › call control send", { peerId, type, enabled });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: type,
+        data: {
+          from: from,
+          enabled: enabled,
+        },
+      });
+    } catch (error) {
+      webrtcLog.error("webrtc › call control send failed", {
+        peerId,
+        enabled,
         error,
       });
       throw error;

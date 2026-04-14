@@ -6,11 +6,12 @@ import {
   useProfilePhoto,
   useUserStore,
 } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { navLog, uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function IncomingCall() {
@@ -45,6 +46,17 @@ export default function IncomingCall() {
       });
   }, [id, peerService]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
+        navLog.info("[IncomingCall] did not answer");
+        router.replace("/(drawer)/(tabs)");
+      }, 30_000);
+
+      return () => clearTimeout(timer);
+    }, [router])
+  );
+
   // If the caller cancels before we accept, go back
   useEffect(() => {
     const handler = (fromId?: string) => {
@@ -61,7 +73,7 @@ export default function IncomingCall() {
   const handleAccept = async () => {
     uiLog.debug("[IncomingCall] handleAccept called", { id, type });
     try {
-      await callService.startCall(
+      await callService.answerCall(
         (type as "audio" | "video") ?? "audio",
         id as string
       );
@@ -72,11 +84,11 @@ export default function IncomingCall() {
       screen: "/(drawer)/(tabs)/call/[id]",
       peerId: id,
       type: type ?? "audio",
-      status: "connected",
+      status: "answering",
     });
     router.replace({
       pathname: "/(drawer)/(tabs)/call/[id]" as never,
-      params: { id: id!, type: type ?? "audio", status: "connected" },
+      params: { id: id!, type: type ?? "audio", status: "answering"},
     });
   };
 

@@ -1,40 +1,43 @@
-import { ConnectionService, UserStore } from "@/features/shared";
 import { callLog } from "@/features/shared/utils/logger";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createCallServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { MediaStream } from "react-native-webrtc";
 import { CallService } from "../call-service";
 
-// Mock shared dependencies
-jest.mock("@/features/shared", () => ({
-  ConnectionService: jest.fn(),
-  UserStore: jest.fn(),
-}));
-
 describe("CallService", () => {
   let callService: CallService;
-  let mockConnectionService: jest.Mocked<ConnectionService>;
-  let mockUserStore: jest.Mocked<UserStore>;
+  let mockConnectionService: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["connectionService"];
+  let mockUserStore: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["userStore"];
+  let mockPeerService: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["peerService"];
 
   beforeEach(() => {
     jest.clearAllMocks();
     const mocks = createCallServiceDependencyMocks();
-    mockConnectionService =
-      mocks.connectionService as unknown as jest.Mocked<ConnectionService>;
-    mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
-
-    // Mock constructors
-    jest
-      .mocked(ConnectionService)
-      .mockImplementation(() => mockConnectionService);
-    jest.mocked(UserStore).mockImplementation(() => mockUserStore);
+    mockConnectionService = mocks.connectionService;
+    mockUserStore = mocks.userStore;
+    mockPeerService = mocks.peerService;
 
     // Create service instance
-    callService = new CallService(mockConnectionService, mockUserStore);
+    callService = new CallService(
+      mockConnectionService,
+      mockUserStore,
+      mockPeerService
+    );
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    jest.resetModules();
+    jest.dontMock("@/features/shared");
   });
 
   describe("constructor", () => {
@@ -57,6 +60,7 @@ describe("CallService", () => {
   describe("startCall", () => {
     it("should start a call successfully for first time", async () => {
       const peerId = "peer-1";
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
 
       await callService.startCall("audio", peerId);
 
@@ -68,17 +72,18 @@ describe("CallService", () => {
         "audio",
         peerId
       );
-      expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(
-        peerId
-      );
+      expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(peerId);
     });
 
     it("should not start call if already connected", async () => {
       const peerId = "peer-1";
 
       // Start call once to set connected state
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       await callService.startCall("audio", peerId);
       jest.clearAllMocks();
+
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
 
       // Try to start again
       await callService.startCall("audio", peerId);
@@ -91,6 +96,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const error = new Error("Stream initialization failed");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.initializeStream.mockRejectedValue(error);
 
       await expect(callService.startCall("audio", peerId)).rejects.toThrow(
@@ -102,6 +108,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const error = new Error("Renegotiation failed");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.renegotiate.mockRejectedValue(error);
 
       await expect(callService.startCall("audio", peerId)).rejects.toThrow(
@@ -144,6 +151,7 @@ describe("CallService", () => {
     it("should be called automatically during startCall", async () => {
       const peerId = "peer-1";
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       await callService.startCall("audio", peerId);
 
       expect(mockConnectionService.on).toHaveBeenCalledWith(
@@ -154,10 +162,12 @@ describe("CallService", () => {
   });
 
   describe("informPeerForIncomingCall", () => {
-    it("should send audio call message to peer", () => {
+    it("should send audio call message to peer", async () => {
       const peerId = "peer-1";
 
-      callService.informPeerForIncomingCall("audio", peerId);
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+
+      await callService.informPeerForIncomingCall("audio", peerId);
 
       expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
         peerId,
@@ -168,44 +178,53 @@ describe("CallService", () => {
       );
     });
 
-    it("should throw errors when sending audio call message fails", () => {
+    it("should throw errors when sending audio call message fails", async () => {
       const peerId = "peer-1";
       const error = new Error("Send failed");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.sendCallMessage.mockImplementation(() => {
         throw error;
       });
 
-      expect(() =>
+      await expect(
         callService.informPeerForIncomingCall("audio", peerId)
-      ).toThrow("Send failed");
+      ).rejects.toThrow("Send failed");
     });
   });
 
   describe("terminateCallConnection", () => {
     beforeEach(async () => {
       // Start a call first to set connected state
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       await callService.startCall("audio", "peer-1");
       jest.clearAllMocks();
+
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
     });
 
     it("should terminate call successfully", async () => {
       const peerId = "peer-1";
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
 
       await callService.terminateCallConnection(peerId);
 
       expect(
         mockConnectionService.terminateCallConnection
       ).toHaveBeenCalledWith(peerId);
-      expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(peerId);
-      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(peerId, {
-        type: "call-ended",
-        data: { from: "test-user-id", to: peerId },
-      });
+      expect(mockConnectionService.renegotiate).not.toHaveBeenCalled();
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        {
+          type: "call-ended",
+          data: { from: "test-user-id", to: peerId },
+        }
+      );
     });
 
     it("should not terminate if already disconnected", async () => {
       const peerId = "peer-1";
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
 
       // Terminate once to set disconnected state
       await callService.terminateCallConnection(peerId);
@@ -225,6 +244,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const error = new Error("Termination failed");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.terminateCallConnection.mockImplementation(() => {
         throw error;
       });
@@ -234,11 +254,14 @@ describe("CallService", () => {
       );
     });
 
-    it("should handle errors during renegotiation on termination", async () => {
+    it("should handle errors when notifying peer during termination", async () => {
       const peerId = "peer-1";
       const error = new Error("Renegotiation failed");
 
-      mockConnectionService.renegotiate.mockRejectedValue(error);
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.sendCallMessage.mockImplementation(() => {
+        throw error;
+      });
 
       await expect(callService.terminateCallConnection(peerId)).rejects.toThrow(
         "Renegotiation failed"
@@ -249,6 +272,7 @@ describe("CallService", () => {
   describe("toggleMic", () => {
     it("should toggle microphone for peer", () => {
       const peerId = "peer-1";
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
 
       callService.toggleMic(peerId);
 
@@ -259,6 +283,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const error = new Error("Toggle mic failed");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.toggleMic.mockImplementation(() => {
         throw error;
       });
@@ -270,6 +295,7 @@ describe("CallService", () => {
   describe("toggleCamera", () => {
     it("should toggle camera for peer", () => {
       const peerId = "peer-1";
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
 
       callService.toggleCamera(peerId);
 
@@ -280,6 +306,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const error = new Error("Toggle camera failed");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.toggleCamera.mockImplementation(() => {
         throw error;
       });
@@ -295,6 +322,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const mockStream = createMockMediaStream("local-stream") as MediaStream;
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.getLocalStream.mockReturnValue(mockStream);
 
       const result = callService.getLocalCam(peerId);
@@ -307,6 +335,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const error = new Error("Get local stream failed");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.getLocalStream.mockImplementation(() => {
         throw error;
       });
@@ -319,6 +348,7 @@ describe("CallService", () => {
     it("should return undefined if no stream available", () => {
       const peerId = "peer-1";
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.getLocalStream.mockReturnValue(
         undefined as unknown as MediaStream
       );
@@ -335,6 +365,7 @@ describe("CallService", () => {
       const peerId = "peer-1";
       const error = new Error("Test error");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.initializeStream.mockRejectedValue(error);
 
       try {
@@ -343,7 +374,7 @@ describe("CallService", () => {
         // Expected to throw
       }
 
-      expect(logSpy).toHaveBeenCalledWith("call › start failed", {
+      expect(logSpy).toHaveBeenCalledWith("call › starting call failed", {
         peerId,
         error,
       });
@@ -356,6 +387,7 @@ describe("CallService", () => {
       // Test error handling for synchronous methods
       const micError = new Error("Mic error");
 
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       mockConnectionService.toggleMic.mockImplementation(() => {
         throw micError;
       });
@@ -374,11 +406,13 @@ describe("CallService", () => {
       const peerId = "peer-1";
 
       // Should start disconnected
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       await callService.startCall("audio", peerId);
       expect(mockConnectionService.initializeStream).toHaveBeenCalledTimes(1);
 
       // Should be connected now
       jest.clearAllMocks();
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
       await callService.startCall("audio", peerId);
       expect(mockConnectionService.initializeStream).not.toHaveBeenCalled();
 
@@ -396,6 +430,7 @@ describe("CallService", () => {
       ).not.toHaveBeenCalled();
 
       // Should be able to start again
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       await callService.startCall("audio", peerId);
       expect(mockConnectionService.initializeStream).toHaveBeenCalledTimes(1);
     });

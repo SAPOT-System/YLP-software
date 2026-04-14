@@ -3,14 +3,13 @@ import { router } from "expo-router";
 import { useCallService } from "./use-call-service";
 hookLog.debug("[use-call] module loaded");
 
-export const useCall = () => {
+export const useInformCall = () => {
   const callService = useCallService();
 
   const handleCall = async (type: "audio" | "video", peerId: string) => {
     try {
       hookLog.info("[useCall] start", { peerId, type });
-      callService.informPeerForIncomingCall(type, peerId);
-      await callService.startCall(type, peerId);
+      await callService.informPeerForIncomingCall(type, peerId);
       router.push({
         pathname: "/(drawer)/(tabs)/call/[id]",
         params: { id: peerId!, type, status: "calling" },

@@ -66,21 +66,62 @@ export type CallEndedMessage = {
   type: "call-ended";
   data: { from: string; to: string };
 };
+export type CallReadyMessage = {
+  type: "call-ready";
+  data: { from: string; to: string };
+};
+
+export type WsAudioCallMessage = {
+  type: "audio-call";
+  data: { from_user: string; to: string };
+};
+export type WsVideoCallMessage = {
+  type: "video-call";
+  data: { from_user: string; to: string };
+};
+export type WsCallEndedMessage = {
+  type: "call-ended";
+  data: { from_user: string; to: string };
+};
+export type WsCallReadyMessage = {
+  type: "call-ready";
+  data: { from_user: string; to: string };
+};
+
+export type CallControlData = {
+  enabled: boolean;
+  from: string;
+};
+export type CallControlMessage = {
+  type: "camera_toggle" | "mic_toggle";
+  data: CallControlData;
+};
 
 /**
  * For sent and received message via webrtc
  */
-export type WebrtcDataMessage = ChatMessage | AckMessage | CallMessage;
+export type WebrtcDataMessage =
+  | ChatMessage
+  | AckMessage
+  | CallMessage
+  | CallControlMessage;
 
 /**
- * For sent and received message via tcp
+ * For sent and received message via tcp and web socket
  */
 export type Message = SignalingMessage | CallMessage;
 
 export type CallMessage =
   | AudioCallMessage
   | CallEndedMessage
-  | VideoCallMessage;
+  | VideoCallMessage
+  | CallReadyMessage;
+
+export type WsCallMessage =
+  | WsAudioCallMessage
+  | WsCallEndedMessage
+  | WsVideoCallMessage
+  | WsCallReadyMessage;
 
 export interface Peer {
   id: string;

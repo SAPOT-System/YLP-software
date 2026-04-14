@@ -1,19 +1,15 @@
-import { useCallService } from "@/features/call";
-import { Peer } from "@/features/shared/database/model/Peer";
-import {
-  useConnectionService,
-  usePeerService,
-  useProfilePhoto,
-} from "@/features/shared/hooks";
+import { useCallContext } from "@/features/call/context/call-context";
 import { uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { MediaStream, RTCView } from "react-native-webrtc";
+import { RTCView } from "react-native-webrtc";
 
-type CallState = "calling" | "connected" | "ended" | "no-answer" | "busy";
+// ─────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────
 
 const COLORS = {
   primary: "#103462",
@@ -31,37 +27,43 @@ const formatDuration = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
+// ─────────────────────────────────────────────
+// CallRoom
+// ─────────────────────────────────────────────
+
 export default function CallRoom() {
-  const router = useRouter();
   const { id, type, status } = useLocalSearchParams<{
     id: string;
-    type: string;
+    type: "video" | "audio";
     status?: string;
   }>();
-  const callService = useCallService();
-  const connectionService = useConnectionService();
-  const peerService = usePeerService();
 
-  const [callState, setCallState] = useState<CallState>(
-    status === "connected" ? "connected" : "calling"
-  );
-  uiLog.debug("call › state updated", { callState });
-  const [mic, setMic] = useState(true);
-  const [cam, setCam] = useState(true);
-  const [peer, setPeer] = useState<Peer | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [localStream, setLocalStream] = useState<MediaStream | undefined>();
-  const [remoteStream, setRemoteStream] = useState<MediaStream | undefined>();
-  const hasTerminated = useRef(false);
+  const {
+    callState,
+    elapsed,
+    peerDisplayName,
+    peerPhotoUrl,
+    localStream,
+    remoteStreamUrl,
+    localMic,
+    localCam,
+    remoteMic,
+    remoteCam,
+    currentRoute,
+    resetCallState,
+    handleEndCall,
+    handleCallAgain,
+    handleToggleMic,
+    handleToggleCam,
+    handleSwitchCamera,
+    handleVolume,
+    minimize,
+    handleClose,
+  } = useCallContext();
 
-  const localStreamUrl = localStream ? localStream.toURL() : undefined;
-  const remoteStreamUrl = remoteStream ? remoteStream.toURL() : undefined;
-
-  const { url: peerPhotoUrl } = useProfilePhoto(id);
-
-  const peerDisplayName = peer
-    ? [peer.firstName, peer.lastName].filter(Boolean).join(" ")
-    : "";
+  // ─────────────────────────────────────────────
+  // Lifecycle logs
+  // ─────────────────────────────────────────────
 
   useEffect(() => {
     uiLog.info("[CallRoom] mounted");
@@ -70,196 +72,39 @@ export default function CallRoom() {
     };
   }, []);
 
-  // Reset state when the screen gains focus
+  // ─────────────────────────────────────────────
+  // Kick off the call when this screen gains focus
+  // (handles both fresh navigation and returning from minimized)
+  // ─────────────────────────────────────────────
+
   useFocusEffect(
     useCallback(() => {
-      uiLog.debug("[CallRoom] useFocusEffect triggered, deps:", {
-        id,
-        type,
-        status,
-      });
-      setCallState(status === "connected" ? "connected" : "calling");
-      setElapsed(0);
-      setLocalStream(undefined);
-      setRemoteStream(undefined);
-      setMic(true);
-      setCam(true);
-      hasTerminated.current = false;
-    }, [id, type, status])
+      uiLog.debug("[CallRoom] useFocusEffect triggered", { id, type, status });
+
+      if (status === "connected") {
+        // Returning from minimized — nothing to reset, call is already live
+        uiLog.info("[CallRoom] returning from minimized, no reset needed");
+        return;
+      }
+
+      if (status === "calling" || (status === "answering" && id && type)) {
+        // Fresh call initiation
+        uiLog.info("[CallRoom] initiating outgoing call", { id, type });
+        resetCallState(id, type);
+      }
+    }, [id, type, status, resetCallState])
   );
 
-  // Load peer info
-  useEffect(() => {
-    uiLog.debug("[CallRoom] useEffect triggered, deps:", { id });
-    peerService
-      .findPeerById(id as string)
-      .then((p: unknown) => setPeer(p as Peer))
-      .catch((error) => {
-        uiLog.error("[CallRoom] Error in load peer", { error });
-      });
-  }, [id, peerService]);
-
-  // Timer for ongoing call
-  useEffect(() => {
-    uiLog.debug("[CallRoom] useEffect triggered, deps:", { callState });
-    if (callState !== "connected") return;
-    const interval = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, [callState]);
-
-  // Get local stream for video calls
-  useEffect(() => {
-    uiLog.debug("[CallRoom] useEffect triggered, deps:", { type });
-    if (type !== "video") return;
-    try {
-      setLocalStream(callService.getLocalCam(id as string));
-    } catch (error) {
-      uiLog.error("[CallRoom] Error in get local cam", { error });
-    }
-  }, [callService, id, type]);
-
-  // Retry fetching local stream if not available yet
-  useEffect(() => {
-    uiLog.debug("[CallRoom] useEffect triggered, deps:", {
-      type,
-      callState,
-      hasLocalStream: Boolean(localStream),
-    });
-    if (type !== "video" || callState !== "connected" || localStream) return;
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts += 1;
-      try {
-        const stream = callService.getLocalCam(id as string);
-        if (stream) {
-          setLocalStream(stream);
-          clearInterval(interval);
-          return;
-        }
-      } catch (error) {
-        uiLog.error("[CallRoom] Error in retry local cam", { error });
-      }
-      if (attempts >= 5) {
-        clearInterval(interval);
-      }
-    }, 800);
-    return () => clearInterval(interval);
-  }, [type, callState, localStream, callService, id]);
-
-  // Listen for remote stream → call connected
-  useEffect(() => {
-    const handler = (stream: MediaStream) => {
-      uiLog.info("[CallRoom] remote stream received");
-      setRemoteStream(stream);
-      setCallState("connected");
-    };
-    callService.on("remoteStream", handler);
-    return () => {
-      callService.off("remoteStream", handler);
-    };
-  }, [callService]);
-
-  // Listen for remote peer ending the call
-  useEffect(() => {
-    const handler = (fromId?: string) => {
-      if (fromId && fromId !== id) return;
-      uiLog.info("call › remote ended", { peerId: id });
-      setCallState((prev) => (prev === "calling" ? "no-answer" : "ended"));
-    };
-    connectionService.on("call-ended", handler);
-    return () => {
-      connectionService.off("call-ended", handler);
-    };
-  }, [connectionService, id]);
-
-  // No-answer timeout (30s)
-  useEffect(() => {
-    uiLog.debug("[CallRoom] useEffect triggered, deps:", { callState });
-    if (callState !== "calling") return;
-    const timer = setTimeout(() => setCallState("no-answer"), 30_000);
-    return () => clearTimeout(timer);
-  }, [callState]);
-
-  // Auto-navigate back from terminal states after a delay
-  useEffect(() => {
-    uiLog.debug("[CallRoom] useEffect triggered, deps:", { callState });
-    if (callState !== "ended") return;
-    uiLog.info("call › ended", { peerId: id });
-    const timer = setTimeout(() => {
-      uiLog.info("[Navigation] goBack triggered from CallRoom");
-      router.back();
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [callState, router, id]);
-
-  // Terminate on unmount if still active
-  useEffect(() => {
-    return () => {
-      if (!hasTerminated.current) {
-        callService.terminateCallConnection(id as string).catch((error) => {
-          uiLog.error("[CallRoom] Error in terminate on unmount", { error });
-        });
-      }
-    };
-  }, [callService, id]);
-
-  const terminate = useCallback(async () => {
-    uiLog.debug("[CallRoom] terminate called");
-    if (hasTerminated.current) return;
-    hasTerminated.current = true;
-    try {
-      await callService.terminateCallConnection(id as string);
-    } catch (error) {
-      uiLog.error("[CallRoom] Error in terminate", { error });
-    }
-  }, [callService, id]);
-
-  const handleEndCall = useCallback(async () => {
-    uiLog.debug("[CallRoom] handleEndCall called");
-    await terminate();
-    setCallState("ended");
-  }, [terminate]);
-
-  const handleClose = useCallback(() => {
-    uiLog.info("[Navigation] goBack triggered from CallRoom");
-    router.back();
-  }, [router]);
-
-  const handleCallAgain = useCallback(() => {
-    uiLog.info("[Navigation] Navigating to CallRoom", {
-      screen: "/(drawer)/(tabs)/call/[id]",
-      peerId: id,
-      type,
-      status: "calling",
-    });
-    router.replace({
-      pathname: "/(drawer)/(tabs)/call/[id]" as never,
-      params: { id: id!, type, status: "calling" },
-    });
-  }, [router, id, type]);
-
-  const handleToggleMic = useCallback(() => {
-    uiLog.debug("[CallRoom] handleToggleMic called", { mic });
-    try {
-      callService.toggleMic(id as string);
-      setMic((v) => !v);
-    } catch (error) {
-      uiLog.error("[CallRoom] Error in toggle mic", { error });
-    }
-  }, [callService, id, mic]);
-
-  const handleToggleCam = useCallback(() => {
-    uiLog.debug("[CallRoom] handleToggleCam called", { cam });
-    try {
-      callService.toggleCamera(id as string);
-      setCam((v) => !v);
-    } catch (error) {
-      uiLog.error("[CallRoom] Error in toggle camera", { error });
-    }
-  }, [callService, id, cam]);
+  // ─────────────────────────────────────────────
+  // Derived UI flags
+  // ─────────────────────────────────────────────
 
   const isActive = callState === "calling" || callState === "connected";
-  const showVideoStreams = type === "video" && callState === "connected";
+  const showVideoStreams = callState === "connected";
+
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
 
   return (
     <LinearGradient
@@ -268,10 +113,10 @@ export default function CallRoom() {
       end={{ x: 0, y: 0 }}
       style={styles.container}
     >
-      {/* Back button (shown when connected) */}
+      {/* Back / minimize button (shown when connected) */}
       {callState === "connected" && (
-        <TouchableOpacity style={styles.backButton} onPress={handleClose}>
-          <Feather name="chevron-left" size={28} color={COLORS.primary} />
+        <TouchableOpacity style={styles.backButton} onPress={minimize}>
+          <Feather name="chevron-down" size={28} color={COLORS.primary} />
         </TouchableOpacity>
       )}
 
@@ -303,25 +148,42 @@ export default function CallRoom() {
       {/* Video streams (video call, connected state) */}
       {showVideoStreams && (
         <View style={styles.videoContainer}>
-          {remoteStreamUrl ? (
+          <View style={styles.remoteVideoWrap}>
+            {remoteStreamUrl && remoteCam ? (
+              <RTCView
+                streamURL={remoteStreamUrl}
+                mirror={false}
+                objectFit="cover"
+                zOrder={0}
+                style={styles.remoteVideo}
+              />
+            ) : (
+              <View style={styles.remoteVideo} />
+            )}
+            <View
+              style={[
+                styles.remoteMicBadge,
+                !remoteMic && styles.remoteMicBadgeMuted,
+              ]}
+            >
+              <Feather
+                name={remoteMic ? "mic" : "mic-off"}
+                size={16}
+                color="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          {localStream && localCam ? (
             <RTCView
-              streamURL={remoteStreamUrl}
-              mirror={false}
-              objectFit="cover"
-              zOrder={0}
-              style={styles.remoteVideo}
-            />
-          ) : (
-            <View style={styles.remoteVideo} />
-          )}
-          {localStreamUrl && (
-            <RTCView
-              streamURL={localStreamUrl}
+              streamURL={localStream.toURL()}
               mirror={true}
               objectFit="cover"
               zOrder={1}
               style={styles.localVideo}
             />
+          ) : (
+            <View style={styles.localVideo} />
           )}
         </View>
       )}
@@ -331,27 +193,41 @@ export default function CallRoom() {
         <View style={styles.controls}>
           <View style={styles.controlRow}>
             <TouchableOpacity
-              style={[styles.controlBtn, !mic && styles.controlBtnOff]}
+              style={[styles.controlBtn, !localMic && styles.controlBtnOff]}
               onPress={handleToggleMic}
             >
               <Feather
-                name={mic ? "mic" : "mic-off"}
+                name={localMic ? "mic" : "mic-off"}
                 size={22}
                 color={COLORS.primary}
               />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.controlBtn, !cam && styles.controlBtnOff]}
+              style={[styles.controlBtn, !localCam && styles.controlBtnOff]}
               onPress={handleToggleCam}
             >
               <Feather
-                name={cam ? "video" : "video-off"}
+                name={localCam ? "video" : "video-off"}
                 size={22}
                 color={COLORS.primary}
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.controlBtn}>
-              <Feather name="volume-2" size={22} color={COLORS.primary} />
+            <TouchableOpacity style={styles.controlBtn} onPress={handleVolume}>
+              <Feather
+                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
+                size={22}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.controlBtn}
+              onPress={handleSwitchCamera}
+            >
+              <Feather
+                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
+                size={22}
+                color={COLORS.primary}
+              />
             </TouchableOpacity>
           </View>
 
@@ -409,6 +285,10 @@ export default function CallRoom() {
     </LinearGradient>
   );
 }
+
+// ─────────────────────────────────────────────
+// Styles (unchanged from original)
+// ─────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -470,9 +350,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
   },
+  remoteVideoWrap: {
+    flex: 1,
+    position: "relative",
+  },
   remoteVideo: {
     flex: 1,
     backgroundColor: "#000",
+  },
+  remoteMicBadge: {
+    position: "absolute",
+    left: 14,
+    bottom: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+  },
+  remoteMicBadgeMuted: {
+    backgroundColor: "rgba(234, 67, 53, 0.85)",
   },
   localVideo: {
     position: "absolute",
