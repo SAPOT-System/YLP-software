@@ -546,7 +546,9 @@ def create_user(
             makeAdmin(user, session)
 
         return user
-    except:
+    except HTTPException as e:
+        raise e
+    except Exception as e:
         session.rollback()
         raise HTTPException(500)
 
