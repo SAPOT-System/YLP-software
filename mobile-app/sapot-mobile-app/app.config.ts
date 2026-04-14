@@ -52,6 +52,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.ACCESS_NETWORK_STATE",
       "android.permission.ACCESS_WIFI_STATE",
       "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
       "android.permission.BLUETOOTH",
       "android.permission.BLUETOOTH_CONNECT",
       "android.permission.WAKE_LOCK",
@@ -68,6 +71,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   plugins: [
+    [
+      "expo-notifications",
+      {
+        sounds: ["./assets/ringtone.mp3"],
+      },
+    ],
+    [
+      "expo-background-task",
+      {
+        android: {
+          foregroundService: {
+            notificationTitle: "App is running",
+            notificationBody: "Listening for incoming calls...",
+            notificationColor: "#ffffff",
+          },
+        },
+      },
+    ],
     [
       "@lovesworking/watermelondb-expo-plugin-sdk-52-plus",
       {
