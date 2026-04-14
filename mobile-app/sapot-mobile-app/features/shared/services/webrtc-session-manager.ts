@@ -2,7 +2,7 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
 import { webrtcLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
-import { WebrtcAdapter } from "../adapters";
+import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { NetworkConfig, UserStore } from "../stores";
 import {
   CallControlData,

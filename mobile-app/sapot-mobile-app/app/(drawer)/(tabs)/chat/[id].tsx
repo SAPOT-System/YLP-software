@@ -1,31 +1,31 @@
 import { APP_ROUTES } from "@/app/routes";
-import { useCall } from "@/features/call";
+import { useInformCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
 import {
-    usePeerService,
-    useProfilePhoto,
-    useToast,
+  usePeerService,
+  useProfilePhoto,
+  useToast,
 } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import {
-    Appbar,
-    Avatar,
-    IconButton,
-    Snackbar,
-    useTheme,
+  Appbar,
+  Avatar,
+  IconButton,
+  Snackbar,
+  useTheme,
 } from "react-native-paper";
 
 const ChatRoom = () => {
@@ -43,7 +43,7 @@ const ChatRoom = () => {
   const chatService = useChatService();
   const peerService = usePeerService();
   const router = useRouter();
-  const call = useCall();
+  const call = useInformCall();
   const {
     visible: toastVisible,
     message: toastMessage,

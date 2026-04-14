@@ -1,10 +1,8 @@
-import {
-  ConnectionService,
-  PeerService,
-  TypedEventEmitter,
-  UserStore,
-} from "@/features/shared";
+import { ConnectionService } from "@/features/shared/services/connection-service";
+import { PeerService } from "@/features/shared/services/peer-service";
+import { UserStore } from "@/features/shared/stores/user-store";
 import { callLog } from "@/features/shared/utils/logger";
+import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
 import { DeviceEventEmitter } from "react-native";
 import InCallManager from "react-native-incall-manager";
 import { MediaStream } from "react-native-webrtc";

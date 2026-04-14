@@ -1,10 +1,10 @@
 import { getWsUrl } from "@/config/runtime";
 import { signalingLog } from "@/features/shared/utils/logger";
 import {
-  TcpClientAdapter,
-  WebrtcAdapter,
-  WsSignalingAdapter,
+    TcpClientAdapter,
+    WsSignalingAdapter,
 } from "../adapters";
+import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import { CallMessage, Message, SignalingMessage } from "../types";
 

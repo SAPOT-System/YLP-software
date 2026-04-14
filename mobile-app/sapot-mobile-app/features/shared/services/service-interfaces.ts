@@ -1,7 +1,8 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
 import { MediaStream } from "react-native-webrtc";
-import { TcpClientAdapter, WebrtcAdapter } from "../adapters";
+import { TcpClientAdapter } from "../adapters";
+import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { CallMessage, DataAckMessage, Message, SignalingMessage } from "../types";
 import { serviceLog } from "../utils/logger";
 serviceLog.debug("[service-interfaces] module loaded");

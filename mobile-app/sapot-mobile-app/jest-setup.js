@@ -95,6 +95,17 @@ jest.mock('react-native-tcp-socket', () => ({
   createServer: jest.fn()
 }));
 
+// Mock InCallManager
+jest.mock('react-native-incall-manager', () => ({
+  start: jest.fn(),
+  stop: jest.fn(),
+  setKeepScreenOn: jest.fn(),
+  setSpeakerphoneOn: jest.fn(),
+  setForceSpeakerphoneOn: jest.fn(),
+  chooseAudioRoute: jest.fn(),
+  getAudioRoutes: jest.fn().mockResolvedValue([]),
+}));
+
 // Mock reanimated for components
 jest.mock('react-native-reanimated', () => {
   const Reanimated = require('react-native-reanimated/mock');
