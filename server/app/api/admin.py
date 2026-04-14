@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import os
+from uuid import UUID
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import String, select, func, desc, cast
 from typing import Annotated, List, Optional
 import socket
@@ -13,6 +15,7 @@ from pythonping import ping
 import psutil
 import time
 from app.models.activity import UserActivity
+from app.models.admin import Admin
 from app.models.location import UserLocation
 from sqlmodel import select, func, desc
 from typing import Annotated
@@ -23,10 +26,11 @@ from app.db_operations.token import logout
 import time
 from fastapi.security import  OAuth2PasswordRequestForm
 
-from app.db_operations.auth import SessionDep, authenticate_user
+from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_user_by_ID
 from app.db_operations.token import RefreshRequest, create_token_pair, get_current_user_admin, refresh_token
+from app.models.rescuer import Rescuer
 from app.models.token import Token
-from app.models.users import User
+from app.models.users import User, UserCreate, UserCreateThroughAdmin
 
 
 router = APIRouter(
@@ -395,3 +399,156 @@ def get_admin_users(
         "size": size,
         "pages": (total + size - 1) // size  # Quick ceiling division for total pages
     }
+
+
+def makeAdmin(user: User, session: SessionDep):
+    if not user.id:
+        raise HTTPException(500)
+    admin = Admin(user_id=user.id)
+    session.add(admin)
+    session.commit()
+    session.refresh(admin)
+
+
+def makeRescuer(user: User, session: SessionDep):
+    if not user.id:
+        raise HTTPException(500)
+    rescuer = Rescuer(user_id=user.id,)
+    session.add(rescuer)
+    session.commit()
+    session.refresh(rescuer)
+
+
+@router.post("/create/user/rescuer")
+def create_rescuer(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+        user_id: UUID,
+        session: SessionDep
+        ):
+    if isinstance(user_id, str):
+        user_id = UUID(user_id)
+    print("user_id", user_id)
+    # user = session.exec(select(User).where(User.id == user_id)).first()
+    user = get_user_by_ID(session, user_id)
+    if not user:
+        raise HTTPException(404, "user not found")
+    try:
+        makeRescuer(user, session)
+        session.commit()
+        return {"status": "ok"}
+    except IntegrityError as _:
+        raise HTTPException(403, 'user is already a rescuer')
+    except Exception as _:
+        raise HTTPException(500)
+
+
+@router.post("/create/user/admin")
+def create_admin(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+        user_id: UUID,
+        session: SessionDep
+        ):
+    user = get_user_by_ID(session, user_id)
+    print("USER",user)
+    try:
+        makeAdmin(user, session)
+        session.commit()
+        return {"status": "ok"}
+    except IntegrityError as _:
+        raise HTTPException(403, 'user is already an admin')
+    except Exception as _:
+        session.rollback()
+        raise HTTPException(500)
+
+
+
+
+def removeAdmin(user: User, session: SessionDep):
+    if not user.id:
+        raise HTTPException(500)
+    if not user.id:
+        raise HTTPException(500)
+    statement = select(Admin).where(Admin.user_id == user.id)
+    admin = session.exec(statement).first()
+
+    # 2. If it exists, delete it
+    if admin:
+        session.delete(admin)
+        session.commit()
+        return {"message": "Admin deleted successfully"}
+    
+    # 3. Handle the case where it doesn't exist
+    raise HTTPException(404, 'Admin not found')
+
+
+def removeRescuer(user: User, session: SessionDep):
+    if not user.id:
+        raise HTTPException(500)
+    statement = select(Rescuer).where(Rescuer.user_id == user.id)
+    rescuer = session.exec(statement).first()
+
+    # 2. If it exists, delete it
+    if rescuer:
+        session.delete(rescuer)
+        session.commit()
+        return {"message": "Rescuer deleted successfully"}
+    
+    # 3. Handle the case where it doesn't exist
+    raise HTTPException(404, 'Rescuer not found')
+
+@router.post("/remove/user/admin")
+def remove_admin(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+        user_id: UUID,
+        session: SessionDep
+        ):
+    user = get_user_by_ID(session, user_id)
+    try:
+        removeAdmin(user, session)
+        return {"status": "ok"}
+    except Exception as _:
+        session.rollback()
+        raise HTTPException(500)
+
+
+
+@router.post("/remove/user/rescuer")
+def remove_rescuer(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+        user_id: UUID,
+        session: SessionDep
+        ):
+    user = get_user_by_ID(session, user_id)
+    try:
+        removeRescuer(user, session)
+        return {"status": "ok"}
+    except Exception as _:
+        session.rollback()
+        raise HTTPException(500)
+
+
+@router.post("/create/user")
+def create_user(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+        userData: UserCreateThroughAdmin,
+        session: SessionDep
+        ):
+    try:
+        user = db_create_user(userData, session)
+
+        if not user.id:
+            raise HTTPException(500)
+
+        if userData.is_rescuer:
+            makeRescuer(user, session)
+
+        if userData.is_admin:
+            makeAdmin(user, session)
+
+        return user
+    except:
+        session.rollback()
+        raise HTTPException(500)
+
+
+

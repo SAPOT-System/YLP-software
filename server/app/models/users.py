@@ -161,6 +161,11 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one uppercase letter")
         return v
 
+class UserCreateThroughAdmin(UserCreate):
+    is_admin: bool = False
+    is_rescuer: bool = False
+
+
 class UserUpdate(SQLModel):
     username: str | None = Field(
         default=None, max_length=50, min_length=2
