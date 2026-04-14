@@ -9,8 +9,12 @@ describe("CallService", () => {
   let mockConnectionService: ReturnType<
     typeof createCallServiceDependencyMocks
   >["connectionService"];
-  let mockUserStore: ReturnType<typeof createCallServiceDependencyMocks>["userStore"];
-  let mockPeerService: ReturnType<typeof createCallServiceDependencyMocks>["peerService"];
+  let mockUserStore: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["userStore"];
+  let mockPeerService: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["peerService"];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -23,7 +27,7 @@ describe("CallService", () => {
     callService = new CallService(
       mockConnectionService,
       mockUserStore,
-      mockPeerService as never
+      mockPeerService
     );
   });
 
@@ -68,9 +72,7 @@ describe("CallService", () => {
         "audio",
         peerId
       );
-      expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(
-        peerId
-      );
+      expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(peerId);
     });
 
     it("should not start call if already connected", async () => {
@@ -211,10 +213,13 @@ describe("CallService", () => {
         mockConnectionService.terminateCallConnection
       ).toHaveBeenCalledWith(peerId);
       expect(mockConnectionService.renegotiate).not.toHaveBeenCalled();
-      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(peerId, {
-        type: "call-ended",
-        data: { from: "test-user-id", to: peerId },
-      });
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        {
+          type: "call-ended",
+          data: { from: "test-user-id", to: peerId },
+        }
+      );
     });
 
     it("should not terminate if already disconnected", async () => {

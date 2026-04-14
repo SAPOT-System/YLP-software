@@ -21,7 +21,29 @@ export type CallServiceEvents = {
     }
   ];
   remoteStream: [stream: MediaStream];
+  "switch-cam": [stream: MediaStream];
 };
+
+type CallConnectionService = Pick<
+  ConnectionService,
+  | "isWebrtcConnected"
+  | "initializeStream"
+  | "renegotiate"
+  | "sendCallMessage"
+  | "connectToPeer"
+  | "on"
+  | "terminateCallConnection"
+  | "toggleMic"
+  | "toggleCamera"
+  | "switchCamera"
+  | "getLocalStream"
+>;
+
+type CallUserStore = {
+  user: Pick<UserStore["user"], "id">;
+};
+
+type CallPeerService = Pick<PeerService, "findDiscoveredPeerById">;
 
 // TODO: probably store the peerId state
 /**
@@ -42,9 +64,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    * @param userStore Store for user state
    */
   constructor(
-    private connectionService: ConnectionService,
-    private userStore: UserStore,
-    private peerService: PeerService
+    private connectionService: CallConnectionService,
+    private userStore: CallUserStore,
+    private peerService: CallPeerService
   ) {
     super();
     callLog.info("call › service constructed", {
@@ -294,6 +316,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       callLog.debug("call › remote stream received");
       this.emit("remoteStream", stream);
     });
+    this.connectionService.on("switch-cam", (stream) => {
+      this.emit("switch-cam", stream);
+    });
   }
 
   /**
@@ -378,6 +403,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     const newRoute =
       this.currentAudioRoute === "speaker" ? "earpiece" : "speaker";
     this.setAudioRoute(newRoute);
+  }
+
+  async switchCamera(peerId: string, isFrontCamera: boolean) {
+    await this.connectionService.switchCamera(peerId, isFrontCamera);
   }
 
   /**

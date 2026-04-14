@@ -55,6 +55,7 @@ export default function CallRoom() {
     handleCallAgain,
     handleToggleMic,
     handleToggleCam,
+    handleSwitchCamera,
     handleVolume,
     minimize,
     handleClose,
@@ -212,6 +213,16 @@ export default function CallRoom() {
               />
             </TouchableOpacity>
             <TouchableOpacity style={styles.controlBtn} onPress={handleVolume}>
+              <Feather
+                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
+                size={22}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.controlBtn}
+              onPress={handleSwitchCamera}
+            >
               <Feather
                 name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
                 size={22}

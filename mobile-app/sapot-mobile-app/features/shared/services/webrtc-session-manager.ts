@@ -19,6 +19,7 @@ type WebrtcSessionManagerEvents = {
   "peer-reconnected": [peerId: string];
   "camera-off": [peerId: string];
   "camera-on": [peerId: string];
+  "switch-cam": [stream: MediaStream];
   "mic-off": [peerId: string];
   "mic-on": [peerId: string];
 };
@@ -133,6 +134,10 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         });
       }
     });
+
+    webrtcAdapter.on("switch-cam", (stream: MediaStream) =>
+      this.emit("switch-cam", stream)
+    );
 
     webrtcAdapter.on("remoteStream", (stream) => {
       this.emit("remoteStream", stream);

@@ -694,6 +694,51 @@ export class WebrtcAdapter extends EventEmitter {
     }
   }
 
+  async switchCamera(isFrontCamera: boolean) {
+    try {
+      if (!this.videoTrack) throw Error("Video track not initialized");
+      webrtcLog.debug("webrtc › camera switch");
+
+      const newFacingMode = isFrontCamera ? "environment" : "user";
+
+      // Stop existing video track
+      this.getLocalStream()
+        .getVideoTracks()
+        .forEach((track) => track.stop());
+
+      // Get new stream with the opposite camera
+      const newStream = await mediaDevices.getUserMedia({
+        audio: false, // Don't re-request audio — reuse existing audio track
+        video: {
+          facingMode: newFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+
+      // Replace the video track in the local stream
+      const audioTrack = this.getLocalStream().getAudioTracks()[0];
+      const updatedStream = new MediaStream([audioTrack, newVideoTrack]);
+      this.localStream = updatedStream;
+
+      // If in an active call, replace the track in the peer connection
+      if (this.peerConnection) {
+        const senders = this.peerConnection.getSenders();
+        const videoSender = senders.find((s) => s.track?.kind === "video");
+        if (videoSender) {
+          await videoSender.replaceTrack(newVideoTrack); // No renegotiation needed
+        }
+      }
+
+      this.emit("switch-cam", updatedStream);
+    } catch (error) {
+      webrtcLog.error("webrtc › camera switch failed", { error });
+      throw error;
+    }
+  }
+
   /**
    * Returns whether the WebRTC connection and data channel are both open/connected.
    * @returns boolean True if connected, false otherwise

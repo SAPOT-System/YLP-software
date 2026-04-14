@@ -39,6 +39,7 @@ export type ConnectionServiceEvents = {
   "call-ready": [peerId: string];
   "camera-off": [peerId: string];
   "camera-on": [peerId: string];
+  "switch-cam": [stream: MediaStream];
   "mic-off": [peerId: string];
   "mic-on": [peerId: string];
   remoteStream: [stream: MediaStream];
@@ -105,6 +106,9 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     });
     this.webrtcSessionManager.on("mic-off", (peerId) => {
       this.emit("mic-off", peerId);
+    });
+    this.webrtcSessionManager.on("switch-cam", (stream) => {
+      this.emit("switch-cam", stream);
     });
 
     // WS adapter event listeners stay in ConnectionService (constraint).
@@ -640,6 +644,10 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       from: this.userStore.user.id,
       enabled: res,
     });
+  }
+
+  async switchCamera(peerId: string, isFrontCamera: boolean) {
+    await this.callMediaService.switchCamera(peerId, isFrontCamera);
   }
 
   getLocalStream(peerId: string) {
