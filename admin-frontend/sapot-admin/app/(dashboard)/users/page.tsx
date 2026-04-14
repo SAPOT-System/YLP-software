@@ -16,6 +16,7 @@ export default function Users() {
 	const [isSearching, setIsSearching] = useState(false);
 	const [userCreateError, setUserCreateError] = useState({});
 	const [isOpenCreateUser, setIsOpenCreateUser] = useState(false);
+	const [isOpenEditUser, setIsOpenEditUser] = useState(false);
 	const [createUserData, setCreateUserData] = useState({
 		"username": "",
 		"first_name": "",
@@ -69,10 +70,10 @@ export default function Users() {
 			if (response.ok) {
 				toast.success("User created successfully");
 				setCreateUserData(defaultCreateUser);
+				setUserCreateError({})
 				// Optional: clear form or redirect here
 			} else {
 				// result.error comes from the 'NextResponse' we wrote in the last step
-				console.error("Backend Error:", result.error);
 				setUserCreateError(result.error)
 				throw new Error("Please revalidate all the fields");
 			}
@@ -85,8 +86,7 @@ export default function Users() {
 	const inputStyle = "w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 bg-gray-50 focus:bg-white";
 	const labelStyle = "block text-sm font-semibold text-gray-700 mb-1 ml-1";
 
-	useEffect(()=> {
-		(async ()=>{
+	async function fetchData (){
 			try {
 				const url = `/api/get-users-activity?keyword=${keyword}&page=${page}&size=${size}`;
 				const fetchUserActivity = await fetch(url); 
@@ -102,12 +102,16 @@ export default function Users() {
 				toast.error("Failed to fetch user activity data.")
 				setIsMounted(false);
 			}
-		})()
+		}
+
+	useEffect(()=> {
+		fetchData();
 		console.log("KEYWORD", keyword)
 	}, [page, keyword])
 
 	useEffect(()=> {
 		setIsSearching(true);
+		setPage(1)
 	}, [keyword])
 
 	if (!isMounted || !userActivityData ) {
@@ -118,6 +122,7 @@ export default function Users() {
 	 console.log(userActivityData)
 	return ( 
 					<div className="flex flex-col gap-2">
+
 
 					{isOpenCreateUser && <Modal>
 						<div className="flex justify-between">
@@ -277,6 +282,7 @@ export default function Users() {
 											onPageChange={(newPage) => setPage(newPage)}
 											currentPage={userActivityData.page} 
 											totalPages={userActivityData.pages}
+											refreshData={fetchData}
 										/>
 					</div>
   );

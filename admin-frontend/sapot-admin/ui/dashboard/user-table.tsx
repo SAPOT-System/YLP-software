@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pencil, Trash2, Ban, ChevronLeft, ChevronRight } from 'lucide-react'; // Added icons
+import EditUserModal from './edit-user-modal';
 
 export interface UserData {
   id: number;
@@ -15,6 +16,7 @@ export interface UserTableProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+	refreshData: () => void;
 }
 
 function formatDate(rawDate: string) {
@@ -36,9 +38,25 @@ function formatDate(rawDate: string) {
   }
 }
 
-const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, onPageChange }) => {
+const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, onPageChange, refreshData }) => {
+	const [selectedUser, setSelectedUser] = useState(null);
+	const [isEditOpen, setIsEditOpen] = useState(false);
+
+	const handleEditClick = (user) => {
+		setSelectedUser(user);
+		setIsEditOpen(true);
+		console.log("user", user)
+	};
+
   return (
     <div className="w-full overflow-hidden rounded-xl border border-gray-200 custom-white shadow-sm">
+
+		<EditUserModal 
+			user={selectedUser} 
+			isOpen={isEditOpen} 
+			onClose={() => setIsEditOpen(false)}
+			onRefresh={()=>{refreshData()}} // Your function to reload data
+		/>
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="custom-gray text-black text-sm font-semibold border-b border-gray-200">
@@ -51,7 +69,6 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
             <th className="px-6 py-4 text-center">Action</th>
           </tr>
         </thead>
-
         <tbody className="divide-y divide-gray-100">
           {data.length > 0 ? (
             data.map((user) => (
@@ -73,7 +90,7 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
                 <td className="px-6 py-5">
                   <div className="flex items-center justify-center gap-4">
                     <button className="text-gray-500 hover:text-gray-800 transition-colors">
-                      <Pencil size={18} />
+                      <Pencil onClick={() => handleEditClick(user)} size={18} />
                     </button>
                     <button className="text-red-400 hover:text-red-600 transition-colors">
                       <Trash2 size={18} />
