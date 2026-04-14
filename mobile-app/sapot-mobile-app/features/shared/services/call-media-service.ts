@@ -60,6 +60,17 @@ export class CallMediaService {
     }
   }
 
+  async switchCamera(peerId: string, isFrontCamera: boolean)  {
+    try {
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
+      await webrtcAdapter.switchCamera(isFrontCamera);
+    } catch (error) {
+      callLog.error("call › camera toggle failed", { peerId, error });
+      throw error;
+    }
+  }
+
   getLocalStream(peerId: string): MediaStream {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);

@@ -156,6 +156,7 @@ export function createCallServiceDependencyMocks() {
 		sendMessage: jest.fn(),
 		toggleMic: jest.fn(),
 		toggleCamera: jest.fn(),
+		switchCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		on: jest.fn(),
 		emit: jest.fn(),

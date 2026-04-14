@@ -57,6 +57,7 @@ export interface CallContextValue {
   localCam: boolean;
   remoteMic: boolean;
   remoteCam: boolean;
+  isFrontCamera: boolean;
 
   // Audio route
   currentRoute: AudioRouteTypes | undefined;
@@ -68,6 +69,7 @@ export interface CallContextValue {
   handleToggleMic: () => void;
   handleToggleCam: () => void;
   handleVolume: () => void;
+  handleSwitchCamera: () => Promise<void>;
   minimize: () => void;
   maximize: () => void;
   handleClose: () => void;
@@ -124,6 +126,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [localCam, setLocalCam] = useState(true);
   const [remoteMic, setRemoteMic] = useState(true);
   const [remoteCam, setRemoteCam] = useState(true);
+  const [isFrontCamera, setIsFrontCamera] = useState(true);
 
   // ── Audio route ────────────────────────────
   const currentRouteRef = useRef<AudioRouteTypes | undefined>(undefined);
@@ -374,6 +377,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, [callService, peerId, callType]);
 
+  useEffect(() => {
+    if (callType !== "video" || !peerId) return;
+    const handleSwitchCamEvent = (stream: MediaStream) => {
+      uiLog.debug("[CallContext] switching local cam", { peerId });
+      setLocalStream(stream);
+    };
+    callService.on("switch-cam", handleSwitchCamEvent);
+    return () => {
+      callService.off("switch-cam", handleSwitchCamEvent);
+    };
+  }, [callService, peerId, callType]);
+
   // Retry local stream if not available yet
   useEffect(() => {
     uiLog.debug("[CallContext] retry local cam check", {
@@ -502,6 +517,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, [callService]);
 
+  const handleSwitchCamera = useCallback(async () => {
+    uiLog.debug("[CallContext] handleSwitchCamera called");
+    try {
+      await callService.switchCamera(peerId as string, isFrontCamera);
+      setIsFrontCamera((val) => !val);
+    } catch (error) {
+      uiLog.error("[CallContext] Error in toggle speaker", { error });
+    }
+  }, [callService, isFrontCamera, peerId]);
+
   const minimize = useCallback(() => {
     uiLog.info("[CallContext] minimize called");
     isMinimizedRef.current = true;
@@ -540,6 +565,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     localCam,
     remoteMic,
     remoteCam,
+    isFrontCamera,
     currentRoute: currentRouteRef.current,
     isMinimizedRef,
     ready,
@@ -548,6 +574,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     handleCallAgain,
     handleToggleMic,
     handleToggleCam,
+    handleSwitchCamera,
     handleVolume,
     minimize,
     maximize,
