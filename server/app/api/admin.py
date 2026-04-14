@@ -26,11 +26,11 @@ from app.db_operations.token import logout
 import time
 from fastapi.security import  OAuth2PasswordRequestForm
 
-from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_user_by_ID
+from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_user_by_ID, update_user_info
 from app.db_operations.token import RefreshRequest, create_token_pair, get_current_user_admin, refresh_token
 from app.models.rescuer import Rescuer
 from app.models.token import Token
-from app.models.users import User, UserCreate, UserCreateThroughAdmin
+from app.models.users import User, UserCreate, UserCreateThroughAdmin, UserUpdate, UserUpdateThroughAdmin
 
 
 router = APIRouter(
@@ -385,8 +385,12 @@ def get_admin_users(
         users_data.append({
             "id": user.id,
             "username": user.username,
-            "phone": user.phone_number,
+            "phone_number": user.phone_number,
             "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_rescuer": bool(user.rescuer),
+            "is_admin": bool(user.admin),
             "status": "Active" if is_active else "Inactive",
             # We append 'Z' here to ensure the JS 'new Date()' treats it as UTC!
             "lastActive": f"{activity.last_active.isoformat()}Z" if activity else "Never"
@@ -547,9 +551,57 @@ def create_user(
 
         return user
     except HTTPException as e:
+        session.rollback()
         raise e
     except Exception as e:
         session.rollback()
+        raise HTTPException(500)
+
+
+@router.post("/edit/user")
+def edit_user(
+        current_user: Annotated[User, Depends(get_current_user_admin)],
+        userData: UserUpdateThroughAdmin,
+        session: SessionDep
+        ):
+    try:
+        user = get_user_by_ID(session, userData.id)
+
+        if not user or not user.id:
+            raise HTTPException(404, "user not found")
+        print("here")
+        update_user_info(user, UserUpdate(**userData.model_dump(exclude_unset=True)), session)
+        print("here after")
+
+        updated_user = get_user_by_ID(session, userData.id)
+        if not updated_user:
+            print("raise 500")
+            raise HTTPException(500)
+
+        print("here after 500")
+        try:
+            if userData.is_rescuer:
+                makeRescuer(updated_user, session)
+            else:
+                removeRescuer(updated_user, session)
+        except:
+            pass
+
+        try:
+            if userData.is_admin:
+                makeAdmin(updated_user, session)
+            else:
+                removeAdmin(updated_user, session)
+        except:
+            pass
+
+        return {"status": "ok"}
+    except HTTPException as e:
+        session.rollback()
+        raise e
+    except Exception as e:
+        session.rollback()
+        print("E", e)
         raise HTTPException(500)
 
 

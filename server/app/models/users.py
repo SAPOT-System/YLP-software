@@ -180,6 +180,24 @@ class UserUpdate(SQLModel):
     email: EmailStr | None = Field(default=None)
 
 
+class UserUpdateThroughAdmin(SQLModel):
+    id: uuid.UUID
+    username: str | None = Field(
+        default=None, max_length=50, min_length=2
+    )
+    first_name: str | None = Field(
+        default=None, max_length=50, min_length=2
+    )
+    last_name: str | None = Field(
+        default=None, max_length=50, min_length=2
+    )
+    phone_number: PhoneStr | None = Field(default=None)
+    email: EmailStr | None = Field(default=None)
+    first_name: str | None = None
+    last_name: str | None = None
+    is_admin: bool | None = None
+    is_rescuer: bool | None = None
+
 
 class UserPasswordUpdate(SQLModel):
     current_password: str
