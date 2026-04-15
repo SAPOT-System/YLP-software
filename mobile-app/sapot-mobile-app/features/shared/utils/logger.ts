@@ -2,7 +2,7 @@ import { consoleTransport, logger } from "react-native-logs";
 import Reactotron from "reactotron-react-native";
 
 const raw = process.env.EXPO_PUBLIC_ENABLED_LOG_MODULES ?? "";
-const ENABLED_MODULES = raw ? raw.split(",").map((m) => m.trim()) : []; // empty = allow ALL modules
+const ENABLED_MODULES = raw ? raw.split(",").map((m: string) => m.trim()) : []; // empty = allow ALL modules
 
 const isModuleEnabled = (module: string) => {
   if (ENABLED_MODULES.length === 0) return true;
