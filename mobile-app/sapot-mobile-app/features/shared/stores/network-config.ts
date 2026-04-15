@@ -1,6 +1,7 @@
 import NetInfo from "@react-native-community/netinfo";
 import { NetworkInfo } from "react-native-network-info";
 import { networkLog } from "../utils/logger";
+import { saveLocalIp, saveLocalPort } from "./secure-config";
 
 networkLog.debug("[network-config] module loaded");
 
@@ -33,6 +34,11 @@ export class NetworkConfig {
         throw new Error("Failed to obtain a valid IP address.");
       }
       this.ipAddress = ip;
+
+      // Persist so background task always reads the latest values
+      await saveLocalIp(ip);
+      await saveLocalPort(this.port);
+
       networkLog.info("network › init complete", {
         hasIp: Boolean(this.ipAddress),
       });
@@ -47,15 +53,18 @@ export class NetworkConfig {
    */
   startWatching(): void {
     networkLog.info("network › watch start");
-    this.unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+    this.unsubscribeNetInfo = NetInfo.addEventListener(async (state) => {
       if (state.type === "wifi") {
-        const newIp = (state.details as { ipAddress?: string } | null)?.ipAddress;
+        const newIp = (state.details as { ipAddress?: string } | null)
+          ?.ipAddress;
         if (newIp && newIp !== this.ipAddress) {
           networkLog.info("network › ip changed", {
             hadIp: Boolean(this.ipAddress),
             hasNewIp: true,
           });
           this.ipAddress = newIp;
+          // Persist immediately so background task picks it up on next wake
+          await saveLocalIp(newIp);
         }
       }
     });

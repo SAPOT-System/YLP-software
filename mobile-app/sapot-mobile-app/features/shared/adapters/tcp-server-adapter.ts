@@ -9,6 +9,8 @@ tcpLog.debug("[tcp-server-adapter] module loaded");
  */
 export class TcpServerAdapter extends EventEmitter {
   private server?: TcpSocket.Server;
+  private _currentPort?: number;
+  private _currentIp?: string;
 
   /**
    * Constructs a TcpServerAdapter instance.
@@ -18,13 +20,36 @@ export class TcpServerAdapter extends EventEmitter {
     tcpLog.info("tcp › server constructed");
   }
 
+  // ── Getters ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Returns the port the server is currently listening on, or undefined if not started.
+   */
+  get currentPort(): number | undefined {
+    return this._currentPort;
+  }
+
+  /**
+   * Returns the IP the server is currently bound to, or undefined if not started.
+   */
+  get currentIp(): string | undefined {
+    return this._currentIp;
+  }
+
+  /**
+   * Returns whether the server is currently listening.
+   */
+  get isListening(): boolean {
+    return !!this.server;
+  }
+
   /**
    * Starts the TCP server and listens for incoming connections on the specified port.
    * Emits 'data' events for each parsed message received.
    * @param port The port to listen on
    * @returns Promise<void> Resolves when server is listening, rejects on error
    */
-  start(port: number) {
+  start(port: number, ip?: string) {
     return new Promise<void>((resolve, reject) => {
       try {
         this.server = TcpSocket.createServer((socket) => {
@@ -61,6 +86,8 @@ export class TcpServerAdapter extends EventEmitter {
         });
 
         this.server?.listen({ port, host: "0.0.0.0" }, () => {
+          this._currentPort = port; // ← track for bg task restart detection
+          this._currentIp = ip; // ← track for bg task restart detection
           tcpLog.info("tcp › server listening", { port });
           resolve();
         });
@@ -86,6 +113,8 @@ export class TcpServerAdapter extends EventEmitter {
       if (this.server) {
         this.server.close();
         this.server = undefined;
+        this._currentPort = undefined; 
+        this._currentIp = undefined;   
       }
     } catch (error) {
       tcpLog.error("tcp › stop failed", { error });

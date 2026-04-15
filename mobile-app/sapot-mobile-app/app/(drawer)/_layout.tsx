@@ -1,17 +1,23 @@
 import { useAuth } from "@/features/auth";
+import "../../task/signaling-task";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
 import { MainContainerProvider, useAppMode } from "@/features/shared/context";
 import { navLog } from "@/features/shared/utils/logger";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import * as Notifications from "expo-notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Redirect } from "expo-router";
 import { Drawer } from "expo-router/drawer";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { TouchableOpacity, View } from "react-native";
 import { ActivityIndicator, Icon, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AUTH_ROUTES } from "../routes";
 import { CallProvider } from "@/features/call/context/call-context";
+import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
+import { useNotifications } from "@/features/shared/hooks/use-notifications";
+import { router } from "expo-router";
+import { Platform } from "react-native";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +25,61 @@ export default function DrawerLayout() {
   const { isAuthenticated, loading, isGuest } = useAuth();
   const theme = useTheme();
   const { store } = useAppMode();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { unregister } = useBackgroundTask();
+
+  // Dedup guard — prevents double navigation when both responseListener and
+  // getLastNotificationResponseAsync fire for the same cold-start tap.
+  const handledNotifIdRef = useRef<string | null>(null);
+
+  useNotifications((incomingCallData) => {
+    if (handledNotifIdRef.current === incomingCallData.notificationId) return;
+    handledNotifIdRef.current = incomingCallData.notificationId;
+    navLog.info("[DrawerLayout] incoming call via notification listener", {
+      notificationId: incomingCallData.notificationId,
+    });
+    router.push({
+      pathname: "/(drawer)/(tabs)/call/incoming",
+      params: {
+        id: incomingCallData.callerId,
+        type: incomingCallData.callType,
+      },
+    });
+  });
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    // Handle cold-start tap — app was completely killed and user tapped notification.
+    // useNotifications responseListener won't fire in this case because
+    // the listener wasn't mounted yet when the tap happened.
+    // getLastNotificationResponseAsync catches it instead.
+    // The handledNotifIdRef guard prevents double-navigation if both paths fire.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+
+      const notifId = response.notification.request.identifier;
+      const data = response.notification.request.content.data;
+
+      if (data?.type !== "incoming_call") return;
+      if (handledNotifIdRef.current === notifId) return;
+      handledNotifIdRef.current = notifId;
+
+      navLog.info("[DrawerLayout] incoming call via cold-start response", {
+        notifId,
+      });
+      // Delay until router is fully mounted
+      setTimeout(() => {
+        router.push({
+          pathname: "/(drawer)/(tabs)/call/incoming",
+          params: {
+            id: String(data.id ?? ""),
+            type: String(data["call_type"] ?? ""),
+          },
+        });
+      }, 300);
+    });
+  }, []);
 
   useEffect(() => {
     navLog.info("[DrawerLayout] mounted");

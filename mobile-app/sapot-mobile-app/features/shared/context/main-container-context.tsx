@@ -30,6 +30,13 @@ export function MainContainerProvider({
       }
     };
     init();
+
+    return () => {
+      const cleanUp = async () => {
+        c.cleanup();
+      };
+      cleanUp();
+    };
   }, [appModeStore, userContainer]);
   if (!container) {
     return <ActivityIndicator />;

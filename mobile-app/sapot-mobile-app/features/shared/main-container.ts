@@ -25,6 +25,11 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { AuthContainer } from "../auth/auth-container";
 import { SyncService } from "../sync";
 import { appLog } from "./utils/logger";
+import {
+  clearConnectionConfig,
+  saveConnectionConfig,
+} from "./stores/secure-config";
+import { setAppAlive } from "@/task/signaling-task";
 
 appLog.debug("[main-container] module loaded");
 
@@ -174,11 +179,42 @@ export class MainContainer {
         appLog.info("app › init start");
         await this.networkConfig.initialize();
         this.networkConfig.startWatching();
+
+        // Persist peerId and wsUrl for background task
+        await saveConnectionConfig({
+          peerId: this.userContainer.userStore.user.id ?? "unknown",
+          wsUrl: getWsUrl(),
+        });
+
+        setAppAlive(true);
       })();
 
       return this.initPromise;
     } catch (error) {
       appLog.error("app › init failed", { error });
+      throw error;
+    }
+  }
+
+  // Call on logout or app destroy
+  async cleanup() {
+    try {
+      appLog.info("app › cleanup start");
+
+      // Release the lock — background task takes over transport ownership
+      setAppAlive(false);
+
+      this.networkConfig.stopWatching();
+      this.connectionService.stop(); // stops TCP + WS + WebRTC
+      this.discoveryService.destroy(); // stops Zeroconf
+
+      await clearConnectionConfig();
+
+      this.initPromise = undefined;
+
+      appLog.info("app › cleanup complete");
+    } catch (error) {
+      appLog.error("app › cleanup failed", { error });
       throw error;
     }
   }
