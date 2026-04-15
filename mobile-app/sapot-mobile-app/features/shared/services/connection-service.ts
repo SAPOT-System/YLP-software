@@ -4,19 +4,19 @@ import { connectionLog } from "@/features/shared/utils/logger";
 import * as Notifications from "expo-notifications";
 import { MediaStream } from "react-native-webrtc";
 import {
-    TcpClientAdapter,
-    TcpServerAdapter,
-    WsSignalingAdapter,
+  TcpClientAdapter,
+  TcpServerAdapter,
+  WsSignalingAdapter,
 } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
-    CallControlData,
-    CallMessage,
-    DataAckMessage,
-    Message,
-    SignalingMessage,
-    WsCallMessage,
+  CallControlData,
+  CallMessage,
+  DataAckMessage,
+  Message,
+  SignalingMessage,
+  WsCallMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
@@ -145,7 +145,6 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               callerName: message.data.from_user,
               callType: message.type,
             });
-            this.emit("audio-call", message.data.from_user);
           }
           if (message.type === "video-call") {
             await this.showIncomingCallNotification({
@@ -153,7 +152,6 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               callerName: message.data.from_user,
               callType: message.type,
             });
-            this.emit("video-call", message.data.from_user);
           }
           if (message.type === "call-ended") {
             // TODO: check if needed to reinitialize local stream
