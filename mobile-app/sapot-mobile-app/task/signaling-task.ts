@@ -15,6 +15,7 @@ import { CallMessage } from "@/features/shared/types";
 import * as BackgroundTask from "expo-background-task";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
+import { Service } from "react-native-zeroconf";
 
 export const SIGNALING_TASK = "SIGNALING_TASK";
 
@@ -44,7 +45,11 @@ let bgZeroconf: ZeroconfAdapter | null = null;
 
 // ── Incoming call notification ─────────────────────────────────────────────────
 
-const showIncomingCallNotification = async (message: any) => {
+const showIncomingCallNotification = async (message: {
+  callerName?: string;
+  type: string;
+  data: { from_user?: string; from?: string };
+}) => {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -102,7 +107,7 @@ const startBackgroundOnlyServices = async () => {
     bgTcpServer = new TcpServerAdapter();
     await bgTcpServer.start(port, ip);
 
-    bgTcpServer.on("data", async (message: any) => {
+    bgTcpServer.on("data", async (message: CallMessage) => {
       await handleIncomingMessage(message);
     });
 
@@ -117,7 +122,7 @@ const startBackgroundOnlyServices = async () => {
     bgWsAdapter?.disconnect();
     bgWsAdapter = new WsSignalingAdapter();
 
-    bgWsAdapter.on("call-message", async (message: any) => {
+    bgWsAdapter.on("call-message", async (message: CallMessage) => {
       await handleIncomingMessage(message);
     });
 
@@ -143,7 +148,7 @@ const startBackgroundOnlyServices = async () => {
   if (!bgZeroconf) {
     bgZeroconf = new ZeroconfAdapter();
 
-    bgZeroconf.on("serviceResolved", async (service: any) => {
+    bgZeroconf.on("serviceResolved", async (service: Service) => {
       backgroundLog.info("bg › zeroconf service resolved", {
         hasId: Boolean(service?.txt?.id),
       });
