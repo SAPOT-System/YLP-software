@@ -144,7 +144,13 @@ export const getAppAlive = async (): Promise<boolean> => {
 
 export const clearConnectionConfig = async () => {
   try {
-    await Promise.all(Object.values(KEYS).map((key) => deleteItemAsync(key)));
+    await Promise.all(
+      Object.values(KEYS).map((key) => {
+        if (key !== KEYS.ACCESS_TOKEN) {
+          deleteItemAsync(key);
+        }
+      })
+    );
     backgroundLog.info("secure-config › cleared");
   } catch (error) {
     backgroundLog.error("secure-config › clear failed", { error });
