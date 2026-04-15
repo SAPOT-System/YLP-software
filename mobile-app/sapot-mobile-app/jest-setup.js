@@ -131,6 +131,33 @@ jest.mock('expo-router', () => {
   };
 });
 
+// Mock Expo task APIs used by background signaling task
+jest.mock('expo-task-manager', () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn().mockResolvedValue(false),
+  isTaskDefined: jest.fn().mockReturnValue(true),
+}));
+
+jest.mock('expo-background-task', () => ({
+  registerTaskAsync: jest.fn().mockResolvedValue(undefined),
+  unregisterTaskAsync: jest.fn().mockResolvedValue(undefined),
+  BackgroundTaskResult: {
+    Success: 'Success',
+    Failed: 'Failed',
+  },
+}));
+
+jest.mock('expo-notifications', () => ({
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notification-id'),
+  dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
+  setNotificationChannelAsync: jest.fn().mockResolvedValue(undefined),
+  AndroidImportance: {
+    LOW: 2,
+    DEFAULT: 3,
+    HIGH: 4,
+  },
+}));
+
 // Mock document picker (native module)
 jest.mock('@react-native-documents/picker', () => ({
   saveDocuments: jest.fn(),
