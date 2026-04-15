@@ -4,7 +4,7 @@ import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
-import { router, Tabs } from "expo-router";
+import { router, Tabs, usePathname } from "expo-router";
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import { Appbar, Text, useTheme } from "react-native-paper";
@@ -14,10 +14,16 @@ import Colors from "@/constants/Colors";
 
 function IncomingCallListener() {
   const connectionService = useConnectionService();
+  const pathname = usePathname();
 
   useEffect(() => {
     navLog.info("[IncomingCallListener] mounted");
     const handleAudioCall = (peerId: string) => {
+      // Skip if already on the incoming screen (e.g. navigated there by notification)
+      if (pathname.includes("call/incoming")) {
+        navLog.info("[IncomingCallListener] audio-call skipped — already on incoming screen");
+        return;
+      }
       navLog.info("[Navigation] Navigating to IncomingCall", {
         screen: "/(drawer)/(tabs)/call/incoming",
         peerId,
@@ -29,6 +35,10 @@ function IncomingCallListener() {
       });
     };
     const handleVideoCall = (peerId: string) => {
+      if (pathname.includes("call/incoming")) {
+        navLog.info("[IncomingCallListener] video-call skipped — already on incoming screen");
+        return;
+      }
       navLog.info("[Navigation] Navigating to IncomingCall", {
         screen: "/(drawer)/(tabs)/call/incoming",
         peerId,
@@ -46,7 +56,7 @@ function IncomingCallListener() {
       connectionService.off("audio-call", handleAudioCall);
       connectionService.off("video-call", handleVideoCall);
     };
-  }, [connectionService]);
+  }, [connectionService, pathname]);
 
   return null;
 }
