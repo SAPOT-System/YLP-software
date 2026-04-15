@@ -1,21 +1,22 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
 import { connectionLog } from "@/features/shared/utils/logger";
+import * as Notifications from "expo-notifications";
 import { MediaStream } from "react-native-webrtc";
 import {
-  TcpClientAdapter,
-  TcpServerAdapter,
-  WsSignalingAdapter,
+    TcpClientAdapter,
+    TcpServerAdapter,
+    WsSignalingAdapter,
 } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
-  CallControlData,
-  CallMessage,
-  DataAckMessage,
-  Message,
-  SignalingMessage,
-  WsCallMessage,
+    CallControlData,
+    CallMessage,
+    DataAckMessage,
+    Message,
+    SignalingMessage,
+    WsCallMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
@@ -138,9 +139,20 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       async (message: WsCallMessage) => {
         try {
           if (message.type === "audio-call") {
+            // Fire local notification so user sees it with screen off
+            await this.showIncomingCallNotification({
+              callerId: message.data.from_user,
+              callerName: message.data.from_user,
+              callType: message.type,
+            });
             this.emit("audio-call", message.data.from_user);
           }
           if (message.type === "video-call") {
+            await this.showIncomingCallNotification({
+              callerId: message.data.from_user,
+              callerName: message.data.from_user,
+              callType: message.type,
+            });
             this.emit("video-call", message.data.from_user);
           }
           if (message.type === "call-ended") {
@@ -215,10 +227,22 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           await this.signalingService.handleIncomingSignaling(message);
         }
         if (message.type === "audio-call" && "from" in message.data) {
-          this.emit("audio-call", message.data.from);
+          // this.emit("audio-call", message.data.from);
+          await this.showIncomingCallNotification({
+            callerId: message.data.from,
+            callerName: message.data.from,
+            callType: message.type,
+            // offer: (message.data as any).offer ?? null,
+          });
         }
         if (message.type === "video-call" && "from" in message.data) {
-          this.emit("video-call", message.data.from);
+          // this.emit("video-call", message.data.from);
+          await this.showIncomingCallNotification({
+            callerId: message.data.from,
+            callerName: message.data.from,
+            callType: message.type,
+            // offer: (message.data as any).offer ?? null,
+          });
         }
         if (message.type === "call-ended" && "from" in message.data) {
           // TODO: check if needed to reinitialize local stream
@@ -619,6 +643,35 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       type,
       callControlData
     );
+  }
+
+  private async showIncomingCallNotification(data: {
+    callerId: string;
+    callType: string;
+    callerName: string;
+    // offer: any;
+  }) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "📞 Incoming Call",
+          body: `${data.callerName} is calling...`,
+          sound: "ringtone.mp3",
+          data: {
+            type: "incoming_call",
+            id: data.callerId,
+            call_type: data.callType === "video-call" ? "video" : "audio",
+          },
+        } as Notifications.NotificationContentInput,
+        trigger: {
+          channelId: "incoming-call",
+        } as Notifications.NotificationTriggerInput,
+      });
+    } catch (error) {
+      connectionLog.error("connection › incoming call notification failed", {
+        error,
+      });
+    }
   }
 
   async initializeStream(stream: "audio" | "video", peerId: string) {
