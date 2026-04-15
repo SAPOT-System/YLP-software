@@ -11,10 +11,9 @@ import {
 import { WebrtcAdapter } from "../../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
-    AudioCallMessage,
     CallEndedMessage,
     ChatMessage,
-    SignalingMessage,
+    SignalingMessage
 } from "../../types";
 import { CallMediaService } from "../call-media-service";
 import { ConnectionService } from "../connection-service";
@@ -157,27 +156,20 @@ describe("ConnectionService", () => {
     });
 
     it("should handle audio-call messages", async () => {
-      // Verify that the on method was called during constructor
-      expect(mockTcpServerAdapter.on).toHaveBeenCalledWith(
-        "data",
-        expect.any(Function)
-      );
-
-      // Get the data handler from the on call
-      const dataHandler = mockTcpServerAdapter.on.mock.calls.find(
-        (call) => call[0] === "data"
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
       )?.[1];
 
-      expect(dataHandler).toBeDefined();
+      expect(callMessageHandler).toBeDefined();
 
-      const audioCallMessage: AudioCallMessage = {
+      const audioCallMessage = {
         type: "audio-call" as const,
-        data: { from: "peer-1", to: "peer-2" },
+        data: { from_user: "peer-1", to: "peer-2" },
       };
 
       const emitSpy = jest.spyOn(connectionService, "emit");
 
-      await dataHandler?.(audioCallMessage);
+      await callMessageHandler?.(audioCallMessage);
 
       expect(emitSpy).toHaveBeenCalledWith("audio-call", "peer-1");
     });
