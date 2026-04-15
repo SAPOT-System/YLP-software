@@ -142,6 +142,7 @@ export default function Dashboard() {
 			}
 
 		})()
+
 	}, [])
 	useEffect(()=> {
 		(async ()=>{
@@ -166,6 +167,20 @@ export default function Dashboard() {
 	//        <MetricSkeleton />
 	//      </div>
 	//  }
+	//
+	async function fetchUserActivity (){
+		try {
+			const fetchUserActivity = await fetch(`/api/get-users-activity?page=${page}&size=${size}`); 
+			const userData = await fetchUserActivity.json();
+			if (userData.error) 
+				throw Error("Failed to fetch user activity");
+			setUserActivityData(userData)
+			setUserActivityDataStatus({"val": true, "date": getTime()})
+		} catch {
+			toast.error("Failed to fetch user activity data.")
+			setUserActivityDataStatus({"val": false, "date": getTime()})
+		}
+	}
   return (
 		<div>
 			<div className="grid grid-cols-4 gap-2" >
@@ -256,6 +271,7 @@ export default function Dashboard() {
 							onPageChange={(newPage) => setPage(newPage)}
 							currentPage={userActivityData.page} 
 							totalPages={userActivityData.pages}
+							refreshData={()=>fetchUserActivity()}
 						/>
 
 					</WhiteContainer>:  <MetricSkeleton/>
