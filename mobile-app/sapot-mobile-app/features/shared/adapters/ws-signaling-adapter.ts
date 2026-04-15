@@ -352,7 +352,8 @@ export class WsSignalingAdapter extends EventEmitter {
     if (
       call.type !== "audio-call" &&
       call.type !== "video-call" &&
-      call.type !== "call-ended"
+      call.type !== "call-ended" &&
+      call.type !== "call-ready" 
     ) {
       return false;
     }
