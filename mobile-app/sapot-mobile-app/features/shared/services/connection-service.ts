@@ -671,6 +671,14 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.sendAckMessage(peerId, ackData);
   }
 
+  sendSeenMessage(peerId: string, conversationId: string) {
+    this.webrtcSessionManager.sendSeenMessage(peerId, {
+      conversationId,
+      from: this.userStore.user.id,
+      to: peerId,
+    });
+  }
+
   sendCallControlMessage(
     peerId: string,
     type: "camera_toggle" | "mic_toggle",

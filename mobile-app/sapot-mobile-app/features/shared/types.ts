@@ -53,6 +53,8 @@ export type SignalingMessage =
 export type ChatMessage = { type: "chat"; data: DataChatMessageI };
 export type DataAckMessage = { messageId: string; from: string; to: string };
 export type AckMessage = { type: "ack"; data: DataAckMessage };
+export type DataSeenMessageI = { conversationId: string; from: string; to: string };
+export type SeenMessage = { type: "seen"; data: DataSeenMessageI };
 
 export type AudioCallMessage = {
   type: "audio-call";
@@ -133,6 +135,7 @@ export type CallControlMessage = {
 export type WebrtcDataMessage =
   | ChatMessage
   | AckMessage
+  | SeenMessage
   | CallMessage
   | CallControlMessage;
 
