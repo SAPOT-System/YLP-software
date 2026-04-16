@@ -12,7 +12,6 @@ Notifications.setNotificationHandler({
       notification.request.content.data?.type === "foreground_service";
 
     return {
-      shouldShowAlert: !isForegroundService,
       shouldPlaySound: !isForegroundService,
       shouldSetBadge: false,
       shouldShowBanner: !isForegroundService, // ← required by NotificationBehavior

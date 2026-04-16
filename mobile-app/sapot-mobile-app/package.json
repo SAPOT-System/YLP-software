@@ -40,7 +40,8 @@
           "react-native-tcp-socket",
           "react-native-webrtc",
           "@nozbe/simdjson",
-          "react-native-incall-manager"
+          "react-native-incall-manager",
+          "react-native-background-actions"
         ]
       },
       "nonCNGConfigCheck": false
@@ -85,6 +86,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-background-actions": "^4.1.0",
     "react-native-device-info": "^15.0.1",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-incall-manager": "^4.2.1",

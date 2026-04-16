@@ -8,6 +8,10 @@ import {
 import {
   getAppAlive,
   getStoredAccessToken,
+  getStoredFirstName,
+  getStoredLastName,
+  getStoredPeerId,
+  getStoredUsername,
   getStoredWsUrl,
   saveAppAlive,
 } from "@/features/shared/stores/secure-config";
@@ -30,6 +34,12 @@ export const SIGNALING_TASK = "SIGNALING_TASK";
 
 export const setAppAlive = (alive: boolean) => {
   saveAppAlive(alive); // persist across JS context boundary for background task
+  if (alive) {
+    // Free the TCP port and WS connection so ConnectionService can claim them.
+    // Needed when the 15-min background task created bgTcpServer in the same
+    // process and the main app then opens via notification tap.
+    stopBackgroundOnlyServices();
+  }
   backgroundLog.info("bg › app alive flag set", { alive });
 };
 
@@ -81,11 +91,26 @@ const handleIncomingMessage = async (message: CallMessage) => {
   if (message.type === "audio-call" || message.type === "video-call") {
     await showIncomingCallNotification(message);
   }
+
+  if (message.type === "call-ended" || message.type === "call-rejected") {
+    // Dismiss any lingering incoming call notification in the tray
+    try {
+      const presented = await Notifications.getPresentedNotificationsAsync();
+      for (const n of presented) {
+        if (n.request.content.data?.type === "incoming_call") {
+          await Notifications.dismissNotificationAsync(n.request.identifier);
+        }
+      }
+      backgroundLog.info("bg › call ended/rejected — incoming notification dismissed");
+    } catch (error) {
+      backgroundLog.error("bg › dismiss notification failed", { error });
+    }
+  }
 };
 
 // ── Background-only service lifecycle ─────────────────────────────────────────
 
-const startBackgroundOnlyServices = async () => {
+export const startBackgroundOnlyServices = async () => {
   // Fresh NetworkConfig every wake — no startWatching() in background
   bgNetworkConfig = new NetworkConfig();
   await bgNetworkConfig.initialize();
@@ -142,9 +167,7 @@ const startBackgroundOnlyServices = async () => {
   }
 
   // ── Zeroconf ────────────────────────────────────────────────────────────────
-  // Mirrors ZeroconfAdapter usage in DiscoveryService.
-  // In background we only scan — we don't publish (no user session available)
-  // and we don't register peers (no DB access). We only listen for call signals.
+  // Scan so peers can reach us; publish so we appear to other peers on LAN.
   if (!bgZeroconf) {
     bgZeroconf = new ZeroconfAdapter();
 
@@ -158,10 +181,29 @@ const startBackgroundOnlyServices = async () => {
 
     bgZeroconf.startScan();
     backgroundLog.info("bg › zeroconf scan started");
+
+    // Publish our own service so other LAN peers can discover us
+    const [peerId, username, firstName, lastName] = await Promise.all([
+      getStoredPeerId(),
+      getStoredUsername(),
+      getStoredFirstName(),
+      getStoredLastName(),
+    ]);
+    if (peerId && username && firstName) {
+      bgZeroconf.publishService({
+        type: "lanchat",
+        protocol: "tcp",
+        domain: "local.",
+        name: `Device-${Date.now()}`,
+        port,
+        txt: { id: peerId, username, firstName, lastName: lastName ?? "" },
+      });
+      backgroundLog.info("bg › zeroconf service published");
+    }
   }
 };
 
-const stopBackgroundOnlyServices = () => {
+export const stopBackgroundOnlyServices = () => {
   try {
     bgTcpServer?.stop();
     bgWsAdapter?.disconnect();

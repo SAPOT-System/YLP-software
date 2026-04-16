@@ -96,6 +96,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "expo-router",
+    // "react-native-background-actions",
     "expo-secure-store",
     [
       "expo-camera",

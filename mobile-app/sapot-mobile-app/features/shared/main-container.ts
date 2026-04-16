@@ -29,6 +29,7 @@ import { SyncService } from "../sync";
 import {
   clearConnectionConfig,
   saveConnectionConfig,
+  saveUserProfile,
 } from "./stores/secure-config";
 import { appLog } from "./utils/logger";
 
@@ -192,6 +193,11 @@ export class MainContainer {
         await saveConnectionConfig({
           peerId: this.userContainer.userStore.user.id ?? "unknown",
           wsUrl: getWsUrl(),
+        });
+        await saveUserProfile({
+          username: this.userContainer.userStore.user.username,
+          firstName: this.userContainer.userStore.user.firstName,
+          lastName: this.userContainer.userStore.user.lastName || undefined,
         });
 
         setAppAlive(true);

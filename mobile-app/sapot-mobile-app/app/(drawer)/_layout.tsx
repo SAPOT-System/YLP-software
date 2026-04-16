@@ -31,6 +31,9 @@ export default function DrawerLayout() {
   // Dedup guard — prevents double navigation when both responseListener and
   // getLastNotificationResponseAsync fire for the same cold-start tap.
   const handledNotifIdRef = useRef<string | null>(null);
+  const handledNotifTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   useNotifications((incomingCallData) => {
     if (handledNotifIdRef.current === incomingCallData.notificationId) return;
@@ -38,6 +41,14 @@ export default function DrawerLayout() {
     navLog.info("[DrawerLayout] incoming call via notification listener", {
       notificationId: incomingCallData.notificationId,
     });
+
+    if (handledNotifTimeoutRef.current) {
+      clearTimeout(handledNotifTimeoutRef.current);
+    }
+
+    handledNotifTimeoutRef.current = setTimeout(() => {
+      handledNotifIdRef.current = null;
+    }, 30_000);
     router.push({
       pathname: "/(drawer)/(tabs)/call/incoming",
       params: {
@@ -46,6 +57,10 @@ export default function DrawerLayout() {
       },
     });
   });
+
+  handledNotifTimeoutRef.current = setTimeout(() => {
+    handledNotifIdRef.current = null;
+  }, 30_000);
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
