@@ -157,6 +157,17 @@ export class ChatService {
           data.senderProfile.lastName
         );
       }
+      const existingMessage = await this.messageRepository.queryMessageById(
+        data.messageId
+      );
+      if (existingMessage) {
+        chatLog.info("chat › incoming message deduped", {
+          messageId: data.messageId,
+          conversationId: data.conversationId,
+        });
+        this.acknowledgeIncomingMessage(sender.id, data.messageId);
+        return;
+      }
       const conversation = await this.getOrCreateConversationForIncoming(
         sender,
         data.conversationId
@@ -211,11 +222,11 @@ export class ChatService {
     conversation: Conversation,
     data: DataChatMessageI
   ): Promise<void> {
-    // TODO: save message with the received incoming message ID
     await this.messageRepository.saveMessage({
       sender: sender,
       content: data.message,
       conversation: conversation,
+      messageId: data.messageId,
     });
     chatLog.debug("chat › incoming saved", {
       conversationId: conversation.id,
