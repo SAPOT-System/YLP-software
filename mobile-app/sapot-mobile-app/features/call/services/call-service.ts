@@ -61,10 +61,12 @@ type CallPeerService = Pick<
   "findDiscoveredPeerById" | "findPeerById"
 >;
 
-type CallLogChatService = Pick<
-  ChatService,
-  "getOrCreateDirectConversationByPeer" | "saveCallLogWithReceipts"
->;
+type CallLogChatService = Pick<ChatService, "saveCallLogWithReceipts"> & {
+  getOrCreateDirectConversationByPeer(
+    peerId: string,
+    conversationId?: string
+  ): Promise<Awaited<ReturnType<ChatService["getOrCreateDirectConversationByPeer"]>>>;
+};
 
 type RemoteCallEndedPayload = {
   status?: "completed" | "missed" | "rejected";
@@ -82,6 +84,7 @@ type CallSession = {
   peerName: string;
   isIncoming: boolean;
   finalized: boolean;
+  conversationId: string;
 };
 
 // TODO: probably store the peerId state
@@ -181,9 +184,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     }
   }
 
-  async answerCall(type: "video" | "audio", peerId: string) {
+  async answerCall(type: "video" | "audio", peerId: string, conversationId?: string) {
     try {
-      const session = await this.ensureSession(peerId, type, true);
+      const session = await this.ensureSession(peerId, type, true, conversationId || undefined);
       if (!session.answeredAt) {
         session.answeredAt = new Date();
       }
@@ -390,9 +393,14 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         await this.connect(peerId);
       }
       callLog.info("call › incoming notify", { peerId, type });
+      const session = this.callSessions.get(peerId);
       this.connectionService.sendCallMessage(peerId, {
         type: type === "audio" ? "audio-call" : "video-call",
-        data: { from: this.userStore.user.id, to: peerId },
+        data: {
+          from: this.userStore.user.id,
+          to: peerId,
+          conversationId: session?.conversationId,
+        },
       });
     } catch (error) {
       callLog.error("call › incoming notify failed", { peerId, error });
@@ -400,8 +408,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     }
   }
 
-  async rejectIncomingCall(type: "audio" | "video", peerId: string) {
-    await this.ensureSession(peerId, type, true);
+  async rejectIncomingCall(type: "audio" | "video", peerId: string, conversationId?: string) {
+    await this.ensureSession(peerId, type, true, conversationId || undefined);
     this.connectionService.sendCallMessage(peerId, {
       type: "call-rejected",
       data: {
@@ -413,8 +421,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     await this.terminateCallConnection(peerId, "rejected");
   }
 
-  async markMissedIncomingCall(type: "audio" | "video", peerId: string) {
-    await this.ensureSession(peerId, type, true);
+  async markMissedIncomingCall(type: "audio" | "video", peerId: string, conversationId?: string) {
+    await this.ensureSession(peerId, type, true, conversationId || undefined);
     this.connectionService.sendCallMessage(peerId, {
       type: "call-missed",
       data: {
@@ -573,7 +581,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private async ensureSession(
     peerId: string,
     type: "video" | "audio",
-    isIncoming: boolean
+    isIncoming: boolean,
+    conversationId?: string
   ): Promise<CallSession> {
     const existingSession = this.callSessions.get(peerId);
     if (existingSession) {
@@ -583,8 +592,12 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     const peer = await this.peerService.findPeerById(peerId);
     if (!peer) throw new Error("Peer not found");
 
+    const effectiveConversationId = conversationId || undefined;
     const conversation =
-      await this.chatService.getOrCreateDirectConversationByPeer(peerId);
+      await this.chatService.getOrCreateDirectConversationByPeer(
+        peerId,
+        effectiveConversationId
+      );
     const now = new Date();
 
     const call = await this.callRepository.saveCall({
@@ -609,6 +622,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       peerName: this.getDisplayName(peer),
       isIncoming,
       finalized: false,
+      conversationId: conversation.id,
     };
 
     this.callSessions.set(peerId, session);

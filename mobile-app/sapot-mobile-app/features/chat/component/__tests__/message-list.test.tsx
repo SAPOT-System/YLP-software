@@ -2,6 +2,18 @@ import { render } from "@testing-library/react-native";
 import React from "react";
 import MessageList from "../message-list";
 
+jest.mock("@/features/chat/hooks/use-chat-service", () => ({
+  useChatService: () => ({
+    tryResendMessage: jest.fn(),
+  }),
+}));
+
+jest.mock("@/features/shared/hooks", () => ({
+  usePeerService: () => ({
+    findDiscoveredPeerById: jest.fn(),
+  }),
+}));
+
 jest.mock("@/features/shared", () => {
   return {
     database: {
@@ -42,7 +54,7 @@ jest.mock("@/features/shared", () => {
 describe("MessageList", () => {
   it("renders messages", () => {
     const { getByText } = render(
-      <MessageList conversationId="conversation-1" />
+      <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
 
     expect(getByText(/Hello/)).toBeTruthy();

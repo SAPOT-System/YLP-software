@@ -53,14 +53,16 @@ export type SignalingMessage =
 export type ChatMessage = { type: "chat"; data: DataChatMessageI };
 export type DataAckMessage = { messageId: string; from: string; to: string };
 export type AckMessage = { type: "ack"; data: DataAckMessage };
+export type DataSeenMessageI = { conversationId: string; from: string; to: string };
+export type SeenMessage = { type: "seen"; data: DataSeenMessageI };
 
 export type AudioCallMessage = {
   type: "audio-call";
-  data: { from: string; to: string };
+  data: { from: string; to: string; conversationId?: string };
 };
 export type VideoCallMessage = {
   type: "video-call";
-  data: { from: string; to: string };
+  data: { from: string; to: string; conversationId?: string };
 };
 export type CallEndedMessage = {
   type: "call-ended";
@@ -88,11 +90,11 @@ export type CallMissedMessage = {
 
 export type WsAudioCallMessage = {
   type: "audio-call";
-  data: { from_user: string; to: string };
+  data: { from_user: string; to: string; conversationId?: string };
 };
 export type WsVideoCallMessage = {
   type: "video-call";
-  data: { from_user: string; to: string };
+  data: { from_user: string; to: string; conversationId?: string };
 };
 export type WsCallEndedMessage = {
   type: "call-ended";
@@ -133,6 +135,7 @@ export type CallControlMessage = {
 export type WebrtcDataMessage =
   | ChatMessage
   | AckMessage
+  | SeenMessage
   | CallMessage
   | CallControlMessage;
 

@@ -1,7 +1,7 @@
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
-import React, { memo } from "react";
-import { FlatList, Text, View } from "react-native";
+import React, { memo, useState } from "react";
+import { FlatList, Text, TouchableOpacity, View } from "react-native";
 
 import {
     GuestUser,
@@ -11,7 +11,10 @@ import {
     database,
     formatDate,
 } from "@/features/shared";
+import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { usePeerService } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
+import { useChatService } from "@/features/chat/hooks/use-chat-service";
 import { useTheme } from "react-native-paper";
 uiLog.debug("[message-list] module loaded");
 
@@ -25,18 +28,22 @@ const enhanceMessages = withObservables(
   })
 );
 
-const MessageList = enhanceMessages(({ messages }: { messages: Message[] }) => {
-  return (
-    <View>
-      <FlatList
-        data={messages}
-        renderItem={({ item }) => <MessageListItem message={item} />}
-        keyExtractor={(message) => message.id}
-        ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
-      />
-    </View>
-  );
-});
+const MessageList = enhanceMessages(
+  ({ messages, peerId }: { messages: Message[]; peerId: string }) => {
+    return (
+      <View>
+        <FlatList
+          data={messages}
+          renderItem={({ item }) => (
+            <MessageListItem message={item} peerId={peerId} />
+          )}
+          keyExtractor={(message) => message.id}
+          ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
+        />
+      </View>
+    );
+  }
+);
 
 const enhanceMessage = withObservables(
   ["message"],
@@ -64,15 +71,37 @@ const MessageListItem = enhanceMessage(
     message,
     sender,
     status,
+    peerId,
   }: {
     message: Message;
     sender?: Peer | GuestUser;
     status: MessageStatus[];
+    peerId: string;
   }) => {
-    // chatLog.debug("chat › message status", { messageId: message.id, count: status.length });
     const statusObj = status?.[0];
     const senderName = getSenderName(sender);
     const theme = useTheme();
+    const chatService = useChatService();
+    const peerService = usePeerService();
+    const [isResending, setIsResending] = useState(false);
+
+    const handleResend = async () => {
+      const discoveredPeer = peerService.findDiscoveredPeerById(peerId);
+      setIsResending(true);
+      try {
+        await chatService.tryResendMessage(
+          message,
+          peerId,
+          discoveredPeer
+            ? { ipAddress: discoveredPeer.ipAddress, port: discoveredPeer.port }
+            : undefined
+        );
+      } catch (err) {
+        uiLog.warn("[message-list] resend failed", { peerId, err });
+      } finally {
+        setIsResending(false);
+      }
+    };
 
     // For the peer message
     if (!statusObj) {
@@ -97,6 +126,9 @@ const MessageListItem = enhanceMessage(
         </View>
       );
     }
+
+    const isNotSent = statusObj.status === MessageStatusType.NOT_SENT;
+
     return (
       <View style={{ alignSelf: "flex-end" }}>
         <View
@@ -113,9 +145,23 @@ const MessageListItem = enhanceMessage(
             {message.content}
           </Text>
         </View>
-        <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
-          {statusObj.status}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
+            {statusObj.status}
+          </Text>
+          {isNotSent && (
+            <TouchableOpacity onPress={handleResend} disabled={isResending}>
+              <Text
+                style={{
+                  color: isResending ? "#9C9C9C" : "#3A7AFE",
+                  fontSize: 13,
+                }}
+              >
+                {isResending ? "Resending..." : "Resend"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   }

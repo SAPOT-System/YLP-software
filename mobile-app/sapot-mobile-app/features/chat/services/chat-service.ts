@@ -12,6 +12,7 @@ import {
   UserStore,
 } from "@/features/shared";
 import { chatLog } from "@/features/shared/utils/logger";
+import * as Notifications from "expo-notifications";
 import {
   ConversationParticipantRepository,
   ConversationRepository,
@@ -144,14 +145,39 @@ export class ChatService {
         messageId: data.messageId,
         senderId: data.from,
       });
-      const sender = await this.peerService.findPeerById(data.from);
-      // TODO: create sender if not exists in the database
+      let sender = await this.peerService.findPeerById(data.from);
+      if (!sender) {
+        chatLog.info("chat › sender not found, creating peer", {
+          senderId: data.from,
+          username: data.senderProfile.username,
+        });
+        sender = await this.peerService.createUser(
+          data.from,
+          data.senderProfile.username,
+          data.senderProfile.firstName,
+          data.senderProfile.lastName
+        );
+      }
+      const existingMessage = await this.messageRepository.queryMessageById(
+        data.messageId
+      );
+      if (existingMessage) {
+        chatLog.info("chat › incoming message deduped", {
+          messageId: data.messageId,
+          conversationId: data.conversationId,
+        });
+        this.acknowledgeIncomingMessage(sender.id, data.messageId);
+        return;
+      }
       const conversation = await this.getOrCreateConversationForIncoming(
         sender,
         data.conversationId
       );
       await this.saveIncomingMessage(sender, conversation, data);
       this.acknowledgeIncomingMessage(sender.id, data.messageId);
+      const senderName =
+        `${sender.firstName} ${sender.lastName ?? ""}`.trim() || sender.username;
+      void this.showChatNotification(senderName, data.message, conversation.id, sender.id);
     } catch (error) {
       chatLog.error("chat › incoming message failed", {
         conversationId: data.conversationId,
@@ -160,6 +186,35 @@ export class ChatService {
         error,
       });
       throw error;
+    }
+  }
+
+  private async showChatNotification(
+    senderName: string,
+    messageContent: string,
+    conversationId: string,
+    senderId: string
+  ): Promise<void> {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: senderName,
+          body:
+            messageContent.length > 100
+              ? messageContent.slice(0, 97) + "..."
+              : messageContent,
+          data: {
+            type: "incoming_message",
+            conversation_id: conversationId,
+            sender_id: senderId,
+            sender_name: senderName,
+            message_preview: messageContent.slice(0, 100),
+          },
+        },
+        trigger: { channelId: "chat-messages" },
+      });
+    } catch (error) {
+      chatLog.error("chat › show notification failed", { error });
     }
   }
 
@@ -200,11 +255,11 @@ export class ChatService {
     conversation: Conversation,
     data: DataChatMessageI
   ): Promise<void> {
-    // TODO: save message with the received incoming message ID
     await this.messageRepository.saveMessage({
       sender: sender,
       content: data.message,
       conversation: conversation,
+      messageId: data.messageId,
     });
     chatLog.debug("chat › incoming saved", {
       conversationId: conversation.id,
@@ -227,6 +282,52 @@ export class ChatService {
       to: senderId,
       from: this.userStore.user.id,
     });
+  }
+
+  /**
+   * Handles an incoming seen message from the receiver, updating all DELIVERED/SENT messages
+   * in the conversation (sent by the current user) to READ.
+   * @param conversationId The conversation id that was seen
+   * @returns Promise<void>
+   */
+  async handleSeenMessage(conversationId: string): Promise<void> {
+    try {
+      chatLog.debug("chat › seen received", { conversationId });
+      const ourMessages =
+        await this.messageRepository.queryMessagesByConversationAndSender(
+          conversationId,
+          this.userStore.user.id
+        );
+      const messageIds = ourMessages.map((m) => m.id);
+      await this.messageStatusRepository.updateDeliveredMessagesToRead(
+        messageIds
+      );
+      chatLog.debug("chat › seen handled", {
+        conversationId,
+        updatedCount: messageIds.length,
+      });
+    } catch (error) {
+      chatLog.error("chat › seen handling failed", { conversationId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Sends a seen notification to the current peer for the active conversation.
+   * Called by the receiver when they open/view a conversation.
+   * @param conversationId The conversation id to mark as read
+   */
+  markConversationAsRead(conversationId: string): void {
+    if (!this.peer) return;
+    try {
+      chatLog.debug("chat › mark as read", {
+        conversationId,
+        peerId: this.peer.id,
+      });
+      this.connectionService.sendSeenMessage(this.peer.id, conversationId);
+    } catch (error) {
+      chatLog.warn("chat › mark as read failed", { conversationId, error });
+    }
   }
 
   /**
@@ -345,6 +446,11 @@ export class ChatService {
         from: this.userStore.user.id,
         sentAt: newMessage.createdAt,
         messageType: newMessage.messageType,
+        senderProfile: {
+          username: this.userStore.user.username,
+          firstName: this.userStore.user.firstName,
+          lastName: this.userStore.user.lastName || undefined,
+        },
       });
       await this.messageStatusRepository.updateMessageStatusById(
         newMessageStatus.id,
@@ -498,7 +604,8 @@ export class ChatService {
   }
 
   async getOrCreateDirectConversationByPeer(
-    peerId: string
+    peerId: string,
+    conversationId?: string
   ): Promise<Conversation> {
     try {
       const peer = await this.peerService.findPeerById(peerId);
@@ -514,7 +621,7 @@ export class ChatService {
         );
       }
 
-      return await this.createChatRoom(peer);
+      return await this.createChatRoom(peer, conversationId);
     } catch (error) {
       chatLog.error("chat › direct conversation resolve/create failed", {
         peerId,
@@ -729,16 +836,19 @@ export class ChatService {
    * Tries to resend a message to a peer by reconnecting and sending the message again.
    * @param message The message to resend
    * @param peerId The peer id
-   * @param param2 The peer's ipAddress and port
+   * @param options The peer's ipAddress and port — required when WebSocket is not available (LAN-only mode)
    * @returns Promise<void>
    */
   async tryResendMessage(
     message: Message,
     peerId: string,
-    { ipAddress, port }: { ipAddress: string; port: number }
+    options?: { ipAddress: string; port: number }
   ): Promise<void> {
     try {
-      await this.connectionService.connectToPeer(peerId, ipAddress, port);
+      if (!this.connectionService.isWebSocketAllowed() && (!options?.ipAddress || !options?.port)) {
+        throw new Error("ipAddress and port are required when WebSocket is not available");
+      }
+      await this.connectionService.connectToPeer(peerId, options?.ipAddress, options?.port);
       await this.connectionService.waitForDataChannel(peerId);
 
       this.connectionService.sendChatMessage(peerId, {
@@ -749,6 +859,11 @@ export class ChatService {
         to: peerId,
         sentAt: message.createdAt,
         messageType: message.messageType,
+        senderProfile: {
+          username: this.userStore.user.username,
+          firstName: this.userStore.user.firstName,
+          lastName: this.userStore.user.lastName || undefined,
+        },
       });
 
       await this.messageStatusRepository.updateMessageStatusByMessage(

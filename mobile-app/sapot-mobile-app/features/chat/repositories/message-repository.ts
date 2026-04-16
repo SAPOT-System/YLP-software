@@ -122,6 +122,33 @@ export class MessageRepository {
   }
 
   /**
+   * Queries messages by conversation id and sender id.
+   * @param conversationId The conversation id
+   * @param senderId The sender's peer id
+   * @returns Promise<Message[]> Array of messages sent by the given sender
+   */
+  async queryMessagesByConversationAndSender(
+    conversationId: string,
+    senderId: string
+  ): Promise<Message[]> {
+    try {
+      return await this.messagesCollection
+        .query(
+          Q.where("conversation", conversationId),
+          Q.where("sender", senderId)
+        )
+        .fetch();
+    } catch (error) {
+      chatLog.error("chat › messages by conversation+sender failed", {
+        conversationId,
+        senderId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Queries all messages in the database.
    * @returns Promise<Message[]> Array of all messages
    */
