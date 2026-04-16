@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import os
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import String, delete, select, func, desc, cast
+from sqlmodel import String, delete, select, func, desc, cast, update
 from typing import Annotated, List, Optional
 import socket
 from fastapi import FastAPI
@@ -16,6 +16,7 @@ import psutil
 import time
 from app.models.activity import UserActivity
 from app.models.admin import Admin
+from app.models.banned_user import BannedUser
 from app.models.location import UserLocation
 from sqlmodel import select, func, desc
 from typing import Annotated
@@ -621,6 +622,68 @@ def delete_user(
     except HTTPException as e:
         raise e
     except Exception as e:
-        print("er", e)
         raise HTTPException(500)
     return {"status": "ok"}
+
+
+@router.post("/ban/user")
+def ban_user(
+        _: Annotated[User, Depends(get_current_user_admin)],
+        user_id: UUID,
+        duration_in_days: int,
+        session: SessionDep
+        ):
+    user = get_user_by_ID(session, user_id)
+    try:
+        if not user:
+            raise HTTPException(404, "User not found")
+
+        if user.banned:
+            ban = user.banned
+            setattr(ban, "until", datetime.now(timezone.utc)+timedelta(days=duration_in_days))
+            session.add(ban)
+            session.commit()
+            session.refresh(ban)
+        else:
+            ban = BannedUser(
+                    user_id=user_id,
+                    until=datetime.now(timezone.utc)+timedelta(days=duration_in_days)
+                    )
+
+            session.add(ban)
+            session.commit()
+            session.refresh(ban)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(500)
+    return {"status": "ok"}
+
+
+@router.post("/unban/user")
+def unban_user(
+        _: Annotated[User, Depends(get_current_user_admin)],
+        user_id: UUID,
+        session: SessionDep
+        ):
+    user = get_user_by_ID(session, user_id)
+    try:
+        if not user:
+            raise HTTPException(404, "User not found")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        nowreal = datetime.now(timezone.utc)
+        statement = (
+            update(BannedUser)
+            .where(BannedUser.until > now)
+            .values(until=nowreal)
+        )
+
+        session.exec(statement)
+        session.commit()
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(500)
+    return {"status": "ok"}
+
