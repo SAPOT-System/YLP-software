@@ -424,6 +424,7 @@ describe("ConnectionService", () => {
           to: "peer-2",
           sentAt: new Date(),
           messageType: MessageType.TEXT,
+          senderProfile: { username: "peer1", firstName: "Peer" },
         },
       };
 
@@ -733,6 +734,7 @@ describe("ConnectionService", () => {
         to: peerId,
         sentAt: new Date(),
         messageType: MessageType.TEXT,
+        senderProfile: { username: "testuser", firstName: "Test" },
       };
 
       connectionService.sendChatMessage(peerId, messageData);

@@ -242,6 +242,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
       sentAt,
       messageType,
       to,
+      senderProfile,
     } = messageData;
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -255,6 +256,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
           to,
           sentAt,
           messageType,
+          senderProfile,
         },
       });
     } catch (error) {

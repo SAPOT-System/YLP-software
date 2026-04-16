@@ -16,7 +16,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function IncomingCall() {
   const router = useRouter();
-  const { id, type } = useLocalSearchParams<{ id: string; type: string }>();
+  const { id, type, conversationId } = useLocalSearchParams<{ id: string; type: string; conversationId?: string }>();
   const callService = useCallService();
   const connectionService = useConnectionService();
   const peerService = usePeerService();
@@ -52,7 +52,8 @@ export default function IncomingCall() {
         callService
           .markMissedIncomingCall(
             (type as "audio" | "video") ?? "audio",
-            id as string
+            id as string,
+            conversationId || undefined
           )
           .catch((error) => {
             uiLog.error("[IncomingCall] Error while marking missed call", {
@@ -102,7 +103,8 @@ export default function IncomingCall() {
     try {
       await callService.answerCall(
         (type as "audio" | "video") ?? "audio",
-        id as string
+        id as string,
+        conversationId || undefined
       );
     } catch (error) {
       uiLog.error("[IncomingCall] Error in start call", { error });
@@ -124,7 +126,8 @@ export default function IncomingCall() {
     try {
       await callService.rejectIncomingCall(
         (type as "audio" | "video") ?? "audio",
-        id as string
+        id as string,
+        conversationId || undefined
       );
     } catch (error) {
       uiLog.error("[IncomingCall] Error in reject call", { error });
