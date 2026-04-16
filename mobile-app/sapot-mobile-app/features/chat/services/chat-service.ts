@@ -792,16 +792,19 @@ export class ChatService {
    * Tries to resend a message to a peer by reconnecting and sending the message again.
    * @param message The message to resend
    * @param peerId The peer id
-   * @param param2 The peer's ipAddress and port
+   * @param options The peer's ipAddress and port — required when WebSocket is not available (LAN-only mode)
    * @returns Promise<void>
    */
   async tryResendMessage(
     message: Message,
     peerId: string,
-    { ipAddress, port }: { ipAddress: string; port: number }
+    options?: { ipAddress: string; port: number }
   ): Promise<void> {
     try {
-      await this.connectionService.connectToPeer(peerId, ipAddress, port);
+      if (!this.connectionService.isWebSocketAllowed() && (!options?.ipAddress || !options?.port)) {
+        throw new Error("ipAddress and port are required when WebSocket is not available");
+      }
+      await this.connectionService.connectToPeer(peerId, options?.ipAddress, options?.port);
       await this.connectionService.waitForDataChannel(peerId);
 
       this.connectionService.sendChatMessage(peerId, {

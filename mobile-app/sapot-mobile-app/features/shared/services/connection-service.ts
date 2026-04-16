@@ -811,7 +811,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     return this.appModeStore.isTcpAllowed(this.userStore.isGuest);
   }
 
-  private isWebSocketAllowed(): boolean {
+  isWebSocketAllowed(): boolean {
     return this.appModeStore.isWebSocketAllowed(this.userStore.isGuest);
   }
 
