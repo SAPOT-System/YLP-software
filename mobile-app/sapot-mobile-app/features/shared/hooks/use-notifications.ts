@@ -27,8 +27,17 @@ interface IncomingCallData {
   conversationId?: string;
 }
 
+interface IncomingMessageData {
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  messagePreview: string;
+  notificationId: string;
+}
+
 export const useNotifications = (
-  onIncomingCall: (data: IncomingCallData) => void
+  onIncomingCall: (data: IncomingCallData) => void,
+  onIncomingMessage?: (data: IncomingMessageData) => void
 ) => {
   // ── Fix 2: useRef requires an initial value in newer React types ──────────────
   const notificationListener = useRef<Notifications.Subscription | null>(null);
@@ -50,6 +59,16 @@ export const useNotifications = (
             notificationId: notification.request.identifier,
             conversationId: data.conversation_id ? String(data.conversation_id) : undefined,
           });
+        } else if (data?.type === "incoming_message") {
+          backgroundLog.info("notifications › incoming message received (fg)");
+
+          onIncomingMessage?.({
+            conversationId: String(data["conversation_id"] ?? ""),
+            senderId: String(data["sender_id"] ?? ""),
+            senderName: String(data["sender_name"] ?? ""),
+            messagePreview: String(data["message_preview"] ?? ""),
+            notificationId: notification.request.identifier,
+          });
         }
       });
 
@@ -69,22 +88,19 @@ export const useNotifications = (
             notificationId: response.notification.request.identifier,
             conversationId: data.conversation_id ? String(data.conversation_id) : undefined,
           });
+        } else if (data?.type === "incoming_message") {
+          backgroundLog.info("notifications › incoming message tapped (bg/killed)");
+
+          onIncomingMessage?.({
+            conversationId: String(data["conversation_id"] ?? ""),
+            senderId: String(data["sender_id"] ?? ""),
+            senderName: String(data["sender_name"] ?? ""),
+            messagePreview: String(data["message_preview"] ?? ""),
+            notificationId: response.notification.request.identifier,
+          });
         }
       });
   }, [onIncomingCall]);
-
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-
-    setupIncomingCallChannel();
-    requestPermissions();
-    setupListeners();
-
-    return () => {
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
-    };
-  }, [setupListeners]);
 
   const setupIncomingCallChannel = async () => {
     try {
@@ -101,6 +117,33 @@ export const useNotifications = (
       backgroundLog.error("notifications › channel setup failed", { error });
     }
   };
+
+  const setupChatMessageChannel = async () => {
+    try {
+      await Notifications.setNotificationChannelAsync("chat-messages", {
+        name: "Chat Messages",
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 250],
+      });
+      backgroundLog.info("notifications › chat message channel ready");
+    } catch (error) {
+      backgroundLog.error("notifications › chat channel setup failed", { error });
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    setupIncomingCallChannel();
+    setupChatMessageChannel();
+    requestPermissions();
+    setupListeners();
+
+    return () => {
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
+  }, [setupListeners]);
 
   const requestPermissions = async () => {
     if (!Device.isDevice) {

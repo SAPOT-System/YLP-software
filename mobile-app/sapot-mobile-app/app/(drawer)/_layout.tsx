@@ -16,6 +16,7 @@ import { AUTH_ROUTES } from "../routes";
 import { CallProvider } from "@/features/call/context/call-context";
 import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
+import { ChatRoomSource } from "@/features/chat/types";
 import { router } from "expo-router";
 import { Platform } from "react-native";
 
@@ -35,29 +36,54 @@ export default function DrawerLayout() {
     null
   );
 
-  useNotifications((incomingCallData) => {
-    if (handledNotifIdRef.current === incomingCallData.notificationId) return;
-    handledNotifIdRef.current = incomingCallData.notificationId;
-    navLog.info("[DrawerLayout] incoming call via notification listener", {
-      notificationId: incomingCallData.notificationId,
-    });
+  useNotifications(
+    (incomingCallData) => {
+      if (handledNotifIdRef.current === incomingCallData.notificationId) return;
+      handledNotifIdRef.current = incomingCallData.notificationId;
+      navLog.info("[DrawerLayout] incoming call via notification listener", {
+        notificationId: incomingCallData.notificationId,
+      });
 
-    if (handledNotifTimeoutRef.current) {
-      clearTimeout(handledNotifTimeoutRef.current);
+      if (handledNotifTimeoutRef.current) {
+        clearTimeout(handledNotifTimeoutRef.current);
+      }
+
+      handledNotifTimeoutRef.current = setTimeout(() => {
+        handledNotifIdRef.current = null;
+      }, 30_000);
+      router.push({
+        pathname: "/(drawer)/(tabs)/call/incoming",
+        params: {
+          id: incomingCallData.callerId,
+          type: incomingCallData.callType,
+          conversationId: incomingCallData.conversationId ?? "",
+        },
+      });
+    },
+    (incomingMsgData) => {
+      if (handledNotifIdRef.current === incomingMsgData.notificationId) return;
+      handledNotifIdRef.current = incomingMsgData.notificationId;
+      navLog.info("[DrawerLayout] incoming message via notification listener", {
+        notificationId: incomingMsgData.notificationId,
+        conversationId: incomingMsgData.conversationId,
+      });
+
+      if (handledNotifTimeoutRef.current) {
+        clearTimeout(handledNotifTimeoutRef.current);
+      }
+
+      handledNotifTimeoutRef.current = setTimeout(() => {
+        handledNotifIdRef.current = null;
+      }, 30_000);
+      router.push({
+        pathname: "/(drawer)/(tabs)/chat/[id]",
+        params: {
+          id: incomingMsgData.conversationId,
+          source: ChatRoomSource.CHAT,
+        },
+      });
     }
-
-    handledNotifTimeoutRef.current = setTimeout(() => {
-      handledNotifIdRef.current = null;
-    }, 30_000);
-    router.push({
-      pathname: "/(drawer)/(tabs)/call/incoming",
-      params: {
-        id: incomingCallData.callerId,
-        type: incomingCallData.callType,
-        conversationId: incomingCallData.conversationId ?? "",
-      },
-    });
-  });
+  );
 
   handledNotifTimeoutRef.current = setTimeout(() => {
     handledNotifIdRef.current = null;
@@ -77,24 +103,42 @@ export default function DrawerLayout() {
       const notifId = response.notification.request.identifier;
       const data = response.notification.request.content.data;
 
-      if (data?.type !== "incoming_call") return;
-      if (handledNotifIdRef.current === notifId) return;
-      handledNotifIdRef.current = notifId;
+      if (data?.type === "incoming_call") {
+        if (handledNotifIdRef.current === notifId) return;
+        handledNotifIdRef.current = notifId;
 
-      navLog.info("[DrawerLayout] incoming call via cold-start response", {
-        notifId,
-      });
-      // Delay until router is fully mounted
-      setTimeout(() => {
-        router.push({
-          pathname: "/(drawer)/(tabs)/call/incoming",
-          params: {
-            id: String(data.id ?? ""),
-            type: String(data["call_type"] ?? ""),
-            conversationId: String(data["conversation_id"] ?? ""),
-          },
+        navLog.info("[DrawerLayout] incoming call via cold-start response", {
+          notifId,
         });
-      }, 300);
+        // Delay until router is fully mounted
+        setTimeout(() => {
+          router.push({
+            pathname: "/(drawer)/(tabs)/call/incoming",
+            params: {
+              id: String(data.id ?? ""),
+              type: String(data["call_type"] ?? ""),
+              conversationId: String(data["conversation_id"] ?? ""),
+            },
+          });
+        }, 300);
+      } else if (data?.type === "incoming_message") {
+        if (handledNotifIdRef.current === notifId) return;
+        handledNotifIdRef.current = notifId;
+
+        navLog.info("[DrawerLayout] incoming message via cold-start response", {
+          notifId,
+        });
+        // Delay until router is fully mounted
+        setTimeout(() => {
+          router.push({
+            pathname: "/(drawer)/(tabs)/chat/[id]",
+            params: {
+              id: String(data["conversation_id"] ?? ""),
+              source: ChatRoomSource.CHAT,
+            },
+          });
+        }, 300);
+      }
     });
   }, []);
 

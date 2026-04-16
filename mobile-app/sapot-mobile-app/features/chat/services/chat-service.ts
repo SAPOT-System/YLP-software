@@ -12,6 +12,7 @@ import {
   UserStore,
 } from "@/features/shared";
 import { chatLog } from "@/features/shared/utils/logger";
+import * as Notifications from "expo-notifications";
 import {
   ConversationParticipantRepository,
   ConversationRepository,
@@ -174,6 +175,9 @@ export class ChatService {
       );
       await this.saveIncomingMessage(sender, conversation, data);
       this.acknowledgeIncomingMessage(sender.id, data.messageId);
+      const senderName =
+        `${sender.firstName} ${sender.lastName ?? ""}`.trim() || sender.username;
+      void this.showChatNotification(senderName, data.message, conversation.id, sender.id);
     } catch (error) {
       chatLog.error("chat › incoming message failed", {
         conversationId: data.conversationId,
@@ -182,6 +186,35 @@ export class ChatService {
         error,
       });
       throw error;
+    }
+  }
+
+  private async showChatNotification(
+    senderName: string,
+    messageContent: string,
+    conversationId: string,
+    senderId: string
+  ): Promise<void> {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: senderName,
+          body:
+            messageContent.length > 100
+              ? messageContent.slice(0, 97) + "..."
+              : messageContent,
+          data: {
+            type: "incoming_message",
+            conversation_id: conversationId,
+            sender_id: senderId,
+            sender_name: senderName,
+            message_preview: messageContent.slice(0, 100),
+          },
+        },
+        trigger: { channelId: "chat-messages" },
+      });
+    } catch (error) {
+      chatLog.error("chat › show notification failed", { error });
     }
   }
 
