@@ -228,6 +228,7 @@ export function createChatServiceDependencyMocks() {
 		toggleCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		renegotiate: jest.fn(),
+		isWebSocketAllowed: jest.fn(() => true),
 		waitForDataChannel: jest.fn().mockResolvedValue(undefined),
 	};
 
