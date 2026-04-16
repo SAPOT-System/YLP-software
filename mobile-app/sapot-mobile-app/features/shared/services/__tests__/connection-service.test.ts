@@ -12,6 +12,8 @@ import { WebrtcAdapter } from "../../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
     CallEndedMessage,
+    CallMissedMessage,
+    CallRejectedMessage,
     ChatMessage,
     SignalingMessage
 } from "../../types";
@@ -22,9 +24,8 @@ import { WebrtcSessionManager } from "../webrtc-session-manager";
 
 export enum MessageType {
   TEXT = "text",
-  PHOTO = "photo",
-  VIDEO = "video",
   FILE = "file",
+  CALL_LOG = "call_log",
 }
 const mockOfferDescription: RTCSessionDescriptionInit = {
   type: "offer",
@@ -249,7 +250,57 @@ describe("ConnectionService", () => {
 
       await dataHandler?.(callEndedMessage);
 
-      expect(emitSpy).toHaveBeenCalledWith("call-ended", "peer-1");
+      expect(emitSpy).toHaveBeenCalledWith(
+        "call-ended",
+        expect.objectContaining({
+          peerId: "peer-1",
+        })
+      );
+    });
+
+    it("should handle call-rejected ws messages", async () => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+
+      expect(callMessageHandler).toBeDefined();
+
+      const callRejectedMessage: CallRejectedMessage = {
+        type: "call-rejected",
+        data: { from: "peer-1", to: "peer-2", reason: "declined" },
+      };
+
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await callMessageHandler?.({
+        type: callRejectedMessage.type,
+        data: {
+          from_user: callRejectedMessage.data.from,
+          to: callRejectedMessage.data.to,
+          reason: callRejectedMessage.data.reason,
+        },
+      });
+
+      expect(emitSpy).toHaveBeenCalledWith("call-rejected", "peer-1");
+    });
+
+    it("should handle call-missed tcp messages", async () => {
+      const dataHandler = mockTcpServerAdapter.on.mock.calls.find(
+        (call) => call[0] === "data"
+      )?.[1];
+
+      expect(dataHandler).toBeDefined();
+
+      const callMissedMessage: CallMissedMessage = {
+        type: "call-missed",
+        data: { from: "peer-1", to: "peer-2", reason: "no-answer" },
+      };
+
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await dataHandler?.(callMissedMessage);
+
+      expect(emitSpy).toHaveBeenCalledWith("call-missed", "peer-1");
     });
   });
 

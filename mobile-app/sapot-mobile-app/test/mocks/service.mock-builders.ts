@@ -167,6 +167,22 @@ export function createCallServiceDependencyMocks() {
 
 	const peerService = {
 		findDiscoveredPeerById: jest.fn(),
+		findPeerById: jest.fn(),
+	};
+
+	const callRepository = {
+		saveCall: jest.fn(),
+		updateCallStatus: jest.fn(),
+	};
+
+	const callParticipantRepository = {
+		saveCallParticipant: jest.fn(),
+		updateParticipantLeftAtByCallAndUser: jest.fn(),
+	};
+
+	const chatService = {
+		getOrCreateDirectConversationByPeer: jest.fn(),
+		saveCallLogWithReceipts: jest.fn(),
 	};
 
 	connectionService.on.mockImplementation(() => connectionService);
@@ -182,6 +198,9 @@ export function createCallServiceDependencyMocks() {
 	return {
 		connectionService,
 		peerService,
+		callRepository,
+		callParticipantRepository,
+		chatService,
 		userStore,
 	};
 }
@@ -232,6 +251,7 @@ export function createChatServiceDependencyMocks() {
 	const messageRepository = {
 		saveMessage: jest.fn(),
 		queryMessagesByConversation: jest.fn(),
+		queryMessageById: jest.fn(),
 		getAllMessageDestroyOps: jest.fn(),
 	};
 

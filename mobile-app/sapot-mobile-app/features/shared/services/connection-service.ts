@@ -33,11 +33,21 @@ export type ConnectionStatePayload = {
   error?: unknown;
 };
 
+export type CallEndedEventPayload = {
+  peerId: string;
+  status?: "completed" | "missed" | "rejected";
+  endedAt?: number;
+  durationSeconds?: number;
+  initiatorId?: string;
+};
+
 export type ConnectionServiceEvents = {
   "audio-call": [peerId: string];
   "video-call": [peerId: string];
-  "call-ended": [peerId: string];
+  "call-ended": [payload: CallEndedEventPayload];
   "call-ready": [peerId: string];
+  "call-rejected": [peerId: string];
+  "call-missed": [peerId: string];
   "camera-off": [peerId: string];
   "camera-on": [peerId: string];
   "switch-cam": [stream: MediaStream];
@@ -145,6 +155,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               callerName: message.data.from_user,
               callType: message.type,
             });
+            this.emit("audio-call", message.data.from_user);
           }
           if (message.type === "video-call") {
             await this.showIncomingCallNotification({
@@ -152,17 +163,32 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               callerName: message.data.from_user,
               callType: message.type,
             });
+            this.emit("video-call", message.data.from_user);
           }
           if (message.type === "call-ended") {
             // TODO: check if needed to reinitialize local stream
             // TODO: validate that the caller id is the sender
             connectionLog.info("connection › call ended", {
               peerId: message.data.from_user,
+              status: message.data.status,
+              initiatorId: message.data.initiatorId,
             });
-            this.emit("call-ended", message.data.from_user);
+            this.emit("call-ended", {
+              peerId: message.data.from_user,
+              status: message.data.status,
+              endedAt: message.data.endedAt,
+              durationSeconds: message.data.durationSeconds,
+              initiatorId: message.data.initiatorId,
+            });
           }
           if (message.type === "call-ready") {
             this.emit("call-ready", message.data.from_user);
+          }
+          if (message.type === "call-rejected") {
+            this.emit("call-rejected", message.data.from_user);
+          }
+          if (message.type === "call-missed") {
+            this.emit("call-missed", message.data.from_user);
           }
         } catch (error) {
           connectionLog.error("connection › call message handling failed", {
@@ -225,33 +251,47 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           await this.signalingService.handleIncomingSignaling(message);
         }
         if (message.type === "audio-call" && "from" in message.data) {
-          // this.emit("audio-call", message.data.from);
           await this.showIncomingCallNotification({
             callerId: message.data.from,
             callerName: message.data.from,
             callType: message.type,
             // offer: (message.data as any).offer ?? null,
           });
+          this.emit("audio-call", message.data.from);
         }
         if (message.type === "video-call" && "from" in message.data) {
-          // this.emit("video-call", message.data.from);
           await this.showIncomingCallNotification({
             callerId: message.data.from,
             callerName: message.data.from,
             callType: message.type,
             // offer: (message.data as any).offer ?? null,
           });
+          this.emit("video-call", message.data.from);
         }
         if (message.type === "call-ended" && "from" in message.data) {
           // TODO: check if needed to reinitialize local stream
           // TODO: validate that the caller id is the sender
           connectionLog.info("connection › call ended", {
             peerId: message.data.from,
+            status: message.data.status,
+            initiatorId: message.data.initiatorId,
           });
-          this.emit("call-ended", message.data.from);
+          this.emit("call-ended", {
+            peerId: message.data.from,
+            status: message.data.status,
+            endedAt: message.data.endedAt,
+            durationSeconds: message.data.durationSeconds,
+            initiatorId: message.data.initiatorId,
+          });
         }
         if (message.type === "call-ready" && "from" in message.data) {
           this.emit("call-ready", message.data.from);
+        }
+        if (message.type === "call-rejected" && "from" in message.data) {
+          this.emit("call-rejected", message.data.from);
+        }
+        if (message.type === "call-missed" && "from" in message.data) {
+          this.emit("call-missed", message.data.from);
         }
       } catch (error) {
         connectionLog.error("connection › tcp handler failed", { error });

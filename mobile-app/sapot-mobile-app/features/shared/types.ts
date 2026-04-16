@@ -64,11 +64,26 @@ export type VideoCallMessage = {
 };
 export type CallEndedMessage = {
   type: "call-ended";
-  data: { from: string; to: string };
+  data: {
+    from: string;
+    to: string;
+    status?: "completed" | "missed" | "rejected";
+    endedAt?: number;
+    durationSeconds?: number;
+    initiatorId?: string;
+  };
 };
 export type CallReadyMessage = {
   type: "call-ready";
   data: { from: string; to: string };
+};
+export type CallRejectedMessage = {
+  type: "call-rejected";
+  data: { from: string; to: string; reason?: "declined" | "busy" };
+};
+export type CallMissedMessage = {
+  type: "call-missed";
+  data: { from: string; to: string; reason?: "no-answer" };
 };
 
 export type WsAudioCallMessage = {
@@ -81,11 +96,26 @@ export type WsVideoCallMessage = {
 };
 export type WsCallEndedMessage = {
   type: "call-ended";
-  data: { from_user: string; to: string };
+  data: {
+    from_user: string;
+    to: string;
+    status?: "completed" | "missed" | "rejected";
+    endedAt?: number;
+    durationSeconds?: number;
+    initiatorId?: string;
+  };
 };
 export type WsCallReadyMessage = {
   type: "call-ready";
   data: { from_user: string; to: string };
+};
+export type WsCallRejectedMessage = {
+  type: "call-rejected";
+  data: { from_user: string; to: string; reason?: "declined" | "busy" };
+};
+export type WsCallMissedMessage = {
+  type: "call-missed";
+  data: { from_user: string; to: string; reason?: "no-answer" };
 };
 
 export type CallControlData = {
@@ -115,13 +145,17 @@ export type CallMessage =
   | AudioCallMessage
   | CallEndedMessage
   | VideoCallMessage
-  | CallReadyMessage;
+  | CallReadyMessage
+  | CallRejectedMessage
+  | CallMissedMessage;
 
 export type WsCallMessage =
   | WsAudioCallMessage
   | WsCallEndedMessage
   | WsVideoCallMessage
-  | WsCallReadyMessage;
+  | WsCallReadyMessage
+  | WsCallRejectedMessage
+  | WsCallMissedMessage;
 
 export interface Peer {
   id: string;
