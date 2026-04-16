@@ -7,6 +7,7 @@ import { NetworkConfig, UserStore } from "../stores";
 import {
   CallControlData,
   DataAckMessage,
+  DataSeenMessageI,
   SignalingMessage,
   WebrtcDataMessage,
 } from "../types";
@@ -100,6 +101,15 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
                 messageId: message.data.messageId,
               });
               await this.chatService.handleAckMessage(message.data.messageId);
+            }
+            break;
+          case "seen":
+            if (message.data) {
+              webrtcLog.debug("webrtc › seen received", {
+                conversationId: message.data.conversationId,
+                from: message.data.from,
+              });
+              await this.chatService.handleSeenMessage(message.data.conversationId);
             }
             break;
           case "camera_toggle":
@@ -254,6 +264,29 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         messageId,
         messageType,
         hasMessage: Boolean(message),
+        error,
+      });
+      throw error;
+    }
+  }
+
+  sendSeenMessage(peerId: string, seenData: DataSeenMessageI) {
+    const { conversationId } = seenData;
+    try {
+      webrtcLog.debug("webrtc › seen send", { peerId, conversationId });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: "seen",
+        data: {
+          conversationId,
+          from: this.userStore.user.id,
+          to: peerId,
+        },
+      });
+    } catch (error) {
+      webrtcLog.error("webrtc › seen send failed", {
+        peerId,
+        conversationId,
         error,
       });
       throw error;

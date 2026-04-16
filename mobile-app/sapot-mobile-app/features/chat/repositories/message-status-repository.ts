@@ -198,6 +198,43 @@ export class MessageStatusRepository {
   }
 
   /**
+   * Updates all DELIVERED or SENT statuses for the given message ids to READ.
+   * @param messageIds Array of message ids to mark as read
+   * @returns Promise<void>
+   */
+  async updateDeliveredMessagesToRead(messageIds: string[]): Promise<void> {
+    if (messageIds.length === 0) return;
+    try {
+      await this.db.write(async () => {
+        const statuses = await this.messageStatusCollection
+          .query(
+            Q.where("message", Q.oneOf(messageIds)),
+            Q.where(
+              "status",
+              Q.oneOf([MessageStatusType.DELIVERED, MessageStatusType.SENT])
+            )
+          )
+          .fetch();
+
+        await this.db.batch(
+          ...statuses.map((s) =>
+            s.prepareUpdate((record) => {
+              record.status = MessageStatusType.READ;
+              record.updatedAt = new Date();
+            })
+          )
+        );
+      });
+    } catch (error) {
+      chatLog.error("chat › delivered-to-read update failed", {
+        messageCount: messageIds.length,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Gets destroy operations for all message statuses (for debugging/testing purposes).
    * @returns Promise<any[]> Array of destroy operations
    */

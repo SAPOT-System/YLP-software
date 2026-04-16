@@ -230,6 +230,52 @@ export class ChatService {
   }
 
   /**
+   * Handles an incoming seen message from the receiver, updating all DELIVERED/SENT messages
+   * in the conversation (sent by the current user) to READ.
+   * @param conversationId The conversation id that was seen
+   * @returns Promise<void>
+   */
+  async handleSeenMessage(conversationId: string): Promise<void> {
+    try {
+      chatLog.debug("chat › seen received", { conversationId });
+      const ourMessages =
+        await this.messageRepository.queryMessagesByConversationAndSender(
+          conversationId,
+          this.userStore.user.id
+        );
+      const messageIds = ourMessages.map((m) => m.id);
+      await this.messageStatusRepository.updateDeliveredMessagesToRead(
+        messageIds
+      );
+      chatLog.debug("chat › seen handled", {
+        conversationId,
+        updatedCount: messageIds.length,
+      });
+    } catch (error) {
+      chatLog.error("chat › seen handling failed", { conversationId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Sends a seen notification to the current peer for the active conversation.
+   * Called by the receiver when they open/view a conversation.
+   * @param conversationId The conversation id to mark as read
+   */
+  markConversationAsRead(conversationId: string): void {
+    if (!this.peer) return;
+    try {
+      chatLog.debug("chat › mark as read", {
+        conversationId,
+        peerId: this.peer.id,
+      });
+      this.connectionService.sendSeenMessage(this.peer.id, conversationId);
+    } catch (error) {
+      chatLog.warn("chat › mark as read failed", { conversationId, error });
+    }
+  }
+
+  /**
    * Handles an incoming acknowledgment message for a given messageId, updating its status to DELIVERED.
    * @param messageId The message id to acknowledge
    * @returns Promise<void>

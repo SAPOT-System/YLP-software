@@ -110,6 +110,16 @@ const ChatRoom = () => {
     };
   }, [peerId, chatService, showToast]);
 
+  // Notify the sender that messages have been seen when connected and viewing a conversation
+  useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
+      isConnected,
+      conversationId,
+    });
+    if (!isConnected || !conversationId) return;
+    chatService.markConversationAsRead(conversationId);
+  }, [isConnected, conversationId, chatService]);
+
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
