@@ -22,14 +22,15 @@ import { ConversationRepository } from "@/features/chat/repositories/conversatio
 import { MessageRepository } from "@/features/chat/repositories/message-repository";
 import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 import { ChatService } from "@/features/chat/services/chat-service";
+import { setAppAlive } from "@/task/signaling-task";
 import { AuthContainer } from "../auth/auth-container";
+import { CallParticipantRepository, CallRepository } from "../call";
 import { SyncService } from "../sync";
-import { appLog } from "./utils/logger";
 import {
   clearConnectionConfig,
   saveConnectionConfig,
 } from "./stores/secure-config";
-import { setAppAlive } from "@/task/signaling-task";
+import { appLog } from "./utils/logger";
 
 appLog.debug("[main-container] module loaded");
 
@@ -51,6 +52,8 @@ export class MainContainer {
   readonly conversationRepository: ConversationRepository;
   readonly conversationParticipantRepository: ConversationParticipantRepository;
   readonly messageStatusRepository: MessageStatusRepository;
+  readonly callRepository: CallRepository;
+  readonly callParticipantRepository: CallParticipantRepository;
   readonly callService: CallService;
   readonly guestUserRepository: GuestUserRepository;
   readonly userContainer: AuthContainer;
@@ -137,10 +140,15 @@ export class MainContainer {
       this.userContainer.userStore
     );
 
+    this.callRepository = new CallRepository(database);
+    this.callParticipantRepository = new CallParticipantRepository(database);
     this.callService = new CallService(
       this.connectionService,
       this.userContainer.userStore,
-      this.userContainer.peerService
+      this.userContainer.peerService,
+      this.callRepository,
+      this.callParticipantRepository,
+      this.chatService
     );
 
     this.connectionService.setChatService(this.chatService);

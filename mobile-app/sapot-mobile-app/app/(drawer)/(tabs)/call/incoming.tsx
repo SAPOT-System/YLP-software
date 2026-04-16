@@ -4,13 +4,11 @@ import {
   useConnectionService,
   usePeerService,
   useProfilePhoto,
-  useUserStore,
 } from "@/features/shared/hooks";
 import { navLog, uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "expo-router";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -20,7 +18,6 @@ export default function IncomingCall() {
   const callService = useCallService();
   const connectionService = useConnectionService();
   const peerService = usePeerService();
-  const userStore = useUserStore();
 
   const [peer, setPeer] = useState<Peer | null>(null);
   const { url: peerPhotoUrl } = useProfilePhoto(id);
@@ -50,19 +47,29 @@ export default function IncomingCall() {
     useCallback(() => {
       const timer = setTimeout(() => {
         navLog.info("[IncomingCall] did not answer");
+        callService
+          .markMissedIncomingCall(
+            (type as "audio" | "video") ?? "audio",
+            id as string
+          )
+          .catch((error) => {
+            uiLog.error("[IncomingCall] Error while marking missed call", {
+              error,
+            });
+          });
         router.replace("/(drawer)/(tabs)");
       }, 30_000);
 
       return () => clearTimeout(timer);
-    }, [router])
+    }, [callService, id, router, type])
   );
 
   // If the caller cancels before we accept, go back
   useEffect(() => {
-    const handler = (fromId?: string) => {
-      if (fromId && fromId !== id) return;
+    const handler = (payload: { peerId: string }) => {
+      if (payload.peerId !== id) return;
       uiLog.info("[Navigation] goBack triggered from IncomingCall");
-      router.back();
+      router.replace("/(drawer)/(tabs)");
     };
     connectionService.on("call-ended", handler);
     return () => {
@@ -88,22 +95,22 @@ export default function IncomingCall() {
     });
     router.replace({
       pathname: "/(drawer)/(tabs)/call/[id]" as never,
-      params: { id: id!, type: type ?? "audio", status: "answering"},
+      params: { id: id!, type: type ?? "audio", status: "answering" },
     });
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     uiLog.debug("[IncomingCall] handleReject called", { id });
     try {
-      connectionService.sendCallMessage(id as string, {
-        type: "call-ended",
-        data: { from: userStore.user.id, to: id as string },
-      });
+      await callService.rejectIncomingCall(
+        (type as "audio" | "video") ?? "audio",
+        id as string
+      );
     } catch (error) {
       uiLog.error("[IncomingCall] Error in reject call", { error });
     }
     uiLog.info("[Navigation] goBack triggered from IncomingCall");
-    router.back();
+    router.replace("/(drawer)/(tabs)");
   };
 
   return (

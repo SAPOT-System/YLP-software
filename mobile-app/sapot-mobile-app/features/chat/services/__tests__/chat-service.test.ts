@@ -35,9 +35,8 @@ import { ChatService } from "../chat-service";
 // Define MessageType enum locally to avoid importing database models with decorators in Jest
 enum MessageType {
   TEXT = "text",
-  PHOTO = "photo",
-  VIDEO = "video",
   FILE = "file",
+  CALL_LOG = "call_log",
 }
 
 // Mock shared dependencies
@@ -621,6 +620,88 @@ describe("ChatService", () => {
       const result = await chatService.findChatByPeer("peer-1");
 
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe("saveCallLogWithReceipts", () => {
+    it("should reject when senderId is neither current user nor peerId", async () => {
+      await expect(
+        chatService.saveCallLogWithReceipts({
+          peerId: "peer-1",
+          content: "Missed call from Peer",
+          senderId: "invalid-sender-id",
+        })
+      ).rejects.toThrow("senderId must be current user or peerId");
+
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
+    });
+
+    it("should create call-log message and sender delivered receipt", async () => {
+      const peer = createTestPeer({ id: "peer-1", username: "peeruser" }) as unknown as Peer;
+      const conversation = createTestConversation({
+        id: "conv-1",
+        type: ConversationType.DIRECT,
+      }) as unknown as Conversation;
+      const savedMessage = createTestMessage({
+        id: "msg-1",
+        content: "Missed call from Peer",
+        messageType: MessageType.CALL_LOG,
+      }) as unknown as Message;
+
+      mockPeerService.findPeerById.mockResolvedValue(peer);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        "conv-1"
+      );
+      mockConversationRepository.queryConversationById.mockResolvedValue(
+        conversation
+      );
+      mockMessageRepository.queryMessageById.mockResolvedValue(undefined);
+      mockMessageRepository.saveMessage.mockResolvedValue(savedMessage);
+
+      await chatService.saveCallLogWithReceipts({
+        peerId: "peer-1",
+        content: "Missed call from Peer",
+        senderId: "test-user-id",
+        messageId: "call-log-1",
+      });
+
+      expect(mockMessageRepository.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "Missed call from Peer",
+          conversation,
+          messageId: "call-log-1",
+        })
+      );
+      expect(mockMessageStatusRepository.saveMessageStatus).toHaveBeenCalledTimes(1);
+      expect(mockMessageStatusRepository.saveMessageStatus).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: savedMessage,
+          status: MessageStatusType.DELIVERED,
+        })
+      );
+    });
+
+    it("should skip call-log save when message already exists", async () => {
+      const existingMessage = createTestMessage({
+        id: "call-log-1",
+        content: "Missed call from Peer",
+        messageType: MessageType.CALL_LOG,
+      }) as unknown as Message;
+
+      mockMessageRepository.queryMessageById.mockResolvedValue(existingMessage);
+
+      await chatService.saveCallLogWithReceipts({
+        peerId: "peer-1",
+        content: "Missed call from Peer",
+        senderId: "test-user-id",
+        messageId: "call-log-1",
+      });
+
+      expect(mockMessageRepository.queryMessageById).toHaveBeenCalledWith(
+        "call-log-1"
+      );
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
+      expect(mockMessageStatusRepository.saveMessageStatus).not.toHaveBeenCalled();
     });
   });
 

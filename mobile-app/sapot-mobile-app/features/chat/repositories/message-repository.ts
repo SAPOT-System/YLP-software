@@ -1,9 +1,9 @@
 import {
-    Conversation,
-    GuestUser,
-    Message,
-    MessageType,
-    Peer,
+  Conversation,
+  GuestUser,
+  Message,
+  MessageType,
+  Peer,
 } from "@/features/shared";
 import { chatLog } from "@/features/shared/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
@@ -94,6 +94,27 @@ export class MessageRepository {
         conversationId,
         limit,
         offset,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Queries a message by id.
+   * @param messageId The message id
+   * @returns Promise<Message | undefined>
+   */
+  async queryMessageById(messageId: string): Promise<Message | undefined> {
+    try {
+      const messages = await this.messagesCollection
+        .query(Q.where("id", messageId))
+        .fetch();
+
+      return messages.length > 0 ? messages[0] : undefined;
+    } catch (error) {
+      chatLog.error("chat › message query by id failed", {
+        messageId,
         error,
       });
       throw error;

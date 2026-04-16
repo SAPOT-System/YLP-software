@@ -1,4 +1,5 @@
 import { callLog } from "@/features/shared/utils/logger";
+import { createTestPeer } from "@/test/factories/user.factory";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createCallServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { MediaStream } from "react-native-webrtc";
@@ -15,6 +16,15 @@ describe("CallService", () => {
   let mockPeerService: ReturnType<
     typeof createCallServiceDependencyMocks
   >["peerService"];
+  let mockCallRepository: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["callRepository"];
+  let mockCallParticipantRepository: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["callParticipantRepository"];
+  let mockChatService: ReturnType<
+    typeof createCallServiceDependencyMocks
+  >["chatService"];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -22,12 +32,37 @@ describe("CallService", () => {
     mockConnectionService = mocks.connectionService;
     mockUserStore = mocks.userStore;
     mockPeerService = mocks.peerService;
+    mockCallRepository = mocks.callRepository;
+    mockCallParticipantRepository = mocks.callParticipantRepository;
+    mockChatService = mocks.chatService;
+
+    mockPeerService.findPeerById.mockResolvedValue(
+      createTestPeer({
+        id: "peer-1",
+        username: "peeruser",
+      })
+    );
+    mockChatService.getOrCreateDirectConversationByPeer.mockResolvedValue({
+      id: "conv-1",
+    });
+    mockCallRepository.saveCall.mockResolvedValue({ id: "call-1" });
+    mockCallRepository.updateCallStatus.mockResolvedValue(undefined);
+    mockCallParticipantRepository.saveCallParticipant.mockResolvedValue({
+      id: "participant-1",
+    });
+    mockCallParticipantRepository.updateParticipantLeftAtByCallAndUser.mockResolvedValue(
+      undefined
+    );
+    mockChatService.saveCallLogWithReceipts.mockResolvedValue(undefined);
 
     // Create service instance
     callService = new CallService(
       mockConnectionService,
       mockUserStore,
-      mockPeerService
+      mockPeerService,
+      mockCallRepository as never,
+      mockCallParticipantRepository as never,
+      mockChatService as never
     );
   });
 
@@ -215,10 +250,19 @@ describe("CallService", () => {
       expect(mockConnectionService.renegotiate).not.toHaveBeenCalled();
       expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
         peerId,
-        {
+        expect.objectContaining({
           type: "call-ended",
-          data: { from: "test-user-id", to: peerId },
-        }
+          data: expect.objectContaining({
+            from: "test-user-id",
+            to: peerId,
+          }),
+        })
+      );
+      expect(mockChatService.saveCallLogWithReceipts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          peerId,
+          status: "delivered",
+        })
       );
     });
 
@@ -237,7 +281,16 @@ describe("CallService", () => {
         mockConnectionService.terminateCallConnection
       ).not.toHaveBeenCalled();
       expect(mockConnectionService.renegotiate).not.toHaveBeenCalled();
-      expect(mockConnectionService.sendCallMessage).not.toHaveBeenCalled();
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({
+          type: "call-ended",
+          data: expect.objectContaining({
+            from: "test-user-id",
+            to: peerId,
+          }),
+        })
+      );
     });
 
     it("should handle errors during termination", async () => {

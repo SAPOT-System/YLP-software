@@ -75,6 +75,40 @@ export class CallParticipantRepository {
     }
   }
 
+  async updateParticipantLeftAtByCallAndUser(
+    callId: string,
+    userId: string,
+    leftAt: Date
+  ) {
+    try {
+      return await this.db.write(async () => {
+        const participants = await this.callParticipantsCollection
+          .query(Q.where("call", callId), Q.where("user", userId))
+          .fetch();
+
+        if (participants.length <= 0) {
+          callLog.warn("call › participant leftAt update skipped (not found)", {
+            callId,
+            userId,
+          });
+          return;
+        }
+
+        await participants[0].update((participant) => {
+          participant.leftAt = leftAt;
+          participant.updatedAt = new Date();
+        });
+      });
+    } catch (error) {
+      callLog.error("call › participant leftAt update failed", {
+        callId,
+        userId,
+        error,
+      });
+      throw error;
+    }
+  }
+
   async getCallParticipantDestroyOps() {
     callLog.debug("call › participant destroy ops requested");
     const records = await this.callParticipantsCollection.query().fetch();
