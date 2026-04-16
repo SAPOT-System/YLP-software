@@ -64,7 +64,7 @@ export default function IncomingCall() {
       }, 30_000);
 
       return () => clearTimeout(timer);
-    }, [callService, id, router, type])
+    }, [callService, id, router, type, conversationId])
   );
 
   // If the caller cancels before we accept, go back and clean up
