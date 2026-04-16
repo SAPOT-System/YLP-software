@@ -138,7 +138,7 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
                     <button className="text-red-400 hover:text-red-600 transition-colors">
                       <Trash2 onClick={()=>openConfirmDelete(user)} size={18} />
                     </button>
-                    <button className="text-red-400 hover:text-red-600 transition-colors">
+                    <button className="text-yellow-400 hover:text-yellow-600 transition-colors">
                       <Ban size={18} />
                     </button>
                   </div>
