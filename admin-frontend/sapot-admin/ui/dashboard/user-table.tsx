@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pencil, Trash2, Ban, ChevronLeft, ChevronRight } from 'lucide-react'; // Added icons
 import EditUserModal from './edit-user-modal';
+import Modal from './modal';
 
 export interface UserData {
   id: number;
@@ -48,8 +49,17 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
 		console.log("user", user)
 	};
 
+	const handleDeleteClick = (user) => {
+		setSelectedUser(user);
+		setIsEditOpen(true);
+		console.log("user", user)
+	};
+
   return (
     <div className="w-full overflow-hidden rounded-xl border border-gray-200 custom-white shadow-sm">
+		<Modal>
+
+		</Modal>
 
 		<EditUserModal 
 			user={selectedUser} 
@@ -93,7 +103,7 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
                       <Pencil onClick={() => handleEditClick(user)} size={18} />
                     </button>
                     <button className="text-red-400 hover:text-red-600 transition-colors">
-                      <Trash2 size={18} />
+                      <Trash2 onClick={()=>} size={18} />
                     </button>
                     <button className="text-red-400 hover:text-red-600 transition-colors">
                       <Ban size={18} />
