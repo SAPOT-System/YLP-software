@@ -40,7 +40,8 @@
           "react-native-tcp-socket",
           "react-native-webrtc",
           "@nozbe/simdjson",
-          "react-native-incall-manager"
+          "react-native-incall-manager",
+          "react-native-background-actions"
         ]
       },
       "nonCNGConfigCheck": false
