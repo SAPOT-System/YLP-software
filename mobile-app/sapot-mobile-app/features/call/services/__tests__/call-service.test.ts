@@ -206,10 +206,10 @@ describe("CallService", () => {
 
       expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
         peerId,
-        {
+        expect.objectContaining({
           type: "audio-call",
-          data: { from: "test-user-id", to: peerId },
-        }
+          data: expect.objectContaining({ from: "test-user-id", to: peerId }),
+        })
       );
     });
 

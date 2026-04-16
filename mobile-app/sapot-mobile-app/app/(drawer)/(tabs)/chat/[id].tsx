@@ -9,8 +9,8 @@ import {
   useToast,
 } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -111,14 +111,16 @@ const ChatRoom = () => {
   }, [peerId, chatService, showToast]);
 
   // Notify the sender that messages have been seen when connected and viewing a conversation
-  useEffect(() => {
-    uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
-      isConnected,
-      conversationId,
-    });
-    if (!isConnected || !conversationId) return;
-    chatService.markConversationAsRead(conversationId);
-  }, [isConnected, conversationId, chatService]);
+  useFocusEffect(
+    useCallback(() => {
+      uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
+        isConnected,
+        conversationId,
+      });
+      if (!isConnected || !conversationId) return;
+      chatService.markConversationAsRead(conversationId);
+    }, [isConnected, conversationId, chatService])
+  );
 
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });

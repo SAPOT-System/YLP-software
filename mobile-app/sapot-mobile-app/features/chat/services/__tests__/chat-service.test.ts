@@ -224,6 +224,7 @@ describe("ChatService", () => {
         to: "peer-2",
         sentAt: new Date(),
         messageType: MessageType.TEXT,
+        senderProfile: { username: "sender", firstName: "Sender" },
       };
 
       const mockSender = createTestPeer({ id: "peer-1", username: "sender" }) as unknown as Peer;
@@ -270,6 +271,7 @@ describe("ChatService", () => {
         to: "peer-2",
         sentAt: new Date(),
         messageType: MessageType.TEXT,
+        senderProfile: { username: "sender", firstName: "Sender" },
       };
 
       const mockSender = createTestPeer({ id: "peer-1", username: "sender" }) as unknown as Peer;
@@ -314,6 +316,7 @@ describe("ChatService", () => {
         to: "peer-2",
         sentAt: new Date(),
         messageType: MessageType.TEXT,
+        senderProfile: { username: "sender", firstName: "Sender" },
       };
 
       mockPeerService.findPeerById.mockRejectedValue(

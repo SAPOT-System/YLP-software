@@ -154,6 +154,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               callerId: message.data.from_user,
               callerName: message.data.from_user,
               callType: message.type,
+              conversationId: message.data.conversationId,
             });
             this.emit("audio-call", message.data.from_user);
           }
@@ -162,6 +163,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               callerId: message.data.from_user,
               callerName: message.data.from_user,
               callType: message.type,
+              conversationId: message.data.conversationId,
             });
             this.emit("video-call", message.data.from_user);
           }
@@ -255,7 +257,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             callerId: message.data.from,
             callerName: message.data.from,
             callType: message.type,
-            // offer: (message.data as any).offer ?? null,
+            conversationId: message.data.conversationId,
           });
           this.emit("audio-call", message.data.from);
         }
@@ -264,7 +266,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             callerId: message.data.from,
             callerName: message.data.from,
             callType: message.type,
-            // offer: (message.data as any).offer ?? null,
+            conversationId: message.data.conversationId,
           });
           this.emit("video-call", message.data.from);
         }
@@ -695,7 +697,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     callerId: string;
     callType: string;
     callerName: string;
-    // offer: any;
+    conversationId?: string;
   }) {
     try {
       await Notifications.scheduleNotificationAsync({
@@ -707,6 +709,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             type: "incoming_call",
             id: data.callerId,
             call_type: data.callType === "video-call" ? "video" : "audio",
+            conversation_id: data.conversationId ?? "",
           },
         } as Notifications.NotificationContentInput,
         trigger: {

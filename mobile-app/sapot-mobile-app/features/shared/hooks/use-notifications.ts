@@ -24,6 +24,7 @@ interface IncomingCallData {
   callerId: string;
   callType: string;
   notificationId: string;
+  conversationId?: string;
 }
 
 export const useNotifications = (
@@ -47,6 +48,7 @@ export const useNotifications = (
             callerId: String(data.id ?? ""),
             callType: String(data["call_type"] ?? ""),
             notificationId: notification.request.identifier,
+            conversationId: data.conversation_id ? String(data.conversation_id) : undefined,
           });
         }
       });
@@ -65,6 +67,7 @@ export const useNotifications = (
             callerId: String(data.id ?? ""),
             callType: String(data["call_type"] ?? ""),
             notificationId: response.notification.request.identifier,
+            conversationId: data.conversation_id ? String(data.conversation_id) : undefined,
           });
         }
       });

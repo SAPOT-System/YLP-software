@@ -54,6 +54,7 @@ export default function DrawerLayout() {
       params: {
         id: incomingCallData.callerId,
         type: incomingCallData.callType,
+        conversationId: incomingCallData.conversationId ?? "",
       },
     });
   });
@@ -90,6 +91,7 @@ export default function DrawerLayout() {
           params: {
             id: String(data.id ?? ""),
             type: String(data["call_type"] ?? ""),
+            conversationId: String(data["conversation_id"] ?? ""),
           },
         });
       }, 300);

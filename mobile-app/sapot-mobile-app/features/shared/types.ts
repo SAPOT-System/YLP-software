@@ -58,11 +58,11 @@ export type SeenMessage = { type: "seen"; data: DataSeenMessageI };
 
 export type AudioCallMessage = {
   type: "audio-call";
-  data: { from: string; to: string };
+  data: { from: string; to: string; conversationId?: string };
 };
 export type VideoCallMessage = {
   type: "video-call";
-  data: { from: string; to: string };
+  data: { from: string; to: string; conversationId?: string };
 };
 export type CallEndedMessage = {
   type: "call-ended";
@@ -90,11 +90,11 @@ export type CallMissedMessage = {
 
 export type WsAudioCallMessage = {
   type: "audio-call";
-  data: { from_user: string; to: string };
+  data: { from_user: string; to: string; conversationId?: string };
 };
 export type WsVideoCallMessage = {
   type: "video-call";
-  data: { from_user: string; to: string };
+  data: { from_user: string; to: string; conversationId?: string };
 };
 export type WsCallEndedMessage = {
   type: "call-ended";

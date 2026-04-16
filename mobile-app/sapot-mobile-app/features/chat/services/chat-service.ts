@@ -144,8 +144,19 @@ export class ChatService {
         messageId: data.messageId,
         senderId: data.from,
       });
-      const sender = await this.peerService.findPeerById(data.from);
-      // TODO: create sender if not exists in the database
+      let sender = await this.peerService.findPeerById(data.from);
+      if (!sender) {
+        chatLog.info("chat › sender not found, creating peer", {
+          senderId: data.from,
+          username: data.senderProfile.username,
+        });
+        sender = await this.peerService.createUser(
+          data.from,
+          data.senderProfile.username,
+          data.senderProfile.firstName,
+          data.senderProfile.lastName
+        );
+      }
       const conversation = await this.getOrCreateConversationForIncoming(
         sender,
         data.conversationId
@@ -391,6 +402,11 @@ export class ChatService {
         from: this.userStore.user.id,
         sentAt: newMessage.createdAt,
         messageType: newMessage.messageType,
+        senderProfile: {
+          username: this.userStore.user.username,
+          firstName: this.userStore.user.firstName,
+          lastName: this.userStore.user.lastName || undefined,
+        },
       });
       await this.messageStatusRepository.updateMessageStatusById(
         newMessageStatus.id,
@@ -544,7 +560,8 @@ export class ChatService {
   }
 
   async getOrCreateDirectConversationByPeer(
-    peerId: string
+    peerId: string,
+    conversationId?: string
   ): Promise<Conversation> {
     try {
       const peer = await this.peerService.findPeerById(peerId);
@@ -560,7 +577,7 @@ export class ChatService {
         );
       }
 
-      return await this.createChatRoom(peer);
+      return await this.createChatRoom(peer, conversationId);
     } catch (error) {
       chatLog.error("chat › direct conversation resolve/create failed", {
         peerId,
@@ -795,6 +812,11 @@ export class ChatService {
         to: peerId,
         sentAt: message.createdAt,
         messageType: message.messageType,
+        senderProfile: {
+          username: this.userStore.user.username,
+          firstName: this.userStore.user.firstName,
+          lastName: this.userStore.user.lastName || undefined,
+        },
       });
 
       await this.messageStatusRepository.updateMessageStatusByMessage(
