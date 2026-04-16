@@ -11,6 +11,9 @@ const KEYS = {
   LOCAL_IP: "localIp",
   ACCESS_TOKEN: "access_token",
   APP_ALIVE: "appAlive",
+  USERNAME: "username",
+  FIRST_NAME: "firstName",
+  LAST_NAME: "lastName",
 } as const;
 
 // ── Writers ────────────────────────────────────────────────────────────────────
@@ -137,6 +140,50 @@ export const getAppAlive = async (): Promise<boolean> => {
   } catch (error) {
     backgroundLog.error("secure-config › read appAlive failed", { error });
     return false;
+  }
+};
+
+export const saveUserProfile = async (profile: {
+  username: string;
+  firstName: string;
+  lastName?: string;
+}) => {
+  try {
+    await setItemAsync(KEYS.USERNAME, profile.username);
+    await setItemAsync(KEYS.FIRST_NAME, profile.firstName);
+    if (profile.lastName) {
+      await setItemAsync(KEYS.LAST_NAME, profile.lastName);
+    }
+    backgroundLog.info("secure-config › user profile saved");
+  } catch (error) {
+    backgroundLog.error("secure-config › user profile save failed", { error });
+  }
+};
+
+export const getStoredUsername = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.USERNAME)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › read username failed", { error });
+    return undefined;
+  }
+};
+
+export const getStoredFirstName = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.FIRST_NAME)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › read firstName failed", { error });
+    return undefined;
+  }
+};
+
+export const getStoredLastName = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.LAST_NAME)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › read lastName failed", { error });
+    return undefined;
   }
 };
 
