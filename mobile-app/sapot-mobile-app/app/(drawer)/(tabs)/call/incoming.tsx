@@ -5,7 +5,9 @@ import {
   usePeerService,
   useProfilePhoto,
 } from "@/features/shared/hooks";
+import { stopForegroundService } from "@/features/shared/hooks/use-background-task";
 import { navLog, uiLog } from "@/features/shared/utils/logger";
+import * as Notifications from "expo-notifications";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -64,11 +66,29 @@ export default function IncomingCall() {
     }, [callService, id, router, type])
   );
 
-  // If the caller cancels before we accept, go back
+  // If the caller cancels before we accept, go back and clean up
   useEffect(() => {
-    const handler = (payload: { peerId: string }) => {
+    const handler = async (payload: { peerId: string }) => {
       if (payload.peerId !== id) return;
-      uiLog.info("[Navigation] goBack triggered from IncomingCall");
+      uiLog.info(
+        "[Navigation] goBack triggered from IncomingCall — caller cancelled"
+      );
+      // Dismiss incoming call notifications from the tray
+      try {
+        const presented = await Notifications.getPresentedNotificationsAsync();
+        for (const n of presented) {
+          console.log(n.request.content.data);
+          if (n.request.content.data.type === "incoming_call") {
+            await Notifications.dismissNotificationAsync(n.request.identifier);
+          }
+        }
+      } catch {
+        uiLog.info(
+          "[Navigation] goBack triggered from IncomingCall — caller cancelled"
+        );
+      }
+      // Stop foreground service — no call to keep alive for
+      await stopForegroundService();
       router.replace("/(drawer)/(tabs)");
     };
     connectionService.on("call-ended", handler);

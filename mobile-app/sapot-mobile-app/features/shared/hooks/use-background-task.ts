@@ -1,67 +1,96 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import * as BackgroundTask from "expo-background-task";
-import * as TaskManager from "expo-task-manager"; // ← isTaskRegisteredAsync lives here
-import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import * as TaskManager from "expo-task-manager";
+import { AppState, AppStateStatus, Platform } from "react-native";
+import BackgroundService from "react-native-background-actions";
 import { backgroundLog } from "../utils";
 import { setAppAlive, SIGNALING_TASK } from "@/task/signaling-task";
 
-export const useBackgroundTask = () => {
-  const foregroundNotifId = useRef<string | null>(null);
+// ── Foreground service task ────────────────────────────────────────────────────
+// Runs inside the Android foreground service to keep the process alive.
+// ConnectionService / DiscoveryService continue running in the same JS context —
+// no need to re-start them here.
 
+const foregroundServiceTask = async () => {
+  await new Promise<void>(() => {
+    const id = setInterval(() => {
+      backgroundLog.info("bg › foreground service heartbeat");
+    }, 30_000);
+
+    // Promise never resolves — service runs until BackgroundService.stop() is called.
+    // setInterval is cleared automatically when the process ends.
+    void id;
+  });
+};
+
+const serviceOptions = {
+  taskName: "sapot-connectivity",
+  taskTitle: "App is running",
+  taskDesc: "Listening for incoming calls...",
+  taskIcon: { name: "ic_launcher", type: "mipmap" as const },
+  color: "#ffffff",
+  parameters: {},
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+export const startForegroundService = async () => {
+  try {
+    if (BackgroundService.isRunning()) return;
+    await BackgroundService.start(foregroundServiceTask, serviceOptions);
+    backgroundLog.info("bg › foreground service started");
+  } catch (error) {
+    backgroundLog.error("bg › foreground service start failed", { error });
+  }
+};
+
+export const stopForegroundService = async () => {
+  try {
+    if (!BackgroundService.isRunning()) return;
+    await BackgroundService.stop();
+    backgroundLog.info("bg › foreground service stopped");
+  } catch (error) {
+    backgroundLog.error("bg › foreground service stop failed", { error });
+  }
+};
+
+// ── Hook ───────────────────────────────────────────────────────────────────────
+
+export const useBackgroundTask = () => {
   useEffect(() => {
     if (Platform.OS !== "android") return;
 
-    // Mark app alive immediately so background task stands down
-    // if it wakes up while this component is mounted
     setAppAlive(true);
-
-    setupForegroundChannel();
     registerTask();
-    showForegroundNotification().then((id) => {
-      foregroundNotifId.current = id;
-    });
+
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === "background") {
+        // App moved to background — start foreground service to keep process alive.
+        // ConnectionService / DiscoveryService continue running in this JS context.
+        startForegroundService();
+      } else if (nextState === "active") {
+        // App came back to foreground — foreground service notification no longer needed.
+        stopForegroundService();
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
 
     return () => {
-      // Component unmounting — background task may take over
+      subscription.remove();
       setAppAlive(false);
-      if (foregroundNotifId.current) {
-        Notifications.dismissNotificationAsync(foregroundNotifId.current).catch(
-          () => {}
-        );
-        foregroundNotifId.current = null;
-      }
+      stopForegroundService();
     };
   }, []);
 
-  // ── Channels ───────────────────────────────────────────────────────────────
-
-  const setupForegroundChannel = async () => {
-    try {
-      await Notifications.setNotificationChannelAsync("foreground-service", {
-        name: "App Running",
-        importance: Notifications.AndroidImportance.LOW,
-        showBadge: false,
-        sound: null,
-      });
-      backgroundLog.info("bg › foreground channel ready");
-    } catch (error) {
-      backgroundLog.error("bg › foreground channel setup failed", { error });
-    }
-  };
-
-  // ── Task registration ──────────────────────────────────────────────────────
+  // ── Task registration ────────────────────────────────────────────────────────
+  // expo-background-task remains as a 15-minute fallback for force-kill scenarios.
 
   const registerTask = async () => {
     try {
-      // ✅ isTaskRegisteredAsync is on TaskManager, not BackgroundTask
-      const isRegistered =
-        await TaskManager.isTaskRegisteredAsync(SIGNALING_TASK);
-
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(SIGNALING_TASK);
       if (!isRegistered) {
         await BackgroundTask.registerTaskAsync(SIGNALING_TASK, {
-          // ✅ minimumInterval is in MINUTES, 15 is Android's enforced minimum
-          // ✅ startOnBoot does not exist in BackgroundTaskOptions
           minimumInterval: 15,
         });
         backgroundLog.info("bg › task registered");
@@ -73,48 +102,13 @@ export const useBackgroundTask = () => {
     }
   };
 
-  // ── Foreground service notification ───────────────────────────────────────
-  // Shows a low-priority persistent notification while the app is open.
-  // True process persistence is handled by expo-background-task's foreground
-  // service config in app.config.ts — not by this notification.
-
-  const showForegroundNotification = async (): Promise<string | null> => {
-    try {
-      // Dismiss any existing foreground-service notification to avoid stacking
-      // on re-mounts (e.g. hot reload, auth state changes).
-      const presented = await Notifications.getPresentedNotificationsAsync();
-      for (const n of presented) {
-        if (n.request.content.data?.type === "foreground_service") {
-          await Notifications.dismissNotificationAsync(n.request.identifier);
-        }
-      }
-
-      const id = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "App is running",
-          body: "Listening for incoming calls...",
-          data: { type: "foreground_service" },
-        } as Notifications.NotificationContentInput,
-        trigger: {
-          channelId: "foreground-service",
-        } as Notifications.NotificationTriggerInput,
-      });
-      backgroundLog.info("bg › foreground notification shown");
-      return id;
-    } catch (error) {
-      backgroundLog.error("bg › foreground notification failed", { error });
-      return null;
-    }
-  };
-
-  // ── Unregister on logout ───────────────────────────────────────────────────
+  // ── Unregister on logout ─────────────────────────────────────────────────────
 
   const unregister = async () => {
     try {
-      // ✅ isTaskRegisteredAsync is on TaskManager
-      const isRegistered =
-        await TaskManager.isTaskRegisteredAsync(SIGNALING_TASK);
+      await stopForegroundService();
 
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(SIGNALING_TASK);
       if (isRegistered) {
         await BackgroundTask.unregisterTaskAsync(SIGNALING_TASK);
         backgroundLog.info("bg › task unregistered");
