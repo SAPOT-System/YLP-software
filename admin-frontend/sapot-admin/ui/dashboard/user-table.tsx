@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Pencil, Trash2, Ban, ChevronLeft, ChevronRight } from 'lucide-react'; // Added icons
 import EditUserModal from './edit-user-modal';
 import Modal from './modal';
+import { toast } from 'sonner';
+import { refresh } from 'next/cache';
 
 export interface UserData {
   id: number;
@@ -42,6 +44,7 @@ function formatDate(rawDate: string) {
 const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, onPageChange, refreshData }) => {
 	const [selectedUser, setSelectedUser] = useState(null);
 	const [isEditOpen, setIsEditOpen] = useState(false);
+	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
 	const handleEditClick = (user) => {
 		setSelectedUser(user);
@@ -49,17 +52,47 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
 		console.log("user", user)
 	};
 
-	const handleDeleteClick = (user) => {
-		setSelectedUser(user);
-		setIsEditOpen(true);
-		console.log("user", user)
+	const handleDeleteClick = async () => {
+		if (!selectedUser?.id) {
+			toast.error("Cannot delete user: None")
+			return;
+		}
+
+		const fetchData = await fetch('api/delete/user', {
+			method:"POST",
+			body: JSON.stringify({user_id: selectedUser?.id}),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+		})
+		if (!fetchData.ok) {
+			console.log(fetchData)
+			toast.error("Cannot delete user: None")
+			return 
+		}
+		toast.success("User successfully deleted.")
+		refreshData()
+		setIsDeleteOpen(false)
 	};
+
+	const openConfirmDelete = (user) => {
+		setSelectedUser(user)
+		setIsDeleteOpen(true);
+	}
 
   return (
     <div className="w-full overflow-hidden rounded-xl border border-gray-200 custom-white shadow-sm">
-		<Modal>
-
-		</Modal>
+		{ isDeleteOpen && 
+			<Modal style=''>
+		<div className="flex flex-col gap-10">
+			<div className="px-2 py-4">{ `This action will COMPLETELY DELETE USER '${selectedUser?.username}.' ` }</div> 
+			<div className="grid grid-cols-3 gap-2">
+				<div className="border border-black/30 hover:border-black/50 cursor-pointer bg-transparent transition-all duration-150 w-full rounded-3xl px-2 py-1 text-xl text-center font-medium col-span-1" onClick={()=>setIsDeleteOpen(false)}>Cancel</div>
+				<div className="text-white bg-red-600 hover:bg-red-500 transition-all duration-150 cursor-pointer w-full rounded-3xl px-2 py-1 text-xl text-center font-medium col-span-2" onClick={()=>handleDeleteClick()}>Delete User</div>
+			</div>
+		</div>
+			</Modal>
+		}
 
 		<EditUserModal 
 			user={selectedUser} 
@@ -103,7 +136,7 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
                       <Pencil onClick={() => handleEditClick(user)} size={18} />
                     </button>
                     <button className="text-red-400 hover:text-red-600 transition-colors">
-                      <Trash2 onClick={()=>} size={18} />
+                      <Trash2 onClick={()=>openConfirmDelete(user)} size={18} />
                     </button>
                     <button className="text-red-400 hover:text-red-600 transition-colors">
                       <Ban size={18} />

@@ -124,7 +124,7 @@ export default function Users() {
 					<div className="flex flex-col gap-2">
 
 
-					{isOpenCreateUser && <Modal>
+					{isOpenCreateUser && <Modal style="scroll-auto">
 						<div className="flex justify-between">
 							<div className="font-bold text-lg">Create User</div>
 							<XIcon className="w-5 cursor-pointer" onClick={()=>setIsOpenCreateUser(false)}/>
@@ -255,13 +255,16 @@ export default function Users() {
 							</div>
 
 							{/* Submit Button */}
-							<div className="pt-4">
+							<div className="pt-4 flex flex-col gap-2">
 							<button
 							type="submit"
 							className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-100"
 							>
 							Create User Account
 							</button>
+							<div onClick={()=>setIsOpenCreateUser(false)} className="cursor-pointer text-center w-full border border-black/30 hover:border-black/50 font-bold py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-100">
+							Close
+							</div>
 							</div>
 						</form>
 						</div>
