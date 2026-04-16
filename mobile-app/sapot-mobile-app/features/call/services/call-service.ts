@@ -1,3 +1,11 @@
+import { ChatService } from "@/features/chat";
+import {
+  CallStatus,
+  CallType,
+  GuestUser,
+  MessageStatusType,
+  Peer,
+} from "@/features/shared";
 import { ConnectionService } from "@/features/shared/services/connection-service";
 import { PeerService } from "@/features/shared/services/peer-service";
 import { UserStore } from "@/features/shared/stores/user-store";
@@ -6,6 +14,7 @@ import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
 import { DeviceEventEmitter } from "react-native";
 import InCallManager from "react-native-incall-manager";
 import { MediaStream } from "react-native-webrtc";
+import { CallParticipantRepository, CallRepository } from "../repositories";
 callLog.debug("[call-service] module loaded");
 
 export type AudioRouteTypes = "earpiece" | "speaker" | "headset" | "bluetooth";
@@ -40,10 +49,40 @@ type CallConnectionService = Pick<
 >;
 
 type CallUserStore = {
-  user: Pick<UserStore["user"], "id">;
+  user: Pick<UserStore["user"], "id"> & {
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+  };
 };
 
-type CallPeerService = Pick<PeerService, "findDiscoveredPeerById">;
+type CallPeerService = Pick<
+  PeerService,
+  "findDiscoveredPeerById" | "findPeerById"
+>;
+
+type CallLogChatService = Pick<
+  ChatService,
+  "getOrCreateDirectConversationByPeer" | "saveCallLogWithReceipts"
+>;
+
+type RemoteCallEndedPayload = {
+  status?: "completed" | "missed" | "rejected";
+  endedAt?: number;
+  durationSeconds?: number;
+  initiatorId?: string;
+};
+
+type CallSession = {
+  callId: string;
+  peerId: string;
+  callType: CallType;
+  startedAt: Date;
+  answeredAt?: Date;
+  peerName: string;
+  isIncoming: boolean;
+  finalized: boolean;
+};
 
 // TODO: probably store the peerId state
 /**
@@ -57,6 +96,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private isBluetoothConnected = false;
   private isHeadsetConnected = false;
   private initialRouteSetFor: Set<string> = new Set();
+  private callSessions: Map<string, CallSession> = new Map();
 
   /**
    * Constructs a CallService instance.
@@ -66,7 +106,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   constructor(
     private connectionService: CallConnectionService,
     private userStore: CallUserStore,
-    private peerService: CallPeerService
+    private peerService: CallPeerService,
+    private callRepository: CallRepository,
+    private callParticipantRepository: CallParticipantRepository,
+    private chatService: CallLogChatService
   ) {
     super();
     callLog.info("call › service constructed", {
@@ -83,6 +126,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    */
   async startCall(type: "video" | "audio", peerId: string) {
     try {
+      const session = await this.ensureSession(peerId, type, false);
+
       const isWebrtcConnected =
         this.connectionService.isWebrtcConnected(peerId);
       if (this.connectedState === "connected" && isWebrtcConnected) {
@@ -123,6 +168,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       // Initialize local audio and video
       await this.connectionService.initializeStream(type, peerId);
 
+      if (!session.answeredAt) {
+        session.answeredAt = new Date();
+      }
+
       // Renegotiate the webrtc to include the audio and video
       await this.connectionService.renegotiate(peerId);
       this.connectedState = "connected";
@@ -134,6 +183,11 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
   async answerCall(type: "video" | "audio", peerId: string) {
     try {
+      const session = await this.ensureSession(peerId, type, true);
+      if (!session.answeredAt) {
+        session.answeredAt = new Date();
+      }
+
       if (this.connectedState === "connected") {
         callLog.warn("call › already connected", { peerId, type });
         return;
@@ -327,6 +381,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    */
   async informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
     try {
+      await this.ensureSession(peerId, type, false);
+
       const isWebrtcConnected =
         this.connectionService.isWebrtcConnected(peerId);
 
@@ -344,31 +400,122 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     }
   }
 
+  async rejectIncomingCall(type: "audio" | "video", peerId: string) {
+    await this.ensureSession(peerId, type, true);
+    this.connectionService.sendCallMessage(peerId, {
+      type: "call-rejected",
+      data: {
+        from: this.userStore.user.id,
+        to: peerId,
+        reason: "declined",
+      },
+    });
+    await this.terminateCallConnection(peerId, "rejected");
+  }
+
+  async markMissedIncomingCall(type: "audio" | "video", peerId: string) {
+    await this.ensureSession(peerId, type, true);
+    this.connectionService.sendCallMessage(peerId, {
+      type: "call-missed",
+      data: {
+        from: this.userStore.user.id,
+        to: peerId,
+        reason: "no-answer",
+      },
+    });
+    await this.terminateCallConnection(peerId, "missed");
+  }
+
   /**
    * Terminates the call connection with the given peer, renegotiates WebRTC, and notifies the peer.
    * @param peerId The peer id to terminate the call with
    * @returns Promise<void>
    */
-  async terminateCallConnection(peerId: string) {
+  async terminateCallConnection(
+    peerId: string,
+    reason?: "completed" | "missed" | "rejected"
+  ) {
     try {
-      if (this.connectedState === "disconnected") {
-        callLog.warn("call › already disconnected", {
-          peerId,
-        });
-        return;
-      }
       callLog.info("call › terminate", { peerId });
-      this.connectionService.terminateCallConnection(peerId);
-      InCallManager.stop();
-      InCallManager.setKeepScreenOn(false);
+
+      if (this.connectedState === "connected") {
+        this.connectionService.terminateCallConnection(peerId);
+        InCallManager.stop();
+        InCallManager.setKeepScreenOn(false);
+      }
+
+      const session = this.callSessions.get(peerId);
+      const status = this.resolveFinalStatus(reason, session);
+      const endTime = new Date();
+
+      // Determine initiatorId based on isIncoming flag
+      const initiatorId = session?.isIncoming ? peerId : this.userStore.user.id;
+
       this.connectionService.sendCallMessage(peerId, {
         type: "call-ended",
-        data: { from: this.userStore.user.id, to: peerId },
+        data: {
+          from: this.userStore.user.id,
+          to: peerId,
+          status:
+            status === CallStatus.COMPLETED
+              ? "completed"
+              : status === CallStatus.REJECTED
+              ? "rejected"
+              : "missed",
+          endedAt: endTime.getTime(),
+          durationSeconds: this.calculateDurationSeconds(session, endTime),
+          initiatorId,
+        },
       });
+
+      await this.finalizeSession(peerId, status, endTime, initiatorId);
+
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
     } catch (error) {
       callLog.error("call › terminate failed", { peerId, error });
+      throw error;
+    }
+  }
+
+  async handleRemoteCallEnded(peerId: string, payload: RemoteCallEndedPayload) {
+    try {
+      const session = this.callSessions.get(peerId);
+      if (!session || session.finalized) {
+        callLog.warn("call › remote ended ignored", {
+          peerId,
+          hasSession: Boolean(session),
+        });
+        return;
+      }
+
+      if (this.connectedState === "connected") {
+        this.connectionService.terminateCallConnection(peerId);
+        InCallManager.stop();
+        InCallManager.setKeepScreenOn(false);
+      }
+
+      const status = this.resolveFinalStatus(payload.status, session);
+      const endTime =
+        typeof payload.endedAt === "number"
+          ? new Date(payload.endedAt)
+          : new Date();
+      const initiatorId =
+        payload.initiatorId ??
+        (session.isIncoming ? peerId : this.userStore.user.id);
+
+      await this.finalizeSession(
+        peerId,
+        status,
+        endTime,
+        initiatorId,
+        payload.durationSeconds
+      );
+
+      this.connectedState = "disconnected";
+      this.initialRouteSetFor.delete(peerId);
+    } catch (error) {
+      callLog.error("call › remote finalize failed", { peerId, error });
       throw error;
     }
   }
@@ -421,5 +568,160 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       callLog.error("call › get local stream failed", { peerId, error });
       throw error;
     }
+  }
+
+  private async ensureSession(
+    peerId: string,
+    type: "video" | "audio",
+    isIncoming: boolean
+  ): Promise<CallSession> {
+    const existingSession = this.callSessions.get(peerId);
+    if (existingSession) {
+      return existingSession;
+    }
+
+    const peer = await this.peerService.findPeerById(peerId);
+    if (!peer) throw new Error("Peer not found");
+
+    const conversation =
+      await this.chatService.getOrCreateDirectConversationByPeer(peerId);
+    const now = new Date();
+
+    const call = await this.callRepository.saveCall({
+      conversation,
+      initiator: isIncoming ? peer : (this.userStore.user as Peer | GuestUser),
+      callType: type === "video" ? CallType.VIDEO : CallType.AUDIO,
+      status: CallStatus.INITIATING,
+      startTime: now,
+    });
+
+    await this.callParticipantRepository.saveCallParticipant({
+      call,
+      user: this.userStore.user as Peer | GuestUser,
+      joinedAt: now,
+    });
+
+    const session: CallSession = {
+      callId: call.id,
+      peerId,
+      callType: type === "video" ? CallType.VIDEO : CallType.AUDIO,
+      startedAt: now,
+      peerName: this.getDisplayName(peer),
+      isIncoming,
+      finalized: false,
+    };
+
+    this.callSessions.set(peerId, session);
+    return session;
+  }
+
+  private resolveFinalStatus(
+    reason: "completed" | "missed" | "rejected" | undefined,
+    session?: CallSession
+  ): CallStatus {
+    if (reason === "rejected") return CallStatus.REJECTED;
+    if (reason === "missed") return CallStatus.MISSED;
+    if (reason === "completed") return CallStatus.COMPLETED;
+    return session?.answeredAt ? CallStatus.COMPLETED : CallStatus.MISSED;
+  }
+
+  private async finalizeSession(
+    peerId: string,
+    status: CallStatus,
+    endTime: Date,
+    initiatorId: string,
+    durationSecondsOverride?: number
+  ) {
+    const session = this.callSessions.get(peerId);
+    if (!session || session.finalized) {
+      return;
+    }
+
+    await this.callRepository.updateCallStatus(session.callId, status, endTime);
+    await this.callParticipantRepository.updateParticipantLeftAtByCallAndUser(
+      session.callId,
+      this.userStore.user.id,
+      endTime
+    );
+
+    const callLogMessage = this.buildCallLogMessage(
+      session,
+      status,
+      endTime,
+      durationSecondsOverride
+    );
+
+    await this.chatService.saveCallLogWithReceipts({
+      peerId,
+      content: callLogMessage,
+      status: MessageStatusType.DELIVERED,
+      senderId: initiatorId,
+      messageId: `call-log-${session.callId}`,
+    });
+
+    session.finalized = true;
+    this.callSessions.delete(peerId);
+  }
+
+  private buildCallLogMessage(
+    session: CallSession,
+    status: CallStatus,
+    endTime: Date,
+    durationSecondsOverride?: number
+  ): string {
+    if (status === CallStatus.REJECTED) {
+      return "Call declined";
+    }
+
+    if (status === CallStatus.MISSED) {
+      return `Missed call from ${session.peerName}`;
+    }
+
+    const durationFrom = session.answeredAt ?? session.startedAt;
+    const durationInSeconds =
+      typeof durationSecondsOverride === "number"
+        ? Math.max(0, Math.floor(durationSecondsOverride))
+        : Math.max(
+            0,
+            Math.floor((endTime.getTime() - durationFrom.getTime()) / 1000)
+          );
+
+    return `Call with ${session.peerName} lasted ${this.formatDuration(
+      durationInSeconds
+    )}`;
+  }
+
+  private calculateDurationSeconds(
+    session: CallSession | undefined,
+    endTime: Date
+  ): number {
+    if (!session) {
+      return 0;
+    }
+
+    const durationFrom = session.answeredAt ?? session.startedAt;
+    return Math.max(
+      0,
+      Math.floor((endTime.getTime() - durationFrom.getTime()) / 1000)
+    );
+  }
+
+  private formatDuration(seconds: number): string {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, "0")}:${String(
+        remainingSeconds
+      ).padStart(2, "0")}`;
+    }
+
+    return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+  }
+
+  private getDisplayName(peer: Peer | GuestUser): string {
+    const fullName = [peer.firstName, peer.lastName].filter(Boolean).join(" ");
+    return fullName || peer.username || "Unknown";
   }
 }

@@ -86,6 +86,35 @@ export class CallRepository {
     }
   }
 
+  async updateCallStatus(callId: string, status: CallStatus, endTime?: Date) {
+    try {
+      return await this.db.write(async () => {
+        const calls = await this.callsCollection.query(Q.where("id", callId)).fetch();
+
+        if (calls.length <= 0) {
+          callLog.warn("call › update skipped (not found)", { callId, status });
+          return;
+        }
+
+        await calls[0].update((call) => {
+          call.status = status;
+          if (endTime) {
+            call.endTime = endTime;
+          }
+          call.updatedAt = new Date();
+        });
+      });
+    } catch (error) {
+      callLog.error("call › update status failed", {
+        callId,
+        status,
+        hasEndTime: Boolean(endTime),
+        error,
+      });
+      throw error;
+    }
+  }
+
   async getCallDestroyOps() {
     callLog.debug("call › destroy ops requested");
     const records = await this.callsCollection.query().fetch();

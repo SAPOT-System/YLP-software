@@ -39,7 +39,8 @@
           "react-native-network-info",
           "react-native-tcp-socket",
           "react-native-webrtc",
-          "@nozbe/simdjson"
+          "@nozbe/simdjson",
+          "react-native-incall-manager"
         ]
       },
       "nonCNGConfigCheck": false

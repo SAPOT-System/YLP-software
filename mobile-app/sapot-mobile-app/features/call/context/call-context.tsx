@@ -5,6 +5,7 @@ import {
   usePeerService,
   useProfilePhoto,
 } from "@/features/shared/hooks";
+import { CallEndedEventPayload } from "@/features/shared/services/connection-service";
 import { callLog, uiLog } from "@/features/shared/utils/logger";
 import { useRouter } from "expo-router";
 import React, {
@@ -146,8 +147,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // ─────────────────────────────────────────────
 
   const terminate = useCallback(
-    async (force = false) => {
-      uiLog.debug("[CallContext] terminate called", { force, isMinimized });
+    async (force = false, reason?: "completed" | "missed" | "rejected") => {
+      uiLog.debug("[CallContext] terminate called", {
+        force,
+        isMinimized,
+        reason,
+      });
       if (hasTerminated.current) return;
       // Do NOT terminate when merely minimizing, unless forced
       if (isMinimized && !force) {
@@ -156,7 +161,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       hasTerminated.current = true;
       try {
-        await callService.terminateCallConnection(peerId as string);
+        await callService.terminateCallConnection(peerId as string, reason);
       } catch (error) {
         uiLog.error("[CallContext] Error in terminate", { error });
       }
@@ -265,11 +270,33 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setRemoteCam(false);
     };
 
+    const callRejectedHandler = async (incomingPeerId: string) => {
+      if (peerId !== incomingPeerId) {
+        uiLog.warn("[CallContext] call-rejected ignored — peer mismatch");
+        return;
+      }
+      uiLog.info("[CallContext] call rejected by remote peer", { peerId });
+      await terminate(true, "rejected");
+      setCallState("ended");
+    };
+
+    const callMissedHandler = async (incomingPeerId: string) => {
+      if (peerId !== incomingPeerId) {
+        uiLog.warn("[CallContext] call-missed ignored — peer mismatch");
+        return;
+      }
+      uiLog.info("[CallContext] call missed by remote peer", { peerId });
+      await terminate(true, "missed");
+      setCallState("no-answer");
+    };
+
     connectionService.on("call-ready", callReadyHandler);
     connectionService.on("mic-on", micOnHandler);
     connectionService.on("mic-off", micOffHandler);
     connectionService.on("camera-on", camOnHandler);
     connectionService.on("camera-off", camOffHandler);
+    connectionService.on("call-rejected", callRejectedHandler);
+    connectionService.on("call-missed", callMissedHandler);
 
     return () => {
       connectionService.off("call-ready", callReadyHandler);
@@ -277,8 +304,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       connectionService.off("mic-off", micOffHandler);
       connectionService.off("camera-on", camOnHandler);
       connectionService.off("camera-off", camOffHandler);
+      connectionService.off("call-rejected", callRejectedHandler);
+      connectionService.off("call-missed", callMissedHandler);
     };
-  }, [callService, connectionService, peerId, callType]);
+  }, [callService, connectionService, peerId, callType, terminate]);
 
   // ─────────────────────────────────────────────
   // Remote stream → call connected
@@ -304,11 +333,28 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // ─────────────────────────────────────────────
 
   useEffect(() => {
-    const handler = async (fromId?: string) => {
-      if (fromId && fromId !== peerId) return;
-      uiLog.info("[CallContext] call › remote ended", { peerId });
-      await terminate(true);
-      setCallState("ended");
+    const handler = async (payload: CallEndedEventPayload) => {
+      if (payload.peerId !== peerId) return;
+
+      uiLog.info("[CallContext] call › remote ended", {
+        peerId,
+        status: payload.status,
+        initiatorId: payload.initiatorId,
+      });
+
+      hasTerminated.current = true;
+      try {
+        await callService.handleRemoteCallEnded(peerId, {
+          status: payload.status,
+          endedAt: payload.endedAt,
+          durationSeconds: payload.durationSeconds,
+          initiatorId: payload.initiatorId,
+        });
+      } catch (error) {
+        uiLog.error("[CallContext] Error in remote finalize", { error });
+      }
+
+      setCallState(payload.status === "missed" ? "no-answer" : "ended");
     };
 
     connectionService.on("call-ended", handler);
@@ -316,7 +362,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     return () => {
       connectionService.off("call-ended", handler);
     };
-  }, [connectionService, peerId, terminate]);
+  }, [connectionService, peerId, terminate, callService]);
 
   // ─────────────────────────────────────────────
   // Ready flag for remote stream (small delay to let RTCView settle)

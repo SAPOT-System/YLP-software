@@ -497,6 +497,107 @@ export class ChatService {
     }
   }
 
+  async getOrCreateDirectConversationByPeer(
+    peerId: string
+  ): Promise<Conversation> {
+    try {
+      const peer = await this.peerService.findPeerById(peerId);
+      if (!peer) throw new Error("Peer not found");
+      const existingConversationId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [peer.id, this.userStore.user.id]
+        );
+
+      if (existingConversationId) {
+        return await this.conversationRepository.queryConversationById(
+          existingConversationId
+        );
+      }
+
+      return await this.createChatRoom(peer);
+    } catch (error) {
+      chatLog.error("chat › direct conversation resolve/create failed", {
+        peerId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  async saveCallLogWithReceipts(params: {
+    peerId: string;
+    content: string;
+    status?: MessageStatusType;
+    senderId: string;
+    messageId?: string;
+  }) {
+    const {
+      peerId,
+      content,
+      status = MessageStatusType.DELIVERED,
+      senderId,
+      messageId,
+    } = params;
+
+    if (senderId !== this.userStore.user.id && senderId !== peerId) {
+      throw new Error("senderId must be current user or peerId");
+    }
+
+    try {
+      if (messageId) {
+        const existingMessage = await this.messageRepository.queryMessageById(
+          messageId
+        );
+        if (existingMessage) {
+          chatLog.info("chat › call log deduped", {
+            peerId,
+            messageId,
+          });
+          return;
+        }
+      }
+
+      const peer = await this.peerService.findPeerById(peerId);
+      if (!peer) throw new Error("Peer not found");
+      const conversation = await this.getOrCreateDirectConversationByPeer(
+        peerId
+      );
+
+      const sender: Peer | GuestUser =
+        senderId === this.userStore.user.id ? this.userStore.user : peer;
+
+      const newMessage = await this.messageRepository.saveMessage({
+        sender,
+        content,
+        conversation,
+        messageId,
+      });
+      if (senderId === this.userStore.user.id) {
+        await this.messageStatusRepository.saveMessageStatus({
+          message: newMessage,
+          user: sender,
+          status,
+        });
+      }
+
+      chatLog.info("chat › call log saved", {
+        peerId,
+        conversationId: conversation.id,
+        messageId: newMessage.id,
+        senderId: sender.id,
+        status,
+      });
+    } catch (error) {
+      chatLog.error("chat › call log save failed", {
+        peerId,
+        contentLength: content.length,
+        status,
+        error,
+      });
+      throw error;
+    }
+  }
+
   /**
    * Gets all conversations from the repository.
    * @returns Promise<Conversation[]>

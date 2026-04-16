@@ -8,9 +8,8 @@ modelLog.debug("[model] Message loaded");
 
 export enum MessageType {
   TEXT = "text",
-  PHOTO = "photo",
-  VIDEO = "video",
   FILE = "file",
+  CALL_LOG = "call_log",
 }
 
 export class Message extends Model {
