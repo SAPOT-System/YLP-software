@@ -19,6 +19,7 @@ export function createConnectionServiceDependencyMocks() {
 			username: "testuser",
 			isOnline: true,
 		}),
+		isGuest: false,
 	};
 
 	const tcpClientAdapter = {
@@ -59,6 +60,14 @@ export function createConnectionServiceDependencyMocks() {
 		handleAckMessage: jest.fn(),
 	};
 
+	const appModeStore = {
+		isTcpAllowed: jest.fn(() => true),
+		isWebSocketAllowed: jest.fn(() => true),
+		isZeroconfAllowed: jest.fn(() => true),
+		getEffectiveMode: jest.fn(() => "auto"),
+		isModeAllowed: jest.fn(() => true),
+	};
+
 	return {
 		tcpServerAdapter,
 		networkConfig,
@@ -67,6 +76,7 @@ export function createConnectionServiceDependencyMocks() {
 		webrtcAdapter,
 		wsSignalingAdapter,
 		chatService,
+		appModeStore,
 	};
 }
 
@@ -96,6 +106,7 @@ export function createDiscoveryServiceDependencyMocks() {
 			isOnline: true,
 		}),
 		setUser: jest.fn(),
+		isGuest: false,
 	};
 
 	const peerService = {
@@ -116,6 +127,14 @@ export function createDiscoveryServiceDependencyMocks() {
 		handleAckMessage: jest.fn(),
 	};
 
+	const appModeStore = {
+		isTcpAllowed: jest.fn(() => true),
+		isWebSocketAllowed: jest.fn(() => true),
+		isZeroconfAllowed: jest.fn(() => true),
+		getEffectiveMode: jest.fn(() => "auto"),
+		isModeAllowed: jest.fn(() => true),
+	};
+
 	return {
 		zeroconfAdapter,
 		sessionStore,
@@ -123,23 +142,47 @@ export function createDiscoveryServiceDependencyMocks() {
 		userStore,
 		peerService,
 		chatService,
+		appModeStore,
 	};
 }
 
 export function createCallServiceDependencyMocks() {
 	const connectionService = {
+		isWebrtcConnected: jest.fn(),
 		initializeStream: jest.fn(),
 		renegotiate: jest.fn(),
 		terminateCallConnection: jest.fn(),
+		sendCallMessage: jest.fn(),
 		sendMessage: jest.fn(),
 		toggleMic: jest.fn(),
 		toggleCamera: jest.fn(),
+		switchCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		on: jest.fn(),
 		emit: jest.fn(),
 		connectToPeer: jest.fn(),
 		sendChatMessage: jest.fn(),
 		sendAckMessage: jest.fn(),
+	};
+
+	const peerService = {
+		findDiscoveredPeerById: jest.fn(),
+		findPeerById: jest.fn(),
+	};
+
+	const callRepository = {
+		saveCall: jest.fn(),
+		updateCallStatus: jest.fn(),
+	};
+
+	const callParticipantRepository = {
+		saveCallParticipant: jest.fn(),
+		updateParticipantLeftAtByCallAndUser: jest.fn(),
+	};
+
+	const chatService = {
+		getOrCreateDirectConversationByPeer: jest.fn(),
+		saveCallLogWithReceipts: jest.fn(),
 	};
 
 	connectionService.on.mockImplementation(() => connectionService);
@@ -154,6 +197,10 @@ export function createCallServiceDependencyMocks() {
 
 	return {
 		connectionService,
+		peerService,
+		callRepository,
+		callParticipantRepository,
+		chatService,
 		userStore,
 	};
 }
@@ -181,6 +228,7 @@ export function createChatServiceDependencyMocks() {
 		toggleCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		renegotiate: jest.fn(),
+		waitForDataChannel: jest.fn().mockResolvedValue(undefined),
 	};
 
 	const conversationRepository = {
@@ -203,6 +251,7 @@ export function createChatServiceDependencyMocks() {
 	const messageRepository = {
 		saveMessage: jest.fn(),
 		queryMessagesByConversation: jest.fn(),
+		queryMessageById: jest.fn(),
 		getAllMessageDestroyOps: jest.fn(),
 	};
 

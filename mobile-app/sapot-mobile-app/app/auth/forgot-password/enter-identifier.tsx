@@ -1,8 +1,4 @@
-import { View } from "react-native";
-import React, { useState } from "react";
-import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { HelperText } from "react-native-paper";
-import { router, useLocalSearchParams } from "expo-router";
+import { AUTH_ROUTES } from "@/app/routes";
 import {
   AuthTextInput,
   PrimaryButton,
@@ -10,7 +6,14 @@ import {
   useEmailReset,
   useValidateIdentifier,
 } from "@/features/auth";
-import { AUTH_ROUTES } from "@/app/routes";
+import { canResetPasswordApi } from "@/features/auth/api/auth.api";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { authLog } from "@/features/shared/utils/logger";
+import { router, useLocalSearchParams } from "expo-router";
+import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import React, { useEffect, useState } from "react";
+import { View } from "react-native";
+import { HelperText } from "react-native-paper";
 
 const EnterIdentifierScreen = () => {
   const {
@@ -25,26 +28,122 @@ const EnterIdentifierScreen = () => {
     sendCode,
   } = useEmailReset();
   const [identifier, setIdentfier] = useState("");
+  const [storedToken, setStoredToken] = useState<string | null>(null);
+  const [storedIdentifier, setStoredIdentifier] =
+    useState<string | null>(null);
+  const [hasCheckedStoredToken, setHasCheckedStoredToken] = useState(false);
+
+  useEffect(() => {
+    authLog.info("[EnterIdentifierScreen] mounted");
+    return () => {
+      authLog.info("[EnterIdentifierScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    authLog.debug("[EnterIdentifierScreen] useEffect triggered, deps:", {
+      resetOption,
+      identifierLength: identifier.length,
+    });
+  }, [resetOption, identifier]);
+
+  useEffect(() => {
+    const loadStoredReset = async () => {
+      try {
+        const tokenValue = await getItemAsync("reset_password_token");
+        const identifierValue = await getItemAsync(
+          "reset_password_identifier"
+        );
+        setStoredToken(tokenValue);
+        setStoredIdentifier(identifierValue);
+      } catch (error) {
+        authLog.error("[EnterIdentifierScreen] Error in load stored reset", {
+          error,
+        });
+        setStoredToken(null);
+        setStoredIdentifier(null);
+      } finally {
+        setHasCheckedStoredToken(false);
+      }
+    };
+
+    loadStoredReset();
+  }, []);
 
   const handleContinue = async () => {
+    authLog.debug("[EnterIdentifierScreen] handleContinue called", {
+      identifierLength: identifier.length,
+      resetOption,
+    });
     const result = await validateIdentfier(identifier);
 
     if (result.success) {
-      if (resetOption === "question")
+      if (
+        !hasCheckedStoredToken &&
+        storedToken &&
+        storedIdentifier &&
+        identifier === storedIdentifier
+      ) {
+        setHasCheckedStoredToken(true);
+
+        try {
+          const isValid = await canResetPasswordApi(storedToken);
+
+          if (isValid) {
+            authLog.info("[Navigation] Navigating to ResetPassword", {
+              screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+            });
+            router.replace({
+              pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+              params: { token: storedToken, identifier: storedIdentifier },
+            });
+            return;
+          }
+
+          await deleteItemAsync("reset_password_token");
+          await deleteItemAsync("reset_password_identifier");
+          setStoredToken(null);
+          setStoredIdentifier(null);
+        } catch (error) {
+          authLog.error(
+            "[EnterIdentifierScreen] Error in validate stored token",
+            { error }
+          );
+          await deleteItemAsync("reset_password_token");
+          await deleteItemAsync("reset_password_identifier");
+          setStoredToken(null);
+          setStoredIdentifier(null);
+        }
+      }
+
+      if (resetOption === "question") {
+        authLog.info("[Navigation] Navigating to QuestionReset", {
+          screen: AUTH_ROUTES.FORGOT_PASSWORD.QUESTION_RESET,
+        });
         router.push({
           pathname: AUTH_ROUTES.FORGOT_PASSWORD.QUESTION_RESET,
           params: { identifier },
         });
 
-      if (resetOption === "recoveryKey")
+      }
+
+      if (resetOption === "recoveryKey") {
+        authLog.info("[Navigation] Navigating to RecoveryKeyReset", {
+          screen: AUTH_ROUTES.FORGOT_PASSWORD.RECOVERY_KEY_RESET,
+        });
         router.push({
           pathname: AUTH_ROUTES.FORGOT_PASSWORD.RECOVERY_KEY_RESET,
           params: { identifier },
         });
 
+      }
+
       if (resetOption === "email") {
         const res = await sendCode(identifier);
         if (res.success) {
+          authLog.info("[Navigation] Navigating to EnterRecovery", {
+            screen: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
+          });
           router.push({
             pathname: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
             params: { identifier },
@@ -84,7 +183,10 @@ const EnterIdentifierScreen = () => {
           Continue
         </PrimaryButton>
         <SecondaryButton
-          onPress={() => router.back()}
+          onPress={() => {
+            authLog.info("[Navigation] goBack triggered from EnterIdentifier");
+            router.back();
+          }}
           disabled={loading || emailResetLoading}
         >
           Back

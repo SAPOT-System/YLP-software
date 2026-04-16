@@ -1,7 +1,8 @@
 from typing import Annotated
+import time
 from uuid import uuid4, UUID
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import SQLModel, Session, select
 from app.models.call import Call
 from app.models.conversation import ConversationParticipant, Conversation
 from fastapi import APIRouter, Depends, Query
@@ -16,15 +17,20 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, col
-from app.models.sync import SyncResponse, SyncRequest, SyncCheckResponse, PushSyncRequest
+from app.models.sync import SyncResponse, SyncRequest, SyncCheckResponse, PushSyncRequest, TableChanges
 
 from app.db_operations.token import get_current_user
 from app.models.users import User
-from app.models.message import Message
+from app.models.message import Message, SyncableModel
 from app.models.message_receipt import MessageReceipt
 from app.models.call import Call
 from app.models.conversation import ConversationParticipant
 
+import time
+from typing import Type, List, Dict, Any
+from uuid import UUID
+from sqlmodel import select, col, and_
+from fastapi import Depends
 
 router = APIRouter(
     prefix='/sync',
@@ -34,433 +40,203 @@ router = APIRouter(
     }
 )
 
-@router.get("/", response_model=SyncResponse)
-def sync_data(
-    current_user : Annotated[User, Depends(get_current_user)],
+
+
+@router.get("/pull")
+async def pull_remote_changes(
     session: SessionDep,
-    last_sync: Optional[datetime] = Query(None),
-    limit: int = Query(50, le=100),
-):
-    current_user_id = current_user.id
-    # If first time syncing, start from the beginning of time
-    since = last_sync or datetime.fromtimestamp(0, tz=timezone.utc)
-
-    # 1. Get Conversation IDs the user belongs to
-    # (Important: only sync what the user is allowed to see)
-    conv_ids_stmt = select(ConversationParticipant.conversation_id).where(
-        ConversationParticipant.user_id == current_user_id
-    )
-    user_conv_ids = session.exec(conv_ids_stmt).all()
-
-    # 2. Fetch Messages (Paginated)
-    # We fetch limit + 1 to determine if there's another "page"
-    # fetch conversations
-    conversation_stmt = (
-        select(Conversation)
-        .where(
-            Conversation.id.in_(user_conv_ids),
-            Conversation.updated_at > since
-        )
-        .order_by(Conversation.updated_at.asc()) # Oldest updates first
-        .limit(limit + 1)
-    )
-
-    sync_conversations = session.exec(conversation_stmt).all()
-
-    # fetch conversation participants
-    conversation_participants_stmt = (
-        select(ConversationParticipant)
-        .where(
-            ConversationParticipant.conversation_id.in_(user_conv_ids),
-            ConversationParticipant.joined_at > since
-        )
-        .order_by(ConversationParticipant.joined_at.asc()) # Oldest updates first
-        .limit(limit + 1)
-    )
-
-    sync_conversation_participants = session.exec(conversation_participants_stmt).all()
-
-    msg_stmt = (
-        select(Message)
-        .where(
-            Message.conversation_id.in_(user_conv_ids),
-            Message.updated_at > since
-        )
-        .order_by(Message.updated_at.asc()) # Oldest updates first
-        .limit(limit + 1)
-    )
-
-    messages = session.exec(msg_stmt).all()
-
-    # 3. Determine Pagination logic
-    has_more = len(messages) > limit
-    # Trim the list to the actual limit
-    sync_messages = messages[:limit]
-
-    # 4. Fetch Calls (Same logic)
-    call_stmt = (
-        select(Call)
-        .where(
-            Call.conversation_id.in_(user_conv_ids),
-            Call.updated_at > since
-        )
-        .order_by(Call.updated_at.asc())
-        .limit(limit) # For simplicity, we usually paginate by the "heaviest" table (Messages)
-    )
-    sync_calls = session.exec(call_stmt).all()
-
-
-    call_participants_stmt = (
-        select(CallParticipant)
-        .where(
-            CallParticipant.conversation_id.in_(user_conv_ids),
-            CallParticipant.joined_at > since
-        )
-        .order_by(CallParticipant.joined_at.asc())
-        .limit(limit) # For simplicity, we usually paginate by the "heaviest" table (Messages)
-    )
-    sync_call_participants = session.exec(call_participants_stmt).all()
-
-
-    msgs = (
-        select(Message.id)
-        .where(
-            Message.conversation_id.in_(user_conv_ids),
-            Message.updated_at > since
-        )
-        .order_by(Message.updated_at.asc()) # Oldest updates first
-    )
-    receipt_stmt = (
-        select(MessageReceipt)
-        .where(
-            MessageReceipt.message_id.in_(msgs),
-            MessageReceipt.updated_at > since
-        )
-        .order_by(MessageReceipt.updated_at.asc())
-        .limit(limit) # For simplicity, we usually paginate by the "heaviest" table (Messages)
-    )
-    sync_receipt = session.exec(receipt_stmt).all()
-
-
-    # 5. Set the new cursor
-    # If we have messages, the next sync starts from the last message's timestamp
-    # Otherwise, use the current server time
-    if sync_messages:
-        new_cursor = sync_messages[-1].updated_at
-    else:
-        new_cursor = datetime.now(timezone.utc)
-
-    return SyncResponse(
-        messages=sync_messages,
-        calls=sync_calls,
-        call_participants=sync_call_participants,
-        conversations=sync_conversations,
-        message_receipts=sync_receipt,
-        conversation_participants=sync_conversation_participants,
-        new_cursor=new_cursor,
-        has_more=has_more
-    )
-
-
-
-@router.get("/check", response_model=SyncCheckResponse)
-async def check_for_updates(
     current_user: Annotated[User, Depends(get_current_user)],
-    session: SessionDep,
-    last_sync: datetime = Query(...),
+    last_pulled_at: int = Query(default=0),
+    schema_version: int = Query(default=1),
+    # Migration is usually passed as a JSON string in GET or handled via POST
 ):
-    # 1. Get the actual list of IDs for the user's conversations
-    # We need the actual list for the .in_() clauses below
-    conv_ids_stmt = select(ConversationParticipant.conversation_id).where(
-        ConversationParticipant.user_id == current_user.id
-    )
-    user_conv_ids = session.exec(conv_ids_stmt).all()
+    # 1. CONSISTENT TIME-MARKING
+    # Mark the timestamp BEFORE querying starts to ensure no changes are missed 
+    # in the next cycle if they occur during this execution.
+    server_time = int(time.time() * 1000)
 
-    if not user_conv_ids:
-        return {"has_updates": False, "new_items_count": 0}
+    def get_table_changes(model: Type[SyncableModel]) -> Dict[str, Any]:
+        """Fetches changes for a specific table since last_pulled_at."""
+        
+        # 2. QUERY LOGIC
+        if last_pulled_at == 0:
+            # Initial sync: Fetch all records that are NOT deleted
+            stmt = select(model).where(col(model.is_deleted) == False)
+        else:
+            # Incremental sync: Fetch anything updated since last pull
+            stmt = select(model).where(col(model.updated_at) > last_pulled_at)
 
-    new_convs = session.exec(
-        select(func.count(Conversation.id)).where(
-            Conversation.id.in_(user_conv_ids),
-            Conversation.updated_at > last_sync
-        )
-    ).one()
+        results = session.exec(stmt).all()
 
-    # 2. Count new Participants in those conversations
-    new_parts = session.exec(
-        select(func.count(ConversationParticipant.id)).where(
-            ConversationParticipant.conversation_id.in_(user_conv_ids),
-            ConversationParticipant.joined_at > last_sync
-        )
-    ).one()
+        created = []
+        updated = []
+        deleted = []
 
-    # 3. Count new/updated Messages
-    new_msgs = session.exec(
-        select(func.count(Message.id)).where(
-            Message.conversation_id.in_(user_conv_ids),
-            Message.updated_at > last_sync
-        )
-    ).one()
+        # 3. WHITELIST & SANITIZATION
+        # Define fields to EXCLUDE from the final JSON (WatermelonDB internals)
+        internal_fields = {"_status", "_changed", "user_id_internal"} # Add any others
 
-    # 4. Count new/updated Receipts (JOINING to Message to check conv_id)
-    # This finds receipts for ANY message in the user's conversations
-    new_receipts = session.exec(
-        select(func.count(MessageReceipt.id))
-        .join(Message)
-        .where(
-            Message.conversation_id.in_(user_conv_ids),
-            MessageReceipt.updated_at > last_sync
-        )
-    ).one()
+        for record in results:
+            # Convert record to dict and sanitize
+            data = record.model_dump()
+            
+            # Remove internal fields and relationship proxies
+            clean_data = {
+                k: (str(v) if isinstance(v, UUID) else v) 
+                for k, v in data.items() 
+                if k not in internal_fields and not k.startswith('_')
+            }
 
-    # 5. Count new/updated Calls
-    new_calls = session.exec(
-        select(func.count(Call.id)).where(
-            Call.conversation_id.in_(user_conv_ids),
-            Call.updated_at > last_sync
-        )
-    ).one()
+            # 4. CATEGORIZATION LOGIC
+            if record.is_deleted:
+                # If it's a deletion, Watermelon only wants the ID string
+                deleted.append(str(record.id))
+            elif last_pulled_at == 0 or record.created_at > last_pulled_at:
+                # Brand new record
+                created.append(clean_data)
+            else:
+                # Modification to existing record
+                updated.append(clean_data)
 
+        return {
+            "created": created, 
+            "updated": updated, 
+            "deleted": deleted
+        }
 
-    # 6. Count new/updated Call Participants
-    new_call_parts = session.exec(
-        select(func.count(CallParticipant.id)).where(
-            CallParticipant.conversation_id.in_(user_conv_ids),
-            CallParticipant.joined_at > last_sync
-        )
-    ).one()
+    # 5. SCOPED CHANGES (Collection Whitelist)
+    # This ensures no arbitrary collection names are leaked.
+    changes = {
+        "conversations": get_table_changes(Conversation),
+        "messages": get_table_changes(Message),
+        "conversation_participants": get_table_changes(ConversationParticipant),
+        "calls": get_table_changes(Call),
+        "call_participants": get_table_changes(CallParticipant),
+        "message_receipts": get_table_changes(MessageReceipt),
+    }
 
-    total_new = new_parts + new_msgs + new_receipts + new_calls + new_call_parts + new_convs
-
+    # 6. RESPONSE FORMAT
     return {
-        "has_updates": total_new > 0,
-        "new_items_count": total_new
+        "changes": changes,
+        "timestamp": server_time
     }
 
 
+def cast_to_uuids(model, datum: dict):
+    # 1. ID is mandatory for both Created and Updated
+    if "id" in datum and isinstance(datum["id"], str):
+        datum["id"] = UUID(datum["id"])
 
-# @router.post("/push")
-# async def push_local_data(
-#     data: PushSyncRequest,
-#     session: SessionDep,
-#     current_user: Annotated[User, Depends(get_current_user)],
-# ):
-# # --- 1. Conversations ---
-#     for conv_data in data.conversations:
-#         # FORCE UUID OBJECT IMMEDIATELY
-#         c_id = conv_data.id if isinstance(conv_data.id, UUID) else UUID(str(conv_data.id))
-
-#         existing_conv = session.get(Conversation, c_id)
-#         if not existing_conv:
-#             # Create a dict, fix the ID, then create the Model
-#             conv_dict = conv_data.model_dump()
-#             conv_dict['id'] = c_id
-#             session.add(Conversation(**conv_dict))
-
-#     # --- 2. Participants ---
-#     for part_data in data.conversation_participants:
-#         p_id = part_data.id if isinstance(part_data.id, UUID) else UUID(str(part_data.id))
-#         c_id = part_data.conversation_id if isinstance(part_data.conversation_id, UUID) else UUID(str(part_data.conversation_id))
-#         u_id = part_data.user_id if isinstance(part_data.user_id, UUID) else UUID(str(part_data.user_id))
-
-#         statement = select(ConversationParticipant).where(
-#             ConversationParticipant.conversation_id == c_id,
-#             ConversationParticipant.user_id == u_id
-#         )
-#         # This exec() triggers the autoflush of conversations added above
-#         existing_part = session.exec(statement).first()
-
-#         if not existing_part:
-#             session.add(ConversationParticipant(
-#                 id=p_id,
-#                 conversation_id=c_id,
-#                 user_id=u_id,
-#                 joined_at=part_data.joined_at
-#             ))
-
-#     session.flush()
-
-#     # 3. Security Check: Refresh the allowed IDs after syncing participants
-#     conv_ids_stmt = select(ConversationParticipant.conversation_id).where(
-#         ConversationParticipant.user_id == current_user.id
-#     )
-#     allowed_conv_ids = set(session.exec(conv_ids_stmt).all())
-
-# # 4. Process Messages (SINGLE LOOP)
-#     for msg_data in data.messages:
-#         # Ensure we are comparing UUID to UUID
-#         curr_msg_conv_id = msg_data.conversation_id
-#         if isinstance(curr_msg_conv_id, str):
-#             curr_msg_conv_id = UUID(curr_msg_conv_id)
-
-#         if curr_msg_conv_id not in allowed_conv_ids:
-#             continue
-
-#         existing_msg = session.get(Message, UUID(msg_data.id))
-#         if existing_msg:
-#             existing_msg.content = msg_data.content
-#             existing_msg.is_deleted = msg_data.is_deleted
-#         else:
-#             # Ensure ID is a UUID object, not a string
-#             msg_id = msg_data.id
-#             if isinstance(msg_id, str):
-#                 msg_id = UUID(msg_id)
-
-#             # Ensure Conversation ID is a UUID object
-#             conv_id = msg_data.conversation_id
-#             if isinstance(conv_id, str):
-#                 conv_id = UUID(conv_id)
-
-#             new_msg = Message(
-#                 id=msg_id,  # Use the converted UUID
-#                 content=msg_data.content,
-#                 message_type=msg_data.message_type,
-#                 conversation_id=conv_id, # Use the converted UUID
-#                 sender_id=current_user.id,
-#                 created_at=msg_data.created_at,
-#                 updated_at=datetime.now(timezone.utc)
-#             )
-#             session.add(new_msg)
-
-#     # 5. Process Calls (Similar logic)
-#     for call_data in data.calls:
-#         if call_data.conversation_id not in allowed_conv_ids:
-#             continue
-#         if not session.get(Call, call_data.id):
-#             session.add(Call(**call_data.model_dump()))
-
-#     session.commit()
-#     return {"status": "success", "message": "Data reconciled"}
+    # 2. Use .get() or "in" checks for foreign keys
+    # This prevents KeyErrors during partial updates
+    
+    if model is ConversationParticipant:
+        if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
+        if "user_id" in datum: datum["user_id"] = UUID(datum["user_id"])
+        
+    elif model is Message:
+        if "sender_id" in datum: datum["sender_id"] = UUID(datum["sender_id"])
+        if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
+        
+    elif model is Call:
+        if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
+        if "initiator_id" in datum: datum["initiator_id"] = UUID(datum["initiator_id"])
+        
+    elif model is CallParticipant:
+        if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
+        if "user_id" in datum: datum["user_id"] = UUID(datum["user_id"])
+        
+    elif model is MessageReceipt:
+        if "user_id" in datum: datum["user_id"] = UUID(datum["user_id"])
+        if "message_id" in datum: datum["message_id"] = UUID(datum["message_id"])
+        
+    return datum
 
 
+# sanitize this
 @router.post("/push")
 async def push_local_data(
+    current_user: Annotated[User, Depends(get_current_user)],
     data: PushSyncRequest,
     session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_user)],
 ):
-    for conversation_participant in data.conversation_participants:
-        p_id = conversation_participant.id if isinstance(conversation_participant.id, UUID) else UUID(str(conversation_participant.id))
-        c_id = conversation_participant.conversation_id if isinstance(conversation_participant.conversation_id, UUID) else UUID(str(conversation_participant.conversation_id))
-        u_id = conversation_participant.user_id if isinstance(conversation_participant.user_id, UUID) else UUID(str(conversation_participant.user_id))
+    changes = data.changes
+    last_pulled_at = data.last_pulled_at or 0
+    
+    # Tables in order to respect Foreign Key constraints
+    data_table = {
+        Conversation: changes.get('conversations'),
+        Message: changes.get('messages'),
+        ConversationParticipant: changes.get('conversation_participants'),
+        Call: changes.get('calls'),
+        CallParticipant: changes.get('call_participants'),
+        MessageReceipt: changes.get('message_receipts'),
+    }
 
-        statement = select(ConversationParticipant).where(
-            ConversationParticipant.conversation_id == c_id,
-            ConversationParticipant.user_id == u_id
-        )
-        # This exec() triggers the autoflush of conversations added above
-        existing_part = session.exec(statement).first()
+    try:
+        for model, table_changes in data_table.items():
+            if not table_changes:
+                continue
 
-        if not existing_part:
-            session.add(ConversationParticipant(
-                id=p_id,
-                conversation_id=c_id,
-                user_id=u_id,
-                joined_at=datetime.fromisoformat(conversation_participant.joined_at.replace("Z", "+00:00"))
-            ))
-        session.flush()
+            # --- 1. HANDLE CREATED & UPDATED (Upsert Logic) ---
+            # Protocol: If created ID exists -> Update. If updated ID missing -> Create.
+            all_upserts = table_changes.created + table_changes.updated
+            
+            for datum in all_upserts:
+                cast_to_uuids(model, datum)
+                record = session.get(model, datum["id"])
 
+                if record:
+                    # CONFLICT DETECTION: 
+                    # If record was modified on server after user's last pull, abort.
+                    if record.updated_at > last_pulled_at:
+                        raise HTTPException(status_code=409, detail="Conflict: Record updated remotely.")
 
-    # 3. Security Check: Refresh the allowed IDs after syncing participants
-    conv_ids_stmt = select(ConversationParticipant.conversation_id).where(
-        ConversationParticipant.user_id == current_user.id
-    )
-    allowed_conv_ids = set(session.exec(conv_ids_stmt).all())
+                    # If record is already deleted on server, Protocol says throw error on 'updated' block
+                    # but usually, we just force a re-sync.
+                    if record.is_deleted:
+                        raise HTTPException(status_code=404, detail="Record deleted on server.")
 
-    for conv_data in data.conversations:
-        # FORCE UUID OBJECT IMMEDIATELY
-        c_id = conv_data.id if isinstance(conv_data.id, UUID) else UUID(str(conv_data.id))
+                    # UPDATE existing record
+                    for key, value in datum.items():
+                        # Protocol: Ignore _status, _changed. Only update valid columns.
+                        if key not in ["id", "_status", "_changed"] and hasattr(record, key):
+                            setattr(record, key, value)
+                    session.add(record)
+                
+                else:
+                    # CREATE new record (if not found in 'updated' or 'created')
+                    # Protocol: Sanitize data (handled by model validation/SQLModel)
+                    new_record = model(**datum)
+                    session.add(new_record)
 
-        existing_conv = session.get(Conversation, c_id)
-        if not existing_conv:
-            # Create a dict, fix the ID, then create the Model
-            cast_date = datetime.fromisoformat(conv_data.created_at.replace("Z", "+00:00"))
-            setattr(conv_data, 'id', c_id)
-            setattr(conv_data, 'created_at', cast_date)
-            session.add(conv_data)
+            # --- 2. HANDLE DELETED ---
+            for datum_id in table_changes.deleted:
+                try:
+                    target_uuid = UUID(datum_id) if isinstance(datum_id, str) else datum_id
+                    record = session.get(model, target_uuid)
+                    
+                    if record:
+                        record.is_deleted = True
+                        record.updated_at = int(time.time() * 1000)
+                        session.add(record)
+                        
+                        # TODO: (Optional) Delete descendants here if needed 
+                        # e.g., if record is Conversation, delete Messages.
+                except ValueError:
+                    continue # Ignore invalid ID formats as per Protocol
 
-            # 4. Process Messages (SINGLE LOOP)
-    for msg_data in data.messages:
-        # Ensure we are comparing UUID to UUID
-        curr_msg_conv_id = msg_data.conversation_id
-        if isinstance(curr_msg_conv_id, str):
-            curr_msg_conv_id = UUID(curr_msg_conv_id)
+            # Flush after each table to maintain FK integrity for the next table
+            session.flush()
 
-        if curr_msg_conv_id not in allowed_conv_ids:
-            continue
+        # Finalize everything
+        session.commit()
+        return {"status": "ok"}
 
-        existing_msg = session.get(Message, UUID(msg_data.id))
-        if existing_msg:
-            existing_msg.content = msg_data.content
-            existing_msg.is_deleted = msg_data.is_deleted
-        else:
-            # Ensure ID is a UUID object, not a string
-            msg_id = msg_data.id
-            created_date =  datetime.fromisoformat(msg_data.created_at.replace("Z", "+00:00"))
-            if isinstance(msg_id, str):
-                msg_id = UUID(msg_id)
-
-            # Ensure Conversation ID is a UUID object
-            conv_id = msg_data.conversation_id
-            if isinstance(conv_id, str):
-                conv_id = UUID(conv_id)
-
-            new_msg = Message(
-                id=msg_id,  # Use the converted UUID
-                content=msg_data.content,
-                message_type=msg_data.message_type,
-                conversation_id=conv_id, # Use the converted UUID
-                sender_id=current_user.id,
-                created_at=created_date,
-                updated_at=datetime.now(timezone.utc)
-            )
-            session.add(new_msg)
-
-    # 5. Process Calls (Similar logic)
-    for call_data in data.calls:
-        # if call_data.conversation_id not in allowed_conv_ids:
-        #     continue
-        print("CALL", call_data)
-        casted_id = UUID(call_data.id)
-        casted_conversation_id = UUID(call_data.conversation_id)
-        casted_initiator_id = UUID(call_data.initiator_id)
-        casted_id = UUID(call_data.id)
-        start_date =  datetime.fromisoformat(call_data.start_time.replace("Z", "+00:00"))
-        end_date =  datetime.fromisoformat(call_data.end_time.replace("Z", "+00:00"))
-        setattr(call_data, 'id', casted_id)
-        setattr(call_data, 'conversation_id', casted_conversation_id)
-        setattr(call_data, 'initiator_id', casted_initiator_id)
-        setattr(call_data, 'start_time', start_date)
-        setattr(call_data, 'end_time', end_date)
-        if not session.get(Call, call_data.id):
-            session.add(Call(**call_data.model_dump(exclude_unset=True)))
-
-
-    for call_participant_data in data.call_participants:
-        joined_date =  datetime.fromisoformat(call_participant_data.joined_at.replace("Z", "+00:00"))
-        left_date = datetime.fromisoformat(call_participant_data.left_at.replace("Z", "+00:00")) if (call_participant_data.left_at) else None
-        casted_id = UUID(call_participant_data.id)
-        casted_conversation_id = UUID(call_participant_data.conversation_id)
-        casted_user_id = UUID(call_participant_data.user_id)
-        setattr(call_participant_data, 'id', casted_id)
-        setattr(call_participant_data, 'user_id', casted_user_id)
-        setattr(call_participant_data, 'conversation_id', casted_conversation_id)
-        setattr(call_participant_data, 'joined_at', joined_date)
-        setattr(call_participant_data, 'left_at', left_date)
-        if not session.get(CallParticipant, call_participant_data.id):
-            session.add(CallParticipant(**call_participant_data.model_dump()))
-
-
-    for message_receipt in data.message_receipts:
-        updated_at = datetime.fromisoformat(message_receipt.updated_at.replace("Z", "+00:00"))
-        casted_id = UUID(message_receipt.id)
-        casted_user_id = UUID(message_receipt.user_id)
-        casted_message_id = UUID(message_receipt.message_id)
-        setattr(message_receipt, 'id', casted_id)
-        setattr(message_receipt, 'user_id', casted_user_id)
-        setattr(message_receipt, 'message_id', casted_message_id)
-        setattr(message_receipt, 'updated_at', updated_at)
-        if not session.get(MessageReceipt, message_receipt.id):
-            session.add(MessageReceipt(**message_receipt.model_dump()))
-    session.commit()
-    return {"status": "success", "message": "Data reconciled"}
+    except HTTPException as he:
+        session.rollback()
+        raise he
+    except Exception as e:
+        session.rollback()
+        print(f"Sync Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Sync Error")

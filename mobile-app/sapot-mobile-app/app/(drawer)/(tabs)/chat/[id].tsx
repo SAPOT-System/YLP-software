@@ -1,9 +1,14 @@
 import { APP_ROUTES } from "@/app/routes";
-import { useCallService } from "@/features/call";
+import { useInformCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
-import { usePeerService, useToast } from "@/features/shared/hooks";
+import {
+  usePeerService,
+  useProfilePhoto,
+  useToast,
+} from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -26,15 +31,19 @@ import {
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<
+    "connecting" | "connected" | "failed" | "timeout" | "idle"
+  >("idle");
   const [isRendered, setIsRendered] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
   const [peer, setPeer] = useState<Peer | undefined>();
+  const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
   const [message, setMessage] = useState("");
   const chatService = useChatService();
   const peerService = usePeerService();
   const router = useRouter();
-  const callService = useCallService();
+  const call = useInformCall();
   const {
     visible: toastVisible,
     message: toastMessage,
@@ -43,8 +52,19 @@ const ChatRoom = () => {
   } = useToast();
   const theme = useTheme();
 
+  useEffect(() => {
+    uiLog.info("[ChatRoom] mounted");
+    return () => {
+      uiLog.info("[ChatRoom] unmounted");
+    };
+  }, []);
+
   // This will initialize the connection to the peer and conversations by the id params
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
+      id,
+      source,
+    });
     const connect = async () => {
       if (source === ChatRoomSource.PEER) {
         setPeerId(id as string);
@@ -62,6 +82,7 @@ const ChatRoom = () => {
   }, [chatService, id, source]);
 
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
 
     const connect = async () => {
@@ -69,7 +90,7 @@ const ChatRoom = () => {
         await chatService.connect(peerId);
         setIsConnected(true);
       } catch (error) {
-        console.warn("Connection failed", error);
+        uiLog.warn("chat › connect failed", { peerId, error });
         showToast("Connection failed");
         // TODO: try reconnect
       }
@@ -77,12 +98,20 @@ const ChatRoom = () => {
 
     connect();
 
+    const unsubscribe = chatService.onConnectionState((payload) => {
+      if (payload.peerId !== peerId) return;
+      setConnectionState(payload.state);
+      setIsConnected(payload.state === "connected");
+    });
+
     return () => {
+      unsubscribe();
       chatService.disconnect();
     };
   }, [peerId, chatService, showToast]);
 
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
 
     const getPeer = async () => {
@@ -90,7 +119,7 @@ const ChatRoom = () => {
         const foundPeer = await peerService.findPeerById(peerId);
         setPeer(foundPeer);
       } catch (error) {
-        console.error("[ChatRoom]: Error retrieving peer data", error);
+        uiLog.error("chat › load peer failed", { peerId, error });
       }
     };
 
@@ -100,6 +129,10 @@ const ChatRoom = () => {
   if (!isRendered) return <ActivityIndicator />;
 
   const handleSendMessage = async () => {
+    uiLog.debug("[ChatRoom] handleSendMessage called", {
+      hasMessage: Boolean(message.trim()),
+      conversationId,
+    });
     if (!message.trim()) return;
     try {
       const chatId = await chatService.sendChatMessage(message);
@@ -110,22 +143,27 @@ const ChatRoom = () => {
 
       setMessage("");
     } catch (error) {
-      console.error("[ChatRoom]: Error handling message:", error);
+      uiLog.error("chat › send message failed", {
+        conversationId,
+        error,
+      });
     }
-  };
-
-  const handleCall = async (peerId: string) => {
-    callService.informPeerForIncomingAudioCall(peerId);
-    await callService.startCall(peerId);
-    router.push({
-      pathname: "/(drawer)/(tabs)/call/[id]",
-      params: { id: peerId! },
-    });
   };
 
   const peerDisplayName = peer
     ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
     : "Unknown user";
+  const connectionStatusLabel = isConnected
+    ? "Connected"
+    : connectionState === "connecting"
+    ? "Connecting..."
+    : connectionState === "timeout"
+    ? "Connection timeout"
+    : connectionState === "failed"
+    ? "Connection failed"
+    : peer?.isOnline
+    ? "Active now"
+    : "Offline";
 
   return (
     <KeyboardAvoidingView
@@ -135,11 +173,20 @@ const ChatRoom = () => {
     >
       <View style={styles.header}>
         <View style={styles.headerLeftGroup}>
-          <Appbar.BackAction onPress={() => router.back()} />
-          <Avatar.Text
-            size={40}
-            label={peer?.firstName?.[0]?.toUpperCase() ?? "?"}
+          <Appbar.BackAction
+            onPress={() => {
+              uiLog.info("[Navigation] goBack triggered from ChatRoom");
+              router.back();
+            }}
           />
+          {peerProfilePicUrl ? (
+            <Avatar.Image size={40} source={{ uri: peerProfilePicUrl }} />
+          ) : (
+            <Avatar.Text
+              size={40}
+              label={peer?.firstName?.[0]?.toUpperCase() ?? "?"}
+            />
+          )}
           <View style={styles.identityGroup}>
             <Text
               style={[
@@ -157,11 +204,7 @@ const ChatRoom = () => {
               ]}
               numberOfLines={1}
             >
-              {isConnected
-                ? "Connected"
-                : peer?.isOnline
-                ? "Active now"
-                : "Offline"}
+              {isConnected ? "Connected" : connectionStatusLabel}
             </Text>
           </View>
         </View>
@@ -171,25 +214,43 @@ const ChatRoom = () => {
             icon="phone"
             size={20}
             iconColor="#00E700"
-            onPress={() => peerId && handleCall(peerId)}
+            onPress={() => {
+              uiLog.debug("[ChatRoom] onPress triggered");
+              if (peerId) {
+                uiLog.info("[ChatRoom] start call", { type: "audio", peerId });
+                call("audio", peerId);
+              }
+            }}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="video"
             size={20}
-            onPress={() => peerId && handleCall(peerId)}
+            onPress={() => {
+              uiLog.debug("[ChatRoom] onPress triggered");
+              if (peerId) {
+                uiLog.info("[ChatRoom] start call", { type: "video", peerId });
+                call("video", peerId);
+              }
+            }}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="dots-vertical"
             size={20}
-            onPress={() =>
-              peerId &&
-              router.push({
-                pathname: APP_ROUTES.PEER_PROFILE,
-                params: { id: peerId },
-              })
-            }
+            onPress={() => {
+              uiLog.debug("[ChatRoom] onPress triggered");
+              if (peerId) {
+                uiLog.info("[Navigation] Navigating to PeerProfile", {
+                  screen: APP_ROUTES.PEER_PROFILE,
+                  peerId,
+                });
+                router.push({
+                  pathname: APP_ROUTES.PEER_PROFILE,
+                  params: { id: peerId },
+                });
+              }
+            }}
             style={styles.headerActionButton}
           />
         </View>

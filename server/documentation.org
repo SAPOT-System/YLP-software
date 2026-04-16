@@ -380,35 +380,12 @@ with request body/form-data
   "email": "user@example.com" // optional
 }
 #+END_SRC
-** Check if a sync is available of server ~/sync/check GET~
-Requires users to be authenticated.
-
-use this to check if updates are available from the server
-
-
-send a request like
-~http://localhost:8000/sync/check?last_sync=2026-03-30T06%3A24%3A50.565Z~
-
-*** Sample response
-#+BEGIN_SRC json
-{
-  "has_updates": false,
-  "new_items_count": 0, // count of items to be synced
-  "last_update_at": null // last updated timestamp
-}
-// OR
-{
-  "has_updates": true,
-  "new_items_count": 12,
-  "last_update_at": "2026-03-30T06:25:07.399Z"
-}
-#+END_SRC
-** Sync from server ~/sync/ get~
+** Sync from server ~/sync/pull POST~
 Requires users to be authenticated.
 
 Send a request like:
-~http://localhost:8000/sync/?last_sync=2026-03-29T06%3A16%3A02.446Z&limit=50~
-*** /last_sync/ argument
+~http://localhost:8000/sync/pull?last_pulled_at=0&schema_version=1~
+*** /last_sync_at/ argument
 - meant to be the point where the syncing will start
 *** /limit/ argument
 - amount of data that will be sync in the current connection
@@ -418,30 +395,48 @@ Send a request like:
 *** Example response
 #+BEGIN_SRC json
 {
-  "server_time": "2026-03-30T06:16:25.686453Z", // shows the current time in the server (could be used as a comparison to the current device's time)
-  "conversations": [],              // field for conversations to be synced
-  "messages": [],                   // field for messages to be synced
-  "calls": [],                      // field for calls to be synced
-  "call_participants": [], [],      // field for call participants to be synced
-  "conversation_participants": [    // field for conversation participants to be synced
-    {
-      "conversation_id": "252ad3d9-4b9a-4ad3-b604-a11b3019b85d",
-      "id": "ef866642-8997-41db-a286-3bee85d488ae",
-      "joined_at": "2026-03-30T02:05:20.311407",
-      "user_id": "da055078-37e6-4106-9a64-5e0b0b001b6b",
-      "is_deleted": false
+  "changes": {
+    "conversations": {
+      "created": [
+        {
+          "updated_at": 1775315958000,
+          "is_deleted": false,
+          "title": "Project Alpha Sync",
+          "created_at": 1775315958000,
+          "id": "a1646700-6467-42f2-901b-9f936f6d2b63",
+          "conversation_type": "group"
+        }
+      ],
+      "updated": [],
+      "deleted": []
     },
-    {
-      "conversation_id": "252ad3d9-4b9a-4ad3-b604-a11b3019b85d",
-      "id": "ef866642-8997-41db-a286-3bee85d488be",
-      "joined_at": "2026-03-30T02:05:20.311407",
-      "user_id": "96b72839-e077-4413-91e6-d3038c6a9532",
-      "is_deleted": false
+    "messages": {
+      "created": [],
+      "updated": [],
+      "deleted": []
+    },
+    "conversation_participants": {
+      "created": [],
+      "updated": [],
+      "deleted": []
+    },
+    "calls": {
+      "created": [],
+      "updated": [],
+      "deleted": []
+    },
+    "call_participants": {
+      "created": [],
+      "updated": [],
+      "deleted": []
+    },
+    "message_receipts": {
+      "created": [],
+      "updated": [],
+      "deleted": []
     }
-  ],
-  "message_receipts": [],  // field for message receipts to be synced
-  "new_cursor": "2026-03-30T06:16:25.686389Z", // can be used as the new 'last_synced' value for syncing to the server
-  "has_more": false // shows true if there's more unsynced data in the server, otherwise false
+  },
+  "timestamp": 1775289283482
 }
 #+END_SRC
 
@@ -453,20 +448,67 @@ use this endpoint to push new data to the server
 *** attach the following as the form-body
 #+BEGIN_SRC json
 {
-  "conversations": [...],
-  "messages": [...],
-  "conversation_participants": [...],
-  "calls": [...],
-  "call_participants": [...],
-  "message_receipts": [...]
+  "changes": {
+    "conversations": {
+      "created": [
+        {
+          "id": "conv_id_placeholder",
+          "title": "New Test Chat",
+          "conversation_type": "group",
+          "created_at": 1712234500000,
+          "updated_at": 1712234500000,
+          "is_deleted": false
+        }
+      ],
+      "updated": [],
+      "deleted": []
+    },
+    "messages": {
+      "created": [
+        {
+          "id": "msg_id_placeholder",
+          "content": "Hello World",
+          "conversation_id": "conv_id_placeholder",
+          "sender_id": "user_id_placeholder",
+          "created_at": 1712234500001,
+          "updated_at": 1712234500001,
+          "is_deleted": false
+        }
+      ],
+      "updated": [],
+      "deleted": []
+    }
+  },
+  "last_pulled_at": 1712234000000
+}
+
+// OR
+{
+  "changes": {
+    "additionalProp1": {
+      "created": [...],
+      "updated": [...],
+      "deleted": [...]
+    },
+    "additionalProp2": {
+      "created": [],
+      "updated": [],
+      "deleted": []
+    },
+    "additionalProp3": {
+      "created": [],
+      "updated": [],
+      "deleted": []
+    }
+  },
+  "last_pulled_at": 0
 }
 #+END_SRC
 *** Sample response
 
 #+BEGIN_SRC json
 {
-  "status": "success",
-  "message": "Data reconciled"
+  "status": "ok"
 }
 #+END_SRC
 
@@ -1030,4 +1072,37 @@ Use a router parameter like ~http://localhost:8000/gps/history/e51bb26d-e18a-4e3
 ]
 #+END_SRC
 
+** websocket responses
+*** get online users
+To get the online users, send a ws request to ~/ws/~ containing ~{ type: 'get-active-users' }~
 
+
+The server would response with the list of user IDs that are currently active
+
+
+Everytime a user connected to his/her dedicated websocket, a ~{type: "status-update", "user_id": user_id, "status": "online"}~ json will be broadcasted to everyone
+
+
+Everytime a user disconnects, a ~{"type": "status-update","user_id": user_id, 'status': "offline"}~ will be broadcasted
+
+*** Relay New Message TYPES
+For now let's call it MessageData
+
+
+use a request like:
+#+BEGIN_SRC json
+{
+	type: 'call-ended', // Options: 'audio-call', 'video-call', 'call-ended'
+	data: {
+		from: '550e8400-e29b-41d4-a716-446655440000', // Your sender ID
+		to: '96eaba99-3797-4c2c-9174-92e3a7dfe7bc'    // Target user UUID
+	}
+}
+#+END_SRC
+to the ~/ws/~ websocket endpoint
+
+
+this will be queued in the webserver in case the user receiving was offline 
+
+
+this will also be sent to the user in case the user comes online (connect to the websocket again)

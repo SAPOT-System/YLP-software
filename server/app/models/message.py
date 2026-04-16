@@ -3,7 +3,10 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel, String
+import time
+from typing import Optional
+from sqlmodel import SQLModel, Field, Column, BigInteger
 
 if TYPE_CHECKING:
     from app.models.users import User
@@ -12,24 +15,40 @@ if TYPE_CHECKING:
     from app.models.attachment import Attachment
 
 class MessageType(str, Enum):
-    TEXT = 'text'
-    ATTACHMENT = 'attachment'
-    CALL_LOG = 'call_log'
+    text = 'text'
+    attachment = 'attachment'
+    call_log = 'call_log'
 
 
-class Message(SQLModel, table=True):
+def now_ms():
+    """Returns current UTC time in milliseconds."""
+    return int(time.time() * 1000)
+
+class SyncableModel(SQLModel):
+    # Instead of sa_column=Column(...), specify the SA type directly
+    # and use sa_column_kwargs for the 'onupdate' trigger.
+    created_at: int = Field(
+        default_factory=now_ms,
+        sa_type=BigInteger(), 
+        nullable=False
+    )
+    
+    updated_at: int = Field(
+        default_factory=now_ms,
+        sa_type=BigInteger(),
+        nullable=False,
+        sa_column_kwargs={"onupdate": now_ms} # This creates a fresh trigger for every table
+    )
+    
+    is_deleted: bool = Field(default=False, index=True)
+
+
+class Message(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
 
-    message_type : MessageType
+    message_type : MessageType = Field(default=MessageType.text)
     content : str = Field(max_length=255, min_length=1)
-    created_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_deleted : bool = Field(default=False)
-
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
-        index=True  # Important for query performance
-    )
 
     # foreign_key
     conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')

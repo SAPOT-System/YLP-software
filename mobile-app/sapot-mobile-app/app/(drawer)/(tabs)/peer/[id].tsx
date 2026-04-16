@@ -1,6 +1,7 @@
-import { useCallService } from "@/features/call";
-import { usePeerService } from "@/features/shared/hooks";
-import { router, useLocalSearchParams } from "expo-router";
+import { useInformCall } from "@/features/call";
+import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import {
@@ -13,17 +14,27 @@ import {
 
 export default function PeerProfile() {
   const theme = useTheme();
-  const callService = useCallService();
   const { id } = useLocalSearchParams<{ id: string }>();
   const peerService = usePeerService();
+  const call = useInformCall();
+  const { url: profilePicUrl } = useProfilePhoto(id ?? null);
   const [peerName, setPeerName] = useState("Unknown user");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    uiLog.info("[PeerProfile] mounted");
+    return () => {
+      uiLog.info("[PeerProfile] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[PeerProfile] useEffect triggered, deps:", { id });
     let isMounted = true;
 
     const loadPeer = async () => {
       if (!id) {
+        uiLog.warn("[PeerProfile] missing peer id");
         if (isMounted) setIsLoading(false);
         return;
       }
@@ -38,7 +49,8 @@ export default function PeerProfile() {
             "Unknown user"
           : "Unknown user";
         setPeerName(displayName);
-      } catch {
+      } catch (error) {
+        uiLog.error("[PeerProfile] Error in load peer", { error });
         if (isMounted) setPeerName("Unknown user");
       } finally {
         if (isMounted) setIsLoading(false);
@@ -52,15 +64,6 @@ export default function PeerProfile() {
     };
   }, [id, peerService]);
 
-  const handleCall = async (peerId: string) => {
-    callService.informPeerForIncomingAudioCall(peerId);
-    await callService.startCall(peerId);
-    router.push({
-      pathname: "/(drawer)/(tabs)/call/[id]",
-      params: { id: peerId! },
-    });
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 34, alignItems: "center" }}>
@@ -69,7 +72,14 @@ export default function PeerProfile() {
         ) : (
           <>
             <View style={{ alignItems: "center", gap: 20 }}>
-              <Avatar.Text size={150} label={peerName[0].toUpperCase()} />
+              {profilePicUrl ? (
+                <Avatar.Image size={150} source={{ uri: profilePicUrl }} />
+              ) : (
+                <Avatar.Text
+                  size={150}
+                  label={(peerName[0] ?? "?").toUpperCase()}
+                />
+              )}
               <Text
                 style={{
                   fontWeight: "700",
@@ -101,12 +111,30 @@ export default function PeerProfile() {
                 icon="phone"
                 size={20}
                 iconColor="#00E700"
-                onPress={() => id && handleCall(id)}
+                onPress={() => {
+                  uiLog.debug("[PeerProfile] onPress triggered");
+                  if (id) {
+                    uiLog.info("[PeerProfile] start call", {
+                      type: "audio",
+                      peerId: id,
+                    });
+                    call("audio", id);
+                  }
+                }}
               />
               <IconButton
                 icon="video"
                 size={20}
-                onPress={() => id && handleCall(id)}
+                onPress={() => {
+                  uiLog.debug("[PeerProfile] onPress triggered");
+                  if (id) {
+                    uiLog.info("[PeerProfile] start call", {
+                      type: "video",
+                      peerId: id,
+                    });
+                    call("video", id);
+                  }
+                }}
               />
               <IconButton icon="email" size={20} />
             </View>

@@ -1,4 +1,6 @@
 import { GuestUser, Peer } from "../database";
+import { userLog } from "../utils/logger";
+userLog.debug("[user-store] module loaded");
 
 /**
  * UserStore manages the current user's Peer object.
@@ -21,6 +23,7 @@ export class UserStore {
   }
 
   setUser(user: Peer | GuestUser, isGuest: boolean) {
+    userLog.info("user › set", { isGuest, hasUser: Boolean(user) });
     this._user = user;
     this._isGuest = isGuest;
   }

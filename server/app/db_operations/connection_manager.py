@@ -15,13 +15,18 @@ class ConnectionManager:
 
 
     async def send_personal_message(self, target_id: UUID, message: dict):
+        if not isinstance(target_id, UUID):
+            target_id = UUID(target_id)
         websocket = self.active_connections.get(target_id)
         if websocket:
             await websocket.send_json(message)
 
-    async def broadcast(self, message: str):
+    async def broadcast(self, message: dict):
         for _, connection in self.active_connections.items():
             await connection.send_json(message)
+
+    def get_active_connections(self):
+        return [str(x) for x in self.active_connections.keys()]
 
 
 manager = ConnectionManager()

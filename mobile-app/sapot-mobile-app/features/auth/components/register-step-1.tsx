@@ -3,8 +3,8 @@ import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { HelperText, Text, useTheme } from "react-native-paper";
 import { RegisterStepProps } from "../types";
-import PrimaryButton from "./primary-button";
 import AuthTextInput from "./auth-text-input";
+import PrimaryButton from "./primary-button";
 
 export const RegisterStep1 = ({
   values,
@@ -14,6 +14,48 @@ export const RegisterStep1 = ({
   loading,
 }: RegisterStepProps) => {
   const theme = useTheme();
+
+  const formatPHNumber = (input: string) => {
+    let num = input.replace(/[^0-9]/g, "");
+
+    if (num.startsWith("639")) {
+      num = "0" + num.slice(2);
+    }
+
+    if (num.startsWith("9")) {
+      num = "0" + num;
+    }
+
+    return num.slice(0, 11);
+  };
+
+  const handlePhoneChange = (value: string) => {
+    const formatted = formatPHNumber(value);
+    onChange("phoneNumber", formatted);
+  };
+
+  const formatName = (input: string) => {
+    // Remove non-letter characters (allow accented letters)
+    let cleaned = input.replace(/[^a-zA-ZÀ-ÿÑñ\s-]/g, "");
+
+    // Convert to lowercase
+    cleaned = cleaned.toLowerCase();
+
+    // Capitalize first letter of each word
+    cleaned = cleaned.replace(/\b\w/g, (char) => char.toUpperCase());
+
+    return cleaned;
+  };
+
+  const handleFirstNameChange = (value: string) => {
+    const formatted = formatName(value);
+    onChange("firstName", formatted);
+  };
+
+  const handleLastNameChange = (value: string) => {
+    const formatted = formatName(value);
+    onChange("lastName", formatted);
+  };
   return (
     <>
       <View style={{ alignItems: "stretch", marginBottom: 20 }}>
@@ -22,7 +64,7 @@ export const RegisterStep1 = ({
           label="First Name"
           placeholder="First Name"
           value={values.firstName}
-          onChangeText={(value) => onChange("firstName", value)}
+          onChangeText={handleFirstNameChange}
           style={styles.textInput}
           error={!!errors.firstName}
           required={true}
@@ -38,7 +80,7 @@ export const RegisterStep1 = ({
           label="Last Name"
           placeholder="Last Name"
           value={values.lastName}
-          onChangeText={(value) => onChange("lastName", value)}
+          onChangeText={handleLastNameChange}
           style={styles.textInput}
           required={true}
           error={!!errors.lastName}
@@ -54,7 +96,9 @@ export const RegisterStep1 = ({
           label="Username"
           placeholder="Username"
           value={values.username}
-          onChangeText={(value) => onChange("username", value)}
+          onChangeText={(value) => {
+            onChange("username", value);
+          }}
           style={styles.textInput}
           required={true}
           error={!!errors.username}
@@ -70,7 +114,7 @@ export const RegisterStep1 = ({
           label="Phone Number"
           placeholder="Phone Number"
           value={values.phoneNumber}
-          onChangeText={(value) => onChange("phoneNumber", value)}
+          onChangeText={handlePhoneChange}
           keyboardType="phone-pad"
           style={styles.textInput}
           error={!!errors.phoneNumber}
@@ -86,7 +130,9 @@ export const RegisterStep1 = ({
           label="Email Address"
           placeholder="Email Address"
           value={values.email}
-          onChangeText={(value) => onChange("email", value)}
+          onChangeText={(value) => {
+            onChange("email", value);
+          }}
           keyboardType="email-address"
           style={styles.textInput}
           error={!!errors.email}
@@ -100,7 +146,9 @@ export const RegisterStep1 = ({
       <View style={{ alignItems: "center" }}>
         {/* Submit Button */}
         <PrimaryButton
-          onPress={() => onSubmit(values)}
+          onPress={() => {
+            onSubmit(values);
+          }}
           style={{ marginBottom: 8 }}
           loading={loading}
           disabled={loading}

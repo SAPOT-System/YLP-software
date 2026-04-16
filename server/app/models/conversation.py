@@ -5,9 +5,11 @@ from datetime import datetime, timezone
 from enum import Enum, auto
 from typing import Annotated, List, Literal, Optional
 from uuid import UUID, uuid4
-from sqlmodel import Field, Relationship, SQLModel, table
+from sqlmodel import BigInteger, Field, Relationship, SQLModel, table
 
 from typing import TYPE_CHECKING
+
+from app.models.message import SyncableModel, now_ms
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.message import Message
@@ -15,21 +17,14 @@ if TYPE_CHECKING:
     from app.models.call_participant import CallParticipant
 
 class ConversationType(str, Enum):
-    DIRECT = 'direct_message'
-    GROUP = 'group'
-    SOLO = 'solo'
+    direct = 'direct'
+    group = 'group'
+    solo = 'solo'
 
-class Conversation(SQLModel, table=True):
+class Conversation(SyncableModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, primary_key=True, index=True)
     title : str = Field(max_length=100, min_length=2)
     conversation_type : ConversationType = Field(max_length=100, min_length=2)
-    created_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
-        index=True  # Important for query performance
-    )
 
     messages: List['Message'] = Relationship(
         back_populates='conversation'
@@ -48,12 +43,16 @@ class Conversation(SQLModel, table=True):
     )
 
 
-class  ConversationParticipant(SQLModel, table=True):
+class  ConversationParticipant(SyncableModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, index=True, primary_key=True)
     # foreign keys
     conversation_id: UUID | None = Field(default=None, index=True, foreign_key='conversation.id')
     user_id: UUID  = Field(index=True, foreign_key='user.id')
-    joined_at : datetime= Field(default_factory=lambda: datetime.now(timezone.utc))
+    joined_at: int = Field(
+        default_factory=now_ms,
+        sa_type=BigInteger(),
+        nullable=False,
+    )
     is_deleted : bool = False
 
     user: List['User'] = Relationship(

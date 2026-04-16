@@ -1,3 +1,4 @@
+import { authLog } from "@/features/shared/utils/logger";
 import React from "react";
 import { StyleProp, StyleSheet, ViewStyle } from "react-native";
 import { Button, ButtonProps } from "react-native-paper";
@@ -20,7 +21,10 @@ const PrimaryButton = ({
 }: PrimaryButtonProps) => {
   return (
     <Button
-      onPress={onPress}
+      onPress={() => {
+        authLog.debug("[PrimaryButton] onPress triggered");
+        onPress();
+      }}
       mode="contained"
       loading={loading}
       disabled={disabled}

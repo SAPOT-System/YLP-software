@@ -1,10 +1,12 @@
 
 from uuid import UUID, uuid4
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, Relationship, SQLModel
 from datetime import datetime, timezone
 
 
 from typing import TYPE_CHECKING, List
+
+from app.models.message import SyncableModel, now_ms
 
 if TYPE_CHECKING:
     from app.models.users import User
@@ -12,10 +14,15 @@ if TYPE_CHECKING:
 
 
 
-class CallParticipant(SQLModel, table=True):
+class CallParticipant(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
-    joined_at : datetime= Field(default_factory=lambda: datetime.now(timezone.utc))
-    left_at : datetime | None = None
+    joined_at: int = Field(
+        default_factory=now_ms,
+        sa_type=BigInteger(),
+        nullable=False,
+    )
+
+    left_at : int | None = None
 
     # foreign keys
     conversation_id : UUID | None = Field(foreign_key='conversation.id')

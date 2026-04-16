@@ -1,27 +1,33 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
 import { useAuth } from "@/features/auth";
 import {
-  DrawerContentComponentProps,
-  DrawerItem,
-  DrawerItemList,
+    DrawerContentComponentProps,
+    DrawerItem,
+    DrawerItemList,
 } from "@react-navigation/drawer";
 import { router } from "expo-router";
 import React from "react";
 import { ScrollView, View } from "react-native";
 import {
-  ActivityIndicator,
-  Avatar,
-  Button,
-  Icon,
-  Text,
-  useTheme,
+    ActivityIndicator,
+    Avatar,
+    Button,
+    Icon,
+    Text,
+    useTheme,
 } from "react-native-paper";
-import { useUserProfile } from "../hooks";
+import { useProfilePhoto, useUserProfile } from "../hooks";
+import { useSyncService } from "../hooks/use-sync-service";
+import { uiLog } from "../utils/logger";
+
+uiLog.debug("[custom-drawer-content] module loaded");
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
   const auth = useAuth();
+  const syncService = useSyncService();
   const { user } = useUserProfile();
+  const { url: profilePicUrl } = useProfilePhoto();
 
   if (!auth) {
     return <ActivityIndicator />;
@@ -30,15 +36,21 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { isAuthenticated, logout, logoutAsGuest } = auth;
 
   const handleEditProfile = () => {
-    console.log("Edit profile pressed");
+    uiLog.info("drawer › edit profile pressed");
   };
 
   const handleLogout = async () => {
+    uiLog.info("drawer › logout pressed", { isAuthenticated });
     if (isAuthenticated) {
       await logout();
     } else {
       await logoutAsGuest();
     }
+  };
+
+  const handleSyncNow = async () => {
+    uiLog.info("drawer › sync now pressed");
+    await syncService.syncNow();
   };
 
   return (
@@ -60,11 +72,15 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
               marginBottom: 10,
             }}
           >
-            <Avatar.Text
-              size={60}
-              label={user.username[0].toUpperCase()}
-              style={{ backgroundColor: theme.colors.primary }}
-            />
+            {profilePicUrl ? (
+              <Avatar.Image size={60} source={{ uri: profilePicUrl }} />
+            ) : (
+              <Avatar.Text
+                size={60}
+                label={(user.username[0] ?? "?").toUpperCase()}
+                style={{ backgroundColor: theme.colors.primary }}
+              />
+            )}
             <View style={{ marginLeft: 15, flex: 1 }}>
               <Text
                 variant="titleLarge"
@@ -156,6 +172,14 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
               }
               icon={({ color, size }) => (
                 <Icon source="format-paint" color={color} size={size ?? 24} />
+              )}
+              style={{ marginHorizontal: 0, borderRadius: 0 }}
+            />
+            <DrawerItem
+              label="Sync"
+              onPress={handleSyncNow}
+              icon={({ color, size }) => (
+                <Icon source="seed" color={color} size={size ?? 24} />
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />

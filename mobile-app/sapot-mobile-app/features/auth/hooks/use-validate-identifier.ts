@@ -1,6 +1,7 @@
+import { authLog } from "@/features/shared/utils/logger";
+import { AxiosError } from "axios";
 import { useState } from "react";
 import { existsApi } from "../api";
-import { AxiosError } from "axios";
 
 export const useValidateIdentifier = () => {
   const [loading, setLoading] = useState(false);
@@ -9,6 +10,9 @@ export const useValidateIdentifier = () => {
   );
 
   const validateIdentfier = async (identfier: string) => {
+    authLog.debug("[useValidateIdentifier] validateIdentfier called", {
+      identifierLength: identfier.length,
+    });
     setLoading(true);
 
     try {
@@ -16,11 +20,15 @@ export const useValidateIdentifier = () => {
       const { exists } = res;
 
       if (!exists) {
+        authLog.warn("[useValidateIdentifier] identifier not found");
         setError({ identifier: "Invalid account" });
       }
 
       return { success: exists };
     } catch (err) {
+      authLog.error("[useValidateIdentifier] Error in validateIdentfier", {
+        error: err,
+      });
       const axiosError = err as AxiosError;
 
       // Network error

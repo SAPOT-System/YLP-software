@@ -1,6 +1,8 @@
 /// <reference lib="dom" />
 import type { DataChatMessageI } from "@/features/chat/types";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
+import { typeLog } from "./utils/logger";
+typeLog.debug("[shared/types] module loaded");
 
 /**
  * For establishing webrtc connection
@@ -21,6 +23,8 @@ export type SignalingMessage =
       data: {
         to: string;
         sdp: RTCSessionDescriptionInit;
+        iceRestart?: boolean;
+        reason?: string;
         sender: string;
         ipAddress: string;
         port: number;
@@ -54,23 +58,104 @@ export type AudioCallMessage = {
   type: "audio-call";
   data: { from: string; to: string };
 };
+export type VideoCallMessage = {
+  type: "video-call";
+  data: { from: string; to: string };
+};
 export type CallEndedMessage = {
   type: "call-ended";
+  data: {
+    from: string;
+    to: string;
+    status?: "completed" | "missed" | "rejected";
+    endedAt?: number;
+    durationSeconds?: number;
+    initiatorId?: string;
+  };
+};
+export type CallReadyMessage = {
+  type: "call-ready";
   data: { from: string; to: string };
+};
+export type CallRejectedMessage = {
+  type: "call-rejected";
+  data: { from: string; to: string; reason?: "declined" | "busy" };
+};
+export type CallMissedMessage = {
+  type: "call-missed";
+  data: { from: string; to: string; reason?: "no-answer" };
+};
+
+export type WsAudioCallMessage = {
+  type: "audio-call";
+  data: { from_user: string; to: string };
+};
+export type WsVideoCallMessage = {
+  type: "video-call";
+  data: { from_user: string; to: string };
+};
+export type WsCallEndedMessage = {
+  type: "call-ended";
+  data: {
+    from_user: string;
+    to: string;
+    status?: "completed" | "missed" | "rejected";
+    endedAt?: number;
+    durationSeconds?: number;
+    initiatorId?: string;
+  };
+};
+export type WsCallReadyMessage = {
+  type: "call-ready";
+  data: { from_user: string; to: string };
+};
+export type WsCallRejectedMessage = {
+  type: "call-rejected";
+  data: { from_user: string; to: string; reason?: "declined" | "busy" };
+};
+export type WsCallMissedMessage = {
+  type: "call-missed";
+  data: { from_user: string; to: string; reason?: "no-answer" };
+};
+
+export type CallControlData = {
+  enabled: boolean;
+  from: string;
+};
+export type CallControlMessage = {
+  type: "camera_toggle" | "mic_toggle";
+  data: CallControlData;
 };
 
 /**
  * For sent and received message via webrtc
  */
-export type WebrtcDataMessage = ChatMessage | AckMessage;
+export type WebrtcDataMessage =
+  | ChatMessage
+  | AckMessage
+  | CallMessage
+  | CallControlMessage;
 
 /**
- * For sent and received message via tcp
+ * For sent and received message via tcp and web socket
  */
-export type TcpDataMessage =
-  | SignalingMessage
+export type Message = SignalingMessage | CallMessage;
+
+export type CallMessage =
   | AudioCallMessage
-  | CallEndedMessage;
+  | CallEndedMessage
+  | VideoCallMessage
+  | CallReadyMessage
+  | CallRejectedMessage
+  | CallMissedMessage;
+
+export type WsCallMessage =
+  | WsAudioCallMessage
+  | WsCallEndedMessage
+  | WsVideoCallMessage
+  | WsCallReadyMessage
+  | WsCallRejectedMessage
+  | WsCallMissedMessage;
 
 export interface Peer {
   id: string;
@@ -93,5 +178,5 @@ export interface PublishedService {
   domain: string;
   name: string;
   port: number;
-  txt: { id: string; username: string };
+  txt: { id: string; username: string; firstName: string; lastName?: string };
 }

@@ -6,8 +6,10 @@ import { FlatList, Pressable, View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
 
 import { ChatRoomSource } from "@/features/chat/types";
-import { usePeerService } from "@/features/shared/hooks";
+import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useChatService } from "../hooks";
+uiLog.debug("[chat-list] module loaded");
 
 const enhanceChats = withObservables([], () => ({
   chats: database.get<Conversation>("conversations").query().observe(),
@@ -74,14 +76,18 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
   const chatService = useChatService();
   const peerService = usePeerService();
   const [peerName, setPeerName] = useState("Loading...");
+  const [peerId, setPeerId] = useState<string | null>(null);
+  const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadPeerName = async () => {
       try {
-        const peerId = await chatService.findPeerIdByChatId(chat.id);
-        const peer = await peerService.findPeerById(peerId);
+        uiLog.debug("chat-list › load peer", { chatId: chat.id });
+        const resolvedPeerId = await chatService.findPeerIdByChatId(chat.id);
+        setPeerId(resolvedPeerId);
+        const peer = await peerService.findPeerById(resolvedPeerId);
 
         if (!isMounted) return;
 
@@ -94,7 +100,12 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
           peer.lastName || ""
         }`.trim();
         setPeerName(fullName || peer.username || "Unknown peer");
-      } catch {
+
+      } catch (error) {
+        uiLog.warn("chat-list › load peer failed", {
+          chatId: chat.id,
+          error,
+        });
         if (isMounted) setPeerName("Unknown peer");
       }
     };
@@ -125,12 +136,13 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
 
   return (
     <Pressable
-      onPress={() =>
+      onPress={() => {
+        uiLog.info("chat-list › open chat", { chatId: chat.id });
         router.push({
           pathname: "/(drawer)/(tabs)/chat/[id]",
           params: { id: chat.id, source: ChatRoomSource.CHAT },
-        })
-      }
+        });
+      }}
       style={{
         paddingVertical: 12,
         paddingHorizontal: 16,
@@ -148,7 +160,14 @@ const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
           justifyContent: "flex-start",
         }}
       >
-        <Avatar.Text size={60} label={peerName[0].toUpperCase() ?? "?"} />
+        {peerProfilePicUrl ? (
+          <Avatar.Image size={60} source={{ uri: peerProfilePicUrl }} />
+        ) : (
+          <Avatar.Text
+            size={60}
+            label={(peerName[0] ?? "?").toUpperCase()}
+          />
+        )}
         <View style={{ flexGrow: 1, marginLeft: 16 }}>
           <Text
             style={{ fontSize: 17, color: theme.dark ? "#E6ECF5" : "#1E1E1E" }}

@@ -1,8 +1,18 @@
+import { navLog } from "@/features/shared/utils/logger";
 import { Stack } from "expo-router";
+import { useEffect } from "react";
 import { Appbar, useTheme } from "react-native-paper";
 
 export default function Layout() {
   const theme = useTheme();
+
+  useEffect(() => {
+    navLog.info("[SettingsTabLayout] mounted");
+    return () => {
+      navLog.info("[SettingsTabLayout] unmounted");
+    };
+  }, []);
+
   return (
     <Stack
       screenOptions={{

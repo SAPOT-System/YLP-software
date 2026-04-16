@@ -1,8 +1,10 @@
 import { Model, Relation } from "@nozbe/watermelondb";
-import { field, relation } from "@nozbe/watermelondb/decorators";
-import { Peer } from "./Peer";
+import { date, field, relation } from "@nozbe/watermelondb/decorators";
+import { modelLog } from "../../utils/logger";
 import { Message } from "./Message";
+import { Peer } from "./Peer";
 import { GuestUser } from "./guest-user";
+modelLog.debug("[model] MessageStatus loaded");
 
 // TODO: replace the name for better understanding
 export enum MessageStatusType {
@@ -14,9 +16,12 @@ export enum MessageStatusType {
 }
 
 export class MessageStatus extends Model {
-  static table = "message_status";
+  static table = "message_receipts";
 
   @field("status") status!: MessageStatusType;
+  @date("created_at") createdAt!: Date;
+  @date("updated_at") updatedAt!: Date;
+  @field("is_deleted") isDeleted!: boolean;
 
   @relation("messages", "message")
   message!: Relation<Message>;

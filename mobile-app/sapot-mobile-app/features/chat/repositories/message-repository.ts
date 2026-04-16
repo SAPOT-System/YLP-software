@@ -1,5 +1,14 @@
-import { Conversation, GuestUser, Message, MessageType, Peer } from "@/features/shared";
+import {
+  Conversation,
+  GuestUser,
+  Message,
+  MessageType,
+  Peer,
+} from "@/features/shared";
+import { chatLog } from "@/features/shared/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
+
+chatLog.debug("[message-repository] module loaded");
 
 /**
  * MessageRepository handles CRUD operations for messages in the database.
@@ -13,6 +22,7 @@ export class MessageRepository {
    */
   constructor(private db: Database) {
     this.messagesCollection = db.get<Message>(Message.table);
+    chatLog.info("chat › message repo constructed", { hasDatabase: Boolean(db) });
   }
 
   // TODO: make the content type flexible for other type of messages
@@ -40,24 +50,20 @@ export class MessageRepository {
             message.messageType = MessageType.TEXT;
             message.content = newMessage.content;
             message.createdAt = new Date();
+            message.updatedAt = new Date();
+            message.isDeleted = false;
           }
         );
         return message;
       });
       return savedMessage;
     } catch (error) {
-      console.error(
-        `[MessageRepository]: Error saving a message\n${JSON.stringify(
-          {
-            senderName: newMessage.sender.username,
-            content: newMessage.content,
-            conversationId: newMessage.conversation.id,
-            messageId: newMessage.messageId,
-          },
-          null,
-          2
-        )}\n${error}`
-      );
+      chatLog.error("chat › message save failed", {
+        conversationId: newMessage.conversation.id,
+        messageId: newMessage.messageId,
+        hasContent: Boolean(newMessage.content),
+        error,
+      });
       throw error;
     }
   }
@@ -84,13 +90,33 @@ export class MessageRepository {
         )
         .fetch();
     } catch (error) {
-      console.error(
-        `[MessageRepository]: Error querying messgae by conversation\n${JSON.stringify(
-          { conversationId, limit, offset },
-          null,
-          2
-        )}\n${error}`
-      );
+      chatLog.error("chat › messages query failed", {
+        conversationId,
+        limit,
+        offset,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Queries a message by id.
+   * @param messageId The message id
+   * @returns Promise<Message | undefined>
+   */
+  async queryMessageById(messageId: string): Promise<Message | undefined> {
+    try {
+      const messages = await this.messagesCollection
+        .query(Q.where("id", messageId))
+        .fetch();
+
+      return messages.length > 0 ? messages[0] : undefined;
+    } catch (error) {
+      chatLog.error("chat › message query by id failed", {
+        messageId,
+        error,
+      });
       throw error;
     }
   }
@@ -103,7 +129,7 @@ export class MessageRepository {
     try {
       return await this.messagesCollection.query().fetch();
     } catch (error) {
-      console.error("[MessageRepository]: Error querying messages:", error);
+      chatLog.error("chat › messages list failed", { error });
       throw error;
     }
   }
@@ -113,6 +139,7 @@ export class MessageRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getAllMessageDestroyOps() {
+    chatLog.debug("chat › message destroy ops requested");
     const records = await this.messagesCollection.query().fetch();
 
     return records.map((r) => r.prepareDestroyPermanently());

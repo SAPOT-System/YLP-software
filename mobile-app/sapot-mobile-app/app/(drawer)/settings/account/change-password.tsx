@@ -1,19 +1,20 @@
 import { changePasswordApi } from "@/features/auth/api/auth.api";
 import {
-  hasValidationErrors,
-  validatePassword,
+    hasValidationErrors,
+    validatePassword,
 } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import { useToast } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import {
-  Button,
-  HelperText,
-  Snackbar,
-  Text,
-  useTheme,
+    Button,
+    HelperText,
+    Snackbar,
+    Text,
+    useTheme,
 } from "react-native-paper";
 
 export default function ChangePassword() {
@@ -35,7 +36,28 @@ export default function ChangePassword() {
     hideToast,
   } = useToast();
 
+  useEffect(() => {
+    uiLog.info("[ChangePasswordSettings] mounted");
+    return () => {
+      uiLog.info("[ChangePasswordSettings] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[ChangePasswordSettings] useEffect triggered, deps:", {
+      hasCurrent: Boolean(currentPass),
+      hasNew: Boolean(newPass),
+      hasConfirm: Boolean(confirmPass),
+      isSaving,
+    });
+  }, [currentPass, newPass, confirmPass, isSaving]);
+
   const handleSave = async () => {
+    uiLog.debug("[ChangePasswordSettings] handleSave called", {
+      currentPass: "[REDACTED]",
+      newPass: "[REDACTED]",
+      confirmPass: "[REDACTED]",
+    });
     const nextErrors = {
       currentPassword: currentPass ? undefined : "Current password is required",
       ...validatePassword(newPass, confirmPass),
@@ -57,9 +79,13 @@ export default function ChangePassword() {
       showToast("Change password successfully");
 
       setTimeout(() => {
+        uiLog.info("[Navigation] goBack triggered from ChangePasswordSettings");
         router.back();
       }, 1000);
-    } catch {
+    } catch (error) {
+      uiLog.error("[ChangePasswordSettings] Error in change password", {
+        error,
+      });
       setErrors({ currentPassword: "Invalid password" });
     } finally {
       setIsSaving(false);

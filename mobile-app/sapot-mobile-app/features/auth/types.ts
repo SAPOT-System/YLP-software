@@ -1,3 +1,7 @@
+import { authTypesLog } from "@/features/shared/utils/logger";
+
+authTypesLog.debug("[auth types] module loaded");
+
 /**
  * Register types and interfaces
  */

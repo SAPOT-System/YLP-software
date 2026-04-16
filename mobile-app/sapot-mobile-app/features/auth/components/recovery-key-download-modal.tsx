@@ -1,7 +1,8 @@
+import { authLog } from "@/features/shared/utils/logger";
 import React from "react";
+import { View } from "react-native";
 import { Modal, Portal, Text, useTheme } from "react-native-paper";
 import DownloadFileButton from "./download-file-button";
-import { View } from "react-native";
 
 interface RecoveryKeyDownloadModalProps {
   visible: boolean;
@@ -18,7 +19,10 @@ const RecoveryKeyDownloadModal = ({
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={hideModal}
+        onDismiss={() => {
+          authLog.info("[RecoveryKeyDownloadModal] dismissed");
+          hideModal();
+        }}
         contentContainerStyle={{
           backgroundColor: theme.colors.background,
           padding: 32,

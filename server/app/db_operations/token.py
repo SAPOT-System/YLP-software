@@ -116,6 +116,44 @@ async def get_current_user_rescuer(
 
     return user
 
+
+async def get_current_user_admin(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: SessionDep
+) -> User:
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        jti: str = payload.get("jti")
+        token_type: str = payload.get("type")
+
+        # Validation Logic
+        if user_id is None or jti is None or token_type != "access":
+            raise credentials_exception
+
+        # Check SQLite Blacklist
+        if is_token_blacklisted(session, jti):
+            raise HTTPException(status_code=401, detail="Token has been revoked")
+
+    except jwt.PyJWTError:
+        raise credentials_exception
+
+    user = get_user_by_ID(session, UUID(user_id))
+    if not user:
+        raise credentials_exception
+
+    if not user.admin:
+        raise credentials_exception
+
+    return user
+
+# depreciated function, used create_token_pair instead
 def generate_access_token(user: User|UserCreate, ACCESS_TOKEN_EXPIRE_MINUTES = 30):
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     if not user.id:

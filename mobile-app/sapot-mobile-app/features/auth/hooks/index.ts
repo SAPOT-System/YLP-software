@@ -1,3 +1,6 @@
+import { authHooksLog } from "@/features/shared/utils/logger";
+authHooksLog.debug("[auth hooks] module loaded");
+
 export * from "./use-auth-container";
 export * from "./use-change-password";
 export * from "./use-email-reset";

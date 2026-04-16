@@ -1,4 +1,5 @@
 import { ChatService } from "@/features/chat/services/chat-service";
+import { discoveryLog } from "@/features/shared/utils/logger";
 import {
     createTestMessage,
     createTestMessages,
@@ -8,7 +9,7 @@ import { createDiscoveryServiceDependencyMocks } from "@/test/mocks/service.mock
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../../adapters";
 import { Message } from "../../database";
-import { NetworkConfig, SessionStore, UserStore } from "../../stores";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../stores";
 import { DiscoveryService } from "../discovery-service";
 import { PeerService } from "../peer-service";
 
@@ -22,6 +23,7 @@ jest.mock("../../stores", () => ({
   NetworkConfig: jest.fn(),
   SessionStore: jest.fn(),
   UserStore: jest.fn(),
+  AppModeStore: jest.fn(),
 }));
 
 // Mock PeerService
@@ -42,6 +44,7 @@ describe("DiscoveryService", () => {
   let mockUserStore: jest.Mocked<UserStore>;
   let mockPeerService: jest.Mocked<PeerService>;
   let mockChatService: jest.Mocked<ChatService>;
+  let mockAppModeStore: jest.Mocked<AppModeStore>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,6 +59,7 @@ describe("DiscoveryService", () => {
     mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
     mockPeerService = mocks.peerService as unknown as jest.Mocked<PeerService>;
     mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
+    mockAppModeStore = mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
 
     // Mock constructors
     jest.mocked(ZeroconfAdapter).mockImplementation(() => mockZeroconfAdapter);
@@ -71,7 +75,8 @@ describe("DiscoveryService", () => {
       mockSessionStore,
       mockNetworkConfig,
       mockUserStore,
-      mockPeerService
+      mockPeerService,
+      mockAppModeStore
     );
   });
 
@@ -164,6 +169,66 @@ describe("DiscoveryService", () => {
     });
   });
 
+  describe("setConnectionService", () => {
+    let mockConnectionService: { on: jest.Mock };
+
+    beforeEach(() => {
+      mockConnectionService = { on: jest.fn() };
+    });
+
+    it("subscribes to peer-reconnected event on ConnectionService", () => {
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      expect(mockConnectionService.on).toHaveBeenCalledWith(
+        "peer-reconnected",
+        expect.any(Function)
+      );
+    });
+
+    it("calls performResendMessagesForPeer when peer is in discovered cache", async () => {
+      const peerId = "peer-1";
+      const discoveredPeer = { id: peerId, ipAddress: "192.168.1.101", port: 8080, serviceName: "dev" };
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(discoveredPeer);
+      discoveryService.setChatService(mockChatService);
+      mockChatService.getAllNotSentMessageForPeer.mockResolvedValue([]);
+
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      const handler = mockConnectionService.on.mock.calls.find(
+        (call) => call[0] === "peer-reconnected"
+      )?.[1];
+
+      await handler?.(peerId);
+
+      expect(mockPeerService.findDiscoveredPeerById).toHaveBeenCalledWith(peerId);
+      expect(mockChatService.getAllNotSentMessageForPeer).toHaveBeenCalledWith(peerId);
+    });
+
+    it("skips retry when peer is not in discovered cache", async () => {
+      const peerId = "peer-unknown";
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      discoveryService.setChatService(mockChatService);
+
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      const handler = mockConnectionService.on.mock.calls.find(
+        (call) => call[0] === "peer-reconnected"
+      )?.[1];
+
+      const warnSpy = jest.spyOn(discoveryLog, "warn");
+      await handler?.(peerId);
+
+      expect(mockChatService.getAllNotSentMessageForPeer).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+  });
+
   describe("startDiscovery", () => {
     it("should start network discovery", () => {
       discoveryService.startDiscovery();
@@ -215,6 +280,8 @@ describe("DiscoveryService", () => {
         txt: {
           id: mockSessionStore.userId,
           username: mockUserStore.user.username,
+          firstName: mockUserStore.user.firstName,
+          lastName: mockUserStore.user.lastName || "",
         },
       });
     });
@@ -282,11 +349,13 @@ describe("DiscoveryService", () => {
       mockChatService.getAllNotSentMessageForPeer.mockResolvedValue(
         mockMessages
       );
+      const resendError = new Error("Resend failed");
+
       mockChatService.tryResendMessage
-        .mockRejectedValueOnce(new Error("Resend failed"))
+        .mockRejectedValueOnce(resendError)
         .mockResolvedValueOnce();
 
-      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+      const warnSpy = jest.spyOn(discoveryLog, "warn");
 
       await discoveryService.performResendMessagesForPeer(
         peerId,
@@ -295,12 +364,10 @@ describe("DiscoveryService", () => {
       );
 
       expect(mockChatService.tryResendMessage).toHaveBeenCalledTimes(2);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        "Failed to resend the message:",
-        mockMessages[0]
-      );
-
-      consoleWarnSpy.mockRestore();
+      expect(warnSpy).toHaveBeenCalledWith("discovery › resend failed", {
+        peerId,
+        error: resendError,
+      });
     });
 
     it("should throw error if chat service not initialized", async () => {

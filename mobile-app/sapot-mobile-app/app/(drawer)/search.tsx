@@ -1,22 +1,75 @@
 import { ChatRoomSource } from "@/features/chat/types";
 import {
-  usePeerService,
-  useToast,
-  useUserSearch,
+    usePeerService,
+    useProfilePhoto,
+    useToast,
+    useUserSearch,
 } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import {
-  Appbar,
-  Icon,
-  Searchbar,
-  Snackbar,
-  Text,
-  useTheme,
+    Appbar,
+    Avatar,
+    Icon,
+    Searchbar,
+    Snackbar,
+    Text,
+    useTheme,
 } from "react-native-paper";
 import { useDebounce } from "use-debounce";
 import { APP_ROUTES } from "../routes";
+
+type SearchUser = {
+  id: string;
+  username: string;
+  first_name: string;
+  last_name?: string;
+};
+
+const SearchResultItem = ({
+  item,
+  onPress,
+}: {
+  item: SearchUser;
+  onPress: (item: SearchUser) => void;
+}) => {
+  const { url: profilePicUrl } = useProfilePhoto(item.id);
+  const theme = useTheme();
+
+  return (
+    <Pressable onPress={() => onPress(item)}>
+      <View
+        style={{
+          padding: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        {profilePicUrl ? (
+          <Avatar.Image size={48} source={{ uri: profilePicUrl }} />
+        ) : (
+          <Avatar.Text
+            size={48}
+            label={(
+              item.first_name?.[0] ??
+              item.username?.[0] ??
+              "?"
+            ).toUpperCase()}
+          />
+        )}
+        <View>
+          <Text style={{ color: theme.dark ? "#FFFFFF" : "#1E1E1E", fontWeight: "medium" }}>
+            {item.first_name} {item.last_name}
+          </Text>
+          <Text style={{ color: "#6B7280", fontSize: 14 }}>Not Connected</Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+};
 
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
@@ -35,6 +88,20 @@ export default function SearchScreen() {
     hideToast,
   } = useToast();
 
+  useEffect(() => {
+    uiLog.info("[SearchScreen] mounted");
+    return () => {
+      uiLog.info("[SearchScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[SearchScreen] useEffect triggered, deps:", {
+      queryLength: query.length,
+      debouncedQueryLength: debouncedQuery.length,
+    });
+  }, [query, debouncedQuery]);
+
   return (
     <View style={{ flex: 1, padding: 16 }}>
       <View
@@ -44,11 +111,21 @@ export default function SearchScreen() {
           marginBottom: 20,
         }}
       >
-        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.BackAction
+          onPress={() => {
+            uiLog.info("[Navigation] goBack triggered from Search");
+            router.back();
+          }}
+        />
         <Searchbar
           placeholder="Search "
           value={query}
-          onChangeText={setQuery}
+          onChangeText={(value) => {
+            uiLog.debug("[SearchScreen] onChangeText", {
+              queryLength: value.length,
+            });
+            setQuery(value);
+          }}
           iconColor={theme.dark ? "#7E8AA6" : "#000000"}
           placeholderTextColor={theme.dark ? "#7E8AA6" : "#103462"}
           style={{
@@ -59,7 +136,15 @@ export default function SearchScreen() {
             marginRight: 8,
           }}
         />
-        <Pressable onPress={() => router.push(APP_ROUTES.SCAN_QR)}>
+        <Pressable
+          onPress={() => {
+            uiLog.debug("[SearchScreen] onPress triggered");
+            uiLog.info("[Navigation] Navigating to ScanQr", {
+              screen: APP_ROUTES.SCAN_QR,
+            });
+            router.push(APP_ROUTES.SCAN_QR);
+          }}
+        >
           <View
             style={{
               backgroundColor: "#3A7AFE",
@@ -77,40 +162,46 @@ export default function SearchScreen() {
 
       {isLoading && <Text>Searching...</Text>}
       <FlatList
-        data={data || []}
+        data={(data || []) as SearchUser[]}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={async () => {
+          <SearchResultItem
+            item={item}
+            onPress={async (selected) => {
+              uiLog.debug("[SearchScreen] onPress triggered", {
+                peerId: selected.id,
+              });
               try {
-                const existingPeer = await peerService.findPeerById(item.id);
+                const existingPeer = await peerService.findPeerById(
+                  selected.id
+                );
 
                 if (!existingPeer) {
                   await peerService.createUser(
-                    item.id,
-                    item.username,
-                    item.first_name,
-                    item.last_name
+                    selected.id,
+                    selected.username,
+                    selected.first_name,
+                    selected.last_name
                   );
                 }
 
+                uiLog.info("[Navigation] Navigating to ChatRoom", {
+                  screen: "/(drawer)/(tabs)/chat/[id]",
+                  peerId: selected.id,
+                });
                 router.push({
                   pathname: "/(drawer)/(tabs)/chat/[id]",
-                  params: { id: item.id, source: ChatRoomSource.PEER },
+                  params: { id: selected.id, source: ChatRoomSource.PEER },
                 });
               } catch (error) {
-                console.error("[SearchScreen]: Error opening chat", error);
+                uiLog.error("search › open chat failed", {
+                  peerId: selected.id,
+                  error,
+                });
                 showToast("Unable to open chat");
               }
             }}
-          >
-            <View style={{ padding: 12 }}>
-              <Text>
-                {item.first_name} {item.last_name}
-              </Text>
-              <Text>@{item.username}</Text>
-            </View>
-          </Pressable>
+          />
         )}
         ListEmptyComponent={!isLoading ? <Text>No users found</Text> : null}
       />

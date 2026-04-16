@@ -1,3 +1,6 @@
+from uuid import UUID
+from fastapi import HTTPException
+from app.db_operations.auth import SessionDep
 from app.models.users import User
 from sqlmodel import select, Session
 from sqlalchemy import or_
@@ -18,3 +21,13 @@ def search_case_insensitive(value: str, session: Session):
         )
         for user in results
     ]
+
+def search_by_id(value: UUID, session: SessionDep):
+    statement = select(User).where(User.id == value)
+    results = session.exec(statement).first()
+    if not results:
+        raise HTTPException(404, "user not found")
+    return results.model_dump(
+            mode="json",
+            include={"id", "username", "first_name", "last_name"}
+        )

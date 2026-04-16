@@ -1,4 +1,6 @@
+import { apiLog } from "@/features/shared/utils/logger";
 import { apiClient } from "./client";
+apiLog.debug("[search-api] module loaded");
 
 export const searchUsers = async ({
   queryKey,
@@ -9,6 +11,11 @@ export const searchUsers = async ({
 }) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_key, username] = queryKey;
+
+  apiLog.debug("api › search users", {
+    hasUsername: Boolean(username?.trim()),
+    usernameLength: username?.length ?? 0,
+  });
 
   const res = await apiClient.post<{
     res: {

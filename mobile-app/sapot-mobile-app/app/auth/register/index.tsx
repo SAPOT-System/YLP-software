@@ -7,10 +7,11 @@ import {
 } from "@/features/auth";
 import { RegisterFormState } from "@/features/auth/types";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { useToast } from "@/features/shared/hooks";
+import { authLog } from "@/features/shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { useToast } from "@/features/shared/hooks";
-import { ActivityIndicator, Snackbar } from "react-native-paper";
+import { Snackbar } from "react-native-paper";
 
 type RegisterFormField = keyof RegisterFormState;
 
@@ -24,9 +25,6 @@ const Register = () => {
     checkIfIdentifierExists,
   } = useRegister();
   const auth = useAuth();
-  if (!auth) {
-    return <ActivityIndicator />;
-  }
 
   // Form state
   const [step, setStep] = useState(1);
@@ -53,10 +51,38 @@ const Register = () => {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState("");
-  const showModal = () => setModalVisible(true);
-  const hideModal = () => setModalVisible(false);
+  const showModal = () => {
+    authLog.info("[Register] recovery key modal shown");
+    setModalVisible(true);
+  };
+  const hideModal = () => {
+    authLog.info("[Register] recovery key modal hidden");
+    setModalVisible(false);
+  };
+
+  useEffect(() => {
+    authLog.info("[Register] mounted");
+    return () => {
+      authLog.info("[Register] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    authLog.debug("[Register] useEffect triggered, deps:", {
+      step,
+      loading,
+      hasErrors: Object.keys(errors).length > 0,
+    });
+  }, [step, loading, errors]);
 
   const handleStep1Submit = async (values: Partial<RegisterFormState>) => {
+    authLog.debug("[Register] handleStep1Submit called", {
+      hasFirstName: Boolean(values.firstName),
+      hasLastName: Boolean(values.lastName),
+      hasPhoneNumber: Boolean(values.phoneNumber),
+      hasEmail: Boolean(values.email),
+      hasUsername: Boolean(values.username),
+    });
     const step1Values = {
       firstName: values.firstName,
       lastName: values.lastName,
@@ -65,9 +91,13 @@ const Register = () => {
       username: values.username,
     };
     const clientValidationResult = validateRegisterStep(step1Values);
-    if (!clientValidationResult.success) return;
+    if (!clientValidationResult.success) {
+      authLog.warn("[Register] step1 validation failed");
+      return;
+    }
 
     if (values.username && (await checkIfIdentifierExists(values.username))) {
+      authLog.warn("[Register] username exists");
       setErrors({ username: "Username exists" });
       return;
     }
@@ -75,28 +105,43 @@ const Register = () => {
       values.phoneNumber &&
       (await checkIfIdentifierExists(values.phoneNumber))
     ) {
+      authLog.warn("[Register] phone number exists");
       setErrors({ phoneNumber: "Phone number exists" });
       return;
     }
     if (values.email && (await checkIfIdentifierExists(values.email))) {
+      authLog.warn("[Register] email exists");
       setErrors({ email: "Email exists" });
       return;
     }
     setErrors({});
     setForm((prev) => ({ ...prev, ...values }));
     setStep(2);
+    authLog.info("[Register] moved to step 2");
   };
 
   const handleStep2Submit = async (values: Partial<RegisterFormState>) => {
+    authLog.debug("[Register] handleStep2Submit called", {
+      hasPassword: Boolean(values.password),
+      hasConfirmPassword: Boolean(values.confirmPassword),
+      hasSecurityQuestion: Boolean(values.securityQuestion),
+      hasQuestionAnswer: Boolean(values.questionAnswer),
+      termsChecked: Boolean(values.termsChecked),
+    });
     const clientValidationResult = validateRegisterStep(values);
-    if (!clientValidationResult.success) return;
+    if (!clientValidationResult.success) {
+      authLog.warn("[Register] step2 validation failed");
+      return;
+    }
 
     const fullForm = { ...form, ...values };
     setForm(fullForm);
     const serverSideResult = await registerUser(fullForm);
 
     if (serverSideResult.success) {
-      console.log("register success");
+      authLog.info("auth › register success", {
+        hasRecoveryKeyLink: Boolean(serverSideResult.recoveryKeyFileLink),
+      });
       showToast("Account created successfully!");
       setModalData(serverSideResult.recoveryKeyFileLink!);
       showModal();
@@ -105,21 +150,22 @@ const Register = () => {
       // TODO: Update auth state
       // TODO: Reset navigation to main app
     } else if (!serverSideResult.success) {
-      console.log("register failed");
+      authLog.warn("auth › register failed");
       showToast("Account creation failed!");
     }
+  };
+
+  const handleChange = (name: RegisterFormField, value: string | boolean) => {
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   // For network and server errors
   useEffect(() => {
     if (errors.general) {
+      authLog.warn("[Register] general error", { message: errors.general });
       showToast(errors.general);
     }
-  }, [errors.general]);
-
-  const handleChange = (name: RegisterFormField, value: string | boolean) => {
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
+  }, [errors.general, showToast]);
 
   return (
     <KeyboardAvoidingView

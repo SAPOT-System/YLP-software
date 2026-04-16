@@ -1,105 +1,456 @@
-import { View, Text, Pressable } from "react-native";
-import React, { useEffect, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallService } from "@/features/call";
-import { MediaStream, RTCView } from "react-native-webrtc";
+import { useCallContext } from "@/features/call/context/call-context";
+import { uiLog } from "@/features/shared/utils/logger";
+import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect } from "react";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { RTCView } from "react-native-webrtc";
 
-// TODO: This component can minimized
-const CallRoom = () => {
-  const router = useRouter();
-  const { id } = useLocalSearchParams();
-  const callService = useCallService();
-  const [mic, setMic] = useState(true);
-  const [cam, setCam] = useState(true);
-  const [localStream, setLocalStream] = useState<MediaStream>();
-  const [remoteStream, setRemoteStream] = useState<MediaStream>();
+// ─────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────
 
-  useEffect(() => {
-    setLocalStream(callService.getLocalCam(id as string));
-    return () => {
-      callService.terminateCallConnection(id as string);
-    };
-  }, [callService, id]);
-
-  useEffect(() => {
-    callService.listenToRemoteStream();
-
-    const handler = (stream: MediaStream) => {
-      console.log("remote trigs", stream);
-      setRemoteStream(stream);
-    };
-
-    callService.on("remoteStream", handler);
-
-    return () => {
-      callService.off("remoteStream", handler);
-    };
-  }, [callService]);
-
-  const handleEndCall = async () => {
-    await callService.terminateCallConnection(id as string);
-    router.back();
-  };
-
-  const handleToggleMic = async () => {
-    try {
-      callService.toggleMic(id as string);
-      setMic(!mic);
-    } catch (error) {
-      console.warn(error);
-    }
-  };
-
-  const hanldeToggleCam = async () => {
-    try {
-      callService.toggleCamera(id as string);
-      setCam(!cam);
-    } catch (error) {
-      console.warn(error);
-    }
-  };
-
-  return (
-    <View style={{ flex: 1 }}>
-      <Text>CallRoom {id}</Text>
-      <Pressable onPress={handleEndCall}>
-        <Text>End call</Text>
-      </Pressable>
-      <Pressable onPress={handleToggleMic}>
-        <Text>Toggle microphone</Text>
-      </Pressable>
-      <Pressable onPress={hanldeToggleCam}>
-        <Text>Toggle camera</Text>
-      </Pressable>
-      <View style={{ flex: 1 }}>
-        {remoteStream ? (
-          <RTCView
-            streamURL={remoteStream.toURL()}
-            mirror={true}
-            objectFit="cover"
-            zOrder={0}
-            style={{ flex: 1, backgroundColor: "black" }}
-          />
-        ) : (
-          <Text>No remote stream</Text>
-        )}
-      </View>
-      <Text>Hello</Text>
-      <View style={{ flex: 1 }}>
-        {localStream ? (
-          <RTCView
-            mirror={true}
-            objectFit="cover"
-            zOrder={0}
-            streamURL={localStream.toURL()}
-            style={{ flex: 1, backgroundColor: "black" }}
-          />
-        ) : (
-          <Text>No local stream</Text>
-        )}
-      </View>
-    </View>
-  );
+const COLORS = {
+  primary: "#103462",
+  gradStart: "#99AEC7",
+  gradEnd: "#FFFFFF",
+  controlBg: "rgba(153, 174, 199, 0.25)",
+  buttonBg: "#d9d9d9",
+  acceptGreen: "#34A853",
+  declineRed: "#EA4335",
 };
 
-export default CallRoom;
+const formatDuration = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
+// ─────────────────────────────────────────────
+// CallRoom
+// ─────────────────────────────────────────────
+
+export default function CallRoom() {
+  const { id, type, status } = useLocalSearchParams<{
+    id: string;
+    type: "video" | "audio";
+    status?: string;
+  }>();
+
+  const {
+    callState,
+    elapsed,
+    peerDisplayName,
+    peerPhotoUrl,
+    localStream,
+    remoteStreamUrl,
+    localMic,
+    localCam,
+    remoteMic,
+    remoteCam,
+    currentRoute,
+    resetCallState,
+    handleEndCall,
+    handleCallAgain,
+    handleToggleMic,
+    handleToggleCam,
+    handleSwitchCamera,
+    handleVolume,
+    minimize,
+    handleClose,
+  } = useCallContext();
+
+  // ─────────────────────────────────────────────
+  // Lifecycle logs
+  // ─────────────────────────────────────────────
+
+  useEffect(() => {
+    uiLog.info("[CallRoom] mounted");
+    return () => {
+      uiLog.info("[CallRoom] unmounted");
+    };
+  }, []);
+
+  // ─────────────────────────────────────────────
+  // Kick off the call when this screen gains focus
+  // (handles both fresh navigation and returning from minimized)
+  // ─────────────────────────────────────────────
+
+  useFocusEffect(
+    useCallback(() => {
+      uiLog.debug("[CallRoom] useFocusEffect triggered", { id, type, status });
+
+      if (status === "connected") {
+        // Returning from minimized — nothing to reset, call is already live
+        uiLog.info("[CallRoom] returning from minimized, no reset needed");
+        return;
+      }
+
+      if (status === "calling" || (status === "answering" && id && type)) {
+        // Fresh call initiation
+        uiLog.info("[CallRoom] initiating outgoing call", { id, type });
+        resetCallState(id, type);
+      }
+    }, [id, type, status, resetCallState])
+  );
+
+  // ─────────────────────────────────────────────
+  // Derived UI flags
+  // ─────────────────────────────────────────────
+
+  const isActive = callState === "calling" || callState === "connected";
+  const showVideoStreams = callState === "connected";
+
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
+
+  return (
+    <LinearGradient
+      colors={[COLORS.gradStart, COLORS.gradEnd]}
+      start={{ x: 0, y: 1 }}
+      end={{ x: 0, y: 0 }}
+      style={styles.container}
+    >
+      {/* Back / minimize button (shown when connected) */}
+      {callState === "connected" && (
+        <TouchableOpacity style={styles.backButton} onPress={minimize}>
+          <Feather name="chevron-down" size={28} color={COLORS.primary} />
+        </TouchableOpacity>
+      )}
+
+      {/* Peer section */}
+      <View style={styles.peerSection}>
+        <View style={styles.avatarWrap}>
+          {peerPhotoUrl ? (
+            <Image source={{ uri: peerPhotoUrl }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Text style={styles.avatarInitial}>
+                {peerDisplayName ? peerDisplayName[0].toUpperCase() : "?"}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.peerName}>{peerDisplayName}</Text>
+      </View>
+
+      {/* Status / Timer */}
+      <Text style={styles.statusText}>
+        {callState === "calling" && "Calling..."}
+        {callState === "connected" && formatDuration(elapsed)}
+        {callState === "ended" && "Call ended"}
+        {callState === "no-answer" && "Did not answer"}
+        {callState === "busy" && `${peerDisplayName} is in another call`}
+      </Text>
+
+      {/* Video streams (video call, connected state) */}
+      {showVideoStreams && (
+        <View style={styles.videoContainer}>
+          <View style={styles.remoteVideoWrap}>
+            {remoteStreamUrl && remoteCam ? (
+              <RTCView
+                streamURL={remoteStreamUrl}
+                mirror={false}
+                objectFit="cover"
+                zOrder={0}
+                style={styles.remoteVideo}
+              />
+            ) : (
+              <View style={styles.remoteVideo} />
+            )}
+            <View
+              style={[
+                styles.remoteMicBadge,
+                !remoteMic && styles.remoteMicBadgeMuted,
+              ]}
+            >
+              <Feather
+                name={remoteMic ? "mic" : "mic-off"}
+                size={16}
+                color="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          {localStream && localCam ? (
+            <RTCView
+              streamURL={localStream.toURL()}
+              mirror={true}
+              objectFit="cover"
+              zOrder={1}
+              style={styles.localVideo}
+            />
+          ) : (
+            <View style={styles.localVideo} />
+          )}
+        </View>
+      )}
+
+      {/* Controls row (calling or connected) */}
+      {isActive && (
+        <View style={styles.controls}>
+          <View style={styles.controlRow}>
+            <TouchableOpacity
+              style={[styles.controlBtn, !localMic && styles.controlBtnOff]}
+              onPress={handleToggleMic}
+            >
+              <Feather
+                name={localMic ? "mic" : "mic-off"}
+                size={22}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.controlBtn, !localCam && styles.controlBtnOff]}
+              onPress={handleToggleCam}
+            >
+              <Feather
+                name={localCam ? "video" : "video-off"}
+                size={22}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.controlBtn} onPress={handleVolume}>
+              <Feather
+                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
+                size={22}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.controlBtn}
+              onPress={handleSwitchCamera}
+            >
+              <Feather
+                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
+                size={22}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* End call button */}
+          <View style={styles.actionRow}>
+            <View style={styles.actionItem}>
+              <TouchableOpacity
+                style={styles.endCallBtn}
+                onPress={handleEndCall}
+              >
+                <Feather name="phone-off" size={28} color={COLORS.declineRed} />
+              </TouchableOpacity>
+              <Text style={styles.actionLabel}>End Call</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Did not answer actions */}
+      {callState === "no-answer" && (
+        <View style={styles.controls}>
+          <View style={styles.actionRow}>
+            <View style={styles.actionItem}>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleClose}>
+                <Feather name="x" size={28} color={COLORS.primary} />
+              </TouchableOpacity>
+              <Text style={styles.actionLabel}>Close</Text>
+            </View>
+            <View style={styles.actionItem}>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={handleCallAgain}
+              >
+                <Feather name="phone" size={28} color={COLORS.acceptGreen} />
+              </TouchableOpacity>
+              <Text style={styles.actionLabel}>Call again</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Busy actions */}
+      {callState === "busy" && (
+        <View style={styles.controls}>
+          <View style={styles.actionRow}>
+            <View style={styles.actionItem}>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleClose}>
+                <Feather name="x" size={28} color={COLORS.primary} />
+              </TouchableOpacity>
+              <Text style={styles.actionLabel}>Close</Text>
+            </View>
+          </View>
+        </View>
+      )}
+    </LinearGradient>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Styles (unchanged from original)
+// ─────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  backButton: {
+    position: "absolute",
+    top: 70,
+    left: 24,
+    width: 35,
+    height: 35,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  peerSection: {
+    alignItems: "center",
+    marginTop: 160,
+  },
+  avatarWrap: {
+    width: 169,
+    height: 169,
+    borderRadius: 84.5,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 169,
+    height: 169,
+    borderRadius: 84.5,
+  },
+  avatarFallback: {
+    backgroundColor: "rgba(153, 174, 199, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitial: {
+    fontSize: 64,
+    fontWeight: "300",
+    color: "#103462",
+  },
+  peerName: {
+    fontSize: 25,
+    color: "#103462",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  statusText: {
+    fontSize: 30,
+    color: "#103462",
+    textAlign: "center",
+    marginTop: 28,
+    paddingHorizontal: 24,
+  },
+  videoContainer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  remoteVideoWrap: {
+    flex: 1,
+    position: "relative",
+  },
+  remoteVideo: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  remoteMicBadge: {
+    position: "absolute",
+    left: 14,
+    bottom: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+  },
+  remoteMicBadgeMuted: {
+    backgroundColor: "rgba(234, 67, 53, 0.85)",
+  },
+  localVideo: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    width: 100,
+    height: 150,
+    borderRadius: 10,
+    backgroundColor: "#1a1a2e",
+    zIndex: 2,
+  },
+  controls: {
+    position: "absolute",
+    bottom: 60,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    gap: 48,
+  },
+  controlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 40,
+  },
+  controlBtn: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "rgba(153, 174, 199, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  controlBtnOff: {
+    backgroundColor: "rgba(153, 174, 199, 0.55)",
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 60,
+  },
+  actionItem: {
+    alignItems: "center",
+    gap: 12,
+  },
+  actionLabel: {
+    fontSize: 22,
+    color: "#103462",
+    textAlign: "center",
+  },
+  endCallBtn: {
+    width: 97,
+    height: 97,
+    borderRadius: 48.5,
+    backgroundColor: "#d9d9d9",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  actionBtn: {
+    width: 97,
+    height: 97,
+    borderRadius: 48.5,
+    backgroundColor: "#d9d9d9",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+});

@@ -79,7 +79,8 @@ describe("PeerService", () => {
       expect(mockPeerRepository.savePeer).toHaveBeenCalledWith({
         id: "peer-2",
         username: "newuser",
-        firstName: "Guest User",
+        firstName: "Guest",
+        lastName: "",
       });
       expect(peerService.discoveredPeerServices).toContainEqual({
         serviceName: "new-device",

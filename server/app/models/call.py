@@ -1,8 +1,10 @@
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID, uuid4
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import BigInteger, Field, Relationship, SQLModel
 from datetime import datetime, timezone
+
+from app.models.message import SyncableModel, now_ms
 
 if TYPE_CHECKING:
     from app.models.users import User
@@ -10,18 +12,18 @@ if TYPE_CHECKING:
 
 
 class CallType(str, Enum):
-    AUDIO = "audio"
-    VIDEO = "video"
+    audio = "audio"
+    video = "video"
 
 
 class StatusType(str, Enum):
-    MISSED = "missed"
-    COMPLETED = "completed"
-    REJECTED = "rejected"
-    BUSY = "busy"
+    missed = "missed"
+    completed = "completed"
+    rejected = "rejected"
+    busy = "busy"
 
 
-class Call(SQLModel, table=True):
+class Call(SyncableModel, table=True):
     id : UUID | None = Field(
         default_factory=uuid4,
         primary_key=True,
@@ -29,17 +31,20 @@ class Call(SQLModel, table=True):
     )
     call_type : CallType
     status :  StatusType
-    start_time: datetime | None = Field(default_factory=lambda: datetime.now(timezone.utc))
-    end_time: datetime | None = Field(default=None)
+    start_time: int = Field(
+        default_factory=now_ms,
+        sa_type=BigInteger(),
+        nullable=False,
+    )
+    end_time: int | None = Field(
+        sa_type=BigInteger(),
+        nullable=False,
+        default=None
+    )
 
     # foreign keys
     conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')
     initiator_id : UUID  | None = Field(default=None, foreign_key='user.id')
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
-        index=True  # Important for query performance
-    )
 
     user: List["User"] = Relationship(
         back_populates="calls"

@@ -1,3 +1,5 @@
+import { routesLog } from "@/features/shared/utils/logger";
+
 export const AUTH_ROUTES = {
   LOGIN: {
     LAN_LOGIN: "/auth/login/lan-login",
@@ -46,3 +48,5 @@ export const APP_ROUTES = {
   SCAN_QR: "/(drawer)/(tabs)/scan-qr",
   PEER_PROFILE: "/(drawer)/(tabs)/peer/[id]",
 } as const;
+
+routesLog.debug("[Routes] loaded");

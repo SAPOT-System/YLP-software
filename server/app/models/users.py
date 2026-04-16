@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from app.models.message_receipt import MessageReceipt
     from app.models.location import UserLocation
     from app.models.rescuer import Rescuer
+    from app.models.admin import Admin
 
 
 PhoneStr = Annotated[
@@ -78,6 +79,11 @@ class User(UserBase, table=True):
     )
 
     rescuer: Optional["Rescuer"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+    admin: Optional["Admin"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )

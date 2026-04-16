@@ -1,8 +1,9 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
 import { validateEmail } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
+import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Button, HelperText, useTheme } from "react-native-paper";
 
@@ -15,7 +16,22 @@ export default function UpdateEmail() {
     confirmNewEmail?: string;
   }>({});
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    uiLog.info("[UpdateEmail] mounted");
+    return () => {
+      uiLog.info("[UpdateEmail] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    uiLog.debug("[UpdateEmail] useEffect triggered, deps:", {
+      newEmailLength: newEmail.length,
+      confirmEmailLength: confirmNewEmail.length,
+    });
+  }, [newEmail, confirmNewEmail]);
+
+  const handleSubmit = async () => {
+    uiLog.debug("[UpdateEmail] handleSubmit called");
     const nextErrors: { newEmail?: string; confirmNewEmail?: string } = {};
     const emailError = validateEmail(newEmail);
     if (emailError) {
@@ -31,9 +47,13 @@ export default function UpdateEmail() {
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
+      uiLog.warn("[UpdateEmail] validation failed");
       return;
     }
 
+    uiLog.info("[Navigation] Navigating to VerifyEmail", {
+      screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+    });
     router.push({
       pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
       params: { email: newEmail.trim() },

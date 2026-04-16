@@ -35,19 +35,14 @@ import { ChatService } from "../chat-service";
 // Define MessageType enum locally to avoid importing database models with decorators in Jest
 enum MessageType {
   TEXT = "text",
-  PHOTO = "photo",
-  VIDEO = "video",
   FILE = "file",
+  CALL_LOG = "call_log",
 }
 
 // Mock shared dependencies
 jest.mock("@/features/shared", () => ({
   ConnectionService: jest.fn(),
   Conversation: jest.fn(),
-  ConversationParticipantRole: {
-    MEMBER: "member",
-    ADMIN: "admin",
-  },
   ConversationType: {
     DIRECT: "direct",
     GROUP: "group",
@@ -185,16 +180,20 @@ describe("ChatService", () => {
       );
     });
 
-    it("should throw error if peer not discovered", async () => {
+    it("should fall back to direct connect if peer not discovered", async () => {
       const peerId = "peer-1";
       const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
 
       mockPeerService.findPeerById.mockResolvedValue(mockPeer);
       mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
 
-      await expect(chatService.connect(peerId)).rejects.toThrow(
-        "Peer not discovered"
+      await chatService.connect(peerId);
+
+      expect(mockPeerService.findPeerById).toHaveBeenCalledWith(peerId);
+      expect(mockPeerService.findDiscoveredPeerById).toHaveBeenCalledWith(
+        peerId
       );
+      expect(mockConnectionService.connectToPeer).toHaveBeenCalledWith(peerId);
     });
   });
 
@@ -347,6 +346,95 @@ describe("ChatService", () => {
       await expect(chatService.handleAckMessage(messageId)).rejects.toThrow(
         "Database error"
       );
+    });
+
+    it("cancels ack timeout when DELIVERED arrives before expiry", async () => {
+      jest.useFakeTimers();
+      const message = "Hello World";
+      const mockConversation = createTestConversation({ id: "conv-1", type: ConversationType.DIRECT });
+      const mockMessage = createTestMessage({ id: "msg-1", content: message, createdAt: new Date(), messageType: MessageType.TEXT }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
+
+      (chatService as unknown as { peer: Peer }).peer = {
+        ...createTestPeer({ id: "peer-1", username: "peeruser" }),
+      } as unknown as Peer;
+      (chatService as unknown as { conversation: typeof mockConversation }).conversation = mockConversation as unknown as typeof mockConversation;
+
+      mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
+      mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(mockMessageStatus);
+
+      await chatService.sendChatMessage(message);
+
+      // ACK arrives before 12s
+      await chatService.handleAckMessage("msg-1");
+      jest.advanceTimersByTime(13000);
+      await Promise.resolve(); // flush microtasks
+
+      // Should only have been called once (SENT), not twice (no NOT_SENT flip)
+      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledTimes(1);
+      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledWith("status-1", MessageStatusType.SENT);
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe("ACK timeout", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      (chatService as unknown as { peer: Peer }).peer = {
+        ...createTestPeer({ id: "peer-1", username: "peeruser" }),
+      } as unknown as Peer;
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("flips status to NOT_SENT when no DELIVERED arrives within 12 seconds", async () => {
+      const message = "Hello";
+      const mockConversation = createTestConversation({ id: "conv-1", type: ConversationType.DIRECT });
+      const mockMessage = createTestMessage({ id: "msg-1", content: message, createdAt: new Date(), messageType: MessageType.TEXT }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
+
+      (chatService as unknown as { conversation: typeof mockConversation }).conversation = mockConversation as unknown as typeof mockConversation;
+      mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
+      mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(mockMessageStatus);
+
+      await chatService.sendChatMessage(message);
+
+      // Advance past 12-second timeout
+      jest.advanceTimersByTime(12001);
+      await Promise.resolve(); // flush microtasks
+
+      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledWith(
+        "status-1",
+        MessageStatusType.NOT_SENT
+      );
+    });
+
+    it("does not flip to NOT_SENT when DELIVERED arrives before 12 seconds", async () => {
+      const message = "Hello";
+      const mockConversation = createTestConversation({ id: "conv-1", type: ConversationType.DIRECT });
+      const mockMessage = createTestMessage({ id: "msg-1", content: message, createdAt: new Date(), messageType: MessageType.TEXT }) as Message;
+      const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
+
+      (chatService as unknown as { conversation: typeof mockConversation }).conversation = mockConversation as unknown as typeof mockConversation;
+      mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
+      mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(mockMessageStatus);
+
+      await chatService.sendChatMessage(message);
+
+      // DELIVERED arrives at 5s
+      jest.advanceTimersByTime(5000);
+      await chatService.handleAckMessage("msg-1");
+
+      // Advance past where the timeout would have fired
+      jest.advanceTimersByTime(8000);
+      await Promise.resolve();
+
+      const allCalls = mockMessageStatusRepository.updateMessageStatusById.mock.calls;
+      const notSentCalls = allCalls.filter(([, status]) => status === MessageStatusType.NOT_SENT);
+      expect(notSentCalls).toHaveLength(0);
     });
   });
 
@@ -535,6 +623,88 @@ describe("ChatService", () => {
     });
   });
 
+  describe("saveCallLogWithReceipts", () => {
+    it("should reject when senderId is neither current user nor peerId", async () => {
+      await expect(
+        chatService.saveCallLogWithReceipts({
+          peerId: "peer-1",
+          content: "Missed call from Peer",
+          senderId: "invalid-sender-id",
+        })
+      ).rejects.toThrow("senderId must be current user or peerId");
+
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
+    });
+
+    it("should create call-log message and sender delivered receipt", async () => {
+      const peer = createTestPeer({ id: "peer-1", username: "peeruser" }) as unknown as Peer;
+      const conversation = createTestConversation({
+        id: "conv-1",
+        type: ConversationType.DIRECT,
+      }) as unknown as Conversation;
+      const savedMessage = createTestMessage({
+        id: "msg-1",
+        content: "Missed call from Peer",
+        messageType: MessageType.CALL_LOG,
+      }) as unknown as Message;
+
+      mockPeerService.findPeerById.mockResolvedValue(peer);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        "conv-1"
+      );
+      mockConversationRepository.queryConversationById.mockResolvedValue(
+        conversation
+      );
+      mockMessageRepository.queryMessageById.mockResolvedValue(undefined);
+      mockMessageRepository.saveMessage.mockResolvedValue(savedMessage);
+
+      await chatService.saveCallLogWithReceipts({
+        peerId: "peer-1",
+        content: "Missed call from Peer",
+        senderId: "test-user-id",
+        messageId: "call-log-1",
+      });
+
+      expect(mockMessageRepository.saveMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "Missed call from Peer",
+          conversation,
+          messageId: "call-log-1",
+        })
+      );
+      expect(mockMessageStatusRepository.saveMessageStatus).toHaveBeenCalledTimes(1);
+      expect(mockMessageStatusRepository.saveMessageStatus).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: savedMessage,
+          status: MessageStatusType.DELIVERED,
+        })
+      );
+    });
+
+    it("should skip call-log save when message already exists", async () => {
+      const existingMessage = createTestMessage({
+        id: "call-log-1",
+        content: "Missed call from Peer",
+        messageType: MessageType.CALL_LOG,
+      }) as unknown as Message;
+
+      mockMessageRepository.queryMessageById.mockResolvedValue(existingMessage);
+
+      await chatService.saveCallLogWithReceipts({
+        peerId: "peer-1",
+        content: "Missed call from Peer",
+        senderId: "test-user-id",
+        messageId: "call-log-1",
+      });
+
+      expect(mockMessageRepository.queryMessageById).toHaveBeenCalledWith(
+        "call-log-1"
+      );
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
+      expect(mockMessageStatusRepository.saveMessageStatus).not.toHaveBeenCalled();
+    });
+  });
+
   describe("getAllConversations", () => {
     it("should return all conversations", async () => {
       const mockConversations = [
@@ -672,6 +842,7 @@ describe("ChatService", () => {
         "192.168.1.101",
         8080
       );
+      expect(mockConnectionService.waitForDataChannel).toHaveBeenCalledWith("peer-1");
       expect(mockConnectionService.sendChatMessage).toHaveBeenCalledWith(
         "peer-1",
         expect.objectContaining({

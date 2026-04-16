@@ -1,13 +1,15 @@
 import React from "react";
-import {
-  Button,
-  Dialog,
-  Icon,
-  Portal,
-  Text,
-  useTheme,
-} from "react-native-paper";
 import { View } from "react-native";
+import {
+    Button,
+    Dialog,
+    Icon,
+    Portal,
+    Text,
+    useTheme,
+} from "react-native-paper";
+import { uiLog } from "../utils/logger";
+uiLog.debug("[failed-dialog] module loaded");
 
 const failedOption = {
   connectionFailed: {
@@ -39,6 +41,14 @@ export const FailedDialog = ({
   onSecondaryBtnPress,
 }: FailedDialogProps) => {
   const theme = useTheme();
+  const handlePrimary = () => {
+    uiLog.info("failed-dialog › primary", { type });
+    onPrimaryBtnPress();
+  };
+  const handleSecondary = () => {
+    uiLog.info("failed-dialog › secondary", { type });
+    onSecondaryBtnPress();
+  };
 
   return (
     <Portal>
@@ -85,7 +95,7 @@ export const FailedDialog = ({
           >
             <Button
               mode="outlined"
-              onPress={onSecondaryBtnPress}
+              onPress={handleSecondary}
               style={{
                 height: 40,
                 minWidth: 90,
@@ -98,7 +108,7 @@ export const FailedDialog = ({
             </Button>
             <Button
               mode="contained"
-              onPress={onPrimaryBtnPress}
+              onPress={handlePrimary}
               style={{
                 height: 40,
                 minWidth: 90,

@@ -4,25 +4,28 @@ import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createConnectionServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import {
-  TcpClientAdapter,
-  TcpServerAdapter,
-  WebrtcAdapter,
-  WsSignalingAdapter,
+    TcpClientAdapter,
+    TcpServerAdapter,
+    WsSignalingAdapter,
 } from "../../adapters";
-import { NetworkConfig, UserStore } from "../../stores";
+import { WebrtcAdapter } from "../../adapters/webrtc-adapter";
+import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
-  AudioCallMessage,
-  CallEndedMessage,
-  ChatMessage,
-  SignalingMessage,
+    CallEndedMessage,
+    CallMissedMessage,
+    CallRejectedMessage,
+    ChatMessage,
+    SignalingMessage
 } from "../../types";
+import { CallMediaService } from "../call-media-service";
 import { ConnectionService } from "../connection-service";
+import { SignalingService } from "../signaling-service";
+import { WebrtcSessionManager } from "../webrtc-session-manager";
 
 export enum MessageType {
   TEXT = "text",
-  PHOTO = "photo",
-  VIDEO = "video",
   FILE = "file",
+  CALL_LOG = "call_log",
 }
 const mockOfferDescription: RTCSessionDescriptionInit = {
   type: "offer",
@@ -39,19 +42,22 @@ const mockIceCandidate: RTCIceCandidate = {
   sdpMLineIndex: 0,
 } as RTCIceCandidate;
 
-
 // Mock the adapters
 jest.mock("../../adapters", () => ({
   TcpClientAdapter: jest.fn(),
   TcpServerAdapter: jest.fn(),
-  WebrtcAdapter: jest.fn(),
   WsSignalingAdapter: jest.fn(),
+}));
+
+jest.mock("../../adapters/webrtc-adapter", () => ({
+  WebrtcAdapter: jest.fn(),
 }));
 
 // Mock the stores
 jest.mock("../../stores", () => ({
   NetworkConfig: jest.fn(),
   UserStore: jest.fn(),
+  AppModeStore: jest.fn(),
 }));
 
 // Mock ChatService
@@ -61,6 +67,9 @@ jest.mock("@/features/chat/services/chat-service", () => ({
 
 describe("ConnectionService", () => {
   let connectionService: ConnectionService;
+  let webrtcSessionManager: WebrtcSessionManager;
+  let signalingService: SignalingService;
+  let callMediaService: CallMediaService;
   let mockTcpServerAdapter: jest.Mocked<TcpServerAdapter>;
   let mockNetworkConfig: jest.Mocked<NetworkConfig>;
   let mockUserStore: jest.Mocked<UserStore>;
@@ -68,6 +77,7 @@ describe("ConnectionService", () => {
   let mockWebrtcAdapter: jest.Mocked<WebrtcAdapter>;
   let mockWsSignalingAdapter: jest.Mocked<WsSignalingAdapter>;
   let mockChatService: jest.Mocked<ChatService>;
+  let mockAppModeStore: jest.Mocked<AppModeStore>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,6 +95,8 @@ describe("ConnectionService", () => {
     mockWsSignalingAdapter =
       mocks.wsSignalingAdapter as unknown as jest.Mocked<WsSignalingAdapter>;
     mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
+    mockAppModeStore =
+      mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
 
     // Mock constructors
     jest
@@ -99,13 +111,33 @@ describe("ConnectionService", () => {
       .mockImplementation(() => mockWsSignalingAdapter);
     jest.mocked(ChatService).mockImplementation(() => mockChatService);
 
+    // Create sub-services (real instances; WebrtcAdapter constructor is mocked above)
+    webrtcSessionManager = new WebrtcSessionManager(
+      mockUserStore,
+      mockNetworkConfig
+    );
+    signalingService = new SignalingService(
+      webrtcSessionManager.getWebrtcAdapter.bind(webrtcSessionManager),
+      mockWsSignalingAdapter,
+      "ws://localhost:8000",
+      mockUserStore,
+      mockNetworkConfig,
+      mockAppModeStore
+    );
+    callMediaService = new CallMediaService(
+      webrtcSessionManager.getWebrtcAdapter.bind(webrtcSessionManager)
+    );
+
     // Create service instance
     connectionService = new ConnectionService(
       mockTcpServerAdapter,
       mockNetworkConfig,
       mockUserStore,
+      mockAppModeStore,
       mockWsSignalingAdapter,
-      "ws://localhost:8000"
+      webrtcSessionManager,
+      signalingService,
+      callMediaService
     );
   });
 
@@ -125,32 +157,21 @@ describe("ConnectionService", () => {
     });
 
     it("should handle audio-call messages", async () => {
-      // Verify that the on method was called during constructor
-      expect(mockTcpServerAdapter.on).toHaveBeenCalledWith(
-        "data",
-        expect.any(Function)
-      );
-
-      // Get the data handler from the on call
-      const dataHandler = mockTcpServerAdapter.on.mock.calls.find(
-        (call) => call[0] === "data"
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
       )?.[1];
 
-      expect(dataHandler).toBeDefined();
+      expect(callMessageHandler).toBeDefined();
 
-      const audioCallMessage: AudioCallMessage = {
+      const audioCallMessage = {
         type: "audio-call" as const,
-        data: { from: "peer-1", to: "peer-2" },
+        data: { from_user: "peer-1", to: "peer-2" },
       };
 
-      const initializeSpy = jest
-        .spyOn(connectionService, "initializeStream")
-        .mockResolvedValue();
       const emitSpy = jest.spyOn(connectionService, "emit");
 
-      await dataHandler?.(audioCallMessage);
+      await callMessageHandler?.(audioCallMessage);
 
-      expect(initializeSpy).toHaveBeenCalledWith("peer-1");
       expect(emitSpy).toHaveBeenCalledWith("audio-call", "peer-1");
     });
 
@@ -197,13 +218,9 @@ describe("ConnectionService", () => {
       };
 
       const handleSpy = jest
-        .spyOn(
-          connectionService as unknown as {
-            handleWebrtcConnection: (msg: unknown) => Promise<void>;
-          },
-          "handleWebrtcConnection"
-        )
+        .spyOn(signalingService, "handleIncomingSignaling")
         .mockResolvedValue(undefined);
+
       await dataHandler?.(iceCandidateMessage);
       expect(handleSpy).toHaveBeenCalledWith(iceCandidateMessage);
 
@@ -233,7 +250,57 @@ describe("ConnectionService", () => {
 
       await dataHandler?.(callEndedMessage);
 
-      expect(emitSpy).toHaveBeenCalledWith("call-ended");
+      expect(emitSpy).toHaveBeenCalledWith(
+        "call-ended",
+        expect.objectContaining({
+          peerId: "peer-1",
+        })
+      );
+    });
+
+    it("should handle call-rejected ws messages", async () => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+
+      expect(callMessageHandler).toBeDefined();
+
+      const callRejectedMessage: CallRejectedMessage = {
+        type: "call-rejected",
+        data: { from: "peer-1", to: "peer-2", reason: "declined" },
+      };
+
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await callMessageHandler?.({
+        type: callRejectedMessage.type,
+        data: {
+          from_user: callRejectedMessage.data.from,
+          to: callRejectedMessage.data.to,
+          reason: callRejectedMessage.data.reason,
+        },
+      });
+
+      expect(emitSpy).toHaveBeenCalledWith("call-rejected", "peer-1");
+    });
+
+    it("should handle call-missed tcp messages", async () => {
+      const dataHandler = mockTcpServerAdapter.on.mock.calls.find(
+        (call) => call[0] === "data"
+      )?.[1];
+
+      expect(dataHandler).toBeDefined();
+
+      const callMissedMessage: CallMissedMessage = {
+        type: "call-missed",
+        data: { from: "peer-1", to: "peer-2", reason: "no-answer" },
+      };
+
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await dataHandler?.(callMissedMessage);
+
+      expect(emitSpy).toHaveBeenCalledWith("call-missed", "peer-1");
     });
   });
 
@@ -287,7 +354,7 @@ describe("ConnectionService", () => {
 
     it("should setup WebRTC events for new adapter", () => {
       const peerId = "peer-1";
-      const setupSpy = jest.spyOn(connectionService, "setupWebrtcEvents");
+      const setupSpy = jest.spyOn(webrtcSessionManager, "setupWebrtcEvents");
 
       connectionService.getWebrtcAdapter(peerId);
 
@@ -305,14 +372,14 @@ describe("ConnectionService", () => {
     });
   });
 
-  describe("setupWebrtcEvents", () => {
+  describe("setupWebrtcEvents (via WebrtcSessionManager)", () => {
     it("should setup ice candidate event handler", () => {
       const peerId = "peer-1";
       const sendMessageSpy = jest
         .spyOn(connectionService, "sendMessage")
         .mockImplementation();
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       // Simulate ice candidate event
       const onIceCandidateHandler = mockWebrtcAdapter.on.mock.calls.find(
@@ -341,7 +408,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       connectionService.setChatService(mockChatService);
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const receivedMessageHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "receivedMessage"
@@ -371,7 +438,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       connectionService.setChatService(mockChatService);
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const receivedMessageHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "receivedMessage"
@@ -391,7 +458,7 @@ describe("ConnectionService", () => {
       const peerId = "peer-1";
       const emitSpy = jest.spyOn(connectionService, "emit");
 
-      connectionService.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
 
       const remoteStreamHandler = mockWebrtcAdapter.on.mock.calls.find(
         (call) => call[0] === "remoteStream"
@@ -401,6 +468,108 @@ describe("ConnectionService", () => {
       remoteStreamHandler?.(mockStream);
 
       expect(emitSpy).toHaveBeenCalledWith("remoteStream", mockStream);
+    });
+
+    it("removes webrtc adapter from map when connection-closed fires", () => {
+      const peerId = "peer-1";
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+
+      // adapter is in the map via getWebrtcAdapter
+      connectionService.getWebrtcAdapter(peerId);
+
+      const closedHandler = mockWebrtcAdapter.on.mock.calls.find(
+        (call) => call[0] === "connection-closed"
+      )?.[1];
+      expect(closedHandler).toBeDefined();
+
+      closedHandler?.();
+
+      expect(mockWebrtcAdapter.removeAllListeners).toHaveBeenCalled();
+      expect(mockWebrtcAdapter.cleanup).toHaveBeenCalled();
+      // Subsequent getWebrtcAdapter creates a new adapter
+      connectionService.getWebrtcAdapter(peerId);
+      expect(WebrtcAdapter).toHaveBeenCalledTimes(2);
+    });
+
+    it("removes webrtc adapter from map when connection-failed fires", () => {
+      const peerId = "peer-1";
+      connectionService.getWebrtcAdapter(peerId);
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+
+      const failedHandler = mockWebrtcAdapter.on.mock.calls.find(
+        (call) => call[0] === "connection-failed"
+      )?.[1];
+      expect(failedHandler).toBeDefined();
+
+      failedHandler?.();
+
+      expect(mockWebrtcAdapter.removeAllListeners).toHaveBeenCalled();
+      expect(mockWebrtcAdapter.cleanup).toHaveBeenCalled();
+    });
+
+    it("should emit peer-reconnected when datachannel-open fires", () => {
+      const peerId = "peer-1";
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      webrtcSessionManager.setupWebrtcEvents(mockWebrtcAdapter, peerId);
+
+      const dataChannelOpenHandler = mockWebrtcAdapter.on.mock.calls.find(
+        (call) => call[0] === "datachannel-open"
+      )?.[1];
+
+      expect(dataChannelOpenHandler).toBeDefined();
+      dataChannelOpenHandler?.();
+
+      expect(emitSpy).toHaveBeenCalledWith("peer-reconnected", peerId);
+    });
+  });
+
+  describe("waitForDataChannel", () => {
+    it("resolves immediately if adapter is already connected", async () => {
+      const peerId = "peer-1";
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(true),
+        configurable: true,
+      });
+
+      await expect(
+        connectionService.waitForDataChannel(peerId)
+      ).resolves.toBeUndefined();
+    });
+
+    it("resolves when datachannel-open fires", async () => {
+      const peerId = "peer-1";
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+
+      let capturedCallback: (() => void) | undefined;
+      mockWebrtcAdapter.once = jest.fn().mockImplementation((event, cb) => {
+        if (event === "datachannel-open") capturedCallback = cb;
+        return mockWebrtcAdapter;
+      });
+
+      const waitPromise = connectionService.waitForDataChannel(peerId);
+      capturedCallback?.();
+
+      await expect(waitPromise).resolves.toBeUndefined();
+    });
+
+    it("rejects after timeout if datachannel-open never fires", async () => {
+      jest.useFakeTimers();
+      const peerId = "peer-1";
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+      mockWebrtcAdapter.once = jest.fn().mockImplementation(() => mockWebrtcAdapter);
+
+      const waitPromise = connectionService.waitForDataChannel(peerId, 5000);
+      jest.advanceTimersByTime(5001);
+
+      await expect(waitPromise).rejects.toThrow("waitForDataChannel: timeout");
+      jest.useRealTimers();
     });
   });
 
@@ -597,7 +766,7 @@ describe("ConnectionService", () => {
     it("should initialize local stream for connected peer", async () => {
       const peerId = "peer-1";
 
-      await connectionService.initializeStream(peerId);
+      await connectionService.initializeStream("video", peerId);
 
       expect(mockWebrtcAdapter.initializeLocalStream).toHaveBeenCalledWith(
         true,
@@ -612,9 +781,9 @@ describe("ConnectionService", () => {
       });
       const peerId = "peer-1";
 
-      await expect(connectionService.initializeStream(peerId)).rejects.toThrow(
-        "Not connected"
-      );
+      await expect(
+        connectionService.initializeStream("video", peerId)
+      ).rejects.toThrow("Not connected");
     });
   });
 

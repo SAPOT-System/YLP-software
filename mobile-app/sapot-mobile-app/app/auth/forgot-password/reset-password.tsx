@@ -1,28 +1,36 @@
-import { StyleSheet, View } from "react-native";
-import React, { useState } from "react";
-import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { AUTH_ROUTES } from "@/app/routes";
 import {
-  ActivityIndicator,
-  HelperText,
-  Snackbar,
-  Text,
-} from "react-native-paper";
+    AuthTextInput,
+    PrimaryButton,
+    SecondaryButton,
+    useChangePassword,
+} from "@/features/auth";
+import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { useToast } from "@/features/shared/hooks";
+import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  AuthTextInput,
-  PrimaryButton,
-  SecondaryButton,
-  useChangePassword,
-} from "@/features/auth";
-import { useToast } from "@/features/shared/hooks";
-import { AUTH_ROUTES } from "@/app/routes";
+    deleteItemAsync,
+    getItemAsync,
+    setItemAsync,
+} from "expo-secure-store";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import {
+    ActivityIndicator,
+    HelperText,
+    Snackbar,
+    Text,
+} from "react-native-paper";
 
 const ChangePasswordScreen = () => {
   const { token, identifier } = useLocalSearchParams<{
     token: string;
     identifier: string;
   }>();
-  const changePasswordResult = useChangePassword(token);
+  const [tokenValue, setTokenValue] = useState("");
+  const [identifierValue, setIdentifierValue] = useState("");
+  const changePasswordResult = useChangePassword(tokenValue);
   const {
     visible: toastVisible,
     message: toastMessage,
@@ -32,6 +40,50 @@ const ChangePasswordScreen = () => {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  useEffect(() => {
+    authLog.info("[ChangePasswordScreen] mounted");
+    return () => {
+      authLog.info("[ChangePasswordScreen] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    const normalizeParam = (value?: string | string[]) =>
+      Array.isArray(value) ? value[0] ?? "" : value ?? "";
+
+    const hydrateFromStorage = async () => {
+      const tokenParam = normalizeParam(token);
+      const identifierParam = normalizeParam(identifier);
+
+      if (tokenParam) {
+        setTokenValue(tokenParam);
+        await setItemAsync("reset_password_token", tokenParam);
+      } else {
+        const storedToken = await getItemAsync("reset_password_token");
+        if (storedToken) setTokenValue(storedToken);
+      }
+
+      if (identifierParam) {
+        setIdentifierValue(identifierParam);
+        await setItemAsync("reset_password_identifier", identifierParam);
+      } else {
+        const storedIdentifier = await getItemAsync(
+          "reset_password_identifier"
+        );
+        if (storedIdentifier) setIdentifierValue(storedIdentifier);
+      }
+    };
+
+    hydrateFromStorage();
+  }, [token, identifier]);
+
+  useEffect(() => {
+    authLog.debug("[ChangePasswordScreen] useEffect triggered, deps:", {
+      hasToken: Boolean(tokenValue),
+      identifierLength: identifierValue.length,
+    });
+  }, [tokenValue, identifierValue]);
 
   if (!changePasswordResult) {
     return <ActivityIndicator />;
@@ -48,11 +100,25 @@ const ChangePasswordScreen = () => {
   }
 
   const handleChangePassword = async () => {
-    const res = await changePassword({ password, confirmPassword, identifier });
+    authLog.debug("[ChangePasswordScreen] handleChangePassword called", {
+      password: "[REDACTED]",
+      confirmPassword: "[REDACTED]",
+    });
+    const res = await changePassword({
+      password,
+      confirmPassword,
+      identifier: identifierValue,
+    });
     if (res.success) {
+      await deleteItemAsync("reset_password_token");
+      await deleteItemAsync("reset_password_identifier");
       showToast("Change password successfully");
+      authLog.info("[Navigation] Navigating to ResetSuccess", {
+        screen: AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS,
+      });
       router.replace(AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS);
     } else {
+      authLog.warn("[ChangePasswordScreen] change password failed");
       showToast("Change password failed");
     }
   };
@@ -108,7 +174,13 @@ const ChangePasswordScreen = () => {
         >
           Change
         </PrimaryButton>
-        <SecondaryButton onPress={() => router.back()} disabled={loading}>
+        <SecondaryButton
+          onPress={() => {
+            authLog.info("[Navigation] goBack triggered from ChangePassword");
+            router.back();
+          }}
+          disabled={loading}
+        >
           Back
         </SecondaryButton>
       </ScreenContent>

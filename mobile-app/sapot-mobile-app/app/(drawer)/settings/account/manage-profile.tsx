@@ -2,13 +2,35 @@ import { SETTINGS_ROUTES } from "@/app/routes";
 import { useUserService } from "@/features/auth";
 import { validateRegistrationForm } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
-import { Peer, updateProfileApi } from "@/features/shared";
-import { useUserProfile } from "@/features/shared/hooks";
+import {
+    ExpoFileUpload,
+    Peer,
+    updateProfileApi,
+    uploadProfilePicApi,
+} from "@/features/shared";
+import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
+import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import {
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    View,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { Avatar, Button, HelperText, Text, useTheme } from "react-native-paper";
+import {
+    ActivityIndicator,
+    Avatar,
+    Button,
+    HelperText,
+    Modal,
+    Portal,
+    Text,
+    useTheme,
+} from "react-native-paper";
 
 export default function ManageProfile() {
   const theme = useTheme();
@@ -23,6 +45,15 @@ export default function ManageProfile() {
   const [email, setEmail] = useState(
     (user instanceof Peer ? user.email : "") ?? ""
   );
+  const {
+    url: profilePicUrl,
+    loading: isProfilePicLoading,
+    setUrl: setProfilePicUrl,
+  } = useProfilePhoto();
+  const [isProfilePicUploading, setIsProfilePicUploading] = useState(false);
+  const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
+  const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
+  const actionColor = theme.dark ? "#ffffff" : "#000000";
   const [editableField, setEditableField] = useState<
     "username" | "firstName" | "lastName" | "phoneNumber" | "email" | null
   >(null);
@@ -34,8 +65,16 @@ export default function ManageProfile() {
     email?: string;
   }>({});
 
+  useEffect(() => {
+    uiLog.info("[ManageProfile] mounted");
+    return () => {
+      uiLog.info("[ManageProfile] unmounted");
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
+      uiLog.debug("[ManageProfile] useFocusEffect triggered");
       return () => {
         setUsername(user.username ?? "");
         setFirstName(user.firstName ?? "");
@@ -55,6 +94,9 @@ export default function ManageProfile() {
     normalizeValue(lastName) !== normalizeValue(user.lastName);
 
   const handleSave = async () => {
+    uiLog.debug("[ManageProfile] handleSave called", {
+      hasChanges,
+    });
     if (!hasChanges) {
       return;
     }
@@ -74,6 +116,7 @@ export default function ManageProfile() {
     });
 
     if (Object.keys(validationErrors).length > 0) {
+      uiLog.warn("[ManageProfile] validation failed");
       return;
     }
 
@@ -90,6 +133,75 @@ export default function ManageProfile() {
     });
 
     setEditableField(null);
+    uiLog.info("[ManageProfile] profile updated");
+  };
+
+  const uploadProfilePhotoAsset = async (
+    asset: ImagePicker.ImagePickerAsset
+  ) => {
+    uiLog.debug("[ManageProfile] uploadProfilePhotoAsset called");
+    if (!asset?.uri) return;
+
+    const file: ExpoFileUpload = {
+      uri: asset.uri,
+      name: asset.fileName ?? "profile.jpg",
+      type: asset.mimeType ?? "image/jpeg",
+    };
+
+    setIsProfilePicUploading(true);
+    const res = await uploadProfilePicApi(file);
+    setProfilePicUrl(res.data?.url ?? null);
+  };
+
+  const handleUploadFromLibrary = async () => {
+    uiLog.debug("[ManageProfile] handleUploadFromLibrary called");
+    if (isProfilePicUploading) return;
+
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) return;
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      await uploadProfilePhotoAsset(result.assets[0]);
+    } catch (error) {
+      uiLog.error("profile › upload from library failed", { error });
+    } finally {
+      setIsProfilePicUploading(false);
+      setIsPhotoOptionsVisible(false);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    uiLog.debug("[ManageProfile] handleTakePhoto called");
+    if (isProfilePicUploading) return;
+
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) return;
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      await uploadProfilePhotoAsset(result.assets[0]);
+    } catch (error) {
+      uiLog.error("profile › capture failed", { error });
+    } finally {
+      setIsProfilePicUploading(false);
+      setIsPhotoOptionsVisible(false);
+    }
   };
 
   return (
@@ -103,11 +215,30 @@ export default function ManageProfile() {
           contentContainerStyle={{ padding: 16, gap: 28, paddingBottom: 32 }}
         >
           <View style={{ alignItems: "center", gap: 28 }}>
-            <Avatar.Text
-              size={100}
-              label={user.username[0].toUpperCase()}
-              style={{ backgroundColor: theme.colors.primary }}
-            />
+            {isProfilePicLoading ? (
+              <ActivityIndicator />
+            ) : (
+              <View style={{ alignItems: "center" }}>
+                {profilePicUrl ? (
+                  <Avatar.Image size={100} source={{ uri: profilePicUrl }} />
+                ) : (
+                  <Avatar.Text
+                    size={100}
+                    label={(user.username[0] ?? "?").toUpperCase()}
+                    style={{ backgroundColor: theme.colors.primary }}
+                  />
+                )}
+                <Pressable
+                  onPress={() => {
+                    uiLog.debug("[ManageProfile] onPress triggered");
+                    setIsPhotoOptionsVisible(true);
+                  }}
+                  disabled={isProfilePicUploading}
+                >
+                  <Text style={{ color: "#3A7AFE" }}>Change Photo</Text>
+                </Pressable>
+              </View>
+            )}
             <View style={{ alignItems: "stretch", width: "100%", gap: 4 }}>
               <View>
                 <SettingsTextInput
@@ -122,7 +253,10 @@ export default function ManageProfile() {
                     }
                   }}
                   icon="pencil"
-                  onIconPress={() => setEditableField("username")}
+                  onIconPress={() => {
+                    uiLog.debug("[ManageProfile] onIconPress triggered");
+                    setEditableField("username");
+                  }}
                   error={Boolean(errors.username)}
                 />
                 <HelperText type="error" visible={Boolean(errors.username)}>
@@ -142,7 +276,10 @@ export default function ManageProfile() {
                     }
                   }}
                   icon="pencil"
-                  onIconPress={() => setEditableField("firstName")}
+                  onIconPress={() => {
+                    uiLog.debug("[ManageProfile] onIconPress triggered");
+                    setEditableField("firstName");
+                  }}
                   error={Boolean(errors.firstName)}
                 />
                 <HelperText type="error" visible={Boolean(errors.firstName)}>
@@ -162,7 +299,10 @@ export default function ManageProfile() {
                     }
                   }}
                   icon="pencil"
-                  onIconPress={() => setEditableField("lastName")}
+                  onIconPress={() => {
+                    uiLog.debug("[ManageProfile] onIconPress triggered");
+                    setEditableField("lastName");
+                  }}
                   error={Boolean(errors.lastName)}
                 />
                 <HelperText type="error" visible={Boolean(errors.lastName)}>
@@ -206,6 +346,9 @@ export default function ManageProfile() {
                   user.emailVerified === false && (
                     <Pressable
                       onPress={() => {
+                        uiLog.info("[Navigation] Navigating to VerifyEmail", {
+                          screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+                        });
                         router.push({
                           pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
                           params: {
@@ -227,7 +370,12 @@ export default function ManageProfile() {
                     </Pressable>
                   )
                 }
-                onIconPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}
+                onIconPress={() => {
+                  uiLog.info("[Navigation] Navigating to UpdateEmail", {
+                    screen: SETTINGS_ROUTES.UPDATE_EMAIL,
+                  });
+                  router.push(SETTINGS_ROUTES.UPDATE_EMAIL);
+                }}
               />
             </View>
             <Button
@@ -241,6 +389,103 @@ export default function ManageProfile() {
           </View>
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
+      <Portal>
+        <Modal
+          visible={isPhotoOptionsVisible}
+          onDismiss={() => setIsPhotoOptionsVisible(false)}
+          contentContainerStyle={{
+            backgroundColor: theme.colors.background,
+            padding: 0,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+          }}
+          style={{ justifyContent: "flex-end" }}
+        >
+          <Button
+            icon={"camera-outline"}
+            onPress={handleTakePhoto}
+            loading={isProfilePicUploading}
+            textColor={actionColor}
+            style={{ alignSelf: "stretch" }}
+            contentStyle={{
+              justifyContent: "flex-start",
+              paddingHorizontal: 26,
+              paddingVertical: 14,
+            }}
+            labelStyle={{ fontSize: 17 }}
+          >
+            Take Photo
+          </Button>
+          <Button
+            icon={"folder-multiple-image"}
+            onPress={handleUploadFromLibrary}
+            loading={isProfilePicUploading}
+            textColor={actionColor}
+            style={{ alignSelf: "stretch" }}
+            contentStyle={{
+              justifyContent: "flex-start",
+              paddingHorizontal: 26,
+              paddingVertical: 14,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: "#D9D9D9",
+            }}
+            labelStyle={{ fontSize: 17 }}
+          >
+            Upload Photo
+          </Button>
+          <Button
+            icon={"eye-outline"}
+            onPress={() => {
+              if (profilePicUrl) {
+                setIsPhotoViewerVisible(true);
+                setIsPhotoOptionsVisible(false);
+              }
+            }}
+            disabled={!profilePicUrl}
+            textColor={actionColor}
+            style={{ alignSelf: "stretch" }}
+            contentStyle={{
+              justifyContent: "flex-start",
+              paddingHorizontal: 26,
+              paddingVertical: 14,
+            }}
+            labelStyle={{ fontSize: 17 }}
+          >
+            View Photo
+          </Button>
+        </Modal>
+        <Modal
+          visible={isPhotoViewerVisible}
+          onDismiss={() => setIsPhotoViewerVisible(false)}
+          contentContainerStyle={{
+            flex: 1,
+            margin: 0,
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <Pressable
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0, 0, 0, 0.8)",
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 16,
+              alignSelf: "stretch",
+            }}
+            onPress={() => setIsPhotoViewerVisible(false)}
+          >
+            {profilePicUrl && (
+              <Image
+                source={{ uri: profilePicUrl }}
+                style={{ width: "100%", height: "70%", borderRadius: 12 }}
+                resizeMode="contain"
+              />
+            )}
+          </Pressable>
+        </Modal>
+      </Portal>
     </View>
   );
 }

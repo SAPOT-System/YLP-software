@@ -1,6 +1,14 @@
+import { SETTINGS_ROUTES } from "@/app/routes";
+import { useUserService } from "@/features/auth";
+import {
+    resendVerificationCodeEmail,
+    verifyCodeEmail,
+} from "@/features/auth/api/auth.api";
 import VerificationCodeModal from "@/features/settings/components/verification-code-modal";
-import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { updateProfileApi } from "@/features/shared/api/user-profile.api";
+import { uiLog } from "@/features/shared/utils/logger";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Button, Text, useTheme } from "react-native-paper";
 
@@ -8,8 +16,60 @@ export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const theme = useTheme();
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const handleVerify = () => {
+  const [modalError, setModalError] = useState<string | undefined>(undefined);
+  const userService = useUserService();
+
+  useEffect(() => {
+    uiLog.info("[VerifyEmail] mounted");
+    return () => {
+      uiLog.info("[VerifyEmail] unmounted");
+    };
+  }, []);
+  const handleVerify = async () => {
+    uiLog.debug("[VerifyEmail] handleVerify called");
+    await resendVerificationCodeEmail();
+    setModalError(undefined);
     setIsModalVisible(true);
+  };
+
+  const handleVerifyCode = async (code: string) => {
+    if (!email) {
+      setModalError("Email address is missing.");
+      return;
+    }
+
+    setModalError(undefined);
+
+    try {
+      await verifyCodeEmail(code);
+      await updateProfileApi({ email });
+      setIsModalVisible(false);
+
+      await userService.updateAuthenticatedUser({ emailVerified: true });
+      uiLog.info("[Navigation] Navigating to ManageProfile", {
+        screen: SETTINGS_ROUTES.MANAGE_PROFILE,
+      });
+      router.replace(SETTINGS_ROUTES.MANAGE_PROFILE);
+    } catch (error) {
+      uiLog.error("[VerifyEmail] Error in verify code", { error });
+      setModalError("Invalid or expired code.");
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!email) {
+      setModalError("Email address is missing.");
+      return;
+    }
+
+    setModalError(undefined);
+
+    try {
+      await resendVerificationCodeEmail();
+    } catch (error) {
+      uiLog.error("[VerifyEmail] Error in resend code", { error });
+      setModalError("Failed to resend code. Please try again.");
+    }
   };
   return (
     <View style={{ flex: 1, backgroundColor: theme.dark ? "#0B1020" : "#FFF" }}>
@@ -66,9 +126,13 @@ export default function VerifyEmail() {
       <VerificationCodeModal
         visible={isModalVisible}
         email={email}
-        onDismiss={() => setIsModalVisible(false)}
-        onVerifyCode={() => {}}
-        onResendCode={() => {}}
+        onDismiss={() => {
+          uiLog.debug("[VerifyEmail] modal dismissed");
+          setIsModalVisible(false);
+        }}
+        error={modalError}
+        onVerifyCode={handleVerifyCode}
+        onResendCode={handleResendCode}
       />
     </View>
   );

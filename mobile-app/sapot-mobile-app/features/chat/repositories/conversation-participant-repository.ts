@@ -1,12 +1,14 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 import {
-  Conversation,
-  ConversationParticipant,
-  ConversationParticipantRole,
-  GuestUser,
-  Peer,
+    Conversation,
+    ConversationParticipant,
+    GuestUser,
+    Peer,
 } from "@/features/shared";
+import { chatLog } from "@/features/shared/utils/logger";
+
+chatLog.debug("[conversation-participant-repository] module loaded");
 
 /**
  * ConversationParticipantRepository manages CRUD operations for conversation participants in the database.
@@ -20,17 +22,19 @@ export class ConversationParticipantRepository {
   constructor(private db: Database) {
     this.conversationParticipantsCollection =
       this.db.get<ConversationParticipant>(ConversationParticipant.table);
+    chatLog.info("chat › participant repo constructed", {
+      hasDatabase: Boolean(db),
+    });
   }
 
   /**
    * Saves a new conversation participant to the database.
-   * @param newParticipant The participant data (role, conversation, user)
+    * @param newParticipant The participant data (conversation, user)
    * @param isInTransaction Whether to run in an existing transaction
    * @returns Promise<ConversationParticipant> The saved participant
    */
   async saveConversationParticipant(
     newParticipant: {
-      role: ConversationParticipantRole;
       conversation: Conversation;
       user: Peer | GuestUser;
     },
@@ -40,11 +44,12 @@ export class ConversationParticipantRepository {
       const action = async () => {
         return await this.conversationParticipantsCollection.create(
           (participant) => {
-            participant.role = newParticipant.role;
             participant.conversation.set(newParticipant.conversation);
             participant.user.set(newParticipant.user);
             participant.joinedAt = new Date();
-            participant.isDeleted = false; // TODO: find way to make the false as default for isDeleted columns
+            participant.isDeleted = false;
+            participant.createdAt = new Date();
+            participant.updatedAt = new Date();
           }
         );
       };
@@ -55,17 +60,11 @@ export class ConversationParticipantRepository {
         return this.conversationParticipantsCollection.database.write(action);
       }
     } catch (error) {
-      console.error(
-        `[ConversationParticipantRepository]: Error creating conversation participant:\nConversation Participant:\n${JSON.stringify(
-          {
-            name: newParticipant.user.username,
-            role: newParticipant.role,
-            isInTransaction,
-          },
-          null,
-          2
-        )}`
-      );
+      chatLog.error("chat › participant save failed", {
+        conversationId: newParticipant.conversation.id,
+        isInTransaction,
+        error,
+      });
       throw error;
     }
   }
@@ -74,37 +73,29 @@ export class ConversationParticipantRepository {
    * Saves multiple conversation participants to the database.
    * @param users Array of users (peers)
    * @param conversation The conversation
-   * @param role The participant role (default MEMBER)
    * @param isInTransaction Whether to run in an existing transaction
    * @returns Promise<void>
    */
   async saveMultipleConversationParticipant(
     users: (Peer | GuestUser)[],
     conversation: Conversation,
-    role: ConversationParticipantRole = ConversationParticipantRole.MEMBER,
     isInTransaction = false
   ) {
     try {
       await Promise.all(
         users.map((user) =>
           this.saveConversationParticipant(
-            { role: role, conversation: conversation, user: user },
+            { conversation: conversation, user: user },
             isInTransaction
           )
         )
       );
     } catch (error) {
-      console.error(
-        `[ConversationParticipantRepository]: Error creating multiple conversation participant:\nConversation Participants:\n${JSON.stringify(
-          {
-            names: [...users.map((user) => user.username)],
-            role,
-            isInTransaction,
-          },
-          null,
-          2
-        )}`
-      );
+      chatLog.error("chat › participants bulk save failed", {
+        participantCount: users.length,
+        isInTransaction,
+        error,
+      });
       throw error;
     }
   }
@@ -136,9 +127,10 @@ export class ConversationParticipantRepository {
 
       return directChatId;
     } catch (error) {
-      console.error(
-        `[ConversationParticipantRepository]: Error checking if there is a direct conversation between ${userIds}`
-      );
+      chatLog.error("chat › direct conversation check failed", {
+        participantCount: userIds.length,
+        error,
+      });
       throw error;
     }
   }
@@ -148,7 +140,12 @@ export class ConversationParticipantRepository {
    * @returns Promise<ConversationParticipant[]> Array of all participants
    */
   async queryAllParticipants() {
-    return await this.conversationParticipantsCollection.query().fetch();
+    try {
+      return await this.conversationParticipantsCollection.query().fetch();
+    } catch (error) {
+      chatLog.error("chat › participants list failed", { error });
+      throw error;
+    }
   }
 
   /**
@@ -170,9 +167,11 @@ export class ConversationParticipantRepository {
 
       return conversation;
     } catch (error) {
-      console.error(
-        `[ConversationParticipantRepository]: Error querying conversation by the peer ID of ${peerId} and current user ID of ${currentUserId}`
-      );
+      chatLog.error("chat › conversation query by peer failed", {
+        peerId,
+        currentUserId,
+        error,
+      });
       throw error;
     }
   }
@@ -185,7 +184,10 @@ export class ConversationParticipantRepository {
    */
   async queryPeerByChatId(conversationId: string, currentUserId: string) {
     try {
-      console.log(this.queryAllParticipants());
+      chatLog.debug("chat › participants query", {
+        conversationId,
+        currentUserId,
+      });
 
       const participants = await this.conversationParticipantsCollection
         .query(Q.where("conversation", conversationId))
@@ -196,9 +198,11 @@ export class ConversationParticipantRepository {
 
       return peer;
     } catch (error) {
-      console.error(
-        `[ConversationParticipantRepository]: Error querying peer by the conversation ID of ${conversationId} and current user ID of ${currentUserId}`
-      );
+      chatLog.error("chat › peer query by conversation failed", {
+        conversationId,
+        currentUserId,
+        error,
+      });
       throw error;
     }
   }
@@ -208,6 +212,7 @@ export class ConversationParticipantRepository {
    * @returns Promise<any[]> Array of destroy operations
    */
   async getParticipantDestroyOps() {
+    chatLog.debug("chat › participant destroy ops requested");
     const records = await this.conversationParticipantsCollection
       .query()
       .fetch();

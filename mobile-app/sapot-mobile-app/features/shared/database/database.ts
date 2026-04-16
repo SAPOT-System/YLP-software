@@ -1,16 +1,22 @@
 import { Database } from "@nozbe/watermelondb";
 import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
-
+import { setGenerator } from "@nozbe/watermelondb/utils/common/randomId";
+import uuid from "react-native-uuid";
+import { dbLog } from "../utils/logger";
 import migrations from "./migrations";
 import {
-  Conversation,
-  ConversationParticipant,
-  Message,
-  MessageStatus,
-  Peer,
-  GuestUser,
+    Call,
+    CallParticipant,
+    Conversation,
+    ConversationParticipant,
+    GuestUser,
+    Message,
+    MessageStatus,
+    Peer,
 } from "./model";
 import schema from "./schema";
+
+dbLog.debug("[database] module loaded");
 
 const adapter = new SQLiteAdapter({
   schema,
@@ -21,6 +27,8 @@ const adapter = new SQLiteAdapter({
   },
 });
 
+setGenerator(() => uuid.v4());
+
 export const database = new Database({
   adapter,
   modelClasses: [
@@ -30,5 +38,11 @@ export const database = new Database({
     Conversation,
     MessageStatus,
     GuestUser,
+    Call,
+    CallParticipant,
   ],
+});
+
+dbLog.info("database › initialized", {
+  modelCount: 8,
 });
