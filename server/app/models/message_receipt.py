@@ -22,8 +22,8 @@ class MessageReceipt(SyncableModel, table=True):
     status : StatusType
 
     # foreign keys
-    message_id : UUID = Field(foreign_key="message.id")
-    user_id : UUID = Field(foreign_key="user.id")
+    message_id : UUID = Field(foreign_key="message.id", ondelete="CASCADE")
+    user_id : UUID = Field(foreign_key="user.id", ondelete="CASCADE")
 
     user: Optional["User"] = Relationship(
         back_populates="messagereceipts"

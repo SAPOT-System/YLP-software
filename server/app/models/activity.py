@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class UserActivity(SQLModel, table=True):
     __tablename__ = "user_activity"
     
-    user_id: UUID = Field(foreign_key="user.id", primary_key=True)
+    user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE", primary_key=True)
     last_active: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = Field(default="Inactive")
     ip_address: Optional[str] = None
@@ -26,7 +26,7 @@ class ActivityLog(SQLModel, table=True):
     __tablename__ = "activity_logs"
     
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID = Field(foreign_key="user.id", index=True)
+    user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE", index=True)
     action: str  # e.g., "login", "update_profile"
     entity_id: Optional[UUID] = None
     # We use a raw SQLAlchemy Column for JSON support in SQLModel

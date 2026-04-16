@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from app.models.rescuer import Rescuer
     from app.models.admin import Admin
     from app.models.activity import UserActivity, ActivityLog
+    # from app.models.email_verification import EmailVerification
 
 
 PhoneStr = Annotated[
@@ -44,42 +45,73 @@ class User(UserBase, table=True):
     hashed_password: str
     email_verified : bool =  Field(default=False)
 
-    security_questions: List["UserSecurityQuestion"] = Relationship(back_populates="user")
+    security_questions: List["UserSecurityQuestion"] = Relationship(
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
-    activity: Optional["UserActivity"] = Relationship(back_populates="user")
+    activity: Optional["UserActivity"] = Relationship(
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     conversation_participants: List["ConversationParticipant"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     messages: List["Message"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     calls: List["Call"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     callparticipants: List["CallParticipant"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     email_verifications: List["EmailVerification"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     messagereceipts: List["MessageReceipt"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     profile_picture: Optional["UserProfilePicture"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     locations: list["UserLocation"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
-    )
+            back_populates="user",
+            sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+            )
 
     rescuer: Optional["Rescuer"] = Relationship(
         back_populates="user",

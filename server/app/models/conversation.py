@@ -27,27 +27,39 @@ class Conversation(SyncableModel, table=True):
     conversation_type : ConversationType = Field(max_length=100, min_length=2)
 
     messages: List['Message'] = Relationship(
-        back_populates='conversation'
+        back_populates='conversation',
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan", # The magic string
+            }
     )
 
     calls: List['Call'] = Relationship(
-        back_populates='conversation'
+        back_populates='conversation',
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan", # The magic string
+            }
     )
 
     callparticipants: List['CallParticipant'] = Relationship(
-        back_populates='conversation'
+        back_populates='conversation',
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan", # The magic string
+            }
     )
 
     conversationparticipants: List['ConversationParticipant'] = Relationship(
-        back_populates='conversation'
+        back_populates='conversation',
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan", # The magic string
+            }
     )
 
 
 class  ConversationParticipant(SyncableModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, index=True, primary_key=True)
     # foreign keys
-    conversation_id: UUID | None = Field(default=None, index=True, foreign_key='conversation.id')
-    user_id: UUID  = Field(index=True, foreign_key='user.id')
+    conversation_id: UUID | None = Field(default=None, index=True, foreign_key='conversation.id', ondelete="CASCADE")
+    user_id: UUID  = Field(index=True, foreign_key='user.id', ondelete="CASCADE")
     joined_at: int = Field(
         default_factory=now_ms,
         sa_type=BigInteger(),

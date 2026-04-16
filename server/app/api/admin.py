@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import os
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import String, select, func, desc, cast
+from sqlmodel import String, delete, select, func, desc, cast
 from typing import Annotated, List, Optional
 import socket
 from fastapi import FastAPI
@@ -606,3 +606,21 @@ def edit_user(
 
 
 
+@router.post("/delete/user")
+def delete_user(
+        _: Annotated[User, Depends(get_current_user_admin)],
+        user_id: UUID,
+        session: SessionDep
+        ):
+    user = get_user_by_ID(session, user_id)
+    try:
+        if not user:
+            raise HTTPException(404, "User not found")
+        session.delete(user)
+        session.commit()
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print("er", e)
+        raise HTTPException(500)
+    return {"status": "ok"}

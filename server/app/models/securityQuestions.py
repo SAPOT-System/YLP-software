@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field as PydanticField
 
 class UserSecurityQuestion(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: UUID = Field(foreign_key="user.id")
+    user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     question: str
     answer_hash: str
 

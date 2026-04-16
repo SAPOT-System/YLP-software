@@ -13,5 +13,5 @@ class UserProfilePicture(SQLModel, table=True):
     is_active: bool = Field(default=True) # Useful if you want to keep history
 
     # Relationship to User
-    user_id: uuid.UUID = Field(foreign_key="user.id", index=True)
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
     user: "User" = Relationship(back_populates="profile_picture")
