@@ -8,6 +8,7 @@ import {
   useProfilePhoto,
   useToast,
 } from "@/features/shared/hooks";
+import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -37,11 +38,13 @@ const ChatRoom = () => {
   const [isRendered, setIsRendered] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
+  const [isSelfChat, setIsSelfChat] = useState(false);
   const [peer, setPeer] = useState<Peer | undefined>();
   const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
   const [message, setMessage] = useState("");
   const chatService = useChatService();
   const peerService = usePeerService();
+  const userStore = useUserStore();
   const router = useRouter();
   const call = useInformCall();
   const {
@@ -64,14 +67,29 @@ const ChatRoom = () => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
       id,
       source,
+      isSelfChat,
     });
     const connect = async () => {
       if (source === ChatRoomSource.PEER) {
-        setPeerId(id as string);
-        const chatId = await chatService.findChatByPeer(id as string);
+        const resolvedPeerId = id as string;
+        const isSelf = resolvedPeerId === userStore.user?.id;
+        uiLog.debug("[ChatRoom] peer resolved from PEER source", {
+          resolvedPeerId,
+          isSelf,
+        });
+        setIsSelfChat(isSelf);
+        setPeerId(resolvedPeerId);
+        const chatId = await chatService.findChatByPeer(resolvedPeerId);
         if (chatId) setConversationId(chatId);
       } else if (source === ChatRoomSource.CHAT) {
-        setPeerId(await chatService.findPeerIdByChatId(id as string));
+        const foundPeerId = await chatService.findPeerIdByChatId(id as string);
+        const isSelf = foundPeerId === userStore.user?.id;
+        uiLog.debug("[ChatRoom] peer resolved from CHAT source", {
+          foundPeerId,
+          isSelf,
+        });
+        setIsSelfChat(isSelf);
+        setPeerId(foundPeerId);
         setConversationId(id as string);
       } else {
         throw Error("Error in passed source paramater");
@@ -79,11 +97,12 @@ const ChatRoom = () => {
       setIsRendered(true);
     };
     connect();
-  }, [chatService, id, source]);
+  }, [chatService, id, source, userStore, isSelfChat]);
 
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
+    if (isSelfChat) return;
 
     const connect = async () => {
       try {
@@ -108,7 +127,22 @@ const ChatRoom = () => {
       unsubscribe();
       chatService.disconnect();
     };
-  }, [peerId, chatService, showToast]);
+  }, [peerId, isSelfChat, chatService, showToast]);
+
+  useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { isSelfChat });
+    if (!isSelfChat || !peerId) return;
+    const connect = async () => {
+      chatService.setPeer(peerId);
+      setIsConnected(true);
+      setConnectionState("connected");
+    };
+    connect();
+
+    return () => {
+      chatService.removePeer();
+    };
+  }, [isSelfChat, peerId, chatService]);
 
   // Notify the sender that messages have been seen when connected and viewing a conversation
   useFocusEffect(
@@ -117,9 +151,9 @@ const ChatRoom = () => {
         isConnected,
         conversationId,
       });
-      if (!isConnected || !conversationId) return;
+      if ((!isConnected && !isSelfChat) || !conversationId) return;
       chatService.markConversationAsRead(conversationId);
-    }, [isConnected, conversationId, chatService])
+    }, [isConnected, isSelfChat, conversationId, chatService])
   );
 
   useEffect(() => {
@@ -136,7 +170,7 @@ const ChatRoom = () => {
     };
 
     getPeer();
-  }, [peerId, peerService]);
+  }, [peerId, isSelfChat, peerService]);
 
   if (!isRendered) return <ActivityIndicator />;
 
@@ -226,6 +260,7 @@ const ChatRoom = () => {
             icon="phone"
             size={20}
             iconColor="#00E700"
+            disabled={isSelfChat}
             onPress={() => {
               uiLog.debug("[ChatRoom] onPress triggered");
               if (peerId) {
@@ -238,6 +273,7 @@ const ChatRoom = () => {
           <IconButton
             icon="video"
             size={20}
+            disabled={isSelfChat}
             onPress={() => {
               uiLog.debug("[ChatRoom] onPress triggered");
               if (peerId) {

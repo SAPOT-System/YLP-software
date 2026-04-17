@@ -131,6 +131,17 @@ export class ChatService {
     }
   }
 
+  async setPeer(id: string) {
+    chatLog.info("chat › set peer start", { peerId: id });
+    const foundUser = await this.peerService.findPeerById(id);
+    if (!foundUser) throw new Error("Peer not found");
+    this.peer = foundUser;
+  }
+
+  removePeer() {
+    this.peer = undefined;
+  }
+
   // TODO: Apply ACID principle and retry if failed
 
   /**
@@ -176,8 +187,14 @@ export class ChatService {
       await this.saveIncomingMessage(sender, conversation, data);
       this.acknowledgeIncomingMessage(sender.id, data.messageId);
       const senderName =
-        `${sender.firstName} ${sender.lastName ?? ""}`.trim() || sender.username;
-      void this.showChatNotification(senderName, data.message, conversation.id, sender.id);
+        `${sender.firstName} ${sender.lastName ?? ""}`.trim() ||
+        sender.username;
+      void this.showChatNotification(
+        senderName,
+        data.message,
+        conversation.id,
+        sender.id
+      );
     } catch (error) {
       chatLog.error("chat › incoming message failed", {
         conversationId: data.conversationId,
@@ -377,6 +394,20 @@ export class ChatService {
         message: message,
         conversation: this.conversation!,
       });
+      const isSelfChat = this.peer.id === this.userStore.user.id;
+      console.log(isSelfChat);
+      if (isSelfChat) {
+        await this.messageStatusRepository.updateMessageStatusById(
+          newMessageStatus.id,
+          MessageStatusType.SENT
+        );
+        chatLog.debug("chat › send complete (self)", {
+          peerId: this.peer.id,
+          conversationId: this.conversation?.id,
+          messageId: newMessage.id,
+        });
+        return this.conversation!.id;
+      }
       await this.sendAndTrackMessageStatus(
         newMessage,
         newMessageStatus,
@@ -404,10 +435,18 @@ export class ChatService {
    */
   private async ensureConversationInitialized(): Promise<void> {
     if (!this.conversation && this.peer) {
-      const conversationId =
-        await this.conversationParticipantRepository.isDirectConversationExists(
-          [this.peer.id, this.userStore.user.id]
-        );
+      let conversationId;
+      if (this.peer.id === this.userStore.user.id) {
+        conversationId =
+          await this.conversationParticipantRepository.isSelfConversationExists(
+            this.peer.id
+          );
+      } else {
+        conversationId =
+          await this.conversationParticipantRepository.isDirectConversationExists(
+            [this.peer.id, this.userStore.user.id]
+          );
+      }
       if (!conversationId) {
         this.conversation = await this.createChatRoom(this.peer);
       } else {
@@ -567,12 +606,14 @@ export class ChatService {
    * @param chatId The chat id
    * @returns Promise<string>
    */
-  async findPeerIdByChatId(chatId: string): Promise<string> {
+  async findPeerIdByChatId(
+    chatId: string,
+  ): Promise<string> {
     try {
       const participants =
         await this.conversationParticipantRepository.queryPeerByChatId(
           chatId,
-          this.userStore.user.id
+          this.userStore.user.id,
         );
       return participants[0].user.id;
     } catch (error) {
@@ -845,10 +886,19 @@ export class ChatService {
     options?: { ipAddress: string; port: number }
   ): Promise<void> {
     try {
-      if (!this.connectionService.isWebSocketAllowed() && (!options?.ipAddress || !options?.port)) {
-        throw new Error("ipAddress and port are required when WebSocket is not available");
+      if (
+        !this.connectionService.isWebSocketAllowed() &&
+        (!options?.ipAddress || !options?.port)
+      ) {
+        throw new Error(
+          "ipAddress and port are required when WebSocket is not available"
+        );
       }
-      await this.connectionService.connectToPeer(peerId, options?.ipAddress, options?.port);
+      await this.connectionService.connectToPeer(
+        peerId,
+        options?.ipAddress,
+        options?.port
+      );
       await this.connectionService.waitForDataChannel(peerId);
 
       this.connectionService.sendChatMessage(peerId, {
