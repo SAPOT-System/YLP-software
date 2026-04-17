@@ -90,7 +90,11 @@ Used to establish WebRTC connections between peers. Shapes are identical on both
 
 Used to signal call lifecycle events between peers.
 
-> **Key difference:** WebSocket uses `from_user`; TCP uses `from` for the caller field.
+> **Field naming by direction:**
+> - `from_user` — used when the **server sends the message to the peer** (WebSocket server → mobile client)
+> - `from` — used when the **mobile app sends the message to the server** (mobile client → WebSocket server) and on **TCP** (direct peer-to-peer)
+>
+> In other words: if you're receiving a call event pushed by the server, expect `from_user`. If you're sending a call event from the app, use `from`.
 
 ---
 
