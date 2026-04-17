@@ -97,7 +97,7 @@ const ChatRoom = () => {
       setIsRendered(true);
     };
     connect();
-  }, [chatService, id, source, userStore]);
+  }, [chatService, id, source, userStore, isSelfChat]);
 
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
