@@ -65,4 +65,4 @@ A peer-to-peer mobile messenger built with React Native / Expo. Supports direct 
 | [`docs/DATABASE.md`](docs/DATABASE.md) | Local WatermelonDB schema reference |
 | [`docs/ENV_CONFIG.md`](docs/ENV_CONFIG.md) | Environment variables and build config |
 | [`docs/TESTING.md`](docs/TESTING.md) | Testing guide and utilities |
-| [`features/shared/services/CONNECTION_MESSAGES.md`](features/shared/services/CONNECTION_MESSAGES.md) | WebSocket / TCP message protocol |
+| [`docs/CONNECTION_MESSAGES.md`](docs/CONNECTION_MESSAGES.md) | WebSocket / TCP message protocol |
