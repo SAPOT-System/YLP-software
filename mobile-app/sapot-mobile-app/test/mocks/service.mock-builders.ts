@@ -163,11 +163,13 @@ export function createCallServiceDependencyMocks() {
 		connectToPeer: jest.fn(),
 		sendChatMessage: jest.fn(),
 		sendAckMessage: jest.fn(),
+		isWebSocketAllowed: jest.fn(() => true),
 	};
 
 	const peerService = {
 		findDiscoveredPeerById: jest.fn(),
 		findPeerById: jest.fn(),
+		getOrCreatePeerById: jest.fn(),
 	};
 
 	const callRepository = {
