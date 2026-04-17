@@ -1,0 +1,150 @@
+# Call Lifecycle
+
+End-to-end sequence for audio and video calls.
+
+---
+
+## 1. Initiating a Call
+
+The caller sends an `audio-call` or `video-call` message to the callee.
+
+**Transport:** WebSocket (server mode / auto) or TCP (lan mode / auto fallback)
+
+```
+Caller                          Server / Direct                  Callee
+  |                                    |                            |
+  |-- audio-call / video-call -------->|-- audio-call / video-call->|
+  |   { from/from_user, to,            |                            |
+  |     conversationId? }              |                            |
+  |                                    |                            |
+```
+
+- WS payload uses `from_user`; TCP payload uses `from`
+- A local push notification is triggered on the callee's device (`incoming_call`)
+
+---
+
+## 2. Callee Accepts
+
+Callee sends `call-ready` back to the caller to signal they are ready for WebRTC negotiation.
+
+```
+Callee                          Server / Direct                  Caller
+  |                                    |                            |
+  |-- call-ready ----------------------|-- call-ready ------------->|
+  |   { from/from_user, to }           |                            |
+```
+
+---
+
+## 3. WebRTC Negotiation
+
+Once `call-ready` is received, the caller starts WebRTC negotiation.
+
+```
+Caller                          Server / Direct                  Callee
+  |                                    |                            |
+  |-- handshake (TCP only) ----------->|                            |
+  |   { to, sender, ipAddress, port }  |                            |
+  |                                    |                            |
+  |-- offer --------------------------->|-- offer ----------------->|
+  |   { to, sdp, sender,               |                            |
+  |     ipAddress, port }              |                            |
+  |                                    |                            |
+  |<-- answer --------------------------|<-- answer ----------------|
+  |   { to, sdp, sender,               |                            |
+  |     ipAddress, port }              |                            |
+  |                                    |                            |
+  |<-> ice-candidate (multiple) ------>|<-> ice-candidate -------->|
+  |   { to, candidate,                 |                            |
+  |     sender, ipAddress, port }      |                            |
+  |                                    |                            |
+  |====== WebRTC peer connection established ======================|
+  |          (media streams flow directly peer-to-peer)            |
+```
+
+- `handshake` is TCP-only — sent before the offer to exchange IP/port info
+- `offer`, `answer`, `ice-candidate` travel via WS (relayed) or TCP (direct)
+
+---
+
+## 4. In-Call Control Messages
+
+Sent over the **WebRTC data channel** (not WS/TCP) after the connection is established.
+
+| Message | Trigger | Payload |
+|---|---|---|
+| `camera_toggle` | User toggles camera | `{ enabled: boolean, from: string }` |
+| `mic_toggle` | User toggles mic | `{ enabled: boolean, from: string }` |
+
+---
+
+## 5. Ending a Call
+
+Either party can end the call by sending `call-ended`.
+
+```
+Either peer                     Server / Direct               Other peer
+  |                                    |                            |
+  |-- call-ended ----------------------|-- call-ended ------------>|
+  |   { from/from_user, to,            |                            |
+  |     status, endedAt,               |                            |
+  |     durationSeconds?, initiatorId? }                            |
+```
+
+`status` values:
+
+| Value | Meaning |
+|---|---|
+| `completed` | Normal end after both connected |
+| `missed` | Callee never answered |
+| `rejected` | Callee explicitly declined |
+
+---
+
+## 6. Call Rejected / Missed
+
+```
+Callee (rejected)               Server / Direct                  Caller
+  |-- call-rejected ------------------>|-- call-rejected --------->|
+  |   { from/from_user, to,            |                            |
+  |     reason: "declined" | "busy" }  |                            |
+
+Caller (no answer timeout)      Server / Direct                  Callee
+  |-- call-missed -------------------->|-- call-missed ----------->|
+  |   { from/from_user, to,            |                            |
+  |     reason: "no-answer" }          |                            |
+```
+
+---
+
+## Full Message Sequence Summary
+
+```
+audio-call / video-call   →  caller initiates
+call-ready                →  callee accepts
+handshake (TCP only)      →  TCP peer exchange
+offer                     →  WebRTC negotiation start
+answer                    →  WebRTC negotiation response
+ice-candidate (N times)   →  ICE gathering
+[WebRTC connected]
+camera_toggle / mic_toggle →  in-call controls (WebRTC data channel)
+call-ended                →  either party ends call
+```
+
+---
+
+## Transport Quick Reference
+
+| Message | Transport | Direction |
+|---|---|---|
+| `audio-call` / `video-call` | WS or TCP | Caller → Callee |
+| `call-ready` | WS or TCP | Callee → Caller |
+| `handshake` | TCP only | Caller → Callee |
+| `offer` | WS or TCP | Caller → Callee |
+| `answer` | WS or TCP | Callee → Caller |
+| `ice-candidate` | WS or TCP | Both directions |
+| `camera_toggle` / `mic_toggle` | WebRTC data channel | Both directions |
+| `call-ended` | WS or TCP | Either party |
+| `call-rejected` | WS or TCP | Callee → Caller |
+| `call-missed` | WS or TCP | Caller → Callee |
