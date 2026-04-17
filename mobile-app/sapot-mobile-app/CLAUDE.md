@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Do not edit the FastAPI server code** in `server/`. It is included as a working directory for reference only.
 
+**Keep documentation in sync.** When adding or updating features, APIs, messages, database tables, or services, update the relevant file in `docs/`:
+- `docs/ARCHITECTURE.md` — new services, adapters, stores, DI wiring, transport changes
+- `docs/CALL_FLOW.md` — new call message types or lifecycle changes
+- `docs/API.md` — new or changed REST endpoints
+- `docs/DATABASE.md` — schema changes (new tables, columns, enums)
+- `docs/ENV_CONFIG.md` — new env vars, build variants, or secure storage keys
+- `docs/TESTING.md` — new test utilities, mock patterns, or testing conventions
+- `docs/CONNECTION_MESSAGES.md` — new WebSocket, TCP, or WebRTC data channel messages
+
 ---
 
 ## Repository Structure
