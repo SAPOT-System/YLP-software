@@ -1,10 +1,10 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 import {
-    Conversation,
-    ConversationParticipant,
-    GuestUser,
-    Peer,
+  Conversation,
+  ConversationParticipant,
+  GuestUser,
+  Peer,
 } from "@/features/shared";
 import { chatLog } from "@/features/shared/utils/logger";
 
@@ -29,7 +29,7 @@ export class ConversationParticipantRepository {
 
   /**
    * Saves a new conversation participant to the database.
-    * @param newParticipant The participant data (conversation, user)
+   * @param newParticipant The participant data (conversation, user)
    * @param isInTransaction Whether to run in an existing transaction
    * @returns Promise<ConversationParticipant> The saved participant
    */
@@ -94,6 +94,37 @@ export class ConversationParticipantRepository {
       chatLog.error("chat › participants bulk save failed", {
         participantCount: users.length,
         isInTransaction,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Checks if a self-conversation exists for the given user id.
+   * A self-conversation has two participant records both pointing to the same user.
+   * @param userId The user's own id
+   * @returns Promise<string | undefined> The self-conversation id or undefined
+   */
+  async isSelfConversationExists(userId: string): Promise<string | undefined> {
+    try {
+      const participants = await this.conversationParticipantsCollection
+        .query(Q.where("user", userId))
+        .fetch();
+
+      const chatIdCount: Record<string, number> = {};
+      for (const participant of participants) {
+        chatIdCount[participant.conversation.id] =
+          (chatIdCount[participant.conversation.id] || 0) + 1;
+      }
+
+      return (
+        Object.entries(chatIdCount).find(([, count]) => count >= 2)?.[0] ??
+        undefined
+      );
+    } catch (error) {
+      chatLog.error("chat › self conversation check failed", {
+        userId,
         error,
       });
       throw error;
@@ -193,9 +224,15 @@ export class ConversationParticipantRepository {
         .query(Q.where("conversation", conversationId))
         .fetch();
 
+      if (
+        participants.length === 2 &&
+        participants[0].user.id === participants[1].user.id
+      ) {
+        return [participants[0]];
+      }
+
       // Exclude the user
       const peer = participants.filter((p) => p.user.id !== currentUserId);
-
       return peer;
     } catch (error) {
       chatLog.error("chat › peer query by conversation failed", {
