@@ -37,7 +37,8 @@ interface IncomingMessageData {
 
 export const useNotifications = (
   onIncomingCall: (data: IncomingCallData) => void,
-  onIncomingMessage?: (data: IncomingMessageData) => void
+  onIncomingMessage?: (data: IncomingMessageData) => void,
+  onIncomingMessageTapped?: (data: IncomingMessageData) => void,
 ) => {
   // ── Fix 2: useRef requires an initial value in newer React types ──────────────
   const notificationListener = useRef<Notifications.Subscription | null>(null);
@@ -91,7 +92,7 @@ export const useNotifications = (
         } else if (data?.type === "incoming_message") {
           backgroundLog.info("notifications › incoming message tapped (bg/killed)");
 
-          onIncomingMessage?.({
+          onIncomingMessageTapped?.({
             conversationId: String(data["conversation_id"] ?? ""),
             senderId: String(data["sender_id"] ?? ""),
             senderName: String(data["sender_name"] ?? ""),
@@ -100,7 +101,7 @@ export const useNotifications = (
           });
         }
       });
-  }, [onIncomingCall]);
+  }, [onIncomingCall, onIncomingMessageTapped, onIncomingMessage]);
 
   const setupIncomingCallChannel = async () => {
     try {

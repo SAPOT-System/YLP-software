@@ -60,10 +60,11 @@ export default function DrawerLayout() {
         },
       });
     },
+    undefined,
     (incomingMsgData) => {
       if (handledNotifIdRef.current === incomingMsgData.notificationId) return;
       handledNotifIdRef.current = incomingMsgData.notificationId;
-      navLog.info("[DrawerLayout] incoming message via notification listener", {
+      navLog.info("[DrawerLayout] incoming message tapped via notification", {
         notificationId: incomingMsgData.notificationId,
         conversationId: incomingMsgData.conversationId,
       });
