@@ -16,7 +16,11 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function IncomingCall() {
   const router = useRouter();
-  const { id, type, conversationId } = useLocalSearchParams<{ id: string; type: string; conversationId?: string }>();
+  const { id, type, conversationId } = useLocalSearchParams<{
+    id: string;
+    type: string;
+    conversationId?: string;
+  }>();
   const callService = useCallService();
   const connectionService = useConnectionService();
   const peerService = usePeerService();
@@ -99,7 +103,11 @@ export default function IncomingCall() {
   }, [connectionService, id, router]);
 
   const handleAccept = async () => {
-    uiLog.debug("[IncomingCall] handleAccept called", { id, type });
+    uiLog.debug("[IncomingCall] handleAccept called", {
+      id,
+      type,
+      conversationId,
+    });
     try {
       await callService.answerCall(
         (type as "audio" | "video") ?? "audio",
