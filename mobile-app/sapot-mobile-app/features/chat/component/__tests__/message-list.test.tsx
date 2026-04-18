@@ -12,6 +12,11 @@ jest.mock("@/features/shared/hooks", () => ({
   usePeerService: () => ({
     findDiscoveredPeerById: jest.fn(),
   }),
+  useMainContainer: () => ({
+    callRepository: {
+      queryByConversation: jest.fn().mockResolvedValue([]),
+    },
+  }),
 }));
 
 jest.mock("@/features/shared", () => {
@@ -24,8 +29,12 @@ jest.mock("@/features/shared", () => {
               observe: () => [
                 {
                   id: "msg-1",
+                  messageType: "text",
                   content: "Hello",
                   createdAt: new Date("2024-01-01T00:00:00Z"),
+                  conversation: {
+                    id: "conversation-1",
+                  },
                   sender: {
                     observe: () => ({
                       firstName: "Alice",

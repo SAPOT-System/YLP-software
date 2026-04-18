@@ -47,6 +47,11 @@ jest.mock("@/features/shared", () => ({
     DIRECT: "direct",
     GROUP: "group",
   },
+  MessageType: {
+    TEXT: "text",
+    FILE: "file",
+    CALL_LOG: "call_log",
+  },
   database: {
     write: jest.fn(),
   },
