@@ -42,6 +42,12 @@ describe("CallService", () => {
         username: "peeruser",
       })
     );
+    mockPeerService.getOrCreatePeerById.mockResolvedValue(
+      createTestPeer({
+        id: "peer-1",
+        username: "peeruser",
+      })
+    );
     mockChatService.getOrCreateDirectConversationByPeer.mockResolvedValue({
       id: "conv-1",
     });
@@ -86,9 +92,12 @@ describe("CallService", () => {
       expect(callService.removeListener).toBeDefined();
     });
 
-    it("should start with disconnected state", () => {
+    it("should start with disconnected state", async () => {
       // Test that multiple startCall calls work properly (tests initial state)
-      expect(() => callService.startCall("audio", "peer-1")).not.toThrow();
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      await expect(callService.startCall("audio", "peer-1")).resolves.toBe(
+        undefined
+      );
     });
   });
 
@@ -346,16 +355,16 @@ describe("CallService", () => {
   });
 
   describe("toggleCamera", () => {
-    it("should toggle camera for peer", () => {
+    it("should toggle camera for peer", async () => {
       const peerId = "peer-1";
       mockConnectionService.isWebrtcConnected.mockReturnValue(false);
 
-      callService.toggleCamera(peerId);
+      await callService.toggleCamera(peerId);
 
       expect(mockConnectionService.toggleCamera).toHaveBeenCalledWith(peerId);
     });
 
-    it("should throw errors when toggling camera fails", () => {
+    it("should throw errors when toggling camera fails", async () => {
       const peerId = "peer-1";
       const error = new Error("Toggle camera failed");
 
@@ -364,7 +373,7 @@ describe("CallService", () => {
         throw error;
       });
 
-      expect(() => callService.toggleCamera(peerId)).toThrow(
+      await expect(callService.toggleCamera(peerId)).rejects.toThrow(
         "Toggle camera failed"
       );
     });
