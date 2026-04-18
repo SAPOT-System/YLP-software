@@ -112,6 +112,18 @@ Two mechanisms coordinate foreground ↔ background:
 
 ---
 
+## Call UI State (`features/call/context/call-context.tsx`)
+
+`CallProvider` / `useCallContext` owns the call lifecycle for call screens. Notable context values:
+
+- `remoteStreamVersion: number` — increments each time a new remote stream arrives; use as a React key to force video component re-mount
+- `localCam` / `remoteCam` — initialized to `false` for audio calls, `true` for video calls
+- `handleToggleCam` — async; for audio-only calls, lazily acquires a video track via `WebrtcAdapter` on first toggle
+
+`ConnectionServiceEvents` `"audio-call"` and `"video-call"` emit `{ peerId: string; callerName: string; conversationId?: string }`.
+
+---
+
 ## Data Flow — Sending a Chat Message
 
 ```
