@@ -711,7 +711,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     }
 
     if (status === CallStatus.MISSED) {
-      return `Missed call from ${session.peerName}`;
+      const callLabel =
+        session.callType === CallType.VIDEO ? "video" : "audio";
+      return `Missed ${callLabel} call`;
     }
 
     const durationFrom = session.answeredAt ?? session.startedAt;
@@ -723,9 +725,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
             Math.floor((endTime.getTime() - durationFrom.getTime()) / 1000)
           );
 
-    return `Call with ${session.peerName} lasted ${this.formatDuration(
-      durationInSeconds
-    )}`;
+    const callLabel = session.callType === CallType.VIDEO ? "Video" : "Audio";
+    return `${callLabel} call \u2022 ${this.formatDuration(durationInSeconds)}`;
   }
 
   private calculateDurationSeconds(

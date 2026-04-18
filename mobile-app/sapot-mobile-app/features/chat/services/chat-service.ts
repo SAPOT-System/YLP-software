@@ -7,6 +7,7 @@ import {
   Message,
   MessageStatus,
   MessageStatusType,
+  MessageType,
   Peer,
   PeerService,
   UserStore,
@@ -606,14 +607,12 @@ export class ChatService {
    * @param chatId The chat id
    * @returns Promise<string>
    */
-  async findPeerIdByChatId(
-    chatId: string,
-  ): Promise<string> {
+  async findPeerIdByChatId(chatId: string): Promise<string> {
     try {
       const participants =
         await this.conversationParticipantRepository.queryPeerByChatId(
           chatId,
-          this.userStore.user.id,
+          this.userStore.user.id
         );
       return participants[0].user.id;
     } catch (error) {
@@ -719,6 +718,7 @@ export class ChatService {
         content,
         conversation,
         messageId,
+        messageType: MessageType.CALL_LOG,
       });
       if (senderId === this.userStore.user.id) {
         await this.messageStatusRepository.saveMessageStatus({
