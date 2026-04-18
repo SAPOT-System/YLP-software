@@ -50,6 +50,8 @@ export default function CallRoom() {
     remoteMic,
     remoteCam,
     currentRoute,
+    isFrontCamera,
+    remoteStreamVersion,
     resetCallState,
     handleEndCall,
     handleCallAgain,
@@ -151,6 +153,7 @@ export default function CallRoom() {
           <View style={styles.remoteVideoWrap}>
             {remoteStreamUrl && remoteCam ? (
               <RTCView
+                key={remoteStreamVersion}
                 streamURL={remoteStreamUrl}
                 mirror={false}
                 objectFit="cover"
@@ -202,16 +205,16 @@ export default function CallRoom() {
                 color={COLORS.primary}
               />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.controlBtn, !localCam && styles.controlBtnOff]}
-              onPress={handleToggleCam}
-            >
-              <Feather
-                name={localCam ? "video" : "video-off"}
-                size={22}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.controlBtn, !localCam && styles.controlBtnOff]}
+                onPress={handleToggleCam}
+              >
+                <Feather
+                  name={localCam ? "video" : "video-off"}
+                  size={22}
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
             <TouchableOpacity style={styles.controlBtn} onPress={handleVolume}>
               <Feather
                 name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
@@ -219,16 +222,16 @@ export default function CallRoom() {
                 color={COLORS.primary}
               />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.controlBtn}
-              onPress={handleSwitchCamera}
-            >
-              <Feather
-                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
-                size={22}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.controlBtn}
+                onPress={handleSwitchCamera}
+              >
+                <Feather
+                  name={isFrontCamera ? "rotate-cw" : "rotate-ccw"}
+                  size={22}
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
           </View>
 
           {/* End call button */}
