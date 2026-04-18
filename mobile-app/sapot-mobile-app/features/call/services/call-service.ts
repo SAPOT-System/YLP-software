@@ -46,6 +46,7 @@ type CallConnectionService = Pick<
   | "toggleCamera"
   | "switchCamera"
   | "getLocalStream"
+  | "isWebSocketAllowed"
 >;
 
 type CallUserStore = {
@@ -58,14 +59,16 @@ type CallUserStore = {
 
 type CallPeerService = Pick<
   PeerService,
-  "findDiscoveredPeerById" | "findPeerById"
+  "findDiscoveredPeerById" | "getOrCreatePeerById"
 >;
 
 type CallLogChatService = Pick<ChatService, "saveCallLogWithReceipts"> & {
   getOrCreateDirectConversationByPeer(
     peerId: string,
     conversationId?: string
-  ): Promise<Awaited<ReturnType<ChatService["getOrCreateDirectConversationByPeer"]>>>;
+  ): Promise<
+    Awaited<ReturnType<ChatService["getOrCreateDirectConversationByPeer"]>>
+  >;
 };
 
 type RemoteCallEndedPayload = {
@@ -184,9 +187,18 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     }
   }
 
-  async answerCall(type: "video" | "audio", peerId: string, conversationId?: string) {
+  async answerCall(
+    type: "video" | "audio",
+    peerId: string,
+    conversationId?: string
+  ) {
     try {
-      const session = await this.ensureSession(peerId, type, true, conversationId || undefined);
+      const session = await this.ensureSession(
+        peerId,
+        type,
+        true,
+        conversationId || undefined
+      );
       if (!session.answeredAt) {
         session.answeredAt = new Date();
       }
@@ -394,12 +406,17 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       }
       callLog.info("call › incoming notify", { peerId, type });
       const session = this.callSessions.get(peerId);
+      const name = `${this.userStore.user.firstName} ${
+        this.userStore.user.lastName ?? ""
+      } 
+          `;
       this.connectionService.sendCallMessage(peerId, {
         type: type === "audio" ? "audio-call" : "video-call",
         data: {
           from: this.userStore.user.id,
           to: peerId,
           conversationId: session?.conversationId,
+          callerName: name.trim(),
         },
       });
     } catch (error) {
@@ -408,7 +425,11 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     }
   }
 
-  async rejectIncomingCall(type: "audio" | "video", peerId: string, conversationId?: string) {
+  async rejectIncomingCall(
+    type: "audio" | "video",
+    peerId: string,
+    conversationId?: string
+  ) {
     await this.ensureSession(peerId, type, true, conversationId || undefined);
     this.connectionService.sendCallMessage(peerId, {
       type: "call-rejected",
@@ -421,7 +442,11 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     await this.terminateCallConnection(peerId, "rejected");
   }
 
-  async markMissedIncomingCall(type: "audio" | "video", peerId: string, conversationId?: string) {
+  async markMissedIncomingCall(
+    type: "audio" | "video",
+    peerId: string,
+    conversationId?: string
+  ) {
     await this.ensureSession(peerId, type, true, conversationId || undefined);
     this.connectionService.sendCallMessage(peerId, {
       type: "call-missed",
@@ -545,9 +570,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    * Toggles the camera state for the given peer.
    * @param peerId The peer id
    */
-  toggleCamera(peerId: string) {
+  async toggleCamera(peerId: string) {
     try {
-      this.connectionService.toggleCamera(peerId);
+      return await this.connectionService.toggleCamera(peerId);
     } catch (error) {
       callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
@@ -589,7 +614,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       return existingSession;
     }
 
-    const peer = await this.peerService.findPeerById(peerId);
+    const peer = await this.peerService.getOrCreatePeerById(
+      peerId,
+      this.connectionService
+    );
     if (!peer) throw new Error("Peer not found");
 
     const effectiveConversationId = conversationId || undefined;
@@ -688,7 +716,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     }
 
     if (status === CallStatus.MISSED) {
-      return `Missed call from ${session.peerName}`;
+      const callLabel =
+        session.callType === CallType.VIDEO ? "video" : "audio";
+      return `Missed ${callLabel} call`;
     }
 
     const durationFrom = session.answeredAt ?? session.startedAt;
@@ -700,9 +730,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
             Math.floor((endTime.getTime() - durationFrom.getTime()) / 1000)
           );
 
-    return `Call with ${session.peerName} lasted ${this.formatDuration(
-      durationInSeconds
-    )}`;
+    const callLabel = session.callType === CallType.VIDEO ? "Video" : "Audio";
+    return `${callLabel} call \u2022 ${this.formatDuration(durationInSeconds)}`;
   }
 
   private calculateDurationSeconds(

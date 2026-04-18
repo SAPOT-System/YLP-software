@@ -59,6 +59,7 @@ export interface CallContextValue {
   remoteMic: boolean;
   remoteCam: boolean;
   isFrontCamera: boolean;
+  remoteStreamVersion: number;
 
   // Audio route
   currentRoute: AudioRouteTypes | undefined;
@@ -127,6 +128,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [localCam, setLocalCam] = useState(true);
   const [remoteMic, setRemoteMic] = useState(true);
   const [remoteCam, setRemoteCam] = useState(true);
+  const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
   const [isFrontCamera, setIsFrontCamera] = useState(true);
 
   // ── Audio route ────────────────────────────
@@ -183,10 +185,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setCallState("calling");
       setElapsed(0);
       setLocalStream(undefined);
-      setLocalCam(true);
+      setLocalCam(type === "video");
       setLocalMic(true);
       setRemoteMic(true);
-      setRemoteCam(true);
+      setRemoteCam(type === "video");
       setIsMinimized(false);
       hasTerminated.current = false;
       remoteStreamRef.current = null;
@@ -319,6 +321,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       remoteStreamRef.current = stream;
       setRemoteStreamUrl(stream.toURL());
       setCallState("connected");
+      setRemoteStreamVersion((v) => v + 1);
     };
 
     callService.on("remoteStream", handler);
@@ -424,7 +427,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, [callService, peerId, callType]);
 
   useEffect(() => {
-    if (callType !== "video" || !peerId) return;
+    if (!peerId) return;
     const handleSwitchCamEvent = (stream: MediaStream) => {
       uiLog.debug("[CallContext] switching local cam", { peerId });
       setLocalStream(stream);
@@ -442,13 +445,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       callState,
       hasLocalStream: Boolean(localStream),
     });
-    if (
-      callType !== "video" ||
-      callState !== "connected" ||
-      localStream ||
-      !peerId
-    )
-      return;
+    if (callState !== "connected" || localStream || !peerId) return;
 
     let attempts = 0;
     const interval = setInterval(() => {
@@ -544,11 +541,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, [callService, peerId, localMic]);
 
-  const handleToggleCam = useCallback(() => {
+  const handleToggleCam = useCallback(async () => {
     uiLog.debug("[CallContext] handleToggleCam called", { localCam });
     try {
-      callService.toggleCamera(peerId as string);
-      setLocalCam((v) => !v);
+      const cameraEnabled = await callService.toggleCamera(peerId as string);
+      setLocalCam(cameraEnabled ?? !localCam);
+      if (cameraEnabled) {
+        try {
+          const stream = callService.getLocalCam(peerId as string);
+          if (stream) setLocalStream(stream);
+        } catch {
+          uiLog.warn("[CallContext] Error in getting camera");
+        }
+      }
     } catch (error) {
       uiLog.error("[CallContext] Error in toggle camera", { error });
     }
@@ -612,6 +617,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     remoteMic,
     remoteCam,
     isFrontCamera,
+    remoteStreamVersion,
     currentRoute: currentRouteRef.current,
     isMinimizedRef,
     ready,

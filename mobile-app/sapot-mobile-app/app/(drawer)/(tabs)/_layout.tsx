@@ -18,10 +18,20 @@ function IncomingCallListener() {
 
   useEffect(() => {
     navLog.info("[IncomingCallListener] mounted");
-    const handleAudioCall = (peerId: string) => {
+    const handleAudioCall = ({
+      peerId,
+      callerName,
+      conversationId,
+    }: {
+      peerId: string;
+      callerName: string;
+      conversationId?: string;
+    }) => {
       // Skip if already on the incoming screen (e.g. navigated there by notification)
       if (pathname.includes("call/incoming")) {
-        navLog.info("[IncomingCallListener] audio-call skipped — already on incoming screen");
+        navLog.info(
+          "[IncomingCallListener] audio-call skipped — already on incoming screen"
+        );
         return;
       }
       navLog.info("[Navigation] Navigating to IncomingCall", {
@@ -31,12 +41,27 @@ function IncomingCallListener() {
       });
       router.push({
         pathname: "/(drawer)/(tabs)/call/incoming",
-        params: { id: peerId, type: "audio" },
+        params: {
+          id: peerId,
+          type: "audio",
+          callerName: callerName,
+          conversationId: conversationId,
+        },
       });
     };
-    const handleVideoCall = (peerId: string) => {
+    const handleVideoCall = ({
+      peerId,
+      callerName,
+      conversationId,
+    }: {
+      peerId: string;
+      callerName: string;
+      conversationId?: string;
+    }) => {
       if (pathname.includes("call/incoming")) {
-        navLog.info("[IncomingCallListener] video-call skipped — already on incoming screen");
+        navLog.info(
+          "[IncomingCallListener] video-call skipped — already on incoming screen"
+        );
         return;
       }
       navLog.info("[Navigation] Navigating to IncomingCall", {
@@ -46,7 +71,12 @@ function IncomingCallListener() {
       });
       router.push({
         pathname: "/(drawer)/(tabs)/call/incoming",
-        params: { id: peerId, type: "video" },
+        params: {
+          id: peerId,
+          type: "video",
+          callerName: callerName,
+          conversationId: conversationId,
+        },
       });
     };
     connectionService.on("audio-call", handleAudioCall);

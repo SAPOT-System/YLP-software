@@ -30,3 +30,23 @@ export const searchUsers = async ({
 
   return res.data.res;
 };
+
+export const getUserById = async (
+  user_id: string
+): Promise<{
+  id: string;
+  first_name: string;
+  username: string;
+  last_name: string;
+}> => {
+  const res = await apiClient.get<{
+    id: string;
+    first_name: string;
+    username: string;
+    last_name: string;
+  }>("/user-utils/search-user/{id}", {
+    params: { user_id },
+  });
+
+  return res.data;
+};

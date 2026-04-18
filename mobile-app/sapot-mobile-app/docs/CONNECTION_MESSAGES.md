@@ -107,7 +107,8 @@ Used to signal call lifecycle events between peers.
   "data": {
     "from_user / from": "string  — caller user ID",
     "to":               "string  — callee user ID",
-    "conversationId":   "string? — existing conversation ID"
+    "conversationId":   "string? — existing conversation ID",
+    "callerName":       "string  — caller's display name (firstName + lastName)"
   }
 }
 ```
@@ -123,7 +124,8 @@ Used to signal call lifecycle events between peers.
   "data": {
     "from_user / from": "string  — caller user ID",
     "to":               "string  — callee user ID",
-    "conversationId":   "string? — existing conversation ID"
+    "conversationId":   "string? — existing conversation ID",
+    "callerName":       "string  — caller's display name (firstName + lastName)"
   }
 }
 ```
@@ -294,6 +296,7 @@ Sent and received directly between peers after WebRTC connection is established.
 | `endedAt` | `number` | Unix timestamp in milliseconds |
 | `durationSeconds` | `number` | Integer seconds |
 | `initiatorId` | `string` | User ID of who ended the call |
+| `callerName` | `string` | Caller's display name — included in `audio-call` and `video-call` |
 
 ---
 

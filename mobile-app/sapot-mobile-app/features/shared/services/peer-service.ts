@@ -1,4 +1,5 @@
 import { Service } from "react-native-zeroconf";
+import { getUserById } from "../api/search.api";
 import { PeerRepository } from "../repositories";
 import { DiscoveredService } from "../types";
 import { peerLog } from "../utils/logger";
@@ -222,6 +223,36 @@ export class PeerService {
       });
     } catch (error) {
       peerLog.error("peer › create failed", { peerId: id, error });
+      throw error;
+    }
+  }
+
+
+
+  async getOrCreatePeerById(
+    id: string,
+    connectionService: { isWebSocketAllowed(): boolean }
+  ) {
+    try {
+      const existing = await this.peerRepository.queryPeerById(id);
+      if (existing) return existing;
+
+      if (!connectionService.isWebSocketAllowed()) {
+        peerLog.warn("peer › get or create skipped, ws not allowed", {
+          peerId: id,
+        });
+        return null;
+      }
+
+      const user = await getUserById(id);
+      return await this.peerRepository.savePeer({
+        id: user.id,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+      });
+    } catch (error) {
+      peerLog.error("peer › get or create failed", { peerId: id, error });
       throw error;
     }
   }

@@ -136,6 +136,7 @@ export class WebrtcAdapter extends EventEmitter {
 
       this.audioTrack = this.localStream.getAudioTracks()[0];
       this.videoTrack = this.localStream.getVideoTracks()[0];
+      webrtcLog.debug("initializeLocalStream", this.videoTrack);
 
       // Add local stream to connection for audio calls and video calls
       if (this.localStream) {
@@ -268,13 +269,10 @@ export class WebrtcAdapter extends EventEmitter {
           ) {
             return;
           }
-          this.isMakingOffer = true;
           const { type, sdp } = await this.createOffer();
           this.emit("signal-offer", { type, sdp, reason: "negotiationneeded" });
         } catch (error) {
           webrtcLog.warn("webrtc › negotiation needed failed", { error });
-        } finally {
-          this.isMakingOffer = false;
         }
       };
 
@@ -678,12 +676,45 @@ export class WebrtcAdapter extends EventEmitter {
 
   /**
    * Toggles the camera (video track) enabled state.
-   * @throws Error if video track is not initialized
+   * If no video track exists (audio-only call), acquires one lazily and enables it.
    */
-  toggleCamera() {
+  async toggleCamera(): Promise<boolean> {
     try {
-      if (!this.videoTrack) throw Error("Video track not initialized");
-      this.videoTrack.enabled = this.videoTrack.enabled ? false : true;
+      webrtcLog.debug("toggleCamera", this.videoTrack);
+
+      if (!this.videoTrack) {
+        // Audio-only call: lazily acquire a video track and add it to the connection
+        const newStream = await mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 },
+            frameRate: { min: 30, ideal: 60 },
+          },
+        });
+
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        if (!newVideoTrack) throw new Error("Failed to acquire video track");
+
+        this.localStream?.addTrack(newVideoTrack);
+
+        if (this.peerConnection) {
+          const videoSender = this.peerConnection
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
+          if (videoSender) {
+            await videoSender.replaceTrack(newVideoTrack);
+          } else {
+            this.peerConnection.addTrack(newVideoTrack, this.localStream!);
+          }
+        }
+
+        this.videoTrack = newVideoTrack;
+        webrtcLog.debug("webrtc › camera acquired and enabled");
+        return true;
+      }
+
+      this.videoTrack.enabled = !this.videoTrack.enabled;
       webrtcLog.debug("webrtc › camera toggled", {
         enabled: this.videoTrack.enabled,
       });
@@ -790,6 +821,8 @@ export class WebrtcAdapter extends EventEmitter {
       this.dataChannel = undefined;
       this.pendingIceCandidates = [];
       this.remoteDescriptionSet = false;
+      this.videoTrack = undefined;
+      this.audioTrack = undefined;
       this.resetIceRestartState();
       webrtcLog.info("webrtc › cleanup");
     } catch (error) {

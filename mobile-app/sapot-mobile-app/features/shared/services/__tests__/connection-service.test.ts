@@ -172,7 +172,14 @@ describe("ConnectionService", () => {
 
       await callMessageHandler?.(audioCallMessage);
 
-      expect(emitSpy).toHaveBeenCalledWith("audio-call", "peer-1");
+      expect(emitSpy).toHaveBeenCalledWith(
+        "audio-call",
+        expect.objectContaining({
+          peerId: "peer-1",
+          callerName: undefined,
+          conversationId: undefined,
+        })
+      );
     });
 
     it("should handle signalling messages", async () => {
@@ -834,22 +841,22 @@ describe("ConnectionService", () => {
   });
 
   describe("toggleCamera", () => {
-    it("should toggle camera for connected peer", () => {
+    it("should toggle camera for connected peer", async () => {
       const peerId = "peer-1";
 
-      connectionService.toggleCamera(peerId);
+      await connectionService.toggleCamera(peerId);
 
       expect(mockWebrtcAdapter.toggleCamera).toHaveBeenCalled();
     });
 
-    it("should throw error if peer not connected", () => {
+    it("should throw error if peer not connected", async () => {
       Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
         configurable: true,
       });
       const peerId = "peer-1";
 
-      expect(() => connectionService.toggleCamera(peerId)).toThrow(
+      await expect(connectionService.toggleCamera(peerId)).rejects.toThrow(
         "Webrtc not connected"
       );
     });
@@ -867,16 +874,19 @@ describe("ConnectionService", () => {
       expect(mockWebrtcAdapter.getLocalStream).toHaveBeenCalled();
     });
 
-    it("should throw error if peer not connected", () => {
+    it("should return local stream even if peer not connected", () => {
       Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
         configurable: true,
       });
       const peerId = "peer-1";
+      const mockStream = createMockMediaStream();
+      mockWebrtcAdapter.getLocalStream.mockReturnValue(mockStream);
 
-      expect(() => connectionService.getLocalStream(peerId)).toThrow(
-        "Webrtc not connected"
-      );
+      const result = connectionService.getLocalStream(peerId);
+
+      expect(result).toBe(mockStream);
+      expect(mockWebrtcAdapter.getLocalStream).toHaveBeenCalled();
     });
   });
 

@@ -22,7 +22,9 @@ export class MessageRepository {
    */
   constructor(private db: Database) {
     this.messagesCollection = db.get<Message>(Message.table);
-    chatLog.info("chat › message repo constructed", { hasDatabase: Boolean(db) });
+    chatLog.info("chat › message repo constructed", {
+      hasDatabase: Boolean(db),
+    });
   }
 
   // TODO: make the content type flexible for other type of messages
@@ -37,6 +39,7 @@ export class MessageRepository {
     content: string;
     conversation: Conversation;
     messageId?: string;
+    messageType?: MessageType;
   }) {
     try {
       const savedMessage = await this.db.write(async () => {
@@ -47,7 +50,7 @@ export class MessageRepository {
             }
             message.sender.set(newMessage.sender);
             message.conversation.set(newMessage.conversation);
-            message.messageType = MessageType.TEXT;
+            message.messageType = newMessage.messageType ?? MessageType.TEXT;
             message.content = newMessage.content;
             message.createdAt = new Date();
             message.updatedAt = new Date();
