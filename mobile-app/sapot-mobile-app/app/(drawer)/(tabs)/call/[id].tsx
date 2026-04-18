@@ -246,6 +246,20 @@ export default function CallRoom() {
         </View>
       )}
 
+      {/* Ended actions */}
+      {callState === "ended" && (
+        <View style={styles.controls}>
+          <View style={styles.actionRow}>
+            <View style={styles.actionItem}>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleClose}>
+                <Feather name="x" size={28} color={COLORS.primary} />
+              </TouchableOpacity>
+              <Text style={styles.actionLabel}>Close</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Did not answer actions */}
       {callState === "no-answer" && (
         <View style={styles.controls}>
@@ -278,6 +292,15 @@ export default function CallRoom() {
                 <Feather name="x" size={28} color={COLORS.primary} />
               </TouchableOpacity>
               <Text style={styles.actionLabel}>Close</Text>
+            </View>
+            <View style={styles.actionItem}>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={handleCallAgain}
+              >
+                <Feather name="phone" size={28} color={COLORS.acceptGreen} />
+              </TouchableOpacity>
+              <Text style={styles.actionLabel}>Call again</Text>
             </View>
           </View>
         </View>
