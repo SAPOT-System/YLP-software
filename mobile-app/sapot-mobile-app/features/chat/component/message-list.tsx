@@ -231,7 +231,12 @@ const MessageListItem = enhanceMessage(
           if (calls.length > 0) setCallType(calls[0].callType);
         })
         .catch(() => {});
-    }, [message.id, message.messageType]);
+    }, [
+      message.id,
+      message.messageType,
+      callRepository,
+      message.conversation.id,
+    ]);
 
     const handleResend = async () => {
       const discoveredPeer = peerService.findDiscoveredPeerById(peerId);
