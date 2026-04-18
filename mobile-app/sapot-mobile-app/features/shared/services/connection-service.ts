@@ -42,8 +42,12 @@ export type CallEndedEventPayload = {
 };
 
 export type ConnectionServiceEvents = {
-  "audio-call": [peerId: string];
-  "video-call": [peerId: string];
+  "audio-call": [
+    { peerId: string; callerName: string; conversationId?: string }
+  ];
+  "video-call": [
+    { peerId: string; callerName: string; conversationId?: string }
+  ];
   "call-ended": [payload: CallEndedEventPayload];
   "call-ready": [peerId: string];
   "call-rejected": [peerId: string];
@@ -152,20 +156,28 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             // Fire local notification so user sees it with screen off
             await this.showIncomingCallNotification({
               callerId: message.data.from_user,
-              callerName: message.data.from_user,
+              callerName: message.data.callerName,
               callType: message.type,
               conversationId: message.data.conversationId,
             });
-            this.emit("audio-call", message.data.from_user);
+            this.emit("audio-call", {
+              peerId: message.data.from_user,
+              callerName: message.data.callerName,
+              conversationId: message.data.conversationId,
+            });
           }
           if (message.type === "video-call") {
             await this.showIncomingCallNotification({
               callerId: message.data.from_user,
-              callerName: message.data.from_user,
+              callerName: message.data.callerName,
               callType: message.type,
               conversationId: message.data.conversationId,
             });
-            this.emit("video-call", message.data.from_user);
+            this.emit("video-call", {
+              peerId: message.data.from_user,
+              callerName: message.data.callerName,
+              conversationId: message.data.conversationId,
+            });
           }
           if (message.type === "call-ended") {
             // TODO: check if needed to reinitialize local stream
@@ -255,20 +267,28 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         if (message.type === "audio-call" && "from" in message.data) {
           await this.showIncomingCallNotification({
             callerId: message.data.from,
-            callerName: message.data.from,
+            callerName: message.data.callerName,
             callType: message.type,
             conversationId: message.data.conversationId,
           });
-          this.emit("audio-call", message.data.from);
+          this.emit("audio-call", {
+            peerId: message.data.from,
+            callerName: message.data.callerName,
+            conversationId: message.data.conversationId,
+          });
         }
         if (message.type === "video-call" && "from" in message.data) {
           await this.showIncomingCallNotification({
             callerId: message.data.from,
-            callerName: message.data.from,
+            callerName: message.data.callerName,
             callType: message.type,
             conversationId: message.data.conversationId,
           });
-          this.emit("video-call", message.data.from);
+          this.emit("video-call", {
+            peerId: message.data.from,
+            callerName: message.data.callerName,
+            conversationId: message.data.conversationId,
+          });
         }
         if (message.type === "call-ended" && "from" in message.data) {
           // TODO: check if needed to reinitialize local stream

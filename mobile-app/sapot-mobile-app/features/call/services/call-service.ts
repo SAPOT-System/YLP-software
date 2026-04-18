@@ -406,12 +406,17 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       }
       callLog.info("call › incoming notify", { peerId, type });
       const session = this.callSessions.get(peerId);
+      const name = `${this.userStore.user.firstName} ${
+        this.userStore.user.lastName ?? ""
+      } 
+          `;
       this.connectionService.sendCallMessage(peerId, {
         type: type === "audio" ? "audio-call" : "video-call",
         data: {
           from: this.userStore.user.id,
           to: peerId,
           conversationId: session?.conversationId,
+          callerName: name.trim(),
         },
       });
     } catch (error) {

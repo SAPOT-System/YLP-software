@@ -16,10 +16,11 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function IncomingCall() {
   const router = useRouter();
-  const { id, type, conversationId } = useLocalSearchParams<{
+  const { id, type, conversationId, callerName } = useLocalSearchParams<{
     id: string;
     type: string;
     conversationId?: string;
+    callerName: string;
   }>();
   const callService = useCallService();
   const connectionService = useConnectionService();
@@ -164,7 +165,7 @@ export default function IncomingCall() {
             </View>
           )}
         </View>
-        <Text style={styles.peerName}>{peerDisplayName}</Text>
+        <Text style={styles.peerName}>{peerDisplayName ?? callerName}</Text>
       </View>
 
       {/* Status */}

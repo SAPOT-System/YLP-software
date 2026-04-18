@@ -23,6 +23,7 @@ Notifications.setNotificationHandler({
 interface IncomingCallData {
   callerId: string;
   callType: string;
+  callerName: string;
   notificationId: string;
   conversationId?: string;
 }
@@ -38,7 +39,7 @@ interface IncomingMessageData {
 export const useNotifications = (
   onIncomingCall: (data: IncomingCallData) => void,
   onIncomingMessage?: (data: IncomingMessageData) => void,
-  onIncomingMessageTapped?: (data: IncomingMessageData) => void,
+  onIncomingMessageTapped?: (data: IncomingMessageData) => void
 ) => {
   // ── Fix 2: useRef requires an initial value in newer React types ──────────────
   const notificationListener = useRef<Notifications.Subscription | null>(null);
@@ -58,7 +59,10 @@ export const useNotifications = (
             callerId: String(data.id ?? ""),
             callType: String(data["call_type"] ?? ""),
             notificationId: notification.request.identifier,
-            conversationId: data.conversation_id ? String(data.conversation_id) : undefined,
+            callerName: String(data.callerName),
+            conversationId: data.conversation_id
+              ? String(data.conversation_id)
+              : undefined,
           });
         } else if (data?.type === "incoming_message") {
           backgroundLog.info("notifications › incoming message received (fg)");
@@ -87,10 +91,15 @@ export const useNotifications = (
             callerId: String(data.id ?? ""),
             callType: String(data["call_type"] ?? ""),
             notificationId: response.notification.request.identifier,
-            conversationId: data.conversation_id ? String(data.conversation_id) : undefined,
+            callerName: String(data.callerName),
+            conversationId: data.conversation_id
+              ? String(data.conversation_id)
+              : undefined,
           });
         } else if (data?.type === "incoming_message") {
-          backgroundLog.info("notifications › incoming message tapped (bg/killed)");
+          backgroundLog.info(
+            "notifications › incoming message tapped (bg/killed)"
+          );
 
           onIncomingMessageTapped?.({
             conversationId: String(data["conversation_id"] ?? ""),
@@ -128,7 +137,9 @@ export const useNotifications = (
       });
       backgroundLog.info("notifications › chat message channel ready");
     } catch (error) {
-      backgroundLog.error("notifications › chat channel setup failed", { error });
+      backgroundLog.error("notifications › chat channel setup failed", {
+        error,
+      });
     }
   };
 
