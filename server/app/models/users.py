@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from enum import unique
 from typing import Annotated, List, Optional
 import uuid
