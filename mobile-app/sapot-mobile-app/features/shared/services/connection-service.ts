@@ -740,12 +740,13 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     });
   }
 
-  toggleCamera(peerId: string) {
-    const res = this.callMediaService.toggleCamera(peerId);
+  async toggleCamera(peerId: string) {
+    const res = await this.callMediaService.toggleCamera(peerId);
     this.sendCallControlMessage(peerId, "camera_toggle", {
       from: this.userStore.user.id,
       enabled: res,
     });
+    return res;
   }
 
   async switchCamera(peerId: string, isFrontCamera: boolean) {

@@ -565,9 +565,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    * Toggles the camera state for the given peer.
    * @param peerId The peer id
    */
-  toggleCamera(peerId: string) {
+  async toggleCamera(peerId: string) {
     try {
-      this.connectionService.toggleCamera(peerId);
+      return await this.connectionService.toggleCamera(peerId);
     } catch (error) {
       callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
