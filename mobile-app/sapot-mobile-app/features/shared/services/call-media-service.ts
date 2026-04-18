@@ -49,11 +49,11 @@ export class CallMediaService {
     }
   }
 
-  toggleCamera(peerId: string): boolean {
+  async toggleCamera(peerId: string): Promise<boolean> {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
-      return webrtcAdapter.toggleCamera();
+      return await webrtcAdapter.toggleCamera();
     } catch (error) {
       callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
@@ -74,7 +74,6 @@ export class CallMediaService {
   getLocalStream(peerId: string): MediaStream {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
-      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       return webrtcAdapter.getLocalStream();
     } catch (error) {
       callLog.error("call › get local stream failed", { peerId, error });
