@@ -131,6 +131,9 @@ export class MainContainer {
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(database);
     this.messageStatusRepository = new MessageStatusRepository(database);
+
+    this.syncService = new SyncService({ db: database });
+
     this.chatService = new ChatService(
       this.connectionService,
       this.conversationRepository,
@@ -138,7 +141,8 @@ export class MainContainer {
       this.messageRepository,
       this.messageStatusRepository,
       this.userContainer.peerService,
-      this.userContainer.userStore
+      this.userContainer.userStore,
+      this.syncService
     );
 
     this.callRepository = new CallRepository(database);
@@ -157,8 +161,6 @@ export class MainContainer {
     this.discoveryService.setConnectionService(this.connectionService);
 
     this.guestUserRepository = new GuestUserRepository(database);
-
-    this.syncService = new SyncService({ db: database });
 
     // Clean up
     this.cleanUpService = new CleanUpService(
