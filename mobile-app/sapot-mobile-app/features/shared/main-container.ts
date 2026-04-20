@@ -153,7 +153,8 @@ export class MainContainer {
       this.userContainer.peerService,
       this.callRepository,
       this.callParticipantRepository,
-      this.chatService
+      this.chatService,
+      this.syncService
     );
 
     this.connectionService.setChatService(this.chatService);

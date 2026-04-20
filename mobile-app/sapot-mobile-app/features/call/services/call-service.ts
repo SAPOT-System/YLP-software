@@ -62,6 +62,10 @@ type CallPeerService = Pick<
   "findDiscoveredPeerById" | "getOrCreatePeerById"
 >;
 
+type CallSyncService = {
+  syncNow(): Promise<void>;
+};
+
 type CallLogChatService = Pick<ChatService, "saveCallLogWithReceipts"> & {
   getOrCreateDirectConversationByPeer(
     peerId: string,
@@ -115,7 +119,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     private peerService: CallPeerService,
     private callRepository: CallRepository,
     private callParticipantRepository: CallParticipantRepository,
-    private chatService: CallLogChatService
+    private chatService: CallLogChatService,
+    private syncService: CallSyncService
   ) {
     super();
     callLog.info("call › service constructed", {
@@ -502,6 +507,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       });
 
       await this.finalizeSession(peerId, status, endTime, initiatorId);
+      void this.syncService.syncNow();
 
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
@@ -544,6 +550,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         initiatorId,
         payload.durationSeconds
       );
+      void this.syncService.syncNow();
 
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
