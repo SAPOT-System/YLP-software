@@ -24,6 +24,10 @@ import { DataChatMessageI } from "../types";
 
 chatLog.debug("[chat-service] module loaded");
 
+type ChatSyncService = {
+  syncNow(): Promise<void>;
+};
+
 /**
  * ChatService is responsible for managing chat/conversation logic, including peer connections, message sending/receiving,
  * repository coordination, and state management. It encapsulates business rules for chat flows and ensures ACID principles where possible.
@@ -49,7 +53,8 @@ export class ChatService {
     private messageRepository: MessageRepository,
     private messageStatusRepository: MessageStatusRepository,
     private peerService: PeerService,
-    private userStore: UserStore
+    private userStore: UserStore,
+    private syncService: ChatSyncService
   ) {
     chatLog.info("chat › service constructed", {
       hasConnectionService: Boolean(connectionService),
@@ -367,6 +372,7 @@ export class ChatService {
         messageId,
         MessageStatusType.DELIVERED
       );
+      void this.syncService.syncNow();
     } catch (error) {
       chatLog.error("chat › ack handling failed", { messageId, error });
       throw error;
@@ -407,6 +413,7 @@ export class ChatService {
           conversationId: this.conversation?.id,
           messageId: newMessage.id,
         });
+        void this.syncService.syncNow();
         return this.conversation!.id;
       }
       await this.sendAndTrackMessageStatus(
@@ -414,6 +421,7 @@ export class ChatService {
         newMessageStatus,
         message
       );
+      void this.syncService.syncNow();
       chatLog.debug("chat › send complete", {
         peerId: this.peer.id,
         conversationId: this.conversation?.id,

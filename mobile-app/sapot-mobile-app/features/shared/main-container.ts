@@ -131,6 +131,9 @@ export class MainContainer {
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(database);
     this.messageStatusRepository = new MessageStatusRepository(database);
+
+    this.syncService = new SyncService({ db: database });
+
     this.chatService = new ChatService(
       this.connectionService,
       this.conversationRepository,
@@ -138,7 +141,8 @@ export class MainContainer {
       this.messageRepository,
       this.messageStatusRepository,
       this.userContainer.peerService,
-      this.userContainer.userStore
+      this.userContainer.userStore,
+      this.syncService
     );
 
     this.callRepository = new CallRepository(database);
@@ -149,7 +153,8 @@ export class MainContainer {
       this.userContainer.peerService,
       this.callRepository,
       this.callParticipantRepository,
-      this.chatService
+      this.chatService,
+      this.syncService
     );
 
     this.connectionService.setChatService(this.chatService);
@@ -157,11 +162,6 @@ export class MainContainer {
     this.discoveryService.setConnectionService(this.connectionService);
 
     this.guestUserRepository = new GuestUserRepository(database);
-
-    this.syncService = new SyncService({
-      peerService: userContainer.peerService,
-      db: database,
-    });
 
     // Clean up
     this.cleanUpService = new CleanUpService(
@@ -201,6 +201,8 @@ export class MainContainer {
         });
 
         setAppAlive(true);
+
+        void this.syncService.syncNow();
       })();
 
       return this.initPromise;

@@ -133,7 +133,8 @@ describe("ChatService", () => {
       mockMessageRepository,
       mockMessageStatusRepository,
       mockPeerService,
-      mockUserStore
+      mockUserStore,
+      { syncNow: jest.fn().mockResolvedValue(undefined) }
     );
   });
 
