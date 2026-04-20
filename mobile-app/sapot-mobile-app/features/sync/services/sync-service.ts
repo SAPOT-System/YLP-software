@@ -2,7 +2,10 @@ import { Database } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 
-import { PeerService } from "@/features/shared/services/peer-service";
+import {
+  getSyncLastPulledAt,
+  saveSyncLastPulledAt,
+} from "@/features/shared/stores/secure-config";
 import { syncLog } from "@/features/shared/utils/logger";
 import {
   pushLocalDataApi,
@@ -20,42 +23,8 @@ export type SyncEntity =
   | "call_participants"
   | "message_receipts";
 
-export type SyncOperationType = "create" | "update" | "delete";
-
-export interface SyncQueueItem {
-  id: string;
-  entity: SyncEntity;
-  operation: SyncOperationType;
-  payload: EntityLocalPayloadMap[SyncEntity];
-  updatedAt: number;
-  retries: number;
-  nextRetryAt?: number;
-  lastError?: string;
-}
-
-export interface SyncQueueStorage {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-}
-
-export class InMemorySyncQueueStorage implements SyncQueueStorage {
-  private store = new Map<string, string>();
-
-  async getItem(key: string) {
-    return this.store.get(key) ?? null;
-  }
-
-  async setItem(key: string, value: string) {
-    this.store.set(key, value);
-  }
-}
-
 interface SyncServiceParams {
   db: Database;
-  storage?: SyncQueueStorage;
-  queueKey?: string;
-  lastSyncKey?: string;
-  peerService: PeerService;
 }
 
 interface SyncPullResponse {
@@ -168,32 +137,13 @@ export type EntityLocalPayloadMap = {
 
 export class SyncService {
   private db: Database;
-  private storage: SyncQueueStorage;
-  private queueKey: string;
-  private lastSyncKey: string;
-  private peerService?: PeerService;
   private isSyncing = false;
   private syncLogger: SyncLogger;
 
-  constructor({
-    peerService,
-    db,
-    storage = new InMemorySyncQueueStorage(),
-    queueKey = "sync:queue",
-    lastSyncKey = "sync:lastSync",
-  }: SyncServiceParams) {
+  constructor({ db }: SyncServiceParams) {
     this.db = db;
-    this.storage = storage;
-    this.queueKey = queueKey;
-    this.lastSyncKey = lastSyncKey;
-    this.peerService = peerService;
     this.syncLogger = new SyncLogger(20);
-    syncLog.info("sync › service constructed", {
-      hasDb: Boolean(db),
-      hasPeerService: Boolean(peerService),
-      queueKey,
-      lastSyncKey,
-    });
+    syncLog.info("sync › service constructed", { hasDb: Boolean(db) });
   }
 
   get syncLogs() {
@@ -216,41 +166,6 @@ export class SyncService {
     }
   }
 
-  async enqueueOperation(
-    entity: SyncEntity,
-    operation: SyncOperationType,
-    payload: EntityLocalPayloadMap[SyncEntity]
-  ) {
-    syncLog.debug("sync › enqueue", {
-      entity,
-      operation,
-      hasId: Boolean(payload?.id),
-    });
-    const queue = await this.loadQueue();
-    const opId = `${entity}-${payload.id ?? "no-id"}-${Date.now()}`;
-    const mergedPayload = this.applyDeleteFlag(entity, operation, payload);
-
-    const item: SyncQueueItem = {
-      id: opId,
-      entity,
-      operation,
-      payload: mergedPayload,
-      updatedAt: Date.now(),
-      retries: 0,
-    };
-
-    queue.push(item);
-    await this.saveQueue(queue);
-
-    syncLog.debug("sync › enqueue complete", {
-      entity,
-      operation,
-      queueLength: queue.length,
-    });
-
-    return item;
-  }
-
   async syncNow() {
     if (this.isSyncing) return;
     this.isSyncing = true;
@@ -261,7 +176,8 @@ export class SyncService {
       await synchronize({
         database: this.db,
         log,
-        pullChanges: async ({ lastPulledAt, schemaVersion }) => {
+        pullChanges: async ({ schemaVersion }) => {
+          const lastPulledAt = await getSyncLastPulledAt();
           syncLog.info("sync › pull start", { lastPulledAt, schemaVersion });
 
           const { changes, timestamp } = await this.pullFromServer(
@@ -269,8 +185,6 @@ export class SyncService {
             lastPulledAt
           );
           const normalizedChanges = this.normalizePullChanges(changes);
-          // await this.ensureConversationParticipantUsers(normalizedChanges);
-          await this.setLastSync(timestamp);
 
           const pullCounts = {
             conversations:
@@ -300,11 +214,13 @@ export class SyncService {
           };
           syncLog.debug("sync › pull changes", { counts: pullCounts });
 
+          await saveSyncLastPulledAt(timestamp);
           return { changes: normalizedChanges, timestamp };
         },
         pushChanges: async ({ changes }) => {
-          syncLog.debug("sync › push changes");
-          await this.pushToServer(changes as SyncChanges);
+          const lastPulledAt = await getSyncLastPulledAt();
+          syncLog.debug("sync › push changes", { lastPulledAt });
+          await this.pushToServer(changes as SyncChanges, lastPulledAt);
         },
       });
       syncLog.info("sync › complete");
@@ -316,10 +232,6 @@ export class SyncService {
     }
   }
 
-  async retryFailedOperations() {
-    await this.syncNow();
-  }
-
   private async pullFromServer(
     schemaVersion: number,
     lastPulledAt?: number | null
@@ -328,265 +240,84 @@ export class SyncService {
     return res.data as SyncPullResponse;
   }
 
-  private async pushToServer(changes: SyncChanges) {
-    const queue = await this.loadQueue();
-    const ready = queue.filter((item) => this.isReadyToRetry(item));
-    const lastPulledAt = await this.getLastSync();
-
-    const payload = this.buildPushPayload(changes, ready, lastPulledAt);
+  private async pushToServer(
+    changes: SyncChanges,
+    lastPulledAt?: number | null
+  ) {
+    const payload = this.buildPushPayload(changes);
     syncLog.debug("sync › push payload", {
-      hasChanges: this.hasPayload(payload.changes),
-      queued: ready.length,
+      hasChanges: this.hasPayload(payload),
     });
-    if (!this.hasPayload(payload.changes)) return;
-
-    try {
-      await pushLocalDataApi(payload);
-      const remaining = queue.filter((item) => !ready.includes(item));
-      await this.saveQueue(remaining);
-    } catch (error) {
-      const updatedQueue = queue.map((item) =>
-        ready.includes(item)
-          ? this.markFailed(item, error instanceof Error ? error.message : "")
-          : item
-      );
-      await this.saveQueue(updatedQueue);
-      throw error;
-    }
+    if (!this.hasPayload(payload)) return;
+    await pushLocalDataApi({
+      last_pulled_at: lastPulledAt ?? 0,
+      changes: payload,
+    });
   }
 
   private buildPushPayload(
-    changes: SyncChanges,
-    queue: SyncQueueItem[],
-    lastPulledAt: number
-  ) {
-    const payload: PushLocalDataRequestBody = {
-      last_pulled_at: lastPulledAt,
-      changes: {
-        conversations: { created: [], updated: [], deleted: [] },
-        conversation_participants: { created: [], updated: [], deleted: [] },
-        messages: { created: [], updated: [], deleted: [] },
-        calls: { created: [], updated: [], deleted: [] },
-        call_participants: { created: [], updated: [], deleted: [] },
-        message_receipts: { created: [], updated: [], deleted: [] },
+    changes: SyncChanges
+  ): PushLocalDataRequestBody["changes"] {
+    type C = PushLocalDataRequestBody["changes"];
+    return {
+      conversations: {
+        created: changes.conversations.created.map((r) =>
+          this.toServerPayload("conversations", r)
+        ) as C["conversations"]["created"],
+        updated: changes.conversations.updated.map((r) =>
+          this.toServerPayload("conversations", r)
+        ) as C["conversations"]["updated"],
+        deleted: changes.conversations.deleted,
+      },
+      conversation_participants: {
+        created: changes.conversation_participants.created.map((r) =>
+          this.toServerPayload("conversation_participants", r)
+        ) as C["conversation_participants"]["created"],
+        updated: changes.conversation_participants.updated.map((r) =>
+          this.toServerPayload("conversation_participants", r)
+        ) as C["conversation_participants"]["updated"],
+        deleted: changes.conversation_participants.deleted,
+      },
+      messages: {
+        created: changes.messages.created.map((r) =>
+          this.toServerPayload("messages", r)
+        ) as C["messages"]["created"],
+        updated: changes.messages.updated.map((r) =>
+          this.toServerPayload("messages", r)
+        ) as C["messages"]["updated"],
+        deleted: changes.messages.deleted,
+      },
+      calls: {
+        created: changes.calls.created.map((r) =>
+          this.toServerPayload("calls", r)
+        ) as C["calls"]["created"],
+        updated: changes.calls.updated.map((r) =>
+          this.toServerPayload("calls", r)
+        ) as C["calls"]["updated"],
+        deleted: changes.calls.deleted,
+      },
+      call_participants: {
+        created: changes.call_participants.created.map((r) =>
+          this.toServerPayload("call_participants", r)
+        ) as C["call_participants"]["created"],
+        updated: changes.call_participants.updated.map((r) =>
+          this.toServerPayload("call_participants", r)
+        ) as C["call_participants"]["updated"],
+        deleted: changes.call_participants.deleted,
+      },
+      message_receipts: {
+        created: changes.message_receipts.created.map((r) =>
+          this.toServerPayload("message_receipts", r)
+        ) as C["message_receipts"]["created"],
+        updated: changes.message_receipts.updated.map((r) =>
+          this.toServerPayload("message_receipts", r)
+        ) as C["message_receipts"]["updated"],
+        deleted: changes.message_receipts.deleted,
       },
     };
-
-    const append = (
-      entity: SyncEntity,
-      operation: SyncOperationType,
-      record: EntityLocalPayloadMap[SyncEntity]
-    ) => {
-      switch (entity) {
-        case "conversations": {
-          const changeSet = payload.changes.conversations;
-          if (operation === "delete") {
-            if (record.id) {
-              changeSet.deleted.push(record.id.toString());
-            }
-            return;
-          }
-          const normalized = this.toServerPayload(
-            "conversations",
-            record as EntityLocalPayloadMap["conversations"]
-          );
-          if (operation === "create") {
-            changeSet.created.push(
-              normalized as PushLocalDataRequestBody["changes"]["conversations"]["created"][number]
-            );
-          } else {
-            changeSet.updated.push(
-              normalized as PushLocalDataRequestBody["changes"]["conversations"]["updated"][number]
-            );
-          }
-          return;
-        }
-        case "conversation_participants": {
-          const changeSet = payload.changes.conversation_participants;
-          if (operation === "delete") {
-            if (record.id) {
-              changeSet.deleted.push(record.id.toString());
-            }
-            return;
-          }
-          const normalized = this.toServerPayload(
-            "conversation_participants",
-            record as EntityLocalPayloadMap["conversation_participants"]
-          );
-          if (operation === "create") {
-            changeSet.created.push(
-              normalized as PushLocalDataRequestBody["changes"]["conversation_participants"]["created"][number]
-            );
-          } else {
-            changeSet.updated.push(
-              normalized as PushLocalDataRequestBody["changes"]["conversation_participants"]["updated"][number]
-            );
-          }
-          return;
-        }
-        case "messages": {
-          const changeSet = payload.changes.messages;
-          if (operation === "delete") {
-            if (record.id) {
-              changeSet.deleted.push(record.id.toString());
-            }
-            return;
-          }
-          const normalized = this.toServerPayload(
-            "messages",
-            record as EntityLocalPayloadMap["messages"]
-          );
-          if (operation === "create") {
-            changeSet.created.push(
-              normalized as PushLocalDataRequestBody["changes"]["messages"]["created"][number]
-            );
-          } else {
-            changeSet.updated.push(
-              normalized as PushLocalDataRequestBody["changes"]["messages"]["updated"][number]
-            );
-          }
-          return;
-        }
-        case "calls": {
-          const changeSet = payload.changes.calls;
-          if (operation === "delete") {
-            if (record.id) {
-              changeSet.deleted.push(record.id.toString());
-            }
-            return;
-          }
-          const normalized = this.toServerPayload(
-            "calls",
-            record as EntityLocalPayloadMap["calls"]
-          );
-          if (operation === "create") {
-            changeSet.created.push(
-              normalized as PushLocalDataRequestBody["changes"]["calls"]["created"][number]
-            );
-          } else {
-            changeSet.updated.push(
-              normalized as PushLocalDataRequestBody["changes"]["calls"]["updated"][number]
-            );
-          }
-          return;
-        }
-        case "call_participants": {
-          const changeSet = payload.changes.call_participants;
-          if (operation === "delete") {
-            if (record.id) {
-              changeSet.deleted.push(record.id.toString());
-            }
-            return;
-          }
-          const normalized = this.toServerPayload(
-            "call_participants",
-            record as EntityLocalPayloadMap["call_participants"]
-          );
-          if (operation === "create") {
-            changeSet.created.push(
-              normalized as PushLocalDataRequestBody["changes"]["call_participants"]["created"][number]
-            );
-          } else {
-            changeSet.updated.push(
-              normalized as PushLocalDataRequestBody["changes"]["call_participants"]["updated"][number]
-            );
-          }
-          return;
-        }
-        case "message_receipts": {
-          const changeSet = payload.changes.message_receipts;
-          if (operation === "delete") {
-            if (record.id) {
-              changeSet.deleted.push(record.id.toString());
-            }
-            return;
-          }
-          const normalized = this.toServerPayload(
-            "message_receipts",
-            record as EntityLocalPayloadMap["message_receipts"]
-          );
-          if (operation === "create") {
-            changeSet.created.push(
-              normalized as PushLocalDataRequestBody["changes"]["message_receipts"]["created"][number]
-            );
-          } else {
-            changeSet.updated.push(
-              normalized as PushLocalDataRequestBody["changes"]["message_receipts"]["updated"][number]
-            );
-          }
-          return;
-        }
-        default:
-          return;
-      }
-    };
-
-    const addRecords = <E extends SyncEntity>(
-      entity: E,
-      operation: SyncOperationType,
-      records: EntityLocalPayloadMap[E][]
-    ) => {
-      records.forEach((record) => append(entity, operation, record));
-    };
-
-    addRecords("conversations", "create", changes.conversations.created);
-    addRecords("conversations", "update", changes.conversations.updated);
-    changes.conversations.deleted.forEach((id) =>
-      append("conversations", "delete", { id })
-    );
-
-    addRecords(
-      "conversation_participants",
-      "create",
-      changes.conversation_participants.created
-    );
-    addRecords(
-      "conversation_participants",
-      "update",
-      changes.conversation_participants.updated
-    );
-    changes.conversation_participants.deleted.forEach((id) =>
-      append("conversation_participants", "delete", { id })
-    );
-
-    addRecords("messages", "create", changes.messages.created);
-    addRecords("messages", "update", changes.messages.updated);
-    changes.messages.deleted.forEach((id) =>
-      append("messages", "delete", { id })
-    );
-
-    addRecords("calls", "create", changes.calls.created);
-    addRecords("calls", "update", changes.calls.updated);
-    changes.calls.deleted.forEach((id) => append("calls", "delete", { id }));
-
-    addRecords(
-      "call_participants",
-      "create",
-      changes.call_participants.created
-    );
-    addRecords(
-      "call_participants",
-      "update",
-      changes.call_participants.updated
-    );
-    changes.call_participants.deleted.forEach((id) =>
-      append("call_participants", "delete", { id })
-    );
-
-    addRecords("message_receipts", "create", changes.message_receipts.created);
-    addRecords("message_receipts", "update", changes.message_receipts.updated);
-    changes.message_receipts.deleted.forEach((id) =>
-      append("message_receipts", "delete", { id })
-    );
-
-    queue.forEach((item) => {
-      append(item.entity, item.operation, item.payload);
-    });
-
-    return payload;
   }
 
-  private hasPayload(payload: SyncChanges) {
+  private hasPayload(payload: PushLocalDataRequestBody["changes"]) {
     return Object.values(payload).some(
       (items) =>
         items.created.length > 0 ||
@@ -728,52 +459,10 @@ export class SyncService {
     }
   }
 
-  private applyDeleteFlag(
-    entity: SyncEntity,
-    operation: SyncOperationType,
-    payload: Record<string, unknown>
-  ) {
-    if (operation !== "delete") return payload;
-
-    if (entity === "messages" || entity === "conversation_participants") {
-      return { ...payload, is_deleted: true };
-    }
-
-    return payload;
-  }
-
-  private isReadyToRetry(item: SyncQueueItem) {
-    if (!item.nextRetryAt) return true;
-    return item.nextRetryAt <= Date.now();
-  }
-
-  private markFailed(item: SyncQueueItem, message: string) {
-    const retries = item.retries + 1;
-    const backoffMs = Math.min(Math.pow(2, retries) * 1000, 30000);
-
-    return {
-      ...item,
-      retries,
-      lastError: message,
-      nextRetryAt: Date.now() + backoffMs,
-    };
-  }
-
-  private toCreatedTimestamp(value: string | number) {
+  private toTimestamp(value?: string | number | null): number {
     if (typeof value === "number") return value;
-    if (typeof value === "string") {
-      const parsed = Date.parse(value);
-      return parsed;
-    }
-    return value;
-  }
-  private toUpdatedTimestamp(value?: string | number) {
-    if (typeof value === "number") return value;
-    if (typeof value === "string") {
-      const parsed = Date.parse(value);
-      return parsed;
-    }
-    return value;
+    if (typeof value === "string") return Date.parse(value);
+    return 0;
   }
 
   private normalizePullChanges(changes: SyncChanges) {
@@ -787,16 +476,16 @@ export class SyncService {
           conversation_type: item.conversation_type,
           type: item.conversation_type,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toCreatedTimestamp(item.created_at),
-          updated_at: this.toCreatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         updated: mapWithDefaults(changes.conversations.updated, (item) => ({
           ...item,
           conversation_type: item.conversation_type,
           type: item.conversation_type,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toUpdatedTimestamp(item.created_at),
-          updated_at: this.toUpdatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         deleted: changes.conversations.deleted,
       },
@@ -807,10 +496,10 @@ export class SyncService {
             ...item,
             conversation: item.conversation_id,
             user: item.user_id,
-            joined_at: this.toCreatedTimestamp(item.joined_at),
+            joined_at: this.toTimestamp(item.joined_at),
             is_deleted: item.is_deleted ?? false,
-            created_at: this.toCreatedTimestamp(item.created_at),
-            updated_at: this.toCreatedTimestamp(item.updated_at),
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
           })
         ),
         updated: mapWithDefaults(
@@ -819,10 +508,10 @@ export class SyncService {
             ...item,
             conversation: item.conversation_id,
             user: item.user_id,
-            joined_at: this.toUpdatedTimestamp(item.joined_at),
+            joined_at: this.toTimestamp(item.joined_at),
             is_deleted: item.is_deleted ?? false,
-            created_at: this.toUpdatedTimestamp(item.created_at),
-            updated_at: this.toUpdatedTimestamp(item.updated_at),
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
           })
         ),
         deleted: changes.conversation_participants.deleted,
@@ -834,8 +523,8 @@ export class SyncService {
           sender: item.sender_id,
           message_type: item.message_type,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toCreatedTimestamp(item.created_at),
-          updated_at: this.toCreatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         updated: mapWithDefaults(changes.messages.updated, (item) => ({
           ...item,
@@ -843,8 +532,8 @@ export class SyncService {
           sender: item.sender_id,
           message_type: item.message_type,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toUpdatedTimestamp(item.created_at),
-          updated_at: this.toUpdatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         deleted: changes.messages.deleted,
       },
@@ -854,22 +543,22 @@ export class SyncService {
           conversation: item.conversation_id,
           initiator: item.initiator_id,
           call_type: item.call_type,
-          start_time: this.toCreatedTimestamp(item.start_time),
-          end_time: this.toCreatedTimestamp(item.end_time),
+          start_time: this.toTimestamp(item.start_time),
+          end_time: this.toTimestamp(item.end_time),
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toCreatedTimestamp(item.created_at),
-          updated_at: this.toCreatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         updated: mapWithDefaults(changes.calls.updated, (item) => ({
           ...item,
           conversation: item.conversation_id,
           initiator: item.initiator_id,
           call_type: item.call_type,
-          start_time: this.toUpdatedTimestamp(item.start_time),
-          end_time: this.toUpdatedTimestamp(item.end_time),
+          start_time: this.toTimestamp(item.start_time),
+          end_time: this.toTimestamp(item.end_time),
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toUpdatedTimestamp(item.created_at),
-          updated_at: this.toUpdatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         deleted: changes.calls.deleted,
       },
@@ -878,27 +567,23 @@ export class SyncService {
           ...item,
           call: item.conversation_id,
           user: item.user_id,
-          joined_at: this.toCreatedTimestamp(item.joined_at),
+          joined_at: this.toTimestamp(item.joined_at),
           left_at:
-            item.left_at !== null
-              ? this.toCreatedTimestamp(item.left_at)
-              : null,
+            item.left_at !== null ? this.toTimestamp(item.left_at) : null,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toCreatedTimestamp(item.created_at),
-          updated_at: this.toCreatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         updated: mapWithDefaults(changes.call_participants.updated, (item) => ({
           ...item,
           call: item.conversation_id,
           user: item.user_id,
-          joined_at: this.toUpdatedTimestamp(item.joined_at),
+          joined_at: this.toTimestamp(item.joined_at),
           left_at:
-            item.left_at !== null
-              ? this.toUpdatedTimestamp(item.left_at)
-              : null,
+            item.left_at !== null ? this.toTimestamp(item.left_at) : null,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toUpdatedTimestamp(item.created_at),
-          updated_at: this.toUpdatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         deleted: changes.call_participants.deleted,
       },
@@ -908,84 +593,19 @@ export class SyncService {
           message: item.message_id,
           user: item.user_id,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toCreatedTimestamp(item.created_at),
-          updated_at: this.toCreatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         updated: mapWithDefaults(changes.message_receipts.updated, (item) => ({
           ...item,
           message: item.message_id,
           user: item.user_id,
           is_deleted: item.is_deleted ?? false,
-          created_at: this.toUpdatedTimestamp(item.created_at),
-          updated_at: this.toUpdatedTimestamp(item.updated_at),
+          created_at: this.toTimestamp(item.created_at),
+          updated_at: this.toTimestamp(item.updated_at),
         })),
         deleted: changes.message_receipts.deleted,
       },
     };
-  }
-
-  // private async ensureConversationParticipantUsers(changes: SyncChanges) {
-  //   if (!this.peerService) return;
-
-  //   const participants = [
-  //     ...changes.conversation_participants.created,
-  //     ...changes.conversation_participants.updated,
-  //   ];
-  //   const userIds = new Set<string>();
-
-  //   for (const participant of participants) {
-  //     const userId = participant.user_id;
-  //     if (userId) {
-  //       userIds.add(userId.toString());
-  //     }
-  //   }
-
-  //   await Promise.all(
-  //     Array.from(userIds).map(async (userId) => {
-  //       const existing = await this.peerService?.findPeerById(userId);
-  //       if (existing) return;
-
-  //       const results = //TODO: End point for searching user through ID
-  //
-  //       const matched = results[0];
-
-  //       if (matched) {
-  //         await this.peerService?.createUser(
-  //           matched.id,
-  //           matched.username,
-  //           matched.first_name,
-  //           matched.last_name
-  //         );
-  //         return;
-  //       }
-
-  //       await this.peerService?.createUser(userId, userId, "Unknown User");
-  //     })
-  //   );
-  // }
-
-  private async loadQueue() {
-    const raw = await this.storage.getItem(this.queueKey);
-    if (!raw) return [];
-    try {
-      return JSON.parse(raw) as SyncQueueItem[];
-    } catch {
-      return [];
-    }
-  }
-
-  private async saveQueue(queue: SyncQueueItem[]) {
-    await this.storage.setItem(this.queueKey, JSON.stringify(queue));
-  }
-
-  private async getLastSync() {
-    const raw = await this.storage.getItem(this.lastSyncKey);
-    if (!raw) return 0;
-    const parsed = Number(raw);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-
-  private async setLastSync(timestamp: number) {
-    await this.storage.setItem(this.lastSyncKey, String(timestamp));
   }
 }

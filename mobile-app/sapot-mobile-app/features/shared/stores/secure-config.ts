@@ -14,6 +14,7 @@ const KEYS = {
   USERNAME: "username",
   FIRST_NAME: "firstName",
   LAST_NAME: "lastName",
+  SYNC_LAST_PULLED_AT: "syncLastPulledAt",
 } as const;
 
 // ── Writers ────────────────────────────────────────────────────────────────────
@@ -184,6 +185,26 @@ export const getStoredLastName = async (): Promise<string | undefined> => {
   } catch (error) {
     backgroundLog.error("secure-config › read lastName failed", { error });
     return undefined;
+  }
+};
+
+export const saveSyncLastPulledAt = async (timestamp: number) => {
+  try {
+    await setItemAsync(KEYS.SYNC_LAST_PULLED_AT, String(timestamp));
+  } catch (error) {
+    backgroundLog.error("secure-config › sync timestamp save failed", { error });
+  }
+};
+
+export const getSyncLastPulledAt = async (): Promise<number> => {
+  try {
+    const val = await getItemAsync(KEYS.SYNC_LAST_PULLED_AT);
+    if (!val) return 0;
+    const parsed = Number(val);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  } catch (error) {
+    backgroundLog.error("secure-config › sync timestamp read failed", { error });
+    return 0;
   }
 };
 

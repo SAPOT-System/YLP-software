@@ -158,10 +158,7 @@ export class MainContainer {
 
     this.guestUserRepository = new GuestUserRepository(database);
 
-    this.syncService = new SyncService({
-      peerService: userContainer.peerService,
-      db: database,
-    });
+    this.syncService = new SyncService({ db: database });
 
     // Clean up
     this.cleanUpService = new CleanUpService(
