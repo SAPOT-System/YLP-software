@@ -201,6 +201,8 @@ export class MainContainer {
         });
 
         setAppAlive(true);
+
+        void this.syncService.syncNow();
       })();
 
       return this.initPromise;
