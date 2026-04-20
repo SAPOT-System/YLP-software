@@ -50,7 +50,7 @@ React context provider: `features/shared/context/main-container-context.tsx`
 | `CallService` | Call lifecycle, audio routing (earpiece/speaker/Bluetooth) |
 | `ChatService` | Message send/receive and persistence via WebRTC data channels |
 | `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN |
-| `SyncService` | Periodic sync of local data with the server REST API |
+| `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
 | `CleanUpService` | Cleanup of stale data and connections |
 
 ---
