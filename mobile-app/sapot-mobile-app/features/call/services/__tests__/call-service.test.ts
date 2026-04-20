@@ -68,7 +68,8 @@ describe("CallService", () => {
       mockPeerService,
       mockCallRepository as never,
       mockCallParticipantRepository as never,
-      mockChatService as never
+      mockChatService as never,
+      { syncNow: jest.fn().mockResolvedValue(undefined) }
     );
   });
 
