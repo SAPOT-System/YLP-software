@@ -106,21 +106,23 @@ def get_all_latest_locations(
     )
     
     statement = (
-        select(UserLocation)
+        select(UserLocation, User.username)
+        .join(User, User.id == UserLocation.user_id)
         .join(subquery, (UserLocation.user_id == subquery.c.user_id) & 
                        (UserLocation.timestamp == subquery.c.max_ts))
     )
-    
+    print("statement", statement)
     locations = session.exec(statement).all()
-    
+    print("res", locations)
     # Format for the frontend (React Native Map)
     return [
         {
             "user_id": loc.user_id,
             "latitude": loc.latitude,
             "longitude": loc.longitude,
-            "timestamp": loc.timestamp
-        } for loc in locations
+            "timestamp": loc.timestamp,
+            "username": username
+        } for loc, username in locations
     ]
 
 @router.get("/history/{user_id}")
