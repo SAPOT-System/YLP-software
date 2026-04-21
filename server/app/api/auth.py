@@ -120,3 +120,4 @@ def change_password(
     return {
         "message": "password updated successfully."
     }
+
