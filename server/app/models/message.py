@@ -51,8 +51,8 @@ class Message(SyncableModel, table=True):
     is_deleted : bool = Field(default=False)
 
     # foreign_key
-    conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')
-    sender_id : UUID | None = Field(default=None, foreign_key='user.id')
+    conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id', ondelete="CASCADE")
+    sender_id : UUID | None = Field(default=None, foreign_key='user.id', ondelete="CASCADE")
 
     user: Optional['User'] = Relationship(
         back_populates='messages'
@@ -63,8 +63,11 @@ class Message(SyncableModel, table=True):
     )
 
     messagereceipt: Optional['MessageReceipt'] = Relationship(
-        back_populates='message'
-    )
+        back_populates='message',
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan", # The magic string
+            }
+        )
 
     attachment: Optional['Attachment'] = Relationship(
         back_populates='message'

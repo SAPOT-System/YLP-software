@@ -44,3 +44,10 @@ def search_user_by_id(
         return res
     except Exception:
         raise HTTPException(404, "invalid id or non-existent in database")
+
+
+@router.get("/is-rescuer")
+def is_rescuer(
+        current_user: Annotated[User, Depends(get_current_user)]
+):
+    return bool(current_user.rescuer)

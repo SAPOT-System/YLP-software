@@ -43,8 +43,8 @@ class Call(SyncableModel, table=True):
     )
 
     # foreign keys
-    conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id')
-    initiator_id : UUID  | None = Field(default=None, foreign_key='user.id')
+    conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id', ondelete="CASCADE")
+    initiator_id : UUID  | None = Field(default=None, foreign_key='user.id', ondelete="CASCADE")
 
     user: List["User"] = Relationship(
         back_populates="calls"

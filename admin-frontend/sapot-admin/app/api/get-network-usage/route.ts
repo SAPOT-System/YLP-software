@@ -3,7 +3,7 @@ import { secureFetch } from "@/api/fetch";
 
 export async function GET() {
   try {
-    const res = await secureFetch('/admin/get-network-usage'); 
+    const res = await secureFetch('/admin/network/usage'); 
     
     if (!res.ok) {
       return NextResponse.json({ error: 'Failed to fetch' }, { status: res.status });

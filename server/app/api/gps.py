@@ -2,7 +2,7 @@ from typing import Annotated
 import logging
 from fastapi import WebSocketException, status
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
-from app.db_operations.auth import SessionDep
+from app.db_operations.auth import SessionDep, get_user_by_ID
 from sqlmodel import Session
 from datetime import datetime, timezone
 from fastapi.routing import APIRouter
@@ -38,7 +38,11 @@ async def stream_gps_location(
 
     try:
         user_uuid = uuid.UUID(user_id)
+        user = get_user_by_ID(session, user_uuid)
 
+        if not user:
+            raise Exception("No user found.")
+        
         while True:
             # 1. Receive data from React Native
             # Expected: {"lat": 14.123, "lng": 120.456}
@@ -62,7 +66,8 @@ async def stream_gps_location(
                 "user_id": user_id,
                 "latitude": data["lat"],
                 "longitude": data["lng"],
-                "timestamp": new_location.timestamp.isoformat()
+                "timestamp": new_location.timestamp.isoformat(),
+                "username": user.username
             }
 
             # 5. Push to all Rescuers in real-time
@@ -106,21 +111,23 @@ def get_all_latest_locations(
     )
     
     statement = (
-        select(UserLocation)
+        select(UserLocation, User.username)
+        .join(User, User.id == UserLocation.user_id)
         .join(subquery, (UserLocation.user_id == subquery.c.user_id) & 
                        (UserLocation.timestamp == subquery.c.max_ts))
     )
-    
+
     locations = session.exec(statement).all()
-    
+
     # Format for the frontend (React Native Map)
     return [
         {
             "user_id": loc.user_id,
             "latitude": loc.latitude,
             "longitude": loc.longitude,
-            "timestamp": loc.timestamp
-        } for loc in locations
+            "timestamp": loc.timestamp,
+            "username": username
+        } for loc, username in locations
     ]
 
 @router.get("/history/{user_id}")

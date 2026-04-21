@@ -17,7 +17,7 @@ class Admin(SQLModel, table=True):
         primary_key=True,
         index=True
     )
-    user_id: uuid.UUID = Field(foreign_key="user.id", index=True)
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True, unique=True, ondelete="CASCADE")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         index=True

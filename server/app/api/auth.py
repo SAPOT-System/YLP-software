@@ -55,6 +55,18 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # for banned users
+    ban = user.banned
+    if ban:
+        ban.until = ban.until.replace(tzinfo=timezone.utc)
+        is_banned = ban.until > datetime.now(timezone.utc)
+        expiry_str = ban.until.strftime("%Y-%m-%d %H:%M UTC") if ban.until else "Permanently"
+        if is_banned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Account banned until: {expiry_str}",
+            )
+
     # 3. Ensure create_token_pair takes the user's UUID
     # We pass user.id to be used as the 'sub' claim
     tokens = create_token_pair(user.id)
@@ -108,3 +120,4 @@ def change_password(
     return {
         "message": "password updated successfully."
     }
+

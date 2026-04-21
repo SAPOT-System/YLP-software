@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from enum import unique
 from typing import Annotated, List, Optional
 import uuid
@@ -19,6 +17,9 @@ if TYPE_CHECKING:
     from app.models.location import UserLocation
     from app.models.rescuer import Rescuer
     from app.models.admin import Admin
+    from app.models.activity import UserActivity, ActivityLog
+    from app.models.banned_user import BannedUser
+    # from app.models.email_verification import EmailVerification
 
 
 PhoneStr = Annotated[
@@ -43,40 +44,73 @@ class User(UserBase, table=True):
     hashed_password: str
     email_verified : bool =  Field(default=False)
 
-    security_questions: List["UserSecurityQuestion"] = Relationship(back_populates="user")
+    security_questions: List["UserSecurityQuestion"] = Relationship(
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
+
+    activity: Optional["UserActivity"] = Relationship(
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     conversation_participants: List["ConversationParticipant"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     messages: List["Message"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     calls: List["Call"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     callparticipants: List["CallParticipant"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     email_verifications: List["EmailVerification"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     messagereceipts: List["MessageReceipt"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     profile_picture: Optional["UserProfilePicture"] = Relationship(
-        back_populates="user"
-    )
+            back_populates="user",
+            sa_relationship_kwargs={
+                "cascade": "all, delete-orphan", # The magic string
+                }
+            )
 
     locations: list["UserLocation"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
-    )
+            back_populates="user",
+            sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+            )
 
     rescuer: Optional["Rescuer"] = Relationship(
         back_populates="user",
@@ -84,6 +118,11 @@ class User(UserBase, table=True):
     )
 
     admin: Optional["Admin"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+    banned: Optional["BannedUser"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
@@ -158,6 +197,11 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one uppercase letter")
         return v
 
+class UserCreateThroughAdmin(UserCreate):
+    is_admin: bool = False
+    is_rescuer: bool = False
+
+
 class UserUpdate(SQLModel):
     username: str | None = Field(
         default=None, max_length=50, min_length=2
@@ -171,6 +215,24 @@ class UserUpdate(SQLModel):
     phone_number: PhoneStr | None = Field(default=None)
     email: EmailStr | None = Field(default=None)
 
+
+class UserUpdateThroughAdmin(SQLModel):
+    id: uuid.UUID
+    username: str | None = Field(
+        default=None, max_length=50, min_length=2
+    )
+    first_name: str | None = Field(
+        default=None, max_length=50, min_length=2
+    )
+    last_name: str | None = Field(
+        default=None, max_length=50, min_length=2
+    )
+    phone_number: PhoneStr | None = Field(default=None)
+    email: EmailStr | None = Field(default=None)
+    first_name: str | None = None
+    last_name: str | None = None
+    is_admin: bool | None = None
+    is_rescuer: bool | None = None
 
 
 class UserPasswordUpdate(SQLModel):

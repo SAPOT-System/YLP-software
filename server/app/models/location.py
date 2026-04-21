@@ -25,7 +25,7 @@ class UserLocation(SQLModel, table=True):
     )
 
     # Relationship Link
-    user_id: uuid.UUID = Field(foreign_key="user.id", index=True)
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
 
     # Back-reference to the User object
     user: Optional["User"] = Relationship(back_populates="locations")

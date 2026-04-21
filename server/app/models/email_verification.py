@@ -17,7 +17,7 @@ from app.db_operations.auth import get_domain
 
 
 class EmailVerificationBase(SQLModel):
-    user_id: uuid.UUID = Field(foreign_key="user.id")
+    user_id: uuid.UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     token: str = Field(index=True, nullable=False, unique=True)
     expires_at: datetime
 
