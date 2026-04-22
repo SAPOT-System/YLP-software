@@ -33,6 +33,7 @@ interface AuthContextI {
   isAuthenticated: boolean;
   accessToken: string | null;
   isGuest: boolean;
+  isRescuer: boolean;
 }
 const AuthContext = createContext<AuthContextI | null>(null);
 
@@ -54,6 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
+  const [isRescuer, setIsRescuer] = useState(false);
   const userService = useUserService();
 
   const refreshSession = useCallback(async () => {
@@ -92,6 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (token && uuid) {
         authLog.info("[AuthProvider] restoring authenticated session");
         await userService.initialize({ isGuest: false });
+        setIsRescuer(userService.getIsRescuer());
         setAccessToken(token);
 
         const isValid = await isAccessTokenValid(token);
@@ -150,6 +153,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       setAccessToken(access_token);
       setIsAuthenticated(await isAccessTokenValid(access_token));
+      setIsRescuer(userService.getIsRescuer());
       return {
         success: true,
       };
@@ -196,6 +200,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await userService.syncAuthenticatedUser(userInfo);
 
     setIsAuthenticated(await isAccessTokenValid(access_token));
+    setIsRescuer(userService.getIsRescuer());
   };
 
   const loginAsGuest = async (credentials: {
@@ -234,6 +239,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logoutAsGuest = async () => {
     authLog.info("[AuthProvider] logoutAsGuest called");
     setIsGuest(false);
+    setIsRescuer(false);
     await deleteItemAsync("userUUID");
 
     await userService.logout();
@@ -253,6 +259,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await userService.logout();
     setAccessToken(null);
     setIsAuthenticated(false);
+    setIsRescuer(false);
   };
 
   // silent login on app start
@@ -293,6 +300,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loginAsGuest,
         logoutAsGuest,
         isGuest,
+        isRescuer,
         loginAfterRegister,
       }}
     >

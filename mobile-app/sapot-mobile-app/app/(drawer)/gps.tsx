@@ -6,7 +6,9 @@ import {
   Layer,
   UserLocation,
 } from "@maplibre/maplibre-react-native";
+import { Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "@/features/auth";
 import { useLocationPermission } from "@/features/gps/hooks/useLocationPermission";
 import { getTileServerUrl } from "@/config/runtime";
 
@@ -19,8 +21,13 @@ const EMPTY_STYLE = {
 };
 
 export default function GpsScreen() {
+  const { isAuthenticated, isRescuer } = useAuth();
   const insets = useSafeAreaInsets();
   const locationGranted = useLocationPermission();
+
+  if (!isAuthenticated || !isRescuer) {
+    return <Redirect href="/(drawer)/(tabs)" />;
+  }
 
   if (locationGranted === null) {
     return (

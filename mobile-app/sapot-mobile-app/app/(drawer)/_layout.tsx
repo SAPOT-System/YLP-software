@@ -23,7 +23,7 @@ import { Platform } from "react-native";
 const queryClient = new QueryClient();
 
 export default function DrawerLayout() {
-  const { isAuthenticated, loading, isGuest } = useAuth();
+  const { isAuthenticated, loading, isGuest, isRescuer } = useAuth();
   const theme = useTheme();
   const { store } = useAppMode();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -343,6 +343,7 @@ export default function DrawerLayout() {
                   drawerLabel: "map",
                   title: "GPS Map",
                   headerShown: false,
+                  drawerItemStyle: isRescuer ? undefined : { display: "none" },
                 }}
               />
               <Drawer.Screen
