@@ -56,11 +56,7 @@ export default function GpsScreen() {
           minzoom={0}
           maxzoom={18}
         >
-          <Layer
-            id="tileserver-layer"
-            type="raster"
-            source="tileserver"
-          />
+          <Layer id="tileserver-layer" type="raster" source="tileserver" />
         </RasterSource>
         <UserLocation animated />
       </Map>

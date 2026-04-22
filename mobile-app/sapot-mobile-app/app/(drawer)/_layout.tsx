@@ -1,4 +1,6 @@
 import { useAuth } from "@/features/auth";
+import { GpsPreferenceProvider } from "@/features/gps/context/gps-preference-context";
+import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
 import "../../task/signaling-task";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
 import { MainContainerProvider, useAppMode } from "@/features/shared/context";
@@ -21,6 +23,11 @@ import { router } from "expo-router";
 import { Platform } from "react-native";
 
 const queryClient = new QueryClient();
+
+function GpsStreamingEffect() {
+  useGpsStreaming();
+  return null;
+}
 
 export default function DrawerLayout() {
   const { isAuthenticated, loading, isGuest, isRescuer } = useAuth();
@@ -186,7 +193,9 @@ export default function DrawerLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <MainContainerProvider>
+      <GpsPreferenceProvider>
+        <GpsStreamingEffect />
+        <MainContainerProvider>
         <QueryClientProvider client={queryClient}>
           <CallProvider>
             <Drawer
@@ -358,6 +367,7 @@ export default function DrawerLayout() {
           </CallProvider>
         </QueryClientProvider>
       </MainContainerProvider>
+      </GpsPreferenceProvider>
     </SafeAreaView>
   );
 }

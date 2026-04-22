@@ -123,4 +123,5 @@ export const webrtcLog = createScopedLogger("webrtc");
 export const wsLog = createScopedLogger("ws");
 export const zeroconfLog = createScopedLogger("zeroconf");
 export const backgroundLog = createScopedLogger("background");
+export const gpsLog = createScopedLogger("gps");
 export default baseLogger;
