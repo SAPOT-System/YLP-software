@@ -12,13 +12,14 @@ export function useGpsStreaming() {
 
   useEffect(() => {
     if (!isAuthenticated || isGuest || !sharingEnabled) return;
+    const gpsLocation = service.current;
 
     const userId = sessionStore.userId;
     const wsBase = getWsUrl();
-    service.current.start(wsBase, userId);
+    gpsLocation.start(wsBase, userId);
 
     return () => {
-      service.current.stop();
+      gpsLocation.stop();
     };
   }, [isAuthenticated, isGuest, sharingEnabled, sessionStore]);
 }
