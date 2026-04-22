@@ -68,6 +68,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.RECORD_AUDIO",
       "android.permission.CHANGE_NETWORK_STATE",
       "android.permission.MODIFY_AUDIO_SETTINGS",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.ACCESS_COARSE_LOCATION",
     ],
   },
   plugins: [
@@ -93,6 +95,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "@lovesworking/watermelondb-expo-plugin-sdk-52-plus",
       {
         disableJsi: true,
+      },
+    ],
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission:
+          "Allow $(PRODUCT_NAME) to access your location.",
       },
     ],
     "expo-router",

@@ -105,3 +105,9 @@ export const getUserProfilePicApi = async (userId: string) => {
 
   return res;
 };
+
+export const isRescuerApi = async () => {
+  apiLog.debug("api › is rescuer");
+  const res = await apiClient.get<boolean>("/user-utils/is-rescuer");
+  return res.data;
+};

@@ -1,3 +1,4 @@
+import { isRescuerApi } from "@/features/shared/api/user-profile.api";
 import { authLog } from "@/features/shared/utils/logger";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import uuid from "react-native-uuid";
@@ -76,9 +77,23 @@ export class UserService {
 
       // store the user's peer object
       this.userStore.setUser(user, isGuest);
+
+      if (!isGuest) {
+        try {
+          const rescuer = await isRescuerApi();
+          this.userStore.setIsRescuer(rescuer);
+        } catch (error) {
+          this.warn("rescuer check failed, defaulting false", { error });
+          this.userStore.setIsRescuer(false);
+        }
+      } else {
+        this.userStore.setIsRescuer(false);
+      }
+
       this.log("initialize complete", {
         isGuest,
         hasUser: Boolean(user),
+        isRescuer: this.userStore.isRescuer,
       });
     } catch (error) {
       this.error("initialize failed", error);
@@ -86,9 +101,14 @@ export class UserService {
     }
   }
 
+  getIsRescuer(): boolean {
+    return this.userStore.isRescuer;
+  }
+
   async logout() {
     try {
       this.log("logout start");
+      this.userStore.setIsRescuer(false);
       await deleteItemAsync("userUUID");
       this.sessionStore.setUserId(undefined);
       this.log("logout complete");

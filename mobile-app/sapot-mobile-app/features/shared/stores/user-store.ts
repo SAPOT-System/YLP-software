@@ -8,6 +8,7 @@ userLog.debug("[user-store] module loaded");
 export class UserStore {
   private _user?: Peer | GuestUser;
   private _isGuest: boolean = false;
+  private _isRescuer: boolean = false;
 
   /**
    * Gets the current user as a Peer object.
@@ -20,6 +21,14 @@ export class UserStore {
 
   get isGuest(): boolean {
     return this._isGuest;
+  }
+
+  get isRescuer(): boolean {
+    return this._isRescuer;
+  }
+
+  setIsRescuer(value: boolean) {
+    this._isRescuer = value;
   }
 
   setUser(user: Peer | GuestUser, isGuest: boolean) {
