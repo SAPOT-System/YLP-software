@@ -338,6 +338,14 @@ export default function DrawerLayout() {
                 }}
               />
               <Drawer.Screen
+                name="gps"
+                options={{
+                  drawerLabel: "map",
+                  title: "GPS Map",
+                  headerShown: false,
+                }}
+              />
+              <Drawer.Screen
                 name="settings"
                 options={{
                   drawerItemStyle: { display: "none" },

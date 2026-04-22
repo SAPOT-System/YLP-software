@@ -26,6 +26,24 @@ export const getApiUrl = () => {
   }
 };
 
+const TILE_PORT = "8080";
+
+export const getTileServerUrl = () => {
+  if (__DEV__) {
+    return `http://${DEV_HOST}:${TILE_PORT}`;
+  }
+
+  const channel = Updates.channel;
+
+  switch (channel) {
+    case "preview":
+    case "production":
+      return `https://${STAGING_HOST}`;
+    default:
+      return `http://${DEV_HOST}:${TILE_PORT}`;
+  }
+};
+
 export const getWsUrl = () => {
   if (__DEV__) {
     return `ws://${DEV_HOST}:${DEV_PORT}`;
