@@ -75,6 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const userInfo = await getUserApi(access_token);
       await userService.syncAuthenticatedUser(userInfo);
+      setIsRescuer(userService.getIsRescuer());
 
       setAccessToken(access_token);
       setIsAuthenticated(await isAccessTokenValid(access_token));

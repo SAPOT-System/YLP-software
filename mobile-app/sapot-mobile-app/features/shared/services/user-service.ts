@@ -79,8 +79,13 @@ export class UserService {
       this.userStore.setUser(user, isGuest);
 
       if (!isGuest) {
-        const rescuer = await isRescuerApi();
-        this.userStore.setIsRescuer(rescuer);
+        try {
+          const rescuer = await isRescuerApi();
+          this.userStore.setIsRescuer(rescuer);
+        } catch (error) {
+          this.warn("rescuer check failed, defaulting false", { error });
+          this.userStore.setIsRescuer(false);
+        }
       } else {
         this.userStore.setIsRescuer(false);
       }
