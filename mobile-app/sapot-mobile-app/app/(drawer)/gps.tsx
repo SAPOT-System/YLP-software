@@ -5,11 +5,15 @@ import {
   RasterSource,
   Layer,
   UserLocation,
+  Marker,
 } from "@maplibre/maplibre-react-native";
 import { Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Icon } from "react-native-paper";
 import { useAuth } from "@/features/auth";
+import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { useLocationPermission } from "@/features/gps/hooks/useLocationPermission";
+import { useLatestLocations } from "@/features/gps/hooks/useLatestLocations";
 import { getTileServerUrl } from "@/config/runtime";
 
 const TILE_URL = `${getTileServerUrl()}/styles/basic-preview/{z}/{x}/{y}.png`;
@@ -22,8 +26,12 @@ const EMPTY_STYLE = {
 
 export default function GpsScreen() {
   const { isAuthenticated, isRescuer } = useAuth();
+  const userStore = useUserStore();
   const insets = useSafeAreaInsets();
   const locationGranted = useLocationPermission();
+  const { data: rawLocations = [] } = useLatestLocations();
+  const currentUserId = userStore.user.id;
+  const userLocations = rawLocations.filter((loc) => loc.user_id !== currentUserId);
 
   if (!isAuthenticated || !isRescuer) {
     return <Redirect href="/(drawer)/(tabs)" />;
@@ -59,6 +67,19 @@ export default function GpsScreen() {
           <Layer id="tileserver-layer" type="raster" source="tileserver" />
         </RasterSource>
         <UserLocation animated />
+        {userLocations.map((loc) => (
+          <Marker
+            key={loc.user_id}
+            id={loc.user_id}
+            lngLat={[loc.longitude, loc.latitude]}
+            anchor="bottom"
+          >
+            <View style={styles.marker}>
+              <Icon source="map-marker-account" size={32} color="#E53935" />
+              <Text style={styles.markerLabel}>{loc.username}</Text>
+            </View>
+          </Marker>
+        ))}
       </Map>
     </View>
   );
@@ -68,4 +89,12 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  marker: { alignItems: "center" },
+  markerLabel: {
+    backgroundColor: "rgba(0,0,0,0.55)",
+    color: "#fff",
+    paddingHorizontal: 4,
+    borderRadius: 4,
+    fontSize: 11,
+  },
 });
