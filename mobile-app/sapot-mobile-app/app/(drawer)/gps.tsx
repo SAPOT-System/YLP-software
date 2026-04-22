@@ -7,9 +7,10 @@ import {
   UserLocation,
   Marker,
 } from "@maplibre/maplibre-react-native";
-import { Redirect } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "react-native-paper";
+import { ChatRoomSource } from "@/features/chat/types";
 import { useAuth } from "@/features/auth";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { useLocationPermission } from "@/features/gps/hooks/useLocationPermission";
@@ -73,6 +74,12 @@ export default function GpsScreen() {
             id={loc.user_id}
             lngLat={[loc.longitude, loc.latitude]}
             anchor="bottom"
+            onPress={() =>
+              router.push({
+                pathname: "/(drawer)/(tabs)/chat/[id]",
+                params: { id: loc.user_id, source: ChatRoomSource.PEER },
+              })
+            }
           >
             <View style={styles.marker}>
               <Icon source="map-marker-account" size={32} color="#E53935" />
