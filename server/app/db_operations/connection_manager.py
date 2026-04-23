@@ -22,8 +22,18 @@ class ConnectionManager:
             await websocket.send_json(message)
 
     async def broadcast(self, message: dict):
-        for _, connection in self.active_connections.items():
-            await connection.send_json(message)
+        # save the broadcasted messages to the database
+        
+        disconnected_users = []
+        for user_id, connection in self.active_connections.items():
+            try:
+                await connection.send_json(message)
+            except Exception:
+                disconnected_users.append(user_id)
+
+        for uid in disconnected_users:
+            self.disconnect(uid)
+                
 
     def get_active_connections(self):
         return [str(x) for x in self.active_connections.keys()]
