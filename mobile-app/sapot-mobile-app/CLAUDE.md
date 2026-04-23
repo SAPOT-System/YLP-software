@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs/CALL_FLOW.md` — new call message types or lifecycle changes
 - `docs/API.md` — new or changed REST endpoints
 - `docs/DATABASE.md` — schema changes (new tables, columns, enums)
+- `docs/SYNC.md` — sync strategy, triggers, and `lastPulledAt` tracking
 - `docs/ENV_CONFIG.md` — new env vars, build variants, or secure storage keys
 - `docs/TESTING.md` — new test utilities, mock patterns, or testing conventions
 - `docs/CONNECTION_MESSAGES.md` — new WebSocket, TCP, or WebRTC data channel messages
@@ -38,6 +39,11 @@ npm run android           # run with dev app-id
 npm run android:dev       # development profile
 npm run android:prev      # preview profile
 npm run android:prod      # production profile
+
+# EAS OTA updates (push JS bundle without full build)
+npm run update:dev        # push to development channel
+npm run update:prev       # push to preview channel
+npm run update:prod       # push to production channel
 
 # TypeScript type check
 npm run typecheck
@@ -82,7 +88,7 @@ features/<name>/
   index.ts        # Public API
 ```
 
-Features: `auth`, `call`, `chat`, `getting-started`, `settings`, `shared`, `sync`
+Features: `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`
 
 ### Core Services (`features/shared/services/`)
 
@@ -94,6 +100,7 @@ Features: `auth`, `call`, `chat`, `getting-started`, `settings`, `shared`, `sync
 - **`ChatService`** — message send/receive and persistence to WatermelonDB via data channels.
 - **`CallService`** — audio/video call lifecycle. Manages audio routes (earpiece/speaker/Bluetooth) via `react-native-incall-manager`.
 - **`SyncService`** — periodic sync of local data with the server REST API.
+- **`CleanUpService`** — purges stale peers, messages, and conversations. Wired into `UserService` so cleanup runs on logout.
 
 ### Adapters (`features/shared/adapters/`)
 
@@ -105,6 +112,17 @@ Thin injectable wrappers around native modules for testability:
 | `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat (signaling relay via server) |
 | `ZeroconfAdapter` | `react-native-zeroconf` |
 | `WebrtcAdapter` | `react-native-webrtc` |
+
+### GPS Feature (`features/gps/`)
+
+Live location sharing with server-side relay — independent of the P2P transport.
+
+- **`GpsLocationService`** — opens a dedicated WebSocket to `/gps/ws/<userId>`, watches device position via `expo-location`, and streams `{ lat, lng }` updates. Auto-reconnects on disconnect (3 s delay). Does **not** go through `ConnectionService`.
+- **`useGpsStreaming`** — starts/stops `GpsLocationService` based on auth state and user preference. Only runs for authenticated, non-guest users with sharing enabled.
+- **`useLatestLocations`** — polls `GET /gps/latest` every 5 s via React Query; used to render other rescuers on the map.
+- **`GpsPreferenceContext`** — persists the user's sharing toggle in `expo-secure-store` (key: `gps_sharing_enabled`). Wrap screens that need the preference with `GpsPreferenceProvider`.
+- Map rendering uses `@maplibre/maplibre-react-native`.
+- `UserStore.isRescuer` gates whether GPS streaming is activated after user sync in `AuthProvider`.
 
 ### Background Task Integration
 
