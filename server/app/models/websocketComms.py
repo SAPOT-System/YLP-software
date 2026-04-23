@@ -1,13 +1,13 @@
 from uuid import UUID
 from pydantic import BaseModel, Field
-from typing import List, Literal, Optional, Dict, Any
+from typing import List, Literal, Optional, Dict, Any, override
 
 from app.models.call import StatusType
 from app.models.message import MessageType
 
 class data(BaseModel):
     from_user: str = Field(alias="from")
-    to: str
+    to: Optional[str] = None
     message: Optional[str] = None
     conversationId: Optional[str] = None
     messageId: Optional[str] = None
@@ -21,5 +21,8 @@ class data(BaseModel):
 class MessageData(BaseModel):
     type: Literal['audio-call', 'chat', 'video-call', 'call-ended', 'call-ready'] = Field(alias="type")
     data: data
+
+class PublicMessageData(MessageData):
+    type: Literal["public-chat"] = Field(default="public-chat", alias="type")
 
 

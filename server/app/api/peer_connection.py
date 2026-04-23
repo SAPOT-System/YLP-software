@@ -12,9 +12,9 @@ from app.db_operations.token import verify_token
 from app.models.queued import Queue
 from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
-from app.db_operations.websockets import authenticate_websocket, relay_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message
+from app.db_operations.websockets import authenticate_websocket, relay_message, relay_public_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message
 from app.db_operations.connection_manager import manager
-from app.models.websocketComms import MessageData
+from app.models.websocketComms import MessageData, PublicMessageData
 
 router = APIRouter(
     prefix='/ws',
@@ -207,6 +207,10 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                 await manager.send_personal_message(UUID(user_id), manager.get_active_connections())
                 continue
 
+            # relay public chat data
+            if isinstance(payload, PublicMessageData):
+                await relay_public_message(user_id, payload, session)
+            
             # relay message data
             if isinstance(payload, MessageData):
                 await relay_message(user_id, UUID(payload.data.to), payload, session)

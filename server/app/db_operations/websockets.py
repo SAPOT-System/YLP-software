@@ -9,7 +9,7 @@ from app.models.queued import Queue
 from app.models.signalling import SignalMessage
 from app.db_operations.token import verify_token
 from app.db_operations.connection_manager import manager
-from app.models.websocketComms import MessageData
+from app.models.websocketComms import MessageData, PublicMessageData
 
 async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
     user_id = verify_token(token)
@@ -87,6 +87,13 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
     else:
         await relay_message_fails(sender_id, target_id, payload, message, session)
 
+
+async def relay_public_message(sender_id: UUID, payload: PublicMessageData, session: SessionDep):
+    message = {
+        "type": payload.type,
+        "data": payload.data.model_dump(exclude_none=True)
+    }
+    await manager.broadcast(message)
 
 async def receive_signal_message(websocket: WebSocket) -> SignalMessage|dict:
     raw_payload = await websocket.receive_json()
