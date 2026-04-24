@@ -228,7 +228,7 @@ def sync_extra_data_fixture(session: Session):
 
 
 @pytest.fixture
-def test_user(session):
+def test_user_instance(session):
     """Creates a standard user in the test database."""
     from app.db_operations.auth import get_password_hash
     user = User(
@@ -245,11 +245,11 @@ def test_user(session):
     return user
 
 @pytest.fixture
-def test_rescuer(session, test_user):
+def test_rescuer(session, test_user_instance):
     """Links a Rescuer profile to the test user."""
     rescuer = Rescuer(
         id=uuid.uuid4(),
-        user_id=test_user.id
+        user_id=test_user_instance.id
     )
     session.add(rescuer)
     session.commit()

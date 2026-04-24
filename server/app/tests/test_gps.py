@@ -2,8 +2,10 @@ import pytest
 from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from sqlmodel import select
 from app.main import app  # Import your FastAPI app instance
 from app.models.location import UserLocation # Import your model
+from app.tests.assets import sample_users
 import uuid
 import json
 
@@ -48,12 +50,12 @@ def test_stream_gps_invalid_data(client: TestClient):
             websocket.receive_json()
 
 
-def test_get_all_latest_locations(client: TestClient, session, test_user, test_rescuer):
+def test_get_all_latest_locations(client: TestClient, session, test_user_instance, test_rescuer, auth_header):
     """
     Test that /gps/latest only returns the MOST RECENT ping per user.
     """
-    user_a = uuid.uuid4()
-    user_b = uuid.uuid4()
+    user_a = sample_users.get('tony_stark')["id"]
+    user_b = sample_users.get('steve_rogers')["id"]    
     
     # User A - Old ping
     loc1 = UserLocation(user_id=user_a, latitude=10.0, longitude=10.0, 
@@ -63,16 +65,18 @@ def test_get_all_latest_locations(client: TestClient, session, test_user, test_r
                         timestamp=datetime.now(timezone.utc))
     # User B - Only one ping
     loc3 = UserLocation(user_id=user_b, latitude=20.0, longitude=20.0)
-
     session.add_all([loc1, loc2, loc3])
     session.commit()
-
+    session.expire_all()
+    
     headers = get_auth_headers(client, 'testusername', 'test_password')
 
     response = client.get("/gps/latest", headers=headers)
     assert response.status_code == 200
     data = response.json()
-
+    print("data", data)
+    # res = session.exec(select(UserLocation))
+    # print("res", res.all())
     # Should return exactly 2 records (one for each user)
     assert len(data) == 2
     
@@ -80,7 +84,7 @@ def test_get_all_latest_locations(client: TestClient, session, test_user, test_r
     user_a_record = next(item for item in data if item["user_id"] == str(user_a))
     assert user_a_record["latitude"] == 11.0
 
-def test_get_user_location_history(client: TestClient, session, test_user, test_rescuer):
+def test_get_user_location_history(client: TestClient, session, test_user_instance, test_rescuer):
     """
     Test that /gps/history/{user_id} returns multiple pings for one user.
     """
@@ -110,7 +114,7 @@ def test_get_user_location_history(client: TestClient, session, test_user, test_
     # The first item should be the one with 0 minutes offset (lat 15.0)
     assert data[0]["latitude"] == 15.0
 
-def test_get_history_not_found(client: TestClient, test_user, test_rescuer):
+def test_get_history_not_found(client: TestClient, test_user_instance, test_rescuer):
     """
     Test 404 behavior for users with no data.
     """
@@ -123,8 +127,8 @@ def test_get_history_not_found(client: TestClient, test_user, test_rescuer):
 
 
 
-def test_gps_broadcast_to_rescuer(client, session, test_user, test_rescuer):
-    user_id_str = str(test_user.id)
+def test_gps_broadcast_to_rescuer(client, session, test_user_instance, test_rescuer):
+    user_id_str = str(test_user_instance.id)
     rescuer_id_str = str(test_rescuer.id)
     payload = {"lat": 14.5, "lng": 121.0}
 
