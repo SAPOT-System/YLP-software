@@ -17,7 +17,7 @@ from app.models.message import Message, MessageType
 from app.models.call import Call, CallType, StatusType
 from app.models.users import User
 from fastapi.testclient import TestClient
-
+from app.models.guest import Guest
 from app.tests.conftest import sample_ids_with_test_user
 
 def test_push_create_records(client: TestClient, auth_header, sample_ids, session: SessionDep):
@@ -808,3 +808,139 @@ def test_pull_pagination_messages(client: TestClient, auth_header, sample_ids, t
     # Ensure no overlap across all pages
     all_ids = ids_page1 | ids_page2 | ids_page3
     assert len(all_ids) == total_messages
+
+
+
+def test_push_sync_creates_guest_account_for_unknown_user(
+    client: TestClient,
+    auth_header,
+    sample_ids_with_test_user,
+    session: Session,
+):
+    # 1. Setup: Create a conversation but NOT the guest user
+    conv_id = str(uuid.uuid4())
+    guest_user_id = str(uuid.uuid4())  # This ID does not exist in DB yet
+    msg_id = str(uuid.uuid4())
+
+    # Pre-populate the conversation so the message has somewhere to go
+    conversation = Conversation(
+        id=UUID(conv_id),
+        title="Sync Test Chat",
+        conversation_type="direct",
+        created_at=1712234500000,
+        updated_at=1712234500000,
+    )
+    session.add(conversation)
+    session.commit()
+
+    # 2. Prepare the Push Request Payload
+    # We include a message from a user_id that the server has never seen
+    payload = {
+        "last_pulled_at": 1712234500000,
+        "changes": {
+            "conversations": {"created": [], "updated": [], "deleted": []},
+            "messages": {
+                "created": [
+                    {
+                        "id": msg_id,
+                        "content": "Message from a ghost",
+                        "conversation_id": conv_id,
+                        "sender_id": guest_user_id, # This triggers ensure_user_exists
+                        "created_at": 1712234600000,
+                        "updated_at": 1712234600000,
+                    }
+                ],
+                "updated": [],
+                "deleted": []
+            },
+            "conversation_participants": {"created": [], "updated": [], "deleted": []},
+            "calls": {"created": [], "updated": [], "deleted": []},
+            "call_participants": {"created": [], "updated": [], "deleted": []},
+            "message_receipts": {"created": [], "updated": [], "deleted": []},
+        }
+    }
+
+    # 3. Execution
+    response = client.post(
+        "/sync/push",
+        headers=auth_header,
+        json=payload,
+    )
+
+    # 4. Assertions
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+    # Verify User was created
+    db_user = session.get(User, UUID(guest_user_id))
+    assert db_user is not None
+    assert db_user.username == f"guest_{guest_user_id}"
+
+    # Verify Guest record was created
+    db_guest = session.exec(select(Guest).where(Guest.user_id == UUID(guest_user_id))).first()
+    assert db_guest is not None
+
+    # Verify the message was saved successfully linked to the new guest
+    db_msg = session.get(Message, UUID(msg_id))
+    assert db_msg is not None
+    assert db_msg.sender_id == UUID(guest_user_id)
+
+
+def test_pull_returns_messages_with_null_conversation_id(
+    client: TestClient, 
+    auth_header, 
+    test_user
+):
+    """
+    Verifies that messages where conversation_id is None (public/system chats)
+    are included in the pull response regardless of the user's participation.
+    """
+    user_id = str(test_user["id"])
+    base_time = 1712234000000
+    public_msg_id = str(uuid4())
+
+    # --- STEP 1: Create a message with conversation_id as None ---
+    # We push this directly to simulate it being in the database.
+    # Depending on your model constraints, conversation_id must be nullable.
+    client.post("/sync/push", json={
+        "changes": {
+            "messages": {
+                "created": [{
+                    "id": public_msg_id,
+                    "content": "Public Announcement",
+                    "sender_id": user_id,
+                    "created_at": base_time + 1000,
+                    "updated_at": base_time + 1000,
+                }],
+                "updated": [],
+                "deleted": []
+            }
+        },
+        "last_pulled_at": 0
+    }, headers=auth_header)
+
+    # --- STEP 2: Pull changes ---
+    response = client.get(
+        "/sync/pull", 
+        headers=auth_header, 
+        params={"last_pulled_at": 0}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    
+    messages = data["changes"]["messages"]["created"]
+    print("Messages", messages)
+    # --- STEP 3: Verify the Null Conversation ID message is present ---
+    # Filter for our specific message ID
+    target_msg = next((m for m in messages if m["id"] == public_msg_id), None)
+    
+    assert target_msg is not None, "Message with NULL conversation_id was not returned"
+    assert target_msg["conversation_id"] is None
+    assert target_msg["content"] == "Public Announcement"
+
+    # --- STEP 4: Double check logic ---
+    # Ensure that even if the user has NO conversation participants, 
+    # the public message still flows through.
+    res_no_convs = client.get("/sync/pull", headers=auth_header)
+    assert any(m["id"] == public_msg_id for m in res_no_convs.json()["changes"]["messages"]["created"])
