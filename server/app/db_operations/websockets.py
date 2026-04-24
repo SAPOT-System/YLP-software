@@ -89,11 +89,21 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
 
 
 async def relay_public_message(sender_id: UUID, payload: PublicMessageData, session: SessionDep):
-    message = {
-        "type": payload.type,
-        "data": payload.data.model_dump(exclude_none=True)
-    }
-    await manager.broadcast(message)
+    # save the public message to database
+    try:
+
+        message = payload.model_dump(exclude_unset=True)
+        message["sender_id"] = str(message["sender_id"])
+        message_to_db = Message(**payload.model_dump(exclude_unset=True))
+        session.add(message_to_db)
+        session.commit()
+        print("message", message)
+        await manager.broadcast(message)
+        print("HERE relaying")
+    except Exception as e:
+        print(e)
+        pass
+    
 
 async def receive_signal_message(websocket: WebSocket) -> SignalMessage|dict:
     raw_payload = await websocket.receive_json()
@@ -103,5 +113,3 @@ async def receive_signal_message(websocket: WebSocket) -> SignalMessage|dict:
         return  payload
     except ValidationError:
         return raw_payload
-        print("ERRORR: receive signal message")
-        return None
