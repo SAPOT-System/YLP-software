@@ -1106,3 +1106,68 @@ this will be queued in the webserver in case the user receiving was offline
 
 
 this will also be sent to the user in case the user comes online (connect to the websocket again)
+
+*** Public chat function
+This websocket endpoint is at ~/ws/~. It uses the following model:
+#+BEGIN_SRC python
+  class PublicMessageData(BaseModel):
+    id: Optional[UUID] = None
+    type: Literal["public-chat"] = Field(default="public-chat", alias="type")
+    content : str = Field(max_length=255, min_length=1)
+    is_deleted: bool = Field(default=False)
+    conversation_id: None = None
+    sender_id : UUID = Field(alias="from")
+#+END_SRC
+
+
+
+
+use the web socket like:
+#+BEGIN_SRC js
+  const WebSocket = require('ws');
+
+  // 1. Configuration
+  const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlNTA1OGIwZS0xOTYxLTRiOWItODVmZC02NmU4Yjk3MzMwYjMiLCJqdGkiOiJlYjcwNjI4Ny1hNDA2LTQzMTYtOGQwNi0wMmI4YTFkZWJlODAiLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc2OTkyNzA5fQ.TTOr7rSLK9rSYuDB2iefyTw0Z11WARzm9Y7enfI_EIk";
+  const WS_URL = `ws://localhost:8000/ws/?token=${TOKEN}`;
+
+  const MY_USER_ID = "e5058b0e-1961-4b9b-85fd-66e8b97330b3"; 
+
+  const socket = new WebSocket(WS_URL);
+
+  socket.on('open', () => {
+      console.log("✅ Connected to Public Chat Server");
+
+      // 2. Construct the Payload matching PublicMessageData
+      const publicChatPayload = {
+  	type: "public-chat", // Overridden field in PublicMessageData
+  	"content": "Hello World",
+  	"from": MY_USER_ID,
+  	"created_at": 1712234500001,
+  	"updated_at": 1712234500001,
+  	"is_deleted": false
+      };
+
+      // 3. Send the Message
+      console.log(`📤 Sending ${publicChatPayload.type} message...`);
+      console.log("message sent");
+      socket.send(JSON.stringify(publicChatPayload));
+  });
+
+  socket.on('message', (rawData) => {
+      try {
+  	const message = JSON.parse(rawData.toString());
+  	console.log("📥 Received from Server:", JSON.stringify(message));
+      } catch (e) {
+  	console.log("📥 Received (Raw):", rawData.toString());
+      }
+  });
+
+  socket.on('error', (err) => {
+      console.error("❌ WebSocket Error:", err.message);
+  });
+
+  socket.on('close', (code, reason) => {
+      console.log(`🔌 Connection closed. Code: ${code} ${reason}`);
+  });
+
+#+END_SRC
