@@ -49,7 +49,8 @@ async def pull_remote_changes(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_user)],
     last_pulled_at: int = Query(default=0),
-    schema_version: int = Query(default=1),
+    # schema_version: int = Query(default=1),
+    limit: int = Query(default=100)
     # Migration is usually passed as a JSON string in GET or handled via POST
 ):
     # 1. CONSISTENT TIME-MARKING
@@ -63,13 +64,14 @@ async def pull_remote_changes(
         # 2. QUERY LOGIC
         if last_pulled_at == 0:
             # Initial sync: Fetch all records that are NOT deleted
-            stmt = select(model).where(ownershipFilter ,col(model.is_deleted) == False)
+            stmt = select(model).where(ownershipFilter, col(model.is_deleted) == False).order_by(col(model.updated_at)).limit(limit)
         else:
             # Incremental sync: Fetch anything updated since last pull
-            stmt = select(model).where(ownershipFilter, col(model.updated_at) > last_pulled_at)
+            stmt = select(model).where(ownershipFilter, col(model.updated_at) > last_pulled_at).order_by(col(model.updated_at)).limit(limit)
 
         results = session.exec(stmt).all()
-
+        has_more = len(results) == limit
+        next_cursor = results[-1].updated_at if results else None
         created = []
         updated = []
         deleted = []
@@ -103,7 +105,9 @@ async def pull_remote_changes(
         return {
             "created": created, 
             "updated": updated, 
-            "deleted": deleted
+            "deleted": deleted,
+            "next_cursor": next_cursor,
+            "has_more": has_more
         }
 
     # 5. SCOPED CHANGES (Collection Whitelist)
