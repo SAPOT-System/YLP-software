@@ -18,6 +18,8 @@ from app.models.call import Call, CallType, StatusType
 from app.models.users import User
 from fastapi.testclient import TestClient
 
+from app.tests.conftest import sample_ids_with_test_user
+
 def test_push_create_records(client: TestClient, auth_header, sample_ids, session: SessionDep):
     payload = {
         "changes": {
@@ -108,16 +110,22 @@ def test_push_record_count_integrity(client: TestClient, auth_header, sample_ids
     assert pushed_msg.content == "Verify count"
 
 
+def test_sync_full_cycle(client: TestClient, auth_header, sample_ids_with_test_user):
+    """
+    Full sync cycle:
 
-def test_sync_full_cycle(client: TestClient, auth_header, sample_ids):
+    1. PUSH: Create conversation + participant (ensures visibility).
+    2. PULL: Get baseline timestamp.
+    3. PUSH: Update conversation + create message (future timestamp).
+    4. PULL: Verify correct changes are returned.
     """
-    1. PUSH: Create a conversation and a message.
-    2. PUSH: Update the message and delete the conversation.
-    3. PULL: Verify the changes match the timestamps.
-    """
+
     conv_id = str(uuid4())
     msg_id = str(uuid4())
-    
+    participant_id = str(uuid4())
+
+    user_id = sample_ids_with_test_user["user_id"]
+
     # --- STEP 1: PUSH CREATED DATA ---
     push_create_payload = {
         "changes": {
@@ -130,23 +138,38 @@ def test_sync_full_cycle(client: TestClient, auth_header, sample_ids):
                     "updated_at": 1712234000000,
                     "is_deleted": False
                 }],
-                "updated": [], "deleted": []
+                "updated": [],
+                "deleted": []
+            },
+            "conversation_participants": {
+                "created": [{
+                    "id": participant_id,
+                    "conversation_id": conv_id,
+                    "user_id": user_id,
+                    "joined_at": 1712234000000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
             }
         },
         "last_pulled_at": 0
     }
-    
+
     res_push_1 = client.post("/sync/push", json=push_create_payload, headers=auth_header)
     assert res_push_1.status_code == 200
 
-    # --- STEP 2: PULL TO GET THE BASELINE TIMESTAMP ---
+    # --- STEP 2: INITIAL PULL ---
     res_pull_1 = client.get("/sync/pull?last_pulled_at=0", headers=auth_header)
-    baseline_timestamp = res_pull_1.json()["timestamp"] # e.g. 1775284398173
 
-    # --- STEP 3: PUSH UPDATED & DELETED DATA (In the "Future") ---
-    # We use a timestamp higher than the baseline to ensure it shows up in next pull
-    future_now = baseline_timestamp + 1000 
-    
+    assert res_pull_1.status_code == 200
+    print("RES 2", res_pull_1.json())
+
+    baseline_timestamp = res_pull_1.json()["timestamp"]
+
+    # --- STEP 3: PUSH UPDATED + NEW MESSAGE ---
+    future_now = baseline_timestamp + 1000
+
     push_update_payload = {
         "changes": {
             "conversations": {
@@ -164,36 +187,47 @@ def test_sync_full_cycle(client: TestClient, auth_header, sample_ids):
                     "id": msg_id,
                     "content": "New Message",
                     "conversation_id": conv_id,
-                    "sender_id": sample_ids["user_id"],
+                    "sender_id": user_id,
                     "created_at": future_now,
                     "updated_at": future_now,
                     "is_deleted": False
                 }],
-                "updated": [], "deleted": []
+                "updated": [],
+                "deleted": []
             }
         },
         "last_pulled_at": baseline_timestamp
     }
-    
+
     res_push_2 = client.post("/sync/push", json=push_update_payload, headers=auth_header)
     assert res_push_2.status_code == 200
 
-    # --- STEP 4: FINAL PULL (THE TRUTH) ---
-    # We pull using the baseline. We expect 1 Update (Conv) and 1 Created (Msg)
-    res_pull_final = client.get(f"/sync/pull?last_pulled_at={baseline_timestamp}", headers=auth_header)
-    data = res_pull_final.json()["changes"]
+    # --- STEP 4: FINAL PULL ---
+    res_pull_final = client.get(
+        f"/sync/pull?last_pulled_at={baseline_timestamp}",
+        headers=auth_header
+    )
+    assert res_pull_final.status_code == 200
 
-    # Verify Conversation was moved to 'updated'
+    body = res_pull_final.json()
+    data = body["changes"]
+
+    # --- ASSERTIONS ---
+
+    # Conversation updated
     assert len(data["conversations"]["updated"]) == 1
-    assert data["conversations"]["updated"][0]["title"] == "Updated Title"
-    assert data["conversations"]["updated"][0]["id"] == conv_id
+    updated_conv = data["conversations"]["updated"][0]
+    assert updated_conv["id"] == conv_id
+    assert updated_conv["title"] == "Updated Title"
 
-    # Verify Message appears in 'created'
+    # Message created (visible due to participant)
     assert len(data["messages"]["created"]) == 1
-    assert data["messages"]["created"][0]["content"] == "New Message"
-    
-    # Verify the timestamp moved forward
-    assert res_pull_final.json()["timestamp"] > baseline_timestamp
+    created_msg = data["messages"]["created"][0]
+    assert created_msg["id"] == msg_id
+    assert created_msg["content"] == "New Message"
+
+    # Timestamp advanced
+    assert body["timestamp"] > baseline_timestamp
 
 
 def test_sync_deletion_flow(client: TestClient, auth_header):
@@ -217,7 +251,13 @@ def test_sync_deletion_flow(client: TestClient, auth_header):
             },
             # Include other tables as empty to avoid potential parsing errors
             "messages": {"created": [], "updated": [], "deleted": []},
-            "conversation_participants": {"created": [], "updated": [], "deleted": []},
+            "conversation_participants": {"created": [{
+                    "id": str(uuid4()),
+                    "conversation_id": record_id,
+                    "user_id": str(sample_users.get("test")["id"]).replace("-", ""),
+                    "joined_at": 1712234000000,
+                    "is_deleted": False
+                }], "updated": [], "deleted": []},
             "calls": {"created": [], "updated": [], "deleted": []},
             "call_participants": {"created": [], "updated": [], "deleted": []},
             "message_receipts": {"created": [], "updated": [], "deleted": []}
@@ -228,6 +268,7 @@ def test_sync_deletion_flow(client: TestClient, auth_header):
     push_res = client.post("/sync/push", json=create_payload, headers=auth_header)
     assert push_res.status_code == 200
 
+    
     # 2. Delete it
     delete_payload = {
         "changes": {
@@ -258,7 +299,7 @@ def test_sync_deletion_flow(client: TestClient, auth_header):
     created_ids = [c["id"] for c in data["changes"]["conversations"]["created"]]
     assert record_id not in created_ids
 
-def test_sync_upsert_logic(client: TestClient, auth_header):
+def test_sync_upsert_logic(client: TestClient, auth_header, test_user):
     """
     Requirement: 
     1. If 'created' ID exists -> Update it.
@@ -276,6 +317,17 @@ def test_sync_upsert_logic(client: TestClient, auth_header):
                     "id": record_id, "title": "I was updated first", 
                     "conversation_type": "solo", "updated_at": 1000
                 }],
+                "deleted": []
+            },
+            "conversation_participants": {
+                "created": [{
+                    "id": str(uuid4()),
+                    "conversation_id": record_id,
+                    "user_id": str(test_user["id"]),
+                    "joined_at": 1712234000000,
+                    "is_deleted": False
+                }],
+                "updated": [],
                 "deleted": []
             }
         },
@@ -311,7 +363,7 @@ def test_sync_upsert_logic(client: TestClient, auth_header):
     assert record["title"] == "Now I am created"
 
 
-def test_sync_conflict_detection(client: TestClient, auth_header):
+def test_sync_conflict_detection(client: TestClient, auth_header, test_user):
     """
     Requirement: If record modified on server AFTER last_pulled_at, MUST abort (409).
     """
@@ -319,9 +371,22 @@ def test_sync_conflict_detection(client: TestClient, auth_header):
     
     # 1. Create a record on server
     client.post("/sync/push", json={
-        "changes": {"conversations": {"created": [{
+        "changes": {
+            "conversations": {"created": [{
             "id": record_id, "title": "Server Version", "conversation_type": "group", "updated_at": 5000
-        }], "updated": [], "deleted": []}},
+            }], "updated": [], "deleted": []},
+            "conversation_participants": {
+                "created": [{
+                    "id": str(uuid4()),
+                    "conversation_id": record_id,
+                    "user_id": str(test_user["id"]),
+                    "joined_at": 1712234000000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            },
+        },
         "last_pulled_at": 0
     }, headers=auth_header)
 
@@ -344,7 +409,7 @@ def test_sync_conflict_detection(client: TestClient, auth_header):
     assert response.status_code == 409
 
 
-def test_sync_transactional_integrity(client: TestClient, auth_header):
+def test_sync_transactional_integrity(client: TestClient, auth_header, test_user):
     """
     Requirement: If one part fails, ALL must revert.
     """
@@ -362,6 +427,17 @@ def test_sync_transactional_integrity(client: TestClient, auth_header):
             "messages": {
                 "created": [{"id": invalid_id, "content": "Fail", "updated_at": 100}],
                 "updated": [], "deleted": []
+            },
+            "conversation_participants": {
+                "created": [{
+                    "id": str(uuid4()),
+                    "conversation_id": valid_id,
+                    "user_id": str(test_user["id"]), 
+                    "joined_at": 1712234000000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
             }
         },
         "last_pulled_at": 0
@@ -375,7 +451,7 @@ def test_sync_transactional_integrity(client: TestClient, auth_header):
     assert valid_id not in created_convs
 
 
-def test_sync_sanitation(client: TestClient, auth_header):
+def test_sync_sanitation(client: TestClient, auth_header, test_user):
     """
     Requirement: Ignore _status and _changed fields.
     """
@@ -393,6 +469,17 @@ def test_sync_sanitation(client: TestClient, auth_header):
                     "non_existent_field": "ignore me" # Should be ignored by hasattr check
                 }],
                 "updated": [], "deleted": []
+            },
+            "conversation_participants": {
+                "created": [{
+                    "id": str(uuid4()),
+                    "conversation_id": record_id,
+                    "user_id": str(test_user["id"]),
+                    "joined_at": 1712234000000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
             }
         },
         "last_pulled_at": 0
@@ -406,3 +493,195 @@ def test_sync_sanitation(client: TestClient, auth_header):
     record = res.json()["changes"]["conversations"]["created"][0]
     assert "_status" not in record
     assert "non_existent_field" not in record
+
+
+def test_pull_initial_sync_returns_created_records(
+    client: TestClient,
+    auth_header,
+    sample_ids_with_test_user,
+    session: SessionDep,
+):
+    # First: create data directly (simulate already-synced DB state)
+    conversation = Conversation(
+        id=UUID(sample_ids_with_test_user["conv_id"]),
+        title="Test Chat",
+        conversation_type=ConversationType.direct,
+        created_at=1712234500000,
+        updated_at=1712234500000,
+        is_deleted=False,
+    )
+
+    message = Message(
+        id=UUID(sample_ids_with_test_user["msg_id"]),
+        content="Hello World",
+        conversation_id=UUID(sample_ids_with_test_user["conv_id"]),
+        sender_id=UUID(sample_ids_with_test_user["user_id"]),
+        created_at=1712234500001,
+        updated_at=1712234500001,
+        is_deleted=False,
+    )
+
+    participant = ConversationParticipant(
+        id=UUID(sample_ids_with_test_user["participant_id"]),
+        user_id=UUID(sample_ids_with_test_user["user_id"]),
+        conversation_id=UUID(sample_ids_with_test_user["conv_id"]),
+        created_at=1712234500000,
+        updated_at=1712234500000,
+        is_deleted=False,
+    )
+
+    session.add_all([conversation, message, participant])
+    session.commit()
+
+    # Pull with last_pulled_at = 0 (initial sync)
+    response = client.get(
+        "/sync/pull",
+        headers=auth_header,
+        params={"last_pulled_at": 0},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "changes" in data
+
+    # Conversations should appear in "created"
+    assert len(data["changes"]["conversations"]["created"]) == 1
+    assert data["changes"]["conversations"]["created"][0]["id"] == sample_ids_with_test_user["conv_id"]
+
+    # Messages should appear in "created"
+    assert len(data["changes"]["messages"]["created"]) == 1
+    assert data["changes"]["messages"]["created"][0]["id"] == sample_ids_with_test_user["msg_id"]
+
+
+def test_pull_incremental_returns_updated_records(
+    client: TestClient,
+    auth_header,
+    sample_ids_with_test_user,
+    session: SessionDep,
+):
+    # Create initial record
+    conversation = Conversation(
+        id=UUID(sample_ids_with_test_user["conv_id"]),
+        title="Old Title",
+        conversation_type="direct",
+        created_at=1712234500000,
+        updated_at=1712234500000,
+        is_deleted=False,
+    )
+
+    participant = ConversationParticipant(
+        id=UUID(sample_ids_with_test_user["participant_id"]),
+        user_id=UUID(sample_ids_with_test_user["user_id"]),
+        conversation_id=UUID(sample_ids_with_test_user["conv_id"]),
+        created_at=1712234500000,
+        updated_at=1712234500000,
+        is_deleted=False,
+    )
+    
+    session.add(conversation)
+    session.add(participant)
+    session.commit()
+
+    # Update it later
+    conversation.title = "Updated Title"
+    conversation.updated_at = 1712234600000
+    session.add(conversation)
+    session.commit()
+
+    # Pull after original timestamp
+    response = client.get(
+        "/sync/pull",
+        headers=auth_header,
+        params={"last_pulled_at": 1712234550000},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    print("data", data)
+    updated = data["changes"]["conversations"]["updated"]
+
+    assert len(updated) == 1
+    assert updated[0]["title"] == "Updated Title"
+
+
+def test_pull_returns_deleted_records(
+    client: TestClient,
+    auth_header,
+    sample_ids_with_test_user,
+    session: SessionDep,
+):
+    conversation = Conversation(
+        id=UUID(sample_ids_with_test_user["conv_id"]),
+        title="To be deleted",
+        conversation_type="group",
+        created_at=1712234500000,
+        updated_at=1712234500000,
+        is_deleted=False,
+    )
+    participant = ConversationParticipant(
+        id=UUID(sample_ids_with_test_user["participant_id"]),
+        user_id=UUID(sample_ids_with_test_user["user_id"]),
+        conversation_id=UUID(sample_ids_with_test_user["conv_id"]),
+        created_at=1712234500000,
+        updated_at=1712234500000,
+        is_deleted=False,
+    )
+    
+    session.add(participant)
+    session.add(conversation)
+    session.commit()
+
+    # Soft delete
+    conversation.is_deleted = True
+    conversation.updated_at = 1712234700000
+    session.add(conversation)
+    session.commit()
+
+    response = client.get(
+        "/sync/pull",
+        headers=auth_header,
+        params={"last_pulled_at": 1712234600000},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    deleted = data["changes"]["conversations"]["deleted"]
+
+    assert sample_ids_with_test_user["conv_id"] in deleted
+
+
+def test_pull_only_returns_user_scoped_data(
+    client: TestClient,
+    auth_header,
+    sample_ids_with_test_user,
+    session: SessionDep,
+):
+    # Conversation NOT linked to user
+    other_conversation = Conversation(
+        id=UUID(sample_ids_with_test_user["conv_id"]),
+        title="Other Chat",
+        conversation_type="direct",
+        created_at=1712234500000,
+        updated_at=1712234500000,
+        is_deleted=False,
+    )
+    session.add(other_conversation)
+    session.commit()
+
+    # Pull
+    response = client.get(
+        "/sync/pull",
+        headers=auth_header,
+        params={"last_pulled_at": 0},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should NOT include unrelated conversation
+    created = data["changes"]["conversations"]["created"]
+    ids = [c["id"] for c in created]
+
+    assert sample_ids_with_test_user["conv_id"] not in ids

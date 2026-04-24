@@ -271,5 +271,21 @@ def sample_ids():
     return {
         "conv_id": str(uuid4()),
         "msg_id": str(uuid4()),
-        "user_id": "550e8400-e29b-41d4-a716-446655440000" # Matches your previous logic
+        "user_id": "550e8400-e29b-41d4-a716-446655440000", # Matches your previous logic
+        "participant_id": str(uuid4())
     }
+
+@pytest.fixture
+def sample_ids_with_test_user():
+    """Consistent UUIDs for testing relationships."""
+    return {
+        "conv_id": str(uuid4()),
+        "msg_id": str(uuid4()),
+        "user_id": str(sample_users.get('test')['id']), # Matches your previous logic
+        "participant_id": str(uuid4())
+    }
+
+@pytest.fixture
+def test_user():
+    """Get test user details"""
+    return sample_users.get('test')
