@@ -34,6 +34,8 @@ from uuid import UUID
 from sqlmodel import select, col, and_
 from fastapi import Depends
 
+from app.models.guest import Guest
+
 router = APIRouter(
     prefix='/sync',
     tags=['sync'],
@@ -128,7 +130,10 @@ async def pull_remote_changes(
         ),
         "messages": get_table_changes(
             Message,
-            col(Message.conversation_id).in_(my_conversation_ids)
+            or_(
+                col(Message.conversation_id).in_(my_conversation_ids),
+                col(Message.conversation_id).is_(None)
+            )
         ),
         "conversation_participants": get_table_changes(
             ConversationParticipant,
@@ -206,7 +211,49 @@ async def push_local_data(
         MessageReceipt: changes.get('message_receipts'),
     }
 
+    
     try:
+        # Cache to avoid repeated DB hits for the same users
+        existing_user_ids: set[UUID] = set()
+        missing_user_ids: set[UUID] = set()
+        def ensure_user_exists(user_id: UUID | None):
+            if not user_id:
+                return
+            if not isinstance(user_id, UUID):
+                user_id = UUID(user_id)
+            # Already confirmed existing
+            if user_id in existing_user_ids:
+                return
+
+            # Already checked and missing
+            if user_id in missing_user_ids:
+                return
+
+            user = session.get(User, user_id)
+        
+            if user:
+                existing_user_ids.add(user_id)
+            else:
+                missing_user_ids.add(user_id)
+                # TODO
+                # --- PLACEHOLDER: CREATE GUEST USER ---
+                user = User(
+                    id=user_id,
+                    username=f"guest_{user_id}",
+                    first_name="Guest",
+                    last_name="User",
+                    hashed_password="",
+                )
+
+                guest_role = Guest(
+                    user_id=user_id
+                )
+                
+                session.add(user)
+                session.add(guest_role)
+                existing_user_ids.add(user_id)
+                # --------------------------------------
+
         for model, table_changes in data_table.items():
             if not table_changes:
                 continue
@@ -216,7 +263,21 @@ async def push_local_data(
             all_upserts = table_changes.created + table_changes.updated
             
             for datum in all_upserts:
+                # --- USER FK VALIDATION ---
+                if model is Message:
+                    ensure_user_exists(datum.get("sender_id"))
+                elif model is ConversationParticipant:
+                    ensure_user_exists(datum.get("user_id"))
+                elif model is Call:
+                    ensure_user_exists(datum.get("initiator_id"))
+                elif model is CallParticipant:
+                    ensure_user_exists(datum.get("user_id"))
+                elif model is MessageReceipt:
+                    ensure_user_exists(datum.get("user_id"))
+                    # --- END USER FK VALIDATION ---
+
                 cast_to_uuids(model, datum)
+                
                 record = session.get(model, datum["id"])
 
                 if record:
