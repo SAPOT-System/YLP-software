@@ -1,5 +1,7 @@
 from typing import Annotated
 import time
+from sqlalchemy import exists
+from sqlmodel import select, col
 from uuid import uuid4, UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import SQLModel, Session, select
@@ -55,16 +57,16 @@ async def pull_remote_changes(
     # in the next cycle if they occur during this execution.
     server_time = int(time.time() * 1000)
 
-    def get_table_changes(model: Type[SyncableModel]) -> Dict[str, Any]:
+    def get_table_changes(model: Type[SyncableModel], ownershipFilter: Any) -> Dict[str, Any]:
         """Fetches changes for a specific table since last_pulled_at."""
         
         # 2. QUERY LOGIC
         if last_pulled_at == 0:
             # Initial sync: Fetch all records that are NOT deleted
-            stmt = select(model).where(col(model.is_deleted) == False)
+            stmt = select(model).where(ownershipFilter ,col(model.is_deleted) == False)
         else:
             # Incremental sync: Fetch anything updated since last pull
-            stmt = select(model).where(col(model.updated_at) > last_pulled_at)
+            stmt = select(model).where(ownershipFilter, col(model.updated_at) > last_pulled_at)
 
         results = session.exec(stmt).all()
 
@@ -106,15 +108,42 @@ async def pull_remote_changes(
 
     # 5. SCOPED CHANGES (Collection Whitelist)
     # This ensures no arbitrary collection names are leaked.
-    changes = {
-        "conversations": get_table_changes(Conversation),
-        "messages": get_table_changes(Message),
-        "conversation_participants": get_table_changes(ConversationParticipant),
-        "calls": get_table_changes(Call),
-        "call_participants": get_table_changes(CallParticipant),
-        "message_receipts": get_table_changes(MessageReceipt),
-    }
+    # Build the reusable subquery once
+    my_conversation_ids = select(ConversationParticipant.conversation_id).where(
+        ConversationParticipant.user_id == current_user.id
+    )
 
+    my_message_ids = select(Message.id).where(
+        col(Message.conversation_id).in_(my_conversation_ids)
+    )
+    
+    changes = {
+        "conversations": get_table_changes(
+            Conversation,
+            col(Conversation.id).in_(my_conversation_ids)
+        ),
+        "messages": get_table_changes(
+            Message,
+            col(Message.conversation_id).in_(my_conversation_ids)
+        ),
+        "conversation_participants": get_table_changes(
+            ConversationParticipant,
+            col(ConversationParticipant.user_id) == current_user.id
+        ),
+        "calls": get_table_changes(
+            Call,
+            col(Call.conversation_id).in_(my_conversation_ids)
+        ),
+        "call_participants": get_table_changes(
+            CallParticipant,
+            col(CallParticipant.conversation_id).in_(my_conversation_ids)
+        ),
+        "message_receipts": get_table_changes(
+            MessageReceipt,
+            col(MessageReceipt.message_id).in_(my_message_ids)
+        ),
+    }
+    
     # 6. RESPONSE FORMAT
     return {
         "changes": changes,
