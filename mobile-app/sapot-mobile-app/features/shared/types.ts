@@ -199,6 +199,14 @@ export interface DiscoveredService {
   port: number;
   ipAddress: string;
 }
+
+export type QRPayload = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  ip?: string;
+  port?: number;
+};
 export interface PublishedService {
   type: string;
   protocol: string;

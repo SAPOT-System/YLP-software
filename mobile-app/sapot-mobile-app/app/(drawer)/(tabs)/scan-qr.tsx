@@ -1,7 +1,13 @@
+import { ChatRoomSource } from "@/features/chat/types";
+import { useAppMode } from "@/features/shared/context/app-mode-context";
+import { useMainContainer } from "@/features/shared/hooks/use-main-container";
+import { usePeerService } from "@/features/shared/hooks/use-peer-service";
+import { QRPayload } from "@/features/shared/types";
 import { uiLog } from "@/features/shared/utils/logger";
 import { Camera, CameraView, type BarcodeScanningResult } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
 import { Button, Text, useTheme } from "react-native-paper";
 
@@ -9,6 +15,8 @@ type ScanState = {
   data: string | null;
   type: string | null;
 };
+
+type ValidationState = "idle" | "valid" | "invalid" | "connecting";
 
 export default function QRScannerScreen() {
   const theme = useTheme();
@@ -19,6 +27,29 @@ export default function QRScannerScreen() {
   });
   const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(true);
+  const [validationState, setValidationState] = useState<ValidationState>("idle");
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const peerService = usePeerService();
+  const container = useMainContainer();
+  const { mode } = useAppMode();
+  const router = useRouter();
+
+  useFocusEffect(
+    useCallback(() => {
+      setScanState({ data: null, type: null });
+      setPickedImageUri(null);
+      setIsScanning(true);
+      setValidationState("idle");
+      setValidationError(null);
+    }, [])
+  );
+
+  useEffect(() => {
+    if (validationState !== "invalid") return;
+    const timer = setTimeout(handleScanAgain, 4000);
+    return () => clearTimeout(timer);
+  }, [validationState]);
 
   useEffect(() => {
     uiLog.info("[QRScannerScreen] mounted");
@@ -36,10 +67,76 @@ export default function QRScannerScreen() {
     };
   }, []);
 
+  const processScannedData = async (data: string) => {
+    uiLog.info("[QRScannerScreen] processing scanned data");
+
+    let payload: QRPayload;
+    try {
+      payload = JSON.parse(data) as QRPayload;
+    } catch {
+      uiLog.warn("[QRScannerScreen] failed to parse QR data");
+      setValidationState("invalid");
+      setValidationError("QR code is not valid Sapot data.");
+      return;
+    }
+
+    if (!payload.id || !payload.firstName) {
+      setValidationState("invalid");
+      setValidationError("QR code is missing required fields.");
+      return;
+    }
+
+    if (mode !== "server" && (!payload.ip || !payload.port)) {
+      setValidationState("invalid");
+      setValidationError("QR code is missing network address for LAN mode.");
+      return;
+    }
+
+    setValidationState("valid");
+
+    const existingPeer = await peerService.findPeerById(payload.id);
+    if (!existingPeer) {
+      const fetched = await peerService.getOrCreatePeerById(
+        payload.id,
+        container.connectionService
+      );
+      if (!fetched) {
+        await peerService.createUser(
+          payload.id,
+          payload.firstName.toLowerCase(),
+          payload.firstName,
+          payload.lastName
+        );
+      }
+    }
+
+    if (payload.ip && payload.port) {
+      const alreadyDiscovered = peerService.discoveredPeerServices.find(
+        (s) => s.id === payload.id
+      );
+      if (!alreadyDiscovered) {
+        peerService.discoveredPeerServices.push({
+          serviceName: `qr-${payload.id}`,
+          id: payload.id,
+          ipAddress: payload.ip,
+          port: payload.port,
+        });
+      }
+    }
+
+    setValidationState("connecting");
+    uiLog.info("[QRScannerScreen] navigating to chat", { peerId: payload.id });
+    router.push({
+      pathname: "/(drawer)/(tabs)/chat/[id]",
+      params: { id: payload.id, source: ChatRoomSource.PEER },
+    });
+  };
+
   const handleBarcodeScanned = ({ data, type }: BarcodeScanningResult) => {
     uiLog.info("[QRScannerScreen] barcode scanned", { type });
     setIsScanning(false);
     setScanState({ data, type });
+    processScannedData(data);
   };
 
   const handleScanAgain = () => {
@@ -47,6 +144,8 @@ export default function QRScannerScreen() {
     setScanState({ data: null, type: null });
     setPickedImageUri(null);
     setIsScanning(true);
+    setValidationState("idle");
+    setValidationError(null);
   };
 
   const handlePickImage = async () => {
@@ -71,17 +170,16 @@ export default function QRScannerScreen() {
     const decoded = await Camera.scanFromURLAsync(imageUri, ["qr"]);
 
     if (decoded.length > 0) {
-      uiLog.info("[QRScannerScreen] qr decoded", {
-        type: decoded[0].type,
-      });
+      uiLog.info("[QRScannerScreen] qr decoded", { type: decoded[0].type });
       setIsScanning(false);
       setScanState({ data: decoded[0].data, type: decoded[0].type });
+      processScannedData(decoded[0].data);
     } else {
       uiLog.warn("[QRScannerScreen] no qr found in image");
-      setScanState({
-        data: "No QR code found in this image.",
-        type: "image",
-      });
+      setIsScanning(false);
+      setScanState({ data: "No QR code found in this image.", type: "image" });
+      setValidationState("invalid");
+      setValidationError("No QR code found in this image.");
     }
   };
 
@@ -94,6 +192,16 @@ export default function QRScannerScreen() {
     }
     return null;
   }, [hasPermission]);
+
+  const validationBadge = useMemo(() => {
+    if (validationState === "valid" || validationState === "connecting") {
+      return { text: "Valid Sapot QR", color: "#2e7d32" };
+    }
+    if (validationState === "invalid") {
+      return { text: validationError ?? "Invalid QR code", color: "#c62828" };
+    }
+    return null;
+  }, [validationState, validationError]);
 
   return (
     <View
@@ -125,7 +233,21 @@ export default function QRScannerScreen() {
       )}
 
       <View style={styles.actionArea}>
-        {scanState.data ? (
+        {validationBadge ? (
+          <View
+            style={[
+              styles.resultCard,
+              { backgroundColor: validationBadge.color + "18" },
+            ]}
+          >
+            <Text style={[styles.resultTitle, { color: validationBadge.color }]}>
+              {validationBadge.text}
+            </Text>
+            {validationState === "connecting" && (
+              <Text style={styles.resultText}>Connecting...</Text>
+            )}
+          </View>
+        ) : scanState.data ? (
           <View style={styles.resultCard}>
             <Text style={styles.resultTitle}>Scanned QR</Text>
             <Text style={styles.resultText}>{scanState.data}</Text>
