@@ -686,3 +686,125 @@ def test_pull_only_returns_user_scoped_data(
     ids = [c["id"] for c in created]
 
     assert sample_ids_with_test_user["conv_id"] not in ids
+
+
+def test_pull_pagination_messages(client: TestClient, auth_header, sample_ids, test_user):
+    """
+    Verifies pagination on /sync/pull:
+
+    - Only `limit` items are returned
+    - `has_more` is correct
+    - `next_cursor` advances
+    - No duplicate records across pages
+    """
+
+    user_id = str(test_user["id"])
+    conv_id = str(uuid4())
+    participant_id = str(uuid4())
+
+    base_time = 1712234000000
+
+    # --- STEP 1: Create conversation + participant ---
+    client.post("/sync/push", json={
+        "changes": {
+            "conversations": {
+                "created": [{
+                    "id": conv_id,
+                    "title": "Paginated Conv",
+                    "conversation_type": "group",
+                    "created_at": base_time,
+                    "updated_at": base_time,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            },
+            "conversation_participants": {
+                "created": [{
+                    "id": participant_id,
+                    "conversation_id": conv_id,
+                    "user_id": user_id,
+                    "joined_at": base_time,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            }
+        },
+        "last_pulled_at": 0
+    }, headers=auth_header)
+
+    # --- STEP 2: Create MANY messages with increasing timestamps ---
+    total_messages = 5
+    messages = []
+
+    for i in range(total_messages):
+        t = base_time + (i + 1) * 1000
+        messages.append({
+            "id": str(uuid4()),
+            "content": f"msg-{i}",
+            "conversation_id": conv_id,
+            "sender_id": user_id,
+            "created_at": t,
+            "updated_at": t,
+            "is_deleted": False
+        })
+
+    client.post("/sync/push", json={
+        "changes": {
+            "messages": {
+                "created": messages,
+                "updated": [],
+                "deleted": []
+            }
+        },
+        "last_pulled_at": 0
+    }, headers=auth_header)
+
+    # --- STEP 3: First pull (limit = 2) ---
+    res1 = client.get("/sync/pull?last_pulled_at=0&limit=2", headers=auth_header)
+    assert res1.status_code == 200
+
+    body1 = res1.json()
+    msgs_page1 = body1["changes"]["messages"]
+
+    assert len(msgs_page1["created"]) == 2
+    assert msgs_page1["has_more"] is True
+    assert msgs_page1["next_cursor"] is not None
+
+    cursor1 = msgs_page1["next_cursor"]
+
+    ids_page1 = {m["id"] for m in msgs_page1["created"]}
+
+    # --- STEP 4: Second pull using cursor ---
+    res2 = client.get(f"/sync/pull?last_pulled_at={cursor1}&limit=2", headers=auth_header)
+    assert res2.status_code == 200
+
+    body2 = res2.json()
+    msgs_page2 = body2["changes"]["messages"]
+
+    assert len(msgs_page2["created"]) == 2
+    assert msgs_page2["has_more"] is True
+
+    cursor2 = msgs_page2["next_cursor"]
+    ids_page2 = {m["id"] for m in msgs_page2["created"]}
+
+    # Ensure no overlap
+    assert ids_page1.isdisjoint(ids_page2)
+
+    # --- STEP 5: Final pull ---
+    res3 = client.get(f"/sync/pull?last_pulled_at={cursor2}&limit=2", headers=auth_header)
+    assert res3.status_code == 200
+
+    body3 = res3.json()
+    msgs_page3 = body3["changes"]["messages"]
+
+    # Only 1 message left (5 total, paginated by 2)
+    assert len(msgs_page3["created"]) == 1
+    assert msgs_page3["has_more"] is False
+
+    ids_page3 = {m["id"] for m in msgs_page3["created"]}
+
+    # Ensure no overlap across all pages
+    all_ids = ids_page1 | ids_page2 | ids_page3
+    assert len(all_ids) == total_messages
