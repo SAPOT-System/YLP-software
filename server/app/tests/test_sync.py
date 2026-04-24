@@ -110,7 +110,7 @@ def test_push_record_count_integrity(client: TestClient, auth_header, sample_ids
     assert pushed_msg.content == "Verify count"
 
 
-def test_sync_full_cycle(client: TestClient, auth_header, sample_ids_with_test_user):
+def test_sync_full_cycle(client: TestClient, auth_header, sample_ids_with_test_user, test_user):
     """
     Full sync cycle:
 
@@ -124,7 +124,7 @@ def test_sync_full_cycle(client: TestClient, auth_header, sample_ids_with_test_u
     msg_id = str(uuid4())
     participant_id = str(uuid4())
 
-    user_id = sample_ids_with_test_user["user_id"]
+    user_id = str(test_user["id"])
 
     # --- STEP 1: PUSH CREATED DATA ---
     push_create_payload = {
@@ -163,7 +163,6 @@ def test_sync_full_cycle(client: TestClient, auth_header, sample_ids_with_test_u
     res_pull_1 = client.get("/sync/pull?last_pulled_at=0", headers=auth_header)
 
     assert res_pull_1.status_code == 200
-    print("RES 2", res_pull_1.json())
 
     baseline_timestamp = res_pull_1.json()["timestamp"]
 
@@ -215,6 +214,8 @@ def test_sync_full_cycle(client: TestClient, auth_header, sample_ids_with_test_u
     # --- ASSERTIONS ---
 
     # Conversation updated
+    
+    print("DATA", data)
     assert len(data["conversations"]["updated"]) == 1
     updated_conv = data["conversations"]["updated"][0]
     assert updated_conv["id"] == conv_id
