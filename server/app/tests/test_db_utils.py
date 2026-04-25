@@ -5,7 +5,7 @@ from app.db_operations.auth import SessionDep
 
 
 def test_db_search_user(session: SessionDep):
-    res = search_case_insensitive("pet", session)
+    res = search_case_insensitive("pet", session, limit=50, offset=0)
     data = {'last_name': 'Parker', 'username': 'Peter Parker', 'first_name': 'Peter'}
     assert len(res) == 1
     assert res[0].get('last_name') == data["last_name"]

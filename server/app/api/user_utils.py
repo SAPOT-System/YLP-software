@@ -18,12 +18,18 @@ router = APIRouter(
 
 @router.post('/search-user')
 def search_username(
-        username: str,
-        current_user : Annotated[User, Depends(get_current_user)],
-        session: SessionDep
+    username: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: SessionDep,
+    limit: int = 20,
+    offset: int = 0
 ):
-    res = search_case_insensitive(username, session)
-    return {'res': res}
+    res = search_case_insensitive(username, session, limit, offset)
+    return {
+        "res": res,
+        "limit": limit,
+        "offset": offset
+    }
 
 @router.get('/current-user-info', response_model=UserInfo)
 def get_current_user_info(
