@@ -384,59 +384,104 @@ with request body/form-data
 Requires users to be authenticated.
 
 Send a request like:
-~http://localhost:8000/sync/pull?last_pulled_at=0&schema_version=1~
-*** /last_sync_at/ argument
+~http://localhost:8000/sync/pull?last_pulled_at=0&limit=4~
+*** ~last_pulled_at~ argument
 - meant to be the point where the syncing will start
-*** /limit/ argument
+*** ~limit~ argument
 - amount of data that will be sync in the current connection
 - a device can send multiple sync request if there are a lot of data to sync
   from server
+- a *limit of 4 means 4 for every field* (messages, conversation, etc)
 
 *** Example response
 #+BEGIN_SRC json
 {
   "changes": {
     "conversations": {
+      "created": [],
+      "updated": [],
+      "deleted": [],
+      "next_cursor": null,
+      "has_more": false
+    },
+    "messages": {
       "created": [
         {
-          "updated_at": 1775315958000,
+          "created_at": 1776992157946,
+          "id": "0908a520-4adc-4f88-be3e-f5bb1a3b44d8",
+          "sender_id": "e5058b0e-1961-4b9b-85fd-66e8b97330b3",
+          "updated_at": 1776992157947,
+          "message_type": "text",
+          "content": "Hello World",
           "is_deleted": false,
-          "title": "Project Alpha Sync",
-          "created_at": 1775315958000,
-          "id": "a1646700-6467-42f2-901b-9f936f6d2b63",
-          "conversation_type": "group"
+          "conversation_id": null
+        },
+        {
+          "created_at": 1776992201919,
+          "id": "e07c773b-483b-450a-8d44-0298dab057d4",
+          "sender_id": "e5058b0e-1961-4b9b-85fd-66e8b97330b3",
+          "updated_at": 1776992201919,
+          "message_type": "text",
+          "content": "Hello World",
+          "is_deleted": false,
+          "conversation_id": null
+        },
+        {
+          "created_at": 1776992235936,
+          "id": "c9b518fd-79f1-4b61-a53e-55a92dc14160",
+          "sender_id": "e5058b0e-1961-4b9b-85fd-66e8b97330b3",
+          "updated_at": 1776992235936,
+          "message_type": "text",
+          "content": "Hello World",
+          "is_deleted": false,
+          "conversation_id": null
+        },
+        {
+          "created_at": 1776992255124,
+          "id": "97c4c37b-61e9-4e25-9441-859c8d7a3f08",
+          "sender_id": "e5058b0e-1961-4b9b-85fd-66e8b97330b3",
+          "updated_at": 1776992255124,
+          "message_type": "text",
+          "content": "Hello World",
+          "is_deleted": false,
+          "conversation_id": null
         }
       ],
       "updated": [],
-      "deleted": []
-    },
-    "messages": {
-      "created": [],
-      "updated": [],
-      "deleted": []
+      "deleted": [],
+      "next_cursor": 1776992255124,
+      "has_more": true
     },
     "conversation_participants": {
       "created": [],
       "updated": [],
-      "deleted": []
+      "deleted": [],
+      "next_cursor": null,
+      "has_more": false
     },
     "calls": {
       "created": [],
       "updated": [],
-      "deleted": []
+      "deleted": [],
+      "next_cursor": null,
+      "has_more": false
     },
     "call_participants": {
       "created": [],
       "updated": [],
-      "deleted": []
+      "deleted": [],
+      "next_cursor": null,
+      "has_more": false
     },
     "message_receipts": {
       "created": [],
       "updated": [],
-      "deleted": []
+      "deleted": [],
+      "next_cursor": null,
+      "has_more": false
     }
   },
-  "timestamp": 1775289283482
+  "timestamp": 1777075041206
 }
 #+END_SRC
 
@@ -445,6 +490,9 @@ Requires users to be authenticated.
 
 
 use this endpoint to push new data to the server
+
+/Note:/ User ids that does not have a corresponding user records on the database will be used to create guest accounts.
+
 *** attach the following as the form-body
 #+BEGIN_SRC json
 {
@@ -1107,7 +1155,7 @@ this will be queued in the webserver in case the user receiving was offline
 
 this will also be sent to the user in case the user comes online (connect to the websocket again)
 
-*** Public chat function
+** Public chat function
 This websocket endpoint is at ~/ws/~. It uses the following model:
 #+BEGIN_SRC python
   class PublicMessageData(BaseModel):
@@ -1171,3 +1219,7 @@ use the web socket like:
   });
 
 #+END_SRC
+
+This public chat can be retrieved through ~/sync/pull~ endpoint. Public chat records must have conversation_id as ~null~.
+
+
