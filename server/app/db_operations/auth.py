@@ -38,6 +38,13 @@ def verify_password(plain_password : str, hashed__password : str):
 
 
 def db_create_user(user: UserCreate, session: SessionDep):
+    try:
+        user_in_db = get_user_by_ID(session, user.id) if user.id else None
+    except HTTPException:
+        user_in_db = None
+    except:
+        raise HTTPException(500, "Internal server error.")
+        
     errors: Dict[str, str] = {}
 
     # Check username
@@ -47,7 +54,7 @@ def db_create_user(user: UserCreate, session: SessionDep):
 
     if existing_username:
         errors["username"] = "Username already taken"
-
+        
     # Check email
     existing_email = session.exec(
         select(User).where(User.email == user.email)
@@ -70,19 +77,39 @@ def db_create_user(user: UserCreate, session: SessionDep):
             status_code=400,
             detail=errors
         )
+    if not user_in_db:
+        hashed_password = get_password_hash(user.password)
+        db_user = User.model_validate(
+            user,
+            update={'hashed_password':hashed_password}
+        )
+        if hasattr(user, 'id') and user.id:
+            db_user.id = user.id
 
-    hashed_password = get_password_hash(user.password)
-    db_user = User.model_validate(
-        user,
-        update={'hashed_password':hashed_password}
-    )
-    if hasattr(user, 'id') and user.id:
-        db_user.id = user.id
+        session.add(db_user)
+        session.commit()
+        session.refresh(db_user)
+        return db_user
+    elif user_in_db and user_in_db.guest:
+        # modify existing user
+        hashed_password = get_password_hash(user.password)
+        db_user = User.model_validate(
+            user,
+            update={'hashed_password':hashed_password}
+        )
+        new_user_dump = db_user.model_dump(exclude_unset=True)
+        
+        for field, value in new_user_dump.items():
+            setattr(user_in_db, field, value)
 
-    session.add(db_user)
-    session.commit()
-    session.refresh(db_user)
-    return db_user
+        session.add(user_in_db)
+        # delete guest record
+        session.delete(user_in_db.guest)
+        session.commit()
+        session.refresh(user_in_db)
+        return user_in_db
+        # TODO: all guest accounts are disabled from getting a token in any way shape or form
+        
 
 
 def get_user_by_email(session: SessionDep, email: str):
