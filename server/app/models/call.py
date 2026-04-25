@@ -21,6 +21,7 @@ class StatusType(str, Enum):
     completed = "completed"
     rejected = "rejected"
     busy = "busy"
+    undefined = "undefined"
 
 
 class Call(SyncableModel, table=True):

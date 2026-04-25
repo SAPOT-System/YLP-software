@@ -13,6 +13,9 @@ class SDPData(BaseModel):
     # candidate: Optional[str | dict]
     address: Optional[str] = None
     candidate: Optional[dict] = None
+    iceRestart: Optional[bool] = None
+    reason: Optional[str] = None
+    
 
 
 class SignalMessage(BaseModel):

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 class MessageType(str, Enum):
     text = 'text'
-    attachment = 'attachment'
+    file = 'file'
     call_log = 'call_log'
 
 
