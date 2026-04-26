@@ -83,11 +83,9 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
         try:
             await manager.send_personal_message(target_id, message)
         except: 
-            # await relay_message_fails(sender_id, target_id, payload, message, session)
-            # TODO, directly save t database and send ack?
-            pass
-    # else:
-    #     await relay_message_fails(sender_id, target_id, payload, message, session)
+            await relay_message_fails(sender_id, target_id, payload, message, session)
+    else:
+        await relay_message_fails(sender_id, target_id, payload, message, session)
 
 
 async def relay_public_message(sender_id: UUID, payload: PublicMessageData, session: SessionDep):
