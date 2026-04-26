@@ -17,14 +17,14 @@ router = APIRouter(
 )
 
 @router.post('/search-user')
-def search_username(
-    username: str,
+def search_user(
+    identifier_string: str,
     current_user: Annotated[User, Depends(get_current_user)],
     session: SessionDep,
     limit: int = 20,
     offset: int = 0
 ):
-    res = search_case_insensitive(username, session, limit, offset)
+    res = search_case_insensitive(identifier_string, session, limit, offset)
     return {
         "res": res,
         "limit": limit,
