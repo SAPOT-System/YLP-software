@@ -155,6 +155,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       "call-message",
       async (message: WsCallMessage) => {
         try {
+          if (!this.isWebSocketAllowed()) return;
           if (message.type === "audio-call") {
             // Fire local notification so user sees it with screen off
             await this.showIncomingCallNotification({

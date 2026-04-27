@@ -149,7 +149,8 @@ export class MainContainer {
 
     this.publicChatService = new PublicChatService(
       this.userContainer.userStore,
-      this.wsSignalingAdapter
+      this.wsSignalingAdapter,
+      this.appModeStore
     );
 
     this.callRepository = new CallRepository(database);
@@ -208,8 +209,9 @@ export class MainContainer {
         });
 
         setAppAlive(true);
-
-        void this.syncService.syncNow();
+        if (this.appModeStore.getEffectiveMode(this.userContainer.userStore.isGuest) !== "lan") {
+          void this.syncService.syncNow();
+        }
       })();
 
       return this.initPromise;
