@@ -14,7 +14,7 @@ from fastapi import APIRouter
 from pythonping import ping
 import psutil
 import time
-from app.models.activity import UserActivity
+from app.models.activity import ActivityLog, UserActivity
 from app.models.admin import Admin
 from app.models.banned_user import BannedUser
 from app.models.location import UserLocation
@@ -723,3 +723,93 @@ def unban_user(
     except Exception as e:
         raise HTTPException(500)
     return {"status": "ok"}
+
+
+@router.post('/get-logs')
+def get_system_logs(
+    _: Annotated[User, Depends(get_current_user_admin)],
+    session: SessionDep,
+    keyword: str = "",
+    page: int = 1,  # Default to page 1
+    size: int = 10,  # Default to 10 items per page
+):
+    # Calculate offset
+    offset = (page - 1) * size
+
+    fifteen_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=15)
+    # 1. Base statement with Join and Sorting (Latest last_active first)
+    # We use desc(UserActivity.last_active) to put newest at the top
+    from sqlmodel import select, desc, or_
+
+    # ... inside your function ...
+
+    # Base statement
+    statement = select(ActivityLog, User).join(
+        User,
+        ActivityLog.user_id == User.id,
+        isouter=True
+    )
+
+    # Apply filter only if keyword is provided
+    if keyword and keyword.strip():
+        search_pattern = f"%{keyword}%"
+        conditions = [
+            User.username.ilike(search_pattern),
+            User.email.ilike(search_pattern),
+            User.phone_number.ilike(search_pattern),
+            User.first_name.ilike(search_pattern),
+            User.last_name.ilike(search_pattern),
+            # If 'id' is a string/UUID use ilike; if it's an integer, cast it:
+            cast(User.id, String).ilike(search_pattern),
+            cast(ActivityLog.metadata_json, String).ilike(search_pattern),
+            ActivityLog.action.ilike(search_pattern),
+            cast(ActivityLog.id, String).ilike(search_pattern),
+            # User.id.ilike(search_pattern)
+        ]
+        statement = statement.where(or_(*conditions))
+
+    # Apply ordering and pagination
+    statement = (
+        statement.order_by(desc(ActivityLog.created_at)).offset(offset).limit(size)
+    )
+
+    # 2. Get total count for pagination metadata
+    total_statement = select(func.count()).select_from(User)
+    total = session.exec(total_statement).one()
+
+    results = session.exec(statement).all()
+
+    users_data = []
+    for activity, user in results:
+        ban = user.banned
+        if ban:
+            ban.until = ban.until.replace(tzinfo=timezone.utc)
+            is_banned = ban.until > datetime.now(timezone.utc)
+            expiry_str = ban.until.strftime("%Y-%m-%d %H:%M UTC") if ban.until else "Permanently"
+
+        users_data.append(
+            {
+                "id": user.id,
+                "username": user.username or "Anonymous",
+                "phone_number": user.phone_number,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_rescuer": bool(user.rescuer),
+                "is_admin": bool(user.admin),
+                "lastActive": (
+                    f"{activity.created_at.isoformat()}Z" if activity else "Never"
+                ),
+                "created_at": activity.created_at,
+                "metadata_json": activity.metadata_json,
+                "action": activity.action,
+            }
+        )
+
+    return {
+        "items": users_data,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size,  # Quick ceiling division for total pages
+    }
