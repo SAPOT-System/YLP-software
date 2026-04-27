@@ -27,7 +27,7 @@ def test_push_create_records(client: TestClient, auth_header, sample_ids, sessio
                 "created": [{
                     "id": sample_ids["conv_id"],
                     "title": "New Test Chat",
-                    "conversation_type": "group",
+                    "conversation_type": "solo",
                     "created_at": 1712234500000,
                     "updated_at": 1712234500000,
                     "is_deleted": False
@@ -69,7 +69,7 @@ def test_push_record_count_integrity(client: TestClient, auth_header, sample_ids
                 "created": [{
                     "id": sample_ids["conv_id"],
                     "title": "Count Test Chat",
-                    "conversation_type": "group",
+                    "conversation_type": "solo",
                     "created_at": 1712234500000,
                     "updated_at": 1712234500000,
                     "is_deleted": False
@@ -133,7 +133,7 @@ def test_sync_full_cycle(client: TestClient, auth_header, sample_ids_with_test_u
                 "created": [{
                     "id": conv_id,
                     "title": "Initial Title",
-                    "conversation_type": "group",
+                    "conversation_type": "solo",
                     "created_at": 1712234000000,
                     "updated_at": 1712234000000,
                     "is_deleted": False
@@ -242,7 +242,7 @@ def test_sync_deletion_flow(client: TestClient, auth_header):
                 "created": [{
                     "id": record_id, 
                     "title": "To Delete", 
-                    "conversation_type": "group", # Required by your schema
+                    "conversation_type": "solo", # Required by your schema
                     "updated_at": 1000,
                     "created_at": 1000,
                     "is_deleted": False
@@ -347,7 +347,7 @@ def test_sync_upsert_logic(client: TestClient, auth_header, test_user):
             "conversations": {
                 "created": [{
                     "id": record_id, "title": "Now I am created", 
-                    "conversation_type": "group", "updated_at": 2000
+                    "conversation_type": "solo", "updated_at": 2000
                 }],
                 "updated": [], "deleted": []
             }
@@ -374,7 +374,7 @@ def test_sync_conflict_detection(client: TestClient, auth_header, test_user):
     client.post("/sync/push", json={
         "changes": {
             "conversations": {"created": [{
-            "id": record_id, "title": "Server Version", "conversation_type": "group", "updated_at": 5000
+            "id": record_id, "title": "Server Version", "conversation_type": "solo", "updated_at": 5000
             }], "updated": [], "deleted": []},
             "conversation_participants": {
                 "created": [{
@@ -615,7 +615,7 @@ def test_pull_returns_deleted_records(
     conversation = Conversation(
         id=UUID(sample_ids_with_test_user["conv_id"]),
         title="To be deleted",
-        conversation_type="group",
+        conversation_type="solo",
         created_at=1712234500000,
         updated_at=1712234500000,
         is_deleted=False,
@@ -711,7 +711,7 @@ def test_pull_pagination_messages(client: TestClient, auth_header, sample_ids, t
                 "created": [{
                     "id": conv_id,
                     "title": "Paginated Conv",
-                    "conversation_type": "group",
+                    "conversation_type": "solo",
                     "created_at": base_time,
                     "updated_at": base_time,
                     "is_deleted": False
