@@ -11,12 +11,18 @@ from app.models.users import UserUpdate, UserPasswordUpdate
 
 password_hash = PasswordHash.recommended()
 
-
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_db"
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, connect_args=connect_args)
+# engine = create_engine(sqlite_url, connect_args=connect_args)
+#
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    # pool_recycle helps prevent "MySQL server has gone away" errors
+    pool_recycle=3600 
+)
 
 
 def create_db_and_tables():
