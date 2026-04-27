@@ -15,7 +15,8 @@ import {
     setItemAsync,
 } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
     ActivityIndicator,
     HelperText,
@@ -124,74 +125,74 @@ const ChangePasswordScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
+    <KeyboardAwareScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      bounces={false}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
     >
       <View
         style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
-      <ScreenHeader headerName="Change Password" />
-      <ScreenContent
-        title="Change your password"
-        description="Please enter your new password"
-      >
-        <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+        <ScreenHeader headerName="Change Password" />
+        <ScreenContent
+          title="Change your password"
+          description="Please enter your new password"
         >
-          {/* TODO: implement error mechanism */}
-          <AuthTextInput
-            label="New password"
-            placeholder="Enter your new password"
-            value={password}
-            onChangeText={setPassword}
-            style={styles.textInput}
-            secureTextEntry
-            error={!!errors.password}
-          />
-          {errors.password && (
-            <HelperText type="error" style={styles.helperText}>
-              {errors.password}
-            </HelperText>
-          )}
-
-          <AuthTextInput
-            label="Confirm password"
-            placeholder="Confirm your password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            style={styles.textInput}
-            secureTextEntry
-            error={!!errors.confirmPassword}
-          />
-          {errors.confirmPassword && (
-            <HelperText type="error" style={styles.helperText}>
-              {errors.confirmPassword}
-            </HelperText>
-          )}
-        </View>
-        <PrimaryButton
-          onPress={handleChangePassword}
-          loading={loading}
-          disabled={loading}
-        >
-          Change
-        </PrimaryButton>
-        <SecondaryButton
-          onPress={() => {
-            authLog.info("[Navigation] goBack triggered from ChangePassword");
-            router.back();
-          }}
-          disabled={loading}
-        >
-          Back
-        </SecondaryButton>
-      </ScreenContent>
-      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
-        {toastMessage}
-      </Snackbar>
+          <View
+            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+          >
+            <AuthTextInput
+              label="New password"
+              placeholder="Enter your new password"
+              value={password}
+              onChangeText={setPassword}
+              style={styles.textInput}
+              secureTextEntry
+              error={!!errors.password}
+            />
+            {errors.password && (
+              <HelperText type="error" style={styles.helperText}>
+                {errors.password}
+              </HelperText>
+            )}
+            <AuthTextInput
+              label="Confirm password"
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              style={styles.textInput}
+              secureTextEntry
+              error={!!errors.confirmPassword}
+            />
+            {errors.confirmPassword && (
+              <HelperText type="error" style={styles.helperText}>
+                {errors.confirmPassword}
+              </HelperText>
+            )}
+          </View>
+          <PrimaryButton
+            onPress={handleChangePassword}
+            loading={loading}
+            disabled={loading}
+          >
+            Change
+          </PrimaryButton>
+          <SecondaryButton
+            onPress={() => {
+              authLog.info("[Navigation] goBack triggered from ChangePassword");
+              router.back();
+            }}
+            disabled={loading}
+          >
+            Back
+          </SecondaryButton>
+        </ScreenContent>
+        <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+          {toastMessage}
+        </Snackbar>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 };
 
