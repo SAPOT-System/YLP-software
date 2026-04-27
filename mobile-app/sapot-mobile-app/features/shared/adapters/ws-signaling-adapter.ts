@@ -1,6 +1,6 @@
 import EventEmitter from "events";
 import { SendPublicChatPayload } from "@/features/chat/types";
-import { CallMessage, SignalingMessage } from "../types";
+import { CallMessage, ChatMessage, ServerAckMessage, SignalingMessage } from "../types";
 import { wsLog } from "../utils/logger";
 
 wsLog.debug("[ws-signaling-adapter] module loaded");
@@ -195,7 +195,7 @@ export class WsSignalingAdapter extends EventEmitter {
   /**
    * Sends a signaling payload. If socket is not open yet, the payload is queued.
    */
-  sendMessage(message: SignalingMessage | CallMessage | SendPublicChatPayload) {
+  sendMessage(message: SignalingMessage | CallMessage | SendPublicChatPayload | ChatMessage) {
     const payload = JSON.stringify(message);
     // const summary = this.summarizeSignalingMessage(message);
 
@@ -288,6 +288,14 @@ export class WsSignalingAdapter extends EventEmitter {
         return;
       }
 
+      if (this.isDirectChatMessage(parsed)) {
+        wsLog.debug("ws › direct chat message", {
+          messageId: (parsed as ChatMessage).data?.messageId,
+        });
+        this.emit("ws-chat", parsed as ChatMessage);
+        return;
+      }
+
       if (this.isCallMessage(parsed)) {
         wsLog.debug("ws › call message", { messageType: parsed.type });
         this.emit("call-message", parsed);
@@ -297,6 +305,15 @@ export class WsSignalingAdapter extends EventEmitter {
       if (this.isPublicChatMessage(parsed)) {
         wsLog.debug("ws › public chat message");
         this.emit("public-message", parsed);
+        return;
+      }
+
+      if (this.isServerAckMessage(parsed)) {
+        wsLog.debug("ws › server ack", {
+          messageId: (parsed as ServerAckMessage).data.messageId,
+          messageType: (parsed as ServerAckMessage).data.message_type,
+        });
+        this.emit("server-ack", parsed as ServerAckMessage);
         return;
       }
 
@@ -385,6 +402,24 @@ export class WsSignalingAdapter extends EventEmitter {
     if (typeof data.from_user === "string") return true;
 
     return false;
+  }
+
+  private isDirectChatMessage(value: unknown): boolean {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value as { type?: unknown; data?: unknown };
+    if (candidate.type !== "chat") return false;
+    if (!candidate.data || typeof candidate.data !== "object") return false;
+    const data = candidate.data as { from?: unknown };
+    return typeof data.from === "string";
+  }
+
+  private isServerAckMessage(value: unknown): value is ServerAckMessage {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value as { type?: unknown; data?: unknown };
+    if (candidate.type !== "server-ack") return false;
+    if (!candidate.data || typeof candidate.data !== "object") return false;
+    const data = candidate.data as { messageId?: unknown };
+    return typeof data.messageId === "string";
   }
 
   private flushQueue() {
