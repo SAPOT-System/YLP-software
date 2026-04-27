@@ -1,3 +1,8 @@
+import json
+import re
+
+import ast
+import enum
 from typing import Annotated
 from uuid import UUID
 import json
@@ -109,6 +114,7 @@ async def testing_area(target_id: UUID, my_id: UUID, token: str):
 
 def get_queued_messages(user_id: UUID, session: SessionDep):
     try:
+        # statement = select(Queue).where(str(Queue.to).replace("-", '') == str(user_id).replace("-", ''))
         statement = select(Queue).where(Queue.to == user_id)
         results = session.exec(statement).all()
         return results
@@ -117,34 +123,37 @@ def get_queued_messages(user_id: UUID, session: SessionDep):
         return None
 
 
+ENUM_PATTERN = re.compile(r"<.*?:\s*'(.+?)'>")
 
 def deep_parse_dict(data):
-    # 1. If it's a string, try to turn it into a dict or list
     if isinstance(data, str):
         data = data.strip()
+
+        # Handle enum-like strings
+        enum_match = ENUM_PATTERN.match(data)
+        if enum_match:
+            return enum_match.group(1)
+
+        # Try JSON
         if (data.startswith('{') and data.endswith('}')) or (data.startswith('[') and data.endswith(']')):
             try:
-                # Try standard JSON first
                 data = json.loads(data)
-            except json.JSONDecodeError:
+            except Exception:
                 try:
-                    # Fallback for Python-style single quoted strings
                     data = ast.literal_eval(data)
-                except (ValueError, SyntaxError):
-                    # Not a valid dict/list string, keep as original string
+                except Exception:
                     return data
         else:
             return data
 
-    # 2. If it's a dict, recurse into values
     if isinstance(data, dict):
         return {k: deep_parse_dict(v) for k, v in data.items()}
 
-    # 3. If it's a list, recurse into elements
     if isinstance(data, list):
-        return [deep_parse_dict(item) for item in data]
+        return [deep_parse_dict(v) for v in data]
 
     return data
+
 
 @router.websocket("/")
 async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep, target_id: UUID|None = None):
@@ -168,7 +177,6 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
         if messages:
             for message in messages:
                 try:
-                    # print("DUMPED", dumped)
                     parsed = deep_parse_dict(message.data)
                     parsed["data"]["from"] = parsed["data"]["from_user"]
                     # data = MessageData.model_validate(**deep_parse_dict(message.data))
@@ -179,10 +187,8 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                     await relay_message(user_id, user_id, data, session)
                     # don't delete from queue just yet, wait for it to be acknowledged by the receiver
                     if message.payload_type == 'seen':
-                        print("message", message)
                         session.delete(message)
                         session.commit()
-                        
                 except Exception as e:
                     pass
     except:
@@ -204,7 +210,6 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                 payload = MessageData.model_validate(raw_payload)
             except Exception as e:
                 payload = payload
-
             if isinstance(payload, dict) and payload.get("type") == "ping":
                 await manager.send_personal_message(UUID(user_id), {"type": "pong"})
             # get online users

@@ -67,7 +67,7 @@ async def relay_message_fails(sender_id: UUID, target_id: UUID, payload: Message
         session.add(q)
         session.commit()
         session.refresh(q)
-        if payload.type == ['chat', 'call-ended', 'ack']:
+        if payload.type in ['chat', 'call-ended', 'ack']:
             await manager.send_personal_message(sender_id, {
                 "type": "server-ack",
                 'data': {
@@ -123,11 +123,12 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
         except Exception as e:
             pass
         
-    
     if manager.active_connections.get(target_id):
         try:
+            print("here success")
             await manager.send_personal_message(target_id, message)
-        except: 
+        except:
+            print("here failed", payload)
             await relay_message_fails(sender_id, target_id, payload, message, session)
     else:
         await relay_message_fails(sender_id, target_id, payload, message, session)
