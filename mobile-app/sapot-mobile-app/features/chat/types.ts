@@ -26,3 +26,20 @@ export enum ChatRoomSource {
   PEER = "peer_list",
   CHAT = "chat_list",
 }
+
+export interface PublicChatMessage {
+  type: "public-chat";
+  content: string;
+  is_deleted: boolean;
+  sender_id: string;
+  received_at: Date;
+}
+
+export interface SendPublicChatPayload {
+  type: "public-chat";
+  content: string;
+  from: string;
+  created_at: number;
+  updated_at: number;
+  is_deleted: boolean;
+}

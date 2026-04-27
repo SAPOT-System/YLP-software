@@ -22,6 +22,7 @@ import { ConversationRepository } from "@/features/chat/repositories/conversatio
 import { MessageRepository } from "@/features/chat/repositories/message-repository";
 import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 import { ChatService } from "@/features/chat/services/chat-service";
+import { PublicChatService } from "@/features/chat/services/public-chat-service";
 import { setAppAlive } from "@/task/signaling-task";
 import { AuthContainer } from "../auth/auth-container";
 import { CallParticipantRepository, CallRepository } from "../call";
@@ -62,6 +63,7 @@ export class MainContainer {
   readonly appModeStore: AppModeStore;
   readonly syncService: SyncService;
   readonly wsSignalingAdapter: WsSignalingAdapter;
+  readonly publicChatService: PublicChatService;
 
   private initPromise?: Promise<void>;
 
@@ -143,6 +145,11 @@ export class MainContainer {
       this.userContainer.peerService,
       this.userContainer.userStore,
       this.syncService
+    );
+
+    this.publicChatService = new PublicChatService(
+      this.userContainer.userStore,
+      this.wsSignalingAdapter
     );
 
     this.callRepository = new CallRepository(database);

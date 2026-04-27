@@ -21,7 +21,7 @@ AuthContainer
 MainContainer (receives AuthContainer)
   └── networkConfig
   └── appModeStore
-  └── wsSignalingAdapter
+  └── wsSignalingAdapter          (shared: signaling + public chat)
   └── tcpServerAdapter
   └── webrtcSessionManager
   └── signalingService
@@ -79,7 +79,7 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 |---|---|
 | `TcpServerAdapter` | `react-native-tcp-socket` (server) |
 | `TcpClientAdapter` | `react-native-tcp-socket` (client, one per peer) |
-| `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat |
+| `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat — shared by `SignalingService`, `ConnectionService`, and `PublicChatService` |
 | `WebrtcAdapter` | `react-native-webrtc` (RTCPeerConnection, one per peer) |
 | `ZeroconfAdapter` | `react-native-zeroconf` |
 
