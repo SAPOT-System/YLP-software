@@ -36,23 +36,6 @@ const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
         >
           Chats
         </Text>
-        <View
-          style={{
-            backgroundColor: "#3A7AFE",
-            justifyContent: "center",
-            alignItems: "center",
-            paddingHorizontal: 16,
-            paddingVertical: 2,
-            borderRadius: 999,
-            elevation: 6,
-          }}
-        >
-          <Text
-            style={{ color: theme.dark ? "#121A2E" : "#FFF", fontSize: 13 }}
-          >
-            Peer requests
-          </Text>
-        </View>
       </View>
       <FlatList
         data={chats}
