@@ -16,7 +16,7 @@ import {
     Text,
     useTheme,
 } from "react-native-paper";
-import { useProfilePhoto, useUserProfile } from "../hooks";
+import { useMainContainer, useProfilePhoto, useUserProfile } from "../hooks";
 import { useSyncService } from "../hooks/use-sync-service";
 import { uiLog } from "../utils/logger";
 
@@ -26,6 +26,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
   const auth = useAuth();
   const syncService = useSyncService();
+  const { appModeStore } = useMainContainer();
   const { user } = useUserProfile();
   const { url: profilePicUrl } = useProfilePhoto();
 
@@ -34,6 +35,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   }
 
   const { isAuthenticated, logout, logoutAsGuest } = auth;
+  const isLan = appModeStore.getEffectiveMode(!isAuthenticated) === "lan";
 
   const handleEditProfile = () => {
     uiLog.info("drawer › edit profile pressed");
@@ -175,14 +177,16 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
               )}
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />
-            <DrawerItem
-              label="Sync"
-              onPress={handleSyncNow}
-              icon={({ color, size }) => (
-                <Icon source="seed" color={color} size={size ?? 24} />
-              )}
-              style={{ marginHorizontal: 0, borderRadius: 0 }}
-            />
+            {!isLan && (
+              <DrawerItem
+                label="Sync"
+                onPress={handleSyncNow}
+                icon={({ color, size }) => (
+                  <Icon source="seed" color={color} size={size ?? 24} />
+                )}
+                style={{ marginHorizontal: 0, borderRadius: 0 }}
+              />
+            )}
             <DrawerItem
               label="Logout"
               onPress={handleLogout}

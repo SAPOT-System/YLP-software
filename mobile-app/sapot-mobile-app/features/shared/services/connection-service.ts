@@ -13,8 +13,10 @@ import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
   CallControlData,
   CallMessage,
+  ChatMessage,
   DataAckMessage,
   Message,
+  ServerAckMessage,
   SignalingMessage,
   WsCallMessage,
 } from "../types";
@@ -69,6 +71,7 @@ export type ConnectionServiceEvents = {
  */
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
+  private chatService?: ChatService;
 
   constructor(
     private readonly tcpServerAdapter: TcpServerAdapter,
@@ -152,6 +155,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       "call-message",
       async (message: WsCallMessage) => {
         try {
+          if (!this.isWebSocketAllowed()) return;
           if (message.type === "audio-call") {
             // Fire local notification so user sees it with screen off
             await this.showIncomingCallNotification({
@@ -211,6 +215,27 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         }
       }
     );
+
+    this.wsSignalingAdapter.on("ws-chat", async (message: ChatMessage) => {
+      try {
+        if (!this.isWebSocketAllowed()) return;
+        if (!this.chatService) return;
+        await this.chatService.handleIncomingChatMessage(message.data);
+      } catch (error) {
+        connectionLog.error("connection › ws chat handling failed", { error });
+      }
+    });
+
+    this.wsSignalingAdapter.on("server-ack", async (message: ServerAckMessage) => {
+      try {
+        if (!this.isWebSocketAllowed()) return;
+        if (!this.chatService) return;
+        if (message.data.message_type !== "chat") return;
+        await this.chatService.handleServerAck(message.data.messageId);
+      } catch (error) {
+        connectionLog.error("connection › server ack handling failed", { error });
+      }
+    });
 
     this.wsSignalingAdapter.on("reconnecting", ({ attempt, delayMs }) => {
       connectionLog.info("connection › ws reconnecting", {
@@ -332,6 +357,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
    * Sets the chat service. Propagates into WebrtcSessionManager after construction.
    */
   setChatService(chatService: ChatService) {
+    this.chatService = chatService;
     this.webrtcSessionManager.setChatService(chatService);
   }
 
@@ -683,9 +709,33 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.signalingService.sendCallMessage(peerId, message);
   }
 
-  // TODO: Make tcp as fallback once webrtc failed
-  sendChatMessage(peerId: string, messageData: DataChatMessageI) {
-    this.webrtcSessionManager.sendChatMessage(peerId, messageData);
+  sendChatMessage(peerId: string, messageData: DataChatMessageI): "webrtc" | "ws" {
+    let webrtcConnected = false;
+    try {
+      webrtcConnected = this.isWebrtcConnected(peerId);
+    } catch {
+      webrtcConnected = false;
+    }
+
+    if (webrtcConnected) {
+      this.webrtcSessionManager.sendChatMessage(peerId, messageData);
+      return "webrtc";
+    }
+
+    const effectiveMode = this.appModeStore.getEffectiveMode(
+      this.userStore.isGuest
+    );
+    if (effectiveMode === "lan") {
+      throw new Error("No data channel and WS not allowed in lan mode");
+    }
+
+    connectionLog.debug("connection › chat ws fallback", {
+      peerId,
+      messageId: messageData.messageId,
+      mode: effectiveMode,
+    });
+    this.signalingService.sendChatMessage(peerId, messageData);
+    return "ws";
   }
 
   // TODO: make tcp as fallback

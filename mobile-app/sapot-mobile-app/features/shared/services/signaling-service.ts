@@ -6,7 +6,8 @@ import {
 } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
-import { CallMessage, Message, SignalingMessage } from "../types";
+import type { DataChatMessageI } from "@/features/chat/types";
+import { CallMessage, ChatMessage, Message, SignalingMessage } from "../types";
 
 signalingLog.debug("[signaling-service] module loaded");
 
@@ -221,6 +222,32 @@ export class SignalingService {
       signalingLog.error("signaling › send failed", {
         peerId,
         messageType: message.type,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  sendChatMessage(peerId: string, messageData: DataChatMessageI): void {
+    try {
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
+
+      if (!isWsConfigured || !this.wsSignalingAdapter.isConnected) {
+        throw new Error("WebSocket unavailable for chat fallback");
+      }
+
+      const payload: ChatMessage = { type: "chat", data: messageData };
+
+      signalingLog.debug("signaling › ws chat relay", {
+        peerId,
+        messageId: messageData.messageId,
+      });
+      this.wsSignalingAdapter.sendMessage(payload);
+    } catch (error) {
+      signalingLog.error("signaling › ws chat relay failed", {
+        peerId,
         error,
       });
       throw error;

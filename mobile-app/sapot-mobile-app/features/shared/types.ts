@@ -184,6 +184,16 @@ export type WsCallMessage =
   | WsCallRejectedMessage
   | WsCallMissedMessage;
 
+export type ServerAckMessage = {
+  type: "server-ack";
+  data: {
+    message_type: "chat" | "call-ended" | "ack" | "seen";
+    messageId: string;
+    from: string;
+    to: string;
+  };
+};
+
 export interface Peer {
   id: string;
   username: string;

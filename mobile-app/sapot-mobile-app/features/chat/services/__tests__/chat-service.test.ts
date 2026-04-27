@@ -371,6 +371,7 @@ describe("ChatService", () => {
 
       mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
       mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(mockMessageStatus);
+      mockConnectionService.sendChatMessage.mockReturnValue("ws");
 
       await chatService.sendChatMessage(message);
 
@@ -379,9 +380,15 @@ describe("ChatService", () => {
       jest.advanceTimersByTime(13000);
       await Promise.resolve(); // flush microtasks
 
-      // Should only have been called once (SENT), not twice (no NOT_SENT flip)
-      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledTimes(1);
-      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledWith("status-1", MessageStatusType.SENT);
+      // Should not flip to NOT_SENT after ACK clears timeout.
+      expect(mockMessageStatusRepository.updateMessageStatusByMessage).toHaveBeenCalledWith(
+        "msg-1",
+        MessageStatusType.DELIVERED
+      );
+      expect(mockMessageStatusRepository.updateMessageStatusById).not.toHaveBeenCalledWith(
+        "status-1",
+        MessageStatusType.NOT_SENT
+      );
 
       jest.useRealTimers();
     });
@@ -475,6 +482,7 @@ describe("ChatService", () => {
       mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(
         mockMessageStatus
       );
+      mockConnectionService.sendChatMessage.mockReturnValue("webrtc");
 
       const result = await chatService.sendChatMessage(message);
 
@@ -840,6 +848,8 @@ describe("ChatService", () => {
         createdAt: new Date(),
         messageType: MessageType.TEXT,
       }) as Message;
+      mockConnectionService.isWebSocketAllowed.mockReturnValue(false);
+      mockConnectionService.sendChatMessage.mockReturnValue("webrtc");
 
       await chatService.tryResendMessage(mockMessage, "peer-1", {
         ipAddress: "192.168.1.101",
@@ -873,6 +883,7 @@ describe("ChatService", () => {
         messageType: MessageType.TEXT,
       }) as Message;
 
+      mockConnectionService.isWebSocketAllowed.mockReturnValue(false);
       mockConnectionService.connectToPeer.mockRejectedValue(
         new Error("Connection failed")
       );
