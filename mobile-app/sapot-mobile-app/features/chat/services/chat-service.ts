@@ -358,6 +358,25 @@ export class ChatService {
    * @param messageId The message id to acknowledge
    * @returns Promise<void>
    */
+  async handleServerAck(messageId: string): Promise<void> {
+    try {
+      chatLog.debug("chat › server ack received", { messageId });
+      const timeout = this.ackTimeouts.get(messageId);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.ackTimeouts.delete(messageId);
+      }
+      await this.messageStatusRepository.updateMessageStatusByMessage(
+        messageId,
+        MessageStatusType.SENT
+      );
+      chatLog.debug("chat › status set to SENT via server ack", { messageId });
+    } catch (error) {
+      chatLog.error("chat › server ack handling failed", { messageId, error });
+      throw error;
+    }
+  }
+
   async handleAckMessage(messageId: string): Promise<void> {
     try {
       chatLog.debug("chat › ack received", { messageId });
@@ -486,7 +505,7 @@ export class ChatService {
         peerId: this.peer?.id,
         messageLength: message.length,
       });
-      this.connectionService.sendChatMessage(this.peer!.id, {
+      const transport = this.connectionService.sendChatMessage(this.peer!.id, {
         message: message,
         conversationId: this.conversation!.id,
         messageId: newMessage.id,
@@ -500,12 +519,14 @@ export class ChatService {
           lastName: this.userStore.user.lastName || undefined,
         },
       });
-      await this.messageStatusRepository.updateMessageStatusById(
-        newMessageStatus.id,
-        MessageStatusType.SENT
-      );
-      // Start 12s ACK timeout — if no DELIVERED arrives, flip back to NOT_SENT
-      // so the message becomes eligible for the retry queue on next reconnect.
+      if (transport === "webrtc") {
+        await this.messageStatusRepository.updateMessageStatusById(
+          newMessageStatus.id,
+          MessageStatusType.SENT
+        );
+      }
+      // Start 12s ACK timeout — if no DELIVERED (WebRTC) or server-ack (WS) arrives,
+      // flip back to NOT_SENT so the message is eligible for the retry queue.
       const timeout = setTimeout(async () => {
         this.ackTimeouts.delete(newMessage.id);
         await this.messageStatusRepository.updateMessageStatusById(
@@ -894,22 +915,28 @@ export class ChatService {
     options?: { ipAddress: string; port: number }
   ): Promise<void> {
     try {
-      if (
-        !this.connectionService.isWebSocketAllowed() &&
-        (!options?.ipAddress || !options?.port)
-      ) {
-        throw new Error(
-          "ipAddress and port are required when WebSocket is not available"
+      if (!this.connectionService.isWebSocketAllowed()) {
+        // LAN mode: WebRTC over TCP is the only transport — connection must be pre-established.
+        if (!options?.ipAddress || !options?.port) {
+          throw new Error(
+            "ipAddress and port are required when WebSocket is not available"
+          );
+        }
+        await this.connectionService.connectToPeer(
+          peerId,
+          options.ipAddress,
+          options.port
         );
+        await this.connectionService.waitForDataChannel(peerId);
       }
-      await this.connectionService.connectToPeer(
-        peerId,
-        options?.ipAddress,
-        options?.port
+      // Signal retry in progress.
+      await this.messageStatusRepository.updateMessageStatusByMessage(
+        message.id,
+        MessageStatusType.SENDING
       );
-      await this.connectionService.waitForDataChannel(peerId);
-
-      this.connectionService.sendChatMessage(peerId, {
+      // auto/server mode: sendChatMessage tries WebRTC first, falls back to WS internally.
+      // LAN mode: WebRTC is now connected from the block above.
+      const transport = this.connectionService.sendChatMessage(peerId, {
         message: message.content,
         conversationId: message.conversation.id,
         messageId: message.id,
@@ -923,11 +950,23 @@ export class ChatService {
           lastName: this.userStore.user.lastName || undefined,
         },
       });
-
-      await this.messageStatusRepository.updateMessageStatusByMessage(
-        message.id,
-        MessageStatusType.SENT
-      );
+      if (transport === "webrtc") {
+        await this.messageStatusRepository.updateMessageStatusByMessage(
+          message.id,
+          MessageStatusType.SENT
+        );
+      } else {
+        // WS path: start 12s timeout — if no server-ack arrives, flip to NOT_SENT
+        // so the message re-enters the retry queue on the next reconnect.
+        const timeout = setTimeout(async () => {
+          this.ackTimeouts.delete(message.id);
+          await this.messageStatusRepository.updateMessageStatusByMessage(
+            message.id,
+            MessageStatusType.NOT_SENT
+          );
+        }, 12000);
+        this.ackTimeouts.set(message.id, timeout);
+      }
     } catch (error) {
       chatLog.error("chat › resend failed", {
         peerId,
