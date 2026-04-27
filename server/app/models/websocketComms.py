@@ -4,7 +4,6 @@ from typing import List, Literal, Optional, Dict, Any, override
 from datetime import datetime
 
 from app.models.call import StatusType
-from app.models.message import MessageType
 
 class data(BaseModel):
     from_user: str = Field(alias="from")
@@ -14,8 +13,8 @@ class data(BaseModel):
     conversationId: Optional[str] = None
     messageId: Optional[str] = None
     sentAt: Optional[int|str|datetime] = None
-    messageType: Optional[MessageType] = None
-    status: Optional[StatusType] = None #StatusType.missed
+    messageType: Optional[Literal["text", "file", "call_log"]] = None
+    status: Optional[Literal["missed", "completed", 'rejected', 'busy', 'undefined']] = None #StatusType.missed
     startTime: Optional[int] = None
     callId: Optional[str] = None
     callerName: Optional[str] = None
