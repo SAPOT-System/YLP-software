@@ -1,5 +1,6 @@
 import { WsSignalingAdapter } from "@/features/shared/adapters/ws-signaling-adapter";
 import { UserStore } from "@/features/shared";
+import { AppModeStore } from "@/features/shared/stores";
 import { chatLog } from "@/features/shared/utils/logger";
 import { PublicChatMessage, SendPublicChatPayload } from "../types";
 
@@ -9,13 +10,17 @@ export class PublicChatService {
   private messages: PublicChatMessage[] = [];
   private listeners = new Set<() => void>();
 
-  constructor(private userStore: UserStore, private adapter: WsSignalingAdapter) {
+  constructor(private userStore: UserStore, private adapter: WsSignalingAdapter, private appModeStore: AppModeStore) {
     adapter.on("open",           () => this.notify());
     adapter.on("close",          () => this.notify());
     adapter.on("public-message", (data: unknown) => this.handleMessage(data));
   }
 
   sendMessage(content: string): void {
+    if (!this.appModeStore.isWebSocketAllowed(this.userStore.isGuest)) {
+      chatLog.warn("public-chat › send blocked", { reason: "mode" });
+      return;
+    }
     if (!this.adapter.isConnected) {
       chatLog.warn("public-chat › send failed", { reason: "ws not open" });
       return;
