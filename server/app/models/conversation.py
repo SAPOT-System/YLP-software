@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class ConversationType(str, Enum):
     direct = 'direct'
-    group = 'group'
+    # group = 'group'
     solo = 'solo'
 
 class Conversation(SyncableModel, table=True):
