@@ -58,7 +58,7 @@ export const RegisterStep1 = ({
   };
   return (
     <>
-      <View style={{ alignItems: "stretch", marginBottom: 20 }}>
+      <View style={{ alignItems: "stretch", marginBottom: 32 }}>
         {/* First Name */}
         <AuthTextInput
           label="First Name"
@@ -92,7 +92,6 @@ export const RegisterStep1 = ({
         )}
 
         <AuthTextInput
-          mode="outlined"
           label="Username"
           placeholder="Username"
           value={values.username}
@@ -163,10 +162,10 @@ export const RegisterStep1 = ({
             href={AUTH_ROUTES.LOGIN.SERVER_LOGIN}
             style={{
               textDecorationLine: "underline",
-              color: theme.colors.inverseOnSurface,
+              color: theme.colors.primary,
             }}
           >
-            Login Here
+            Login here
           </Link>
         </Text>
       </View>

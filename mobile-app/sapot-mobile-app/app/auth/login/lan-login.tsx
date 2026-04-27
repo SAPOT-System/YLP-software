@@ -4,7 +4,7 @@ import { useAppMode } from "@/features/shared/context";
 import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { HelperText } from "react-native-paper";
 
 const LanLoginScreen = () => {
@@ -47,42 +47,46 @@ const LanLoginScreen = () => {
   };
 
   return (
-    <View
-      style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
     >
-      <ScreenHeader headerName="Login" />
-      <ScreenContent
-        title="Welcome to SAPOT!"
-        description="Please enter your username"
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
-        <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
+        <ScreenHeader headerName="Login" />
+        <ScreenContent
+          title="Welcome to SAPOT!"
+          description="Enter your name to continue as guest"
         >
-          <AuthTextInput
-            label="First Name"
-            placeholder="First Name"
-            value={firstName}
-            onChangeText={setFirstName}
-          />
-          <HelperText type="error" visible={!!errors.firstName}>
-            {errors.firstName}
-          </HelperText>
-          <AuthTextInput
-            label="Last Name"
-            placeholder="Last Name"
-            value={lastName}
-            onChangeText={setLastName}
-          />
-          <HelperText type="error" visible={!!errors.lastName}>
-            {errors.lastName}
-          </HelperText>
-        </View>
-        {/* TODO: save the entered username using User Service class */}
-        <PrimaryButton onPress={handleLogin} style={{ width: 280 }}>
-          Login
-        </PrimaryButton>
-      </ScreenContent>
-    </View>
+          <View
+            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+          >
+            <AuthTextInput
+              label="First Name"
+              placeholder="First Name"
+              value={firstName}
+              onChangeText={setFirstName}
+            />
+            <HelperText type="error" visible={!!errors.firstName}>
+              {errors.firstName}
+            </HelperText>
+            <AuthTextInput
+              label="Last Name"
+              placeholder="Last Name"
+              value={lastName}
+              onChangeText={setLastName}
+            />
+            <HelperText type="error" visible={!!errors.lastName}>
+              {errors.lastName}
+            </HelperText>
+          </View>
+          <PrimaryButton onPress={handleLogin}>
+            Login
+          </PrimaryButton>
+        </ScreenContent>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 

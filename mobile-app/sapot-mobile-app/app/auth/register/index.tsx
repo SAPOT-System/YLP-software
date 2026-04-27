@@ -11,7 +11,7 @@ import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { Snackbar } from "react-native-paper";
+import { Snackbar, useTheme } from "react-native-paper";
 
 type RegisterFormField = keyof RegisterFormState;
 
@@ -27,6 +27,7 @@ const Register = () => {
   const auth = useAuth();
 
   // Form state
+  const theme = useTheme();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<RegisterFormState>({
     username: "",
@@ -180,6 +181,31 @@ const Register = () => {
           title="Welcome to SAPOT"
           description="Create an account to get started"
         >
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              justifyContent: "center",
+              marginBottom: 16,
+              width: "100%",
+            }}
+          >
+            {[1, 2].map((s) => (
+              <View
+                key={s}
+                style={{
+                  height: 6,
+                  flex: 1,
+                  maxWidth: 80,
+                  borderRadius: 3,
+                  backgroundColor:
+                    s <= step
+                      ? theme.colors.primary
+                      : theme.colors.surfaceVariant,
+                }}
+              />
+            ))}
+          </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             style={{ width: "100%" }}

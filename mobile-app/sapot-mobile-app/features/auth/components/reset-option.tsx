@@ -55,7 +55,7 @@ export const ResetOption = ({ option }: ResetOptionProps) => {
       style={({ pressed }) => [
         {
           backgroundColor: pressed
-            ? theme.colors.secondary
+            ? theme.colors.secondaryContainer
             : theme.colors.secondary,
           borderRadius: 30,
           paddingHorizontal: 16,
@@ -84,15 +84,13 @@ export const ResetOption = ({ option }: ResetOptionProps) => {
           variant="bodyMedium"
           style={{
             color: theme.colors.onSecondary,
-            fontWeight: "medium",
+            fontWeight: "500",
           }}
-          numberOfLines={1}
         >
           {resetOptionData[option].title}
         </Text>
         <Text
           variant="bodySmall"
-          numberOfLines={2}
           style={{
             color: theme.colors.onTertiary,
           }}
@@ -100,6 +98,11 @@ export const ResetOption = ({ option }: ResetOptionProps) => {
           {resetOptionData[option].description}
         </Text>
       </View>
+      <Icon
+        source="chevron-right"
+        size={20}
+        color={theme.colors.onSurfaceVariant}
+      />
     </Pressable>
   );
 };
