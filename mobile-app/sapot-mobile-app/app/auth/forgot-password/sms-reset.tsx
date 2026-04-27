@@ -4,7 +4,7 @@ import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
 
 const SmsResetScreen = () => {
   const [phone, setPhone] = useState("");
@@ -23,39 +23,43 @@ const SmsResetScreen = () => {
   }, [phone]);
 
   return (
-    <View
-      style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
     >
-      <ScreenHeader headerName="Resetting Password" />
-      <ScreenContent
-        title="Password Recovery"
-        description="We will send a password recovery code to this phone number"
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
-        <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
+        <ScreenHeader headerName="Resetting Password" />
+        <ScreenContent
+          title="Password Recovery"
+          description="We will send a password recovery code to this phone number"
         >
-          {/* TODO: implement error mechanism */}
-          <AuthTextInput
-            mode="outlined"
-            label="Phone Number"
-            placeholder="+63"
-            value={phone}
-            onChangeText={setPhone}
-          />
-        </View>
-        <PrimaryButton
-          onPress={() => {
-            authLog.debug("[SmsResetScreen] onPress triggered");
-            authLog.info("[Navigation] Navigating to EnterRecovery", {
-              screen: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
-            });
-            router.push(AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY);
-          }}
-        >
-          Send Code
-        </PrimaryButton>
-      </ScreenContent>
-    </View>
+          <View
+            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+          >
+            {/* TODO: implement error mechanism */}
+            <AuthTextInput
+              label="Phone Number"
+              placeholder="+63"
+              value={phone}
+              onChangeText={setPhone}
+            />
+          </View>
+          <PrimaryButton
+            onPress={() => {
+              authLog.debug("[SmsResetScreen] onPress triggered");
+              authLog.info("[Navigation] Navigating to EnterRecovery", {
+                screen: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
+              });
+              router.push(AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY);
+            }}
+          >
+            Send Code
+          </PrimaryButton>
+        </ScreenContent>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 

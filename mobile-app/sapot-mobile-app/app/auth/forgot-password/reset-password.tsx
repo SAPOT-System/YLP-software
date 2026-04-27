@@ -15,7 +15,7 @@ import {
     setItemAsync,
 } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import {
     ActivityIndicator,
     HelperText,
@@ -124,16 +124,20 @@ const ChangePasswordScreen = () => {
   };
 
   return (
-    <View
-      style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
     >
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+      >
       <ScreenHeader headerName="Change Password" />
       <ScreenContent
         title="Change your password"
         description="Please enter your new password"
       >
         <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
+          style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
         >
           {/* TODO: implement error mechanism */}
           <AuthTextInput
@@ -152,7 +156,6 @@ const ChangePasswordScreen = () => {
           )}
 
           <AuthTextInput
-            mode="outlined"
             label="Confirm password"
             placeholder="Confirm your password"
             value={confirmPassword}
@@ -187,7 +190,8 @@ const ChangePasswordScreen = () => {
       <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
         {toastMessage}
       </Snackbar>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 

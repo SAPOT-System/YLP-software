@@ -16,7 +16,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, Button, HelperText } from "react-native-paper";
+import { ActivityIndicator, HelperText } from "react-native-paper";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
@@ -143,12 +143,12 @@ const RecoveryKeyResetScreen = () => {
         description="Recovery key was provided when you first created your account"
       >
         <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
+          style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
         >
           <HelperText type="error">{error.general}</HelperText>
-          <Button mode="contained" onPress={handleFileUpload} disabled={!!file}>
+          <SecondaryButton onPress={handleFileUpload} disabled={!!file}>
             Insert File
-          </Button>
+          </SecondaryButton>
           <HelperText type="error">{error.recoveryKey}</HelperText>
           {file && (
             <FileUploadResultCard
@@ -165,8 +165,7 @@ const RecoveryKeyResetScreen = () => {
           Verify
         </PrimaryButton>
         <SecondaryButton
-          mode="outlined"
-          style={{ width: 280, marginTop: 16 }}
+          style={{ marginTop: 16 }}
           onPress={() => {
             authLog.info("[Navigation] goBack triggered from RecoveryKeyReset");
             router.back();

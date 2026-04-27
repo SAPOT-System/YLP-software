@@ -12,7 +12,7 @@ import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { ActivityIndicator, HelperText } from "react-native-paper";
 
 const QuestionResetScreen = () => {
@@ -108,47 +108,51 @@ const QuestionResetScreen = () => {
   };
 
   return (
-    <View
-      style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
     >
-      <ScreenHeader headerName="Resetting Password" />
-      <ScreenContent
-        title="Password Recovery"
-        description="Please enter the answer to your security question"
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
-        <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
+        <ScreenHeader headerName="Resetting Password" />
+        <ScreenContent
+          title="Password Recovery"
+          description="Please enter the answer to your security question"
         >
-          <HelperText type="error">{error.general}</HelperText>
-          <AuthTextInput
-            mode="outlined"
-            label={question}
-            placeholder={question}
-            value={answer}
-            onChangeText={setAnswer}
-            error={!!error.answer}
-          />
-          <HelperText type="error">{error.answer}</HelperText>
-        </View>
-        <PrimaryButton
-          onPress={handleVerify}
-          loading={verifyAnswerLoading}
-          disabled={verifyAnswerLoading}
-        >
-          Verify
-        </PrimaryButton>
-        <SecondaryButton
-          style={{ marginTop: 16 }}
-          onPress={() => {
-            authLog.info("[Navigation] goBack triggered from QuestionReset");
-            router.back();
-          }}
-          disabled={verifyAnswerLoading}
-        >
-          Back
-        </SecondaryButton>
-      </ScreenContent>
-    </View>
+          <View
+            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+          >
+            <HelperText type="error">{error.general}</HelperText>
+            <AuthTextInput
+              label={question}
+              placeholder={question}
+              value={answer}
+              onChangeText={setAnswer}
+              error={!!error.answer}
+            />
+            <HelperText type="error">{error.answer}</HelperText>
+          </View>
+          <PrimaryButton
+            onPress={handleVerify}
+            loading={verifyAnswerLoading}
+            disabled={verifyAnswerLoading}
+          >
+            Verify
+          </PrimaryButton>
+          <SecondaryButton
+            style={{ marginTop: 16 }}
+            onPress={() => {
+              authLog.info("[Navigation] goBack triggered from QuestionReset");
+              router.back();
+            }}
+            disabled={verifyAnswerLoading}
+          >
+            Back
+          </SecondaryButton>
+        </ScreenContent>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 

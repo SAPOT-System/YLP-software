@@ -101,9 +101,9 @@ const EnterRecoveryScreen = () => {
                       : theme.colors.outline,
                     borderWidth: slot.isActive ? 2 : 1,
                     borderRadius: 8,
-                    width: 50,
-                    height: 60,
-                    marginHorizontal: 5,
+                    width: 44,
+                    height: 56,
+                    marginHorizontal: 4,
                     justifyContent: "center",
                     alignItems: "center",
                   }}
@@ -122,28 +122,42 @@ const EnterRecoveryScreen = () => {
             </>
           )}
         />
-        <Text
-          variant="bodySmall"
-          style={{ color: theme.colors.onPrimaryContainer }}
-        >
-          The code will expire in {formatTime(secondsLeft)}
-        </Text>
-        <Text
-          variant="bodyMedium"
-          style={{ color: theme.colors.onPrimaryContainer }}
-        >
-          Didn't receive code?{" "}
+        <View style={{ alignItems: "center", gap: 6, marginTop: 8 }}>
+          <Text
+            variant="bodySmall"
+            style={{
+              color:
+                secondsLeft <= 60
+                  ? theme.colors.error
+                  : theme.colors.onSurfaceVariant,
+              fontWeight: secondsLeft <= 60 ? "bold" : "normal",
+            }}
+          >
+            Code expires in{" "}
+            <Text variant="bodySmall" style={{ fontWeight: "bold" }}>
+              {formatTime(secondsLeft)}
+            </Text>
+          </Text>
           <Text
             variant="bodyMedium"
-            style={{
-              fontWeight: "bold",
-              color: theme.colors.onPrimaryContainer,
-            }}
-            onPress={handleResend}
+            style={{ color: theme.colors.onSurfaceVariant }}
           >
-            Resend
+            Didn't receive a code?{" "}
+            <Text
+              variant="labelLarge"
+              style={{
+                color:
+                  secondsLeft === 0
+                    ? theme.colors.primary
+                    : theme.colors.outline,
+                textDecorationLine: secondsLeft === 0 ? "underline" : "none",
+              }}
+              onPress={secondsLeft === 0 ? handleResend : undefined}
+            >
+              Resend
+            </Text>
           </Text>
-        </Text>
+        </View>
       </ScreenContent>
     </View>
   );

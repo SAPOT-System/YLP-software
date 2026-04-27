@@ -1,13 +1,13 @@
 import { AUTH_ROUTES } from "@/app/routes";
-import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
+import { AuthTextInput, PrimaryButton, SecondaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useAppMode } from "@/features/shared/context";
 import { authLog } from "@/features/shared/utils/logger";
 import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-  Button,
   HelperText,
   Snackbar,
   Text,
@@ -81,116 +81,107 @@ const ServerLoginScreen = () => {
   };
 
   return (
-    <View
-      style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <KeyboardAwareScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      bounces={false}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
     >
-      <ScreenHeader headerName="Login" />
-      <ScreenContent
-        title="Welcome back"
-        description="Please login to continue"
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
-        <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 28 }}
+        <ScreenHeader headerName="Login" />
+        <ScreenContent
+          title="Welcome back"
+          description="Please login to continue"
         >
-          <AuthTextInput
-            label="Username"
-            placeholder="Username"
-            value={username}
-            onChangeText={setUsername}
-            error={!!errors.username}
-          />
-          <HelperText type="error" visible={!!errors.username}>
-            {errors.username}
-          </HelperText>
-          <AuthTextInput
-            label="Password"
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            error={!!errors.password}
-          />
           <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              marginTop: 4,
-            }}
+            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
           >
-            <HelperText type="error" visible={!!errors.password}>
-              {errors.password}
+            <AuthTextInput
+              label="Username"
+              placeholder="Username"
+              value={username}
+              onChangeText={setUsername}
+              error={!!errors.username}
+            />
+            <HelperText type="error" visible={!!errors.username}>
+              {errors.username}
             </HelperText>
-            <Link href={AUTH_ROUTES.FORGOT_PASSWORD.INDEX} asChild>
-              <Text
-                variant="bodyMedium"
-                style={{
-                  textDecorationLine: "underline",
-                  textAlign: "right",
-                  textDecorationColor: theme.colors.inverseOnSurface,
-                  color: theme.colors.inverseOnSurface,
-                }}
-              >
-                Forgot password?
-              </Text>
-            </Link>
+            <AuthTextInput
+              label="Password"
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              error={!!errors.password}
+            />
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginTop: 4,
+              }}
+            >
+              <HelperText type="error" visible={!!errors.password}>
+                {errors.password}
+              </HelperText>
+              <Link href={AUTH_ROUTES.FORGOT_PASSWORD.INDEX} asChild>
+                <Text
+                  variant="labelLarge"
+                  style={{
+                    textDecorationLine: "underline",
+                    textAlign: "right",
+                    color: theme.colors.primary,
+                  }}
+                >
+                  Forgot password?
+                </Text>
+              </Link>
+            </View>
           </View>
-        </View>
 
-        <PrimaryButton
-          onPress={handleLogin}
-          loading={loading}
-          disabled={loading}
-          style={{
-            width: 280,
-            height: 52,
-            borderRadius: 30,
-            justifyContent: "center",
-          }}
-        >
-          {loading ? "Logging in..." : "Login"}
-        </PrimaryButton>
-        <Button
-          mode="text"
-          style={{ width: 280 }}
-          onPress={() => {
-            authLog.debug("[ServerLoginScreen] onPress triggered");
-            setMode("lan");
-            authLog.info("[Navigation] Navigating to LanLogin", {
-              screen: AUTH_ROUTES.LOGIN.LAN_LOGIN,
-            });
-            router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
-          }}
-        >
-          <Text
-            style={{
-              textDecorationLine: "underline",
-              color: theme.colors.inverseOnSurface,
+          <PrimaryButton
+            onPress={handleLogin}
+            loading={loading}
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
+          </PrimaryButton>
+          <SecondaryButton
+            onPress={() => {
+              authLog.debug("[ServerLoginScreen] onPress triggered");
+              setMode("lan");
+              authLog.info("[Navigation] Navigating to LanLogin", {
+                screen: AUTH_ROUTES.LOGIN.LAN_LOGIN,
+              });
+              router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
             }}
           >
             Use LAN mode
+          </SecondaryButton>
+          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+            Don't have an account?{" "}
+            <Link
+              href={AUTH_ROUTES.REGISTER}
+              style={{
+                textDecorationLine: "underline",
+                color: theme.colors.primary,
+              }}
+            >
+              Register here
+            </Link>
           </Text>
-        </Button>
-        <Text variant="bodyMedium">
-          Don't have an account?{" "}
-          <Link
-            href={AUTH_ROUTES.REGISTER}
-            style={{
-              textDecorationLine: "underline",
-              color: theme.colors.inverseOnSurface,
-            }}
-          >
-            Register here
-          </Link>
-        </Text>
-      </ScreenContent>
-      <Snackbar
-        visible={toastVisible}
-        onDismiss={() => setToastVisible(false)}
-        duration={3000}
-      >
-        {toastMessage}
-      </Snackbar>
-    </View>
+        </ScreenContent>
+        <Snackbar
+          visible={toastVisible}
+          onDismiss={() => setToastVisible(false)}
+          duration={3000}
+        >
+          {toastMessage}
+        </Snackbar>
+      </View>
+    </KeyboardAwareScrollView>
   );
 };
 
