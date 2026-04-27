@@ -111,7 +111,6 @@ def get_queued_messages(user_id: UUID, session: SessionDep):
     try:
         statement = select(Queue).where(Queue.to == user_id)
         results = session.exec(statement).all()
-        print("res", results)
         return results
     except Exception as e:
         print("EX", e)
@@ -178,9 +177,12 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                             data=parsed.get("data")
                             )
                     await relay_message(user_id, user_id, data, session)
-
-                    session.delete(message)
-                    session.commit()
+                    # don't delete from queue just yet, wait for it to be acknowledged by the receiver
+                    if message.payload_type == 'seen':
+                        print("message", message)
+                        session.delete(message)
+                        session.commit()
+                        
                 except Exception as e:
                     pass
     except:
@@ -200,7 +202,7 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                 
             try:
                 payload = MessageData.model_validate(raw_payload)
-            except Exception as _:
+            except Exception as e:
                 payload = payload
 
             if isinstance(payload, dict) and payload.get("type") == "ping":

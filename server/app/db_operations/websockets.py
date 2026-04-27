@@ -2,6 +2,7 @@
 from uuid import UUID, uuid4
 from fastapi import WebSocket
 from pydantic import ValidationError
+from sqlmodel import select
 
 from app.db_operations.auth import SessionDep
 from app.models.message import Message
@@ -53,23 +54,48 @@ async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage,
         pass
 
 async def relay_message_fails(sender_id: UUID, target_id: UUID, payload: MessageData, message, session:SessionDep):
-    try: 
+    try:
+        if payload.type not in ['chat', 'call-ended', 'ack', 'seen']:
+            raise Exception()
         q = Queue(
                 id=uuid4(),
                 to=target_id,
-                data=str(message)
+                data=str(message),
+                payload_type=payload.type,
+                data_id=payload.data.messageId if payload.data.messageId else payload.data.conversationId
                 )
         session.add(q)
         session.commit()
         session.refresh(q)
-        if payload.type == 'chat':
-            await manager.send_personal_message(sender_id, { "type": "ack", 'data': {"messageId": payload.data.messageId, "from": payload.data.from_user, "to": payload.data.to}})
-        elif payload.type in ['audio-call', 'video-call', 'call-ended']:
-            await manager.send_personal_message(sender_id, { "type": "ack", 'data': {"callId": payload.data.callId, "from": payload.data.from_user, "to": payload.data.to}})
-        else:
-            await manager.send_personal_message(sender_id, { "type": "ack", 'data': {}})
-    except:
+        if payload.type == ['chat', 'call-ended', 'ack']:
+            await manager.send_personal_message(sender_id, {
+                "type": "server-ack",
+                'data': {
+                    "message_type": payload.type,
+                    "messageId": payload.data.messageId,
+                    "from": payload.data.from_user,
+                    "to": payload.data.to
+                }
+            })
+        elif payload.type == 'seen':
+            await manager.send_personal_message(sender_id, {
+                "type": "server-ack",
+                'data': {
+                    "message_type": payload.type,
+                    "conversationId": payload.data.conversationId,
+                    "from": payload.data.from_user,
+                    "to": payload.data.to
+                }
+            })
+    except Exception as e:
+        print("here ack", e)
         pass
+
+
+def delete_from_queue(queue: Queue, session: SessionDep):
+    session.delete(queue)
+    session.commit()
+
 
 async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, session: SessionDep):
     message = {
@@ -78,6 +104,25 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
     }
     if not isinstance(target_id, UUID):
         target_id = UUID(target_id)
+
+    if payload.type == 'ack':
+        try:
+            query = select(Queue).filter_by(data_id=payload.data.messageId)
+            queued_data = session.exec(query).all()
+            for data in queued_data:
+                try:
+                    if not queued_data:
+                        raise Exception()
+                    if not str(payload.data.from_user) == str(data.to):
+                        raise Exception()
+
+                    delete_from_queue(data, session)
+                    
+                except Exception as e:
+                    pass
+        except Exception as e:
+            pass
+        
     
     if manager.active_connections.get(target_id):
         try:
@@ -91,17 +136,13 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
 async def relay_public_message(sender_id: UUID, payload: PublicMessageData, session: SessionDep):
     # save the public message to database
     try:
-
         message = payload.model_dump(exclude_unset=True)
         message["sender_id"] = str(message["sender_id"])
         message_to_db = Message(**payload.model_dump(exclude_unset=True))
         session.add(message_to_db)
         session.commit()
-        print("message", message)
         await manager.broadcast(message)
-        print("HERE relaying")
     except Exception as e:
-        print(e)
         pass
     
 
