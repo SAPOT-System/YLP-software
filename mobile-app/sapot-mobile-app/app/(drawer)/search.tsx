@@ -8,7 +8,7 @@ import {
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 import {
     Appbar,
     Avatar,
@@ -64,7 +64,7 @@ const SearchResultItem = ({
           <Text style={{ color: theme.dark ? "#FFFFFF" : "#1E1E1E", fontWeight: "medium" }}>
             {item.first_name} {item.last_name}
           </Text>
-          <Text style={{ color: "#6B7280", fontSize: 14 }}>Not Connected</Text>
+          <Text style={{ color: "#6B7280", fontSize: 14 }}>@{item.username}</Text>
         </View>
       </View>
     </Pressable>
@@ -79,7 +79,10 @@ export default function SearchScreen() {
   // debounce the query
   const [debouncedQuery] = useDebounce(query, 400);
 
-  const { data, isLoading } = useUserSearch(debouncedQuery);
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useUserSearch(debouncedQuery);
+
+  const results = data?.pages.flat() ?? [];
 
   const {
     visible: toastVisible,
@@ -162,8 +165,17 @@ export default function SearchScreen() {
 
       {isLoading && <Text>Searching...</Text>}
       <FlatList
-        data={(data || []) as SearchUser[]}
+        data={results}
         keyExtractor={(item) => item.id}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <ActivityIndicator style={{ padding: 16 }} />
+          ) : null
+        }
         renderItem={({ item }) => (
           <SearchResultItem
             item={item}
