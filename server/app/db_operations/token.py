@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 from app.models.token import Token
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from datetime import datetime, timedelta, timezone
 from fastapi.security import  OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
@@ -25,6 +25,17 @@ REFRESH_ACCESS_TOKEN_EXPIRE_DAYS = 60
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
+def get_user_id_from_header(request: Request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    
+    try:
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("sub") # or payload.get("user_id")
+    except Exception:
+        return None
 
 def verify_token(token: str):
     try:
