@@ -12,7 +12,7 @@ import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { HelperText } from "react-native-paper";
 
 const EnterIdentifierScreen = () => {
@@ -153,46 +153,57 @@ const EnterIdentifierScreen = () => {
     }
   };
   return (
-    <View
-      style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
     >
-      <ScreenHeader headerName="Resetting Password" />
-      <ScreenContent
-        title="Forgot Password"
-        description="Enter your account details"
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
-        <View style={{ width: "100%", alignItems: "stretch" }}>
-          <HelperText type="error">
-            {error.general || emailResetError}
-          </HelperText>
-          <AuthTextInput
-            label="Email/Phone number/Username"
-            placeholder="Enter identifier"
-            value={identifier}
-            onChangeText={setIdentfier}
-            error={!!error.identifier}
-          />
-          <HelperText type="error">{error.identifier}</HelperText>
-        </View>
-        <PrimaryButton
-          style={{ marginBottom: 8 }}
-          onPress={handleContinue}
-          loading={loading || emailResetLoading}
-          disabled={loading || emailResetLoading}
+        <ScreenHeader headerName="Resetting Password" />
+        <ScreenContent
+          title="Forgot Password"
+          description="Enter your account details"
         >
-          Continue
-        </PrimaryButton>
-        <SecondaryButton
-          onPress={() => {
-            authLog.info("[Navigation] goBack triggered from EnterIdentifier");
-            router.back();
-          }}
-          disabled={loading || emailResetLoading}
-        >
-          Back
-        </SecondaryButton>
-      </ScreenContent>
-    </View>
+          <View style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}>
+            {(error.general || emailResetError) && (
+              <HelperText type="error" visible>
+                {error.general || emailResetError}
+              </HelperText>
+            )}
+            <AuthTextInput
+              label="Email/Phone number/Username"
+              placeholder="Enter identifier"
+              value={identifier}
+              onChangeText={setIdentfier}
+              error={!!error.identifier}
+            />
+            {error.identifier && (
+              <HelperText type="error" visible>
+                {error.identifier}
+              </HelperText>
+            )}
+          </View>
+          <PrimaryButton
+            style={{ marginBottom: 8 }}
+            onPress={handleContinue}
+            loading={loading || emailResetLoading}
+            disabled={loading || emailResetLoading}
+          >
+            Continue
+          </PrimaryButton>
+          <SecondaryButton
+            onPress={() => {
+              authLog.info("[Navigation] goBack triggered from EnterIdentifier");
+              router.back();
+            }}
+            disabled={loading || emailResetLoading}
+          >
+            Back
+          </SecondaryButton>
+        </ScreenContent>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 

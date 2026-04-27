@@ -29,7 +29,7 @@ export const ScreenContent = ({
       }}
     >
       <Text
-        style={{ color: theme.colors.inverseOnSurface, fontWeight: "bold" }}
+        style={{ color: theme.colors.inverseOnSurface, fontWeight: "bold", textAlign: "center" }}
         variant="headlineLarge"
       >
         {title}

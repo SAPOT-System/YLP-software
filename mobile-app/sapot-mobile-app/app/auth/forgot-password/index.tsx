@@ -3,7 +3,7 @@ import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 const ForgotPasswordScreen = () => {
   useEffect(() => {
@@ -22,23 +22,25 @@ const ForgotPasswordScreen = () => {
         title="Forgot Password"
         description="Please select an option to receive a password reset link."
       >
-        <View
-          style={{ width: "100%", alignItems: "stretch", marginBottom: 40 }}
+        <ScrollView
+          style={{ width: "100%" }}
+          contentContainerStyle={{ paddingBottom: 8 }}
+          showsVerticalScrollIndicator={false}
         >
           <ResetOption option="email" />
           <ResetOption option="sms" />
           <ResetOption option="question" />
           <ResetOption option="recoveryKey" />
-        </View>
+        </ScrollView>
+        <SecondaryButton
+          onPress={() => {
+            authLog.info("[Navigation] goBack triggered from ForgotPassword");
+            router.back();
+          }}
+        >
+          Back
+        </SecondaryButton>
       </ScreenContent>
-      <SecondaryButton
-        onPress={() => {
-          authLog.info("[Navigation] goBack triggered from ForgotPassword");
-          router.back();
-        }}
-      >
-        Back
-      </SecondaryButton>
     </View>
   );
 };

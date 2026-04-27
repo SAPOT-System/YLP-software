@@ -37,7 +37,7 @@ export const RegisterStep2 = ({
   const theme = useTheme();
   return (
     <>
-      <View style={{ alignItems: "stretch", marginBottom: 20 }}>
+      <View style={{ alignItems: "stretch", marginBottom: 32 }}>
         <Dropdown
           label="Security Question"
           options={SECURITY_QUESTIONS}
@@ -73,7 +73,6 @@ export const RegisterStep2 = ({
         )}
 
         <AuthTextInput
-          mode="outlined"
           label="Password"
           placeholder="Password"
           value={values.password}
@@ -93,7 +92,6 @@ export const RegisterStep2 = ({
 
         {/* Confirm Password */}
         <AuthTextInput
-          mode="outlined"
           label="Confirm Password"
           placeholder="Confirm Password"
           value={values.confirmPassword}
@@ -167,10 +165,10 @@ export const RegisterStep2 = ({
             href={AUTH_ROUTES.LOGIN.SERVER_LOGIN}
             style={{
               textDecorationLine: "underline",
-              color: theme.colors.inverseOnSurface,
+              color: theme.colors.primary,
             }}
           >
-            Login Here
+            Login here
           </Link>
         </Text>
       </View>

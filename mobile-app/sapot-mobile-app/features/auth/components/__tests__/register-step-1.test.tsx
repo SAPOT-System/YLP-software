@@ -1,7 +1,7 @@
 import { createRegisterFormState, createRegisterFormStateErrors } from "@/test/factories/auth-form-state.factory";
 import {
-    createRegisterCallbacks,
-    createRegisterNavigationMock,
+  createRegisterCallbacks,
+  createRegisterNavigationMock,
 } from "@/test/mocks/auth-component.mock-builders";
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
@@ -120,7 +120,7 @@ describe("RegisterStep1", () => {
       expect(getByLabelText("Phone Number")).toBeTruthy();
       expect(getByLabelText("Email Address")).toBeTruthy();
       expect(getByText("Continue")).toBeTruthy();
-      expect(getByText("Login Here")).toBeTruthy();
+      expect(getByText("Login here")).toBeTruthy();
     });
 
     it("emits onChange with the right field keys", () => {
