@@ -2,6 +2,7 @@ import { Database } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 
+import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import {
   getSyncLastPulledAt,
   saveSyncLastPulledAt,
@@ -259,6 +260,25 @@ export class SyncService {
     changes: SyncChanges
   ): PushLocalDataRequestBody["changes"] {
     type C = PushLocalDataRequestBody["changes"];
+
+    const excludedReceiptStatuses = new Set([
+      MessageStatusType.SENDING,
+      MessageStatusType.NOT_SENT,
+      MessageStatusType.SENT,
+    ]);
+
+    const excludedMessageIds = new Set<string>();
+    for (const r of [
+      ...changes.message_receipts.created,
+      ...changes.message_receipts.updated,
+    ]) {
+      const data = r as EntityLocalPayloadMap["message_receipts"];
+      if (data.status && excludedReceiptStatuses.has(data.status)) {
+        const msgId = data.message_id ?? data.message;
+        if (msgId) excludedMessageIds.add(msgId);
+      }
+    }
+
     return {
       conversations: {
         created: changes.conversations.created.map((r) =>
@@ -279,12 +299,12 @@ export class SyncService {
         deleted: changes.conversation_participants.deleted,
       },
       messages: {
-        created: changes.messages.created.map((r) =>
-          this.toServerPayload("messages", r)
-        ) as C["messages"]["created"],
-        updated: changes.messages.updated.map((r) =>
-          this.toServerPayload("messages", r)
-        ) as C["messages"]["updated"],
+        created: changes.messages.created
+          .filter((r) => !excludedMessageIds.has(r.id as string))
+          .map((r) => this.toServerPayload("messages", r)) as C["messages"]["created"],
+        updated: changes.messages.updated
+          .filter((r) => !excludedMessageIds.has(r.id as string))
+          .map((r) => this.toServerPayload("messages", r)) as C["messages"]["updated"],
         deleted: changes.messages.deleted,
       },
       calls: {
@@ -306,12 +326,12 @@ export class SyncService {
         deleted: changes.call_participants.deleted,
       },
       message_receipts: {
-        created: changes.message_receipts.created.map((r) =>
-          this.toServerPayload("message_receipts", r)
-        ) as C["message_receipts"]["created"],
-        updated: changes.message_receipts.updated.map((r) =>
-          this.toServerPayload("message_receipts", r)
-        ) as C["message_receipts"]["updated"],
+        created: changes.message_receipts.created
+          .filter((r) => !excludedReceiptStatuses.has(r.status as MessageStatusType))
+          .map((r) => this.toServerPayload("message_receipts", r)) as C["message_receipts"]["created"],
+        updated: changes.message_receipts.updated
+          .filter((r) => !excludedReceiptStatuses.has(r.status as MessageStatusType))
+          .map((r) => this.toServerPayload("message_receipts", r)) as C["message_receipts"]["updated"],
         deleted: changes.message_receipts.deleted,
       },
     };
