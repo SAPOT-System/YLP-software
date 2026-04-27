@@ -2,31 +2,33 @@ import { apiLog } from "@/features/shared/utils/logger";
 import { apiClient } from "./client";
 apiLog.debug("[search-api] module loaded");
 
+type SearchUserResult = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+};
+
 export const searchUsers = async ({
   queryKey,
-}: //   pageParam = 1,
-{
-  queryKey: [string, string];
-  //   pageParam: number;
+}: {
+  queryKey: [string, string, number, number];
 }) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_key, username] = queryKey;
+  const [_key, username, limit, offset] = queryKey;
 
   apiLog.debug("api › search users", {
     hasUsername: Boolean(username?.trim()),
     usernameLength: username?.length ?? 0,
+    limit,
+    offset,
   });
 
-  const res = await apiClient.post<{
-    res: {
-      first_name: string;
-      username: string;
-      last_name: string;
-      id: string;
-    }[];
-  }>("/user-utils/search-user", null, {
-    params: { username },
-  });
+  const res = await apiClient.post<{ res: SearchUserResult[] }>(
+    "/user-utils/search-user",
+    null,
+    { params: { identifier_string: username, limit, offset } }
+  );
 
   return res.data.res;
 };

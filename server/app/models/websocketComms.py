@@ -10,7 +10,7 @@ class data(BaseModel):
     from_user: str = Field(alias="from")
     to: Optional[str] = None
     message: Optional[str] = None
-    content: Optional[str]  
+    content: Optional[str] = None
     conversationId: Optional[str] = None
     messageId: Optional[str] = None
     sentAt: Optional[int|str|datetime] = None
