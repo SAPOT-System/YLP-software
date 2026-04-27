@@ -1,4 +1,5 @@
 import EventEmitter from "events";
+import { SendPublicChatPayload } from "@/features/chat/types";
 import { CallMessage, SignalingMessage } from "../types";
 import { wsLog } from "../utils/logger";
 
@@ -39,7 +40,7 @@ type AdapterState = "idle" | "connecting" | "open" | "closing";
 interface QueuedSignalingMessage {
   payload: string;
   createdAt: number;
-  type: SignalingMessage["type"] | CallMessage["type"];
+  type: string;
 }
 
 /**
@@ -194,7 +195,7 @@ export class WsSignalingAdapter extends EventEmitter {
   /**
    * Sends a signaling payload. If socket is not open yet, the payload is queued.
    */
-  sendMessage(message: SignalingMessage | CallMessage) {
+  sendMessage(message: SignalingMessage | CallMessage | SendPublicChatPayload) {
     const payload = JSON.stringify(message);
     // const summary = this.summarizeSignalingMessage(message);
 
@@ -293,6 +294,12 @@ export class WsSignalingAdapter extends EventEmitter {
         return;
       }
 
+      if (this.isPublicChatMessage(parsed)) {
+        wsLog.debug("ws › public chat message");
+        this.emit("public-message", parsed);
+        return;
+      }
+
       if (!this.isSignalingMessage(parsed)) {
         wsLog.warn("ws › payload not signaling");
         this.emit("raw-message", rawData);
@@ -339,6 +346,12 @@ export class WsSignalingAdapter extends EventEmitter {
     if (typeof data.sender === "string") return true;
 
     return false;
+  }
+
+  private isPublicChatMessage(value: unknown): boolean {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value as { type?: unknown };
+    return candidate.type === "public-chat";
   }
 
   private isCallMessage(value: unknown): value is CallMessage {
