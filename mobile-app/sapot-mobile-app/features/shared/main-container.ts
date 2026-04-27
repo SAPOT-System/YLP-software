@@ -148,7 +148,8 @@ export class MainContainer {
     );
 
     this.publicChatService = new PublicChatService(
-      this.userContainer.userStore
+      this.userContainer.userStore,
+      this.wsSignalingAdapter
     );
 
     this.callRepository = new CallRepository(database);
@@ -229,7 +230,6 @@ export class MainContainer {
       this.networkConfig.stopWatching();
       this.connectionService.stop(); // stops TCP + WS + WebRTC
       this.discoveryService.destroy(); // stops Zeroconf
-      this.publicChatService.disconnect();
 
       await clearConnectionConfig();
 

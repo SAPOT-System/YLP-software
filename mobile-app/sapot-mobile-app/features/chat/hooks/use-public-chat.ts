@@ -10,7 +10,7 @@ import { PublicChatMessage } from "../types";
 hookLog.debug("[use-public-chat] module loaded");
 
 export function usePublicChat() {
-  const { publicChatService } = useMainContainer();
+  const { publicChatService, wsSignalingAdapter } = useMainContainer();
   const userStore = useUserStore();
   const { mode } = useAppMode();
 
@@ -34,19 +34,21 @@ export function usePublicChat() {
 
   useEffect(() => {
     if (!isAvailable) {
-      publicChatService.disconnect();
+      wsSignalingAdapter.disconnect();
       setIsConnected(false);
       return;
     }
+
+    if (wsSignalingAdapter.isConnected) return;
 
     getStoredAccessToken().then((token) => {
       if (!token) {
         hookLog.warn("public-chat › no token, skipping connect");
         return;
       }
-      publicChatService.connect(getWsUrl(), token);
+      wsSignalingAdapter.connect({ baseUrl: getWsUrl(), token, path: "/ws/" });
     });
-  }, [isAvailable, publicChatService]);
+  }, [isAvailable, wsSignalingAdapter]);
 
   const sendMessage = useCallback(
     (content: string) => {
