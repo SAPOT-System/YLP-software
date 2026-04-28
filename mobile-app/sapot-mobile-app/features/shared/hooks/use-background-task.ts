@@ -30,6 +30,7 @@ const serviceOptions = {
   taskIcon: { name: "ic_launcher", type: "mipmap" as const },
   color: "#ffffff",
   parameters: {},
+  foregroundServiceType: ["dataSync"] as Array<"dataSync">,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
