@@ -725,7 +725,7 @@ def unban_user(
     return {"status": "ok"}
 
 
-@router.post('/get-logs')
+@router.get('/get-logs')
 def get_system_logs(
     _: Annotated[User, Depends(get_current_user_admin)],
     session: SessionDep,
@@ -774,7 +774,7 @@ def get_system_logs(
     )
 
     # 2. Get total count for pagination metadata
-    total_statement = select(func.count()).select_from(User)
+    total_statement = select(func.count()).select_from(ActivityLog)
     total = session.exec(total_statement).one()
 
     results = session.exec(statement).all()
