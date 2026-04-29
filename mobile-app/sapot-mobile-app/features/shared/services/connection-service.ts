@@ -468,7 +468,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         isTcpConnected = true;
       }
     } else {
-      if (!isWsConfigured && canUseTcp && !isTcpConnected) {
+      if (canUseTcp && !isTcpConnected) {
         if (ipAddress && port) {
           try {
             await tcpAdapter.connect(ipAddress, port);
@@ -597,7 +597,12 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             connectionLog.debug("connection › tcp handshake sent", { peerId });
             this.sendMessage(peerId, {
               type: "handshake",
-              data: { ...this.buildSignalSenderData(peerId) },
+              data: {
+                ...this.buildSignalSenderData(peerId),
+                wsAllowed: this.appModeStore.isWebSocketAllowed(
+                  this.userStore.isGuest
+                ),
+              },
             });
           }
           this.signalingService.sendSignalingMessage(peerId, {

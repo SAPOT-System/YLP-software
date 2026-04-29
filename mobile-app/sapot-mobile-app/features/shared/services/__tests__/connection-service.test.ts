@@ -11,6 +11,7 @@ import {
 import { WebrtcAdapter } from "../../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
+    AudioCallMessage,
     CallEndedMessage,
     CallMissedMessage,
     CallRejectedMessage,
@@ -934,6 +935,161 @@ describe("ConnectionService", () => {
       await expect(connectionService.renegotiate(peerId)).rejects.toThrow(
         "Webrtc not connected"
       );
+    });
+  });
+
+  describe("signaling transport routing", () => {
+    const peerId = "peer-1";
+    const testMessage: SignalingMessage = {
+      type: "answer",
+      data: {
+        to: peerId,
+        sender: "test-user-id",
+        sdp: mockAnswerDescription,
+        ipAddress: "192.168.1.100",
+        port: 8080,
+      },
+    };
+
+    beforeEach(() => {
+      // Make WS appear configured: set token + mark adapter already connected
+      connectionService.setSignalingToken("test-token");
+      (mockWsSignalingAdapter as unknown as { isConnected: boolean }).isConnected =
+        true;
+    });
+
+    it("prefers TCP over WS when TCP is already connected to the peer (auto→lan initiator)", () => {
+      // mockTcpClientAdapter.isConnected = true by default
+      signalingService.sendSignalingMessage(peerId, testMessage);
+
+      expect(mockWsSignalingAdapter.sendMessage).not.toHaveBeenCalled();
+      expect(mockTcpClientAdapter.sendMessage).toHaveBeenCalledWith(testMessage);
+    });
+
+    it("forces TCP after handshake with wsAllowed=false (lan→auto responder)", async () => {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+
+      await signalingService.handleIncomingSignaling({
+        type: "handshake",
+        data: {
+          to: "test-user-id",
+          sender: peerId,
+          ipAddress: "10.0.0.2",
+          port: 9000,
+          wsAllowed: false,
+        },
+      });
+
+      signalingService.sendSignalingMessage(peerId, testMessage);
+
+      expect(mockWsSignalingAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("keeps WS preference after handshake with wsAllowed=true", async () => {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+
+      await signalingService.handleIncomingSignaling({
+        type: "handshake",
+        data: {
+          to: "test-user-id",
+          sender: peerId,
+          ipAddress: "10.0.0.2",
+          port: 9000,
+          wsAllowed: true,
+        },
+      });
+
+      signalingService.sendSignalingMessage(peerId, testMessage);
+
+      expect(mockWsSignalingAdapter.sendMessage).toHaveBeenCalledWith(testMessage);
+    });
+  });
+
+  describe("call message transport routing", () => {
+    const peerId = "peer-1";
+    const audioCallMsg: AudioCallMessage = {
+      type: "audio-call",
+      data: { from: "test-user-id", to: peerId, callerName: "Test User" },
+    };
+
+    beforeEach(() => {
+      connectionService.setSignalingToken("test-token");
+      (mockWsSignalingAdapter as unknown as { isConnected: boolean }).isConnected =
+        true;
+    });
+
+    it("sendCallMessage uses TCP when TCP adapter is connected to the peer (auto→lan)", () => {
+      // mockTcpClientAdapter.isConnected = true by default
+      signalingService.sendCallMessage(peerId, audioCallMsg);
+
+      expect(mockWsSignalingAdapter.sendMessage).not.toHaveBeenCalled();
+      expect(mockTcpClientAdapter.sendMessage).toHaveBeenCalledWith(audioCallMsg);
+    });
+
+    it("sendCallMessage forces TCP after handshake with wsAllowed=false (lan→auto)", async () => {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+
+      await signalingService.handleIncomingSignaling({
+        type: "handshake",
+        data: {
+          to: "test-user-id",
+          sender: peerId,
+          ipAddress: "10.0.0.2",
+          port: 9000,
+          wsAllowed: false,
+        },
+      });
+
+      signalingService.sendCallMessage(peerId, audioCallMsg);
+
+      expect(mockWsSignalingAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("sendCallMessage keeps WS when no TCP and wsAllowed=true", async () => {
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+      Object.defineProperty(mockWebrtcAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+
+      await signalingService.handleIncomingSignaling({
+        type: "handshake",
+        data: {
+          to: "test-user-id",
+          sender: peerId,
+          ipAddress: "10.0.0.2",
+          port: 9000,
+          wsAllowed: true,
+        },
+      });
+
+      signalingService.sendCallMessage(peerId, audioCallMsg);
+
+      expect(mockWsSignalingAdapter.sendMessage).toHaveBeenCalledWith(audioCallMsg);
     });
   });
 
