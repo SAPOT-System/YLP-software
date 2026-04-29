@@ -47,6 +47,7 @@ export type SignalingMessage =
         ipAddress: string;
         port: number;
         sender: string;
+        wsAllowed?: boolean;
       };
     };
 

@@ -15,6 +15,7 @@ export class SignalingService {
   private signalingToken?: string;
   private getTcpAdapter?: (peerId: string) => TcpClientAdapter | undefined;
   private sendTcpMessage?: (peerId: string, message: Message) => void;
+  private readonly peerForceTcp = new Set<string>();
 
   constructor(
     private readonly getWebrtcAdapter: (peerId: string) => WebrtcAdapter,
@@ -175,6 +176,9 @@ export class SignalingService {
             message.data.ipAddress,
             message.data.port
           );
+          if (message.data.wsAllowed === false) {
+            this.peerForceTcp.add(senderId);
+          }
           break;
         }
 
@@ -198,14 +202,25 @@ export class SignalingService {
         ? this.ensureWsSignaling()
         : false;
       const isTcpAllowed = this.isTcpAllowed();
+      const isTcpConnectedForPeer =
+        this.getTcpAdapter?.(peerId)?.isConnected ?? false;
+      const shouldUseTcp =
+        isTcpConnectedForPeer || this.peerForceTcp.has(peerId);
 
       signalingLog.debug("signaling › route", {
         peerId,
         messageType: message.type,
-        route: isWsConfigured ? "ws" : isTcpAllowed ? "tcp" : "none",
+        route:
+          isWsConfigured && !shouldUseTcp
+            ? "ws"
+            : isTcpAllowed
+            ? "tcp"
+            : "none",
+        isTcpConnectedForPeer,
+        peerForceTcp: this.peerForceTcp.has(peerId),
       });
 
-      if (isWsConfigured) {
+      if (isWsConfigured && !shouldUseTcp) {
         this.wsSignalingAdapter.sendMessage(message);
         return;
       }
@@ -260,8 +275,20 @@ export class SignalingService {
         ? this.ensureWsSignaling()
         : false;
       const isTcpAllowed = this.isTcpAllowed();
+      const isTcpConnectedForPeer =
+        this.getTcpAdapter?.(peerId)?.isConnected ?? false;
+      const shouldUseTcp =
+        isTcpConnectedForPeer || this.peerForceTcp.has(peerId);
 
-      if (isWsConfigured) {
+      signalingLog.debug("signaling › call route", {
+        peerId,
+        messageType: message.type,
+        route: isWsConfigured && !shouldUseTcp ? "ws" : isTcpAllowed ? "tcp" : "none",
+        isTcpConnectedForPeer,
+        peerForceTcp: this.peerForceTcp.has(peerId),
+      });
+
+      if (isWsConfigured && !shouldUseTcp) {
         this.wsSignalingAdapter.sendMessage(message);
         return;
       }
