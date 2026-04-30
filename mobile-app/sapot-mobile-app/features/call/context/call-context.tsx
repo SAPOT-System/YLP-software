@@ -272,33 +272,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setRemoteCam(false);
     };
 
-    const callRejectedHandler = async (incomingPeerId: string) => {
-      if (peerId !== incomingPeerId) {
-        uiLog.warn("[CallContext] call-rejected ignored — peer mismatch");
-        return;
-      }
-      uiLog.info("[CallContext] call rejected by remote peer", { peerId });
-      await terminate(true, "rejected");
-      setCallState("ended");
-    };
-
-    const callMissedHandler = async (incomingPeerId: string) => {
-      if (peerId !== incomingPeerId) {
-        uiLog.warn("[CallContext] call-missed ignored — peer mismatch");
-        return;
-      }
-      uiLog.info("[CallContext] call missed by remote peer", { peerId });
-      await terminate(true, "missed");
-      setCallState("no-answer");
-    };
 
     connectionService.on("call-ready", callReadyHandler);
     connectionService.on("mic-on", micOnHandler);
     connectionService.on("mic-off", micOffHandler);
     connectionService.on("camera-on", camOnHandler);
     connectionService.on("camera-off", camOffHandler);
-    connectionService.on("call-rejected", callRejectedHandler);
-    connectionService.on("call-missed", callMissedHandler);
 
     return () => {
       connectionService.off("call-ready", callReadyHandler);
@@ -306,8 +285,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       connectionService.off("mic-off", micOffHandler);
       connectionService.off("camera-on", camOnHandler);
       connectionService.off("camera-off", camOffHandler);
-      connectionService.off("call-rejected", callRejectedHandler);
-      connectionService.off("call-missed", callMissedHandler);
     };
   }, [callService, connectionService, peerId, callType, terminate]);
 
@@ -352,6 +329,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           endedAt: payload.endedAt,
           durationSeconds: payload.durationSeconds,
           initiatorId: payload.initiatorId,
+          callType: payload.callType,
+          messageId: payload.messageId
         });
       } catch (error) {
         uiLog.error("[CallContext] Error in remote finalize", { error });
@@ -486,9 +465,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     uiLog.debug("[CallContext] no-answer timeout effect", { callState });
     if (callState !== "calling") return;
-    const timer = setTimeout(() => setCallState("no-answer"), 30_000);
+    const timer = setTimeout(async () => {
+      setCallState("no-answer");
+      await terminate(true, "missed");
+    }, 30_000);
     return () => clearTimeout(timer);
-  }, [callState]);
+  }, [callState, terminate]);
 
   // ─────────────────────────────────────────────
   // Auto-navigate away on "ended" (3s delay)

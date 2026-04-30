@@ -18,6 +18,7 @@ import { AUTH_ROUTES } from "../routes";
 import { CallProvider } from "@/features/call/context/call-context";
 import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
+import { useGlobalCallEndedListener } from "@/features/call/hooks/use-global-call-ended-listener";
 import { ChatRoomSource } from "@/features/chat/types";
 import { router } from "expo-router";
 import { Platform } from "react-native";
@@ -26,6 +27,11 @@ const queryClient = new QueryClient();
 
 function GpsStreamingEffect() {
   useGpsStreaming();
+  return null;
+}
+
+function GlobalCallEndedEffect() {
+  useGlobalCallEndedListener();
   return null;
 }
 
@@ -196,6 +202,7 @@ export default function DrawerLayout() {
       <GpsPreferenceProvider>
         <GpsStreamingEffect />
         <MainContainerProvider>
+          <GlobalCallEndedEffect />
         <QueryClientProvider client={queryClient}>
           <CallProvider>
             <Drawer

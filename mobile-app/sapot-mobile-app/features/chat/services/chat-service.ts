@@ -296,7 +296,7 @@ export class ChatService {
    * @param senderId The sender's peer id
    * @param messageId The message id to acknowledge
    */
-  private acknowledgeIncomingMessage(
+  acknowledgeIncomingMessage(
     senderId: string,
     messageId: string
   ): void {
@@ -725,11 +725,25 @@ export class ChatService {
           messageId
         );
         if (existingMessage) {
+          const existingStatus =
+            await this.messageStatusRepository.queryMessageStatusByMessage(
+              existingMessage.id
+            );
+          if (existingStatus && existingStatus.status !== status) {
+            await this.messageStatusRepository.updateMessageStatusByMessage(
+              existingMessage.id,
+              status
+            );
+            chatLog.info("chat › call log status updated on dedup", {
+              messageId: existingMessage.id,
+              status,
+            });
+          }
           chatLog.info("chat › call log deduped", {
             peerId,
             messageId,
           });
-          return;
+          return existingMessage.id;
         }
       }
 
@@ -764,6 +778,7 @@ export class ChatService {
         senderId: sender.id,
         status,
       });
+      return newMessage.id;
     } catch (error) {
       chatLog.error("chat › call log save failed", {
         peerId,
@@ -773,6 +788,16 @@ export class ChatService {
       });
       throw error;
     }
+  }
+
+  async updateMessageStatus(
+    messageId: string,
+    status: MessageStatusType
+  ): Promise<void> {
+    await this.messageStatusRepository.updateMessageStatusByMessage(
+      messageId,
+      status
+    );
   }
 
   /**

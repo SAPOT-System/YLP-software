@@ -11,6 +11,7 @@ import {
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
+  AckMessage,
   CallControlData,
   CallMessage,
   ChatMessage,
@@ -41,6 +42,8 @@ export type CallEndedEventPayload = {
   endedAt?: number;
   durationSeconds?: number;
   initiatorId?: string;
+  callType?: "audio" | "video";
+  messageId?: string;
 };
 
 export type ConnectionServiceEvents = {
@@ -52,8 +55,6 @@ export type ConnectionServiceEvents = {
   ];
   "call-ended": [payload: CallEndedEventPayload];
   "call-ready": [peerId: string];
-  "call-rejected": [peerId: string];
-  "call-missed": [peerId: string];
   "camera-off": [peerId: string];
   "camera-on": [peerId: string];
   "switch-cam": [stream: MediaStream];
@@ -197,16 +198,12 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               endedAt: message.data.endedAt,
               durationSeconds: message.data.durationSeconds,
               initiatorId: message.data.initiatorId,
+              callType: message.data.callType,
+              messageId: message.data.messageId
             });
           }
           if (message.type === "call-ready") {
             this.emit("call-ready", message.data.from_user);
-          }
-          if (message.type === "call-rejected") {
-            this.emit("call-rejected", message.data.from_user);
-          }
-          if (message.type === "call-missed") {
-            this.emit("call-missed", message.data.from_user);
           }
         } catch (error) {
           connectionLog.error("connection › call message handling failed", {
@@ -220,20 +217,39 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       try {
         if (!this.isWebSocketAllowed()) return;
         if (!this.chatService) return;
-        await this.chatService.handleIncomingChatMessage(message.data);
+        const raw = message.data as DataChatMessageI & { from_user?: string };
+        const normalized: DataChatMessageI = raw.from
+          ? raw
+          : { ...raw, from: raw.from_user ?? "" };
+        await this.chatService.handleIncomingChatMessage(normalized);
       } catch (error) {
         connectionLog.error("connection › ws chat handling failed", { error });
       }
     });
 
-    this.wsSignalingAdapter.on("server-ack", async (message: ServerAckMessage) => {
+    this.wsSignalingAdapter.on(
+      "server-ack",
+      async (message: ServerAckMessage) => {
+        try {
+          if (!this.isWebSocketAllowed()) return;
+          if (!this.chatService) return;
+          if (message.data.message_type !== "chat") return;
+          await this.chatService.handleServerAck(message.data.messageId);
+        } catch (error) {
+          connectionLog.error("connection › server ack handling failed", {
+            error,
+          });
+        }
+      }
+    );
+
+    this.wsSignalingAdapter.on("ws-ack", async (message: AckMessage) => {
       try {
         if (!this.isWebSocketAllowed()) return;
         if (!this.chatService) return;
-        if (message.data.message_type !== "chat") return;
-        await this.chatService.handleServerAck(message.data.messageId);
+        await this.chatService.handleAckMessage(message.data.messageId);
       } catch (error) {
-        connectionLog.error("connection › server ack handling failed", { error });
+        connectionLog.error("connection › ws ack handling failed", { error });
       }
     });
 
@@ -329,16 +345,12 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             endedAt: message.data.endedAt,
             durationSeconds: message.data.durationSeconds,
             initiatorId: message.data.initiatorId,
+            callType: message.data.callType,
+            messageId: message.data.messageId,
           });
         }
         if (message.type === "call-ready" && "from" in message.data) {
           this.emit("call-ready", message.data.from);
-        }
-        if (message.type === "call-rejected" && "from" in message.data) {
-          this.emit("call-rejected", message.data.from);
-        }
-        if (message.type === "call-missed" && "from" in message.data) {
-          this.emit("call-missed", message.data.from);
         }
       } catch (error) {
         connectionLog.error("connection › tcp handler failed", { error });
@@ -714,7 +726,10 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.signalingService.sendCallMessage(peerId, message);
   }
 
-  sendChatMessage(peerId: string, messageData: DataChatMessageI): "webrtc" | "ws" {
+  sendChatMessage(
+    peerId: string,
+    messageData: DataChatMessageI
+  ): "webrtc" | "ws" {
     let webrtcConnected = false;
     try {
       webrtcConnected = this.isWebrtcConnected(peerId);
@@ -743,9 +758,32 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     return "ws";
   }
 
-  // TODO: make tcp as fallback
   sendAckMessage(peerId: string, ackData: DataAckMessage) {
-    this.webrtcSessionManager.sendAckMessage(peerId, ackData);
+    let webrtcConnected = false;
+    try {
+      webrtcConnected = this.isWebrtcConnected(peerId);
+    } catch {
+      webrtcConnected = false;
+    }
+
+    if (webrtcConnected) {
+      this.webrtcSessionManager.sendAckMessage(peerId, ackData);
+      return;
+    }
+
+    const effectiveMode = this.appModeStore.getEffectiveMode(
+      this.userStore.isGuest
+    );
+    if (effectiveMode === "lan") {
+      throw new Error("No data channel and WS not allowed in lan mode");
+    }
+
+    connectionLog.debug("connection › ack ws fallback", {
+      peerId,
+      messageId: ackData.messageId,
+      mode: effectiveMode,
+    });
+    this.signalingService.sendAckMessage(peerId, ackData);
   }
 
   sendSeenMessage(peerId: string, conversationId: string) {
@@ -870,6 +908,10 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   isWebrtcConnected(peerId: string) {
     const adapter = this.getWebrtcAdapter(peerId);
     return adapter.isConnected;
+  }
+
+  isWebsocketConnected() {
+    return this.wsSignalingAdapter.isConnected;
   }
 
   private buildSignalSenderData(to: string) {

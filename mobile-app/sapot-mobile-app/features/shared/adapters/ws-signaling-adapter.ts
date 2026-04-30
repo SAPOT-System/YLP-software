@@ -1,6 +1,6 @@
 import EventEmitter from "events";
 import { SendPublicChatPayload } from "@/features/chat/types";
-import { CallMessage, ChatMessage, ServerAckMessage, SignalingMessage } from "../types";
+import { AckMessage, CallMessage, ChatMessage, ServerAckMessage, SignalingMessage } from "../types";
 import { wsLog } from "../utils/logger";
 
 wsLog.debug("[ws-signaling-adapter] module loaded");
@@ -195,9 +195,10 @@ export class WsSignalingAdapter extends EventEmitter {
   /**
    * Sends a signaling payload. If socket is not open yet, the payload is queued.
    */
-  sendMessage(message: SignalingMessage | CallMessage | SendPublicChatPayload | ChatMessage) {
+  sendMessage(message: SignalingMessage | CallMessage | SendPublicChatPayload | ChatMessage | AckMessage) {
     const payload = JSON.stringify(message);
     // const summary = this.summarizeSignalingMessage(message);
+    console.log(payload);
 
     if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
       // wsLog.debug("ws › signaling send", summary);
@@ -317,6 +318,14 @@ export class WsSignalingAdapter extends EventEmitter {
         return;
       }
 
+      if (this.isAckMessage(parsed)) {
+        wsLog.debug("ws › peer ack", {
+          messageId: (parsed as AckMessage).data?.messageId,
+        });
+        this.emit("ws-ack", parsed as AckMessage);
+        return;
+      }
+
       if (!this.isSignalingMessage(parsed)) {
         wsLog.warn("ws › payload not signaling");
         this.emit("raw-message", rawData);
@@ -409,8 +418,17 @@ export class WsSignalingAdapter extends EventEmitter {
     const candidate = value as { type?: unknown; data?: unknown };
     if (candidate.type !== "chat") return false;
     if (!candidate.data || typeof candidate.data !== "object") return false;
-    const data = candidate.data as { from?: unknown };
-    return typeof data.from === "string";
+    const data = candidate.data as { from?: unknown; from_user?: unknown };
+    return typeof data.from === "string" || typeof data.from_user === "string";
+  }
+
+  private isAckMessage(value: unknown): value is AckMessage {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value as { type?: unknown; data?: unknown };
+    if (candidate.type !== "ack") return false;
+    if (!candidate.data || typeof candidate.data !== "object") return false;
+    const data = candidate.data as { messageId?: unknown };
+    return typeof data.messageId === "string";
   }
 
   private isServerAckMessage(value: unknown): value is ServerAckMessage {
