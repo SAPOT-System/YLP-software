@@ -3,6 +3,7 @@ import { Collection, Database, Q } from "@nozbe/watermelondb";
 import {
   Conversation,
   ConversationParticipant,
+  ConversationType,
   GuestUser,
   Peer,
 } from "@/features/shared";
@@ -138,25 +139,43 @@ export class ConversationParticipantRepository {
    */
   async isDirectConversationExists(userIds: string[]) {
     try {
-      // Find all participants with userIds in the list
+      // Find live participant rows whose user is one of the given ids.
+      // Filter is_deleted so a soft-deleted participant cannot resurrect or
+      // mask a duplicate conversation.
       const participants = await this.conversationParticipantsCollection
-        .query(Q.where("user", Q.oneOf(userIds)))
+        .query(
+          Q.where("user", Q.oneOf(userIds)),
+          Q.where("is_deleted", false)
+        )
         .fetch();
 
-      // Group by conversation id and count participants per conversation
       const chatIdCount: Record<string, number> = {};
       for (const participant of participants) {
         chatIdCount[participant.conversation.id] =
           (chatIdCount[participant.conversation.id] || 0) + 1;
       }
 
-      // Find a chatId where the count matches the peerIds length
-      const directChatId =
-        Object.entries(chatIdCount).find(
-          ([, count]) => count === userIds.length
-        )?.[0] || undefined;
+      const candidateIds = Object.entries(chatIdCount)
+        .filter(([, count]) => count === userIds.length)
+        .map(([id]) => id);
 
-      return directChatId;
+      if (candidateIds.length === 0) return undefined;
+
+      // Verify the candidate is actually a live DIRECT conversation. This
+      // rejects group conversations that happen to contain both users and
+      // soft-deleted conversations.
+      const conversationsCollection = this.db.get<Conversation>(
+        Conversation.table
+      );
+      const directConversations = await conversationsCollection
+        .query(
+          Q.where("id", Q.oneOf(candidateIds)),
+          Q.where("type", ConversationType.DIRECT),
+          Q.where("is_deleted", false)
+        )
+        .fetch();
+
+      return directConversations[0]?.id ?? undefined;
     } catch (error) {
       chatLog.error("chat › direct conversation check failed", {
         participantCount: userIds.length,

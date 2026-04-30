@@ -87,6 +87,7 @@ type RemoteCallEndedPayload = {
   initiatorId?: string;
   callType?: "audio" | "video";
   messageId?: string;
+  conversationId?: string;
 };
 
 type CallSession = {
@@ -537,6 +538,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
           durationSeconds: this.calculateDurationSeconds(session, endTime),
           initiatorId,
           messageId,
+          conversationId: session?.conversationId,
           callType: session?.callType === CallType.VIDEO ? "video" : "audio",
         },
       });
@@ -569,6 +571,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
               status: MessageStatusType.DELIVERED,
               senderId: initiatorId,
               messageId: payload.messageId,
+              conversationId: payload.conversationId
             });
             void this.syncService.syncNow();
           } catch (logError) {
@@ -768,6 +771,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       content: callLogMessage,
       status: MessageStatusType.SENDING,
       senderId: initiatorId,
+      conversationId: session.conversationId
     });
 
     session.finalized = true;

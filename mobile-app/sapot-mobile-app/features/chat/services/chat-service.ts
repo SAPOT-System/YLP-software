@@ -21,6 +21,7 @@ import {
   MessageStatusRepository,
 } from "../repositories";
 import { DataChatMessageI } from "../types";
+import { MessageReceiptManager } from "./message-receipt-manager";
 
 chatLog.debug("[chat-service] module loaded");
 
@@ -36,6 +37,8 @@ export class ChatService {
   private peer?: Peer;
   private conversation?: Conversation;
   private ackTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private messageReceiptManager = new MessageReceiptManager();
+
   /**
    * Constructs a ChatService instance.
    * @param connectionService Handles peer-to-peer network connections
@@ -67,6 +70,13 @@ export class ChatService {
       hasPeerService: Boolean(peerService),
       hasUserStore: Boolean(userStore),
     });
+  }
+
+  /**
+   * Returns the message receipt manager for filtering receipt statuses during sync.
+   */
+  getMessageReceiptManager(): MessageReceiptManager {
+    return this.messageReceiptManager;
   }
 
   onConnectionState(
@@ -258,6 +268,19 @@ export class ChatService {
       exists: isConversationExist,
     });
     if (!isConversationExist) {
+      const existingConversationId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [sender.id, this.userStore.user.id]
+        );
+      if (existingConversationId) {
+        chatLog.debug("chat › reusing existing direct conversation", {
+          conversationId: existingConversationId,
+          senderId: sender.id,
+        });
+        return await this.conversationRepository.queryConversationById(
+          existingConversationId
+        );
+      }
       return await this.createChatRoom(sender, conversationId);
     } else {
       return await this.conversationRepository.queryConversationById(
@@ -296,10 +319,7 @@ export class ChatService {
    * @param senderId The sender's peer id
    * @param messageId The message id to acknowledge
    */
-  acknowledgeIncomingMessage(
-    senderId: string,
-    messageId: string
-  ): void {
+  acknowledgeIncomingMessage(senderId: string, messageId: string): void {
     this.connectionService.sendAckMessage(senderId, {
       messageId,
       to: senderId,
@@ -679,18 +699,41 @@ export class ChatService {
     try {
       const peer = await this.peerService.findPeerById(peerId);
       if (!peer) throw new Error("Peer not found");
-      const existingConversationId =
-        await this.conversationParticipantRepository.isDirectConversationExists(
-          [peer.id, this.userStore.user.id]
-        );
 
-      if (existingConversationId) {
-        return await this.conversationRepository.queryConversationById(
-          existingConversationId
-        );
-      }
+      // Atomic find-or-create: serialized via database.write so two concurrent
+      // callers (e.g. call session setup racing an incoming chat message) cannot
+      // both pass the existence check and both create a duplicate row.
+      return await database.write(async () => {
+        const existingConversationId =
+          await this.conversationParticipantRepository.isDirectConversationExists(
+            [peer.id, this.userStore.user.id]
+          );
 
-      return await this.createChatRoom(peer, conversationId);
+        if (existingConversationId) {
+          return await this.conversationRepository.queryConversationById(
+            existingConversationId
+          );
+        }
+
+        const conversation = await this.conversationRepository.saveConversation(
+          {
+            type: ConversationType.DIRECT,
+            id: conversationId,
+          },
+          true
+        );
+        await this.conversationParticipantRepository.saveMultipleConversationParticipant(
+          [peer, this.userStore.user],
+          conversation,
+          true
+        );
+        chatLog.info("chat › room create", {
+          peerId: peer.id,
+          conversationId: conversation.id,
+          hasConversationId: Boolean(conversationId),
+        });
+        return conversation;
+      });
     } catch (error) {
       chatLog.error("chat › direct conversation resolve/create failed", {
         peerId,
@@ -706,6 +749,7 @@ export class ChatService {
     status?: MessageStatusType;
     senderId: string;
     messageId?: string;
+    conversationId?: string;
   }) {
     const {
       peerId,
@@ -713,6 +757,7 @@ export class ChatService {
       status = MessageStatusType.DELIVERED,
       senderId,
       messageId,
+      conversationId,
     } = params;
 
     if (senderId !== this.userStore.user.id && senderId !== peerId) {
@@ -750,7 +795,8 @@ export class ChatService {
       const peer = await this.peerService.findPeerById(peerId);
       if (!peer) throw new Error("Peer not found");
       const conversation = await this.getOrCreateDirectConversationByPeer(
-        peerId
+        peerId,
+        conversationId
       );
 
       const sender: Peer | GuestUser =

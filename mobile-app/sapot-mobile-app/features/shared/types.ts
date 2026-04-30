@@ -89,6 +89,7 @@ export type CallEndedMessage = {
     durationSeconds?: number;
     initiatorId?: string;
     messageId?: string;
+    conversationId?: string;
     callType?: "audio" | "video";
   };
 };
@@ -133,6 +134,7 @@ export type WsCallEndedMessage = {
     durationSeconds?: number;
     initiatorId?: string;
     messageId?: string;
+    conversationId?: string;
     callType?: "audio" | "video";
   };
 };

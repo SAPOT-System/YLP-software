@@ -330,7 +330,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           durationSeconds: payload.durationSeconds,
           initiatorId: payload.initiatorId,
           callType: payload.callType,
-          messageId: payload.messageId
+          messageId: payload.messageId,
+          conversationId: payload.conversationId
         });
       } catch (error) {
         uiLog.error("[CallContext] Error in remote finalize", { error });

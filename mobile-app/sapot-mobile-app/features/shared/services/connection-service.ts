@@ -44,6 +44,7 @@ export type CallEndedEventPayload = {
   initiatorId?: string;
   callType?: "audio" | "video";
   messageId?: string;
+  conversationId?: string;
 };
 
 export type ConnectionServiceEvents = {
@@ -199,7 +200,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               durationSeconds: message.data.durationSeconds,
               initiatorId: message.data.initiatorId,
               callType: message.data.callType,
-              messageId: message.data.messageId
+              messageId: message.data.messageId,
+              conversationId: message.data.conversationId,
             });
           }
           if (message.type === "call-ready") {
@@ -347,6 +349,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             initiatorId: message.data.initiatorId,
             callType: message.data.callType,
             messageId: message.data.messageId,
+            conversationId: message.data.conversationId,
           });
         }
         if (message.type === "call-ready" && "from" in message.data) {

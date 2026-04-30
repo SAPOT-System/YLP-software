@@ -11,7 +11,7 @@ import {
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -42,6 +42,7 @@ const ChatRoom = () => {
   const [peer, setPeer] = useState<Peer | undefined>();
   const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
   const [message, setMessage] = useState("");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const chatService = useChatService();
   const peerService = usePeerService();
   const userStore = useUserStore();
@@ -67,9 +68,20 @@ const ChatRoom = () => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
       id,
       source,
-      isSelfChat,
     });
+
+    // Abort previous request if it's still in-flight
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    const signal = abortController.signal;
+
     const connect = async () => {
+      if (signal.aborted) return;
+
       if (source === ChatRoomSource.PEER) {
         const resolvedPeerId = id as string;
         const isSelf = resolvedPeerId === userStore.user?.id;
@@ -79,10 +91,16 @@ const ChatRoom = () => {
         });
         setIsSelfChat(isSelf);
         setPeerId(resolvedPeerId);
+
+        if (signal.aborted) return;
         const chatId = await chatService.findChatByPeer(resolvedPeerId);
+        if (signal.aborted) return;
+
         if (chatId) setConversationId(chatId);
       } else if (source === ChatRoomSource.CHAT) {
         const foundPeerId = await chatService.findPeerIdByChatId(id as string);
+        if (signal.aborted) return;
+
         const isSelf = foundPeerId === userStore.user?.id;
         uiLog.debug("[ChatRoom] peer resolved from CHAT source", {
           foundPeerId,
@@ -94,10 +112,16 @@ const ChatRoom = () => {
       } else {
         throw Error("Error in passed source paramater");
       }
+
+      if (signal.aborted) return;
       setIsRendered(true);
     };
     connect();
-  }, [chatService, id, source, userStore, isSelfChat]);
+
+    return () => {
+      abortControllerRef.current = null;
+    };
+  }, [chatService, id, source, userStore]);
 
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
@@ -170,7 +194,7 @@ const ChatRoom = () => {
     };
 
     getPeer();
-  }, [peerId, isSelfChat, peerService]);
+  }, [peerId, peerService]);
 
   if (!isRendered) return <ActivityIndicator />;
 

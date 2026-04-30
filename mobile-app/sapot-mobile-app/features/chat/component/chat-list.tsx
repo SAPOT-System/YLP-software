@@ -1,4 +1,5 @@
 import { Conversation, database, formatDate } from "@/features/shared";
+import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -12,7 +13,10 @@ import { useChatService } from "../hooks";
 uiLog.debug("[chat-list] module loaded");
 
 const enhanceChats = withObservables([], () => ({
-  chats: database.get<Conversation>("conversations").query().observe(),
+  chats: database
+    .get<Conversation>("conversations")
+    .query(Q.where("is_deleted", false))
+    .observe(),
 }));
 
 const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
