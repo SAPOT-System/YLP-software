@@ -1,3 +1,4 @@
+import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { getWsUrl } from "@/config/runtime";
 import {
   TcpServerAdapter,
@@ -66,6 +67,8 @@ export class MainContainer {
   readonly publicChatService: PublicChatService;
 
   private initPromise?: Promise<void>;
+  private unsubscribeNetInfo?: () => void;
+  private periodicSyncTimer?: ReturnType<typeof setInterval>;
 
   /**
    * Constructs an AppContainer instance and initializes all dependencies and services.
@@ -134,7 +137,10 @@ export class MainContainer {
       new ConversationParticipantRepository(database);
     this.messageStatusRepository = new MessageStatusRepository(database);
 
-    this.syncService = new SyncService({ db: database });
+    this.syncService = new SyncService({
+      db: database,
+      currentUserId: this.userContainer.userStore.user.id,
+    });
 
     this.chatService = new ChatService(
       this.connectionService,
@@ -145,6 +151,11 @@ export class MainContainer {
       this.userContainer.peerService,
       this.userContainer.userStore,
       this.syncService
+    );
+
+    // Inject messageReceiptManager into SyncService after ChatService construction
+    this.syncService.setMessageReceiptManager(
+      this.chatService.getMessageReceiptManager()
     );
 
     this.publicChatService = new PublicChatService(
@@ -211,6 +222,17 @@ export class MainContainer {
         setAppAlive(true);
         if (this.appModeStore.getEffectiveMode(this.userContainer.userStore.isGuest) !== "lan") {
           void this.syncService.syncNow();
+
+          this.unsubscribeNetInfo = NetInfo.addEventListener((state: NetInfoState) => {
+            // isInternetReachable can be null on Android during transitions; treat null as online
+            const isOnline =
+              state.isConnected === true && state.isInternetReachable !== false;
+            void this.syncService.handleConnectivityChange(isOnline);
+          });
+
+          this.periodicSyncTimer = setInterval(() => {
+            void this.syncService.syncNow();
+          }, 5 * 60 * 1_000);
         }
       })();
 
@@ -230,6 +252,17 @@ export class MainContainer {
       setAppAlive(false);
 
       this.networkConfig.stopWatching();
+
+      this.unsubscribeNetInfo?.();
+      this.unsubscribeNetInfo = undefined;
+
+      if (this.periodicSyncTimer) {
+        clearInterval(this.periodicSyncTimer);
+        this.periodicSyncTimer = undefined;
+      }
+
+      this.syncService.cleanup();
+
       this.connectionService.stop(); // stops TCP + WS + WebRTC
       this.discoveryService.destroy(); // stops Zeroconf
 

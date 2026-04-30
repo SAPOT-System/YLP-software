@@ -16,7 +16,8 @@ export function useGlobalCallEndedListener() {
           durationSeconds: payload.durationSeconds,
           initiatorId: payload.initiatorId,
           callType: payload.callType,
-          messageId: payload.messageId
+          messageId: payload.messageId,
+          conversationId:payload.conversationId
         });
       } catch (error) {
         callLog.warn("call › global call-ended handler failed", {

@@ -14,6 +14,7 @@ import {
 } from "@/features/shared";
 import { CallType } from "@/features/shared/database/model/Call";
 import { useMainContainer } from "@/features/shared/hooks";
+import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { usePeerService } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -216,7 +217,9 @@ const MessageListItem = enhanceMessage(
   }) => {
     const statusObj = status?.[0];
     const senderName = getSenderName(sender);
+    const userStore = useUserStore();
     const theme = useTheme();
+    const isCurrentUserMessage = message.sender?.id === userStore.user?.id;
     const chatService = useChatService();
     const peerService = usePeerService();
     const [isResending, setIsResending] = useState(false);
@@ -263,14 +266,14 @@ const MessageListItem = enhanceMessage(
         <CallLogMessageCard
           message={message}
           peerId={peerId}
-          isOutgoing={!!statusObj}
+          isOutgoing={isCurrentUserMessage}
           callType={callType}
         />
       );
     }
 
-    // For the peer message
-    if (!statusObj) {
+    // For the peer message (incoming)
+    if (!isCurrentUserMessage) {
       if (message.messageType === "text") {
         return (
           <View
@@ -301,43 +304,49 @@ const MessageListItem = enhanceMessage(
       }
     }
 
-    const isNotSent = statusObj?.status === MessageStatusType.NOT_SENT;
+    // For the current user message (outgoing)
+    if (isCurrentUserMessage) {
+      const isNotSent = statusObj?.status === MessageStatusType.NOT_SENT;
 
-    return (
-      <View style={{ alignSelf: "flex-end" }}>
-        <View
-          style={{
-            backgroundColor: "#3A7AFE",
-            borderRadius: 4,
-            padding: 10,
-          }}
-        >
-          <Text style={{ color: "#DFD8D8", fontSize: 14 }}>
-            You, {formatDate(message.createdAt)}
-          </Text>
-          <Text style={{ color: "#FFFFFF", fontSize: 17 }}>
-            {message.content}
-          </Text>
+      return (
+        <View style={{ alignSelf: "flex-end" }}>
+          <View
+            style={{
+              backgroundColor: "#3A7AFE",
+              borderRadius: 4,
+              padding: 10,
+            }}
+          >
+            <Text style={{ color: "#DFD8D8", fontSize: 14 }}>
+              You, {formatDate(message.createdAt)}
+            </Text>
+            <Text style={{ color: "#FFFFFF", fontSize: 17 }}>
+              {message.content}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
+              {statusObj?.status}
+            </Text>
+            {isNotSent && (
+              <TouchableOpacity onPress={handleResend} disabled={isResending}>
+                <Text
+                  style={{
+                    color: isResending ? "#9C9C9C" : "#3A7AFE",
+                    fontSize: 13,
+                  }}
+                >
+                  {isResending ? "Resending..." : "Resend"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
-            {statusObj?.status}
-          </Text>
-          {isNotSent && (
-            <TouchableOpacity onPress={handleResend} disabled={isResending}>
-              <Text
-                style={{
-                  color: isResending ? "#9C9C9C" : "#3A7AFE",
-                  fontSize: 13,
-                }}
-              >
-                {isResending ? "Resending..." : "Resend"}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    );
+      );
+    }
+
+    // Fallback for message types we don't recognize
+    return null;
   }
 );
 

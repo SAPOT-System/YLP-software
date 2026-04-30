@@ -96,19 +96,41 @@ describe("ConversationParticipantRepository", () => {
   });
 
   it("checks if direct conversation exists", async () => {
+    // First fetch: participant rows (the participant query).
+    // Second fetch: conversation rows (the DIRECT/is_deleted verification).
     mockCollection
       .query()
-      .fetch.mockResolvedValue([
+      .fetch.mockResolvedValueOnce([
         { conversation: { id: "conv-1" } },
         { conversation: { id: "conv-1" } },
-      ]);
+      ])
+      .mockResolvedValueOnce([{ id: "conv-1" }]);
 
     const result = await repository.isDirectConversationExists([
       "user-1",
       "user-2",
     ]);
 
-    expect(result).toBeDefined();
+    expect(result).toBe("conv-1");
+  });
+
+  it("returns undefined when candidate is not a live direct conversation", async () => {
+    // Participants match by count, but the conversation verification returns
+    // no live DIRECT row (e.g. it's a group conversation or soft-deleted).
+    mockCollection
+      .query()
+      .fetch.mockResolvedValueOnce([
+        { conversation: { id: "conv-group" } },
+        { conversation: { id: "conv-group" } },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const result = await repository.isDirectConversationExists([
+      "user-1",
+      "user-2",
+    ]);
+
+    expect(result).toBeUndefined();
   });
 
   it("queries all participants", async () => {

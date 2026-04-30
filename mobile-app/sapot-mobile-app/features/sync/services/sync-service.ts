@@ -1,18 +1,22 @@
-import { Database } from "@nozbe/watermelondb";
+import { Database, Q } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
+import { isAxiosError } from "axios";
 
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import {
   getSyncLastPulledAt,
   saveSyncLastPulledAt,
 } from "@/features/shared/stores/secure-config";
+import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
 import { syncLog } from "@/features/shared/utils/logger";
 import {
   pushLocalDataApi,
   sync as syncApi,
   type PushLocalDataRequestBody,
 } from "../api/sync.api";
+import type { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
+import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 
 syncLog.debug("[sync-service] module loaded");
 
@@ -26,6 +30,8 @@ export type SyncEntity =
 
 interface SyncServiceParams {
   db: Database;
+  messageReceiptManager?: MessageReceiptManager;
+  currentUserId?: string;
 }
 
 interface SyncPullResponse {
@@ -103,6 +109,16 @@ export type EntityLocalPayloadMap = {
     updated_at?: TimestampInput;
     updatedAt?: TimestampInput;
   };
+  /**
+   * call_participants FK naming:
+   *   WatermelonDB schema column → `call`           (string, stores the call's ID)
+   *   Server column              → `conversation_id`
+   *
+   * normalizePullChanges spreads ...item (preserving `conversation_id`) and adds
+   * `call: item.conversation_id`, so both fields are present on pull-normalized records.
+   * `conversation_id` is therefore always populated for records that went through
+   * normalizePullChanges; `call` acts as a fallback for manually-constructed payloads.
+   */
   call_participants: {
     id?: string;
     conversation_id?: string;
@@ -136,15 +152,43 @@ export type EntityLocalPayloadMap = {
   };
 };
 
-export class SyncService {
+export type SyncServiceEvents = {
+  "sync-status": [
+    { status: "started" | "complete" | "failed" | "retrying"; error?: unknown },
+  ];
+};
+
+export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private db: Database;
+  private messageReceiptManager?: MessageReceiptManager;
+  private conversationParticipantRepository: ConversationParticipantRepository;
+  private currentUserId?: string;
   private isSyncing = false;
   private syncLogger: SyncLogger;
+  private retryAttempts = 0;
+  private retryTimer?: ReturnType<typeof setTimeout>;
 
-  constructor({ db }: SyncServiceParams) {
+  constructor({ db, messageReceiptManager, currentUserId }: SyncServiceParams) {
+    super();
     this.db = db;
+    this.messageReceiptManager = messageReceiptManager;
+    this.currentUserId = currentUserId;
+    this.conversationParticipantRepository =
+      new ConversationParticipantRepository(this.db);
     this.syncLogger = new SyncLogger(20);
-    syncLog.info("sync › service constructed", { hasDb: Boolean(db) });
+    syncLog.info("sync › service constructed", {
+      hasDb: Boolean(db),
+      hasReceiptManager: Boolean(messageReceiptManager),
+    });
+  }
+
+  /**
+   * Sets the message receipt manager after construction.
+   * Used to inject ChatService's manager after MainContainer initialization.
+   */
+  setMessageReceiptManager(messageReceiptManager: MessageReceiptManager): void {
+    this.messageReceiptManager = messageReceiptManager;
+    syncLog.info("sync › message receipt manager set");
   }
 
   get syncLogs() {
@@ -163,6 +207,8 @@ export class SyncService {
   async handleConnectivityChange(isOnline: boolean) {
     syncLog.info("sync › connectivity", { isOnline });
     if (isOnline) {
+      this.clearRetryTimer();
+      this.retryAttempts = 0;
       await this.syncNow();
     }
   }
@@ -173,6 +219,7 @@ export class SyncService {
 
     try {
       syncLog.info("sync › start");
+      this.emit("sync-status", { status: "started" });
       const log = this.syncLogger.newLog();
       await synchronize({
         database: this.db,
@@ -185,33 +232,51 @@ export class SyncService {
             schemaVersion,
             lastPulledAt
           );
-          const normalizedChanges = this.normalizePullChanges(changes);
+          const normalizedChanges = await this.normalizePullChanges(changes);
 
           const pullCounts = {
-            conversations:
-              normalizedChanges.conversations.created.length +
-              normalizedChanges.conversations.updated.length +
-              normalizedChanges.conversations.deleted.length,
-            conversationParticipants:
-              normalizedChanges.conversation_participants.created.length +
-              normalizedChanges.conversation_participants.updated.length +
-              normalizedChanges.conversation_participants.deleted.length,
-            messages:
-              normalizedChanges.messages.created.length +
-              normalizedChanges.messages.updated.length +
-              normalizedChanges.messages.deleted.length,
-            calls:
-              normalizedChanges.calls.created.length +
-              normalizedChanges.calls.updated.length +
-              normalizedChanges.calls.deleted.length,
-            callParticipants:
-              normalizedChanges.call_participants.created.length +
-              normalizedChanges.call_participants.updated.length +
-              normalizedChanges.call_participants.deleted.length,
-            messageReceipts:
-              normalizedChanges.message_receipts.created.length +
-              normalizedChanges.message_receipts.updated.length +
-              normalizedChanges.message_receipts.deleted.length,
+            conversations: {
+              received: changes.conversations.created.length,
+              filtered: changes.conversations.created.length - normalizedChanges.conversations.created.length,
+              applied: normalizedChanges.conversations.created.length,
+              updated: normalizedChanges.conversations.updated.length,
+              deleted: normalizedChanges.conversations.deleted.length,
+            },
+            conversationParticipants: {
+              received: changes.conversation_participants.created.length,
+              filtered: changes.conversation_participants.created.length - normalizedChanges.conversation_participants.created.length,
+              applied: normalizedChanges.conversation_participants.created.length,
+              updated: normalizedChanges.conversation_participants.updated.length,
+              deleted: normalizedChanges.conversation_participants.deleted.length,
+            },
+            messages: {
+              received: changes.messages.created.length,
+              filtered: changes.messages.created.length - normalizedChanges.messages.created.length,
+              applied: normalizedChanges.messages.created.length,
+              updated: normalizedChanges.messages.updated.length,
+              deleted: normalizedChanges.messages.deleted.length,
+            },
+            calls: {
+              received: changes.calls.created.length,
+              filtered: changes.calls.created.length - normalizedChanges.calls.created.length,
+              applied: normalizedChanges.calls.created.length,
+              updated: normalizedChanges.calls.updated.length,
+              deleted: normalizedChanges.calls.deleted.length,
+            },
+            callParticipants: {
+              received: changes.call_participants.created.length,
+              filtered: changes.call_participants.created.length - normalizedChanges.call_participants.created.length,
+              applied: normalizedChanges.call_participants.created.length,
+              updated: normalizedChanges.call_participants.updated.length,
+              deleted: normalizedChanges.call_participants.deleted.length,
+            },
+            messageReceipts: {
+              received: changes.message_receipts.created.length,
+              filtered: changes.message_receipts.created.length - normalizedChanges.message_receipts.created.length,
+              applied: normalizedChanges.message_receipts.created.length,
+              updated: normalizedChanges.message_receipts.updated.length,
+              deleted: normalizedChanges.message_receipts.deleted.length,
+            },
           };
           syncLog.debug("sync › pull changes", { counts: pullCounts });
 
@@ -225,12 +290,68 @@ export class SyncService {
         },
       });
       syncLog.info("sync › complete");
+      this.emit("sync-status", { status: "complete" });
+      this.retryAttempts = 0;
+      this.clearRetryTimer();
     } catch (error) {
       syncLog.error("sync › failed", { error });
-      throw error;
+
+      if (isAxiosError(error) && error.response?.status === 409) {
+        // Conflict: server state moved past our cursor. Reset to 0 so the next
+        // sync cycle does a full re-pull from the server.
+        syncLog.warn("sync › 409 conflict, resetting lastPulledAt");
+        await saveSyncLastPulledAt(0);
+        this.emit("sync-status", { status: "failed", error });
+
+        // Schedule immediate retry to minimize data gap
+        this.scheduleRetry();
+        return;
+      }
+
+      this.emit("sync-status", { status: "failed", error });
+      this.scheduleRetry();
     } finally {
       this.isSyncing = false;
     }
+  }
+
+  private scheduleRetry(): void {
+    const MAX_ATTEMPTS = 5;
+    const BASE_MS = 1_000;
+    const MAX_MS = 30_000;
+
+    if (this.retryAttempts >= MAX_ATTEMPTS) {
+      syncLog.warn("sync › retry exhausted", { attempts: this.retryAttempts });
+      this.retryAttempts = 0;
+      return;
+    }
+
+    const base = Math.min(
+      MAX_MS,
+      Math.round(BASE_MS * Math.pow(1.8, this.retryAttempts))
+    );
+    const delay = Math.max(200, Math.round(base * (0.8 + Math.random() * 0.4)));
+    this.retryAttempts += 1;
+    syncLog.warn("sync › retry scheduled", {
+      attempt: this.retryAttempts,
+      delayMs: delay,
+    });
+
+    this.clearRetryTimer();
+    this.retryTimer = setTimeout(() => void this.syncNow(), delay);
+    this.emit("sync-status", { status: "retrying" });
+  }
+
+  private clearRetryTimer(): void {
+    if (!this.retryTimer) return;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = undefined;
+  }
+
+  cleanup(): void {
+    this.clearRetryTimer();
+    this.removeAllListeners();
+    syncLog.info("sync › cleanup");
   }
 
   private async pullFromServer(
@@ -245,7 +366,7 @@ export class SyncService {
     changes: SyncChanges,
     lastPulledAt?: number | null
   ) {
-    const payload = this.buildPushPayload(changes);
+    const payload = await this.buildPushPayload(changes);
     syncLog.debug("sync › push payload", {
       hasChanges: this.hasPayload(payload),
     });
@@ -256,29 +377,51 @@ export class SyncService {
     });
   }
 
-  private buildPushPayload(
+  private async buildPushPayload(
     changes: SyncChanges
-  ): PushLocalDataRequestBody["changes"] {
+  ): Promise<PushLocalDataRequestBody["changes"]> {
     type C = PushLocalDataRequestBody["changes"];
 
-    const excludedReceiptStatuses = new Set([
-      MessageStatusType.SENDING,
-      MessageStatusType.NOT_SENT,
-      MessageStatusType.SENT,
-    ]);
-
-    const excludedMessageIds = new Set<string>();
+    // Build a map of message receipts grouped by message for filtering logic
+    const receiptsByMessage = new Map<string, MessageStatusType[]>();
     for (const r of [
       ...changes.message_receipts.created,
       ...changes.message_receipts.updated,
     ]) {
       const data = r as EntityLocalPayloadMap["message_receipts"];
-      if (data.status && excludedReceiptStatuses.has(data.status)) {
-        const msgId = data.message_id ?? data.message;
-        if (msgId) excludedMessageIds.add(msgId);
+      const msgId = data.message_id ?? data.message;
+      if (msgId && data.status) {
+        if (!receiptsByMessage.has(msgId)) {
+          receiptsByMessage.set(msgId, []);
+        }
+        receiptsByMessage.get(msgId)!.push(data.status);
       }
     }
-
+    
+    // Determine which messages belong to a self conversation (current user only).
+    const selfMessageIds = new Set<string>();
+    if (this.currentUserId) {
+      const allMessages = [
+        ...changes.messages.created,
+        ...changes.messages.updated,
+      ];
+      try {
+        const selfConvId = await this.conversationParticipantRepository.isSelfConversationExists(
+          this.currentUserId
+        );
+        if (selfConvId) {
+          for (const m of allMessages) {
+            const data = m as EntityLocalPayloadMap["messages"];
+            const convId = (data.conversation_id ?? data.conversation) as string | undefined;
+            if (convId && convId === selfConvId && data.id) {
+              selfMessageIds.add(data.id as string);
+            }
+          }
+        }
+      } catch (err) {
+        syncLog.warn("sync › self conversation detection failed", { err });
+      }
+    }
     return {
       conversations: {
         created: changes.conversations.created.map((r) =>
@@ -300,10 +443,14 @@ export class SyncService {
       },
       messages: {
         created: changes.messages.created
-          .filter((r) => !excludedMessageIds.has(r.id as string))
+          .filter((r) =>
+            this.shouldPushMessage(r.id as string, receiptsByMessage) || selfMessageIds.has(r.id as string)
+          )
           .map((r) => this.toServerPayload("messages", r)) as C["messages"]["created"],
         updated: changes.messages.updated
-          .filter((r) => !excludedMessageIds.has(r.id as string))
+          .filter((r) =>
+            this.shouldPushMessage(r.id as string, receiptsByMessage) || selfMessageIds.has(r.id as string)
+          )
           .map((r) => this.toServerPayload("messages", r)) as C["messages"]["updated"],
         deleted: changes.messages.deleted,
       },
@@ -327,10 +474,27 @@ export class SyncService {
       },
       message_receipts: {
         created: changes.message_receipts.created
-          .filter((r) => !excludedReceiptStatuses.has(r.status as MessageStatusType))
+          .map((r) => {
+            const rec = r as EntityLocalPayloadMap["message_receipts"];
+            const msgId = (rec.message_id ?? rec.message) as string | undefined;
+            // For self messages, map SENT -> DELIVERED because server does not store SENT
+            if (msgId && selfMessageIds.has(msgId) && rec.status === MessageStatusType.SENT) {
+              return { ...rec, status: MessageStatusType.DELIVERED };
+            }
+            return rec;
+          })
+          .filter((r) => this.shouldPushReceipt((r).status as MessageStatusType))
           .map((r) => this.toServerPayload("message_receipts", r)) as C["message_receipts"]["created"],
         updated: changes.message_receipts.updated
-          .filter((r) => !excludedReceiptStatuses.has(r.status as MessageStatusType))
+          .map((r) => {
+            const rec = r as EntityLocalPayloadMap["message_receipts"];
+            const msgId = (rec.message_id ?? rec.message) as string | undefined;
+            if (msgId && selfMessageIds.has(msgId) && rec.status === MessageStatusType.SENT) {
+              return { ...rec, status: MessageStatusType.DELIVERED };
+            }
+            return rec;
+          })
+          .filter((r) => this.shouldPushReceipt((r).status as MessageStatusType))
           .map((r) => this.toServerPayload("message_receipts", r)) as C["message_receipts"]["updated"],
         deleted: changes.message_receipts.deleted,
       },
@@ -344,6 +508,99 @@ export class SyncService {
         items.updated.length > 0 ||
         items.deleted.length > 0
     );
+  }
+
+  /**
+   * Determines if a receipt status should be synced to the server.
+   * Delegates to messageReceiptManager if available; otherwise uses fallback logic.
+   */
+  private shouldPushReceipt(status: MessageStatusType): boolean {
+    if (this.messageReceiptManager) {
+      return this.messageReceiptManager.shouldPushReceipt(status);
+    }
+
+    // Fallback: exclude transient statuses
+    const transientStatuses = new Set([
+      MessageStatusType.SENDING,
+      MessageStatusType.NOT_SENT,
+      MessageStatusType.SENT,
+    ]);
+    return !transientStatuses.has(status);
+  }
+
+  /**
+   * Determines if a message should be synced based on its associated receipts.
+   * A message is excluded if ALL its receipts are transient (local-only).
+   */
+  private shouldPushMessage(
+    messageId: string,
+    receiptsByMessage: Map<string, MessageStatusType[]>
+  ): boolean {
+    if (!this.messageReceiptManager) {
+      // Fallback: if no manager, allow all messages (original behavior)
+      return true;
+    }
+
+    const receipts = receiptsByMessage.get(messageId);
+    if (!receipts || receipts.length === 0) {
+      // No receipts for this message, allow push
+      return true;
+    }
+
+    // Check if ANY receipt should be pushed (non-transient)
+    return receipts.some((status) =>
+      this.messageReceiptManager!.shouldPushReceipt(status)
+    );
+  }
+
+  /**
+   * Validates that all required foreign key fields are present and non-null.
+   * Logs warnings for debugging and helps catch data corruption early.
+   *
+   * @param entity The entity type
+   * @param id The record ID for logging context
+   * @param fkField The FK field value to validate
+   * @param fkFieldName The FK field name for logging
+   */
+  private validateForeignKey(
+    entity: string,
+    id: string,
+    fkField: unknown,
+    fkFieldName: string
+  ): void {
+    if (!fkField) {
+      syncLog.warn("sync › missing foreign key", {
+        entity,
+        recordId: id,
+        field: fkFieldName,
+        value: fkField,
+      });
+    }
+  }
+
+  /**
+   * Validates that a timestamp is a valid finite number.
+   * Logs warning if conversion resulted in 0 or invalid value.
+   *
+   * @param entity The entity type
+   * @param id The record ID for logging context
+   * @param timestamp The timestamp to validate
+   * @param fieldName The field name for logging
+   */
+  private validateTimestamp(
+    entity: string,
+    id: string,
+    timestamp: number,
+    fieldName: string
+  ): void {
+    if (!Number.isFinite(timestamp) || timestamp === 0) {
+      syncLog.warn("sync › invalid timestamp", {
+        entity,
+        recordId: id,
+        field: fieldName,
+        value: timestamp,
+      });
+    }
   }
 
   private toServerPayload(
@@ -399,79 +656,124 @@ export class SyncService {
     switch (entity) {
       case "conversations": {
         const data = payload as EntityLocalPayloadMap["conversations"];
+        const created_at = toInt(data.created_at ?? data.createdAt);
+        const updated_at = toInt(data.updated_at ?? data.updatedAt);
+        this.validateTimestamp(entity, data.id as string, created_at, "created_at");
+        this.validateTimestamp(entity, data.id as string, updated_at, "updated_at");
         return {
           id: data.id as string,
           title: (data.title ?? "") as string | null,
           conversation_type: data.conversation_type ?? data.type,
           is_deleted: Boolean(data.is_deleted ?? data.isDeleted),
-          created_at: toInt(data.created_at ?? data.createdAt),
-          updated_at: toInt(data.updated_at ?? data.updatedAt),
+          created_at,
+          updated_at,
         };
       }
       case "conversation_participants": {
         const data =
           payload as EntityLocalPayloadMap["conversation_participants"];
+        const conversation_id = data.conversation_id ?? data.conversation;
+        const user_id = data.user_id ?? data.user;
+        this.validateForeignKey(
+          entity,
+          data.id as string,
+          conversation_id,
+          "conversation_id"
+        );
+        this.validateForeignKey(entity, data.id as string, user_id, "user_id");
+        const joined_at = toInt(data.joined_at ?? data.joinedAt);
+        const created_at = toInt(data.created_at ?? data.createdAt);
+        const updated_at = toInt(data.updated_at ?? data.updatedAt);
         return {
           id: data.id,
-          conversation_id: data.conversation_id ?? data.conversation,
-          user_id: data.user_id ?? data.user,
-          joined_at: toInt(data.joined_at ?? data.joinedAt),
+          conversation_id,
+          user_id,
+          joined_at,
           is_deleted: Boolean(data.is_deleted ?? data.isDeleted),
-          created_at: toInt(data.created_at ?? data.createdAt),
-          updated_at: toInt(data.updated_at ?? data.updatedAt),
+          created_at,
+          updated_at,
         };
       }
       case "messages": {
         const data = payload as EntityLocalPayloadMap["messages"];
+        const conversation_id = data.conversation_id ?? data.conversation;
+        const sender_id = data.sender_id ?? data.sender;
+        this.validateForeignKey(entity, data.id as string, conversation_id, "conversation_id");
+        this.validateForeignKey(entity, data.id as string, sender_id, "sender_id");
+        const created_at = toInt(data.created_at ?? data.createdAt);
+        const updated_at = toInt(data.updated_at ?? data.updatedAt);
         return {
           id: data.id as string,
-          conversation_id: data.conversation_id ?? data.conversation,
-          sender_id: data.sender_id ?? data.sender,
+          conversation_id,
+          sender_id,
           message_type: data.message_type ?? data.messageType,
           content: data.content as string,
           is_deleted: Boolean(data.is_deleted ?? data.isDeleted),
-          created_at: toInt(data.created_at ?? data.createdAt),
-          updated_at: toInt(data.updated_at ?? data.updatedAt),
+          created_at,
+          updated_at,
         };
       }
       case "calls": {
         const data = payload as EntityLocalPayloadMap["calls"];
+        const conversation_id = data.conversation_id ?? data.conversation;
+        const initiator_id = data.initiator_id ?? data.initiator;
+        this.validateForeignKey(entity, data.id as string, conversation_id, "conversation_id");
+        this.validateForeignKey(entity, data.id as string, initiator_id, "initiator_id");
+        const start_time = toInt(data.start_time ?? data.startTime);
+        const end_time = toInt(data.end_time ?? data.endTime);
+        const created_at = toInt(data.created_at ?? data.createdAt);
+        const updated_at = toInt(data.updated_at ?? data.updatedAt);
+        this.validateTimestamp(entity, data.id as string, start_time, "start_time");
         return {
           id: data.id as string,
           call_type: data.call_type ?? data.callType,
           status: data.status,
-          start_time: toInt(data.start_time ?? data.startTime),
-          end_time: toInt(data.end_time ?? data.endTime),
-          conversation_id: data.conversation_id ?? data.conversation,
-          initiator_id: data.initiator_id ?? data.initiator,
+          start_time,
+          end_time,
+          conversation_id,
+          initiator_id,
           is_deleted: Boolean(data.is_deleted ?? data.isDeleted),
-          created_at: toInt(data.created_at ?? data.createdAt),
-          updated_at: toInt(data.updated_at ?? data.updatedAt),
+          created_at,
+          updated_at,
         };
       }
       case "call_participants": {
         const data = payload as EntityLocalPayloadMap["call_participants"];
+        const conversation_id = data.conversation_id ?? data.call;
+        const user_id = data.user_id ?? data.user;
+        this.validateForeignKey(entity, data.id as string, conversation_id, "conversation_id");
+        this.validateForeignKey(entity, data.id as string, user_id, "user_id");
+        const joined_at = toInt(data.joined_at ?? data.joinedAt);
+        const left_at = toInt(data.left_at ?? data.leftAt);
+        const created_at = toInt(data.created_at ?? data.createdAt);
+        const updated_at = toInt(data.updated_at ?? data.updatedAt);
         return {
           id: data.id as string,
-          conversation_id: data.conversation_id ?? data.call,
-          user_id: data.user_id ?? data.user,
-          joined_at: toInt(data.joined_at ?? data.joinedAt),
-          left_at: toInt(data.left_at ?? data.leftAt),
+          conversation_id,
+          user_id,
+          joined_at,
+          left_at,
           is_deleted: Boolean(data.is_deleted ?? data.isDeleted),
-          created_at: toInt(data.created_at ?? data.createdAt),
-          updated_at: toInt(data.updated_at ?? data.updatedAt),
+          created_at,
+          updated_at,
         };
       }
       case "message_receipts": {
         const data = payload as EntityLocalPayloadMap["message_receipts"];
+        const message_id = data.message_id ?? data.message;
+        const user_id = data.user_id ?? data.user;
+        this.validateForeignKey(entity, data.id as string, message_id, "message_id");
+        this.validateForeignKey(entity, data.id as string, user_id, "user_id");
+        const created_at = toInt(data.created_at ?? data.createdAt);
+        const updated_at = toInt(data.updated_at ?? data.updatedAt);
         return {
           id: data.id as string,
           status: data.status,
-          message_id: data.message_id ?? data.message,
-          user_id: data.user_id ?? data.user,
+          message_id,
+          user_id,
           is_deleted: Boolean(data.is_deleted ?? data.isDeleted),
-          created_at: toInt(data.created_at ?? data.createdAt),
-          updated_at: toInt(data.updated_at ?? data.updatedAt),
+          created_at,
+          updated_at,
         };
       }
       default:
@@ -485,21 +787,67 @@ export class SyncService {
     return 0;
   }
 
-  private normalizePullChanges(changes: SyncChanges) {
-    const mapWithDefaults = <T>(items: T[], mapper: (item: T) => T) =>
-      items.map((item) => mapper(item));
+  private async checkEntitiesExist(
+    entity: SyncEntity,
+    ids: string[]
+  ): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    try {
+      const records = await this.db
+        .get(entity)
+        .query(Q.where("id", Q.oneOf(ids)))
+        .fetch();
+      return new Set(records.map((r) => r.id as string));
+    } catch (error) {
+      syncLog.warn("sync › existence check failed", { entity, error });
+      return new Set();
+    }
+  }
+
+  private async normalizePullChanges(changes: SyncChanges) {
+    const toIds = (arr: { id?: string }[]): string[] =>
+      arr.flatMap((c) => (c.id ? [c.id] : []));
+
+    const existingIds = {
+      conversations: await this.checkEntitiesExist(
+        "conversations",
+        toIds(changes.conversations.created)
+      ),
+      conversation_participants: await this.checkEntitiesExist(
+        "conversation_participants",
+        toIds(changes.conversation_participants.created)
+      ),
+      messages: await this.checkEntitiesExist(
+        "messages",
+        toIds(changes.messages.created)
+      ),
+      calls: await this.checkEntitiesExist(
+        "calls",
+        toIds(changes.calls.created)
+      ),
+      call_participants: await this.checkEntitiesExist(
+        "call_participants",
+        toIds(changes.call_participants.created)
+      ),
+      message_receipts: await this.checkEntitiesExist(
+        "message_receipts",
+        toIds(changes.message_receipts.created)
+      ),
+    };
 
     return {
       conversations: {
-        created: mapWithDefaults(changes.conversations.created, (item) => ({
-          ...item,
-          conversation_type: item.conversation_type,
-          type: item.conversation_type,
-          is_deleted: item.is_deleted ?? false,
-          created_at: this.toTimestamp(item.created_at),
-          updated_at: this.toTimestamp(item.updated_at),
-        })),
-        updated: mapWithDefaults(changes.conversations.updated, (item) => ({
+        created: changes.conversations.created
+          .filter((item) => !existingIds.conversations.has(item.id ?? ""))
+          .map((item) => ({
+            ...item,
+            conversation_type: item.conversation_type,
+            type: item.conversation_type,
+            is_deleted: item.is_deleted ?? false,
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
+          })),
+        updated: changes.conversations.updated.map((item) => ({
           ...item,
           conversation_type: item.conversation_type,
           type: item.conversation_type,
@@ -510,9 +858,9 @@ export class SyncService {
         deleted: changes.conversations.deleted,
       },
       conversation_participants: {
-        created: mapWithDefaults(
-          changes.conversation_participants.created,
-          (item) => ({
+        created: changes.conversation_participants.created
+          .filter((item) => !existingIds.conversation_participants.has(item.id ?? ""))
+          .map((item) => ({
             ...item,
             conversation: item.conversation_id,
             user: item.user_id,
@@ -520,33 +868,31 @@ export class SyncService {
             is_deleted: item.is_deleted ?? false,
             created_at: this.toTimestamp(item.created_at),
             updated_at: this.toTimestamp(item.updated_at),
-          })
-        ),
-        updated: mapWithDefaults(
-          changes.conversation_participants.updated,
-          (item) => ({
-            ...item,
-            conversation: item.conversation_id,
-            user: item.user_id,
-            joined_at: this.toTimestamp(item.joined_at),
-            is_deleted: item.is_deleted ?? false,
-            created_at: this.toTimestamp(item.created_at),
-            updated_at: this.toTimestamp(item.updated_at),
-          })
-        ),
-        deleted: changes.conversation_participants.deleted,
-      },
-      messages: {
-        created: mapWithDefaults(changes.messages.created, (item) => ({
+          })),
+        updated: changes.conversation_participants.updated.map((item) => ({
           ...item,
           conversation: item.conversation_id,
-          sender: item.sender_id,
-          message_type: item.message_type,
+          user: item.user_id,
+          joined_at: this.toTimestamp(item.joined_at),
           is_deleted: item.is_deleted ?? false,
           created_at: this.toTimestamp(item.created_at),
           updated_at: this.toTimestamp(item.updated_at),
         })),
-        updated: mapWithDefaults(changes.messages.updated, (item) => ({
+        deleted: changes.conversation_participants.deleted,
+      },
+      messages: {
+        created: changes.messages.created
+          .filter((item) => !existingIds.messages.has(item.id ?? ""))
+          .map((item) => ({
+            ...item,
+            conversation: item.conversation_id,
+            sender: item.sender_id,
+            message_type: item.message_type,
+            is_deleted: item.is_deleted ?? false,
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
+          })),
+        updated: changes.messages.updated.map((item) => ({
           ...item,
           conversation: item.conversation_id,
           sender: item.sender_id,
@@ -558,18 +904,20 @@ export class SyncService {
         deleted: changes.messages.deleted,
       },
       calls: {
-        created: mapWithDefaults(changes.calls.created, (item) => ({
-          ...item,
-          conversation: item.conversation_id,
-          initiator: item.initiator_id,
-          call_type: item.call_type,
-          start_time: this.toTimestamp(item.start_time),
-          end_time: this.toTimestamp(item.end_time),
-          is_deleted: item.is_deleted ?? false,
-          created_at: this.toTimestamp(item.created_at),
-          updated_at: this.toTimestamp(item.updated_at),
-        })),
-        updated: mapWithDefaults(changes.calls.updated, (item) => ({
+        created: changes.calls.created
+          .filter((item) => !existingIds.calls.has(item.id ?? ""))
+          .map((item) => ({
+            ...item,
+            conversation: item.conversation_id,
+            initiator: item.initiator_id,
+            call_type: item.call_type,
+            start_time: this.toTimestamp(item.start_time),
+            end_time: this.toTimestamp(item.end_time),
+            is_deleted: item.is_deleted ?? false,
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
+          })),
+        updated: changes.calls.updated.map((item) => ({
           ...item,
           conversation: item.conversation_id,
           initiator: item.initiator_id,
@@ -583,18 +931,20 @@ export class SyncService {
         deleted: changes.calls.deleted,
       },
       call_participants: {
-        created: mapWithDefaults(changes.call_participants.created, (item) => ({
-          ...item,
-          call: item.conversation_id,
-          user: item.user_id,
-          joined_at: this.toTimestamp(item.joined_at),
-          left_at:
-            item.left_at !== null ? this.toTimestamp(item.left_at) : null,
-          is_deleted: item.is_deleted ?? false,
-          created_at: this.toTimestamp(item.created_at),
-          updated_at: this.toTimestamp(item.updated_at),
-        })),
-        updated: mapWithDefaults(changes.call_participants.updated, (item) => ({
+        created: changes.call_participants.created
+          .filter((item) => !existingIds.call_participants.has(item.id ?? ""))
+          .map((item) => ({
+            ...item,
+            call: item.conversation_id,
+            user: item.user_id,
+            joined_at: this.toTimestamp(item.joined_at),
+            left_at:
+              item.left_at !== null ? this.toTimestamp(item.left_at) : null,
+            is_deleted: item.is_deleted ?? false,
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
+          })),
+        updated: changes.call_participants.updated.map((item) => ({
           ...item,
           call: item.conversation_id,
           user: item.user_id,
@@ -608,15 +958,17 @@ export class SyncService {
         deleted: changes.call_participants.deleted,
       },
       message_receipts: {
-        created: mapWithDefaults(changes.message_receipts.created, (item) => ({
-          ...item,
-          message: item.message_id,
-          user: item.user_id,
-          is_deleted: item.is_deleted ?? false,
-          created_at: this.toTimestamp(item.created_at),
-          updated_at: this.toTimestamp(item.updated_at),
-        })),
-        updated: mapWithDefaults(changes.message_receipts.updated, (item) => ({
+        created: changes.message_receipts.created
+          .filter((item) => !existingIds.message_receipts.has(item.id ?? ""))
+          .map((item) => ({
+            ...item,
+            message: item.message_id,
+            user: item.user_id,
+            is_deleted: item.is_deleted ?? false,
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
+          })),
+        updated: changes.message_receipts.updated.map((item) => ({
           ...item,
           message: item.message_id,
           user: item.user_id,
