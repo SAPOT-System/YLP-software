@@ -59,7 +59,8 @@ describe("CallService", () => {
     mockCallParticipantRepository.updateParticipantLeftAtByCallAndUser.mockResolvedValue(
       undefined
     );
-    mockChatService.saveCallLogWithReceipts.mockResolvedValue(undefined);
+    mockChatService.saveCallLogWithReceipts.mockResolvedValue("mock-message-id");
+    mockChatService.updateMessageStatus.mockResolvedValue(undefined);
 
     // Create service instance
     callService = new CallService(
@@ -271,7 +272,7 @@ describe("CallService", () => {
       expect(mockChatService.saveCallLogWithReceipts).toHaveBeenCalledWith(
         expect.objectContaining({
           peerId,
-          status: "delivered",
+          status: "sending",
         })
       );
     });

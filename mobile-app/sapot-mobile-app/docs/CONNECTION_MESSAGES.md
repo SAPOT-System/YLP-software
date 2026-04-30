@@ -144,7 +144,8 @@ Used to signal call lifecycle events between peers.
     "status":           "\"completed\" | \"missed\" | \"rejected\" | undefined",
     "endedAt":          "number?  — Unix timestamp (ms)",
     "durationSeconds":  "number?  — call duration in seconds",
-    "initiatorId":      "string?  — user ID of who ended the call"
+    "initiatorId":      "string?  — user ID of who ended the call",
+    "messageId":        "string?  — database ID of the call log message saved locally by the sender"
   }
 }
 ```

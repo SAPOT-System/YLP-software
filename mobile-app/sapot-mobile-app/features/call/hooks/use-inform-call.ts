@@ -7,16 +7,15 @@ export const useInformCall = () => {
   const callService = useCallService();
 
   const handleCall = async (type: "audio" | "video", peerId: string) => {
+    hookLog.info("[useCall] start", { peerId, type });
+    router.push({
+      pathname: "/(drawer)/(tabs)/call/[id]",
+      params: { id: peerId, type, status: "calling" },
+    });
     try {
-      hookLog.info("[useCall] start", { peerId, type });
       await callService.informPeerForIncomingCall(type, peerId);
-      router.push({
-        pathname: "/(drawer)/(tabs)/call/[id]",
-        params: { id: peerId!, type, status: "calling" },
-      });
     } catch (error) {
-      hookLog.error("[useCall] failed", { peerId, type, error });
-      throw error;
+      hookLog.error("[useCall] informPeer failed", { peerId, type, error });
     }
   };
 

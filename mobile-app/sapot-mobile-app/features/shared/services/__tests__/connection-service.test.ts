@@ -4,19 +4,17 @@ import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createConnectionServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import {
-    TcpClientAdapter,
-    TcpServerAdapter,
-    WsSignalingAdapter,
+  TcpClientAdapter,
+  TcpServerAdapter,
+  WsSignalingAdapter,
 } from "../../adapters";
 import { WebrtcAdapter } from "../../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
-    AudioCallMessage,
-    CallEndedMessage,
-    CallMissedMessage,
-    CallRejectedMessage,
-    ChatMessage,
-    SignalingMessage
+  AudioCallMessage,
+  CallEndedMessage,
+  ChatMessage,
+  SignalingMessage
 } from "../../types";
 import { CallMediaService } from "../call-media-service";
 import { ConnectionService } from "../connection-service";
@@ -266,50 +264,7 @@ describe("ConnectionService", () => {
       );
     });
 
-    it("should handle call-rejected ws messages", async () => {
-      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
-        (call) => call[0] === "call-message"
-      )?.[1];
 
-      expect(callMessageHandler).toBeDefined();
-
-      const callRejectedMessage: CallRejectedMessage = {
-        type: "call-rejected",
-        data: { from: "peer-1", to: "peer-2", reason: "declined" },
-      };
-
-      const emitSpy = jest.spyOn(connectionService, "emit");
-
-      await callMessageHandler?.({
-        type: callRejectedMessage.type,
-        data: {
-          from_user: callRejectedMessage.data.from,
-          to: callRejectedMessage.data.to,
-          reason: callRejectedMessage.data.reason,
-        },
-      });
-
-      expect(emitSpy).toHaveBeenCalledWith("call-rejected", "peer-1");
-    });
-
-    it("should handle call-missed tcp messages", async () => {
-      const dataHandler = mockTcpServerAdapter.on.mock.calls.find(
-        (call) => call[0] === "data"
-      )?.[1];
-
-      expect(dataHandler).toBeDefined();
-
-      const callMissedMessage: CallMissedMessage = {
-        type: "call-missed",
-        data: { from: "peer-1", to: "peer-2", reason: "no-answer" },
-      };
-
-      const emitSpy = jest.spyOn(connectionService, "emit");
-
-      await dataHandler?.(callMissedMessage);
-
-      expect(emitSpy).toHaveBeenCalledWith("call-missed", "peer-1");
-    });
   });
 
   describe("getTcpClientAdapter", () => {

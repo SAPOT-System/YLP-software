@@ -7,7 +7,7 @@ import {
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import type { DataChatMessageI } from "@/features/chat/types";
-import { CallMessage, ChatMessage, Message, SignalingMessage } from "../types";
+import { AckMessage, CallMessage, ChatMessage, DataAckMessage, Message, SignalingMessage } from "../types";
 
 signalingLog.debug("[signaling-service] module loaded");
 
@@ -265,6 +265,29 @@ export class SignalingService {
         peerId,
         error,
       });
+      throw error;
+    }
+  }
+
+  sendAckMessage(peerId: string, ackData: DataAckMessage): void {
+    try {
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
+
+      if (!isWsConfigured || !this.wsSignalingAdapter.isConnected) {
+        throw new Error("WebSocket unavailable for ack fallback");
+      }
+
+      const payload: AckMessage = { type: "ack", data: ackData };
+
+      signalingLog.debug("signaling › ws ack relay", {
+        peerId,
+        messageId: ackData.messageId,
+      });
+      this.wsSignalingAdapter.sendMessage(payload);
+    } catch (error) {
+      signalingLog.error("signaling › ws ack relay failed", { peerId, error });
       throw error;
     }
   }
