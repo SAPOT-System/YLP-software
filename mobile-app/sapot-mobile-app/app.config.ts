@@ -1,4 +1,46 @@
-import { ConfigContext, ExpoConfig } from "expo/config";
+import { ConfigPlugin, withAndroidManifest } from "@expo/config-plugins";
+import { ConfigContext } from "expo/config";
+
+const BACKGROUND_ACTIONS_SERVICE =
+  "com.asterinet.react.bgactions.RNBackgroundActionsTask";
+
+const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
+  withAndroidManifest(config, (mod) => {
+    const app = mod.modResults.manifest.application?.[0];
+    if (!app) return mod;
+
+    const services = app.service ?? [];
+    const existing = services.find(
+      (service) =>
+        service.$?.["android:name"] === BACKGROUND_ACTIONS_SERVICE ||
+        service.$?.["android:name"] === ".RNBackgroundActionsTask",
+    );
+
+    const serviceAttributes = {
+      "android:name": BACKGROUND_ACTIONS_SERVICE,
+      "android:enabled": "true" as const,
+      "android:exported": "false" as const,
+      "android:foregroundServiceType": "dataSync",
+      "tools:replace":
+        "android:enabled,android:exported,android:foregroundServiceType",
+    };
+
+    if (existing) {
+      existing.$ = {
+        ...existing.$,
+        ...serviceAttributes,
+      };
+    } else {
+      services.push({
+        $: serviceAttributes,
+      });
+    }
+
+    app.service = services;
+
+    return mod;
+  });
+
 const IS_DEV = process.env.APP_VARIANT === "development";
 const IS_PREVIEW = process.env.APP_VARIANT === "preview";
 const getUniqueIdentifier = () => {
@@ -25,7 +67,7 @@ const getAppName = () => {
   return "SAPOT: LAN Messenger";
 };
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
+export default ({ config }: ConfigContext) => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
@@ -39,6 +81,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     image: "./assets/images/logo.png",
     resizeMode: "contain",
     backgroundColor: "#EAEDF3",
+  },
+  hooks:{
+    prebuild: "node ./scripts/setup-android-signing.js"
   },
   android: {
     adaptiveIcon: {
@@ -104,8 +149,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           "Allow $(PRODUCT_NAME) to access your location.",
       },
     ],
+    withBackgroundActionsForegroundService,
     "expo-router",
-    // "react-native-background-actions",
     "expo-secure-store",
     [
       "expo-camera",
