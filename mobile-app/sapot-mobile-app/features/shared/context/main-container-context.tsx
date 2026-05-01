@@ -1,5 +1,7 @@
 import { useAuthContainer } from "@/features/auth";
-import React, { createContext, useEffect, useState } from "react";
+import { getApiUrl, initRuntimeOverrides } from "@/config/runtime";
+import { apiClient } from "@/features/shared/api/client";
+import React, { createContext, useEffect, useRef, useState } from "react";
 import { ActivityIndicator } from "react-native-paper";
 import { MainContainer } from "../main-container";
 import { appLog } from "../utils/logger";
@@ -16,12 +18,16 @@ export function MainContainerProvider({
   const userContainer = useAuthContainer();
   const appModeStore = useAppModeStore();
   const [container, setContainer] = useState<MainContainer | null>(null);
+  const containerRef = useRef<MainContainer | null>(null);
 
   useEffect(() => {
-    const c = new MainContainer(userContainer, appModeStore);
     const init = async () => {
       try {
         appLog.info("app › container init start");
+        await initRuntimeOverrides();
+        apiClient.defaults.baseURL = getApiUrl();
+        const c = new MainContainer(userContainer, appModeStore);
+        containerRef.current = c;
         await c.initialize();
         setContainer(c);
         appLog.info("app › container init complete");
@@ -32,10 +38,8 @@ export function MainContainerProvider({
     init();
 
     return () => {
-      const cleanUp = async () => {
-        c.cleanup();
-      };
-      cleanUp();
+      containerRef.current?.cleanup();
+      containerRef.current = null;
     };
   }, [appModeStore, userContainer]);
   if (!container) {

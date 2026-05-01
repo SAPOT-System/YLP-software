@@ -15,6 +15,7 @@ const KEYS = {
   FIRST_NAME: "firstName",
   LAST_NAME: "lastName",
   SYNC_LAST_PULLED_AT: "syncLastPulledAt",
+  SERVER_HOST_OVERRIDE: "serverHostOverride",
 } as const;
 
 // ── Writers ────────────────────────────────────────────────────────────────────
@@ -185,6 +186,28 @@ export const getStoredLastName = async (): Promise<string | undefined> => {
   } catch (error) {
     backgroundLog.error("secure-config › read lastName failed", { error });
     return undefined;
+  }
+};
+
+export const saveServerHostOverride = async (host: string | null) => {
+  try {
+    if (host) {
+      await setItemAsync(KEYS.SERVER_HOST_OVERRIDE, host);
+    } else {
+      await deleteItemAsync(KEYS.SERVER_HOST_OVERRIDE);
+    }
+    backgroundLog.info("secure-config › server host override saved");
+  } catch (error) {
+    backgroundLog.error("secure-config › server host override save failed", { error });
+  }
+};
+
+export const getServerHostOverride = async (): Promise<string | null> => {
+  try {
+    return (await getItemAsync(KEYS.SERVER_HOST_OVERRIDE)) ?? null;
+  } catch (error) {
+    backgroundLog.error("secure-config › server host override read failed", { error });
+    return null;
   }
 };
 
