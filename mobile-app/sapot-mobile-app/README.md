@@ -73,11 +73,13 @@ A peer-to-peer mobile messenger built with React Native / Expo. Supports direct 
 
 ## Tester Guide
 
-For manual testing, start the backend from the `YLP-Software/` root before launching the app:
+For manual testing, start the backend from `YLP-Software/server/` first:
 
 ```bash
 cd server
-source app/venv/bin/activate && pip install -r app/requirements.txt && source app/venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+source app/venv/bin/activate && pip install -r app/requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Then in the app, open the **getting-started mode-select screen**, tap the **settings icon** on Server Mode, and enter your laptop's LAN IP address before proceeding.
+Then open the getting-started screen in the app, tap Server Mode, tap the settings icon, and enter your laptop's LAN IP address.
+
+If you are testing the GPS map, download the `.mbtiles` file from https://drive.google.com/file/d/1UVakmRkrHaz2J1cgCIbkAHsHDW9SYwLq/view?usp=sharing, then set up the tile server from `YLP-Software/tileserver/` with `deploy-tiling-server.sh`.

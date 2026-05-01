@@ -4,23 +4,31 @@
 
 Use this when you need to start the backend locally for manual testing.
 
-1. Open a terminal.
-2. Go to the `YLP-Software/` folder, then into `server/`.
-3. Run the backend setup and server command:
+### Tile Server Setup
+
+If you are testing the GPS map:
+
+1. Download the `.mbtiles` file: <https://drive.google.com/file/d/1UVakmRkrHaz2J1cgCIbkAHsHDW9SYwLq/view?usp=sharing>
+2. Open `YLP-Software/tileserver/`.
+3. Put the `.mbtiles` file in that folder.
+4. Run `./deploy-tiling-server.sh`.
+
+### Backend Setup
+
+1. Open a terminal and go to `YLP-Software/server/`.
+2. Run the backend setup and server command:
 
 ```bash
-source app/venv/bin/activate && pip install -r app/requirements.txt && source app/venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+source app/venv/bin/activate && pip install -r app/requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Leave that terminal running while you test the mobile app.
 
 ## Manual App Setup
 
-1. Open the app and go to the getting-started screen with the mode options.
-2. Select Server Mode on the mode-select card.
-3. Tap the settings icon on the Server Mode card.
-4. Enter your laptop's LAN IP address in the host field.
-5. Save the setting, then continue into the app.
+1. Open the getting-started screen.
+2. Tap Server Mode, then tap the settings icon.
+3. Enter your laptop's LAN IP address and save.
 
 ## Running Tests
 
@@ -68,6 +76,7 @@ Global mocks are set up in `jest-setup.js`. These run before every test file.
 Located in `test/`.
 
 ### Builders — `test/builders/factory.builder.ts`
+
 A base `FactoryBuilder` class used by all factories. Provides a fluent API for constructing test objects with overrides.
 
 ### Factories — `test/factories/`
