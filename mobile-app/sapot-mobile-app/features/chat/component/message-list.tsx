@@ -3,6 +3,7 @@ import { withObservables } from "@nozbe/watermelondb/react";
 import { Feather } from "@expo/vector-icons";
 import React, { memo, useEffect, useState } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
+import { catchError, map, of } from "rxjs";
 
 import {
   GuestUser,
@@ -52,14 +53,29 @@ const MessageList = enhanceMessages(
 
 const enhanceMessage = withObservables(
   ["message"],
-  ({ message }: { message: Message }) => ({
-    message,
-    sender: message.sender?.observe?.(),
-    status: database
-      .get<MessageStatus>(MessageStatus.table)
-      .query(Q.where("message", message.id))
-      .observeWithColumns(["status"]),
-  })
+  ({ message }: { message: Message }) => {
+    const senderId = (message._raw as Record<string, unknown>).sender as
+      | string
+      | null;
+    return {
+      message,
+      sender: message.sender.observe().pipe(catchError(() => of(null))),
+      guestSender: senderId
+        ? database
+            .get<GuestUser>(GuestUser.table)
+            .query(Q.where("id", senderId))
+            .observe()
+            .pipe(
+              map((r) => r[0] ?? null),
+              catchError(() => of(null))
+            )
+        : of(null),
+      status: database
+        .get<MessageStatus>(MessageStatus.table)
+        .query(Q.where("message", message.id))
+        .observeWithColumns(["status"]),
+    };
+  }
 );
 
 const getSenderName = (sender?: Peer | GuestUser | null) => {
@@ -207,16 +223,18 @@ const MessageListItem = enhanceMessage(
   ({
     message,
     sender,
+    guestSender,
     status,
     peerId,
   }: {
     message: Message;
-    sender?: Peer | GuestUser;
+    sender?: Peer | GuestUser | null;
+    guestSender?: GuestUser | null;
     status: MessageStatus[];
     peerId: string;
   }) => {
     const statusObj = status?.[0];
-    const senderName = getSenderName(sender);
+    const senderName = getSenderName(sender ?? guestSender);
     const userStore = useUserStore();
     const theme = useTheme();
     const isCurrentUserMessage = message.sender?.id === userStore.user?.id;
@@ -258,8 +276,6 @@ const MessageListItem = enhanceMessage(
         setIsResending(false);
       }
     };
-
-    console.log("call_logg", message.messageType);
 
     if (message.messageType === "call_log") {
       return (
