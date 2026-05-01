@@ -1,10 +1,10 @@
+import { APP_ROUTES, AUTH_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
 import { navLog } from "@/features/shared/utils/logger";
 import { Redirect, router } from "expo-router";
 import React, { useEffect } from "react";
 import { Image, useColorScheme, View } from "react-native";
 import { Button, Text, useTheme } from "react-native-paper";
-import { APP_ROUTES, AUTH_ROUTES } from "./routes";
 
 const Index = () => {
   const theme = useTheme();

@@ -1,12 +1,10 @@
-import {
-    database,
-    GuestUserRepository,
-    PeerRepository,
-    PeerService,
-    SessionStore,
-    UserService,
-    UserStore,
-} from "../shared";
+import { database } from "../shared/database/database";
+import { GuestUserRepository } from "../shared/repositories/guest-user-repository";
+import { PeerRepository } from "../shared/repositories/peer-repository";
+import { PeerService } from "../shared/services/peer-service";
+import { UserService } from "../shared/services/user-service";
+import { SessionStore } from "../shared/stores/session-store";
+import { UserStore } from "../shared/stores/user-store";
 import { authLog } from "../shared/utils/logger";
 import { GuestMigrationService } from "./services/guest-migration-service";
 

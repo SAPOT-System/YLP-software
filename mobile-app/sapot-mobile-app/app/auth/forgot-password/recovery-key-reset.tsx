@@ -1,4 +1,4 @@
-import { AUTH_ROUTES } from "@/app/routes";
+import { AUTH_ROUTES } from "@/config/routes";
 import {
   ExpoFileUpload,
   FileUploadResultCard,
@@ -8,7 +8,7 @@ import {
 } from "@/features/auth";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { FailedDialog } from "@/features/shared";
+import { FailedDialog } from "@/features/shared/components/failed-dialog";
 import { useDialogVisibility } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { pick } from "@react-native-documents/picker";

@@ -1,4 +1,4 @@
-import { AUTH_ROUTES } from "@/app/routes";
+import { AUTH_ROUTES } from "@/config/routes";
 import { Link } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { HelperText, Text, useTheme } from "react-native-paper";

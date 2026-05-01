@@ -1,3 +1,4 @@
+import { APP_ROUTES } from "@/config/routes";
 import { ChatRoomSource } from "@/features/chat/types";
 import {
   usePeerService,
@@ -19,7 +20,6 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useDebounce } from "use-debounce";
-import { APP_ROUTES } from "../routes";
 
 type SearchUser = {
   id: string;

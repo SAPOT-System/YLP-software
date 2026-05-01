@@ -1,4 +1,4 @@
-import { AUTH_ROUTES } from "@/app/routes";
+import { AUTH_ROUTES } from "@/config/routes";
 import { useEmailReset } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { authLog } from "@/features/shared/utils/logger";

@@ -1,4 +1,4 @@
-import { useAuthContainer } from "@/features/auth";
+import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
 import { hookLog } from "../utils/logger";
 hookLog.debug("[use-user-store] module loaded");
 
