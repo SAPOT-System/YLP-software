@@ -1,5 +1,27 @@
 # Testing Guide
 
+## Tester Setup
+
+Use this when you need to start the backend locally for manual testing.
+
+1. Open a terminal.
+2. Go to the `YLP-Software/` folder, then into `server/`.
+3. Run the backend setup and server command:
+
+```bash
+source app/venv/bin/activate && pip install -r app/requirements.txt && source app/venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Leave that terminal running while you test the mobile app.
+
+## Manual App Setup
+
+1. Open the app and go to the getting-started screen with the mode options.
+2. Select Server Mode on the mode-select card.
+3. Tap the settings icon on the Server Mode card.
+4. Enter your laptop's LAN IP address in the host field.
+5. Save the setting, then continue into the app.
+
 ## Running Tests
 
 ```bash
