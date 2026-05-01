@@ -16,22 +16,26 @@ A peer-to-peer mobile messenger built with React Native / Expo. Supports direct 
 ## Local Setup
 
 1. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 2. **Set your local dev host** — open `config/runtime.ts` and update `DEV_HOST` to your machine's LAN IP, or set it via env:
+
    ```bash
    # .env.local
    EXPO_PUBLIC_DEV_HOST=192.168.1.x
    ```
 
 3. **Start the dev server**
+
    ```bash
    npm run dev
    ```
 
 4. **Run on Android device/emulator**
+
    ```bash
    npm run prebuild     # generates native Android project
    npm run android      # builds and installs on device
@@ -64,5 +68,16 @@ A peer-to-peer mobile messenger built with React Native / Expo. Supports direct 
 | [`docs/API.md`](docs/API.md) | REST API endpoint reference |
 | [`docs/DATABASE.md`](docs/DATABASE.md) | Local WatermelonDB schema reference |
 | [`docs/ENV_CONFIG.md`](docs/ENV_CONFIG.md) | Environment variables and build config |
-| [`docs/TESTING.md`](docs/TESTING.md) | Testing guide and utilities |
+| [`docs/TESTING.md`](docs/TESTING.md) | Testing guide, tester setup, and utilities |
 | [`docs/CONNECTION_MESSAGES.md`](docs/CONNECTION_MESSAGES.md) | WebSocket / TCP message protocol |
+
+## Tester Guide
+
+For manual testing, start the backend from the `YLP-Software/` root before launching the app:
+
+```bash
+cd server
+source app/venv/bin/activate && pip install -r app/requirements.txt && source app/venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Then in the app, open the **getting-started mode-select screen**, tap the **settings icon** on Server Mode, and enter your laptop's LAN IP address before proceeding.
