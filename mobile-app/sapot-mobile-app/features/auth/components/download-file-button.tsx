@@ -1,4 +1,4 @@
-import { APP_ROUTES } from "@/app/routes";
+import { APP_ROUTES } from "@/config/routes";
 import { authLog } from "@/features/shared/utils/logger";
 import { saveDocuments } from "@react-native-documents/picker";
 import { File, Paths } from "expo-file-system";

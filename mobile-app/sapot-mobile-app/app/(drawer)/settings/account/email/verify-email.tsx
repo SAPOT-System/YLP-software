@@ -1,8 +1,8 @@
-import { SETTINGS_ROUTES } from "@/app/routes";
+import { SETTINGS_ROUTES } from "@/config/routes";
 import { useUserService } from "@/features/auth";
 import {
-    resendVerificationCodeEmail,
-    verifyCodeEmail,
+  resendVerificationCodeEmail,
+  verifyCodeEmail,
 } from "@/features/auth/api/auth.api";
 import VerificationCodeModal from "@/features/settings/components/verification-code-modal";
 import { updateProfileApi } from "@/features/shared/api/user-profile.api";

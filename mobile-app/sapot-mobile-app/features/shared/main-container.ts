@@ -27,7 +27,8 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { PublicChatService } from "@/features/chat/services/public-chat-service";
 import { setAppAlive } from "@/task/signaling-task";
 import { AuthContainer } from "../auth/auth-container";
-import { CallParticipantRepository, CallRepository } from "../call";
+import { CallParticipantRepository } from "../call/repositories/call-participant-repository";
+import { CallRepository } from "../call/repositories/call-repository";
 import { SyncService } from "../sync";
 import {
   clearConnectionConfig,
@@ -223,15 +224,22 @@ export class MainContainer {
         });
 
         setAppAlive(true);
-        if (this.appModeStore.getEffectiveMode(this.userContainer.userStore.isGuest) !== "lan") {
+        if (
+          this.appModeStore.getEffectiveMode(
+            this.userContainer.userStore.isGuest
+          ) !== "lan"
+        ) {
           void this.syncService.syncNow();
 
-          this.unsubscribeNetInfo = NetInfo.addEventListener((state: NetInfoState) => {
-            // isInternetReachable can be null on Android during transitions; treat null as online
-            const isOnline =
-              state.isConnected === true && state.isInternetReachable !== false;
-            void this.syncService.handleConnectivityChange(isOnline);
-          });
+          this.unsubscribeNetInfo = NetInfo.addEventListener(
+            (state: NetInfoState) => {
+              // isInternetReachable can be null on Android during transitions; treat null as online
+              const isOnline =
+                state.isConnected === true &&
+                state.isInternetReachable !== false;
+              void this.syncService.handleConnectivityChange(isOnline);
+            }
+          );
 
           this.periodicSyncTimer = setInterval(() => {
             void this.syncService.syncNow();

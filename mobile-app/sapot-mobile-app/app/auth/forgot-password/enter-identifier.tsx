@@ -1,4 +1,4 @@
-import { AUTH_ROUTES } from "@/app/routes";
+import { AUTH_ROUTES } from "@/config/routes";
 import {
   AuthTextInput,
   PrimaryButton,

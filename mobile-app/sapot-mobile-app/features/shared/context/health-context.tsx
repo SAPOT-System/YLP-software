@@ -1,5 +1,5 @@
-import { checkBackEndHealth } from "@/features/shared";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { checkBackEndHealth } from "../api/connection.api";
 import { healthLog } from "../utils/logger";
 healthLog.debug("[health-context] module loaded");
 

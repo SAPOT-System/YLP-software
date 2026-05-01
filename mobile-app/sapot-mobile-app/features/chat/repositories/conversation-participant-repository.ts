@@ -1,12 +1,9 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
-import {
-  Conversation,
-  ConversationParticipant,
-  ConversationType,
-  GuestUser,
-  Peer,
-} from "@/features/shared";
+import { Conversation, ConversationType } from "@/features/shared/database/model/Conversation";
+import { ConversationParticipant } from "@/features/shared/database/model/ConversationParticipant";
+import { GuestUser } from "@/features/shared/database/model/guest-user";
+import { Peer } from "@/features/shared/database/model/Peer";
 import { chatLog } from "@/features/shared/utils/logger";
 
 chatLog.debug("[conversation-participant-repository] module loaded");

@@ -39,9 +39,9 @@ export class ZeroconfAdapter extends EventEmitter {
         zeroconfLog.info("zeroconf › scan stopped");
       });
 
-      // this.zeroconf.on("update", () => {
-      //   zeroconfLog.debug("zeroconf › updated");
-      // });
+      this.zeroconf.on("update", () => {
+        zeroconfLog.debug("zeroconf › updated");
+      });
 
       // this.zeroconf.on("found", (serviceName) => {
       //   zeroconfLog.debug("zeroconf › service found", { hasService: true });

@@ -1,10 +1,9 @@
-import { AudioRouteTypes, useCallService } from "@/features/call";
 import { Peer } from "@/features/shared/database/model/Peer";
 import {
   useConnectionService,
-  usePeerService,
-  useProfilePhoto,
-} from "@/features/shared/hooks";
+} from "@/features/shared/hooks/use-connection-service";
+import { usePeerService } from "@/features/shared/hooks/use-peer-service";
+import { useProfilePhoto } from "@/features/shared/hooks/use-profile-photo";
 import { CallEndedEventPayload } from "@/features/shared/services/connection-service";
 import { callLog, uiLog } from "@/features/shared/utils/logger";
 import { useRouter } from "expo-router";
@@ -18,7 +17,8 @@ import React, {
   useState,
 } from "react";
 import { MediaStream } from "react-native-webrtc";
-import { CallBanner } from "../components/call-banner";
+import { useCallService } from "../hooks/use-call-service";
+import { AudioRouteTypes } from "../services/call-service";
 
 // ─────────────────────────────────────────────
 // Types
@@ -619,7 +619,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   return (
     <CallContext.Provider value={value}>
       {children}
-      <CallBanner />
     </CallContext.Provider>
   );
 }

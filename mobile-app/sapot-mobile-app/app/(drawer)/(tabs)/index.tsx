@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { APP_ROUTES } from "@/app/routes";
+import { APP_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
 import { ChatList, useChats } from "@/features/chat";
-import { PeerList } from "@/features/shared";
+import PeerList from "@/features/shared/components/peer-list";
 import {
   useConnectionService,
   useDiscoveryService,

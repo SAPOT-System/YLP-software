@@ -1,4 +1,4 @@
-import { useAuthContainer } from "@/features/auth";
+import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
 import { getApiUrl, initRuntimeOverrides } from "@/config/runtime";
 import { apiClient } from "@/features/shared/api/client";
 import React, { createContext, useEffect, useRef, useState } from "react";

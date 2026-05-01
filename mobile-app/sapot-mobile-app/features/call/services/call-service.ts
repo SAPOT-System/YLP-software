@@ -1,11 +1,8 @@
 import { ChatService } from "@/features/chat";
-import {
-  CallStatus,
-  CallType,
-  GuestUser,
-  MessageStatusType,
-  Peer,
-} from "@/features/shared";
+import { CallStatus,CallType } from "@/features/shared/database/model/Call";
+import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { GuestUser } from "@/features/shared/database/model/guest-user";
+import { Peer } from "@/features/shared/database/model/Peer";
 import { ConnectionService } from "@/features/shared/services/connection-service";
 import { PeerService } from "@/features/shared/services/peer-service";
 import { UserStore } from "@/features/shared/stores/user-store";

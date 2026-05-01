@@ -1,4 +1,4 @@
-import { SETTINGS_ROUTES } from "@/app/routes";
+import { SETTINGS_ROUTES } from "@/config/routes";
 import { uiLog } from "@/features/shared/utils/logger";
 import { Link } from "expo-router";
 import { useEffect } from "react";

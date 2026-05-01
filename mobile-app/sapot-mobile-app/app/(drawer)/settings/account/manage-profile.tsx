@@ -1,12 +1,12 @@
-import { SETTINGS_ROUTES } from "@/app/routes";
+import { SETTINGS_ROUTES } from "@/config/routes";
 import { useUserService } from "@/features/auth";
 import { validateRegistrationForm } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import {
-    ExpoFileUpload,
-    Peer,
-    updateProfileApi,
-    uploadProfilePicApi,
+  ExpoFileUpload,
+  Peer,
+  updateProfileApi,
+  uploadProfilePicApi,
 } from "@/features/shared";
 import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -14,22 +14,22 @@ import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    View,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-    ActivityIndicator,
-    Avatar,
-    Button,
-    HelperText,
-    Modal,
-    Portal,
-    Text,
-    useTheme,
+  ActivityIndicator,
+  Avatar,
+  Button,
+  HelperText,
+  Modal,
+  Portal,
+  Text,
+  useTheme,
 } from "react-native-paper";
 
 export default function ManageProfile() {

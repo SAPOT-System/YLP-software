@@ -1,4 +1,4 @@
-import { APP_ROUTES } from "@/app/routes";
+import { APP_ROUTES } from "@/config/routes";
 import { useInformCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";

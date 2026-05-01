@@ -1,27 +1,27 @@
-import { AUTH_ROUTES } from "@/app/routes";
+import { AUTH_ROUTES } from "@/config/routes";
 import {
-    AuthTextInput,
-    PrimaryButton,
-    SecondaryButton,
-    useChangePassword,
+  AuthTextInput,
+  PrimaryButton,
+  SecondaryButton,
+  useChangePassword,
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-    deleteItemAsync,
-    getItemAsync,
-    setItemAsync,
+  deleteItemAsync,
+  getItemAsync,
+  setItemAsync,
 } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-    ActivityIndicator,
-    HelperText,
-    Snackbar,
-    Text,
+  ActivityIndicator,
+  HelperText,
+  Snackbar,
+  Text,
 } from "react-native-paper";
 
 const ChangePasswordScreen = () => {

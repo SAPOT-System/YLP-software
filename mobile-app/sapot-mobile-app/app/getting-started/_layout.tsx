@@ -1,10 +1,10 @@
+import { APP_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
 import { navLog } from "@/features/shared";
 import { HealthProvider } from "@/features/shared/context";
 import { Redirect, Stack } from "expo-router";
 import { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { APP_ROUTES } from "../routes";
 
 export default function Layout() {
   const { isAuthenticated, isGuest } = useAuth();

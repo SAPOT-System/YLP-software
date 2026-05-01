@@ -1,16 +1,16 @@
-import { AUTH_ROUTES } from "@/app/routes";
+import { AUTH_ROUTES } from "@/config/routes";
 import { PrimaryButton } from "@/features/auth";
 import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
+import { Icon, Text, useTheme } from "react-native-paper";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { Icon, Text, useTheme } from "react-native-paper";
 
 const SuccessScreen = () => {
   const theme = useTheme();

@@ -1,4 +1,4 @@
-import { SETTINGS_ROUTES } from "@/app/routes";
+import { SETTINGS_ROUTES } from "@/config/routes";
 import { validateEmail } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import { uiLog } from "@/features/shared/utils/logger";

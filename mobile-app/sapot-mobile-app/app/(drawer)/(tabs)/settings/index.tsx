@@ -1,4 +1,4 @@
-import { SETTINGS_ROUTES } from "@/app/routes";
+import { SETTINGS_ROUTES } from "@/config/routes";
 import { GuestLogoutWarningModal, useAuth } from "@/features/auth";
 import { Peer } from "@/features/shared";
 import { useThemePreference } from "@/features/shared/context";
@@ -8,10 +8,10 @@ import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import {
-    Avatar,
-    Icon,
-    Text,
-    useTheme,
+  Avatar,
+  Icon,
+  Text,
+  useTheme,
 } from "react-native-paper";
 
 export default function Settings() {

@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useAppMode } from "../context/app-mode-context";
 import { database, Peer } from "../database";
 import { peerLog } from "../utils";
-import { useMainContainer } from "./use-main-container";
+import { useUserStore } from "./use-user-store";
+import { useAcitveUserService } from "./use-active-user-service";
+import { usePeerService } from "./use-peer-service";
+import { useConnectionService } from "./use-connection-service";
 
 export function useIsUserActive(peerId: string | undefined): boolean {
-  const container = useMainContainer();
   const { mode } = useAppMode();
-  const userStore = container.userContainer.userStore;
+  const userStore = useUserStore();
+  const activeUserService = useAcitveUserService();
   const [activeIds, setActiveIds] = useState<string[]>([]);
 
   const wsAllowed =
@@ -15,25 +18,24 @@ export function useIsUserActive(peerId: string | undefined): boolean {
 
   useEffect(() => {
     if (!wsAllowed || !peerId) return;
-    const svc = container.activeUsersService;
-    svc.requestActiveUsers();
-    svc.startPolling();
-    const unsub = svc.subscribe((ids) => setActiveIds(ids));
+    activeUserService.requestActiveUsers();
+    activeUserService.startPolling();
+    const unsub = activeUserService.subscribe((ids) => setActiveIds(ids));
     return () => {
       unsub();
-      svc.stopPolling();
+      activeUserService.stopPolling();
     };
-  }, [wsAllowed, peerId, container]);
+  }, [wsAllowed, peerId, activeUserService]);
 
   return peerId !== undefined && activeIds.includes(peerId);
 }
 
 export function useActivePeers(): Peer[] {
-  const container = useMainContainer();
   const { mode } = useAppMode();
-  const userStore = container.userContainer.userStore;
-  const peerService = container.userContainer.peerService;
-  const connectionService = container.connectionService;
+  const userStore = useUserStore();
+  const peerService = usePeerService();
+  const connectionService = useConnectionService();
+  const activeUserService = useAcitveUserService()
 
   const [allPeers, setAllPeers] = useState<Peer[]>([]);
   useEffect(() => {
@@ -48,17 +50,16 @@ export function useActivePeers(): Peer[] {
   const wsAllowed =
     (mode === "server" || mode === "auto") && !userStore.isGuest;
   const [activeIds, setActiveIds] = useState<string[]>(() =>
-    wsAllowed ? container.activeUsersService.getActiveIds() : []
+    wsAllowed ? activeUserService.getActiveIds() : []
   );
   useEffect(() => {
     if (!wsAllowed) {
       setActiveIds([]);
       return;
     }
-    const svc = container.activeUsersService;
-    svc.requestActiveUsers();
-    svc.startPolling();
-    const unsub = svc.subscribe((ids) => {
+    activeUserService.requestActiveUsers();
+    activeUserService.startPolling();
+    const unsub = activeUserService.subscribe((ids) => {
       (async () => {
         try {
           await Promise.all(
@@ -74,9 +75,9 @@ export function useActivePeers(): Peer[] {
     });
     return () => {
       unsub();
-      svc.stopPolling();
+      activeUserService.stopPolling();
     };
-  }, [wsAllowed, container, connectionService, peerService]);
+  }, [wsAllowed, activeUserService, connectionService, peerService]);
 
   return useMemo(() => {
     switch (mode) {

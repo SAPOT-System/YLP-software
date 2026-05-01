@@ -1,4 +1,4 @@
-import { SETTINGS_ROUTES } from "@/app/routes";
+import { SETTINGS_ROUTES } from "@/config/routes";
 import { authLog } from "@/features/shared/utils/logger";
 import { useRouter } from "expo-router";
 import React from "react";
