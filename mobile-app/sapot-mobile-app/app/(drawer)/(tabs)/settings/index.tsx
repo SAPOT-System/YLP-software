@@ -1,17 +1,17 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
-import { useAuth } from "@/features/auth";
+import { GuestLogoutWarningModal, useAuth } from "@/features/auth";
 import { Peer } from "@/features/shared";
 import { useThemePreference } from "@/features/shared/context";
 import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { Link } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import {
-  Avatar,
-  Icon,
-  Text,
-  useTheme,
+    Avatar,
+    Icon,
+    Text,
+    useTheme,
 } from "react-native-paper";
 
 export default function Settings() {
@@ -21,6 +21,7 @@ export default function Settings() {
   const { isAuthenticated, logout, logoutAsGuest } = useAuth();
   const itemColor = theme.dark ? "#E6ECF5" : "#000";
   const { url: profilePicUrl } = useProfilePhoto();
+  const [showLogoutWarning, setShowLogoutWarning] = useState(false);
 
   useEffect(() => {
     uiLog.info("[Settings] mounted");
@@ -39,6 +40,10 @@ export default function Settings() {
 
   const handleLogout = async () => {
     uiLog.debug("[Settings] handleLogout called", { isAuthenticated, isGuest });
+    if (isGuest) {
+      setShowLogoutWarning(true);
+      return;
+    }
     try {
       if (isAuthenticated) {
         await logout();
@@ -255,6 +260,11 @@ export default function Settings() {
           </Pressable>
         </View>
       </ScrollView>
+      <GuestLogoutWarningModal
+        visible={showLogoutWarning}
+        onLogout={logoutAsGuest}
+        onDismiss={() => setShowLogoutWarning(false)}
+      />
     </View>
   );
 }

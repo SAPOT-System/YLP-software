@@ -8,6 +8,7 @@ import {
     UserStore,
 } from "../shared";
 import { authLog } from "../shared/utils/logger";
+import { GuestMigrationService } from "./services/guest-migration-service";
 
 authLog.debug("[auth-container] module loaded");
 
@@ -16,6 +17,7 @@ export class AuthContainer {
   readonly peerService: PeerService;
   readonly peerRepository: PeerRepository;
   readonly guestUserRepository: GuestUserRepository;
+  readonly guestMigrationService: GuestMigrationService;
   readonly userStore: UserStore;
   readonly sessionStore: SessionStore;
   private initPromise?: Promise<void>;
@@ -29,6 +31,9 @@ export class AuthContainer {
     this.userStore = new UserStore();
 
     this.guestUserRepository = new GuestUserRepository(database);
+    this.guestMigrationService = new GuestMigrationService(
+      this.guestUserRepository
+    );
 
     this.userService = new UserService(
       this.userStore,

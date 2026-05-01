@@ -411,7 +411,7 @@ export class ChatService {
         messageId,
         MessageStatusType.DELIVERED
       );
-      void this.syncService.syncNow();
+      if (!this.userStore.isGuest) void this.syncService.syncNow();
     } catch (error) {
       chatLog.error("chat › ack handling failed", { messageId, error });
       throw error;
@@ -452,7 +452,7 @@ export class ChatService {
           conversationId: this.conversation?.id,
           messageId: newMessage.id,
         });
-        void this.syncService.syncNow();
+        if (!this.userStore.isGuest) void this.syncService.syncNow();
         return this.conversation!.id;
       }
       await this.sendAndTrackMessageStatus(
@@ -460,7 +460,7 @@ export class ChatService {
         newMessageStatus,
         message
       );
-      void this.syncService.syncNow();
+      if (!this.userStore.isGuest) void this.syncService.syncNow();
       chatLog.debug("chat › send complete", {
         peerId: this.peer.id,
         conversationId: this.conversation?.id,
