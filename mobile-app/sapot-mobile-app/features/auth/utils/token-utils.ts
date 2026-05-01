@@ -15,3 +15,17 @@ export const isAccessTokenValid = async (token: string) => {
     return false;
   }
 };
+
+export const isRefreshTokenValid = async (token: string) => {
+  authUtilsLog.debug("[isRefreshTokenValid] called", {
+    hasToken: Boolean(token),
+  });
+  if (!token) return false;
+  try {
+    const { exp } = jwtDecode<{ exp: number }>(token);
+    return exp * 1000 > Date.now();
+  } catch (error) {
+    authUtilsLog.error("[isRefreshTokenValid] decode failed", { error });
+    return false;
+  }
+};

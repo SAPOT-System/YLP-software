@@ -2,8 +2,19 @@ import { getUserApi } from "@/features/shared";
 import { authLog } from "@/features/shared/utils/logger";
 import { AxiosError } from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { register as registerApi, loginApi, logoutApi, refreshTokenApi } from "../api";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import {
+  register as registerApi,
+  loginApi,
+  logoutApi,
+  refreshTokenApi,
+} from "../api";
 import { useAuthContainer } from "../hooks";
 import { useUserService } from "../hooks/use-user-service";
 import {
@@ -16,6 +27,7 @@ import {
   generateGuestUsername,
   hasValidationErrors,
   isAccessTokenValid,
+  isRefreshTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
 
@@ -28,7 +40,9 @@ interface AuthContextI {
     success: boolean;
   }>;
   loginAfterRegister: (data: RegisterApiResponse) => Promise<void>;
-  registerAndMigrate: (data: RegisterApiRequest) => Promise<{ success: boolean; error?: string }>;
+  registerAndMigrate: (
+    data: RegisterApiRequest
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   logoutAsGuest: () => Promise<void>;
   loading: boolean;
@@ -86,7 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return true;
     } catch (err) {
       authLog.warn("auth › refresh session failed", { error: err });
-      return false;
+      throw err;
     }
   }, [userService]);
 
@@ -95,18 +109,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       authLog.debug("auth › bootstrap start");
       setLoading(true);
       const token = await getItemAsync("access_token");
+      const refreshToken = await getItemAsync("refresh_token");
       const uuid = await getItemAsync("userUUID");
       if (token && uuid) {
         authLog.info("[AuthProvider] restoring authenticated session");
-        await userService.initialize({ isGuest: false });
-        setIsRescuer(userService.getIsRescuer());
-        setAccessToken(token);
 
         const isValid = await isAccessTokenValid(token);
         if (isValid) {
+          await userService.initialize({ isGuest: false });
+          setIsRescuer(userService.getIsRescuer());
+          setAccessToken(token);
           setIsAuthenticated(true);
         } else {
-          await refreshSession();
+          try {
+            await refreshSession();
+          } catch {
+            setAccessToken(null);
+            if (!refreshToken) {
+              setIsAuthenticated(false);
+            } else {
+              const isRefreshValid = await isRefreshTokenValid(refreshToken);
+              setIsAuthenticated(isRefreshValid);
+            }
+          }
         }
       } else if (await userService.isCurrentUserGuest()) {
         authLog.info("[AuthProvider] restoring guest session");
@@ -274,7 +299,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (err) {
       authLog.error("[AuthProvider] registerAndMigrate failed", { error: err });
       setLoading(false);
-      return { success: false, error: "Registration failed. Please try again." };
+      return {
+        success: false,
+        error: "Registration failed. Please try again.",
+      };
     }
   };
 
