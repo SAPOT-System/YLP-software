@@ -5,15 +5,22 @@ import {
   DrawerItem,
   DrawerItemList,
 } from "@react-navigation/drawer";
+import { getApiUrl, setRuntimeHostOverride } from "@/config/runtime";
+import { apiClient } from "@/features/shared/api/client";
+import {
+  getServerHostOverride,
+  saveServerHostOverride,
+} from "@/features/shared/stores/secure-config";
 import { router } from "expo-router";
-import React, { useState } from "react";
-import { ScrollView, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import {
   ActivityIndicator,
   Avatar,
   Button,
   Icon,
   Text,
+  TextInput,
   useTheme,
 } from "react-native-paper";
 import { useMainContainer, useProfilePhoto, useUserProfile } from "../hooks";
@@ -21,6 +28,61 @@ import { useSyncService } from "../hooks/use-sync-service";
 import { uiLog } from "../utils/logger";
 
 uiLog.debug("[custom-drawer-content] module loaded");
+
+function ServerHostInput() {
+  const theme = useTheme();
+  const [host, setHost] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const defaultHost = getApiUrl().replace(/^https?:\/\//, "").split(":")[0];
+    getServerHostOverride().then((stored) => {
+      setHost(stored ?? defaultHost);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    const trimmed = host.trim() || null;
+    setRuntimeHostOverride(trimmed);
+    await saveServerHostOverride(trimmed);
+    apiClient.defaults.baseURL = getApiUrl();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+    uiLog.info("drawer › server host override saved", { host: trimmed });
+  };
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+      <Text
+        variant="labelSmall"
+        style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}
+      >
+        SERVER HOST OVERRIDE
+      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <TextInput
+          mode="outlined"
+          dense
+          placeholder="e.g. 192.168.1.50"
+          value={host}
+          onChangeText={setHost}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          style={{ flex: 1, fontSize: 13 }}
+          right={
+            saved ? (
+              <TextInput.Icon icon="check" color={theme.colors.primary} />
+            ) : undefined
+          }
+        />
+        <Button mode="contained" compact onPress={handleSave}>
+          Save
+        </Button>
+      </View>
+    </View>
+  );
+}
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
@@ -61,13 +123,19 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      
+      behavior={Platform.OS === "ios" 
+        ? "padding" : "height"}
+              keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 20}
+    >
       <GuestLogoutWarningModal
         visible={showLogoutWarning}
         onLogout={logoutAsGuest}
         onDismiss={() => setShowLogoutWarning(false)}
       />
-      <ScrollView style={{}} contentContainerStyle={{}}>
+      <ScrollView keyboardShouldPersistTaps="handled">
         {/* User Profile Section */}
         <View
           style={{
@@ -208,6 +276,8 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
           </View>
         </View>
 
+        <ServerHostInput />
+
         {/* Additional Custom Items */}
         {/* <View style={{ padding: 16 }}>
         <Text
@@ -221,6 +291,6 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
         </Text>
       </View> */}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
