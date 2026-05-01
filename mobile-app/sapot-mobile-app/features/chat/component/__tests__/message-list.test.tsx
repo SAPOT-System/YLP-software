@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react-native";
 import React from "react";
-import { of } from "rxjs";
+// `of` must be required inside the jest.mock factory to avoid referencing
+// out-of-scope variables from the module factory.
 import MessageList from "../message-list";
 
 jest.mock("@/features/chat/hooks/use-chat-service", () => ({
@@ -31,6 +32,7 @@ jest.mock("react-native-paper", () => ({
 }));
 
 jest.mock("@/features/shared", () => {
+  const { of } = require("rxjs");
   const message = {
     id: "msg-1",
     messageType: "text",
@@ -58,8 +60,10 @@ jest.mock("@/features/shared", () => {
       get: (table: string) => {
         return {
           query: () => ({
-            observe: () => (table === "messages" ? of([message]) : of([])),
-            observeWithColumns: () => of([{ status: "sent" }]),
+            // Return synchronous arrays for list-level observes so the
+            // withObservables HOC can render immediately in tests.
+            observe: () => (table === "messages" ? [message] : []),
+            observeWithColumns: () => [{ status: "sent" }],
           }),
         };
       },
@@ -72,11 +76,11 @@ jest.mock("@/features/shared", () => {
 });
 
 describe("MessageList", () => {
-  it("renders messages", () => {
-    const { getByText } = render(
+  it("renders messages", async () => {
+    const { findByText } = render(
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
 
-    expect(getByText(/Hello/)).toBeTruthy();
+    expect(await findByText(/Hello/)).toBeTruthy();
   });
 });
