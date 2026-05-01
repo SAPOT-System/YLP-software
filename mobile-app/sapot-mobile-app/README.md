@@ -75,6 +75,8 @@ A peer-to-peer mobile messenger built with React Native / Expo. Supports direct 
 
 For manual testing, start the backend from `YLP-Software/server/` first:
 
+> **Important:** The laptop and cellphone must be connected to the same WiFi network.
+
 ```bash
 cd server
 source app/venv/bin/activate && pip install -r app/requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
