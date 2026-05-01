@@ -125,6 +125,46 @@ describe("DiscoveryService", () => {
       );
     });
 
+    it("should skip service resolved when peer id is missing", async () => {
+      const mockService = createTestZeroconfService({
+        txt: { id: "" },
+      }) as unknown as Service;
+
+      discoveryService.setChatService(mockChatService);
+      const performResendSpy = jest
+        .spyOn(discoveryService, "performResendMessagesForPeer")
+        .mockResolvedValue();
+
+      const serviceResolvedHandler = mockZeroconfAdapter.on.mock.calls.find(
+        (call) => call[0] === "serviceResolved"
+      )?.[1];
+
+      await serviceResolvedHandler?.(mockService);
+
+      expect(mockPeerService.register).not.toHaveBeenCalled();
+      expect(performResendSpy).not.toHaveBeenCalled();
+    });
+
+    it("should skip self service resolved", async () => {
+      const mockService =
+        createTestZeroconfService() as unknown as Service;
+      Object.defineProperty(mockSessionStore, "userId", { value: "peer-1" });
+
+      discoveryService.setChatService(mockChatService);
+      const performResendSpy = jest
+        .spyOn(discoveryService, "performResendMessagesForPeer")
+        .mockResolvedValue();
+
+      const serviceResolvedHandler = mockZeroconfAdapter.on.mock.calls.find(
+        (call) => call[0] === "serviceResolved"
+      )?.[1];
+
+      await serviceResolvedHandler?.(mockService);
+
+      expect(mockPeerService.register).not.toHaveBeenCalled();
+      expect(performResendSpy).not.toHaveBeenCalled();
+    });
+
     it("should handle service resolved event error when chat service not set", async () => {
       const mockService =
         createTestZeroconfService() as unknown as Service;

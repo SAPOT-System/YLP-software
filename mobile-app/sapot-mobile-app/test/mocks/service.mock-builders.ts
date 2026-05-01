@@ -212,6 +212,7 @@ export function createPeerRepositoryMock() {
 	return {
 		isPeerExist: jest.fn(),
 		savePeer: jest.fn(),
+		createOrUpdatePeer: jest.fn(),
 		markPeerOnline: jest.fn(),
 		markPeerOffline: jest.fn(),
 		queryAllPeers: jest.fn(),
