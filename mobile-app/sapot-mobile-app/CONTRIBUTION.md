@@ -18,7 +18,7 @@ npm install
 EXPO_PUBLIC_DEV_HOST=192.168.1.x
 ```
 
-3. Create a `.env.development` file if you want to limit log output.
+3. Create a `.env.development.local` file if you want to limit log output.
 
 ```env
 EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background
