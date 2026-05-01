@@ -122,7 +122,7 @@ async def get_current_user_rescuer(
     if not user:
         raise credentials_exception
 
-    if not user.rescuer:
+    if not user.rescuer and not user.admin:
         raise credentials_exception
 
     return user
