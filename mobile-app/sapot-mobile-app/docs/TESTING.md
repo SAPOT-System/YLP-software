@@ -6,6 +6,8 @@ Use this when you need to start the backend locally for manual testing.
 
 > **Important:** The laptop and cellphone must be connected to the same WiFi network.
 
+> If you run into any problem, message [Adriele Tosino](https://www.facebook.com/adrieletosino) on Messenger.
+
 ### Tile Server Setup
 
 If you are testing the GPS map:
