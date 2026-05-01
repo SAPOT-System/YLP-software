@@ -1,6 +1,7 @@
-import { serviceLog } from "@/features/shared/utils/logger";
+import { serviceLog } from "@/features/shared/utils/";
 serviceLog.debug("[shared/services] module loaded");
 
+export { ActiveUsersService } from "./active-users-service";
 export { CallMediaService } from "./call-media-service";
 export * from "./clean-up-service";
 export { ConnectionService } from "./connection-service";

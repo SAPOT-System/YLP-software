@@ -8,6 +8,7 @@ import {
 import { database } from "./database";
 import { GuestUserRepository } from "./repositories";
 import {
+  ActiveUsersService,
   CallMediaService,
   CleanUpService,
   ConnectionService,
@@ -65,6 +66,7 @@ export class MainContainer {
   readonly syncService: SyncService;
   readonly wsSignalingAdapter: WsSignalingAdapter;
   readonly publicChatService: PublicChatService;
+  readonly activeUsersService: ActiveUsersService;
 
   private initPromise?: Promise<void>;
   private unsubscribeNetInfo?: () => void;
@@ -97,6 +99,7 @@ export class MainContainer {
     );
 
     this.wsSignalingAdapter = new WsSignalingAdapter();
+    this.activeUsersService = new ActiveUsersService(this.wsSignalingAdapter);
     this.tcpServerAdapter = new TcpServerAdapter();
 
     // Construction order: WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService

@@ -1,6 +1,12 @@
 import EventEmitter from "events";
 import { SendPublicChatPayload } from "@/features/chat/types";
-import { AckMessage, CallMessage, ChatMessage, ServerAckMessage, SignalingMessage } from "../types";
+import {
+  AckMessage,
+  CallMessage,
+  ChatMessage,
+  ServerAckMessage,
+  SignalingMessage,
+} from "../types";
 import { wsLog } from "../utils/logger";
 
 wsLog.debug("[ws-signaling-adapter] module loaded");
@@ -195,7 +201,14 @@ export class WsSignalingAdapter extends EventEmitter {
   /**
    * Sends a signaling payload. If socket is not open yet, the payload is queued.
    */
-  sendMessage(message: SignalingMessage | CallMessage | SendPublicChatPayload | ChatMessage | AckMessage) {
+  sendMessage(
+    message:
+      | SignalingMessage
+      | CallMessage
+      | SendPublicChatPayload
+      | ChatMessage
+      | AckMessage
+  ) {
     const payload = JSON.stringify(message);
     // const summary = this.summarizeSignalingMessage(message);
     console.log(payload);
@@ -215,6 +228,11 @@ export class WsSignalingAdapter extends EventEmitter {
       createdAt: Date.now(),
       type: message.type,
     });
+  }
+
+  sendGetActiveUsers() {
+    if (this.socket?.readyState !== this.getWebSocketCtor().OPEN) return;
+    this.socket.send(JSON.stringify({ type: "get-active-users" }));
   }
 
   /**
@@ -294,6 +312,9 @@ export class WsSignalingAdapter extends EventEmitter {
           messageId: (parsed as ChatMessage).data?.messageId,
         });
         this.emit("ws-chat", parsed as ChatMessage);
+      }
+      if (Array.isArray(parsed)) {
+        this.emit("active-users", parsed as string[]);
         return;
       }
 
