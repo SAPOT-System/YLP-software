@@ -27,7 +27,8 @@ export default function QRScannerScreen() {
   });
   const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(true);
-  const [validationState, setValidationState] = useState<ValidationState>("idle");
+  const [validationState, setValidationState] =
+    useState<ValidationState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const peerService = usePeerService();
@@ -96,14 +97,23 @@ export default function QRScannerScreen() {
 
     const existingPeer = await peerService.findPeerById(payload.id);
     if (!existingPeer) {
-      const fetched = await peerService.getOrCreatePeerById(
-        payload.id,
-        container.connectionService
-      );
-      if (!fetched) {
+      try {
+        const fetched = await peerService.getOrCreatePeerById(
+          payload.id,
+          container.connectionService
+        );
+        if (!fetched) {
+          await peerService.createUser(
+            payload.id,
+            payload.username,
+            payload.firstName,
+            payload.lastName
+          );
+        }
+      } catch {
         await peerService.createUser(
           payload.id,
-          payload.firstName.toLowerCase(),
+          payload.username,
           payload.firstName,
           payload.lastName
         );
@@ -240,7 +250,9 @@ export default function QRScannerScreen() {
               { backgroundColor: validationBadge.color + "18" },
             ]}
           >
-            <Text style={[styles.resultTitle, { color: validationBadge.color }]}>
+            <Text
+              style={[styles.resultTitle, { color: validationBadge.color }]}
+            >
               {validationBadge.text}
             </Text>
             {validationState === "connecting" && (
