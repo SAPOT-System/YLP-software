@@ -4,29 +4,30 @@ import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
 import {
-  usePeerService,
-  useProfilePhoto,
-  useToast,
+    useIsUserActive,
+    usePeerService,
+    useProfilePhoto,
+    useToast,
 } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import {
-  Appbar,
-  Avatar,
-  IconButton,
-  Snackbar,
-  useTheme,
+    Appbar,
+    Avatar,
+    IconButton,
+    Snackbar,
+    useTheme,
 } from "react-native-paper";
 
 const ChatRoom = () => {
@@ -41,6 +42,7 @@ const ChatRoom = () => {
   const [isSelfChat, setIsSelfChat] = useState(false);
   const [peer, setPeer] = useState<Peer | undefined>();
   const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
+  const isServerActive = useIsUserActive(peerId);
   const [message, setMessage] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
   const chatService = useChatService();
@@ -231,7 +233,7 @@ const ChatRoom = () => {
     ? "Connection timeout"
     : connectionState === "failed"
     ? "Connection failed"
-    : peer?.isOnline
+    : isServerActive || peer?.isOnline
     ? "Active now"
     : "Offline";
 

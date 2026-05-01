@@ -201,6 +201,8 @@ export type ServerAckMessage = {
   };
 };
 
+export type GetActiveUsersMessage = { type: "get-active-users" };
+
 export interface Peer {
   id: string;
   username: string;

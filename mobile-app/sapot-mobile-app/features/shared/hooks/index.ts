@@ -1,6 +1,7 @@
 import { hookLog } from "@/features/shared/utils/logger";
 hookLog.debug("[shared/hooks] module loaded");
 
+export * from "./use-active-users";
 export * from "./use-check-connection";
 export * from "./use-connection-service";
 export { default as useDatabase } from "./use-database";

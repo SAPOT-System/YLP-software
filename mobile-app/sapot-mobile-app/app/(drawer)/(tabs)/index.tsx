@@ -7,7 +7,6 @@ import { PeerList } from "@/features/shared";
 import {
   useConnectionService,
   useDiscoveryService,
-  usePeers,
 } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -25,7 +24,6 @@ export default function Chat() {
     ? ["#0F1830", "#1E2E67"]
     : ["#FFF", "#99AEC7"];
 
-  const { peers } = usePeers();
   const { chats } = useChats();
 
   const router = useRouter();
@@ -116,7 +114,7 @@ export default function Chat() {
             </View>
           </Pressable>
         </View>
-        <PeerList peers={peers} />
+        <PeerList />
       </LinearGradient>
       <View style={[styles.chatListContainer, { backgroundColor: "none" }]}>
         <ChatList chats={chats} />

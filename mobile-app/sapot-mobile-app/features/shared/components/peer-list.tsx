@@ -4,16 +4,14 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
-import { database, Peer } from "../database";
-import { useProfilePhoto } from "../hooks";
+import { Peer } from "../database";
+import { useActivePeers } from "../hooks/use-active-users";
+import { useProfilePhoto } from "../hooks/use-profile-photo";
 import { uiLog } from "../utils/logger";
 uiLog.debug("[peer-list] module loaded");
 
-const enhancePeers = withObservables([], () => ({
-  peers: database.get<Peer>("peers").query().observe(),
-}));
-
-const PeerList = enhancePeers(({ peers }: { peers: Peer[] }) => {
+const PeerList = () => {
+  const peers = useActivePeers();
   const theme = useTheme();
   return (
     <View style={{ gap: 12, marginTop: 12 }}>
@@ -25,7 +23,7 @@ const PeerList = enhancePeers(({ peers }: { peers: Peer[] }) => {
           color: theme.dark ? "#9AA7C1" : "#103462",
         }}
       >
-        Peer Active
+        Active Peers
       </Text>
 
       <FlatList
@@ -37,10 +35,10 @@ const PeerList = enhancePeers(({ peers }: { peers: Peer[] }) => {
       />
     </View>
   );
-});
+};
 
 const enhancePeer = withObservables(["peer"], ({ peer }: { peer: Peer }) => ({
-  peer,
+  peer: peer.observe(),
 }));
 
 const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
