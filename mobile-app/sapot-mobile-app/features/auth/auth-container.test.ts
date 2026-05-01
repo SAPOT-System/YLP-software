@@ -1,28 +1,30 @@
 import { authLog } from "../shared/utils/logger";
-import { AuthContainer } from "./auth-container";
 
-jest.mock("../shared", () => {
-  const mockPeerRepository = jest.fn();
-  const mockPeerService = jest.fn();
-  const mockSessionStore = jest.fn();
-  const mockUserStore = jest.fn();
-  const mockGuestUserRepository = jest.fn();
-  const mockUserService = jest.fn();
-
-  return {
-    database: { name: "db" },
-    PeerRepository: mockPeerRepository,
-    PeerService: mockPeerService,
-    SessionStore: mockSessionStore,
-    UserStore: mockUserStore,
-    GuestUserRepository: mockGuestUserRepository,
-    UserService: mockUserService,
-  };
-});
+// Mock the specific modules AuthContainer imports so construction doesn't hit real DB
+jest.mock("../shared/database/database", () => ({ database: {} }));
+jest.mock("../shared/repositories/peer-repository", () => ({
+  PeerRepository: jest.fn().mockImplementation(() => ({})),
+}));
+jest.mock("../shared/services/peer-service", () => ({
+  PeerService: jest.fn().mockImplementation(() => ({})),
+}));
+jest.mock("../shared/stores/session-store", () => ({
+  SessionStore: jest.fn().mockImplementation(() => ({})),
+}));
+jest.mock("../shared/stores/user-store", () => ({
+  UserStore: jest.fn().mockImplementation(() => ({})),
+}));
+jest.mock("../shared/repositories/guest-user-repository", () => ({
+  GuestUserRepository: jest.fn().mockImplementation(() => ({})),
+}));
+jest.mock("../shared/services/user-service", () => ({
+  UserService: jest.fn().mockImplementation(() => ({ initialize: jest.fn() })),
+}));
 
 describe("AuthContainer", () => {
   it("constructs dependencies", () => {
     const shared = require("../shared");
+    const { AuthContainer } = require("./auth-container");
 
     const container = new AuthContainer();
 
@@ -36,6 +38,7 @@ describe("AuthContainer", () => {
   });
 
   it("returns same initialize promise across calls", async () => {
+    const { AuthContainer } = require("./auth-container");
     const container = new AuthContainer();
     const logSpy = jest.spyOn(authLog, "info");
 
