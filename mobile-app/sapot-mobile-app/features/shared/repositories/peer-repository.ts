@@ -65,6 +65,86 @@ export class PeerRepository {
   }
 
   /**
+   * Creates or updates a peer in a single write to avoid race conditions.
+   * @param peerInfo The peer data (id plus optional fields)
+   * @param options Optional behavior flags
+   * @returns Promise<Peer> The created or updated peer
+   */
+  async createOrUpdatePeer(
+    peerInfo: {
+      id: string;
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phoneNumber?: string;
+      emailVerified?: boolean;
+    },
+    options?: { markOnline?: boolean }
+  ) {
+    try {
+      return await this.db.write(async () => {
+        const peers = await this.peersCollection
+          .query(Q.where("id", peerInfo.id))
+          .fetch();
+
+        if (peers.length > 0) {
+          await peers[0].update((peer) => {
+            if (peerInfo.username !== undefined) {
+              peer.username = peerInfo.username;
+            }
+            if (peerInfo.firstName !== undefined) {
+              peer.firstName = peerInfo.firstName;
+            }
+            if (peerInfo.lastName !== undefined) {
+              peer.lastName = peerInfo.lastName;
+            }
+            if (peerInfo.email !== undefined) {
+              peer.email = peerInfo.email;
+            }
+            if (peerInfo.phoneNumber !== undefined) {
+              peer.phoneNumber = peerInfo.phoneNumber;
+            }
+            if (peerInfo.emailVerified !== undefined) {
+              peer.emailVerified = peerInfo.emailVerified;
+            }
+            if (options?.markOnline) {
+              peer.isOnline = true;
+            }
+          });
+          return peers[0];
+        }
+
+        const peer = await this.peersCollection.create((peer: Peer) => {
+          peer.username = peerInfo.username ?? "Guest";
+          peer.isOnline = false;
+          peer._raw.id = peerInfo.id;
+          peer.firstName = peerInfo.firstName ?? "Guest";
+          peer.lastName = peerInfo.lastName ?? "";
+          peer.email = peerInfo.email ?? "";
+          peer.phoneNumber = peerInfo.phoneNumber ?? "";
+          if (peerInfo.emailVerified !== undefined) {
+            peer.emailVerified = peerInfo.emailVerified;
+          }
+        });
+        return peer;
+      });
+    } catch (error) {
+      peerLog.error("peer › upsert failed", {
+        peerId: peerInfo.id,
+        hasUsername: peerInfo.username !== undefined,
+        hasFirstName: peerInfo.firstName !== undefined,
+        hasLastName: peerInfo.lastName !== undefined,
+        hasEmail: peerInfo.email !== undefined,
+        hasPhoneNumber: peerInfo.phoneNumber !== undefined,
+        emailVerified: peerInfo.emailVerified,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Marks a peer as offline in the database.
    * @param id The peer id
    * @returns Promise<void>

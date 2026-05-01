@@ -1,7 +1,7 @@
 import {
-  createTestDiscoveredService,
-  createTestDiscoveredServices,
-  createTestZeroconfService,
+    createTestDiscoveredService,
+    createTestDiscoveredServices,
+    createTestZeroconfService,
 } from "@/test/factories/peer-service.factory";
 import { createTestPeer } from "@/test/factories/user.factory";
 import { createPeerRepositoryMock } from "@/test/mocks/service.mock-builders";
@@ -47,15 +47,15 @@ describe("PeerService", () => {
     it("should mark existing peer as online and add to discovered services", async () => {
       const mockService = createTestZeroconfService() as unknown as Service;
 
-      mockPeerRepository.isPeerExist.mockResolvedValue(true);
-      const markOnlineSpy = jest
-        .spyOn(peerService, "markOnline")
-        .mockResolvedValue();
-
       await peerService.register(mockService);
 
-      expect(mockPeerRepository.isPeerExist).toHaveBeenCalledWith("peer-1");
-      expect(markOnlineSpy).toHaveBeenCalledWith("peer-1");
+      expect(mockPeerRepository.createOrUpdatePeer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "peer-1",
+          username: "peeruser",
+        }),
+        { markOnline: true }
+      );
       expect(peerService.discoveredPeerServices).toContainEqual({
         serviceName: "test-device",
         id: "peer-1",
@@ -71,17 +71,16 @@ describe("PeerService", () => {
         addresses: ["192.168.1.102"],
         txt: { id: "peer-2", username: "newuser" },
       }) as unknown as Service;
-      mockPeerRepository.isPeerExist.mockResolvedValue(false);
 
       await peerService.register(mockService);
 
-      expect(mockPeerRepository.isPeerExist).toHaveBeenCalledWith("peer-2");
-      expect(mockPeerRepository.savePeer).toHaveBeenCalledWith({
-        id: "peer-2",
-        username: "newuser",
-        firstName: "Guest",
-        lastName: "",
-      });
+      expect(mockPeerRepository.createOrUpdatePeer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "peer-2",
+          username: "newuser",
+        }),
+        { markOnline: true }
+      );
       expect(peerService.discoveredPeerServices).toContainEqual({
         serviceName: "new-device",
         id: "peer-2",
@@ -96,9 +95,6 @@ describe("PeerService", () => {
       // Pre-populate with existing service
       peerService.discoveredPeerServices = [createTestDiscoveredService()];
 
-      mockPeerRepository.isPeerExist.mockResolvedValue(true);
-      jest.spyOn(peerService, "markOnline").mockResolvedValue();
-
       await peerService.register(mockService);
 
       expect(peerService.discoveredPeerServices).toHaveLength(1);
@@ -107,13 +103,24 @@ describe("PeerService", () => {
     it("should throw error if peer registration fails", async () => {
       const mockService = createTestZeroconfService() as unknown as Service;
 
-      mockPeerRepository.isPeerExist.mockRejectedValue(
+      mockPeerRepository.createOrUpdatePeer.mockRejectedValue(
         new Error("Database error")
       );
 
       await expect(peerService.register(mockService)).rejects.toThrow(
         "Database error"
       );
+    });
+
+    it("should skip registration when peer id is missing", async () => {
+      const mockService = createTestZeroconfService({
+        txt: { id: "" },
+      }) as unknown as Service;
+
+      await peerService.register(mockService);
+
+      expect(mockPeerRepository.createOrUpdatePeer).not.toHaveBeenCalled();
+      expect(peerService.discoveredPeerServices).toHaveLength(0);
     });
   });
 

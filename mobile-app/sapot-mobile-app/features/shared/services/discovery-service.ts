@@ -44,21 +44,33 @@ export class DiscoveryService {
     // Handle device/service resolution: register peer and attempt to resend unsent messages
     this.adapter.on("serviceResolved", async (peerService: Service) => {
       try {
+        const peerId = peerService.txt?.id;
+        if (!peerId) {
+          discoveryLog.warn("discovery › service resolved skipped", {
+            reason: "missing peer id",
+            serviceName: peerService.name,
+          });
+          return;
+        }
+
+        if (peerId === this.sessionStore.userId) {
+          discoveryLog.info("discovery › self resolve skipped", { peerId });
+          return;
+        }
+
         if (!this.chatService) throw new Error("Chat service not initialized");
-        discoveryLog.info("discovery › service resolved", {
-          peerId: peerService.txt.id,
-        });
+        discoveryLog.info("discovery › service resolved", { peerId });
         await this.peerService.register(peerService);
 
         // Attempt to resend unsent messages to this peer if necessary
         await this.performResendMessagesForPeer(
-          peerService.txt.id,
+          peerId,
           peerService.addresses[0],
           peerService.port
         );
       } catch (error) {
         discoveryLog.error("discovery › service resolve failed", {
-          peerId: peerService.txt.id,
+          peerId: peerService.txt?.id,
           error,
         });
       }

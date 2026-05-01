@@ -2,8 +2,9 @@ import { createFactory, createFactoryList } from "../builders/factory.builder";
 
 export interface TestServiceTxt {
   id: string;
-  username: string;
+  username?: string;
   firstName?: string;
+  lastName?: string;
 }
 
 export interface TestZeroconfService {

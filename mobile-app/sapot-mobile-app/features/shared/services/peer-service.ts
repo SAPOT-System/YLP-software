@@ -38,35 +38,39 @@ export class PeerService {
    */
   async register(peerService: Service) {
     try {
-      const peerExist = await this.peerRepository.isPeerExist(
-        peerService.txt.id
-      );
-
-      if (peerExist) {
-        await this.markOnline(peerService.txt.id);
-      } else {
-        await this.peerRepository.savePeer({
-          id: peerService.txt.id,
-          username: peerService.txt.username,
-          firstName: peerService.txt.firstName || "Guest",
-          lastName: peerService.txt.lastName || "",
+      const peerId = peerService.txt?.id;
+      if (!peerId) {
+        peerLog.warn("peer › register skipped", {
+          reason: "missing id",
+          serviceName: peerService.name,
         });
+        return;
       }
 
+      await this.peerRepository.createOrUpdatePeer(
+        {
+          id: peerId,
+          username: peerService.txt?.username,
+          firstName: peerService.txt?.firstName,
+          lastName: peerService.txt?.lastName,
+        },
+        { markOnline: true }
+      );
+
       const isServiceExist = this.discoveredPeerServices.find(
-        (peer) => peer.id === peerService.txt.id
+        (peer) => peer.id === peerId
       );
       if (!isServiceExist) {
         this.discoveredPeerServices.push({
           serviceName: peerService.name,
-          id: peerService.txt.id,
+          id: peerId,
           port: peerService.port,
           ipAddress: peerService.addresses[0],
         });
       }
     } catch (error) {
       peerLog.error("peer › register failed", {
-        peerId: peerService.txt.id,
+        peerId: peerService.txt?.id,
         serviceName: peerService.name,
         error,
       });
