@@ -1,20 +1,20 @@
 import { SETTINGS_ROUTES } from "@/app/routes";
-import { useAuth } from "@/features/auth";
+import { GuestLogoutWarningModal, useAuth } from "@/features/auth";
 import {
-    DrawerContentComponentProps,
-    DrawerItem,
-    DrawerItemList,
+  DrawerContentComponentProps,
+  DrawerItem,
+  DrawerItemList,
 } from "@react-navigation/drawer";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import { ScrollView, View } from "react-native";
 import {
-    ActivityIndicator,
-    Avatar,
-    Button,
-    Icon,
-    Text,
-    useTheme,
+  ActivityIndicator,
+  Avatar,
+  Button,
+  Icon,
+  Text,
+  useTheme,
 } from "react-native-paper";
 import { useMainContainer, useProfilePhoto, useUserProfile } from "../hooks";
 import { useSyncService } from "../hooks/use-sync-service";
@@ -27,8 +27,9 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const auth = useAuth();
   const syncService = useSyncService();
   const { appModeStore } = useMainContainer();
-  const { user } = useUserProfile();
+  const { user, isGuest } = useUserProfile();
   const { url: profilePicUrl } = useProfilePhoto();
+  const [showLogoutWarning, setShowLogoutWarning] = useState(false);
 
   if (!auth) {
     return <ActivityIndicator />;
@@ -42,7 +43,11 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   };
 
   const handleLogout = async () => {
-    uiLog.info("drawer › logout pressed", { isAuthenticated });
+    uiLog.info("drawer › logout pressed", { isAuthenticated, isGuest });
+    if (isGuest) {
+      setShowLogoutWarning(true);
+      return;
+    }
     if (isAuthenticated) {
       await logout();
     } else {
@@ -57,6 +62,11 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
 
   return (
     <View style={{ flex: 1 }}>
+      <GuestLogoutWarningModal
+        visible={showLogoutWarning}
+        onLogout={logoutAsGuest}
+        onDismiss={() => setShowLogoutWarning(false)}
+      />
       <ScrollView style={{}} contentContainerStyle={{}}>
         {/* User Profile Section */}
         <View

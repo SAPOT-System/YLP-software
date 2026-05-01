@@ -3,11 +3,13 @@ import { authLog } from "@/features/shared/utils/logger";
 import { AxiosError } from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { loginApi, logoutApi, refreshTokenApi } from "../api";
+import { register as registerApi, loginApi, logoutApi, refreshTokenApi } from "../api";
+import { useAuthContainer } from "../hooks";
 import { useUserService } from "../hooks/use-user-service";
 import {
   LoginApiErrorResponse,
   LoginApiRequest,
+  RegisterApiRequest,
   RegisterApiResponse,
 } from "../types";
 import {
@@ -26,6 +28,7 @@ interface AuthContextI {
     success: boolean;
   }>;
   loginAfterRegister: (data: RegisterApiResponse) => Promise<void>;
+  registerAndMigrate: (data: RegisterApiRequest) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   logoutAsGuest: () => Promise<void>;
   loading: boolean;
@@ -57,6 +60,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isGuest, setIsGuest] = useState(false);
   const [isRescuer, setIsRescuer] = useState(false);
   const userService = useUserService();
+  const { guestUserRepository, guestMigrationService } = useAuthContainer();
 
   const refreshSession = useCallback(async () => {
     try {
@@ -237,6 +241,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { success: true };
   };
 
+  const registerAndMigrate = async (
+    data: RegisterApiRequest
+  ): Promise<{ success: boolean; error?: string }> => {
+    authLog.debug("[AuthProvider] registerAndMigrate called");
+    setLoading(true);
+    try {
+      const guestUser = await guestUserRepository.getCurrentGuestUser();
+      if (!guestUser) {
+        authLog.warn("[AuthProvider] registerAndMigrate: no guest user found");
+        setLoading(false);
+        return { success: false, error: "No guest session found." };
+      }
+
+      const res = await registerApi({ ...data, id: guestUser.id });
+      const { access_token, refresh_token } = res.data;
+
+      await setItemAsync("access_token", access_token);
+      await setItemAsync("refresh_token", refresh_token);
+
+      await guestMigrationService.cleanUp();
+
+      await userService.syncAuthenticatedUser(res.data);
+      setIsRescuer(userService.getIsRescuer());
+      setAccessToken(access_token);
+      setIsAuthenticated(await isAccessTokenValid(access_token));
+      setIsGuest(false);
+
+      authLog.info("[AuthProvider] registerAndMigrate success");
+      setLoading(false);
+      return { success: true };
+    } catch (err) {
+      authLog.error("[AuthProvider] registerAndMigrate failed", { error: err });
+      setLoading(false);
+      return { success: false, error: "Registration failed. Please try again." };
+    }
+  };
+
   const logoutAsGuest = async () => {
     authLog.info("[AuthProvider] logoutAsGuest called");
     setIsGuest(false);
@@ -303,6 +344,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isGuest,
         isRescuer,
         loginAfterRegister,
+        registerAndMigrate,
       }}
     >
       {children}
