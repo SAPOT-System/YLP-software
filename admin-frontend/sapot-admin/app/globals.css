@@ -36,3 +36,37 @@ body {
 .custom-gray {
   background-color: rgba(201,201,201,0.2);
 }
+
+.marker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* THIS is the key */
+.custom-marker {
+  width: 15px;
+  height: 15px;
+  background-color: #007bff;
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 5px rgba(0,0,0,0.3);
+
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%); /* anchors dot exactly */
+}
+
+/* label sits to the right */
+.marker-label {
+  margin-left: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.custom-marker.inactive {
+  background-color: #dc2626;
+}
