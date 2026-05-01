@@ -1,22 +1,22 @@
 import { ChatRoomSource } from "@/features/chat/types";
 import {
-    usePeerService,
-    useProfilePhoto,
-    useToast,
-    useUserSearch,
+  usePeerService,
+  useProfilePhoto,
+  useToast,
+  useUserSearch,
 } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 import {
-    Appbar,
-    Avatar,
-    Icon,
-    Searchbar,
-    Snackbar,
-    Text,
-    useTheme,
+  Appbar,
+  Avatar,
+  Icon,
+  Searchbar,
+  Snackbar,
+  Text,
+  useTheme,
 } from "react-native-paper";
 import { useDebounce } from "use-debounce";
 import { APP_ROUTES } from "../routes";
@@ -61,10 +61,17 @@ const SearchResultItem = ({
           />
         )}
         <View>
-          <Text style={{ color: theme.dark ? "#FFFFFF" : "#1E1E1E", fontWeight: "medium" }}>
+          <Text
+            style={{
+              color: theme.dark ? "#FFFFFF" : "#1E1E1E",
+              fontWeight: "medium",
+            }}
+          >
             {item.first_name} {item.last_name}
           </Text>
-          <Text style={{ color: "#6B7280", fontSize: 14 }}>@{item.username}</Text>
+          <Text style={{ color: "#6B7280", fontSize: 14 }}>
+            @{item.username}
+          </Text>
         </View>
       </View>
     </Pressable>
@@ -82,7 +89,52 @@ export default function SearchScreen() {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useUserSearch(debouncedQuery);
 
-  const results = data?.pages.flat() ?? [];
+  const results = useMemo(() => data?.pages.flat() ?? [], [data?.pages]);
+
+  const [localPeers, setLocalPeers] = useState<SearchUser[]>([]);
+
+  const loadLocalPeers = useCallback(
+    async (q: string) => {
+      try {
+        const peers = await peerService.getAllPeers();
+        const mapped: SearchUser[] = (peers ?? []).map((p):SearchUser => ({
+          id: p.id,
+          username: p.username  ?? "",
+          first_name: p.firstName ?? "",
+          last_name: p.lastName ?? "",
+        }));
+
+        const filtered =
+          q && q.length > 0
+            ? mapped.filter(
+                (u) =>
+                  u.username?.toLowerCase().includes(q.toLowerCase()) ||
+                  u.first_name?.toLowerCase().includes(q.toLowerCase()) ||
+                  (u.last_name ?? "").toLowerCase().includes(q.toLowerCase())
+              )
+            : mapped;
+
+        setLocalPeers(filtered);
+      } catch (err) {
+        uiLog.error("[SearchScreen] loadLocalPeers failed", { error: err });
+      }
+    },
+    [peerService]
+  );
+
+  useEffect(() => {
+    loadLocalPeers(debouncedQuery);
+  }, [debouncedQuery, loadLocalPeers]);
+
+  const mergedResults = useMemo(() => {
+    const map = new Map<string, SearchUser>();
+    // prefer local peers first
+    localPeers.forEach((p) => map.set(p.id, p));
+    results.forEach((r) => {
+      if (!map.has(r.id)) map.set(r.id, r);
+    });
+    return Array.from(map.values());
+  }, [results, localPeers]);
 
   const {
     visible: toastVisible,
@@ -165,7 +217,7 @@ export default function SearchScreen() {
 
       {isLoading && <Text>Searching...</Text>}
       <FlatList
-        data={results}
+        data={mergedResults}
         keyExtractor={(item) => item.id}
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) fetchNextPage();
@@ -195,6 +247,8 @@ export default function SearchScreen() {
                     selected.first_name,
                     selected.last_name
                   );
+                  // refresh local peers after creating
+                  await loadLocalPeers(debouncedQuery);
                 }
 
                 uiLog.info("[Navigation] Navigating to ChatRoom", {
@@ -215,7 +269,13 @@ export default function SearchScreen() {
             }}
           />
         )}
-        ListEmptyComponent={!isLoading ? <Text>No users found</Text> : null}
+        ListEmptyComponent={
+          !isLoading &&
+          mergedResults.length === 0 &&
+          debouncedQuery.length > 0 ? (
+            <Text>No users found</Text>
+          ) : null
+        }
       />
       <Snackbar
         visible={toastVisible}
