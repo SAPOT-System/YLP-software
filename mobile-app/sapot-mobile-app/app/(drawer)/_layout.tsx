@@ -198,7 +198,7 @@ export default function DrawerLayout() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <GpsPreferenceProvider>
         <GpsStreamingEffect />
         <MainContainerProvider>
