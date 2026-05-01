@@ -29,6 +29,7 @@ export default function QrCodeScreen() {
       id: user.id,
       firstName: user.firstName ?? "",
       lastName: user.lastName ?? "",
+      username: user.username,
       ...(mode !== "server" && {
         ip: container.networkConfig.ipAddress,
         port: container.networkConfig.port,

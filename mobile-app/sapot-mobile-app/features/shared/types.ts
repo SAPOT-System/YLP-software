@@ -221,6 +221,7 @@ export type QRPayload = {
   id: string;
   firstName: string;
   lastName: string;
+  username:string;
   ip?: string;
   port?: number;
 };
