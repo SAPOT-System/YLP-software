@@ -4,12 +4,43 @@ import React, { useRef, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+function Field({ label, value }: { label: string; value: any }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <span style={{ fontSize: 12, color: "#888" }}>{label}</span>
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: 500,
+          background: "#f5f5f5",
+          padding: "6px 8px",
+          borderRadius: 6,
+        }}
+      >
+        {value ?? "-"}
+      </span>
+    </div>
+  );
+}
+
 type UserNode = {
   user_id: string;
   latitude: number;
   longitude: number;
   timestamp: string;
   username: string;
+};
+
+type UserData = {
+  user_id: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  "id": string,
+  "phone_number": string,
+  "email": string,
+  "rescuer": Boolean,
+  "admin": Boolean
 };
 
 type HistoryPoint = {
@@ -52,6 +83,7 @@ export default function MapLibre({ data }: Props) {
   >({});
 
   const [selectedUser, setSelectedUser] = useState<UserNode | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [showPath, setShowPath] = useState(false);
 
@@ -65,7 +97,7 @@ export default function MapLibre({ data }: Props) {
       try {
         const styleURL =
           process.env.NEXT_PUBLIC_MAP_STYLE ||
-          "http://localhost:8080/styles/basic-preview/style.json";
+            "http://localhost:8080/styles/basic-preview/style.json";
 
         // ✅ wait until style server is ready
         const styleJSON = await waitForStyle(styleURL);
@@ -139,7 +171,7 @@ export default function MapLibre({ data }: Props) {
     data.forEach((node) => {
       const isInactive =
         Date.now() - new Date(node.timestamp + "Z").getTime() >
-        5 * 60 * 1000;
+          5 * 60 * 1000;
 
       if (existing[node.user_id]) {
         const { marker, dot } = existing[node.user_id];
@@ -164,13 +196,19 @@ export default function MapLibre({ data }: Props) {
 
         wrapper.addEventListener("click", async () => {
           setSelectedUser(node);
+	  const [history, userdata] = await Promise.all([
+	    fetch(`/api/get-gps/history?userId=${node.user_id}`),
+	    fetch(`/api/get-user-info?userId=${node.user_id}`)
+	  ]);
 
-          const res = await fetch(
-            `/api/get-gps/history?userId=${node.user_id}`
-          );
-          const json: HistoryPoint[] = await res.json();
+	  const [json, userJson] = await Promise.all([
+	    history.json(),
+	    userdata.json()
+	  ]);
+
 
           setHistory(json);
+	  setUserData(userJson)
         });
 
         const marker = new maplibregl.Marker({
@@ -212,7 +250,7 @@ export default function MapLibre({ data }: Props) {
 
       const diff =
         new Date(p.timestamp).getTime() -
-        new Date(prev.timestamp).getTime();
+          new Date(prev.timestamp).getTime();
 
       if (diff <= GAP_THRESHOLD) {
         current.push(p);
@@ -291,29 +329,81 @@ export default function MapLibre({ data }: Props) {
       </button>
 
       {selectedUser && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            width: 300,
-            height: "100%",
-            background: "white",
-            zIndex: 20,
-            padding: 16,
-            boxShadow: "0 0 10px rgba(0,0,0,0.2)",
-          }}
-        >
-          <h3>User Details</h3>
-          <p>
-            <b>ID:</b> {selectedUser.user_id}
-          </p>
-          <p>
-            <b>Username:</b> {selectedUser.username}
-          </p>
+	<div
+	  style={{
+	    position: "absolute",
+	    right: 0,
+	    top: 0,
+	    width: 320,
+	    height: "100%",
+	    background: "white",
+	    zIndex: 20,
+	    padding: 20,
+	    boxShadow: "0 0 10px rgba(0,0,0,0.2)",
+	    display: "flex",
+	    flexDirection: "column",
+	    gap: 16,
+	    overflowY: "auto",
+	  }}
+	>
+	  <h3 style={{ marginBottom: 8 }}>User Details</h3>
 
-          <button onClick={() => setSelectedUser(null)}>Close</button>
-        </div>
+	  {/* Basic Info */}
+	  <div>
+	    <h4 style={{ marginBottom: 6, fontSize: 14, color: "#666" }}>
+									   Basic Info
+	    </h4>
+
+	    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <Field label="User ID" value={selectedUser.user_id} />
+              <Field label="Username" value={selectedUser.username} />
+              <Field label="Latitude" value={selectedUser.latitude} />
+              <Field label="Longitude" value={selectedUser.longitude} />
+              <Field label="Last Update" value={selectedUser.timestamp} />
+	    </div>
+	  </div>
+
+	  {/* Extra User Data */}
+	  {userData && (
+	    <div>
+              <h4 style={{ marginBottom: 6, fontSize: 14, color: "#666" }}>
+									     Account Info
+              </h4>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+		<Field label="First Name" value={userData.first_name} />
+		<Field label="Last Name" value={userData.last_name} />
+		<Field label="Email" value={userData.email} />
+		<Field label="Phone" value={userData.phone_number} />
+		<Field
+		  label="Role"
+		  value={
+		    userData.admin
+                      ? "Admin"
+                      : userData.rescuer
+                      ? "Rescuer"
+                      : "User"
+		  }
+		/>
+              </div>
+	    </div>
+	  )}
+
+	  <button
+	    onClick={() => setSelectedUser(null)}
+	    style={{
+              marginTop: "auto",
+              padding: "8px 12px",
+              background: "#111",
+              color: "white",
+              borderRadius: 8,
+              border: "none",
+              cursor: "pointer",
+	    }}
+	  >
+	     Close
+	  </button>
+	</div>
       )}
 
       <div

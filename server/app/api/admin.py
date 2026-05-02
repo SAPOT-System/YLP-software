@@ -813,3 +813,28 @@ def get_system_logs(
         "size": size,
         "pages": (total + size - 1) // size,  # Quick ceiling division for total pages
     }
+
+
+@router.get('/user-info')
+def get_user_info(
+    _: Annotated[User, Depends(get_current_user_admin)],
+    session: SessionDep,
+    user_id: UUID,
+):
+    # get users that have information matching with the user_id
+
+    statement = select(
+        User.first_name, 
+        User.last_name, 
+        User.id, 
+        User.username, 
+        User.phone_number, 
+        User.email,
+        User.rescuer,
+        User.admin
+    ).where(User.id == user_id)
+
+    # 2. Execute
+    results = session.exec(statement).mappings().first()
+
+    return results
