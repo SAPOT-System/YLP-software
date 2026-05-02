@@ -74,7 +74,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isGuest, setIsGuest] = useState(false);
   const [isRescuer, setIsRescuer] = useState(false);
   const userService = useUserService();
-  const { guestUserRepository, guestMigrationService } = useAuthContainer();
+  const { guestUserRepository, guestMigrationService, peerService } =
+    useAuthContainer();
 
   const refreshSession = useCallback(async () => {
     try {
@@ -82,6 +83,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const refreshToken = await getItemAsync("refresh_token");
       if (!refreshToken) {
         authLog.warn("[AuthProvider] missing refresh token");
+        return false;
+      }
+      const isRefreshValid = await isRefreshTokenValid(refreshToken);
+      if (!isRefreshValid) {
         return false;
       }
 
@@ -100,9 +105,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return true;
     } catch (err) {
       authLog.warn("auth › refresh session failed", { error: err });
-      throw err;
+      const uuid = await getItemAsync("userUUID");
+      if (uuid) {
+        const userInfo = await peerService.findPeerById(uuid);
+        if (!userInfo) return false;
+
+        await userService.syncAuthenticatedUser({
+          id: userInfo.id,
+          username: userInfo.username,
+          first_name: userInfo.firstName,
+          last_name: userInfo.lastName,
+          email: userInfo.email,
+          phone_number: userInfo.phoneNumber,
+          email_verified: userInfo.emailVerified,
+        });
+        return true;
+      } else {
+        return false;
+      }
     }
-  }, [userService]);
+  }, [userService, peerService]);
 
   useEffect(() => {
     (async () => {
@@ -121,17 +143,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setAccessToken(token);
           setIsAuthenticated(true);
         } else {
-          try {
-            await refreshSession();
-          } catch {
-            setAccessToken(null);
-            if (!refreshToken) {
-              setIsAuthenticated(false);
-            } else {
-              const isRefreshValid = await isRefreshTokenValid(refreshToken);
-              setIsAuthenticated(isRefreshValid);
-            }
-          }
+          await refreshSession();
         }
       } else if (await userService.isCurrentUserGuest()) {
         authLog.info("[AuthProvider] restoring guest session");
