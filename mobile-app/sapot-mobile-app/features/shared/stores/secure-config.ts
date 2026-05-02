@@ -1,5 +1,6 @@
-import { deleteItemAsync, setItemAsync, getItemAsync } from "expo-secure-store";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import { backgroundLog } from "../utils/logger";
+import type { AppMode } from "./app-mode-store";
 
 // ── Keys ───────────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ const KEYS = {
   LAST_NAME: "lastName",
   SYNC_LAST_PULLED_AT: "syncLastPulledAt",
   SERVER_HOST_OVERRIDE: "serverHostOverride",
+  APP_MODE: "appMode",
 } as const;
 
 // ── Writers ────────────────────────────────────────────────────────────────────
@@ -216,6 +218,30 @@ export const saveSyncLastPulledAt = async (timestamp: number) => {
     await setItemAsync(KEYS.SYNC_LAST_PULLED_AT, String(timestamp));
   } catch (error) {
     backgroundLog.error("secure-config › sync timestamp save failed", { error });
+  }
+};
+
+export const saveAppMode = async (mode: AppMode) => {
+  try {
+    await setItemAsync(KEYS.APP_MODE, mode);
+    backgroundLog.info("secure-config › app mode saved", { mode });
+  } catch (error) {
+    backgroundLog.error("secure-config › app mode save failed", { error, mode });
+  }
+};
+
+export const getStoredAppMode = async (): Promise<AppMode | null> => {
+  try {
+    const value = await getItemAsync(KEYS.APP_MODE);
+
+    if (value === "auto" || value === "server" || value === "lan") {
+      return value;
+    }
+
+    return null;
+  } catch (error) {
+    backgroundLog.error("secure-config › read app mode failed", { error });
+    return null;
   }
 };
 

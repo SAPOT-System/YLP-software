@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useMemo, useSyncExternalStore } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import { AppMode, AppModeStore } from "../stores/app-mode-store";
+import { getStoredAppMode } from "../stores/secure-config";
 import { modeLog } from "../utils/logger";
 modeLog.debug("[app-mode-context] module loaded");
 
@@ -11,6 +18,26 @@ export function AppModeProvider({
   children: React.ReactNode;
 }) {
   const store = useMemo(() => new AppModeStore(), []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadStoredMode = async () => {
+      const storedMode = await getStoredAppMode();
+
+      if (!isMounted || !storedMode || storedMode === store.mode) {
+        return;
+      }
+
+      store.setMode(storedMode);
+    };
+
+    void loadStoredMode();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [store]);
 
   return (
     <AppModeContext.Provider value={store}>

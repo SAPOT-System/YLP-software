@@ -1,3 +1,4 @@
+import { saveAppMode } from "./secure-config";
 import { modeLog } from "../utils/logger";
 modeLog.debug("[app-mode-store] module loaded");
 
@@ -14,6 +15,9 @@ type ModeCapabilities = {
 export class AppModeStore {
   private _mode: AppMode = "auto";
   private listeners = new Set<AppModeListener>();
+  constructor() {
+    modeLog.info("mode › app mode store initialized");
+  }
 
   get mode(): AppMode {
     return this._mode;
@@ -23,6 +27,7 @@ export class AppModeStore {
     if (this._mode === mode) return;
     modeLog.info("mode › set", { from: this._mode, to: mode });
     this._mode = mode;
+    void saveAppMode(mode);
     this.emit();
   }
 
