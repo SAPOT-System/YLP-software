@@ -177,7 +177,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const resetCallState = useCallback(
     async (id: string, type: "video" | "audio") => {
-      uiLog.info("[CallContext] startOutgoingCall", { id, type });
+      uiLog.info("[CallContext] resetCallState", { id, type });
 
       // Reset everything for a fresh call
       setPeerId(id);
