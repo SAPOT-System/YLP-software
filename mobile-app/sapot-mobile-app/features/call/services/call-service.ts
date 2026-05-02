@@ -1,5 +1,5 @@
 import { ChatService } from "@/features/chat";
-import { CallStatus,CallType } from "@/features/shared/database/model/Call";
+import { CallStatus, CallType } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { GuestUser } from "@/features/shared/database/model/guest-user";
 import { Peer } from "@/features/shared/database/model/Peer";
@@ -39,6 +39,7 @@ type CallConnectionService = Pick<
   | "connectToPeer"
   | "on"
   | "terminateCallConnection"
+  | "getWebrtcAdapter"
   | "toggleMic"
   | "toggleCamera"
   | "switchCamera"
@@ -142,6 +143,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    */
   async startCall(type: "video" | "audio", peerId: string) {
     try {
+      const webrtc = this.connectionService.getWebrtcAdapter(peerId);
+
+      webrtc.setIsPolite(false);
+
       const session = await this.ensureSession(peerId, type, false);
 
       const isWebrtcConnected =
@@ -190,6 +195,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       // Renegotiate the webrtc to include the audio and video
       await this.connectionService.renegotiate(peerId);
+
       this.connectedState = "connected";
     } catch (error) {
       callLog.error("call › starting call failed", { peerId, error });
@@ -210,6 +216,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     conversationId?: string
   ) {
     try {
+      const webrtc = this.connectionService.getWebrtcAdapter(peerId);
+      webrtc.setIsPolite(true);
+
       const session = await this.ensureSession(
         peerId,
         type,
@@ -220,10 +229,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         session.answeredAt = new Date();
       }
 
-      if (this.connectedState === "connected") {
-        callLog.warn("call › already connected", { peerId, type });
-        return;
-      }
+
 
       callLog.info("call › start answer call", { peerId, type });
 
@@ -568,7 +574,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
               status: MessageStatusType.DELIVERED,
               senderId: initiatorId,
               messageId: payload.messageId,
-              conversationId: payload.conversationId
+              conversationId: payload.conversationId,
             });
             void this.syncService.syncNow();
           } catch (logError) {
@@ -768,7 +774,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       content: callLogMessage,
       status: MessageStatusType.SENDING,
       senderId: initiatorId,
-      conversationId: session.conversationId
+      conversationId: session.conversationId,
     });
 
     session.finalized = true;
