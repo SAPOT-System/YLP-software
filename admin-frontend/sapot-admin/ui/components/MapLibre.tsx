@@ -26,10 +26,26 @@ type Props = {
 
 const GAP_THRESHOLD = 60 * 1000; // 1 min
 
+// ✅ wait + retry for style (IMPORTANT)
+async function waitForStyle(url: string, retries = 10, delay = 500) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {}
+
+    await new Promise((r) => setTimeout(r, delay));
+  }
+
+  throw new Error("Style never became available");
+}
+
 export default function MapLibre({ data }: Props) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const mapReady = useRef(false); // ✅ FIX ADDED
+  const mapReady = useRef(false);
 
   const markersRef = useRef<
     Record<string, { marker: maplibregl.Marker; dot: HTMLDivElement }>
@@ -39,46 +55,79 @@ export default function MapLibre({ data }: Props) {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [showPath, setShowPath] = useState(false);
 
-  // ---------------- MAP INIT ----------------
+  // ---------------- MAP INIT (FIXED) ----------------
   useEffect(() => {
-    if (map.current || !mapContainer.current) return;
+    if (!mapContainer.current || map.current) return;
 
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: "http://localhost:8080/styles/basic-preview/style.json",
-      center: [121.0581, 13.7573],
-      zoom: 12,
-    });
+    let isMounted = true;
 
-    map.current.on("load", () => {
-      mapReady.current = true; // ✅ READY FLAG SET
+    const initMap = async () => {
+      try {
+        const styleURL =
+          process.env.NEXT_PUBLIC_MAP_STYLE ||
+          "http://localhost:8080/styles/basic-preview/style.json";
 
-      map.current!.addSource("history-path", {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: [],
-        },
-      });
+        // ✅ wait until style server is ready
+        const styleJSON = await waitForStyle(styleURL);
 
-      map.current!.addLayer({
-        id: "history-path-line",
-        type: "line",
-        source: "history-path",
-        layout: {
-          "line-join": "round",
-          "line-cap": "round",
-          visibility: "none",
-        },
-        paint: {
-          "line-color": "#ff3b30",
-          "line-width": 3,
-          "line-opacity": 0.8,
-        },
-      });
-    });
+        if (!isMounted) return;
 
-    return () => map.current?.remove();
+        const mapInstance = new maplibregl.Map({
+          container: mapContainer.current!,
+          style: styleJSON, // ✅ pass JSON instead of URL
+          center: [121.0581, 13.7573],
+          zoom: 12,
+        });
+
+        map.current = mapInstance;
+
+        mapInstance.on("load", () => {
+          mapReady.current = true;
+
+          // ✅ fix blank map on first render
+          mapInstance.resize();
+
+          mapInstance.addSource("history-path", {
+            type: "geojson",
+            data: {
+              type: "FeatureCollection",
+              features: [],
+            },
+          });
+
+          mapInstance.addLayer({
+            id: "history-path-line",
+            type: "line",
+            source: "history-path",
+            layout: {
+              "line-join": "round",
+              "line-cap": "round",
+              visibility: "none",
+            },
+            paint: {
+              "line-color": "#ff3b30",
+              "line-width": 3,
+              "line-opacity": 0.8,
+            },
+          });
+        });
+
+        // optional debug
+        mapInstance.on("error", (e) => {
+          console.error("Map error:", e);
+        });
+      } catch (err) {
+        console.error("Map initialization failed:", err);
+      }
+    };
+
+    initMap();
+
+    return () => {
+      isMounted = false;
+      map.current?.remove();
+      map.current = null;
+    };
   }, []);
 
   // ---------------- MARKERS ----------------
@@ -192,9 +241,9 @@ export default function MapLibre({ data }: Props) {
     };
   }
 
-  // ---------------- RENDER PATH (FIXED) ----------------
+  // ---------------- RENDER PATH ----------------
   useEffect(() => {
-    if (!map.current || !mapReady.current) return; // ✅ IMPORTANT FIX
+    if (!map.current || !mapReady.current) return;
 
     const source = map.current.getSource(
       "history-path"
