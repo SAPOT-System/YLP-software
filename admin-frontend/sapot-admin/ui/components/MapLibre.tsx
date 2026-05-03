@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Lock, Unlock } from "lucide-react";
+import { Maximize, Minimize, Lock, Unlock } from "lucide-react";
 
 function formatTimestamp(timestamp: string) {
   const date = new Date(timestamp + "Z");
@@ -133,7 +133,8 @@ export default function MapLibre({ data }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<UserNode[]>([]);
   const [isLocked, setIsLocked] = useState(false);
-
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
   useEffect(() => {
     if (!isLocked || !selectedUser || !map.current) return;
 
@@ -301,6 +302,7 @@ export default function MapLibre({ data }: Props) {
 
         wrapper.addEventListener("click", async () => {
           setSelectedUser(node);
+	  setIsLocked(true);
 	  const [history, userdata] = await Promise.all([
 	    fetch(`/api/get-gps/history?userId=${node.user_id}`),
 	    fetch(`/api/get-user-info?userId=${node.user_id}`)
@@ -417,7 +419,17 @@ export default function MapLibre({ data }: Props) {
 
   // ---------------- UI ----------------
   return (
-    <div style={{ position: "relative", width: "100%" }}>
+    <div
+      style={{
+	position: isFullscreen ? "fixed" : "relative",
+	top: isFullscreen ? 0 : undefined,
+	left: isFullscreen ? 0 : undefined,
+	width: "100%",
+	height: isFullscreen ? "100vh" : "500px",
+	zIndex: isFullscreen ? 9999 : "auto",
+	background: "white",
+      }}
+    >
       <div
 	style={{
 	  position: "absolute",
@@ -477,7 +489,10 @@ export default function MapLibre({ data }: Props) {
               {searchResults.map((user) => (
 		<div
 		  key={user.user_id}
-		  onClick={() => handleSelectUser(user)}
+		  onClick={() => {
+		    handleSelectUser(user);
+		    setIsLocked(true);
+		  }}
 		  style={{
 		    padding: "10px 14px",
 		    cursor: "pointer",
@@ -490,6 +505,38 @@ export default function MapLibre({ data }: Props) {
 	    </div>
 	  )}
 	</div>
+	<div
+	  style={{
+	    zIndex: 15,
+	  }}
+	>
+	  <button
+	    onClick={() => {
+	      setIsFullscreen((v) => !v);
+
+	      // allow DOM to update first
+	      setTimeout(() => {
+		map.current?.resize();
+	      }, 100);
+	    }}
+	    title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+	    style={{
+	      width: 30,
+	      height: 30,
+	      borderRadius: "50%",
+	      border: "none",
+	      cursor: "pointer",
+	      display: "flex",
+	      alignItems: "center",
+	      justifyContent: "center",
+	      background: "white",
+	      boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+	    }}
+	  >
+	    {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+	  </button>
+	</div>
+	
       </div>
 
       {selectedUser && (
@@ -659,8 +706,8 @@ export default function MapLibre({ data }: Props) {
         ref={mapContainer}
         style={{
           width: "100%",
-          height: "500px",
-          borderRadius: "25px",
+          height: "100%",
+          borderRadius: !isFullscreen ? "25px": "0px",
           overflow: "hidden",
           position: "relative",
         }}
