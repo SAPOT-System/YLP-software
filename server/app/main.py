@@ -56,14 +56,12 @@ text_handler = RotatingFileHandler(TEXT_LOG_PATH, maxBytes=10**6, backupCount=3)
 json_handler = RotatingFileHandler(JSON_LOG_PATH, maxBytes=10**6, backupCount=3)
 
 # --- JSON Handler (Captures everything) ---
-# json_handler = RotatingFileHandler("activity.json", maxBytes=10**6, backupCount=3)
 # The format string defines which 'extra' keys to include in the JSON
 json_fmt = jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(user_id)s %(action)s %(entity_id)s %(metadata_json)s %(message)s")
 json_handler.setFormatter(json_fmt)
 logger.addHandler(json_handler)
 
 # --- Text Handler (Human Readable) ---
-# text_handler = RotatingFileHandler("activity.log", maxBytes=10**6, backupCount=3)
 text_fmt = logging.Formatter("%(asctime)s | %(levelname)s | USER: %(user_id)s | ACTION: %(action)s | %(message)s")
 text_handler.setFormatter(text_fmt)
 logger.addHandler(text_handler)
