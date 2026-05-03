@@ -77,10 +77,10 @@ export default function AnnouncementsPage() {
     fetchAnnouncements(1);
   }, []);
 
-  const fetchAnnouncements = async (pageNumber = 1) => {
+  const fetchAnnouncements = async (pageNumber = 1, keyword="") => {
     setLoading(true);
     const offset = (pageNumber - 1) * limit;
-    const res = await fetch(`/api/announcements?limit=${limit}&offset=${offset}`);
+    const res = await fetch(`/api/announcements?limit=${limit}&offset=${offset}&keyword=${keyword}`);
     const json = await res.json();
 
     setData(json.announcements || []);
@@ -435,6 +435,7 @@ export default function AnnouncementsPage() {
             borderRadius: 10,
             border: "1px solid #ddd",
           }}
+	  onChange={(e) => fetchAnnouncements(1, e.target.value)}
         />
         <button
           onClick={openCreateModal}

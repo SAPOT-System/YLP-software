@@ -728,6 +728,7 @@ def unban_user(
     return {"status": "ok"}
 
 
+
 @router.get('/get-logs')
 def get_system_logs(
     _: Annotated[User, Depends(get_current_user_admin)],
@@ -883,22 +884,56 @@ def get_announcements(
     limit: int = 20,
     offset: int = 0,
     status: Optional[AnnouncementStatusType] = None,
+    keyword: str = "",
 ):
     if not current_user.admin:
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    from sqlmodel import or_, cast, String
+
     base_query = select(Announcement)
 
-    if status:
-        base_query = base_query.where(Announcement.status == status)
+    # -----------------------------
+    # Filters
+    # -----------------------------
+    conditions = []
 
+    if status:
+        conditions.append(Announcement.status == status)
+
+    if keyword and keyword.strip():
+        search = f"%{keyword.strip()}%"
+
+        conditions.append(
+            or_(
+                Announcement.title.ilike(search),
+                Announcement.content.ilike(search),
+                Announcement.priority.ilike(search),
+                Announcement.status.ilike(search),
+                Announcement.target_audience.ilike(search),
+                cast(Announcement.id, String).ilike(search),
+                cast(Announcement.user_id, String).ilike(search),
+            )
+        )
+
+    if conditions:
+        for condition in conditions:
+            base_query = base_query.where(condition)
+
+    # -----------------------------
+    # Count query (MUST match filters)
+    # -----------------------------
     count_query = select(func.count()).select_from(Announcement)
 
-    if status:
-        count_query = count_query.where(Announcement.status == status)
+    if conditions:
+        for condition in conditions:
+            count_query = count_query.where(condition)
 
     total = session.exec(count_query).one()
 
+    # -----------------------------
+    # Main query
+    # -----------------------------
     query = (
         base_query
         .order_by(Announcement.created_at.desc())
