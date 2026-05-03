@@ -3,6 +3,50 @@
 import React, { useRef, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Lock, Unlock } from "lucide-react";
+
+function formatTimestamp(timestamp: string) {
+  const date = new Date(timestamp + "Z");
+
+  // Exact readable format
+  const formatted = date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  // Relative time
+  const diff = Date.now() - date.getTime();
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(diff / (60 * 1000));
+  const hours = Math.floor(diff / (60 * 60 * 1000));
+  const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+
+  let relative = "";
+
+  if (seconds < 60) relative = `${seconds}s ago`;
+  else if (minutes < 60) relative = `${minutes}m ago`;
+  else if (hours < 24) relative = `${hours}h ago`;
+  else relative = `${days}d ago`;
+
+  return { formatted, relative };
+}
+
+function getLastActiveStatus(timestamp: string) {
+  const diff = Date.now() - new Date(timestamp + "Z").getTime();
+
+  if (diff < 60 * 1000) {
+    return { label: "Live", color: "#34c759" }; // green
+  } else if (diff < 5 * 60 * 1000) {
+    return { label: "Recent", color: "#ffcc00" }; // yellow
+  } else {
+    return { label: "Offline", color: "#ff3b30" }; // red
+  }
+}
 
 function Field({ label, value }: { label: string; value: any }) {
   return (
@@ -86,6 +130,67 @@ export default function MapLibre({ data }: Props) {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [showPath, setShowPath] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<UserNode[]>([]);
+  const [isLocked, setIsLocked] = useState(false);
+
+  useEffect(() => {
+    if (!isLocked || !selectedUser || !map.current) return;
+
+    const updatedUser = data.find(
+      (u) => u.user_id === selectedUser.user_id
+    );
+
+    if (!updatedUser) return;
+
+    map.current.flyTo({
+      center: [updatedUser.longitude, updatedUser.latitude],
+      zoom: 16,
+      speed: 1,
+    });
+
+    // keep selectedUser fresh too
+    setSelectedUser(updatedUser);
+  }, [data, isLocked, selectedUser]);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const results = data.filter((u) =>
+      u.username.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    setSearchResults(results.slice(0, 5));
+  }, [searchTerm, data]);
+
+  const handleSelectUser = async (node: UserNode) => {
+    setSelectedUser(node);
+
+    const [historyRes, userRes] = await Promise.all([
+      fetch(`/api/get-gps/history?userId=${node.user_id}`),
+      fetch(`/api/get-user-info?userId=${node.user_id}`)
+    ]);
+
+    const [historyJson, userJson] = await Promise.all([
+      historyRes.json(),
+      userRes.json()
+    ]);
+
+    setHistory(historyJson);
+    setUserData(userJson);
+
+    map.current?.flyTo({
+      center: [node.longitude, node.latitude],
+      zoom: 16,
+      speed: 1.2,
+    });
+
+    setSearchTerm("");
+    setSearchResults([]);
+  };
 
   // ---------------- MAP INIT (FIXED) ----------------
   useEffect(() => {
@@ -313,20 +418,117 @@ export default function MapLibre({ data }: Props) {
   // ---------------- UI ----------------
   return (
     <div style={{ position: "relative", width: "100%" }}>
-      <button
-        onClick={() => setShowPath((v) => !v)}
-        style={{
-          position: "absolute",
-          zIndex: 10,
-          margin: 12,
-          padding: "6px 10px",
-          background: "#111",
-          color: "white",
-          borderRadius: 8,
-        }}
+      <div
+	style={{
+	  position: "absolute",
+	  zIndex: 15,
+	  top: 12,
+	  left: 12,
+	  display: "flex",
+	  alignItems: "center",
+	  gap: 10,
+	}}
       >
-        {showPath ? "Hide Path" : "Show Path"}
-      </button>
+	{/* Show Path Button */}
+	<button
+	  onClick={() => setShowPath((v) => !v)}
+	  style={{
+	    padding: "8px 12px",
+	    background: "#111",
+	    color: "white",
+	    borderRadius: 8,
+	    border: "none",
+	    cursor: "pointer",
+	    whiteSpace: "nowrap",
+	  }}
+	>
+	  {showPath ? "Hide Path" : "Show Path"}
+	</button>
+
+	{/* Search */}
+	<div style={{ position: "relative" }}>
+	  <input
+	    type="text"
+	    placeholder="Search user..."
+	    value={searchTerm}
+	    onChange={(e) => setSearchTerm(e.target.value)}
+	    style={{
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #ccc",
+              width: 260,
+              background: "white",
+	    }}
+	  />
+
+	  {searchResults.length > 0 && (
+	    <div
+              style={{
+		position: "absolute",
+		top: "110%",
+		left: 0,
+		right: 0,
+		background: "white",
+		borderRadius: 10,
+		boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
+		overflow: "hidden",
+              }}
+	    >
+              {searchResults.map((user) => (
+		<div
+		  key={user.user_id}
+		  onClick={() => handleSelectUser(user)}
+		  style={{
+		    padding: "10px 14px",
+		    cursor: "pointer",
+		    borderBottom: "1px solid #eee",
+		  }}
+		>
+		  {user.username}
+		</div>
+              ))}
+	    </div>
+	  )}
+	</div>
+      </div>
+
+      {selectedUser && (
+	<div
+	  style={{
+	    position: "absolute",
+	    bottom: 20,
+	    left: 12,
+	    zIndex: 15,
+	  }}
+	  onMouseEnter={(e) =>
+	    (e.currentTarget.style.transform = "scale(1.05)")
+	  }
+	  onMouseLeave={(e) =>
+	    (e.currentTarget.style.transform = "scale(1)")
+	  }
+	>
+	  <button
+	    onClick={() => setIsLocked((v) => !v)}
+	    title={isLocked ? "Unlock user tracking" : "Lock to user"}
+	    style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: isLocked ? "#007aff" : "white",
+              color: isLocked ? "white" : "#333",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+              transition: "all 0.2s ease",
+	    }}
+	  >
+	    {isLocked ? <Lock size={20} /> : <Unlock size={20} />}
+	  </button>
+	</div>
+      )}
 
       {selectedUser && (
 	<div
@@ -347,7 +549,54 @@ export default function MapLibre({ data }: Props) {
 	  }}
 	>
 	  <h3 style={{ marginBottom: 8 }}>User Details</h3>
+	  {(() => {
+	    const status = getLastActiveStatus(selectedUser.timestamp);
 
+	    return (
+	      <div
+		style={{
+		  padding: "12px",
+		  borderRadius: 10,
+		  background: "#f8f8f8",
+		  borderLeft: `5px solid ${status.color}`,
+		  display: "flex",
+		  flexDirection: "column",
+		  gap: 4,
+		}}
+	      >
+		<span style={{ fontSize: 12, color: "#666" }}>
+								Last Activity
+		</span>
+
+		<span style={{ fontSize: 14, fontWeight: 600 }}>
+		  {(() => {
+		    const time = formatTimestamp(selectedUser.timestamp);
+
+		    return (
+		      <>
+			<div style={{ fontSize: 14, fontWeight: 600 }}>
+			  {time.relative}
+			</div>
+			<div style={{ fontSize: 12, color: "#666" }}>
+			  {time.formatted}
+			</div>
+		      </>
+		    );
+		  })()}
+		</span>
+
+		<span
+		  style={{
+		    fontSize: 13,
+		    fontWeight: 600,
+		    color: status.color,
+		  }}
+		>
+		   ● {status.label}
+		</span>
+	      </div>
+	    );
+	  })()}
 	  {/* Basic Info */}
 	  <div>
 	    <h4 style={{ marginBottom: 6, fontSize: 14, color: "#666" }}>
@@ -359,7 +608,7 @@ export default function MapLibre({ data }: Props) {
               <Field label="Username" value={selectedUser.username} />
               <Field label="Latitude" value={selectedUser.latitude} />
               <Field label="Longitude" value={selectedUser.longitude} />
-              <Field label="Last Update" value={selectedUser.timestamp} />
+	      
 	    </div>
 	  </div>
 
@@ -405,7 +654,7 @@ export default function MapLibre({ data }: Props) {
 	  </button>
 	</div>
       )}
-
+      
       <div
         ref={mapContainer}
         style={{
