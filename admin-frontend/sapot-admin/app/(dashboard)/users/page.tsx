@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import MetricSkeleton from "@/ui/dashboard/skeleton";
 import { LoaderIcon, PlusIcon, SearchIcon, XIcon } from "lucide-react";
 import Modal from "@/ui/dashboard/modal";
+import EditUserModal from "@/ui/dashboard/edit-user-modal";
 
 export default function Users() {
   const [data, setData] = useState(null);
@@ -14,6 +15,7 @@ export default function Users() {
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -79,7 +81,13 @@ export default function Users() {
 
   return (
     <div className="flex flex-col gap-4">
-
+      <EditUserModal
+	isOpen={isOpen}
+	user={null}
+	mode="create"
+	onClose={setIsOpen}
+	onRefresh={fetchData}
+      />
       {/* Search */}
       <div className="grid grid-cols-5 gap-2">
         <div className="col-span-4 flex items-center gap-2 h-12 px-4 rounded-3xl bg-gray-100">
@@ -92,7 +100,9 @@ export default function Users() {
           />
         </div>
 
-        <button className="flex items-center justify-center gap-2 text-white bg-blue-600 hover:bg-blue-500 rounded-3xl">
+        <button className="flex items-center justify-center gap-2 text-white bg-blue-600 hover:bg-blue-500 rounded-3xl"
+	  onClick={()=>setIsOpen(true)}
+	>
           <PlusIcon /> Add user
         </button>
       </div>
