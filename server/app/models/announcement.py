@@ -32,7 +32,7 @@ class Announcement(SQLModel, table=True):
         primary_key=True,
         index=True
     )
-    user_id: uuid.UUID = Field(foreign_key="user.id", index=True, unique=True, ondelete="CASCADE")
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
 
     title: str = Field(max_digits=50)
     content: str

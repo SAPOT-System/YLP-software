@@ -1,6 +1,9 @@
+from app.models.announcement import Announcement, PriorityType, AnnouncementStatusType, AudienceType
+from app.models.users import User
 from datetime import datetime, timedelta, timezone
 import os
-from uuid import UUID
+from uuid import UUID, uuid4
+from math import ceil
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import String, delete, select, func, desc, cast, update
 from typing import Annotated, List, Optional
@@ -838,3 +841,84 @@ def get_user_info(
     results = session.exec(statement).mappings().first()
 
     return results
+
+
+@router.post("/post-announcement")
+def create_announcement(
+    title: str,
+    content: str,
+    priority: PriorityType,
+    target_audience: AudienceType,
+    expires_at: datetime,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)]
+):
+    announcement = Announcement(
+        id=uuid4(),
+        user_id=current_user.id,
+        title=title,
+        content=content,
+        priority=priority,
+        status=AnnouncementStatusType.active,
+        target_audience=target_audience,
+        expires_at=expires_at,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    session.add(announcement)
+    session.commit()
+    session.refresh(announcement)
+
+    return {
+        "message": "Announcement created",
+        "announcement": announcement
+    }
+
+
+
+@router.get("/get-all-announcements")
+def get_announcements(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    limit: int = 20,
+    offset: int = 0,
+    status: Optional[AnnouncementStatusType] = None,
+):
+    if not current_user.admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    base_query = select(Announcement)
+
+    if status:
+        base_query = base_query.where(Announcement.status == status)
+
+    count_query = select(func.count()).select_from(Announcement)
+
+    if status:
+        count_query = count_query.where(Announcement.status == status)
+
+    total = session.exec(count_query).one()
+
+    query = (
+        base_query
+        .order_by(Announcement.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+
+    results = session.exec(query).all()
+
+    page = (offset // limit) + 1
+    total_pages = ceil(total / limit) if limit else 1
+
+    return {
+        "count": len(results),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "page": page,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+        "announcements": results,
+    }
