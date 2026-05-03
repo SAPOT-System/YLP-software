@@ -922,3 +922,66 @@ def get_announcements(
         "has_prev": page > 1,
         "announcements": results,
     }
+
+
+@router.patch("/announcements/{announcement_id}")
+def edit_announcement(
+    announcement_id: UUID,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    title: str | None = None,
+    content: str | None = None,
+    priority: PriorityType | None = None,
+    target_audience: AudienceType | None = None,
+    expires_at: datetime | None = None,
+    status: AnnouncementStatusType | None = None,
+):
+    if not current_user.admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    announcement = session.get(Announcement, announcement_id)
+
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    if title is not None:
+        announcement.title = title
+    if content is not None:
+        announcement.content = content
+    if priority is not None:
+        announcement.priority = priority
+    if target_audience is not None:
+        announcement.target_audience = target_audience
+    if expires_at is not None:
+        announcement.expires_at = expires_at
+    if status is not None:
+        announcement.status = status
+
+    session.add(announcement)
+    session.commit()
+    session.refresh(announcement)
+
+    return {
+        "message": "Announcement updated",
+        "announcement": announcement
+    }
+
+
+@router.delete("/announcements/{announcement_id}")
+def delete_announcement(
+    announcement_id: UUID,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+):
+    if not current_user.admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    announcement = session.get(Announcement, announcement_id)
+
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    session.delete(announcement)
+    session.commit()
+
+    return {"message": "Announcement deleted"}
