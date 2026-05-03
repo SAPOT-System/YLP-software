@@ -3,7 +3,7 @@ import { secureFetch } from "@/api/fetch";
 
 export async function PATCH(
   req: Request,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await req.json();
@@ -51,7 +51,7 @@ export async function PATCH(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const context = await params;

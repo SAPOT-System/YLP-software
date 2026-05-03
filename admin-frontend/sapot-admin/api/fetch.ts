@@ -50,15 +50,15 @@ export async function secureFetch(endpoint: string, options: RequestInit = {}) {
 			// 3. Create the response and set the NEW cookies
 			// const nextResponse = NextResponse.json({ success: true });
 			cookieStore.set('access_token', data.access_token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === 'production',
-				sameSite: 'lax',
-				path: '/',
+			  httpOnly: true,
+			  secure: false,//process.env.NODE_ENV === 'production',
+			  sameSite: 'lax',
+			  path: '/',
 			});
 
 			cookieStore.set('refresh_token', data.refresh_token, {
 				httpOnly: true,
-				secure: process.env.NODE_ENV === 'production',
+			  secure: false,//process.env.NODE_ENV === 'production',
 				sameSite: 'lax',
 				path: '/',
 			});

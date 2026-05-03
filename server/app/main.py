@@ -2,6 +2,8 @@ import os
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from typing import Union
+from fastapi.middleware.cors import CORSMiddleware
+
 
 from fastapi import FastAPI
 from fastapi import Request
@@ -32,6 +34,16 @@ app = FastAPI(
     summary="A server that contains secure endpoint for the use of a mobile application",
     version="0.0.1",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "*",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.middleware("http")
