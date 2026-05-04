@@ -413,6 +413,67 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     });
   }
 
+  async listenToHandleIncomingBusyReject() {
+    this.connectionService.on("call-busy", (peerId, payload) =>
+      this.handleIncomingBusyReject(peerId, payload)
+    );
+  }
+
+  private async handleIncomingBusyReject(
+    peerId: string,
+    payload: {
+      callId: string;
+      conversationId: string;
+      messageId?: string;
+      callType: "audio" | "video";
+    }
+  ) {
+    try {
+      const { callId, callType, messageId } = payload;
+      callLog.info("call › peer busy received", {
+        peerId,
+        callId,
+        callType,
+        conversationId: payload.conversationId,
+      });
+      if (!callId) {
+        callLog.warn("call › peer busy missing callId — skipping log save", {
+          peerId,
+        });
+        return;
+      }
+      const content =
+        callType === "audio" ? "Busy audio call" : "Busy video call";
+      const session = this.callSessions.get(peerId);
+      const conversationId = session?.conversationId ?? payload.conversationId;
+      callLog.debug("call › busy session lookup", {
+        peerId,
+        sessionFound: Boolean(session),
+        conversationId,
+      });
+
+      await this.callRepository.updateCallStatus(callId, CallStatus.BUSY);
+      callLog.info("call › busy call status updated", { callId, peerId });
+
+      await this.chatService.saveCallLogWithReceipts({
+        peerId,
+        content,
+        status: MessageStatusType.DELIVERED,
+        senderId: this.userStore.user.id,
+        conversationId,
+        messageId,
+      });
+      callLog.info("call › busy call log saved", {
+        peerId,
+        callId,
+        callType,
+        conversationId,
+      });
+    } catch (error) {
+      callLog.error("call › busy log save failed", { peerId, error });
+    }
+  }
+
   /**
    * Informs a peer of an incoming audio call by sending a signaling message.
    * @param peerId The peer id to inform
@@ -432,10 +493,17 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       });
     }
 
-    callLog.info("call › incoming notify", { peerId, type });
+    callLog.info("call › incoming notify", {
+      peerId,
+      type,
+      callId: session.callId,
+      conversationId: session.conversationId,
+    });
     const name = `${this.userStore.user.firstName} ${
       this.userStore.user.lastName ?? ""
     }`.trim();
+
+    this.listenToHandleIncomingBusyReject();
 
     try {
       this.connectionService.sendCallMessage(peerId, {
@@ -445,6 +513,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
           to: peerId,
           conversationId: session.conversationId,
           callerName: name,
+          callId: session.callId,
         },
       });
     } catch (notifyError) {
