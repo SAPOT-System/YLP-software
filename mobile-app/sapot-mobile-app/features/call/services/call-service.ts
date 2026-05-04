@@ -45,6 +45,7 @@ type CallConnectionService = Pick<
   | "switchCamera"
   | "getLocalStream"
   | "isWebSocketAllowed"
+  | "setActiveCall"
 >;
 
 type CallUserStore = {
@@ -228,8 +229,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       if (!session.answeredAt) {
         session.answeredAt = new Date();
       }
-
-
+      this.connectionService.setActiveCall(peerId);
 
       callLog.info("call › start answer call", { peerId, type });
 
@@ -419,6 +419,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    */
   async informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
     const session = await this.ensureSession(peerId, type, false);
+    this.connectionService.setActiveCall(peerId);
 
     // Fire TCP/WebRTC attempt in background so sendCallMessage is not blocked.
     // Non-fatal: sendCallMessage has its own WS fallback.
@@ -548,6 +549,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
+      this.connectionService.setActiveCall(null);
     } catch (error) {
       callLog.error("call › terminate failed", { peerId, error });
       throw error;

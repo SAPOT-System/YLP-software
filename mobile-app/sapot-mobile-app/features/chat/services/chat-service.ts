@@ -704,6 +704,21 @@ export class ChatService {
       // callers (e.g. call session setup racing an incoming chat message) cannot
       // both pass the existence check and both create a duplicate row.
       return await database.write(async () => {
+        // Check by supplied id first — prevents duplicate insert when conversation
+        // already exists locally from sync or prior chat message
+        if (conversationId) {
+          const existsById =
+            await this.conversationRepository.isConversationExist(
+              conversationId
+            );
+          if (existsById) {
+            return await this.conversationRepository.queryConversationById(
+              conversationId
+            );
+          }
+        }
+
+        // Existing participant-based check
         const existingConversationId =
           await this.conversationParticipantRepository.isDirectConversationExists(
             [peer.id, this.userStore.user.id]
