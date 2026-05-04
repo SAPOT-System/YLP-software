@@ -12,7 +12,7 @@ export function collectChanges() {
     message_receipts: { created: [], updated: [], deleted: [] },
     calls: { created: [], updated: [], deleted: [] },
     call_participants: { created: [], updated: [], deleted: [] },
-    peers: { created: [], updated: [], deleted: [] },
+    // peers: { created: [], updated: [], deleted: [] },
   };
 
   for (const m of queue) {

@@ -6,10 +6,10 @@ import { addMutation } from "../sync/mutationQueue";
 export async function createConversation({
   id,
   conversation_type,
-  title = null,
+  title = "",
 }: {
   id: string;
-  conversation_type: "direct" | "group";
+  conversation_type: "direct" | "group" | "solo";
   title?: string | null;
 }) {
   const now = Date.now();
@@ -32,7 +32,7 @@ export async function createConversation({
   /* =========================
      2. QUEUE MUTATION
   ========================= */
-
+  
   addMutation({
     table: "conversations",
     type: "create",

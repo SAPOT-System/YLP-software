@@ -2,7 +2,6 @@ import { applyChanges } from "./applyChanges";
 import { getLastPulledAt, setLastPulledAt } from "./storage";
 import { getQueue, saveQueue } from "./mutationQueue";
 
-import { db } from "../db";
 
 export async function pull(limit = 100) {
   let lastPulledAt = getLastPulledAt();
@@ -57,11 +56,16 @@ export async function pull(limit = 100) {
    COLLECT LOCAL CHANGES
 ========================= */
 
-async function collectChanges() {
-  // TEMP: naive version (we’ll improve later)
-  // You will later track _status: "pending"
+const typeMap = {
+  create: "created",
+  update: "updated",
+  delete: "deleted",
+} as const;
 
-  return {
+export async function collectChanges() {
+  const queue = getQueue();
+
+  const grouped = {
     peers: { created: [], updated: [], deleted: [] },
     guest_user: { created: [], updated: [], deleted: [] },
     conversations: { created: [], updated: [], deleted: [] },
@@ -71,6 +75,17 @@ async function collectChanges() {
     calls: { created: [], updated: [], deleted: [] },
     call_participants: { created: [], updated: [], deleted: [] },
   };
+
+  for (const m of queue) {
+    const table = grouped[m.table as keyof typeof grouped];
+    const type = typeMap[m.type as keyof typeof typeMap];
+
+    if (!table || !type) continue;
+
+    table[type].push(m.payload);
+  }
+
+  return grouped;
 }
 
 
@@ -81,14 +96,14 @@ export async function push() {
   if (queue.length === 0) return;
 
   const changes = await collectChanges();
-
+  console.log("PUSHING", JSON.stringify(getQueue()))
   const res = await fetch(`/api/sync/push`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      changes,
+      changes: changes,
       last_pulled_at: lastPulledAt,
     }),
   });

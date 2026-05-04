@@ -177,7 +177,7 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
     
     await createConversation({
       id: conversationId,
-      conversation_type: "direct",
+      conversation_type: "solo",
     });
 
     await createConversationParticipant({
@@ -191,9 +191,9 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
       conversation_id: conversationId,
       user_id: userIDB,
     });
+    await push();
     getConversations();
   }
-
   
   return (
     <div className="flex h-screen bg-gray-100">
