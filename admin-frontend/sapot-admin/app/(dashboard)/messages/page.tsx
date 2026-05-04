@@ -47,7 +47,12 @@ export default function Messages() {
     })()
   }
 
-  useEffect(()=>{refreshConvos()}, [])
+  useEffect(()=>{
+    (async ()=>{
+      await sync();
+      refreshConvos();
+    })()
+  }, [])
     
   usePolling(async () => {
     const convos = await getConversations();
@@ -82,7 +87,7 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
   
   const [userid, setUserId] = useState<null|string>(null);
   
-  async function getConversations(){
+  async function getConversations() {
     let currentUserId = null;
     if (!userid) {
       const fetchUserID = await fetch("/api/get-current-user");
@@ -93,54 +98,74 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
       currentUserId = userid;
     }
 
-
     const conversations = await db.conversations.toArray();
 
     const merged = await Promise.all(
       conversations.map(async (conv) => {
 	const participants = await db.conversation_participants
-	  .where("conversation_id")
-	  .equals(conv.id)
-	  .toArray();
+          .where("conversation_id")
+          .equals(conv.id)
+          .toArray();
 
 	// exclude current user
 	const otherParticipants = participants.filter(
-	  (p) => p.user_id !== currentUserId
+          (p) => p.user_id !== currentUserId
 	);
-	otherParticipants.map(async (user) => {
-	  const userExists = await db.peers.get(user.id);
-	  if (!userExists){
-	    await createPeer({
-	      id: user.id,
-	      username: user.username,
-	      first_name: user.first_name,
-	      last_name: user.last_name,
-	    });
-	  }
-	})
-	
-	// 🔥 fetch peer records
+
 	const peers = await Promise.all(
-	  otherParticipants.map((p) => db.peers.get(p.user_id))
+          otherParticipants.map(async (p) => {
+            let peer = await db.peers.get(p.user_id);
+            // If peer missing OR username is missing, re-fetch from API
+            if (!peer || !peer.username) {
+              try {
+		const res = await fetch(
+                  `/api/search-user/by-id?identifier_string=${p.user_id}`,
+                  { method: "POST" }
+		);
+		const data = await res.json();
+		const fetchedUser = data;
+
+		if (fetchedUser) {
+                  const peerData = {
+                    id: fetchedUser.id,
+                    username: "HEHE",
+                    first_name: fetchedUser.first_name,
+                    last_name: fetchedUser.last_name,
+                  };
+		  if (fetchedUser) {
+		    const peerData = {
+		      id: fetchedUser.id,
+		      username: fetchedUser.username, // not hardcoded "HEHE"
+		      first_name: fetchedUser.first_name,
+		      last_name: fetchedUser.last_name,
+		    };
+
+		    await db.peers.put(peerData); // put = upsert, overwrites existing record
+		    peer = peerData;
+		  }
+		}
+              } catch (err) {
+		console.error("Failed to fetch peer:", p.user_id, err);
+              }
+            }
+
+            return peer ?? null;
+          })
 	);
 
+	const validPeers = peers.filter(Boolean);
 	return {
-	  ...conv,
-
-	  participants: otherParticipants,
-
-	  // 👇 raw ids (if needed)
-	  user_ids: otherParticipants.map((p) => p.user_id),
-
-	  // 👇 FULL peer objects (this is what UI should use)
-	  peers: peers.filter(Boolean), // remove undefined
-
-	  // 👇 shortcut for 1:1 chats
-	  peer: peers.find(Boolean) ?? null,
+          ...conv,
+          participants: otherParticipants,
+          user_ids: otherParticipants.map((p) => p.user_id),
+          peers: validPeers,
+          peer: validPeers[0] ?? null,
+          // Explicitly surface username(s) for easy access
+          username: validPeers[0]?.username ?? null,
+          usernames: validPeers.map((p) => p.username).filter(Boolean),
 	};
       })
     );
-  
     return merged;
   }
 
@@ -192,7 +217,8 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
       user_id: userIDB,
     });
     await push();
-    getConversations();
+    const convos = await getConversations();
+    setConversations(convos)
   }
   
   return (

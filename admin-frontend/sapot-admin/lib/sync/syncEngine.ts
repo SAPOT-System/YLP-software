@@ -20,7 +20,6 @@ export async function pull(limit = 100) {
     const data = await res.json();
 
     const { changes, timestamp } = data;
-
     await applyChanges(changes);
 
     /* =========================
@@ -96,7 +95,6 @@ export async function push() {
   if (queue.length === 0) return;
 
   const changes = await collectChanges();
-  console.log("PUSHING", JSON.stringify(getQueue()))
   const res = await fetch(`/api/sync/push`, {
     method: "POST",
     headers: {
