@@ -292,7 +292,7 @@ export class SignalingService {
     }
   }
 
-  sendCallMessage(peerId: string, message: CallMessage) {
+  sendCallMessage(peerId: string, message: CallMessage): "ws" | "tcp" {
     try {
       const isWsConfigured = this.isWebSocketAllowed()
         ? this.ensureWsSignaling()
@@ -313,7 +313,7 @@ export class SignalingService {
 
       if (isWsConfigured && !shouldUseTcp) {
         this.wsSignalingAdapter.sendMessage(message);
-        return;
+        return "ws";
       }
 
       if (!isTcpAllowed) {
@@ -324,6 +324,7 @@ export class SignalingService {
         throw new Error("sendTcpMessage not configured on SignalingService");
       }
       this.sendTcpMessage(peerId, message);
+      return "tcp";
     } catch (error) {
       signalingLog.error("signaling › call send failed", {
         peerId,

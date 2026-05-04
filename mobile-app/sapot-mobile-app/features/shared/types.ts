@@ -68,6 +68,7 @@ export type AudioCallMessage = {
     to: string;
     conversationId?: string;
     callerName: string;
+    callId?: string;
   };
 };
 export type VideoCallMessage = {
@@ -77,6 +78,7 @@ export type VideoCallMessage = {
     to: string;
     conversationId?: string;
     callerName: string;
+    callId?: string;
   };
 };
 export type CallEndedMessage = {
@@ -99,7 +101,15 @@ export type CallReadyMessage = {
 };
 export type CallRejectedMessage = {
   type: "call-rejected";
-  data: { from: string; to: string; reason?: "declined" | "busy" };
+  data: {
+    from: string;
+    to: string;
+    reason?: "declined" | "busy";
+    callId?: string;
+    conversationId?: string;
+    messageId?: string;
+    callType?: "audio" | "video";
+  };
 };
 export type CallMissedMessage = {
   type: "call-missed";
@@ -113,6 +123,7 @@ export type WsAudioCallMessage = {
     to: string;
     conversationId?: string;
     callerName: string;
+    callId?: string;
   };
 };
 export type WsVideoCallMessage = {
@@ -122,6 +133,7 @@ export type WsVideoCallMessage = {
     to: string;
     conversationId?: string;
     callerName: string;
+    callId?: string;
   };
 };
 export type WsCallEndedMessage = {
@@ -144,7 +156,15 @@ export type WsCallReadyMessage = {
 };
 export type WsCallRejectedMessage = {
   type: "call-rejected";
-  data: { from_user: string; to: string; reason?: "declined" | "busy" };
+  data: {
+    from_user: string;
+    to: string;
+    reason?: "declined" | "busy";
+    callId?: string;
+    conversationId?: string;
+    messageId?: string;
+    callType?: "audio" | "video";
+  };
 };
 export type WsCallMissedMessage = {
   type: "call-missed";

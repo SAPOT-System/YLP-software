@@ -272,9 +272,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setRemoteCam(false);
     };
 
-    const callBusyHandler = (incomingPeerId: string) => {
+    const callBusyHandler = (incomingPeerId: string, _payload: unknown) => {
       if (incomingPeerId !== peerId) {
-        callLog.warn("[CallContext] call-busy rejected — peer mismatch");
+        callLog.warn("[CallContext] call-busy rejected — peer mismatch", peerId);
         return;
       }
       callLog.info("[CallContext] peer is busy", { peerId });

@@ -89,6 +89,7 @@ const getSenderName = (sender?: Peer | GuestUser | null) => {
 
 type ParsedCallLog = {
   isMissed: boolean;
+  isBusy: boolean;
   isAudio: boolean;
   title: string;
   subtitle: string;
@@ -98,6 +99,7 @@ const parseCallLog = (content: string, createdAt: Date): ParsedCallLog => {
   if (content === "Missed audio call") {
     return {
       isMissed: true,
+      isBusy: false,
       isAudio: true,
       title: "Missed audio call",
       subtitle: formatDate(createdAt),
@@ -106,8 +108,27 @@ const parseCallLog = (content: string, createdAt: Date): ParsedCallLog => {
   if (content === "Missed video call") {
     return {
       isMissed: true,
+      isBusy: false,
       isAudio: false,
       title: "Missed video call",
+      subtitle: formatDate(createdAt),
+    };
+  }
+  if (content === "Busy audio call") {
+    return {
+      isMissed: false,
+      isBusy: true,
+      isAudio: true,
+      title: "Busy audio call",
+      subtitle: formatDate(createdAt),
+    };
+  }
+  if (content === "Busy video call") {
+    return {
+      isMissed: false,
+      isBusy: true,
+      isAudio: false,
+      title: "Busy video call",
       subtitle: formatDate(createdAt),
     };
   }
@@ -115,6 +136,7 @@ const parseCallLog = (content: string, createdAt: Date): ParsedCallLog => {
   if (audioBullet) {
     return {
       isMissed: false,
+      isBusy: false,
       isAudio: true,
       title: "Audio call",
       subtitle: audioBullet[1],
@@ -124,6 +146,7 @@ const parseCallLog = (content: string, createdAt: Date): ParsedCallLog => {
   if (videoBullet) {
     return {
       isMissed: false,
+      isBusy: false,
       isAudio: false,
       title: "Video call",
       subtitle: videoBullet[1],
@@ -131,6 +154,7 @@ const parseCallLog = (content: string, createdAt: Date): ParsedCallLog => {
   }
   return {
     isMissed: false,
+    isBusy: false,
     isAudio: true,
     title: content,
     subtitle: formatDate(createdAt),
@@ -149,14 +173,14 @@ const CallLogMessageCard = ({
   callType: CallType | null;
 }) => {
   const handleCall = useInformCall();
-  const { isMissed, isAudio, title, subtitle } = parseCallLog(
+  const { isMissed, isBusy, isAudio, title, subtitle } = parseCallLog(
     message.content,
     message.createdAt
   );
 
   let iconName: React.ComponentProps<typeof Feather>["name"];
   if (isAudio) {
-    if (isMissed) {
+    if (isMissed || isBusy) {
       iconName = "phone-off";
     } else if (isOutgoing) {
       iconName = "phone-outgoing";
@@ -164,7 +188,7 @@ const CallLogMessageCard = ({
       iconName = "phone-incoming";
     }
   } else {
-    iconName = isMissed ? "video-off" : "video";
+    iconName = isMissed || isBusy ? "video-off" : "video";
   }
 
   return (
@@ -186,7 +210,7 @@ const CallLogMessageCard = ({
           width: 35,
           height: 35,
           borderRadius: 17.5,
-          backgroundColor: isMissed ? "red" : "#696969",
+          backgroundColor: isMissed ? "red" : isBusy ? "#FFA500" : "#696969",
           alignItems: "center",
           justifyContent: "center",
         }}
