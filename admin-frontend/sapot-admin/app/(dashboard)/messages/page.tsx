@@ -6,35 +6,32 @@ import { ConversationParticipant, db } from "@/lib/db";
 import { directConversationId } from "@/lib/directConversationId";
 import { collectChanges } from "@/lib/sync/collectChanges";
 import { addMutation } from "@/lib/sync/mutationQueue";
-import { pull, push } from "@/lib/sync/syncEngine";
-import { useEffect, useState } from "react";
+import { pull, push, sync } from "@/lib/sync/syncEngine";
+import { useEffect, useRef, useState } from "react";
 
 
+export function usePolling(callback: () => Promise<void>, interval: number) {
+  const isRunning = useRef(false);
 
-export function usePolling(fetchData: () => Promise<void>, interval = 5000) {
   useEffect(() => {
-    let isCancelled = false;
+    const tick = async () => {
+      if (isRunning.current) return; // 🚫 prevent overlap
 
-    const poll = async () => {
-      if (isCancelled) return;
+      isRunning.current = true;
 
       try {
-        await fetchData();
+        await callback();
       } catch (err) {
-        console.error("Polling error", err);
-      }
-
-      if (!isCancelled) {
-        setTimeout(poll, interval); // schedule next poll
+        console.error("Polling error:", err);
+      } finally {
+        isRunning.current = false;
       }
     };
 
-    poll(); // start immediately
+    const id = setInterval(tick, interval);
 
-    return () => {
-      isCancelled = true; // cleanup on unmount
-    };
-  }, [fetchData, interval]);
+    return () => clearInterval(id);
+  }, [callback, interval]);
 }
 
 
@@ -43,12 +40,24 @@ export function usePolling(fetchData: () => Promise<void>, interval = 5000) {
 
 export default function Messages() {
   const [conversations, setConversations] = useState<any[]>([]);
+  function refreshConvos(){
+    (async () => {
+      const convos = await getConversations();
+      setConversations(convos);  
+    })()
+  }
+
+  useEffect(()=>{refreshConvos()}, [])
+    
   usePolling(async () => {
-    // await pull();
-    // await push();
     const convos = await getConversations();
     setConversations(convos);
-  }, 50000);
+  }, 5000);
+
+  usePolling(async () => {
+    sync();
+  }, 5000);
+
 const [activeConversation, setActiveConversation] = useState<any | null>(null);
   const [matchedUsers, setMatchedUsers] = useState<any[]>([]);
   async function search(identifier: string){
@@ -217,7 +226,9 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
 		  createConversationIfNotExists(user);
 		  await search("");
 		  setActiveConversation(conversations.find(item => item.id === directConversationId(userid, user.id)))
-		  }}
+		  refreshConvos();
+		}}
+		
 		className="p-3 hover:bg-gray-100 cursor-pointer"
               >
 		{user.username}
