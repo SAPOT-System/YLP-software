@@ -1,13 +1,17 @@
 import { getWsUrl } from "@/config/runtime";
 import { signalingLog } from "@/features/shared/utils/logger";
-import {
-    TcpClientAdapter,
-    WsSignalingAdapter,
-} from "../adapters";
+import { TcpClientAdapter, WsSignalingAdapter } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import type { DataChatMessageI } from "@/features/chat/types";
-import { AckMessage, CallMessage, ChatMessage, DataAckMessage, Message, SignalingMessage } from "../types";
+import {
+  AckMessage,
+  CallMessage,
+  ChatMessage,
+  DataAckMessage,
+  Message,
+  SignalingMessage,
+} from "../types";
 
 signalingLog.debug("[signaling-service] module loaded");
 
@@ -124,10 +128,13 @@ export class SignalingService {
 
         case "offer": {
           signalingLog.debug("signaling › offer received", { senderId });
-          const { type, sdp } = await webrtcAdapter.handleOffer({
+          const answer = await webrtcAdapter.handleOffer({
             type: "offer",
             sdp: message.data.sdp.sdp || "",
           });
+          if (!answer) return;
+          const { type, sdp } = answer;
+
           this.sendSignalingMessage(senderId, {
             type,
             data: {
@@ -306,7 +313,12 @@ export class SignalingService {
       signalingLog.debug("signaling › call route", {
         peerId,
         messageType: message.type,
-        route: isWsConfigured && !shouldUseTcp ? "ws" : isTcpAllowed ? "tcp" : "none",
+        route:
+          isWsConfigured && !shouldUseTcp
+            ? "ws"
+            : isTcpAllowed
+            ? "tcp"
+            : "none",
         isTcpConnectedForPeer,
         peerForceTcp: this.peerForceTcp.has(peerId),
       });
