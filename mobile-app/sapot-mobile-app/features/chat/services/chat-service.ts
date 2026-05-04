@@ -12,6 +12,7 @@ import {
   PeerService,
   UserStore,
 } from "@/features/shared";
+import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { chatLog } from "@/features/shared/utils/logger";
 import * as Notifications from "expo-notifications";
 import {
@@ -700,30 +701,29 @@ export class ChatService {
       const peer = await this.peerService.findPeerById(peerId);
       if (!peer) throw new Error("Peer not found");
 
+      // Use the supplied id or derive a deterministic one for this peer pair.
+      // Both peers independently compute the same id, so new conversations
+      // always converge on a single record without coordination.
+      const effectiveId =
+        conversationId ?? directConversationId(this.userStore.user.id, peerId);
+
       // Atomic find-or-create: serialized via database.write so two concurrent
-      // callers (e.g. call session setup racing an incoming chat message) cannot
-      // both pass the existence check and both create a duplicate row.
+      // callers cannot both pass the existence check and create a duplicate row.
       return await database.write(async () => {
-        // Check by supplied id first — prevents duplicate insert when conversation
-        // already exists locally from sync or prior chat message
-        if (conversationId) {
-          const existsById =
-            await this.conversationRepository.isConversationExist(
-              conversationId
-            );
-          if (existsById) {
-            return await this.conversationRepository.queryConversationById(
-              conversationId
-            );
-          }
+        const existsById =
+          await this.conversationRepository.isConversationExist(effectiveId);
+        if (existsById) {
+          return await this.conversationRepository.queryConversationById(
+            effectiveId
+          );
         }
 
-        // Existing participant-based check
+        // Participant-based fallback — returns existing random-UUID conversations
+        // created before deterministic IDs were introduced.
         const existingConversationId =
           await this.conversationParticipantRepository.isDirectConversationExists(
             [peer.id, this.userStore.user.id]
           );
-
         if (existingConversationId) {
           return await this.conversationRepository.queryConversationById(
             existingConversationId
@@ -731,10 +731,7 @@ export class ChatService {
         }
 
         const conversation = await this.conversationRepository.saveConversation(
-          {
-            type: ConversationType.DIRECT,
-            id: conversationId,
-          },
+          { type: ConversationType.DIRECT, id: effectiveId },
           true
         );
         await this.conversationParticipantRepository.saveMultipleConversationParticipant(
@@ -745,7 +742,7 @@ export class ChatService {
         chatLog.info("chat › room create", {
           peerId: peer.id,
           conversationId: conversation.id,
-          hasConversationId: Boolean(conversationId),
+          deterministic: !conversationId,
         });
         return conversation;
       });
