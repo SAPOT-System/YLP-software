@@ -7,6 +7,9 @@ import { CallService } from "../call-service";
 
 describe("CallService", () => {
   let callService: CallService;
+  let mockWebrtcAdapter: {
+    setIsPolite: jest.Mock;
+  };
   let mockConnectionService: ReturnType<
     typeof createCallServiceDependencyMocks
   >["connectionService"];
@@ -29,7 +32,11 @@ describe("CallService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     const mocks = createCallServiceDependencyMocks();
+    mockWebrtcAdapter = {
+      setIsPolite: jest.fn(),
+    };
     mockConnectionService = mocks.connectionService;
+    mockConnectionService.getWebrtcAdapter.mockReturnValue(mockWebrtcAdapter);
     mockUserStore = mocks.userStore;
     mockPeerService = mocks.peerService;
     mockCallRepository = mocks.callRepository;
