@@ -131,7 +131,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       authLog.debug("auth › bootstrap start");
       setLoading(true);
       const token = await getItemAsync("access_token");
-      const refreshToken = await getItemAsync("refresh_token");
       const uuid = await getItemAsync("userUUID");
       if (token && uuid) {
         authLog.info("[AuthProvider] restoring authenticated session");
