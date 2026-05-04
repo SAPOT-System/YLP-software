@@ -3,13 +3,13 @@ import { addMutation } from "../sync/mutationQueue";
 
 export async function createMessage({
   id,
-  conversation,
-  sender,
+  conversation_id,
+  sender_id,
   content,
 }: {
   id: string;
-  conversation: string;
-  sender: string;
+  conversation_id: string;
+  sender_id: string;
   content: string;
 }) {
   const now = Date.now();
@@ -20,8 +20,8 @@ export async function createMessage({
 
   await db.messages.put({
     id,
-    conversation,
-    sender,
+    conversation_id,
+    sender_id,
     message_type: "text",
     content,
     created_at: now,
@@ -38,8 +38,8 @@ export async function createMessage({
     type: "create",
     payload: {
       id,
-      conversation,
-      sender,
+      conversation_id,
+      sender_id,
       message_type: "text",
       content,
       created_at: now,

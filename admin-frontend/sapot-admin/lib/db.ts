@@ -24,7 +24,7 @@ export type GuestUser = {
 
 export type Conversation = {
   id: string;
-  type: "direct" | "group";
+  conversation_type: "direct" | "group";
   title?: string | null;
   created_at: number;
   updated_at: number;
@@ -33,8 +33,8 @@ export type Conversation = {
 
 export type ConversationParticipant = {
   id: string;
-  conversation: string; // FK → conversations.id
-  user: string; // FK → peers.id
+  conversation_id: string; // FK → conversations.id
+  user_id: string; // FK → peers.id
   joined_at: number;
   created_at: number;
   updated_at: number;
@@ -43,8 +43,8 @@ export type ConversationParticipant = {
 
 export type Message = {
   id: string;
-  conversation: string;
-  sender: string;
+  conversation_id: string;
+  sender_id: string;
   message_type: "text" | "file" | "call_log";
   content: string;
   created_at: number;
@@ -54,9 +54,9 @@ export type Message = {
 
 export type MessageReceipt = {
   id: string;
-  message: string;
-  user: string;
-  status: "sent" | "delivered" | "seen";
+  message_id: string;
+  user_id: string;
+  status: "sent" | "delivered" | "read";
   created_at: number;
   updated_at: number;
   is_deleted: boolean;
@@ -64,8 +64,8 @@ export type MessageReceipt = {
 
 export type Call = {
   id: string;
-  conversation: string;
-  initiator: string;
+  conversation_id: string;
+  initiator_id: string;
   call_type: "audio" | "video";
   status: "completed" | "missed" | "rejected";
   start_time: number;
@@ -77,8 +77,8 @@ export type Call = {
 
 export type CallParticipant = {
   id: string;
-  call: string;
-  user: string;
+  conversation_id: string;
+  user_id: string;
   joined_at: number;
   left_at?: number | null;
   created_at: number;
@@ -110,7 +110,7 @@ class AppDB extends Dexie {
       /* =========================
          USERS
       ========================= */
-      peers: "id, username, is_online",
+      peers: "id, username, first_name, last_name",
       guest_user: "id",
 
       /* =========================
@@ -118,41 +118,29 @@ class AppDB extends Dexie {
       ========================= */
       conversations: "id, type, updated_at, is_deleted",
       conversation_participants:
-        "id, conversation, user, updated_at, is_deleted",
+        "id, conversation_id, user_id, updated_at, is_deleted",
 
       /* =========================
          MESSAGES
       ========================= */
       messages:
-        "id, conversation, sender, created_at, updated_at, is_deleted",
+        "id, conversation_id, sender_id, created_at, updated_at, is_deleted",
 
       message_receipts:
-        "id, message, user, status, updated_at, is_deleted",
+        "id, message_id, user_id, status, updated_at, is_deleted",
 
       /* =========================
          CALLS
       ========================= */
       calls:
-        "id, conversation, initiator, start_time, updated_at, is_deleted",
+        "id, conversation_id, initiator_id, start_time, updated_at, is_deleted",
 
       call_participants:
-        "id, call, user, joined_at, updated_at, is_deleted",
+        "id, user_id, conversation_id, joined_at, updated_at, is_deleted",
     });
   }
 }
 
 export const db = new AppDB();
 
-export type TableChanges<T> = {
-  created?: T[];
-  updated?: Partial<T>[];
-  deleted?: string[];
-};
 
-export type SyncChanges = {
-  conversations?: TableChanges<Conversation>;
-  messages?: TableChanges<Message>;
-  conversation_participants?: TableChanges<ConversationParticipant>;
-  calls?: TableChanges<Call>;
-  message_receipts?: TableChanges<MessageReceipt>;
-};
