@@ -137,7 +137,7 @@ async def pull_remote_changes(
         ),
         "conversation_participants": get_table_changes(
             ConversationParticipant,
-            col(ConversationParticipant.user_id) == current_user.id
+            col(ConversationParticipant.conversation_id).in_(my_conversation_ids)
         ),
         "calls": get_table_changes(
             Call,
