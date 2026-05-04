@@ -164,6 +164,8 @@ export function createCallServiceDependencyMocks() {
 		sendChatMessage: jest.fn(),
 		sendAckMessage: jest.fn(),
 		isWebSocketAllowed: jest.fn(() => true),
+		setActiveCall: jest.fn(),
+		getWebrtcAdapter: jest.fn(),
 	};
 
 	const peerService = {

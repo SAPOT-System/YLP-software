@@ -56,6 +56,7 @@ export type ConnectionServiceEvents = {
   ];
   "call-ended": [payload: CallEndedEventPayload];
   "call-ready": [peerId: string];
+  "call-busy": [peerId: string];
   "camera-off": [peerId: string];
   "camera-on": [peerId: string];
   "switch-cam": [stream: MediaStream];
@@ -74,6 +75,7 @@ export type ConnectionServiceEvents = {
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
+  private activeCallPeerId: string | null = null;
 
   constructor(
     private readonly tcpServerAdapter: TcpServerAdapter,
@@ -159,6 +161,22 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         try {
           if (!this.isWebSocketAllowed()) return;
           if (message.type === "audio-call") {
+            const callerPeerId = message.data.from_user;
+            if (this.activeCallPeerId !== null && this.activeCallPeerId !== callerPeerId) {
+              connectionLog.info("connection › ws busy reject", {
+                callerPeerId,
+                activeCallPeerId: this.activeCallPeerId,
+              });
+              this.signalingService.sendCallMessage(callerPeerId, {
+                type: "call-rejected",
+                data: {
+                  from: this.userStore.user.id,
+                  to: callerPeerId,
+                  reason: "busy",
+                },
+              });
+              return;
+            }
             // Fire local notification so user sees it with screen off
             await this.showIncomingCallNotification({
               callerId: message.data.from_user,
@@ -173,6 +191,22 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             });
           }
           if (message.type === "video-call") {
+            const callerPeerId = message.data.from_user;
+            if (this.activeCallPeerId !== null && this.activeCallPeerId !== callerPeerId) {
+              connectionLog.info("connection › ws busy reject", {
+                callerPeerId,
+                activeCallPeerId: this.activeCallPeerId,
+              });
+              this.signalingService.sendCallMessage(callerPeerId, {
+                type: "call-rejected",
+                data: {
+                  from: this.userStore.user.id,
+                  to: callerPeerId,
+                  reason: "busy",
+                },
+              });
+              return;
+            }
             await this.showIncomingCallNotification({
               callerId: message.data.from_user,
               callerName: message.data.callerName,
@@ -206,6 +240,12 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           }
           if (message.type === "call-ready") {
             this.emit("call-ready", message.data.from_user);
+          }
+          if (message.type === "call-rejected" && message.data.reason === "busy") {
+            connectionLog.info("connection › ws peer busy", {
+              peerId: message.data.from_user,
+            });
+            this.emit("call-busy", message.data.from_user);
           }
         } catch (error) {
           connectionLog.error("connection › call message handling failed", {
@@ -308,6 +348,22 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           await this.signalingService.handleIncomingSignaling(message);
         }
         if (message.type === "audio-call" && "from" in message.data) {
+          const callerPeerId = message.data.from;
+          if (this.activeCallPeerId !== null && this.activeCallPeerId !== callerPeerId) {
+            connectionLog.info("connection › tcp busy reject", {
+              callerPeerId,
+              activeCallPeerId: this.activeCallPeerId,
+            });
+            this.signalingService.sendCallMessage(callerPeerId, {
+              type: "call-rejected",
+              data: {
+                from: this.userStore.user.id,
+                to: callerPeerId,
+                reason: "busy",
+              },
+            });
+            return;
+          }
           await this.showIncomingCallNotification({
             callerId: message.data.from,
             callerName: message.data.callerName,
@@ -321,6 +377,22 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           });
         }
         if (message.type === "video-call" && "from" in message.data) {
+          const callerPeerId = message.data.from;
+          if (this.activeCallPeerId !== null && this.activeCallPeerId !== callerPeerId) {
+            connectionLog.info("connection › tcp busy reject", {
+              callerPeerId,
+              activeCallPeerId: this.activeCallPeerId,
+            });
+            this.signalingService.sendCallMessage(callerPeerId, {
+              type: "call-rejected",
+              data: {
+                from: this.userStore.user.id,
+                to: callerPeerId,
+                reason: "busy",
+              },
+            });
+            return;
+          }
           await this.showIncomingCallNotification({
             callerId: message.data.from,
             callerName: message.data.callerName,
@@ -355,10 +427,25 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         if (message.type === "call-ready" && "from" in message.data) {
           this.emit("call-ready", message.data.from);
         }
+        if (
+          message.type === "call-rejected" &&
+          "from" in message.data &&
+          message.data.reason === "busy"
+        ) {
+          connectionLog.info("connection › tcp peer busy", {
+            peerId: message.data.from,
+          });
+          this.emit("call-busy", message.data.from);
+        }
       } catch (error) {
         connectionLog.error("connection › tcp handler failed", { error });
       }
     });
+  }
+
+  setActiveCall(peerId: string | null) {
+    connectionLog.info("connection › active call updated", { peerId });
+    this.activeCallPeerId = peerId;
   }
 
   /**

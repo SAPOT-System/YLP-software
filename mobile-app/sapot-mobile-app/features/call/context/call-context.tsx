@@ -272,12 +272,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setRemoteCam(false);
     };
 
+    const callBusyHandler = (incomingPeerId: string) => {
+      if (incomingPeerId !== peerId) {
+        callLog.warn("[CallContext] call-busy rejected — peer mismatch");
+        return;
+      }
+      callLog.info("[CallContext] peer is busy", { peerId });
+      setCallState("busy");
+    };
 
     connectionService.on("call-ready", callReadyHandler);
     connectionService.on("mic-on", micOnHandler);
     connectionService.on("mic-off", micOffHandler);
     connectionService.on("camera-on", camOnHandler);
     connectionService.on("camera-off", camOffHandler);
+    connectionService.on("call-busy", callBusyHandler);
 
     return () => {
       connectionService.off("call-ready", callReadyHandler);
@@ -285,6 +294,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       connectionService.off("mic-off", micOffHandler);
       connectionService.off("camera-on", camOnHandler);
       connectionService.off("camera-off", camOffHandler);
+      connectionService.off("call-busy", callBusyHandler);
     };
   }, [callService, connectionService, peerId, callType, terminate]);
 
