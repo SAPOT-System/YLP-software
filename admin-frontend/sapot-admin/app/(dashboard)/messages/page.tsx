@@ -49,7 +49,7 @@ export default function Messages() {
     const convos = await getConversations();
     setConversations(convos);
   }, 50000);
-
+const [activeConversation, setActiveConversation] = useState<any | null>(null);
   const [matchedUsers, setMatchedUsers] = useState<any[]>([]);
   async function search(identifier: string){
     if (identifier === "") {
@@ -187,20 +187,103 @@ export default function Messages() {
 
   
   return (
-    <div>
-      <div>Chats</div>
-      {/* conversations */}
-      <input type="text" placeholder="search" className="border border-gray-200 p-3" onChange={async (e)=> await search(e.target.value)}/>
-      <div>
-	{ conversations.map((conversation) => {
-	  return <div key={conversation.id}>{ JSON.stringify(conversation?.peer?.username) ?? "undefined" }</div>
-	})}
+    <div className="flex h-screen bg-gray-100">
+    
+      {/* LEFT SIDEBAR */}
+      <div className="w-1/3 bg-white border-r flex flex-col">
+      
+	{/* Header */}
+	<div className="p-4 text-xl font-semibold border-b">
+							      Chats
+	</div>
+
+	{/* Search */}
+	<div className="p-3 border-b">
+          <input
+            type="text"
+            placeholder="Search users..."
+            className="w-full p-2 rounded-lg bg-gray-100 outline-none"
+            onChange={async (e) => await search(e.target.value)}
+          />
+	</div>
+
+	{/* Search Results */}
+	{matchedUsers.length > 0 && (
+          <div className="border-b max-h-40 overflow-y-auto">
+            {matchedUsers.map((user) => (
+              <div
+		key={user.id}
+		onClick={async () => {
+		  createConversationIfNotExists(user);
+		  await search("");
+		  setActiveConversation(conversations.find(item => item.id === directConversationId(userid, user.id)))
+		  }}
+		className="p-3 hover:bg-gray-100 cursor-pointer"
+              >
+		{user.username}
+              </div>
+            ))}
+          </div>
+	)}
+
+	{/* Conversations List */}
+	<div className="flex-1 overflow-y-auto">
+          {conversations.map((conversation) => (
+            <div
+              key={conversation.id}
+              onClick={() => setActiveConversation(conversation)}
+              className="p-4 border-b hover:bg-gray-100 cursor-pointer"
+            >
+              <div className="font-medium">
+		{conversation?.peer?.username || "Unknown"}
+              </div>
+              <div className="text-sm text-gray-500">
+						       Click to open chat
+              </div>
+            </div>
+          ))}
+	</div>
       </div>
-      <div>
-	{ matchedUsers.map((user) => {
-	  return <div key={user.id} onClick={()=>{createConversationIfNotExists(user)}}>{ user.username }</div>
-	})}
+
+      {/* RIGHT CHAT PANEL */}
+      <div className="flex-1 flex flex-col">
+      
+	{activeConversation ? (
+          <>
+            {/* Header */}
+            <div className="p-4 border-b bg-white font-semibold">
+              {activeConversation?.peer?.username}
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 p-4 overflow-y-auto space-y-3">
+              {/* Placeholder messages */}
+              <div className="bg-gray-200 p-3 rounded-lg w-fit max-w-xs">
+									   Hello 👋
+              </div>
+              <div className="bg-blue-500 text-white p-3 rounded-lg w-fit max-w-xs ml-auto">
+											      Hey!
+              </div>
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t bg-white flex items-center gap-2">
+              <input
+		type="text"
+		placeholder="Message..."
+		className="flex-1 p-2 rounded-full bg-gray-100 outline-none"
+              />
+              <button className="bg-blue-500 text-white px-4 py-2 rounded-full">
+										  Send
+              </button>
+            </div>
+          </>
+	) : (
+          <div className="flex-1 flex items-center justify-center text-gray-400">
+										   Select a conversation
+          </div>
+	)}
       </div>
     </div>
-  );
+  );;
 }
