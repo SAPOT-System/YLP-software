@@ -1,5 +1,6 @@
 import { applyChanges } from "./applyChanges";
 import { getLastPulledAt, setLastPulledAt } from "./storage";
+import { getQueue, saveQueue } from "./mutationQueue";
 
 import { db } from "../db";
 
@@ -72,22 +73,14 @@ async function collectChanges() {
   };
 }
 
+
 export async function push() {
   const lastPulledAt = getLastPulledAt();
+  const queue = getQueue();
+
+  if (queue.length === 0) return;
 
   const changes = await collectChanges();
-
-  // 🚨 Important: avoid useless requests
-  const hasChanges = Object.values(changes).some(
-    (table: any) =>
-      table?.created?.length ||
-      table?.updated?.length ||
-      table?.deleted?.length
-  );
-
-  if (!hasChanges) {
-    return { status: "no-op" };
-  }
 
   const res = await fetch(`/api/sync/push`, {
     method: "POST",
@@ -101,24 +94,31 @@ export async function push() {
   });
 
   /* =========================
-     CONFLICT HANDLING (CRITICAL)
+     CONFLICT HANDLING
   ========================= */
   if (res.status === 409) {
-    // Step 1: pull latest state
     await pull();
-
-    // Step 2: DO NOT silently retry here
-    // (avoid infinite loops — retry will happen in mutation queue later)
-    throw new Error("Conflict detected. State refreshed.");
+    throw new Error("Conflict detected");
   }
 
   if (!res.ok) {
+    // increase retry count
+    const updatedQueue = queue.map((m) => ({
+      ...m,
+      retries: m.retries + 1,
+    }));
+
+    saveQueue(updatedQueue);
+
     throw new Error("Push failed");
   }
 
-  const data = await res.json();
+  /* =========================
+     SUCCESS → CLEAR QUEUE
+  ========================= */
+  saveQueue([]);
 
-  return data;
+  return res.json();
 }
 
 
