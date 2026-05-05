@@ -3,6 +3,7 @@ import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 import { isAxiosError } from "axios";
 
+import { CallStatus } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import {
   getSyncLastPulledAt,
@@ -154,7 +155,7 @@ export type EntityLocalPayloadMap = {
 
 export type SyncServiceEvents = {
   "sync-status": [
-    { status: "started" | "complete" | "failed" | "retrying"; error?: unknown },
+    { status: "started" | "complete" | "failed" | "retrying"; error?: unknown }
   ];
 };
 
@@ -237,42 +238,57 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           const pullCounts = {
             conversations: {
               received: changes.conversations.created.length,
-              filtered: changes.conversations.created.length - normalizedChanges.conversations.created.length,
+              filtered:
+                changes.conversations.created.length -
+                normalizedChanges.conversations.created.length,
               applied: normalizedChanges.conversations.created.length,
               updated: normalizedChanges.conversations.updated.length,
               deleted: normalizedChanges.conversations.deleted.length,
             },
             conversationParticipants: {
               received: changes.conversation_participants.created.length,
-              filtered: changes.conversation_participants.created.length - normalizedChanges.conversation_participants.created.length,
-              applied: normalizedChanges.conversation_participants.created.length,
-              updated: normalizedChanges.conversation_participants.updated.length,
-              deleted: normalizedChanges.conversation_participants.deleted.length,
+              filtered:
+                changes.conversation_participants.created.length -
+                normalizedChanges.conversation_participants.created.length,
+              applied:
+                normalizedChanges.conversation_participants.created.length,
+              updated:
+                normalizedChanges.conversation_participants.updated.length,
+              deleted:
+                normalizedChanges.conversation_participants.deleted.length,
             },
             messages: {
               received: changes.messages.created.length,
-              filtered: changes.messages.created.length - normalizedChanges.messages.created.length,
+              filtered:
+                changes.messages.created.length -
+                normalizedChanges.messages.created.length,
               applied: normalizedChanges.messages.created.length,
               updated: normalizedChanges.messages.updated.length,
               deleted: normalizedChanges.messages.deleted.length,
             },
             calls: {
               received: changes.calls.created.length,
-              filtered: changes.calls.created.length - normalizedChanges.calls.created.length,
+              filtered:
+                changes.calls.created.length -
+                normalizedChanges.calls.created.length,
               applied: normalizedChanges.calls.created.length,
               updated: normalizedChanges.calls.updated.length,
               deleted: normalizedChanges.calls.deleted.length,
             },
             callParticipants: {
               received: changes.call_participants.created.length,
-              filtered: changes.call_participants.created.length - normalizedChanges.call_participants.created.length,
+              filtered:
+                changes.call_participants.created.length -
+                normalizedChanges.call_participants.created.length,
               applied: normalizedChanges.call_participants.created.length,
               updated: normalizedChanges.call_participants.updated.length,
               deleted: normalizedChanges.call_participants.deleted.length,
             },
             messageReceipts: {
               received: changes.message_receipts.created.length,
-              filtered: changes.message_receipts.created.length - normalizedChanges.message_receipts.created.length,
+              filtered:
+                changes.message_receipts.created.length -
+                normalizedChanges.message_receipts.created.length,
               applied: normalizedChanges.message_receipts.created.length,
               updated: normalizedChanges.message_receipts.updated.length,
               deleted: normalizedChanges.message_receipts.deleted.length,
@@ -397,7 +413,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         receiptsByMessage.get(msgId)!.push(data.status);
       }
     }
-    
+
     // Determine which messages belong to a self conversation (current user only).
     const selfMessageIds = new Set<string>();
     if (this.currentUserId) {
@@ -406,13 +422,16 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         ...changes.messages.updated,
       ];
       try {
-        const selfConvId = await this.conversationParticipantRepository.isSelfConversationExists(
-          this.currentUserId
-        );
+        const selfConvId =
+          await this.conversationParticipantRepository.isSelfConversationExists(
+            this.currentUserId
+          );
         if (selfConvId) {
           for (const m of allMessages) {
             const data = m as EntityLocalPayloadMap["messages"];
-            const convId = (data.conversation_id ?? data.conversation) as string | undefined;
+            const convId = (data.conversation_id ?? data.conversation) as
+              | string
+              | undefined;
             if (convId && convId === selfConvId && data.id) {
               selfMessageIds.add(data.id as string);
             }
@@ -422,6 +441,15 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         syncLog.warn("sync › self conversation detection failed", { err });
       }
     }
+
+    const excludedCallIds = new Set<string>();
+    for (const r of [...changes.calls.created, ...changes.calls.updated]) {
+      const data = r as EntityLocalPayloadMap["calls"];
+      if (data.status === CallStatus.INITIATING) {
+        if (data.id) excludedCallIds.add(data.id);
+      }
+    }
+
     return {
       conversations: {
         created: changes.conversations.created.map((r) =>
@@ -443,33 +471,57 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       },
       messages: {
         created: changes.messages.created
-          .filter((r) =>
-            this.shouldPushMessage(r.id as string, receiptsByMessage) || selfMessageIds.has(r.id as string)
+          .filter(
+            (r) =>
+              this.shouldPushMessage(r.id as string, receiptsByMessage) ||
+              selfMessageIds.has(r.id as string)
           )
-          .map((r) => this.toServerPayload("messages", r)) as C["messages"]["created"],
+          .map((r) =>
+            this.toServerPayload("messages", r)
+          ) as C["messages"]["created"],
         updated: changes.messages.updated
-          .filter((r) =>
-            this.shouldPushMessage(r.id as string, receiptsByMessage) || selfMessageIds.has(r.id as string)
+          .filter(
+            (r) =>
+              this.shouldPushMessage(r.id as string, receiptsByMessage) ||
+              selfMessageIds.has(r.id as string)
           )
-          .map((r) => this.toServerPayload("messages", r)) as C["messages"]["updated"],
+          .map((r) =>
+            this.toServerPayload("messages", r)
+          ) as C["messages"]["updated"],
         deleted: changes.messages.deleted,
       },
       calls: {
-        created: changes.calls.created.map((r) =>
-          this.toServerPayload("calls", r)
-        ) as C["calls"]["created"],
-        updated: changes.calls.updated.map((r) =>
-          this.toServerPayload("calls", r)
-        ) as C["calls"]["updated"],
+        created: changes.calls.created
+          .filter((r) => !excludedCallIds.has(r.id as string))
+          .map((r) =>
+            this.toServerPayload("calls", r)
+          ) as C["calls"]["created"],
+        updated: changes.calls.updated
+          .filter((r) => !excludedCallIds.has(r.id as string))
+          .map((r) =>
+            this.toServerPayload("calls", r)
+          ) as C["calls"]["updated"],
         deleted: changes.calls.deleted,
       },
       call_participants: {
-        created: changes.call_participants.created.map((r) =>
-          this.toServerPayload("call_participants", r)
-        ) as C["call_participants"]["created"],
-        updated: changes.call_participants.updated.map((r) =>
-          this.toServerPayload("call_participants", r)
-        ) as C["call_participants"]["updated"],
+        created: changes.call_participants.created
+          .filter((r) => {
+            const data = r as EntityLocalPayloadMap["call_participants"];
+            const callId = data.conversation_id ?? data.call;
+            return !callId || !excludedCallIds.has(callId);
+          })
+          .map((r) =>
+            this.toServerPayload("call_participants", r)
+          ) as C["call_participants"]["created"],
+        updated: changes.call_participants.updated
+          .filter((r) => {
+            const data = r as EntityLocalPayloadMap["call_participants"];
+            const callId = data.conversation_id ?? data.call;
+            return !callId || !excludedCallIds.has(callId);
+          })
+          .map((r) =>
+            this.toServerPayload("call_participants", r)
+          ) as C["call_participants"]["updated"],
         deleted: changes.call_participants.deleted,
       },
       message_receipts: {
@@ -478,24 +530,36 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
             const rec = r as EntityLocalPayloadMap["message_receipts"];
             const msgId = (rec.message_id ?? rec.message) as string | undefined;
             // For self messages, map SENT -> DELIVERED because server does not store SENT
-            if (msgId && selfMessageIds.has(msgId) && rec.status === MessageStatusType.SENT) {
+            if (
+              msgId &&
+              selfMessageIds.has(msgId) &&
+              rec.status === MessageStatusType.SENT
+            ) {
               return { ...rec, status: MessageStatusType.DELIVERED };
             }
             return rec;
           })
-          .filter((r) => this.shouldPushReceipt((r).status as MessageStatusType))
-          .map((r) => this.toServerPayload("message_receipts", r)) as C["message_receipts"]["created"],
+          .filter((r) => this.shouldPushReceipt(r.status as MessageStatusType))
+          .map((r) =>
+            this.toServerPayload("message_receipts", r)
+          ) as C["message_receipts"]["created"],
         updated: changes.message_receipts.updated
           .map((r) => {
             const rec = r as EntityLocalPayloadMap["message_receipts"];
             const msgId = (rec.message_id ?? rec.message) as string | undefined;
-            if (msgId && selfMessageIds.has(msgId) && rec.status === MessageStatusType.SENT) {
+            if (
+              msgId &&
+              selfMessageIds.has(msgId) &&
+              rec.status === MessageStatusType.SENT
+            ) {
               return { ...rec, status: MessageStatusType.DELIVERED };
             }
             return rec;
           })
-          .filter((r) => this.shouldPushReceipt((r).status as MessageStatusType))
-          .map((r) => this.toServerPayload("message_receipts", r)) as C["message_receipts"]["updated"],
+          .filter((r) => this.shouldPushReceipt(r.status as MessageStatusType))
+          .map((r) =>
+            this.toServerPayload("message_receipts", r)
+          ) as C["message_receipts"]["updated"],
         deleted: changes.message_receipts.deleted,
       },
     };
@@ -658,8 +722,18 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         const data = payload as EntityLocalPayloadMap["conversations"];
         const created_at = toInt(data.created_at ?? data.createdAt);
         const updated_at = toInt(data.updated_at ?? data.updatedAt);
-        this.validateTimestamp(entity, data.id as string, created_at, "created_at");
-        this.validateTimestamp(entity, data.id as string, updated_at, "updated_at");
+        this.validateTimestamp(
+          entity,
+          data.id as string,
+          created_at,
+          "created_at"
+        );
+        this.validateTimestamp(
+          entity,
+          data.id as string,
+          updated_at,
+          "updated_at"
+        );
         return {
           id: data.id as string,
           title: (data.title ?? "") as string | null,
@@ -698,8 +772,18 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         const data = payload as EntityLocalPayloadMap["messages"];
         const conversation_id = data.conversation_id ?? data.conversation;
         const sender_id = data.sender_id ?? data.sender;
-        this.validateForeignKey(entity, data.id as string, conversation_id, "conversation_id");
-        this.validateForeignKey(entity, data.id as string, sender_id, "sender_id");
+        this.validateForeignKey(
+          entity,
+          data.id as string,
+          conversation_id,
+          "conversation_id"
+        );
+        this.validateForeignKey(
+          entity,
+          data.id as string,
+          sender_id,
+          "sender_id"
+        );
         const created_at = toInt(data.created_at ?? data.createdAt);
         const updated_at = toInt(data.updated_at ?? data.updatedAt);
         return {
@@ -717,13 +801,28 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         const data = payload as EntityLocalPayloadMap["calls"];
         const conversation_id = data.conversation_id ?? data.conversation;
         const initiator_id = data.initiator_id ?? data.initiator;
-        this.validateForeignKey(entity, data.id as string, conversation_id, "conversation_id");
-        this.validateForeignKey(entity, data.id as string, initiator_id, "initiator_id");
+        this.validateForeignKey(
+          entity,
+          data.id as string,
+          conversation_id,
+          "conversation_id"
+        );
+        this.validateForeignKey(
+          entity,
+          data.id as string,
+          initiator_id,
+          "initiator_id"
+        );
         const start_time = toInt(data.start_time ?? data.startTime);
         const end_time = toInt(data.end_time ?? data.endTime);
         const created_at = toInt(data.created_at ?? data.createdAt);
         const updated_at = toInt(data.updated_at ?? data.updatedAt);
-        this.validateTimestamp(entity, data.id as string, start_time, "start_time");
+        this.validateTimestamp(
+          entity,
+          data.id as string,
+          start_time,
+          "start_time"
+        );
         return {
           id: data.id as string,
           call_type: data.call_type ?? data.callType,
@@ -741,7 +840,12 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         const data = payload as EntityLocalPayloadMap["call_participants"];
         const conversation_id = data.conversation_id ?? data.call;
         const user_id = data.user_id ?? data.user;
-        this.validateForeignKey(entity, data.id as string, conversation_id, "conversation_id");
+        this.validateForeignKey(
+          entity,
+          data.id as string,
+          conversation_id,
+          "conversation_id"
+        );
         this.validateForeignKey(entity, data.id as string, user_id, "user_id");
         const joined_at = toInt(data.joined_at ?? data.joinedAt);
         const left_at = toInt(data.left_at ?? data.leftAt);
@@ -762,7 +866,12 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         const data = payload as EntityLocalPayloadMap["message_receipts"];
         const message_id = data.message_id ?? data.message;
         const user_id = data.user_id ?? data.user;
-        this.validateForeignKey(entity, data.id as string, message_id, "message_id");
+        this.validateForeignKey(
+          entity,
+          data.id as string,
+          message_id,
+          "message_id"
+        );
         this.validateForeignKey(entity, data.id as string, user_id, "user_id");
         const created_at = toInt(data.created_at ?? data.createdAt);
         const updated_at = toInt(data.updated_at ?? data.updatedAt);
@@ -859,7 +968,9 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       },
       conversation_participants: {
         created: changes.conversation_participants.created
-          .filter((item) => !existingIds.conversation_participants.has(item.id ?? ""))
+          .filter(
+            (item) => !existingIds.conversation_participants.has(item.id ?? "")
+          )
           .map((item) => ({
             ...item,
             conversation: item.conversation_id,
