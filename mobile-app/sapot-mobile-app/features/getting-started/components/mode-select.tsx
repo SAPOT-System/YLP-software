@@ -48,7 +48,9 @@ export const ModeSelect = ({
 
   useEffect(() => {
     if (mode !== "server") return;
-    const defaultHost = getApiUrl().replace(/^https?:\/\//, "").split(":")[0];
+    const defaultHost = getApiUrl()
+      .replace(/^https?:\/\//, "")
+      .split(":")[0];
     getServerHostOverride().then((stored) => {
       setHost(stored ?? defaultHost);
     });
@@ -122,12 +124,19 @@ export const ModeSelect = ({
           backgroundColor: selected
             ? theme.colors.primaryContainer
             : "transparent",
-          padding: 20,
+          padding: 15,
         }}
         onPress={onPress}
       >
-        <View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <View style={{ position: "relative" }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              marginBottom: 5,
+            }}
+          >
             <Icon
               source={mode === "server" ? "cloud" : "network-strength-3"}
               color={theme.colors.inverseOnSurface}
@@ -143,7 +152,11 @@ export const ModeSelect = ({
               <IconButton
                 icon="cog"
                 size={18}
-                style={{ margin: 0 }}
+                style={{
+                  position: "absolute",
+                  top: -14,
+                  right: -14,
+                }}
                 onPress={(e) => {
                   e.stopPropagation();
                   setConfigVisible(true);
@@ -156,7 +169,10 @@ export const ModeSelect = ({
             renderItem={({ item }) => (
               <Text
                 key={item.id}
-                style={{ marginBottom: 4, color: theme.colors.inverseOnSurface }}
+                style={{
+                  marginBottom: 8,
+                  color: theme.colors.inverseOnSurface,
+                }}
                 variant="bodySmall"
               >
                 • {item.description}
