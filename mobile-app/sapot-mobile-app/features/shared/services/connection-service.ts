@@ -52,10 +52,10 @@ export type CallEndedEventPayload = {
 
 export type ConnectionServiceEvents = {
   "audio-call": [
-    { peerId: string; callerName: string; conversationId?: string }
+    { peerId: string; callerName: string; conversationId?: string; callId?: string }
   ];
   "video-call": [
-    { peerId: string; callerName: string; conversationId?: string }
+    { peerId: string; callerName: string; conversationId?: string; callId?: string }
   ];
   "call-ended": [payload: CallEndedEventPayload];
   "call-ready": [peerId: string];
@@ -199,6 +199,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               peerId: message.data.from_user,
               callerName: message.data.callerName,
               conversationId: message.data.conversationId,
+              callId: message.data.callId,
             });
           }
           if (message.type === "video-call") {
@@ -228,6 +229,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               peerId: message.data.from_user,
               callerName: message.data.callerName,
               conversationId: message.data.conversationId,
+              callId: message.data.callId,
             });
           }
           if (message.type === "call-ended") {
@@ -393,6 +395,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             peerId: message.data.from,
             callerName: message.data.callerName,
             conversationId: message.data.conversationId,
+            callId: message.data.callId,
           });
         }
         if (message.type === "video-call" && "from" in message.data) {
@@ -422,6 +425,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             peerId: message.data.from,
             callerName: message.data.callerName,
             conversationId: message.data.conversationId,
+            callId: message.data.callId,
           });
         }
         if (message.type === "call-ended" && "from" in message.data) {
