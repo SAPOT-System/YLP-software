@@ -8,11 +8,13 @@ interface RecoveryKeyDownloadModalProps {
   visible: boolean;
   fileData: string;
   hideModal: () => void;
+  route?: string;
 }
 const RecoveryKeyDownloadModal = ({
   visible,
   fileData,
   hideModal,
+  route,
 }: RecoveryKeyDownloadModalProps) => {
   const theme = useTheme();
   return (
@@ -63,7 +65,11 @@ const RecoveryKeyDownloadModal = ({
             recovery-file.txt
           </Text>
         </View>
-        <DownloadFileButton fileData={fileData} />
+        <DownloadFileButton
+          fileData={fileData}
+          route={route}
+          onAfterDownload={hideModal}
+        />
       </Modal>
     </Portal>
   );
