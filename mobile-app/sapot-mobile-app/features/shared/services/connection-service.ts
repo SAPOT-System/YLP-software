@@ -598,7 +598,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   /**
    * Initiates connection to a peer using TCP and WebRTC.
    */
-  async connectToPeer(peerId: string, ipAddress?: string, port?: number) {
+  async connectToPeer(peerId: string, ipAddress?: string, port?: number, _retryCount = 0) {
     connectionLog.info("connection › connect start", {
       peerId,
       hasIpAddress: Boolean(ipAddress),
@@ -652,21 +652,24 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         if (!ipAddress || !port) {
           throw new Error("TCP connection requires ipAddress and port");
         }
-        await tcpAdapter.connect(ipAddress, port);
+        await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
         isTcpConnected = true;
       }
     } else {
       if (canUseTcp && !isTcpConnected) {
         if (ipAddress && port) {
           try {
-            await tcpAdapter.connect(ipAddress, port);
+            await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
             isTcpConnected = true;
           } catch (error) {
-            connectionLog.warn("connection › tcp connect failed", {
+            connectionLog.warn("connection › tcp connect failed after retries", {
               peerId,
               error,
             });
-            throw error;
+            if (!isWsConfigured) {
+              throw error;
+            }
+            // WS is configured — fall through to WebRTC over WS
           }
         } else if (!isWsConfigured) {
           throw new Error("No signaling transport available in auto mode");
@@ -742,6 +745,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           peerId,
           error,
         });
+        if (_retryCount < 1 && signalingTransport === "ws") {
+          connectionLog.info("connection › webrtc retry via ws", {
+            peerId,
+            _retryCount,
+          });
+          this.webrtcSessionManager.evictWebrtcAdapter(peerId);
+          this.connectToPeer(peerId, ipAddress, port, _retryCount + 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
         this.emit("connection-state", {
           peerId,
           state: "failed",
@@ -763,6 +777,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           peerId,
           timeoutMs,
         });
+        if (_retryCount < 1 && signalingTransport === "ws") {
+          connectionLog.info("connection › webrtc timeout retry via ws", {
+            peerId,
+            _retryCount,
+          });
+          this.webrtcSessionManager.evictWebrtcAdapter(peerId);
+          this.connectToPeer(peerId, ipAddress, port, _retryCount + 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
         this.emit("connection-state", {
           peerId,
           state: "timeout",
@@ -1109,6 +1134,44 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       ipAddress: this.networkConfig.ipAddress,
       port: this.networkConfig.port,
     };
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async connectTcpWithRetry(
+    adapter: TcpClientAdapter,
+    ip: string,
+    port: number,
+    maxRetries: number
+  ): Promise<void> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const delayMs = 500 * attempt;
+        connectionLog.info("connection › tcp retry", {
+          attempt,
+          maxRetries,
+          delayMs,
+          ip,
+          port,
+        });
+        await this.sleep(delayMs);
+      }
+      try {
+        await adapter.connect(ip, port);
+        return;
+      } catch (error) {
+        connectionLog.warn("connection › tcp attempt failed", {
+          attempt,
+          maxRetries,
+          error,
+        });
+        lastError = error;
+      }
+    }
+    throw lastError;
   }
 
   private isTcpAllowed(): boolean {
