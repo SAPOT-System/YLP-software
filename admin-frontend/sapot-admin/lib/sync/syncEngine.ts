@@ -89,6 +89,7 @@ export async function collectChanges() {
 
 
 export async function push() {
+  await pull()
   const lastPulledAt = getLastPulledAt();
   const queue = getQueue();
 
@@ -110,7 +111,6 @@ export async function push() {
      CONFLICT HANDLING
   ========================= */
   if (res.status === 409) {
-    await pull();
     throw new Error("Conflict detected");
   }
 
