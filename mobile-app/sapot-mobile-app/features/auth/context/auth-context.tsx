@@ -119,6 +119,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           phone_number: userInfo.phoneNumber,
           email_verified: userInfo.emailVerified,
         });
+        setIsAuthenticated(true);
+
         return true;
       } else {
         return false;
