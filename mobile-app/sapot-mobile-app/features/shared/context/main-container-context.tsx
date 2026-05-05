@@ -1,6 +1,4 @@
 import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
-import { getApiUrl, initRuntimeOverrides } from "@/config/runtime";
-import { apiClient } from "@/features/shared/api/client";
 import React, { createContext, useEffect, useRef, useState } from "react";
 import { ActivityIndicator } from "react-native-paper";
 import { MainContainer } from "../main-container";
@@ -24,8 +22,6 @@ export function MainContainerProvider({
     const init = async () => {
       try {
         appLog.info("app › container init start");
-        await initRuntimeOverrides();
-        apiClient.defaults.baseURL = getApiUrl();
         const c = new MainContainer(userContainer, appModeStore);
         containerRef.current = c;
         await c.initialize();
