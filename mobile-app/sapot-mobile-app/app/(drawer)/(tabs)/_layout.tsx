@@ -22,10 +22,12 @@ function IncomingCallListener() {
       peerId,
       callerName,
       conversationId,
+      callId,
     }: {
       peerId: string;
       callerName: string;
       conversationId?: string;
+      callId?: string;
     }) => {
       // Skip if already on the incoming screen (e.g. navigated there by notification)
       if (pathname.includes("call/incoming")) {
@@ -46,6 +48,7 @@ function IncomingCallListener() {
           type: "audio",
           callerName: callerName,
           conversationId: conversationId,
+          callId: callId,
         },
       });
     };
@@ -53,10 +56,12 @@ function IncomingCallListener() {
       peerId,
       callerName,
       conversationId,
+      callId,
     }: {
       peerId: string;
       callerName: string;
       conversationId?: string;
+      callId?: string;
     }) => {
       if (pathname.includes("call/incoming")) {
         navLog.info(
@@ -76,6 +81,7 @@ function IncomingCallListener() {
           type: "video",
           callerName: callerName,
           conversationId: conversationId,
+          callId: callId,
         },
       });
     };

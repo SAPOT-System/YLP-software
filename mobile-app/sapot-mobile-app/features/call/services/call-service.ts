@@ -38,6 +38,7 @@ type CallConnectionService = Pick<
   | "sendCallMessage"
   | "connectToPeer"
   | "on"
+  | "once"
   | "terminateCallConnection"
   | "getWebrtcAdapter"
   | "toggleMic"
@@ -214,7 +215,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   async answerCall(
     type: "video" | "audio",
     peerId: string,
-    conversationId?: string
+    conversationId?: string,
+    callId?: string
   ) {
     try {
       const webrtc = this.connectionService.getWebrtcAdapter(peerId);
@@ -224,7 +226,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         peerId,
         type,
         true,
-        conversationId || undefined
+        conversationId || undefined,
+        callId || undefined
       );
       if (!session.answeredAt) {
         session.answeredAt = new Date();
@@ -507,6 +510,11 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
     this.listenToHandleIncomingBusyReject();
 
+    this.connectionService.once("call-ready", async (readyPeerId) => {
+      if (readyPeerId !== peerId) return;
+      await this.handleCallReady(readyPeerId);
+    });
+
     try {
       this.connectionService.sendCallMessage(peerId, {
         type: type === "audio" ? "audio-call" : "video-call",
@@ -750,11 +758,41 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     return Boolean(session && !session.finalized);
   }
 
+  async handleCallReady(peerId: string): Promise<void> {
+    try {
+      const session = this.callSessions.get(peerId);
+      if (!session || session.finalized) return;
+
+      const peer = await this.peerService.getOrCreatePeerById(peerId, this.connectionService);
+      if (!peer) return;
+
+      const call = await this.callRepository.queryCallById(session.callId);
+      if (!call) return;
+
+      await this.callParticipantRepository.saveCallParticipant({
+        call,
+        user: peer as Peer | GuestUser,
+        joinedAt: new Date(),
+      });
+
+      callLog.info("call › peer participant saved on call-ready", {
+        peerId,
+        callId: session.callId,
+      });
+    } catch (error) {
+      callLog.error("call › peer participant save failed on call-ready", {
+        peerId,
+        error,
+      });
+    }
+  }
+
   private async ensureSession(
     peerId: string,
     type: "video" | "audio",
     isIncoming: boolean,
-    conversationId?: string
+    conversationId?: string,
+    callId?: string
   ): Promise<CallSession> {
     const existingSession = this.callSessions.get(peerId);
     if (existingSession && !existingSession.finalized) {
@@ -781,6 +819,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       callType: type === "video" ? CallType.VIDEO : CallType.AUDIO,
       status: CallStatus.INITIATING,
       startTime: now,
+      id: callId,
     });
 
     await this.callParticipantRepository.saveCallParticipant({
