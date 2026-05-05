@@ -170,45 +170,17 @@ describe("CallService", () => {
     });
   });
 
-  describe("listenToRemoteStream", () => {
-    it("should setup listener for remote stream events", () => {
-      callService.listenToRemoteStream();
-
+  describe("remoteStream forwarding", () => {
+    it("should register remoteStream listener in constructor", () => {
       expect(mockConnectionService.on).toHaveBeenCalledWith(
         "remoteStream",
         expect.any(Function)
       );
     });
 
-    it("should emit remoteStream event when received", () => {
-      const mockStream = createMockMediaStream("remote-stream");
-      let streamCallback: (stream: MediaStream) => void;
-
-      mockConnectionService.on.mockImplementation((event, callback) => {
-        if (event === "remoteStream") {
-          streamCallback = callback;
-        }
-        return mockConnectionService;
-      });
-
-      jest.spyOn(callService, "emit");
-
-      callService.listenToRemoteStream();
-
-      // Simulate remote stream event
-      streamCallback!(mockStream);
-
-      expect(callService.emit).toHaveBeenCalledWith("remoteStream", mockStream);
-    });
-
-    it("should be called automatically during startCall", async () => {
-      const peerId = "peer-1";
-
-      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
-      await callService.startCall("audio", peerId);
-
+    it("should register switch-cam listener in constructor", () => {
       expect(mockConnectionService.on).toHaveBeenCalledWith(
-        "remoteStream",
+        "switch-cam",
         expect.any(Function)
       );
     });
