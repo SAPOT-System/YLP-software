@@ -159,6 +159,7 @@ export function createCallServiceDependencyMocks() {
 		switchCamera: jest.fn(),
 		getLocalStream: jest.fn(),
 		on: jest.fn(),
+		once: jest.fn(),
 		emit: jest.fn(),
 		connectToPeer: jest.fn(),
 		sendChatMessage: jest.fn(),
@@ -177,6 +178,7 @@ export function createCallServiceDependencyMocks() {
 	const callRepository = {
 		saveCall: jest.fn(),
 		updateCallStatus: jest.fn(),
+		queryCallById: jest.fn(),
 	};
 
 	const callParticipantRepository = {

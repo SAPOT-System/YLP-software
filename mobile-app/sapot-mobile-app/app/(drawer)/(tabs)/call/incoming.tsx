@@ -16,11 +16,12 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function IncomingCall() {
   const router = useRouter();
-  const { id, type, conversationId, callerName } = useLocalSearchParams<{
+  const { id, type, conversationId, callerName, callId } = useLocalSearchParams<{
     id: string;
     type: string;
     conversationId?: string;
     callerName: string;
+    callId?: string;
   }>();
   const callService = useCallService();
   const connectionService = useConnectionService();
@@ -113,7 +114,8 @@ export default function IncomingCall() {
       await callService.answerCall(
         (type as "audio" | "video") ?? "audio",
         id as string,
-        conversationId || undefined
+        conversationId || undefined,
+        callId || undefined
       );
     } catch (error) {
       uiLog.error("[IncomingCall] Error in start call", { error });

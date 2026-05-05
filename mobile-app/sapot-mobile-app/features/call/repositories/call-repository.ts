@@ -63,6 +63,16 @@ export class CallRepository {
     }
   }
 
+  async queryCallById(callId: string): Promise<Call | null> {
+    try {
+      const calls = await this.callsCollection.query(Q.where("id", callId)).fetch();
+      return calls[0] ?? null;
+    } catch (error) {
+      callLog.error("call › query by id failed", { callId, error });
+      throw error;
+    }
+  }
+
   async queryByConversation(conversationId: string) {
     try {
       return await this.callsCollection
