@@ -6,6 +6,7 @@ import {
   useProfilePhoto,
 } from "@/features/shared/hooks";
 import { stopForegroundService } from "@/features/shared/hooks/use-background-task";
+import { useMediaPermissions } from "@/features/shared/hooks/use-media-permissions";
 import { navLog, uiLog } from "@/features/shared/utils/logger";
 import * as Notifications from "expo-notifications";
 import { Feather } from "@expo/vector-icons";
@@ -26,6 +27,7 @@ export default function IncomingCall() {
   const callService = useCallService();
   const connectionService = useConnectionService();
   const peerService = usePeerService();
+  const { requestMediaPermissions } = useMediaPermissions();
 
   const [peer, setPeer] = useState<Peer | null>(null);
   const { url: peerPhotoUrl } = useProfilePhoto(id);
@@ -41,6 +43,11 @@ export default function IncomingCall() {
     };
   }, []);
 
+  // Mark user as busy so concurrent callers receive a busy rejection
+  useEffect(() => {
+    connectionService.setActiveCall(id as string);
+  }, [connectionService, id]);
+
   useEffect(() => {
     uiLog.debug("[IncomingCall] useEffect triggered, deps:", { id });
     peerService
@@ -53,8 +60,9 @@ export default function IncomingCall() {
 
   useFocusEffect(
     useCallback(() => {
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         navLog.info("[IncomingCall] did not answer");
+        await connectionService.dismissIncomingCallNotification();
         callService
           .markMissedIncomingCall(
             (type as "audio" | "video") ?? "audio",
@@ -70,7 +78,7 @@ export default function IncomingCall() {
       }, 30_000);
 
       return () => clearTimeout(timer);
-    }, [callService, id, router, type, conversationId])
+    }, [callService, connectionService, id, router, type, conversationId])
   );
 
   // If the caller cancels before we accept, go back and clean up
@@ -80,19 +88,18 @@ export default function IncomingCall() {
       uiLog.info(
         "[Navigation] goBack triggered from IncomingCall — caller cancelled"
       );
-      // Dismiss incoming call notifications from the tray
+      connectionService.setActiveCall(null);
+      await connectionService.dismissIncomingCallNotification();
+      // Dismiss any other incoming_call notifications from the tray
       try {
         const presented = await Notifications.getPresentedNotificationsAsync();
         for (const n of presented) {
-          console.log(n.request.content.data);
           if (n.request.content.data.type === "incoming_call") {
             await Notifications.dismissNotificationAsync(n.request.identifier);
           }
         }
       } catch {
-        uiLog.info(
-          "[Navigation] goBack triggered from IncomingCall — caller cancelled"
-        );
+        // best-effort
       }
       // Stop foreground service — no call to keep alive for
       await stopForegroundService();
@@ -110,6 +117,12 @@ export default function IncomingCall() {
       type,
       conversationId,
     });
+    const granted = await requestMediaPermissions(
+      (type as "audio" | "video") ?? "audio"
+    );
+    if (!granted) return;
+
+    await connectionService.dismissIncomingCallNotification();
     try {
       await callService.answerCall(
         (type as "audio" | "video") ?? "audio",
@@ -134,6 +147,7 @@ export default function IncomingCall() {
 
   const handleReject = async () => {
     uiLog.debug("[IncomingCall] handleReject called", { id });
+    await connectionService.dismissIncomingCallNotification();
     try {
       await callService.rejectIncomingCall(
         (type as "audio" | "video") ?? "audio",
