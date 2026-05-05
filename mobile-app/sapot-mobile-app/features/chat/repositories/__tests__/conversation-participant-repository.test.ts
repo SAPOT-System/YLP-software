@@ -13,6 +13,7 @@ import {
     createCollectionMock,
     createWatermelonDbMock,
 } from "@/test/mocks/database.mock-builders";
+import { conversationParticipantId } from "@/features/chat/utils/conversation-participant-id";
 import { writer } from "@nozbe/watermelondb/decorators";
 import { ConversationParticipantRepository } from "../conversation-participant-repository";
 
@@ -34,11 +35,23 @@ describe("ConversationParticipantRepository", () => {
     repository = new ConversationParticipantRepository(mockDb as never);
   });
 
+  function makeParticipantRecord() {
+    return {
+      _raw: {} as Record<string, unknown>,
+      conversation: { set: jest.fn() },
+      user: { set: jest.fn() },
+    } as unknown as jest.Mocked<ConversationParticipant>;
+  }
+
   it("saves a conversation participant", async () => {
     const mockParticipant = createTestConversationParticipant({
       id: "participant-1",
     }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>;
-    mockCollection.create.mockResolvedValue(mockParticipant);
+    const capturedRecord = makeParticipantRecord();
+    mockCollection.create.mockImplementation(async (callback) => {
+      callback(capturedRecord);
+      return mockParticipant;
+    });
 
     await repository.saveConversationParticipant({
       conversation: {
@@ -49,15 +62,17 @@ describe("ConversationParticipantRepository", () => {
       } as unknown as Partial<Peer> as jest.Mocked<Peer>,
     });
 
-    expect(mockCollection.create).toHaveBeenCalled();
+    expect(capturedRecord._raw.id).toBe(conversationParticipantId("conv-1", "user-1"));
   });
 
   it("saves a conversation participant for guest user", async () => {
-    mockCollection.create.mockResolvedValue(
-      createTestConversationParticipant({
+    const capturedRecord = makeParticipantRecord();
+    mockCollection.create.mockImplementation(async (callback) => {
+      callback(capturedRecord);
+      return createTestConversationParticipant({
         id: "participant-guest-1",
-      }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>
-    );
+      }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>;
+    });
 
     await repository.saveConversationParticipant({
       conversation: {
@@ -68,15 +83,19 @@ describe("ConversationParticipantRepository", () => {
       } as unknown as Partial<GuestUser> as jest.Mocked<GuestUser>,
     });
 
-    expect(mockCollection.create).toHaveBeenCalled();
+    expect(capturedRecord._raw.id).toBe(conversationParticipantId("conv-guest", "guest-1"));
   });
 
   it("saves multiple conversation participants", async () => {
-    mockCollection.create.mockResolvedValue(
-      createTestConversationParticipant({
+    const capturedRecords: jest.Mocked<ConversationParticipant>[] = [];
+    mockCollection.create.mockImplementation(async (callback) => {
+      const record = makeParticipantRecord();
+      capturedRecords.push(record);
+      callback(record);
+      return createTestConversationParticipant({
         id: "participant-1",
-      }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>
-    );
+      }) as Partial<ConversationParticipant> as jest.Mocked<ConversationParticipant>;
+    });
 
     await repository.saveMultipleConversationParticipant(
       [
@@ -93,6 +112,8 @@ describe("ConversationParticipantRepository", () => {
     );
 
     expect(mockCollection.create).toHaveBeenCalledTimes(2);
+    expect(capturedRecords[0]._raw.id).toBe(conversationParticipantId("conv-1", "user-1"));
+    expect(capturedRecords[1]._raw.id).toBe(conversationParticipantId("conv-1", "user-2"));
   });
 
   it("checks if direct conversation exists", async () => {
