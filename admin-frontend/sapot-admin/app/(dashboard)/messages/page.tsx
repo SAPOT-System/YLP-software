@@ -118,8 +118,10 @@ export default function Messages() {
     }
   }
   useEffect(()=>{
-    (async ()=>
-      await refreshConvos()
+    (async ()=> {
+      refreshConvos()
+      await sync()
+    }
     )()
   }, [])
   useEffect(() => {
@@ -230,7 +232,7 @@ export default function Messages() {
           .equals(conv.id)
           .toArray();
 
-        const otherParticipants = participants.filter((p) => p.user_id !== currentUserId);
+        const otherParticipants = participants;//.filter((p) => p.user_id !== currentUserId);
 
         const peers = await Promise.all(
           otherParticipants.map(async (p) => {
@@ -265,17 +267,19 @@ export default function Messages() {
           .then((msgs) => msgs[msgs.length - 1] ?? null);
 
         const validPeers = peers.filter(Boolean);
-        return {
-          ...conv,
-          participants: otherParticipants,
-          user_ids: otherParticipants.map((p) => p.user_id),
-          peers: validPeers,
-          peer: validPeers[0] ?? null,
-          username: validPeers[0]?.username ?? null,
-          usernames: validPeers.map((p) => p.username).filter(Boolean),
-          latestMessage: latestMsg,
-          latestAt: latestMsg?.created_at ?? conv.created_at ?? 0,
-        };
+	const primaryPeer = validPeers.find((p) => p.id !== currentUserId) ?? validPeers[0] ?? null;
+
+	return {
+	  ...conv,
+	  participants: otherParticipants,
+	  user_ids: otherParticipants.map((p) => p.user_id),
+	  peers: validPeers,
+	  peer: primaryPeer,
+	  username: primaryPeer?.username ?? null,
+	  usernames: validPeers.map((p) => p.username).filter(Boolean),
+	  latestMessage: latestMsg,
+	  latestAt: latestMsg?.created_at ?? conv.created_at ?? 0,
+	};
       })
     );
 
