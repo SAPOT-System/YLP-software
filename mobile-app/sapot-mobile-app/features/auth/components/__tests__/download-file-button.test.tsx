@@ -91,7 +91,10 @@ describe("DownloadFileButton", () => {
       ]);
 
       const { getByLabelText } = render(
-        <DownloadFileButton fileData="secure-content" />
+        <DownloadFileButton
+          fileData="secure-content"
+          route="/(drawer)/(tabs)"
+        />
       );
 
       fireEvent.press(getByLabelText("Download recovery key file"));
@@ -120,7 +123,9 @@ describe("DownloadFileButton", () => {
       mockWrite.mockResolvedValueOnce(undefined);
       mockSaveDocuments.mockResolvedValueOnce([{}]);
 
-      const { getByText } = render(<DownloadFileButton fileData="abc" />);
+      const { getByText } = render(
+        <DownloadFileButton fileData="abc" route="/(drawer)/(tabs)" />
+      );
 
       fireEvent.press(getByText("Download"));
 
@@ -136,7 +141,9 @@ describe("DownloadFileButton", () => {
     it("shows the error message when write/save fails", async () => {
       mockWrite.mockRejectedValueOnce(new Error("Disk full"));
 
-      const { getByText } = render(<DownloadFileButton fileData="abc" />);
+      const { getByText } = render(
+        <DownloadFileButton fileData="abc" route="/(drawer)/(tabs)" />
+      );
 
       fireEvent.press(getByText("Download"));
 
@@ -152,7 +159,9 @@ describe("DownloadFileButton", () => {
     it("falls back to Unknown error when rejection has no message", async () => {
       mockWrite.mockRejectedValueOnce({});
 
-      const { getByText } = render(<DownloadFileButton fileData="abc" />);
+      const { getByText } = render(
+        <DownloadFileButton fileData="abc" route="/(drawer)/(tabs)" />
+      );
 
       fireEvent.press(getByText("Download"));
 

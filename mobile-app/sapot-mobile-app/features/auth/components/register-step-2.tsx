@@ -8,7 +8,7 @@ import AuthTextInput from "./auth-text-input";
 import PrimaryButton from "./primary-button";
 import SecondaryButton from "./secondary-button";
 
-const SECURITY_QUESTIONS = [
+export const SECURITY_QUESTIONS = [
   {
     label: "What's something your parents don't know?",
     value: "What's something your parents don't know?",

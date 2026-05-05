@@ -1,4 +1,3 @@
-import { APP_ROUTES } from "@/config/routes";
 import { authLog } from "@/features/shared/utils/logger";
 import { saveDocuments } from "@react-native-documents/picker";
 import { File, Paths } from "expo-file-system";
@@ -10,11 +9,15 @@ import { Button } from "react-native-paper";
 type DownloadFileButtonProps = {
   fileData: string;
   fileName?: string;
+  route?: string;
+  onAfterDownload?: () => void;
 };
 
 const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
   fileData,
   fileName = "recovery-key.txt",
+  route,
+  onAfterDownload,
 }) => {
   const handleDownload = async () => {
     authLog.debug("[DownloadFileButton] handleDownload called", {
@@ -36,10 +39,9 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
 
       if (targetUri) {
         Alert.alert("File saved");
-        authLog.info("[Navigation] Navigating to Home", {
-          screen: APP_ROUTES.HOME,
-        });
-        router.replace(APP_ROUTES.HOME);
+        onAfterDownload?.();
+        authLog.info("[Navigation] Navigating", { screen: route });
+        if (route) router.replace(route as never);
       } else {
         Alert.alert("Save cancelled", "No location selected.");
       }

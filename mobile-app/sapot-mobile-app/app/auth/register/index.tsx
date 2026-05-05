@@ -1,3 +1,4 @@
+import { APP_ROUTES } from "@/config/routes";
 import {
   RecoveryKeyDownloadModal,
   RegisterStep1,
@@ -241,6 +242,7 @@ const Register = () => {
         <RecoveryKeyDownloadModal
           visible={modalVisible}
           hideModal={hideModal}
+          route={APP_ROUTES.HOME}
           fileData={modalData}
         />
       </View>

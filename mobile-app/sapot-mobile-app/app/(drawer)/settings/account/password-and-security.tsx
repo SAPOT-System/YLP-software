@@ -1,9 +1,9 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { uiLog } from "@/features/shared/utils/logger";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
-import { Icon, Text, useTheme } from "react-native-paper";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Divider, Icon, Text, useTheme } from "react-native-paper";
 
 export default function PasswordAndSecurity() {
   const theme = useTheme();
@@ -35,6 +35,28 @@ export default function PasswordAndSecurity() {
               <Icon source="arrow-right" size={24} />
             </View>
           </Link>
+          <Divider />
+          <Pressable
+            onPress={() =>
+              router.push(SETTINGS_ROUTES.SECURITY_QUESTION as never)
+            }
+          >
+            <View style={styles.item}>
+              <Text>Security Question</Text>
+              <Icon source="arrow-right" size={24} />
+            </View>
+          </Pressable>
+          <Divider />
+          <Pressable
+            onPress={() =>
+              router.push(SETTINGS_ROUTES.GENERATE_RECOVERY_KEY as never)
+            }
+          >
+            <View style={styles.item}>
+              <Text>Generate Recovery Key</Text>
+              <Icon source="arrow-right" size={24} />
+            </View>
+          </Pressable>
         </View>
       </View>
     </View>
