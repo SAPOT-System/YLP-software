@@ -36,12 +36,17 @@ export function collectChanges() {
 }
 
 export async function clearSessionData() {
-  // Clear Dexie
-  await db.delete();
-  await db.open();
-
-  // Clear sync state
-  saveQueue([]);
-  setLastPulledAt(0);
+  try {
+    await db.messages.clear();
+    await db.conversations.clear();
+    await db.conversation_participants.clear();
+    await db.peers.clear();
+    await db.message_receipts.clear();
+    await db.calls.clear();
+    await db.call_participants.clear();
+  
+    // Also clear the sync cursor so next login pulls everything fresh
+    localStorage.removeItem("last_pulled_at"); // adjust key to match yours in storage.ts
+  } catch {}
 }
 
