@@ -173,10 +173,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           if (!this.isWebSocketAllowed()) return;
           if (message.type === "audio-call") {
             const callerPeerId = message.data.from_user;
-            if (
-              this.activeCallPeerId !== null &&
-              this.activeCallPeerId !== callerPeerId
-            ) {
+            if (this.activeCallPeerId !== null) {
               connectionLog.info("connection › ws busy reject", {
                 callerPeerId,
                 activeCallPeerId: this.activeCallPeerId,
@@ -204,10 +201,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           }
           if (message.type === "video-call") {
             const callerPeerId = message.data.from_user;
-            if (
-              this.activeCallPeerId !== null &&
-              this.activeCallPeerId !== callerPeerId
-            ) {
+            if (this.activeCallPeerId !== null) {
               connectionLog.info("connection › ws busy reject", {
                 callerPeerId,
                 activeCallPeerId: this.activeCallPeerId,
@@ -370,10 +364,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         }
         if (message.type === "audio-call" && "from" in message.data) {
           const callerPeerId = message.data.from;
-          if (
-            this.activeCallPeerId !== null &&
-            this.activeCallPeerId !== callerPeerId
-          ) {
+          if (this.activeCallPeerId !== null) {
             connectionLog.info("connection › tcp busy reject", {
               callerPeerId,
               activeCallPeerId: this.activeCallPeerId,
@@ -400,10 +391,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         }
         if (message.type === "video-call" && "from" in message.data) {
           const callerPeerId = message.data.from;
-          if (
-            this.activeCallPeerId !== null &&
-            this.activeCallPeerId !== callerPeerId
-          ) {
+          if (this.activeCallPeerId !== null) {
             connectionLog.info("connection › tcp busy reject", {
               callerPeerId,
               activeCallPeerId: this.activeCallPeerId,
