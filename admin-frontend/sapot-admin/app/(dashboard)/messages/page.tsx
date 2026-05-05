@@ -4,11 +4,11 @@ import { createConversation } from "@/lib/actions/conversations";
 import { createPeer } from "@/lib/actions/peers";
 import { db } from "@/lib/db";
 import { directConversationId } from "@/lib/directConversationId";
-import { clearSessionData } from "@/lib/sync/collectChanges";
 import { push, sync } from "@/lib/sync/syncEngine";
 import { connectWebSocket } from "@/lib/ws/Websocketmanager";
-import { onMessage, sendChatMessage } from "@/lib/ws/Websocketmanager";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { onMessage, sendChatMessage, sendSeen } from "@/lib/ws/Websocketmanager";
+import { markConversationMessagesAsRead } from "@/lib/records/Createmessagereceipt";
+import { useEffect, useRef, useState } from "react";
 
 export function usePolling(callback: () => Promise<void>, interval: number) {
   const isRunning = useRef(false);
@@ -40,33 +40,18 @@ export default function Messages() {
   const [messages, setMessages] = useState<any[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [onlinePeers, setOnlinePeers] = useState<Set<string>>(new Set());
 
-  // Auto-scroll ref
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeConversationRef = useRef<any>(null);
-  // Stable ref for userId so async callbacks always see the latest value
   const userIdRef = useRef<string | null>(null);
   const currentUserInfoRef = useRef<any>(null);
 
-  // Keep refs in sync with state
-  useEffect(() => {
-    activeConversationRef.current = activeConversation;
-  }, [activeConversation]);
+  useEffect(() => { activeConversationRef.current = activeConversation; }, [activeConversation]);
+  useEffect(() => { userIdRef.current = userid; }, [userid]);
+  useEffect(() => { currentUserInfoRef.current = currentUserInfo; }, [currentUserInfo]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  useEffect(() => {
-    userIdRef.current = userid;
-  }, [userid]);
-
-  useEffect(() => {
-    currentUserInfoRef.current = currentUserInfo;
-  }, [currentUserInfo]);
-
-  // Scroll to bottom whenever messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // Stable helper to get/cache current user id without relying on state closure
   async function ensureCurrentUser() {
     if (userIdRef.current && currentUserInfoRef.current) {
       return { id: userIdRef.current, ...currentUserInfoRef.current };
@@ -89,13 +74,9 @@ export default function Messages() {
 
   async function handleSend() {
     if (!text.trim() || !activeConversation) return;
-
     const user = await ensureCurrentUser();
     const messageText = text;
     setText("");
-
-    // sendChatMessage writes to Dexie synchronously before sending over WS,
-    // so loadMessages immediately after will include the new message.
     await sendChatMessage({
       conversationId: activeConversation.id,
       to: activeConversation.peer.id,
@@ -106,7 +87,6 @@ export default function Messages() {
         lastName: user.last_name,
       },
     });
-
     await loadMessages(activeConversation.id);
     refreshConvos();
   }
@@ -117,13 +97,25 @@ export default function Messages() {
       handleSend();
     }
   }
-  useEffect(()=>{
-    (async ()=> {
-      refreshConvos()
-      await sync()
+
+  // Single entry point for opening a conversation — always sends seen + marks read
+  async function openConversation(conversation: any) {
+    setActiveConversation(conversation);
+    await loadMessages(conversation.id);
+    const peerId = conversation.peer?.id;
+    const myId = userIdRef.current;
+    // For self-conversations there's no peer to notify
+    if (peerId && myId && peerId !== myId) {
+      sendSeen({ conversationId: conversation.id, to: peerId });
+      await markConversationMessagesAsRead({
+        conversation_id: conversation.id,
+        current_user_id: myId,
+      });
+      // Reload so receipt indicators update immediately
+      await loadMessages(conversation.id);
     }
-    )()
-  }, [])
+  }
+
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
 
@@ -131,28 +123,62 @@ export default function Messages() {
       const user = await ensureCurrentUser();
       await connectWebSocket(user.id);
 
-      // Sync first to get latest data from server
       try { await sync(); } catch (e) { console.warn("sync error", e); }
 
-      // After sync, applyChanges doesn't write peers to Dexie (it's not in its
-      // transaction). Force-hydrate all participant peers from the API now.
       await hydratePeers(user.id);
-
       const convos = await getConversations();
       setConversations(convos);
 
-      unsubscribe = onMessage(async (msg) => {
+      unsubscribe = onMessage(async (msg: any) => {
+        // ── Incoming chat message ──────────────────────────────────────────
         if (msg.type === "chat") {
           const current = activeConversationRef.current;
           if (msg.data.conversationId === current?.id) {
             await loadMessages(msg.data.conversationId);
+            // Conversation is open → immediately notify sender we've seen it
+            const senderId = msg.data.from ?? msg.data.from_user;
+            if (userIdRef.current && senderId && senderId !== userIdRef.current) {
+              sendSeen({ conversationId: current.id, to: senderId });
+              await markConversationMessagesAsRead({
+                conversation_id: current.id,
+                current_user_id: userIdRef.current,
+              });
+            }
           }
           const updated = await getConversations();
           setConversations(updated);
         }
-        if (msg.type === "ack" || msg.type === "seen") {
+
+        // ── server-ack: server confirms our message reached the recipient ──
+        // Update receipt status → "sent", reload to show the checkmark
+        if (msg.type === "server-ack" || msg.type === "ack") {
+          const current = activeConversationRef.current;
+          if (current) await loadMessages(current.id);
           const updated = await getConversations();
           setConversations(updated);
+        }
+
+        // ── seen: the other person opened the conversation ─────────────────
+        // Their client already updated receipts via handleSeen in WS manager;
+        // we just need to re-render so the "Seen" label appears.
+        if (msg.type === "seen") {
+          const current = activeConversationRef.current;
+          if (current) await loadMessages(current.id);
+          const updated = await getConversations();
+          setConversations(updated);
+        }
+
+        // ── status-update: peer online/offline ────────────────────────────
+        if (msg.type === "status-update") {
+          const { user_id, status } = msg;
+          setOnlinePeers((prev) => {
+            const next = new Set(prev);
+            if (status === "online") next.add(user_id);
+            else next.delete(user_id);
+            return next;
+          });
+          const peer = await db.peers.get(user_id);
+          if (peer) await db.peers.put({ ...peer, is_online: status === "online" });
         }
       });
     })();
@@ -160,8 +186,6 @@ export default function Messages() {
     return () => { unsubscribe?.(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Force-fetch and cache all peers for conversations we don't have locally.
-  // Needed because applyChanges doesn't include db.peers in its transaction.
   async function hydratePeers(currentUserId: string) {
     const participants = await db.conversation_participants.toArray();
     const otherIds = [...new Set(
@@ -169,11 +193,10 @@ export default function Messages() {
         .filter((p) => p.user_id !== currentUserId)
         .map((p) => p.user_id)
     )];
-
     await Promise.all(
       otherIds.map(async (id) => {
         const existing = await db.peers.get(id);
-        if (existing?.username) return; // already have good data
+        if (existing?.username) return;
         try {
           const res = await fetch(`/api/search-user/by-id?identifier_string=${id}`, { method: "POST" });
           const fetched = await res.json();
@@ -201,22 +224,35 @@ export default function Messages() {
       .where("conversation_id")
       .equals(conversationId)
       .sortBy("created_at");
-    setMessages(msgs);
+
+    // Attach best receipt status to each message for the receipt indicator
+    const statusPriority: Record<string, number> = { read: 3, sent: 2, delivered: 1 };
+    const msgsWithReceipts = await Promise.all(
+      msgs.map(async (msg) => {
+        const receipts = await db.message_receipts
+          .where("message_id")
+          .equals(msg.id)
+          .toArray();
+        const best = receipts.reduce<"sent" | "delivered" | "read" | null>((acc, r) => {
+          if (!acc) return r.status;
+          return (statusPriority[r.status] ?? 0) > (statusPriority[acc] ?? 0) ? r.status : acc;
+        }, null);
+        return { ...msg, receiptStatus: best };
+      })
+    );
+
+    setMessages(msgsWithReceipts);
   }
 
   async function search(identifier: string) {
     setSearchQuery(identifier);
-    if (identifier === "") {
-      setMatchedUsers([]);
-      return;
-    }
+    if (identifier === "") { setMatchedUsers([]); return; }
     const fet = await fetch(`/api/search-user?identifier_string=${identifier}`, { method: "POST" });
     const tojson = await fet.json();
     setMatchedUsers(tojson.res || []);
   }
 
   async function getConversations() {
-    // Always use ref — never stale state closure
     let currentUserId = userIdRef.current;
     if (!currentUserId) {
       const data = await ensureCurrentUser();
@@ -232,10 +268,11 @@ export default function Messages() {
           .equals(conv.id)
           .toArray();
 
-        const otherParticipants = participants;//.filter((p) => p.user_id !== currentUserId);
+        // Include all participants (supports self-conversations)
+        const allParticipants = participants;
 
         const peers = await Promise.all(
-          otherParticipants.map(async (p) => {
+          allParticipants.map(async (p) => {
             let peer = await db.peers.get(p.user_id);
             if (!peer || !peer.username) {
               try {
@@ -259,7 +296,6 @@ export default function Messages() {
           })
         );
 
-        // Get latest message for sorting
         const latestMsg = await db.messages
           .where("conversation_id")
           .equals(conv.id)
@@ -267,23 +303,27 @@ export default function Messages() {
           .then((msgs) => msgs[msgs.length - 1] ?? null);
 
         const validPeers = peers.filter(Boolean);
-	const primaryPeer = validPeers.find((p) => p.id !== currentUserId) ?? validPeers[0] ?? null;
+        // For normal convos: show the other person. For self-convos: show yourself.
+        const primaryPeer = validPeers.find((p) => p.id !== currentUserId) ?? validPeers[0] ?? null;
+        const isSelfConversation = primaryPeer?.id === currentUserId;
 
-	return {
-	  ...conv,
-	  participants: otherParticipants,
-	  user_ids: otherParticipants.map((p) => p.user_id),
-	  peers: validPeers,
-	  peer: primaryPeer,
-	  username: primaryPeer?.username ?? null,
-	  usernames: validPeers.map((p) => p.username).filter(Boolean),
-	  latestMessage: latestMsg,
-	  latestAt: latestMsg?.created_at ?? conv.created_at ?? 0,
-	};
+        return {
+          ...conv,
+          participants: allParticipants,
+          user_ids: allParticipants.map((p) => p.user_id),
+          peers: validPeers,
+          peer: primaryPeer,
+          username: isSelfConversation
+            ? `${primaryPeer?.username ?? "You"} (You)`
+            : primaryPeer?.username ?? null,
+          usernames: validPeers.map((p) => p.username).filter(Boolean),
+          latestMessage: latestMsg,
+          latestAt: latestMsg?.created_at ?? conv.created_at ?? 0,
+          isSelfConversation,
+        };
       })
     );
 
-    // Sort by latest message descending
     return merged.sort((a, b) => b.latestAt - a.latestAt);
   }
 
@@ -301,7 +341,6 @@ export default function Messages() {
 
     const currentUser = await ensureCurrentUser();
     const currentUserId = currentUser.id;
-
     const conversationId = directConversationId(currentUserId, userIDB);
     const record = await db.conversations.get(conversationId);
 
@@ -315,10 +354,7 @@ export default function Messages() {
     const convos = await getConversations();
     setConversations(convos);
     const target = convos.find((item) => item.id === conversationId);
-    if (target) {
-      setActiveConversation(target);
-      await loadMessages(target.id);
-    }
+    if (target) await openConversation(target);
   }
 
   function formatTime(ts: number) {
@@ -344,10 +380,8 @@ export default function Messages() {
         {/* Search */}
         <div className="px-4 py-3 border-b border-gray-100 relative">
           <div className="relative">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-            >
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
             <input
@@ -383,7 +417,6 @@ export default function Messages() {
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left transition-colors"
                   >
-                    {/* Avatar */}
                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-semibold shrink-0">
                       {user.username?.[0]?.toUpperCase() ?? "?"}
                     </div>
@@ -407,26 +440,30 @@ export default function Messages() {
           ) : (
             conversations.map((conversation) => {
               const isActive = activeConversation?.id === conversation.id;
-              const name = conversation?.peer?.username || "Unknown";
+              const name = conversation?.username || "Unknown";
               const preview = conversation.latestMessage?.content ?? "No messages yet";
               const time = formatTime(conversation.latestAt);
+              const isOnline = !conversation.isSelfConversation &&
+                (onlinePeers.has(conversation?.peer?.id) || !!conversation?.peer?.is_online);
 
               return (
                 <button
                   key={conversation.id}
-                  onClick={async () => {
-                    setActiveConversation(conversation);
-                    await loadMessages(conversation.id);
-                  }}
+                  onClick={() => openConversation(conversation)}
                   className={`w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 text-left transition-colors ${
                     isActive ? "bg-blue-50" : "hover:bg-gray-50"
                   }`}
                 >
-                  {/* Avatar */}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${
-                    isActive ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-600"
-                  }`}>
-                    {name[0]?.toUpperCase() ?? "?"}
+                  {/* Avatar with online dot */}
+                  <div className="relative shrink-0">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
+                      isActive ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-600"
+                    }`}>
+                      {name[0]?.toUpperCase() ?? "?"}
+                    </div>
+                    {isOnline && (
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -446,16 +483,28 @@ export default function Messages() {
 
       {/* RIGHT CHAT PANEL */}
       <div className="flex-1 flex flex-col min-w-0">
-
         {activeConversation ? (
           <>
             {/* Chat Header */}
             <div className="px-5 py-3.5 border-b border-gray-200 bg-white flex items-center gap-3 shrink-0">
-              <div className="w-9 h-9 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-semibold">
-                {activeConversation?.peer?.username?.[0]?.toUpperCase() ?? "?"}
+              <div className="relative">
+                <div className="w-9 h-9 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-semibold">
+                  {activeConversation?.username?.[0]?.toUpperCase() ?? "?"}
+                </div>
+                {!activeConversation?.isSelfConversation &&
+                  (onlinePeers.has(activeConversation?.peer?.id) || activeConversation?.peer?.is_online) && (
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full" />
+                )}
               </div>
               <div>
-                <div className="text-sm font-semibold text-gray-900">{activeConversation?.peer?.username}</div>
+                <div className="text-sm font-semibold text-gray-900">{activeConversation?.username}</div>
+                {!activeConversation?.isSelfConversation && (
+                  <div className="text-xs">
+                    {(onlinePeers.has(activeConversation?.peer?.id) || activeConversation?.peer?.is_online)
+                      ? <span className="text-green-500">Online</span>
+                      : <span className="text-gray-400">Offline</span>}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -466,24 +515,47 @@ export default function Messages() {
                   No messages yet. Say hi!
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.map((msg, idx) => {
                   const isMine = msg.sender_id === userIdRef.current;
+                  // Show receipt only on the last message sent by me
+                  const isLastMine = isMine && messages.slice(idx + 1).every(m => m.sender_id !== userIdRef.current);
+                  const status = msg.receiptStatus as "sent" | "delivered" | "read" | null;
+
                   return (
-                    <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl text-sm leading-relaxed ${
-                          isMine
-                            ? "bg-blue-500 text-white rounded-br-sm"
-                            : "bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100"
-                        }`}
-                      >
+                    <div key={msg.id} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
+                      <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl text-sm leading-relaxed ${
+                        isMine
+                          ? "bg-blue-500 text-white rounded-br-sm"
+                          : "bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100"
+                      }`}>
                         {msg.content}
                       </div>
+
+                      {/* Receipt indicator — only on last sent message, hidden for self-convos */}
+                      {isMine && isLastMine && status && !activeConversation?.isSelfConversation && (
+                        <div className="flex items-center gap-1 mt-0.5 px-1">
+                          {status === "read" ? (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-blue-500" viewBox="0 0 16 16">
+                                <path d="M1 8l4 4L15 3" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M5 8l4 4L15 3" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+                              </svg>
+                              <span className="text-[10px] text-blue-500 font-medium">Seen</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 16 16" fill="none">
+                                <path d="M2 8l4 4L14 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              <span className="text-[10px] text-gray-400">Sent</span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
-              {/* Scroll anchor */}
               <div ref={messagesEndRef} />
             </div>
 
