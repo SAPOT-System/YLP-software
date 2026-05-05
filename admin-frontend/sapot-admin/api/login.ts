@@ -1,9 +1,11 @@
 'use server'
 
+import { clearSessionData } from '@/lib/sync/collectChanges';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 export async function loginAction(formData: FormData) {
+  await clearSessionData();
   const username = formData.get('username');
   const password = formData.get('password');
 
