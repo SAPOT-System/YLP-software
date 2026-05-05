@@ -39,6 +39,7 @@ type CallConnectionService = Pick<
   | "connectToPeer"
   | "on"
   | "once"
+  | "off"
   | "terminateCallConnection"
   | "getWebrtcAdapter"
   | "toggleMic"
@@ -115,6 +116,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private isHeadsetConnected = false;
   private initialRouteSetFor: Set<string> = new Set();
   private callSessions: Map<string, CallSession> = new Map();
+  private busyRejectHandler: ((peerId: string, payload: { callId: string; conversationId: string; messageId?: string; callType: "audio" | "video" }) => void) | null = null;
+  private callReadyHandler: ((peerId: string) => void) | null = null;
 
   /**
    * Constructs a CallService instance.
@@ -134,6 +137,15 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     callLog.info("call › service constructed", {
       hasConnectionService: Boolean(connectionService),
       hasUserStore: Boolean(userStore),
+    });
+
+    // Register once so remoteStream/switch-cam forwarding never stacks up
+    this.connectionService.on("remoteStream", (stream) => {
+      callLog.debug("call › remote stream received");
+      this.emit("remoteStream", stream);
+    });
+    this.connectionService.on("switch-cam", (stream) => {
+      this.emit("switch-cam", stream);
     });
   }
 
@@ -186,8 +198,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       // Set keep screen on during call
       InCallManager.setKeepScreenOn(true);
 
-      this.listenToRemoteStream();
-
       // Initialize local audio and video
       await this.connectionService.initializeStream(type, peerId);
 
@@ -211,6 +221,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       throw error;
     }
   }
+
+
 
   async answerCall(
     type: "video" | "audio",
@@ -266,7 +278,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       // Initialize local audio and video
       await this.connectionService.initializeStream(type, peerId);
-      this.listenToRemoteStream();
 
       this.connectedState = "connected";
     } catch (error) {
@@ -403,25 +414,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     });
   }
 
-  /**
-   * Listens for remote media streams from the connection service and emits them to listeners.
-   */
-  listenToRemoteStream() {
-    this.connectionService.on("remoteStream", (stream) => {
-      callLog.debug("call › remote stream received");
-      this.emit("remoteStream", stream);
-    });
-    this.connectionService.on("switch-cam", (stream) => {
-      this.emit("switch-cam", stream);
-    });
-  }
-
-  async listenToHandleIncomingBusyReject() {
-    this.connectionService.on("call-busy", (peerId, payload) =>
-      this.handleIncomingBusyReject(peerId, payload)
-    );
-  }
-
   private async handleIncomingBusyReject(
     peerId: string,
     payload: {
@@ -508,12 +500,24 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       this.userStore.user.lastName ?? ""
     }`.trim();
 
-    this.listenToHandleIncomingBusyReject();
+    // Register busy-reject handler with a stored reference so it can be cleaned up
+    if (this.busyRejectHandler) {
+      this.connectionService.off("call-busy", this.busyRejectHandler);
+    }
+    this.busyRejectHandler = (busyPeerId, payload) =>
+      this.handleIncomingBusyReject(busyPeerId, payload);
+    this.connectionService.on("call-busy", this.busyRejectHandler);
 
-    this.connectionService.once("call-ready", async (readyPeerId) => {
+    // Store call-ready handler reference for cleanup on early termination
+    if (this.callReadyHandler) {
+      this.connectionService.off("call-ready", this.callReadyHandler);
+    }
+    this.callReadyHandler = async (readyPeerId) => {
       if (readyPeerId !== peerId) return;
+      this.callReadyHandler = null;
       await this.handleCallReady(readyPeerId);
-    });
+    };
+    this.connectionService.once("call-ready", this.callReadyHandler);
 
     try {
       this.connectionService.sendCallMessage(peerId, {
@@ -629,6 +633,15 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
       this.connectionService.setActiveCall(null);
+
+      if (this.busyRejectHandler) {
+        this.connectionService.off("call-busy", this.busyRejectHandler);
+        this.busyRejectHandler = null;
+      }
+      if (this.callReadyHandler) {
+        this.connectionService.off("call-ready", this.callReadyHandler);
+        this.callReadyHandler = null;
+      }
     } catch (error) {
       callLog.error("call › terminate failed", { peerId, error });
       throw error;
