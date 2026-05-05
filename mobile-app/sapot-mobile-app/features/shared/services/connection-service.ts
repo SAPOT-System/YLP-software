@@ -87,6 +87,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
   private activeCallPeerId: string | null = null;
+  private incomingCallNotifId: string | null = null;
 
   constructor(
     private readonly tcpServerAdapter: TcpServerAdapter,
@@ -988,7 +989,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     conversationId?: string;
   }) {
     try {
-      await Notifications.scheduleNotificationAsync({
+      this.incomingCallNotifId = await Notifications.scheduleNotificationAsync({
         content: {
           title: "📞 Incoming Call",
           body: `${data.callerName} is calling...`,
@@ -1009,6 +1010,16 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         error,
       });
     }
+  }
+
+  async dismissIncomingCallNotification() {
+    if (!this.incomingCallNotifId) return;
+    try {
+      await Notifications.dismissNotificationAsync(this.incomingCallNotifId);
+    } catch {
+      // best-effort
+    }
+    this.incomingCallNotifId = null;
   }
 
   async initializeStream(stream: "audio" | "video", peerId: string) {
