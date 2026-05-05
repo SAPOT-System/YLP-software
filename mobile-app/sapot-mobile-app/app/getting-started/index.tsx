@@ -1,4 +1,5 @@
 import { AUTH_ROUTES } from "@/config/routes";
+import { getApiUrl } from "@/config/runtime";
 import { PrimaryButton } from "@/features/auth";
 import {
   ModeSelect,
@@ -82,7 +83,7 @@ const ModeSelectScreen = () => {
       router.push(AUTH_ROUTES.LOGIN.SERVER_LOGIN);
     } else {
       hideLoading();
-      navLog.warn("[ModeSelectScreen] connection check failed");
+      navLog.error("[ModeSelectScreen] connection check failed,", getApiUrl());
       showConnectionFailedDialog();
     }
   };

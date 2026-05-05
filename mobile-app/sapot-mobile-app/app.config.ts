@@ -4,6 +4,15 @@ import { ConfigContext } from "expo/config";
 const BACKGROUND_ACTIONS_SERVICE =
   "com.asterinet.react.bgactions.RNBackgroundActionsTask";
 
+const withCleartextTraffic: ConfigPlugin = (config) =>
+  withAndroidManifest(config, (mod) => {
+    const app = mod.modResults.manifest.application?.[0];
+    if (app?.$) {
+      app.$["android:usesCleartextTraffic"] = "true";
+    }
+    return mod;
+  });
+
 const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
   withAndroidManifest(config, (mod) => {
     const app = mod.modResults.manifest.application?.[0];
@@ -162,6 +171,7 @@ export default ({ config }: ConfigContext) => ({
       },
     ],
     withBackgroundActionsForegroundService,
+    withCleartextTraffic,
     "expo-router",
     "expo-secure-store",
     [

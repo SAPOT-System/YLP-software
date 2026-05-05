@@ -2,6 +2,8 @@ import { authLog } from "@/features/shared/utils/logger";
 import React, { createContext, useEffect, useState } from "react";
 import { ActivityIndicator } from "react-native-paper";
 import { AuthContainer } from "../auth-container";
+import { getApiUrl, initRuntimeOverrides } from "@/config/runtime";
+import { apiClient } from "@/features/shared";
 
 export const AuthContainerContext = createContext<AuthContainer | null>(null);
 
@@ -17,6 +19,8 @@ export function AuthContainerProvider({
     const c = new AuthContainer();
     const init = async () => {
       try {
+        await initRuntimeOverrides();
+        apiClient.defaults.baseURL = getApiUrl();
         await c.initialize();
         setContainer(c);
       } catch (error) {
