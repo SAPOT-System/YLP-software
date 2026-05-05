@@ -5,6 +5,7 @@ import { ConversationParticipant } from "@/features/shared/database/model/Conver
 import { GuestUser } from "@/features/shared/database/model/guest-user";
 import { Peer } from "@/features/shared/database/model/Peer";
 import { chatLog } from "@/features/shared/utils/logger";
+import { conversationParticipantId } from "@/features/chat/utils/conversation-participant-id";
 
 chatLog.debug("[conversation-participant-repository] module loaded");
 
@@ -42,6 +43,10 @@ export class ConversationParticipantRepository {
       const action = async () => {
         return await this.conversationParticipantsCollection.create(
           (participant) => {
+            participant._raw.id = conversationParticipantId(
+              newParticipant.conversation.id,
+              newParticipant.user.id
+            );
             participant.conversation.set(newParticipant.conversation);
             participant.user.set(newParticipant.user);
             participant.joinedAt = new Date();
