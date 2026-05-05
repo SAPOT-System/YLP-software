@@ -1,5 +1,6 @@
 import { Call, CallParticipant, GuestUser, Peer } from "@/features/shared";
 import { callLog } from "@/features/shared/utils/logger";
+import { callParticipantId } from "@/features/call/utils/call-participant-id";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 callLog.debug("[call-participant-repository] module loaded");
 
@@ -28,6 +29,10 @@ export class CallParticipantRepository {
     try {
       const action = async () => {
         return await this.callParticipantsCollection.create((participant) => {
+          participant._raw.id = callParticipantId(
+            newParticipant.call.id,
+            newParticipant.user.id
+          );
           participant.call.set(newParticipant.call);
           participant.user.set(newParticipant.user);
           participant.joinedAt = newParticipant.joinedAt ?? new Date();
