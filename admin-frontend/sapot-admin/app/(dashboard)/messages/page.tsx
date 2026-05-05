@@ -7,6 +7,8 @@ import { directConversationId } from "@/lib/directConversationId";
 import { collectChanges } from "@/lib/sync/collectChanges";
 import { addMutation } from "@/lib/sync/mutationQueue";
 import { pull, push, sync } from "@/lib/sync/syncEngine";
+import { connectWebSocket } from "@/lib/ws/Websocketmanager";
+import { getToken, onMessage, sendChatMessage } from "@/lib/ws/Websocketmanager";
 import { useEffect, useRef, useState } from "react";
 
 
@@ -46,6 +48,86 @@ export default function Messages() {
       setConversations(convos);  
     })()
   }
+  const [text, setText] = useState("");
+  const [userid, setUserId] = useState<null|string>(null);
+  const [currentUserInfo, setCurrentUserInfo]= useState<null|any>(null);
+  async function handleSend() {
+    if (!text.trim() || !activeConversation) return;
+    let user = currentUserInfo;
+    if (user === null) {
+      const fetchUserID = await fetch("/api/get-current-user");
+      const tojson = await fetchUserID.json();
+      setCurrentUserInfo(tojson);
+      user = tojson;
+    }
+    console.log('user', user)
+    await sendChatMessage({
+      conversationId: activeConversation.id,
+      to: activeConversation.peer.id,
+      message: text,
+      senderProfile: {
+	username: user.username,
+	firstName: user.first_name,
+	lastName: user.last_name,
+      },
+    });
+
+    setText("");
+    await loadMessages(activeConversation.id);
+  }
+  
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+
+    (async () => {
+      const res = await fetch("/api/get-current-user");
+      const data = await res.json();
+      await connectWebSocket(data.id);
+
+      unsubscribe = onMessage((msg) => {
+	console.log("WS EVENT:", msg);
+
+	if (msg.type === "chat") {
+          refreshConvos(); // or smarter update (see below)
+	}
+
+	if (msg.type === "ack" || msg.type === "seen") {
+          refreshConvos();
+	}
+      });
+
+      unsubscribe = onMessage(async (msg) => {
+	if (msg.type === "chat") {
+	  if (msg.data.conversationId === activeConversation?.id) {
+	    await loadMessages(msg.data.conversationId);
+	  }
+	  refreshConvos();
+	}
+      });
+    })();
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+  const [activeConversation, setActiveConversation] = useState<any | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onMessage(async (msg) => {
+      console.log("WS EVENT:", msg);
+
+      if (msg.type === "chat") {
+	// reload messages for active conversation
+	if (msg.data.conversationId === activeConversation?.id) {
+          await loadMessages(activeConversation.id);
+	}
+	// also refresh sidebar if needed
+	refreshConvos();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [activeConversation]);
 
   useEffect(()=>{
     (async ()=>{
@@ -53,17 +135,26 @@ export default function Messages() {
       refreshConvos();
     })()
   }, [])
+  const [messages, setMessages] = useState<any[]>([]);
+
+  async function loadMessages(conversationId: string) {
+    const msgs = await db.messages
+      .where("conversation_id")
+      .equals(conversationId)
+      .sortBy("created_at"); // or sent_at
+
+    setMessages(msgs);
+  }
     
-  usePolling(async () => {
-    const convos = await getConversations();
-    setConversations(convos);
-  }, 5000);
+  // usePolling(async () => {
+  //   const convos = await getConversations();
+  //   setConversations(convos);
+  // }, 5000);
 
-  usePolling(async () => {
-    sync();
-  }, 5000);
+  // usePolling(async () => {
+  //   sync();
+  // }, 5000);
 
-const [activeConversation, setActiveConversation] = useState<any | null>(null);
   const [matchedUsers, setMatchedUsers] = useState<any[]>([]);
   async function search(identifier: string){
     if (identifier === "") {
@@ -84,8 +175,6 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
     const tojson = await fet.json();
     return tojson.res[0].username
     }
-  
-  const [userid, setUserId] = useState<null|string>(null);
   
   async function getConversations() {
     let currentUserId = null;
@@ -268,7 +357,10 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
           {conversations.map((conversation) => (
             <div
               key={conversation.id}
-              onClick={() => setActiveConversation(conversation)}
+	      onClick={async () => {
+		setActiveConversation(conversation);
+		await loadMessages(conversation.id);
+	      }}
               className="p-4 border-b hover:bg-gray-100 cursor-pointer"
             >
               <div className="font-medium">
@@ -294,14 +386,19 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
 
             {/* Messages */}
             <div className="flex-1 p-4 overflow-y-auto space-y-3">
-              {/* Placeholder messages */}
-              <div className="bg-gray-200 p-3 rounded-lg w-fit max-w-xs">
-									   Hello 👋
-              </div>
-              <div className="bg-blue-500 text-white p-3 rounded-lg w-fit max-w-xs ml-auto">
-											      Hey!
-              </div>
-            </div>
+	      {messages.map((msg) => (
+		<div
+		  key={msg.id}
+		  className={
+		    msg.sender_id === userid
+		      ? "bg-blue-500 text-white p-3 rounded-lg w-fit ml-auto"
+		      : "bg-gray-200 p-3 rounded-lg w-fit"
+		  }
+		>
+		  {msg.content}
+		</div>
+	      ))}
+	    </div>
 
             {/* Input */}
             <div className="p-4 border-t bg-white flex items-center gap-2">
@@ -309,8 +406,9 @@ const [activeConversation, setActiveConversation] = useState<any | null>(null);
 		type="text"
 		placeholder="Message..."
 		className="flex-1 p-2 rounded-full bg-gray-100 outline-none"
+		onChange={(e)=>setText(e.target.value)}
               />
-              <button className="bg-blue-500 text-white px-4 py-2 rounded-full">
+              <button className="bg-blue-500 text-white px-4 py-2 rounded-full" onClick={()=>handleSend()}>
 										  Send
               </button>
             </div>
