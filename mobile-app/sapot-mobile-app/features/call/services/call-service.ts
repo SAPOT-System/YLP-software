@@ -479,6 +479,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
    * @param peerId The peer id to inform
    */
   async informPeerForIncomingCall(type: "audio" | "video", peerId: string) {
+    if (peerId === this.userStore.user.id) return;
+
     const session = await this.ensureSession(peerId, type, false);
     this.connectionService.setActiveCall(peerId);
 
