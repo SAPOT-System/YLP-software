@@ -1,3 +1,4 @@
+import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared/database/model/Peer";
 import {
   useConnectionService,
@@ -143,6 +144,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const navigateAway = useCallback(() => {
     router.replace("/(drawer)/(tabs)");
   }, [router]);
+
+  const navigateToChat = useCallback(() => {
+    if (!peerId) {
+      router.replace("/(drawer)/(tabs)");
+      return;
+    }
+    router.replace({
+      pathname: "/(drawer)/(tabs)/chat/[id]" as never,
+      params: { id: peerId, source: ChatRoomSource.PEER },
+    });
+  }, [router, peerId]);
 
   // ─────────────────────────────────────────────
   // Terminate
@@ -492,12 +504,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (callState !== "ended") return;
     uiLog.info("[CallContext] call › ended", { peerId });
     const timer = setTimeout(() => {
-      uiLog.info("[CallContext] [Navigation] navigating away after ended");
+      uiLog.info("[CallContext] [Navigation] navigating to chat after ended");
       setIsMinimized(false);
-      navigateAway();
+      navigateToChat();
     }, 3000);
     return () => clearTimeout(timer);
-  }, [callState, peerId, navigateAway]);
+  }, [callState, peerId, navigateToChat]);
 
   // ─────────────────────────────────────────────
   // Actions
