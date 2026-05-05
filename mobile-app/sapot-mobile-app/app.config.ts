@@ -43,6 +43,18 @@ const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
 
 const IS_DEV = process.env.APP_VARIANT === "development";
 const IS_PREVIEW = process.env.APP_VARIANT === "preview";
+const getUpdateChannel = () => {
+  if (IS_DEV) {
+    return "development";
+  }
+
+  if (IS_PREVIEW) {
+    return "preview";
+  }
+
+  return "production";
+};
+
 const getUniqueIdentifier = () => {
   if (IS_DEV) {
     return "com.devamt.sapotmobileapp.dev";
@@ -194,6 +206,7 @@ export default ({ config }: ConfigContext) => ({
     policy: "appVersion",
   },
   updates: {
+    channel: getUpdateChannel(),
     url: "https://u.expo.dev/ee940ed5-5653-43cb-8938-d5f54a830c59",
   },
   extra: {
