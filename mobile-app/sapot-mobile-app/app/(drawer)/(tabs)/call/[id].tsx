@@ -1,4 +1,5 @@
 import { useCallContext } from "@/features/call/context/call-context";
+import { useThrottledPress } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -96,6 +97,9 @@ export default function CallRoom() {
       }
     }, [id, type, status, resetCallState])
   );
+
+  const { onPress: onEndCall, busy: ending } = useThrottledPress(handleEndCall);
+  const { onPress: onCallAgain, busy: callingAgain } = useThrottledPress(handleCallAgain);
 
   // ─────────────────────────────────────────────
   // Derived UI flags
@@ -239,7 +243,8 @@ export default function CallRoom() {
             <View style={styles.actionItem}>
               <TouchableOpacity
                 style={styles.endCallBtn}
-                onPress={handleEndCall}
+                onPress={onEndCall}
+                disabled={ending}
               >
                 <Feather name="phone-off" size={28} color={COLORS.declineRed} />
               </TouchableOpacity>
@@ -276,7 +281,8 @@ export default function CallRoom() {
             <View style={styles.actionItem}>
               <TouchableOpacity
                 style={styles.actionBtn}
-                onPress={handleCallAgain}
+                onPress={onCallAgain}
+                disabled={callingAgain}
               >
                 <Feather name="phone" size={28} color={COLORS.acceptGreen} />
               </TouchableOpacity>
@@ -299,7 +305,8 @@ export default function CallRoom() {
             <View style={styles.actionItem}>
               <TouchableOpacity
                 style={styles.actionBtn}
-                onPress={handleCallAgain}
+                onPress={onCallAgain}
+                disabled={callingAgain}
               >
                 <Feather name="phone" size={28} color={COLORS.acceptGreen} />
               </TouchableOpacity>

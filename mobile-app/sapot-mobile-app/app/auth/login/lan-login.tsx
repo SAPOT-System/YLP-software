@@ -28,21 +28,28 @@ const LanLoginScreen = () => {
     });
   }, [firstName, lastName]);
 
+  const [loading, setLoading] = useState(false);
+
   const handleLogin = async () => {
     authLog.debug("[LanLoginScreen] handleLogin called", {
       hasFirstName: Boolean(firstName.trim()),
       hasLastName: Boolean(lastName.trim()),
     });
-    const res = await loginAsGuest({ firstName, lastName });
-    if (res.success) {
-      authLog.info("[LanLoginScreen] guest login success");
-      setMode("lan");
-      authLog.info("[Navigation] Navigating to Home", {
-        screen: "/(drawer)/(tabs)",
-      });
-      router.replace("/(drawer)/(tabs)");
-    } else {
-      authLog.warn("[LanLoginScreen] guest login failed");
+    setLoading(true);
+    try {
+      const res = await loginAsGuest({ firstName, lastName });
+      if (res.success) {
+        authLog.info("[LanLoginScreen] guest login success");
+        setMode("lan");
+        authLog.info("[Navigation] Navigating to Home", {
+          screen: "/(drawer)/(tabs)",
+        });
+        router.replace("/(drawer)/(tabs)");
+      } else {
+        authLog.warn("[LanLoginScreen] guest login failed");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,7 +88,7 @@ const LanLoginScreen = () => {
               {errors.lastName}
             </HelperText>
           </View>
-          <PrimaryButton onPress={handleLogin}>
+          <PrimaryButton onPress={handleLogin} loading={loading} disabled={loading}>
             Login
           </PrimaryButton>
         </ScreenContent>

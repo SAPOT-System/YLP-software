@@ -1,3 +1,4 @@
+import { useThrottledPress } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import React from "react";
 import { StyleProp, StyleSheet, ViewStyle } from "react-native";
@@ -5,7 +6,7 @@ import { Button, ButtonProps } from "react-native-paper";
 
 interface PrimaryButtonProps extends ButtonProps {
   children: React.ReactNode;
-  onPress: () => void;
+  onPress: () => void | Promise<void>;
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -19,15 +20,17 @@ const PrimaryButton = ({
   onPress,
   ...props
 }: PrimaryButtonProps) => {
+  const { onPress: throttledPress, busy } = useThrottledPress(onPress);
+
   return (
     <Button
       onPress={() => {
         authLog.debug("[PrimaryButton] onPress triggered");
-        onPress();
+        throttledPress();
       }}
       mode="contained"
-      loading={loading}
-      disabled={disabled}
+      loading={loading ?? busy}
+      disabled={disabled ?? busy}
       style={[styles.button, style]}
       {...props}
     >

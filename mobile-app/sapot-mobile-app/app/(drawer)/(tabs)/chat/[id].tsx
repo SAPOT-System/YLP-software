@@ -7,6 +7,7 @@ import {
     useIsUserActive,
     usePeerService,
     useProfilePhoto,
+    useThrottledPress,
     useToast,
 } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
@@ -198,9 +199,7 @@ const ChatRoom = () => {
     getPeer();
   }, [peerId, peerService]);
 
-  if (!isRendered) return <ActivityIndicator />;
-
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     uiLog.debug("[ChatRoom] handleSendMessage called", {
       hasMessage: Boolean(message.trim()),
       conversationId,
@@ -220,7 +219,27 @@ const ChatRoom = () => {
         error,
       });
     }
-  };
+  }, [message, conversationId, chatService]);
+
+  const handleAudioCall = useCallback(() => {
+    if (peerId) {
+      uiLog.info("[ChatRoom] start call", { type: "audio", peerId });
+      call("audio", peerId);
+    }
+  }, [call, peerId]);
+
+  const handleVideoCall = useCallback(() => {
+    if (peerId) {
+      uiLog.info("[ChatRoom] start call", { type: "video", peerId });
+      call("video", peerId);
+    }
+  }, [call, peerId]);
+
+  const { onPress: onSendMessage, busy: sending } = useThrottledPress(handleSendMessage);
+  const { onPress: onAudioCall, busy: callingAudio } = useThrottledPress(handleAudioCall);
+  const { onPress: onVideoCall, busy: callingVideo } = useThrottledPress(handleVideoCall);
+
+  if (!isRendered) return <ActivityIndicator />;
 
   const peerDisplayName = peer
     ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
@@ -286,27 +305,15 @@ const ChatRoom = () => {
             icon="phone"
             size={20}
             iconColor="#00E700"
-            disabled={isSelfChat}
-            onPress={() => {
-              uiLog.debug("[ChatRoom] onPress triggered");
-              if (peerId) {
-                uiLog.info("[ChatRoom] start call", { type: "audio", peerId });
-                call("audio", peerId);
-              }
-            }}
+            disabled={isSelfChat || callingAudio}
+            onPress={onAudioCall}
             style={styles.headerActionButton}
           />
           <IconButton
             icon="video"
             size={20}
-            disabled={isSelfChat}
-            onPress={() => {
-              uiLog.debug("[ChatRoom] onPress triggered");
-              if (peerId) {
-                uiLog.info("[ChatRoom] start call", { type: "video", peerId });
-                call("video", peerId);
-              }
-            }}
+            disabled={isSelfChat || callingVideo}
+            onPress={onVideoCall}
             style={styles.headerActionButton}
           />
           <IconButton
@@ -354,7 +361,7 @@ const ChatRoom = () => {
           placeholder="Message..."
           placeholderTextColor="#696969"
         />
-        <IconButton icon="send" size={30} onPress={handleSendMessage} />
+        <IconButton icon="send" size={30} onPress={onSendMessage} disabled={sending} />
       </View>
 
       <Snackbar
