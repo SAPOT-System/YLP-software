@@ -1,8 +1,9 @@
+import { useThrottledPress } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { saveDocuments } from "@react-native-documents/picker";
 import { File, Paths } from "expo-file-system";
 import { router } from "expo-router";
-import React from "react";
+import React, { useCallback } from "react";
 import { Alert } from "react-native";
 import { Button } from "react-native-paper";
 
@@ -19,7 +20,7 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
   route,
   onAfterDownload,
 }) => {
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
     authLog.debug("[DownloadFileButton] handleDownload called", {
       hasFileData: Boolean(fileData),
       fileName,
@@ -50,11 +51,15 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
       authLog.error("[DownloadFileButton] Error in download", { error });
       Alert.alert("Download failed", error.message || "Unknown error");
     }
-  };
+  }, [fileData, fileName, route, onAfterDownload]);
+
+  const { onPress: throttledDownload, busy } = useThrottledPress(handleDownload);
 
   return (
     <Button
-      onPress={handleDownload}
+      onPress={throttledDownload}
+      loading={busy}
+      disabled={busy}
       mode="contained"
       accessibilityLabel="Download recovery key file"
     >

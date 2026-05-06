@@ -4,6 +4,7 @@ import {
   useConnectionService,
   usePeerService,
   useProfilePhoto,
+  useThrottledPress,
 } from "@/features/shared/hooks";
 import { stopForegroundService } from "@/features/shared/hooks/use-background-task";
 import { useMediaPermissions } from "@/features/shared/hooks/use-media-permissions";
@@ -111,7 +112,7 @@ export default function IncomingCall() {
     };
   }, [connectionService, id, router]);
 
-  const handleAccept = async () => {
+  const handleAccept = useCallback(async () => {
     uiLog.debug("[IncomingCall] handleAccept called", {
       id,
       type,
@@ -143,9 +144,9 @@ export default function IncomingCall() {
       pathname: "/(drawer)/(tabs)/call/[id]" as never,
       params: { id: id!, type: type ?? "audio", status: "answering" },
     });
-  };
+  }, [id, type, conversationId, callId, requestMediaPermissions, connectionService, callService, router]);
 
-  const handleReject = async () => {
+  const handleReject = useCallback(async () => {
     uiLog.debug("[IncomingCall] handleReject called", { id });
     await connectionService.dismissIncomingCallNotification();
     try {
@@ -159,7 +160,10 @@ export default function IncomingCall() {
     }
     uiLog.info("[Navigation] goBack triggered from IncomingCall");
     router.replace("/(drawer)/(tabs)");
-  };
+  }, [id, type, conversationId, connectionService, callService, router]);
+
+  const { onPress: onAccept, busy: accepting } = useThrottledPress(handleAccept);
+  const { onPress: onReject, busy: rejecting } = useThrottledPress(handleReject);
 
   return (
     <LinearGradient
@@ -190,13 +194,21 @@ export default function IncomingCall() {
       {/* Accept / Reject */}
       <View style={styles.actions}>
         <View style={styles.actionItem}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleAccept}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={onAccept}
+            disabled={accepting || rejecting}
+          >
             <Feather name="phone" size={28} color="#34A853" />
           </TouchableOpacity>
           <Text style={styles.actionLabel}>Accept</Text>
         </View>
         <View style={styles.actionItem}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleReject}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={onReject}
+            disabled={accepting || rejecting}
+          >
             <Feather name="phone-off" size={28} color="#EA4335" />
           </TouchableOpacity>
           <Text style={styles.actionLabel}>Reject</Text>

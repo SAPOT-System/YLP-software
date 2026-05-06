@@ -1,4 +1,5 @@
 import { useCallContext } from "@/features/call/context/call-context";
+import { useThrottledPress } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -147,6 +148,8 @@ export function CallBanner() {
     handleEndCall();
   };
 
+  const { onPress: onTapEnd, busy: endingFromBanner } = useThrottledPress(handleTapEnd);
+
   // Always render so the slide animation can run in both directions
   return (
     <Animated.View
@@ -191,7 +194,8 @@ export function CallBanner() {
         {/* Right — end call */}
         <TouchableOpacity
           style={styles.endBtn}
-          onPress={handleTapEnd}
+          onPress={onTapEnd}
+          disabled={endingFromBanner}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Feather name="phone-off" size={17} color={COLORS.endRed} />
