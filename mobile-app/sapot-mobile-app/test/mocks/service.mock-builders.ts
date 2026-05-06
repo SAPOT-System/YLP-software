@@ -160,6 +160,7 @@ export function createCallServiceDependencyMocks() {
 		getLocalStream: jest.fn(),
 		on: jest.fn(),
 		once: jest.fn(),
+		off: jest.fn(),
 		emit: jest.fn(),
 		connectToPeer: jest.fn(),
 		sendChatMessage: jest.fn(),

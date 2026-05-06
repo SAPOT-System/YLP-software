@@ -681,14 +681,10 @@ export class WebrtcAdapter extends EventEmitter {
       if (!this.videoTrack) throw Error("Video track not initialized");
       webrtcLog.debug("webrtc › camera switch");
 
+      // isFrontCamera=true means currently on front → switch to back ("environment")
       const newFacingMode = isFrontCamera ? "environment" : "user";
 
-      // Stop existing video track
-      this.getLocalStream()
-        .getVideoTracks()
-        .forEach((track) => track.stop());
-
-      // Get new stream with the opposite camera
+      // Acquire new stream BEFORE stopping old track to avoid black screen
       const newStream = await mediaDevices.getUserMedia({
         audio: false,
         video: {
@@ -699,28 +695,30 @@ export class WebrtcAdapter extends EventEmitter {
       });
 
       const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) throw new Error("Failed to acquire new video track");
 
-      // Replace the video track in the local stream
-      const audioTrack = this.getLocalStream().getAudioTracks()[0];
-      const tracks: MediaStreamTrack[] = audioTrack
-        ? [audioTrack, newVideoTrack]
-        : [newVideoTrack];
-      const updatedStream = new MediaStream(tracks);
-      this.localStream = updatedStream;
-
-      // Update the class's video track reference
-      this.videoTrack = newVideoTrack;
-
-      // If in an active call, replace the track in the peer connection
+      // Replace in peer connection while old track is still live
       if (this.peerConnection) {
-        const senders = this.peerConnection.getSenders();
-        const videoSender = senders.find((s) => s.track?.kind === "video");
+        const videoSender = this.peerConnection
+          .getSenders()
+          .find((s) => s.track?.kind === "video");
         if (videoSender) {
           await videoSender.replaceTrack(newVideoTrack);
         }
       }
 
-      this.emit("switch-cam", updatedStream);
+      // Stop old track only after replacement is in place
+      this.videoTrack.stop();
+      this.videoTrack = newVideoTrack;
+
+      // Rebuild local stream preserving audio track
+      const audioTrack = this.localStream?.getAudioTracks()[0];
+      const tracks: MediaStreamTrack[] = audioTrack
+        ? [audioTrack, newVideoTrack]
+        : [newVideoTrack];
+      this.localStream = new MediaStream(tracks);
+
+      this.emit("switch-cam", this.localStream);
     } catch (error) {
       webrtcLog.error("webrtc › camera switch failed", { error });
       throw error;

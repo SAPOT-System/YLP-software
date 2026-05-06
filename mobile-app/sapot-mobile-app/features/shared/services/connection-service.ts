@@ -87,6 +87,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
   private activeCallPeerId: string | null = null;
+  private incomingCallNotifId: string | null = null;
 
   constructor(
     private readonly tcpServerAdapter: TcpServerAdapter,
@@ -173,10 +174,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           if (!this.isWebSocketAllowed()) return;
           if (message.type === "audio-call") {
             const callerPeerId = message.data.from_user;
-            if (
-              this.activeCallPeerId !== null &&
-              this.activeCallPeerId !== callerPeerId
-            ) {
+            if (this.activeCallPeerId !== null) {
               connectionLog.info("connection › ws busy reject", {
                 callerPeerId,
                 activeCallPeerId: this.activeCallPeerId,
@@ -204,10 +202,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           }
           if (message.type === "video-call") {
             const callerPeerId = message.data.from_user;
-            if (
-              this.activeCallPeerId !== null &&
-              this.activeCallPeerId !== callerPeerId
-            ) {
+            if (this.activeCallPeerId !== null) {
               connectionLog.info("connection › ws busy reject", {
                 callerPeerId,
                 activeCallPeerId: this.activeCallPeerId,
@@ -370,10 +365,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         }
         if (message.type === "audio-call" && "from" in message.data) {
           const callerPeerId = message.data.from;
-          if (
-            this.activeCallPeerId !== null &&
-            this.activeCallPeerId !== callerPeerId
-          ) {
+          if (this.activeCallPeerId !== null) {
             connectionLog.info("connection › tcp busy reject", {
               callerPeerId,
               activeCallPeerId: this.activeCallPeerId,
@@ -400,10 +392,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         }
         if (message.type === "video-call" && "from" in message.data) {
           const callerPeerId = message.data.from;
-          if (
-            this.activeCallPeerId !== null &&
-            this.activeCallPeerId !== callerPeerId
-          ) {
+          if (this.activeCallPeerId !== null) {
             connectionLog.info("connection › tcp busy reject", {
               callerPeerId,
               activeCallPeerId: this.activeCallPeerId,
@@ -1000,7 +989,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     conversationId?: string;
   }) {
     try {
-      await Notifications.scheduleNotificationAsync({
+      this.incomingCallNotifId = await Notifications.scheduleNotificationAsync({
         content: {
           title: "📞 Incoming Call",
           body: `${data.callerName} is calling...`,
@@ -1021,6 +1010,16 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         error,
       });
     }
+  }
+
+  async dismissIncomingCallNotification() {
+    if (!this.incomingCallNotifId) return;
+    try {
+      await Notifications.dismissNotificationAsync(this.incomingCallNotifId);
+    } catch {
+      // best-effort
+    }
+    this.incomingCallNotifId = null;
   }
 
   async initializeStream(stream: "audio" | "video", peerId: string) {
