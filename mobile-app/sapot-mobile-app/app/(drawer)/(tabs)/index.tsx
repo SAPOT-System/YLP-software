@@ -8,11 +8,12 @@ import {
   useConnectionService,
   useDiscoveryService,
 } from "@/features/shared/hooks";
+import { useSyncService } from "@/features/shared/hooks/use-sync-service";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TouchableOpacity } from "react-native";
 import { Icon, Searchbar, useTheme } from "react-native-paper";
 
@@ -25,6 +26,14 @@ export default function Chat() {
     : ["#FFF", "#99AEC7"];
 
   const { chats } = useChats();
+  const syncService = useSyncService();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await syncService.syncNow();
+    setRefreshing(false);
+  };
 
   const router = useRouter();
   const discoveryService = useDiscoveryService();
@@ -117,7 +126,7 @@ export default function Chat() {
         <PeerList />
       </LinearGradient>
       <View style={[styles.chatListContainer, { backgroundColor: "none" }]}>
-        <ChatList chats={chats} />
+        <ChatList chats={chats} refreshing={refreshing} onRefresh={onRefresh} />
       </View>
     </View>
   );

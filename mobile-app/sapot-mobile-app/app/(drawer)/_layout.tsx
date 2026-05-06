@@ -9,6 +9,7 @@ import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
 import { MainContainerProvider, useAppMode } from "@/features/shared/context";
 import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
+import { useForegroundSync } from "@/features/shared/hooks/use-foreground-sync";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
 import { navLog } from "@/features/shared/utils/logger";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
@@ -29,6 +30,10 @@ function GpsStreamingEffect() {
 }
 function GlobalCallEndedEffect() {
   useGlobalCallEndedListener();
+  return null;
+}
+function ForegroundSyncEffect() {
+  useForegroundSync();
   return null;
 }
 const labelIcon = {
@@ -171,6 +176,7 @@ export default function DrawerLayout() {
         <GpsStreamingEffect />
         <MainContainerProvider>
           <GlobalCallEndedEffect />
+          <ForegroundSyncEffect />
           <QueryClientProvider client={queryClient}>
             <CallProvider>
               <CallBanner />
