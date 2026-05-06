@@ -3,9 +3,15 @@ import { useAuth } from "@/features/auth";
 import { ChatRoomSource } from "@/features/chat/types";
 import { useLatestLocations } from "@/features/gps/hooks/useLatestLocations";
 import { useLocationPermission } from "@/features/gps/hooks/useLocationPermission";
+import { useGpsHistory } from "@/features/gps/hooks/useGpsHistory";
+import {
+  SelectedUser,
+  UserMarkerSheet,
+} from "@/features/gps/components/UserMarkerSheet";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import {
   Camera,
+  GeoJSONSource,
   Layer,
   Map,
   Marker,
@@ -13,6 +19,7 @@ import {
   UserLocation,
 } from "@maplibre/maplibre-react-native";
 import { Redirect, router } from "expo-router";
+import { useMemo, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -45,6 +52,16 @@ export default function GpsScreen() {
     error,
     refetch,
   } = useLatestLocations();
+
+  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
+  const [pathUserId, setPathUserId] = useState<string | null>(null);
+
+  const {
+    data: historyData,
+    isFetching: isPathFetching,
+    refetch: fetchPath,
+  } = useGpsHistory(pathUserId);
+
   const currentUserId = userStore.user.id;
   const userLocations = rawLocations.filter(
     (loc) => loc.user_id !== currentUserId
@@ -58,6 +75,37 @@ export default function GpsScreen() {
     theme.colors.onSecondary ?? (theme.dark ? "#E6ECF5" : "#000");
   const headerIconColor = headerTitleColor;
   const overlayBottom = insets.bottom + 16;
+
+  const pathGeoJSON = useMemo(() => {
+    if (!historyData || historyData.length < 2) return null;
+    const ordered = [...historyData].reverse();
+    return {
+      type: "FeatureCollection" as const,
+      features: [
+        {
+          type: "Feature" as const,
+          geometry: {
+            type: "LineString" as const,
+            coordinates: ordered.map((p) => [p.longitude, p.latitude]),
+          },
+          properties: {},
+        },
+      ],
+    };
+  }, [historyData]);
+
+  const handleMessage = (userId: string) => {
+    setSelectedUser(null);
+    router.push({
+      pathname: "/(drawer)/(tabs)/chat/[id]",
+      params: { id: userId, source: ChatRoomSource.PEER },
+    });
+  };
+
+  const handleViewPath = async (userId: string) => {
+    setPathUserId(userId);
+    await fetchPath();
+  };
 
   const header = (
     <Appbar.Header
@@ -75,8 +123,8 @@ export default function GpsScreen() {
       />
       <Appbar.Content
         title="Live Map"
-        titleStyle={[styles.headerTitle, { 
-          color: headerTitleColor 
+        titleStyle={[styles.headerTitle, {
+          color: headerTitleColor
         }]}
       />
     </Appbar.Header>
@@ -160,9 +208,10 @@ export default function GpsScreen() {
               lngLat={[loc.longitude, loc.latitude]}
               anchor="bottom"
               onPress={() =>
-                router.push({
-                  pathname: "/(drawer)/(tabs)/chat/[id]",
-                  params: { id: loc.user_id, source: ChatRoomSource.PEER },
+                setSelectedUser({
+                  user_id: loc.user_id,
+                  username: loc.username,
+                  timestamp: loc.timestamp,
                 })
               }
             >
@@ -192,6 +241,23 @@ export default function GpsScreen() {
               </View>
             </Marker>
           ))}
+          {pathGeoJSON && (
+            <GeoJSONSource id="user-path-source" data={pathGeoJSON}>
+              <Layer
+                id="user-path-line"
+                type="line"
+                paint={{
+                  "line-color": "#E53935",
+                  "line-width": 3,
+                  "line-opacity": 0.85,
+                }}
+                layout={{
+                  "line-cap": "round",
+                  "line-join": "round",
+                }}
+              />
+            </GeoJSONSource>
+          )}
         </Map>
         {isInitialLoading && (
           <View style={[styles.overlay, { bottom: overlayBottom }]}>
@@ -257,6 +323,18 @@ export default function GpsScreen() {
           </View>
         )}
       </View>
+      <UserMarkerSheet
+        selectedUser={selectedUser}
+        onDismiss={() => {
+          setSelectedUser(null);
+          setPathUserId(null);
+        }}
+        onMessage={handleMessage}
+        onViewPath={handleViewPath}
+        hasPath={pathGeoJSON !== null}
+        isPathLoading={isPathFetching}
+        onClearPath={() => setPathUserId(null)}
+      />
     </View>
   );
 }
