@@ -1,19 +1,28 @@
 import * as Location from "expo-location";
 import { gpsLog } from "@/features/shared/utils/logger";
+import { haversineMeters } from "../utils/haversine";
 
 gpsLog.debug("[gps-location-service] module loaded");
 
-const DISTANCE_INTERVAL_METERS = 1;
-const RECONNECT_DELAY_MS = 3000;
+const DISTANCE_INTERVAL_METERS = 10;
+const MIN_SEND_INTERVAL_MS = 3_000;
+const SIGNIFICANT_MOVE_METERS = 10;
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const RECONNECT_DELAY_MS = 3_000;
 
 export class GpsLocationService {
   private ws: WebSocket | null = null;
   private locationSub: Location.LocationSubscription | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private stopped = false;
 
   private wsBaseUrl = "";
   private userId = "";
+
+  private lastSentAt: number = 0;
+  private lastSentLat: number | null = null;
+  private lastSentLng: number | null = null;
 
   async start(wsBaseUrl: string, userId: string) {
     if (this.locationSub) {
@@ -34,27 +43,10 @@ export class GpsLocationService {
           accuracy: Location.Accuracy.Balanced,
           distanceInterval: DISTANCE_INTERVAL_METERS,
         },
-        (location) => {
-          if (this.ws?.readyState !== WebSocket.OPEN) {
-            gpsLog.debug("gps › location update dropped", {
-              reason: "ws not open",
-              readyState: this.ws?.readyState,
-            });
-            return;
-          }
-          gpsLog.debug("gps › send location", {
-            lat: location.coords.latitude,
-            lng: location.coords.longitude,
-          });
-          this.ws.send(
-            JSON.stringify({
-              lat: location.coords.latitude,
-              lng: location.coords.longitude,
-            })
-          );
-        }
+        (location) => this.maybeSend(location)
       );
       gpsLog.info("gps › location watch started");
+      this.startHeartbeat();
     } catch (error) {
       gpsLog.error("gps › watchPositionAsync failed", { error });
       this.stop();
@@ -70,11 +62,70 @@ export class GpsLocationService {
       this.reconnectTimer = null;
     }
 
+    this.clearHeartbeat();
+
     this.locationSub?.remove();
     this.locationSub = null;
 
     this.ws?.close(1000, "client_stopped");
     this.ws = null;
+
+    this.lastSentAt = 0;
+    this.lastSentLat = null;
+    this.lastSentLng = null;
+  }
+
+  private maybeSend(location: Location.LocationObject) {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      gpsLog.debug("gps › location update dropped", {
+        reason: "ws not open",
+        readyState: this.ws?.readyState,
+      });
+      return;
+    }
+
+    const now = Date.now();
+    const { latitude: lat, longitude: lng } = location.coords;
+
+    if (now - this.lastSentAt < MIN_SEND_INTERVAL_MS) {
+      gpsLog.debug("gps › send skipped (time throttle)");
+      return;
+    }
+
+    if (this.lastSentLat !== null && this.lastSentLng !== null) {
+      const dist = haversineMeters(this.lastSentLat, this.lastSentLng, lat, lng);
+      if (dist < SIGNIFICANT_MOVE_METERS) {
+        gpsLog.debug("gps › send skipped (< 10m)", { dist });
+        return;
+      }
+    }
+
+    this.sendCoords(lat, lng);
+  }
+
+  private sendCoords(lat: number, lng: number) {
+    this.ws!.send(JSON.stringify({ lat, lng }));
+    this.lastSentAt = Date.now();
+    this.lastSentLat = lat;
+    this.lastSentLng = lng;
+    gpsLog.debug("gps › sent location", { lat, lng });
+  }
+
+  private startHeartbeat() {
+    this.heartbeatTimer = setInterval(() => {
+      if (this.lastSentLat === null || this.ws?.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - this.lastSentAt >= HEARTBEAT_INTERVAL_MS) {
+        gpsLog.debug("gps › heartbeat send");
+        this.sendCoords(this.lastSentLat, this.lastSentLng!);
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private clearHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private connectWs() {
