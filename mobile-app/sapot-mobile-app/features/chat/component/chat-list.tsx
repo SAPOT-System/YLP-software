@@ -3,7 +3,7 @@ import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { FlatList, Pressable, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
 
 import { ChatRoomSource } from "@/features/chat/types";
@@ -19,36 +19,54 @@ const enhanceChats = withObservables([], () => ({
     .observe(),
 }));
 
-const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
-  const theme = useTheme();
-  return (
-    <View>
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          paddingHorizontal: 16,
-          marginBottom: 20,
-        }}
-      >
-        <Text
-          variant="titleLarge"
+const ChatList = enhanceChats(
+  ({
+    chats,
+    refreshing,
+    onRefresh,
+  }: {
+    chats: Conversation[];
+    refreshing?: boolean;
+    onRefresh?: () => void;
+  }) => {
+    const theme = useTheme();
+    return (
+      <View>
+        <View
           style={{
-            fontWeight: 700,
-            color: theme.dark ? "#9AA7C1" : "#103462",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            paddingHorizontal: 16,
+            marginBottom: 20,
           }}
         >
-          Chats
-        </Text>
+          <Text
+            variant="titleLarge"
+            style={{
+              fontWeight: 700,
+              color: theme.dark ? "#9AA7C1" : "#103462",
+            }}
+          >
+            Chats
+          </Text>
+        </View>
+        <FlatList
+          data={chats}
+          renderItem={({ item }) => <ChatListItem chat={item} />}
+          keyExtractor={(chat) => chat.id}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing ?? false}
+                onRefresh={onRefresh}
+              />
+            ) : undefined
+          }
+        />
       </View>
-      <FlatList
-        data={chats}
-        renderItem={({ item }) => <ChatListItem chat={item} />}
-        keyExtractor={(chat) => chat.id}
-      />
-    </View>
-  );
-});
+    );
+  }
+);
 
 const enhanceChat = withObservables(
   ["chat"],

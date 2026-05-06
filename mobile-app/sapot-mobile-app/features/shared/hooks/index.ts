@@ -19,3 +19,4 @@ export * from "./use-user-search";
 export * from "./use-user-store";
 export * from "./use-active-user-service"
 export * from "./use-throttled-press"
+export * from "./use-foreground-sync";
