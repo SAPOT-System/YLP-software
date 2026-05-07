@@ -29,6 +29,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
   private chatService?: ChatService;
   private sendSignaling?: (peerId: string, msg: SignalingMessage) => void;
+  private onEvict?: (peerId: string) => void;
 
   constructor(
     private readonly userStore: UserStore,
@@ -43,6 +44,10 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
 
   setSignalingSender(fn: (peerId: string, msg: SignalingMessage) => void) {
     this.sendSignaling = fn;
+  }
+
+  setEvictionCallback(cb: (peerId: string) => void) {
+    this.onEvict = cb;
   }
 
   setChatService(chatService: ChatService) {
@@ -196,6 +201,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     const adapter = this.webrtcAdapters.get(peerId);
     if (!adapter) return;
     this.webrtcAdapters.delete(peerId);
+    this.onEvict?.(peerId);
     adapter.removeAllListeners();
     adapter.cleanup();
     webrtcLog.info("webrtc › adapter evicted", { peerId });

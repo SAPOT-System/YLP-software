@@ -130,6 +130,14 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.on("peer-reconnected", (peerId) => {
       this.emit("peer-reconnected", peerId);
     });
+    this.webrtcSessionManager.setEvictionCallback((peerId) => {
+      this.emit("connection-state", {
+        peerId,
+        state: "failed",
+        transport: "none",
+        mode: this.appModeStore.getEffectiveMode(this.userStore.isGuest),
+      });
+    });
     this.webrtcSessionManager.on("camera-on", (peerId) => {
       this.emit("camera-on", peerId);
     });
@@ -635,6 +643,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     });
     const tcpAdapter = this.getTcpClientAdapter(peerId);
     const webrtcAdapter = this.webrtcSessionManager.getWebrtcAdapter(peerId);
+    webrtcAdapter.setIsPolite(this.userStore.user.id < peerId);
     const effectiveMode = this.appModeStore.getEffectiveMode(
       this.userStore.isGuest
     );
