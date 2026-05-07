@@ -9,14 +9,47 @@ import {
 import { apiLog } from "@/features/shared/utils/logger";
 apiLog.debug("[sync-api] module loaded");
 
-interface SyncResponse {
-  changes: PushLocalDataRequestBody["changes"];
+interface ServerEntityPage<T extends object, U extends object> {
+  created: T[];
+  updated: U[];
+  deleted: string[];
+  has_more: boolean;
+  next_cursor: number | null;
+}
+
+export interface ServerSyncResponse {
+  changes: {
+    conversations: ServerEntityPage<
+      PushLocalDataRequestBody["changes"]["conversations"]["created"][number],
+      PushLocalDataRequestBody["changes"]["conversations"]["updated"][number]
+    >;
+    conversation_participants: ServerEntityPage<
+      PushLocalDataRequestBody["changes"]["conversation_participants"]["created"][number],
+      PushLocalDataRequestBody["changes"]["conversation_participants"]["updated"][number]
+    >;
+    messages: ServerEntityPage<
+      PushLocalDataRequestBody["changes"]["messages"]["created"][number],
+      PushLocalDataRequestBody["changes"]["messages"]["updated"][number]
+    >;
+    calls: ServerEntityPage<
+      PushLocalDataRequestBody["changes"]["calls"]["created"][number],
+      PushLocalDataRequestBody["changes"]["calls"]["updated"][number]
+    >;
+    call_participants: ServerEntityPage<
+      PushLocalDataRequestBody["changes"]["call_participants"]["created"][number],
+      PushLocalDataRequestBody["changes"]["call_participants"]["updated"][number]
+    >;
+    message_receipts: ServerEntityPage<
+      PushLocalDataRequestBody["changes"]["message_receipts"]["created"][number],
+      PushLocalDataRequestBody["changes"]["message_receipts"]["updated"][number]
+    >;
+  };
   timestamp: number;
 }
 
 export const sync = async (lastPulledAt: number, schemaVersion: number) => {
   apiLog.info("api › sync pull", { lastPulledAt, schemaVersion });
-  const res = await apiClient.get<SyncResponse>("/sync/pull", {
+  const res = await apiClient.get<ServerSyncResponse>("/sync/pull", {
     params: { last_pulled_at: lastPulledAt, schema_version: schemaVersion },
   });
   return res;
@@ -118,7 +151,7 @@ export interface PushLocalDataRequestBody {
     call_participants: {
       created: {
         id: string;
-        conversation_id: string;
+        call_id: string;
         user_id: string;
         joined_at: string | number;
         left_at: string | number | null;
@@ -128,7 +161,7 @@ export interface PushLocalDataRequestBody {
       }[];
       updated: {
         id: string;
-        conversation_id?: string;
+        call_id?: string;
         user_id?: string;
         joined_at?: string | number;
         left_at?: string | null | number;

@@ -15,9 +15,12 @@ import {
   pushLocalDataApi,
   sync as syncApi,
   type PushLocalDataRequestBody,
+  type ServerSyncResponse,
 } from "../api/sync.api";
 import type { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
+import type { PeerService } from "@/features/shared/services/peer-service";
+import type { PeerRepository } from "@/features/shared/repositories/peer-repository";
 
 syncLog.debug("[sync-service] module loaded");
 
@@ -33,11 +36,8 @@ interface SyncServiceParams {
   db: Database;
   messageReceiptManager?: MessageReceiptManager;
   currentUserId?: string;
-}
-
-interface SyncPullResponse {
-  changes: PushLocalDataRequestBody["changes"];
-  timestamp: number;
+  peerService?: PeerService;
+  peerRepository?: PeerRepository;
 }
 
 type SyncChanges = PushLocalDataRequestBody["changes"];
@@ -112,17 +112,17 @@ export type EntityLocalPayloadMap = {
   };
   /**
    * call_participants FK naming:
-   *   WatermelonDB schema column → `call`           (string, stores the call's ID)
-   *   Server column              → `conversation_id`
+   *   WatermelonDB schema column → `call`    (string, stores the call's UUID)
+   *   Server column              → `call_id`
    *
-   * normalizePullChanges spreads ...item (preserving `conversation_id`) and adds
-   * `call: item.conversation_id`, so both fields are present on pull-normalized records.
-   * `conversation_id` is therefore always populated for records that went through
-   * normalizePullChanges; `call` acts as a fallback for manually-constructed payloads.
+   * normalizePullChanges spreads ...item (preserving `call_id`) and adds
+   * `call: item.call_id` so WatermelonDB writes to the correct column.
+   * toServerPayload reads `data.call_id ?? data.call` and outputs `call_id`
+   * as expected by the push endpoint.
    */
   call_participants: {
     id?: string;
-    conversation_id?: string;
+    call_id?: string;
     call?: string;
     user_id?: string;
     user?: string;
@@ -164,16 +164,20 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private messageReceiptManager?: MessageReceiptManager;
   private conversationParticipantRepository: ConversationParticipantRepository;
   private currentUserId?: string;
+  private peerService?: PeerService;
+  private peerRepository?: PeerRepository;
   private isSyncing = false;
   private syncLogger: SyncLogger;
   private retryAttempts = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
 
-  constructor({ db, messageReceiptManager, currentUserId }: SyncServiceParams) {
+  constructor({ db, messageReceiptManager, currentUserId, peerService, peerRepository }: SyncServiceParams) {
     super();
     this.db = db;
     this.messageReceiptManager = messageReceiptManager;
     this.currentUserId = currentUserId;
+    this.peerService = peerService;
+    this.peerRepository = peerRepository;
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(this.db);
     this.syncLogger = new SyncLogger(20);
@@ -190,6 +194,11 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   setMessageReceiptManager(messageReceiptManager: MessageReceiptManager): void {
     this.messageReceiptManager = messageReceiptManager;
     syncLog.info("sync › message receipt manager set");
+  }
+
+  setPeerService(peerService: PeerService): void {
+    this.peerService = peerService;
+    syncLog.info("sync › peer service set");
   }
 
   get syncLogs() {
@@ -296,6 +305,8 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           };
           syncLog.debug("sync › pull changes", { counts: pullCounts });
 
+          await this.hydrateMissingPeers(changes);
+
           await saveSyncLastPulledAt(timestamp);
           return { changes: normalizedChanges, timestamp };
         },
@@ -321,6 +332,16 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
 
         // Schedule immediate retry to minimize data gap
         this.scheduleRetry();
+        return;
+      }
+
+      if (isAxiosError(error) && error.response?.status === 404) {
+        // Record already deleted on server — push is irrecoverable without re-pulling.
+        // Reset lastPulledAt so next sync does a full re-pull to get current server state.
+        syncLog.warn("sync › 404 on push (record deleted on server), resetting lastPulledAt");
+        await saveSyncLastPulledAt(0);
+        this.emit("sync-status", { status: "failed", error });
+        // No scheduleRetry — fresh pull state is needed before pushing again
         return;
       }
 
@@ -373,9 +394,83 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private async pullFromServer(
     schemaVersion: number,
     lastPulledAt?: number | null
-  ) {
-    const res = await syncApi(lastPulledAt ?? 0, schemaVersion);
-    return res.data as SyncPullResponse;
+  ): Promise<{ changes: SyncChanges; timestamp: number }> {
+    const entities: (keyof SyncChanges)[] = [
+      "conversations",
+      "conversation_participants",
+      "messages",
+      "calls",
+      "call_participants",
+      "message_receipts",
+    ];
+
+    function mergeById<T extends { id?: string }>(
+      base: T[],
+      incoming: T[]
+    ): T[] {
+      const map = new Map<string, T>();
+      for (const item of base) if (item.id !== undefined) map.set(item.id, item);
+      for (const item of incoming) if (item.id !== undefined) map.set(item.id, item);
+      return [...base.filter((i) => i.id === undefined), ...map.values()];
+    }
+
+    function mergeDeleted(base: string[], incoming: string[]): string[] {
+      return [...new Set([...base, ...incoming])];
+    }
+
+    let cursor = lastPulledAt ?? 0;
+    let finalTimestamp: number | undefined;
+    const merged: SyncChanges = {
+      conversations: { created: [], updated: [], deleted: [] },
+      conversation_participants: { created: [], updated: [], deleted: [] },
+      messages: { created: [], updated: [], deleted: [] },
+      calls: { created: [], updated: [], deleted: [] },
+      call_participants: { created: [], updated: [], deleted: [] },
+      message_receipts: { created: [], updated: [], deleted: [] },
+    };
+
+    const MAX_ITERATIONS = 50;
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
+      syncLog.debug("sync › pull page", { iteration: i + 1, cursor });
+      const res = await syncApi(cursor, schemaVersion);
+      const page = res.data as ServerSyncResponse;
+
+      if (finalTimestamp === undefined) finalTimestamp = page.timestamp;
+
+      for (const entity of entities) {
+        const pe = page.changes[entity];
+        const acc = merged[entity];
+        (acc.created as { id?: string }[]) = mergeById(
+          acc.created as { id?: string }[],
+          pe.created as { id?: string }[]
+        );
+        (acc.updated as { id?: string }[]) = mergeById(
+          acc.updated as { id?: string }[],
+          pe.updated as { id?: string }[]
+        );
+        acc.deleted = mergeDeleted(acc.deleted, pe.deleted);
+      }
+
+      const hasMoreEntities = entities.filter((e) => page.changes[e].has_more);
+      if (hasMoreEntities.length === 0) break;
+
+      const nextCursors = hasMoreEntities
+        .map((e) => page.changes[e].next_cursor)
+        .filter((c): c is number => c !== null);
+
+      if (nextCursors.length === 0) {
+        syncLog.warn("sync › has_more=true but no valid next_cursor, stopping");
+        break;
+      }
+
+      cursor = Math.min(...nextCursors);
+      syncLog.debug("sync › advancing cursor", {
+        cursor,
+        hasMoreEntities,
+      });
+    }
+
+    return { changes: merged, timestamp: finalTimestamp ?? 0 };
   }
 
   private async pushToServer(
@@ -507,7 +602,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         created: changes.call_participants.created
           .filter((r) => {
             const data = r as EntityLocalPayloadMap["call_participants"];
-            const callId = data.conversation_id ?? data.call;
+            const callId = data.call_id ?? data.call;
             return !callId || !excludedCallIds.has(callId);
           })
           .map((r) =>
@@ -516,7 +611,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         updated: changes.call_participants.updated
           .filter((r) => {
             const data = r as EntityLocalPayloadMap["call_participants"];
-            const callId = data.conversation_id ?? data.call;
+            const callId = data.call_id ?? data.call;
             return !callId || !excludedCallIds.has(callId);
           })
           .map((r) =>
@@ -838,13 +933,13 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       }
       case "call_participants": {
         const data = payload as EntityLocalPayloadMap["call_participants"];
-        const conversation_id = data.conversation_id ?? data.call;
+        const call_id = data.call_id ?? data.call;
         const user_id = data.user_id ?? data.user;
         this.validateForeignKey(
           entity,
           data.id as string,
-          conversation_id,
-          "conversation_id"
+          call_id,
+          "call_id"
         );
         this.validateForeignKey(entity, data.id as string, user_id, "user_id");
         const joined_at = toInt(data.joined_at ?? data.joinedAt);
@@ -853,7 +948,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         const updated_at = toInt(data.updated_at ?? data.updatedAt);
         return {
           id: data.id as string,
-          conversation_id,
+          call_id,
           user_id,
           joined_at,
           left_at,
@@ -911,6 +1006,82 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       syncLog.warn("sync › existence check failed", { entity, error });
       return new Set();
     }
+  }
+
+  private async hydrateMissingPeers(changes: SyncChanges): Promise<void> {
+    if (!this.peerService) {
+      syncLog.debug("sync › peer hydration skipped, no peerService");
+      return;
+    }
+
+    const rawIds: (string | undefined)[] = [
+      ...changes.conversation_participants.created.map((r) => r.user_id),
+      ...changes.messages.created.map((r) => r.sender_id),
+      ...changes.calls.created.map((r) => r.initiator_id),
+      ...changes.call_participants.created.map((r) => r.user_id),
+    ];
+
+    const allIds = [...new Set(rawIds.filter((id): id is string => Boolean(id)))];
+    if (allIds.length === 0) return;
+
+    let existingPeerIds: Set<string>;
+    try {
+      const existing = await this.db
+        .get("peers")
+        .query(Q.where("id", Q.oneOf(allIds)))
+        .fetch();
+      existingPeerIds = new Set(existing.map((r) => r.id as string));
+    } catch (err) {
+      syncLog.warn("sync › peer hydration, existence check failed — skipping", { err });
+      return;
+    }
+
+    const missingIds = allIds.filter((id) => !existingPeerIds.has(id));
+    if (missingIds.length === 0) return;
+
+    syncLog.info("sync › peer hydration, fetching missing peers", {
+      total: allIds.length,
+      missing: missingIds.length,
+    });
+
+    // Sync only runs in server/auto mode where WebSocket is always allowed.
+    const wsAllowedStub = { isWebSocketAllowed: () => true };
+
+    const results = await Promise.allSettled(
+      missingIds.map((id) => this.peerService!.getOrCreatePeerById(id, wsAllowedStub))
+    );
+
+    let hydrated = 0;
+    let fallbacks = 0;
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === "fulfilled") {
+        hydrated++;
+      } else {
+        syncLog.warn("sync › peer hydration, fetch failed — creating fallback peer", {
+          peerId: missingIds[i],
+          error: result.reason,
+        });
+        if (this.peerRepository) {
+          try {
+            await this.peerRepository.savePeer({
+              id: missingIds[i],
+              username: missingIds[i],
+              firstName: "Unknown",
+              lastName: "User",
+            });
+            fallbacks++;
+          } catch (saveErr) {
+            syncLog.warn("sync › peer hydration, fallback peer creation failed", {
+              peerId: missingIds[i],
+              error: saveErr,
+            });
+          }
+        }
+      }
+    }
+
+    syncLog.info("sync › peer hydration complete", { hydrated, fallbacks });
   }
 
   private async normalizePullChanges(changes: SyncChanges) {
@@ -1046,7 +1217,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           .filter((item) => !existingIds.call_participants.has(item.id ?? ""))
           .map((item) => ({
             ...item,
-            call: item.conversation_id,
+            call: item.call_id,
             user: item.user_id,
             joined_at: this.toTimestamp(item.joined_at),
             left_at:
@@ -1057,7 +1228,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           })),
         updated: changes.call_participants.updated.map((item) => ({
           ...item,
-          call: item.conversation_id,
+          call: item.call_id,
           user: item.user_id,
           joined_at: this.toTimestamp(item.joined_at),
           left_at:

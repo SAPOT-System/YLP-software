@@ -144,6 +144,8 @@ export class MainContainer {
     this.syncService = new SyncService({
       db: database,
       currentUserId: this.userContainer.userStore.user.id,
+      peerService: this.userContainer.peerService,
+      peerRepository: this.userContainer.peerRepository,
     });
 
     this.chatService = new ChatService(
