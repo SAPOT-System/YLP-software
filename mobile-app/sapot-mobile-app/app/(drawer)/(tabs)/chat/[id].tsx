@@ -148,10 +148,20 @@ const ChatRoom = () => {
       if (payload.peerId !== peerId) return;
       setConnectionState(payload.state);
       setIsConnected(payload.state === "connected");
+      if (payload.state === "failed" || payload.state === "timeout") {
+        chatService.connect(peerId).catch(() => {});
+      }
+    });
+
+    const unsubscribeReconnected = chatService.onPeerReconnected((reconnectedPeerId) => {
+      if (reconnectedPeerId !== peerId) return;
+      setIsConnected(true);
+      setConnectionState("connected");
     });
 
     return () => {
       unsubscribe();
+      unsubscribeReconnected();
       chatService.disconnect();
     };
   }, [peerId, isSelfChat, chatService, showToast]);

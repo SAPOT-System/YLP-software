@@ -99,6 +99,17 @@ export class ChatService {
     };
   }
 
+  onPeerReconnected(listener: (peerId: string) => void): () => void {
+    this.connectionService.on("peer-reconnected", listener);
+    return () => {
+      if (typeof this.connectionService.off === "function") {
+        this.connectionService.off("peer-reconnected", listener);
+        return;
+      }
+      this.connectionService.removeListener("peer-reconnected", listener);
+    };
+  }
+
   /**
    * Connects to a peer by id, establishing a network connection for chat.
    * @param id The peer id to connect to
