@@ -21,9 +21,6 @@ export async function GET() {
 			})
 		});
 		const data = await refreshRes.json();
-
-		console.log("EWAN", data)
-
     
     // if (!res.ok) {
     //   return NextResponse.json({ error: 'Failed to fetch' }, { status: res.status });
@@ -31,7 +28,7 @@ export async function GET() {
     //
     // const data = await res.json();
     // return NextResponse.json(data); // Returns a PLAIN object to the client
-		return {"status": "ok"}
+    return NextResponse.json({"status": "ok"})
   } catch (error) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

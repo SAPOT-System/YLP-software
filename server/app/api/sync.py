@@ -137,7 +137,7 @@ async def pull_remote_changes(
         ),
         "conversation_participants": get_table_changes(
             ConversationParticipant,
-            col(ConversationParticipant.user_id) == current_user.id
+            col(ConversationParticipant.conversation_id).in_(my_conversation_ids)
         ),
         "calls": get_table_changes(
             Call,
@@ -145,7 +145,10 @@ async def pull_remote_changes(
         ),
         "call_participants": get_table_changes(
             CallParticipant,
-            col(CallParticipant.conversation_id).in_(my_conversation_ids)
+            exists(select(Call.id).where(
+                Call.id == CallParticipant.call_id,
+                col(Call.conversation_id).in_(my_conversation_ids)
+            ))
         ),
         "message_receipts": get_table_changes(
             MessageReceipt,
@@ -181,7 +184,7 @@ def cast_to_uuids(model, datum: dict):
         if "initiator_id" in datum: datum["initiator_id"] = UUID(datum["initiator_id"])
         
     elif model is CallParticipant:
-        if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
+        if "call_id" in datum: datum["call_id"] = UUID(datum["call_id"])
         if "user_id" in datum: datum["user_id"] = UUID(datum["user_id"])
         
     elif model is MessageReceipt:

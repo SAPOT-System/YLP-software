@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from app.models.activity import UserActivity, ActivityLog
     from app.models.banned_user import BannedUser
     from app.models.guest import Guest
+    from app.models.announcement import Announcement
     # from app.models.email_verification import EmailVerification
 
 
@@ -129,6 +130,11 @@ class User(UserBase, table=True):
     )
 
     guest: Optional["Guest"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+    announcements: List["Announcement"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )

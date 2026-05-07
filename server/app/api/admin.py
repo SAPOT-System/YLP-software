@@ -1,6 +1,9 @@
+from app.models.announcement import Announcement, PriorityType, AnnouncementStatusType, AudienceType
+from app.models.users import User
 from datetime import datetime, timedelta, timezone
 import os
-from uuid import UUID
+from uuid import UUID, uuid4
+from math import ceil
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import String, delete, select, func, desc, cast, update
 from typing import Annotated, List, Optional
@@ -14,7 +17,7 @@ from fastapi import APIRouter
 from pythonping import ping
 import psutil
 import time
-from app.models.activity import UserActivity
+from app.models.activity import ActivityLog, UserActivity
 from app.models.admin import Admin
 from app.models.banned_user import BannedUser
 from app.models.location import UserLocation
@@ -723,3 +726,297 @@ def unban_user(
     except Exception as e:
         raise HTTPException(500)
     return {"status": "ok"}
+
+
+
+@router.get('/get-logs')
+def get_system_logs(
+    _: Annotated[User, Depends(get_current_user_admin)],
+    session: SessionDep,
+    keyword: str = "",
+    page: int = 1,  # Default to page 1
+    size: int = 10,  # Default to 10 items per page
+):
+    # Calculate offset
+    offset = (page - 1) * size
+
+    fifteen_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=15)
+    # 1. Base statement with Join and Sorting (Latest last_active first)
+    # We use desc(UserActivity.last_active) to put newest at the top
+    from sqlmodel import select, desc, or_
+
+    # ... inside your function ...
+
+    # Base statement
+    statement = select(ActivityLog, User).join(
+        User,
+        ActivityLog.user_id == User.id,
+        isouter=True
+    )
+
+    # Apply filter only if keyword is provided
+    if keyword and keyword.strip():
+        search_pattern = f"%{keyword}%"
+        conditions = [
+            User.username.ilike(search_pattern),
+            User.email.ilike(search_pattern),
+            User.phone_number.ilike(search_pattern),
+            User.first_name.ilike(search_pattern),
+            User.last_name.ilike(search_pattern),
+            # If 'id' is a string/UUID use ilike; if it's an integer, cast it:
+            cast(User.id, String).ilike(search_pattern),
+            cast(ActivityLog.metadata_json, String).ilike(search_pattern),
+            ActivityLog.action.ilike(search_pattern),
+            cast(ActivityLog.id, String).ilike(search_pattern),
+            # User.id.ilike(search_pattern)
+        ]
+        statement = statement.where(or_(*conditions))
+
+    # Apply ordering and pagination
+    statement = (
+        statement.order_by(desc(ActivityLog.created_at)).offset(offset).limit(size)
+    )
+
+    # 2. Get total count for pagination metadata
+    total_statement = select(func.count()).select_from(ActivityLog)
+    total = session.exec(total_statement).one()
+
+    results = session.exec(statement).all()
+
+    users_data = []
+    for activity, user in results:
+        ban = user.banned
+        if ban:
+            ban.until = ban.until.replace(tzinfo=timezone.utc)
+            is_banned = ban.until > datetime.now(timezone.utc)
+            expiry_str = ban.until.strftime("%Y-%m-%d %H:%M UTC") if ban.until else "Permanently"
+
+        users_data.append(
+            {
+                "id": user.id,
+                "username": user.username or "Anonymous",
+                "phone_number": user.phone_number,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_rescuer": bool(user.rescuer),
+                "is_admin": bool(user.admin),
+                "lastActive": (
+                    f"{activity.created_at.isoformat()}Z" if activity else "Never"
+                ),
+                "created_at": activity.created_at,
+                "metadata_json": activity.metadata_json,
+                "action": activity.action,
+            }
+        )
+
+    return {
+        "items": users_data,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size,  # Quick ceiling division for total pages
+    }
+
+
+@router.get('/user-info')
+def get_user_info(
+    _: Annotated[User, Depends(get_current_user_admin)],
+    session: SessionDep,
+    user_id: UUID,
+):
+    # get users that have information matching with the user_id
+
+    statement = select(
+        User.first_name, 
+        User.last_name, 
+        User.id, 
+        User.username, 
+        User.phone_number, 
+        User.email,
+        User.rescuer,
+        User.admin
+    ).where(User.id == user_id)
+
+    # 2. Execute
+    results = session.exec(statement).mappings().first()
+
+    return results
+
+
+@router.post("/post-announcement")
+def create_announcement(
+    title: str,
+    content: str,
+    priority: PriorityType,
+    target_audience: AudienceType,
+    expires_at: datetime,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)]
+):
+    announcement = Announcement(
+        id=uuid4(),
+        user_id=current_user.id,
+        title=title,
+        content=content,
+        priority=priority,
+        status=AnnouncementStatusType.active,
+        target_audience=target_audience,
+        expires_at=expires_at,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    session.add(announcement)
+    session.commit()
+    session.refresh(announcement)
+
+    return {
+        "message": "Announcement created",
+        "announcement": announcement
+    }
+
+
+
+@router.get("/get-all-announcements")
+def get_announcements(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    limit: int = 20,
+    offset: int = 0,
+    status: Optional[AnnouncementStatusType] = None,
+    keyword: str = "",
+):
+    if not current_user.admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    from sqlmodel import or_, cast, String
+
+    base_query = select(Announcement)
+
+    # -----------------------------
+    # Filters
+    # -----------------------------
+    conditions = []
+
+    if status:
+        conditions.append(Announcement.status == status)
+
+    if keyword and keyword.strip():
+        search = f"%{keyword.strip()}%"
+
+        conditions.append(
+            or_(
+                Announcement.title.ilike(search),
+                Announcement.content.ilike(search),
+                Announcement.priority.ilike(search),
+                Announcement.status.ilike(search),
+                Announcement.target_audience.ilike(search),
+                cast(Announcement.id, String).ilike(search),
+                cast(Announcement.user_id, String).ilike(search),
+            )
+        )
+
+    if conditions:
+        for condition in conditions:
+            base_query = base_query.where(condition)
+
+    # -----------------------------
+    # Count query (MUST match filters)
+    # -----------------------------
+    count_query = select(func.count()).select_from(Announcement)
+
+    if conditions:
+        for condition in conditions:
+            count_query = count_query.where(condition)
+
+    total = session.exec(count_query).one()
+
+    # -----------------------------
+    # Main query
+    # -----------------------------
+    query = (
+        base_query
+        .order_by(Announcement.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+
+    results = session.exec(query).all()
+
+    page = (offset // limit) + 1
+    total_pages = ceil(total / limit) if limit else 1
+
+    return {
+        "count": len(results),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "page": page,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+        "announcements": results,
+    }
+
+
+@router.patch("/announcements/{announcement_id}")
+def edit_announcement(
+    announcement_id: UUID,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    title: str | None = None,
+    content: str | None = None,
+    priority: PriorityType | None = None,
+    target_audience: AudienceType | None = None,
+    expires_at: datetime | None = None,
+    status: AnnouncementStatusType | None = None,
+):
+    if not current_user.admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    announcement = session.get(Announcement, announcement_id)
+
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    if title is not None:
+        announcement.title = title
+    if content is not None:
+        announcement.content = content
+    if priority is not None:
+        announcement.priority = priority
+    if target_audience is not None:
+        announcement.target_audience = target_audience
+    if expires_at is not None:
+        announcement.expires_at = expires_at
+    if status is not None:
+        announcement.status = status
+
+    session.add(announcement)
+    session.commit()
+    session.refresh(announcement)
+
+    return {
+        "message": "Announcement updated",
+        "announcement": announcement
+    }
+
+
+@router.delete("/announcements/{announcement_id}")
+def delete_announcement(
+    announcement_id: UUID,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+):
+    if not current_user.admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    announcement = session.get(Announcement, announcement_id)
+
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    session.delete(announcement)
+    session.commit()
+
+    return {"message": "Announcement deleted"}

@@ -6,7 +6,7 @@ import Modal from './modal';
 const inputStyle = "w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 bg-gray-50 focus:bg-white";
 const labelStyle = "block text-sm font-semibold text-gray-700 mb-1 ml-1";
 
-export default function EditUserModal({ user, isOpen, onClose, onRefresh }) {
+export default function EditUserModal({ user, isOpen, onClose, onRefresh, mode="edit" }) {
     const [editData, setEditData] = useState({
 			id:  "",
         username: "",
@@ -21,21 +21,35 @@ export default function EditUserModal({ user, isOpen, onClose, onRefresh }) {
     const [errors, setErrors] = useState({});
 
     // Sync user prop to state when modal opens or user changes
-    useEffect(() => {
-        if (user) {
-            setEditData({
-								id: user.id || "",
-                username: user.username || "",
-                first_name: user.first_name || "",
-                last_name: user.last_name || "",
-                phone_number: user.phone_number || "",
-                email: user.email || "",
-                password: "", // Keep password blank unless changing
-                is_admin: user.is_admin || false,
-                is_rescuer: user.is_rescuer || false
-            });
-        }
-    }, [user, isOpen]);
+  useEffect(() => {
+    if (mode === "edit" && user) {
+      setEditData({
+        id: user.id || "",
+        username: user.username || "",
+        first_name: user.first_name || "",
+        last_name: user.last_name || "",
+        phone_number: user.phone_number || "",
+        email: user.email || "",
+        password: "",
+        is_admin: user.is_admin || false,
+        is_rescuer: user.is_rescuer || false,
+      });
+    }
+
+    if (mode === "create") {
+      setEditData({
+        id: "",
+        username: "",
+        first_name: "",
+        last_name: "",
+        phone_number: "",
+        email: "",
+        password: "",
+        is_admin: false,
+        is_rescuer: false,
+      });
+    }
+  }, [user, isOpen, mode]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -45,44 +59,66 @@ export default function EditUserModal({ user, isOpen, onClose, onRefresh }) {
         }));
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        
-        // Clean data: Remove empty strings (especially password if not changed)
-        const cleanedData = Object.fromEntries(
-            Object.entries(editData).filter(([_, v]) => v !== "")
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const cleanedData = Object.fromEntries(
+      Object.entries(editData).filter(([_, v]) => v !== "")
+    );
+
+    try {
+      const endpoint =
+        mode === "edit"
+          ? "/api/edit/user"
+          : "/api/create/user/";
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleanedData),
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        toast.success(
+          mode === "edit"
+            ? "User updated successfully"
+            : "User created successfully"
         );
 
-        try {
-            const res = await fetch(`/api/edit/user`, {
-                method: "POST", // Use PATCH for partial updates
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(cleanedData)
-            });
-
-            const result = await res.json();
-
-            if (res.ok) {
-                toast.success("User updated successfully");
-                onRefresh(); // Refresh the list in parent component
-                onClose();   // Close modal
-            } else {
-                setErrors(result.error || {});
-								console.log("res", result)
-                toast.error(typeof result.error === 'string' ? result.error : "Update failed");
-            }
-        } catch (err) {
-            toast.error("Network error occurred");
-        }
-    };
+        onRefresh();
+        onClose();
+      } else {
+        setErrors(result.error || {});
+        toast.error(
+          typeof result.error === "string"
+            ? result.error
+            : "Request failed"
+        );
+      }
+    } catch (err) {
+      toast.error("Network error occurred");
+    }
+  };;
 
     if (!isOpen) return null;
 
     return (
 			<Modal>
                 <div className="flex justify-between items-center mb-6">
-                    <div className="font-bold text-2xl text-gray-800">Edit User: <span className="text-blue-600">{user?.username}</span></div>
-                    <XIcon className="w-6 h-6 cursor-pointer text-gray-400 hover:text-gray-600" onClick={onClose} />
+
+		  <div className="font-bold text-2xl text-gray-800">
+		    {mode === "edit" ? (
+		      <>
+			  Edit User:{" "}
+			<span className="text-blue-600">{user?.username}</span>
+		      </>
+		    ) : (
+		      "Create New User"
+		    )}
+		  </div>
+                  <XIcon className="w-6 h-6 cursor-pointer text-gray-400 hover:text-gray-600" onClick={onClose} />
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
@@ -153,15 +189,20 @@ export default function EditUserModal({ user, isOpen, onClose, onRefresh }) {
 
                     {/* Password (Optional) */}
                     <div>
-                        <label className={labelStyle}>New Password (Leave blank to keep current)</label>
+		      <label className={labelStyle}>
+			{mode === "edit"
+			  ? "New Password (Leave blank to keep current)"
+			  : "Password"}
+		      </label>
                         <input
-                            type="password"
-                            name="password"
-                            value={editData.password}
-                            onChange={handleChange}
-                            placeholder="••••••••"
-                            className={inputStyle}
-                            pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$"
+                          type="password"
+                          name="password"
+                          value={editData.password}
+                          onChange={handleChange}
+                          placeholder="••••••••"
+                          className={inputStyle}
+                          pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$"
+			  required={mode === "create"}
                         />
                     </div>
 
@@ -194,7 +235,10 @@ export default function EditUserModal({ user, isOpen, onClose, onRefresh }) {
                             type="submit"
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-100"
                         >
-                            Update User Account
+			  {mode === "edit"
+			    ? "Update User Account"
+			    : "Create User Account"}
+
                         </button>
                     </div>
                 </form>
