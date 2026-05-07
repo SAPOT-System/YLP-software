@@ -28,12 +28,14 @@ export type CallServiceEvents = {
   ];
   remoteStream: [stream: MediaStream];
   "switch-cam": [stream: MediaStream];
+  "local-stream-ready": [peerId: string];
 };
 
 type CallConnectionService = Pick<
   ConnectionService,
   | "isWebrtcConnected"
   | "initializeStream"
+  | "initializeStreamEarly"
   | "renegotiate"
   | "sendCallMessage"
   | "connectToPeer"
@@ -48,6 +50,7 @@ type CallConnectionService = Pick<
   | "getLocalStream"
   | "isWebSocketAllowed"
   | "setActiveCall"
+  | "sendCallControlMessage"
 >;
 
 type CallUserStore = {
@@ -116,7 +119,17 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private isHeadsetConnected = false;
   private initialRouteSetFor: Set<string> = new Set();
   private callSessions: Map<string, CallSession> = new Map();
-  private busyRejectHandler: ((peerId: string, payload: { callId: string; conversationId: string; messageId?: string; callType: "audio" | "video" }) => void) | null = null;
+  private busyRejectHandler:
+    | ((
+        peerId: string,
+        payload: {
+          callId: string;
+          conversationId: string;
+          messageId?: string;
+          callType: "audio" | "video";
+        }
+      ) => void)
+    | null = null;
   private callReadyHandler: ((peerId: string) => void) | null = null;
 
   /**
@@ -221,8 +234,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       throw error;
     }
   }
-
-
 
   async answerCall(
     type: "video" | "audio",
@@ -437,6 +448,14 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         });
         return;
       }
+      const glareSession = this.callSessions.get(peerId);
+      if (glareSession && !glareSession.isIncoming) {
+        callLog.info("call › glare detected — skipping busy log", {
+          peerId,
+          callId,
+        });
+        return;
+      }
       const content =
         callType === "audio" ? "Busy audio call" : "Busy video call";
       const session = this.callSessions.get(peerId);
@@ -487,6 +506,16 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
           peerId,
           connectError,
         });
+      });
+    }
+
+    callLog.info("call › initializing media early", { peerId, type });
+    try {
+      await this.connectionService.initializeStreamEarly(type, peerId);
+      this.emit("local-stream-ready", peerId);
+    } catch (earlyInitError) {
+      callLog.warn("call › early media init failed (non-fatal)", {
+        earlyInitError,
       });
     }
 
@@ -707,12 +736,17 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       );
       void this.syncService.syncNow();
       this.chatService.acknowledgeIncomingMessage(peerId, payload.messageId!);
-
+    } catch (error) {
+      callLog.error("call › remote finalize failed", {
+        peerId,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        error,
+      });
+      throw error;
+    } finally {
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
-    } catch (error) {
-      callLog.error("call › remote finalize failed", { peerId, error });
-      throw error;
     }
   }
 
@@ -739,6 +773,24 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     } catch (error) {
       callLog.error("call › camera toggle failed", { peerId, error });
       throw error;
+    }
+  }
+
+  syncMediaState(peerId: string, micEnabled: boolean, camEnabled: boolean) {
+    try {
+      this.connectionService.sendCallControlMessage(peerId, "mic_toggle", {
+        from: this.userStore.user.id,
+        enabled: micEnabled,
+      });
+      this.connectionService.sendCallControlMessage(peerId, "camera_toggle", {
+        from: this.userStore.user.id,
+        enabled: camEnabled,
+      });
+    } catch (error) {
+      callLog.warn("call › media state sync failed (non-fatal)", {
+        peerId,
+        error,
+      });
     }
   }
 
@@ -776,7 +828,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       const session = this.callSessions.get(peerId);
       if (!session || session.finalized) return;
 
-      const peer = await this.peerService.getOrCreatePeerById(peerId, this.connectionService);
+      const peer = await this.peerService.getOrCreatePeerById(
+        peerId,
+        this.connectionService
+      );
       if (!peer) return;
 
       const call = await this.callRepository.queryCallById(session.callId);
