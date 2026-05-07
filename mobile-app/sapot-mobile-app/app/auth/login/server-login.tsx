@@ -2,6 +2,7 @@ import { AUTH_ROUTES } from "@/config/routes";
 import { AuthTextInput, PrimaryButton, SecondaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useAppMode } from "@/features/shared/context";
+import { checkBackEndHealth } from "@/features/shared/api";
 import { authLog } from "@/features/shared/utils/logger";
 import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -60,6 +61,11 @@ const ServerLoginScreen = () => {
       hasUsername: Boolean(username.trim()),
       password: "[REDACTED]",
     });
+    const reachable = await checkBackEndHealth();
+    if (!reachable) {
+      showToast("Cannot reach server. Please check your connection.");
+      return;
+    }
     const result = await login({ username, password });
 
     if (result.success) {

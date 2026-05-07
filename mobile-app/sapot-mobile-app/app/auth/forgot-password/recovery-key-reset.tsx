@@ -14,9 +14,11 @@ import { authLog } from "@/features/shared/utils/logger";
 import { pick } from "@react-native-documents/picker";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import { useToast } from "@/features/shared/hooks";
+import { checkBackEndHealth } from "@/features/shared/api";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, HelperText } from "react-native-paper";
+import { ActivityIndicator, HelperText, Snackbar } from "react-native-paper";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
@@ -29,6 +31,7 @@ const RecoveryKeyResetScreen = () => {
 
   const { loading, error, verifyRecoveryKey } =
     useVerifyRecoveryKey(identifier);
+  const { visible: toastVisible, message: toastMessage, showToast, hideToast } = useToast();
 
   useEffect(() => {
     authLog.info("[RecoveryKeyResetScreen] mounted");
@@ -112,6 +115,11 @@ const RecoveryKeyResetScreen = () => {
       hasFile: Boolean(file),
     });
     if (!file) return;
+    const reachable = await checkBackEndHealth();
+    if (!reachable) {
+      showToast("Cannot reach server. Please check your connection.");
+      return;
+    }
 
     const res = await verifyRecoveryKey(file);
 
@@ -182,6 +190,9 @@ const RecoveryKeyResetScreen = () => {
         visible={insertFailedDialog.visible}
         hide={insertFailedDialog.hide}
       />
+      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+        {toastMessage}
+      </Snackbar>
     </View>
   );
 };

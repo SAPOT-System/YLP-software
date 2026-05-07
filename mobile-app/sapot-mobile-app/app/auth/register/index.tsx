@@ -9,6 +9,7 @@ import {
 import { RegisterFormState } from "@/features/auth/types";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useToast } from "@/features/shared/hooks";
+import { checkBackEndHealth } from "@/features/shared/api";
 import { authLog } from "@/features/shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
@@ -78,6 +79,11 @@ const Register = () => {
   }, [step, loading, errors]);
 
   const handleStep1Submit = async (values: Partial<RegisterFormState>) => {
+    const reachable = await checkBackEndHealth();
+    if (!reachable) {
+      showToast("Cannot reach server. Please check your connection.");
+      return;
+    }
     authLog.debug("[Register] handleStep1Submit called", {
       hasFirstName: Boolean(values.firstName),
       hasLastName: Boolean(values.lastName),
@@ -123,6 +129,11 @@ const Register = () => {
   };
 
   const handleStep2Submit = async (values: Partial<RegisterFormState>) => {
+    const reachable = await checkBackEndHealth();
+    if (!reachable) {
+      showToast("Cannot reach server. Please check your connection.");
+      return;
+    }
     authLog.debug("[Register] handleStep2Submit called", {
       hasPassword: Boolean(values.password),
       hasConfirmPassword: Boolean(values.confirmPassword),

@@ -6,8 +6,9 @@ import { useGlobalCallEndedListener } from "@/features/call/hooks/use-global-cal
 import { ChatRoomSource } from "@/features/chat/types";
 import { GpsPreferenceProvider } from "@/features/gps/context/gps-preference-context";
 import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
+import { ServerStatusBanner } from "@/features/shared/components/server-status-banner";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
-import { MainContainerProvider, useAppMode } from "@/features/shared/context";
+import { HealthProvider, MainContainerProvider, useAppMode } from "@/features/shared/context";
 import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
 import { useForegroundSync } from "@/features/shared/hooks/use-foreground-sync";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
@@ -172,7 +173,9 @@ export default function DrawerLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
-      <GpsPreferenceProvider>
+      <HealthProvider>
+        <ServerStatusBanner />
+        <GpsPreferenceProvider>
         <GpsStreamingEffect />
         <MainContainerProvider>
           <GlobalCallEndedEffect />
@@ -345,6 +348,7 @@ export default function DrawerLayout() {
           </QueryClientProvider>
         </MainContainerProvider>
       </GpsPreferenceProvider>
+      </HealthProvider>
     </SafeAreaView>
   );
 }
