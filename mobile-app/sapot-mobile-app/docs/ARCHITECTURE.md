@@ -71,6 +71,27 @@ Guards in `ConnectionService`:
 
 ---
 
+## Server Status
+
+**Single source of truth:** `HealthProvider` (`features/shared/context/health-context.tsx`) mounts inside `app/(drawer)/_layout.tsx` and continuously tracks server reachability.
+
+- Runs an immediate check via `checkBackEndHealth()` on mount, then polls `/ping` every 5s via `usePing()`
+- Exposes `useServerStatus()` → `{ online: boolean; latency: number | null; shouldWarn: boolean }`
+- `shouldWarn` is `true` only when `mode` is `server` or `auto` **and** the server is unreachable — LAN mode users are never warned
+
+**Passive warning:** `ServerStatusBanner` (`features/shared/components/server-status-banner.tsx`) renders as an absolute-positioned overlay inside the drawer layout. It slides in from the top when `shouldWarn` is true and disappears automatically when the server comes back.
+
+**Active guard:** `useServerAction()` (`features/shared/hooks/use-server-action.ts`) wraps imperative actions. When `shouldWarn` is true, it fires the caller-supplied `onBlocked` callback instead of proceeding.
+
+```ts
+const { isServerOffline } = useServerAction();
+if (isServerOffline) { showToast("..."); return; }
+```
+
+Used in: `server-login.tsx`, `register/index.tsx`, `change-password.tsx`, `manage-profile.tsx`, `custom-drawer-content.tsx`, and all `forgot-password/` screens.
+
+---
+
 ## Adapters
 
 Thin injectable wrappers around native modules, allowing them to be replaced with mocks in tests.
