@@ -4,7 +4,7 @@ import {
     validatePassword,
 } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
-import { useToast } from "@/features/shared/hooks";
+import { useServerAction, useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -35,6 +35,7 @@ export default function ChangePassword() {
     showToast,
     hideToast,
   } = useToast();
+  const { isServerOffline } = useServerAction();
 
   useEffect(() => {
     uiLog.info("[ChangePasswordSettings] mounted");
@@ -58,6 +59,10 @@ export default function ChangePassword() {
       newPass: "[REDACTED]",
       confirmPass: "[REDACTED]",
     });
+    if (isServerOffline) {
+      showToast("Cannot reach server. Please check your connection.");
+      return;
+    }
     const nextErrors = {
       currentPassword: currentPass ? undefined : "Current password is required",
       ...validatePassword(newPass, confirmPass),

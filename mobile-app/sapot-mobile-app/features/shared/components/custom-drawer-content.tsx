@@ -19,11 +19,13 @@ import {
   Avatar,
   Button,
   Icon,
+  Portal,
+  Snackbar,
   Text,
   TextInput,
   useTheme,
 } from "react-native-paper";
-import { useMainContainer, useProfilePhoto, useUserProfile } from "../hooks";
+import { useMainContainer, useProfilePhoto, useServerAction, useToast, useUserProfile } from "../hooks";
 import { useSyncService } from "../hooks/use-sync-service";
 import { uiLog } from "../utils/logger";
 
@@ -89,6 +91,8 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const auth = useAuth();
   const syncService = useSyncService();
   const { appModeStore } = useMainContainer();
+  const { visible: toastVisible, message: toastMessage, showToast, hideToast } = useToast();
+  const { isServerOffline } = useServerAction();
   const { user, isGuest } = useUserProfile();
   const { url: profilePicUrl } = useProfilePhoto();
   const [showLogoutWarning, setShowLogoutWarning] = useState(false);
@@ -119,6 +123,10 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
 
   const handleSyncNow = async () => {
     uiLog.info("drawer › sync now pressed");
+    if (isServerOffline) {
+      showToast("Server unavailable. Sync skipped.");
+      return;
+    }
     await syncService.syncNow();
   };
 
@@ -277,20 +285,12 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
         </View>
 
         <ServerHostInput />
-
-        {/* Additional Custom Items */}
-        {/* <View style={{ padding: 16 }}>
-        <Text
-          variant="bodySmall"
-          style={{
-            color: theme.colors.onSurfaceVariant,
-            textAlign: "center",
-          }}
-        >
-          SAPOT v1.0.0
-        </Text>
-      </View> */}
       </ScrollView>
+      <Portal>
+        <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+          {toastMessage}
+        </Snackbar>
+      </Portal>
     </KeyboardAvoidingView>
   );
 }

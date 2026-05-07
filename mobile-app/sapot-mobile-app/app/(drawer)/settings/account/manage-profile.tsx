@@ -8,7 +8,7 @@ import {
   updateProfileApi,
   uploadProfilePicApi,
 } from "@/features/shared";
-import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
+import { useProfilePhoto, useServerAction, useToast, useUserProfile } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
@@ -28,6 +28,7 @@ import {
   HelperText,
   Modal,
   Portal,
+  Snackbar,
   Text,
   useTheme,
 } from "react-native-paper";
@@ -50,6 +51,8 @@ export default function ManageProfile() {
     loading: isProfilePicLoading,
     setUrl: setProfilePicUrl,
   } = useProfilePhoto();
+  const { visible: toastVisible, message: toastMessage, showToast, hideToast } = useToast();
+  const { isServerOffline } = useServerAction();
   const [isProfilePicUploading, setIsProfilePicUploading] = useState(false);
   const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
@@ -98,6 +101,10 @@ export default function ManageProfile() {
       hasChanges,
     });
     if (!hasChanges) {
+      return;
+    }
+    if (isServerOffline) {
+      showToast("Server unavailable. Cannot save profile.");
       return;
     }
 
@@ -156,6 +163,11 @@ export default function ManageProfile() {
   const handleUploadFromLibrary = async () => {
     uiLog.debug("[ManageProfile] handleUploadFromLibrary called");
     if (isProfilePicUploading) return;
+    if (isServerOffline) {
+      showToast("Server unavailable. Cannot upload photo.");
+      setIsPhotoOptionsVisible(false);
+      return;
+    }
 
     try {
       const permission =
@@ -182,6 +194,11 @@ export default function ManageProfile() {
   const handleTakePhoto = async () => {
     uiLog.debug("[ManageProfile] handleTakePhoto called");
     if (isProfilePicUploading) return;
+    if (isServerOffline) {
+      showToast("Server unavailable. Cannot upload photo.");
+      setIsPhotoOptionsVisible(false);
+      return;
+    }
 
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -389,6 +406,9 @@ export default function ManageProfile() {
           </View>
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
+      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+        {toastMessage}
+      </Snackbar>
       <Portal>
         <Modal
           visible={isPhotoOptionsVisible}

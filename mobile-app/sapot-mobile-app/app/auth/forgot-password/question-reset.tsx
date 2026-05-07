@@ -8,12 +8,14 @@ import {
   useVerifyAnswer,
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { useToast } from "@/features/shared/hooks";
+import { checkBackEndHealth } from "@/features/shared/api";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
-import { ActivityIndicator, HelperText } from "react-native-paper";
+import { ActivityIndicator, HelperText, Snackbar } from "react-native-paper";
 
 const QuestionResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
@@ -27,6 +29,7 @@ const QuestionResetScreen = () => {
     verifyAnswer,
   } = useVerifyAnswer(identifier);
 
+  const { visible: toastVisible, message: toastMessage, showToast, hideToast } = useToast();
   const [answer, setAnswer] = useState("");
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
@@ -89,6 +92,11 @@ const QuestionResetScreen = () => {
     return <ActivityIndicator />;
   }
   const handleVerify = async () => {
+    const reachable = await checkBackEndHealth();
+    if (!reachable) {
+      showToast("Cannot reach server. Please check your connection.");
+      return;
+    }
     authLog.debug("[QuestionResetScreen] handleVerify called", {
       hasAnswer: Boolean(answer.trim()),
     });
@@ -152,6 +160,9 @@ const QuestionResetScreen = () => {
           </SecondaryButton>
         </ScreenContent>
       </View>
+      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+        {toastMessage}
+      </Snackbar>
     </KeyboardAvoidingView>
   );
 };

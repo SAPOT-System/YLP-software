@@ -7,6 +7,7 @@ import {
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { useToast } from "@/features/shared/hooks";
+import { checkBackEndHealth } from "@/features/shared/api";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -105,6 +106,11 @@ const ChangePasswordScreen = () => {
       password: "[REDACTED]",
       confirmPassword: "[REDACTED]",
     });
+    const reachable = await checkBackEndHealth();
+    if (!reachable) {
+      showToast("Cannot reach server. Please check your connection.");
+      return;
+    }
     const res = await changePassword({
       password,
       confirmPassword,

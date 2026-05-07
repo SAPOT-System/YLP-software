@@ -1,4 +1,4 @@
-import { useAppMode } from "@/features/shared/context";
+import { useAppMode, useServerStatus } from "@/features/shared/context";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useEffect } from "react";
 import { View } from "react-native";
@@ -7,6 +7,7 @@ import { Button, Icon, Text, useTheme } from "react-native-paper";
 export default function Server() {
   const theme = useTheme();
   const { mode } = useAppMode();
+  const { online, latency } = useServerStatus();
 
   useEffect(() => {
     uiLog.info("[Server] mounted");
@@ -56,15 +57,22 @@ export default function Server() {
                 style={{ flexDirection: "row", gap: 10, alignItems: "center" }}
               >
                 <Icon
-                  source="cloud-check-variant-outline"
-                  color={theme.colors.inverseOnSurface}
+                  source={online ? "cloud-check-variant-outline" : "cloud-alert"}
+                  color={online ? theme.colors.inverseOnSurface : theme.colors.error}
                   size={50}
                 />
-                <Text
-                  style={{ fontSize: 17, color: theme.colors.inverseOnSurface }}
-                >
-                  Connected
-                </Text>
+                <View>
+                  <Text
+                    style={{ fontSize: 17, color: online ? theme.colors.inverseOnSurface : theme.colors.error }}
+                  >
+                    {online ? "Connected" : "Unreachable"}
+                  </Text>
+                  {online && latency !== null && (
+                    <Text style={{ fontSize: 12, color: theme.colors.inverseOnSurface }}>
+                      {latency}ms
+                    </Text>
+                  )}
+                </View>
               </View>
               <View
                 style={{ flexDirection: "row", gap: 10, alignItems: "center" }}
