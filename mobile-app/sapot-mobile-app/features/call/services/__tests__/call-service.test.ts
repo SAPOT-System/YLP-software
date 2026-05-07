@@ -535,7 +535,7 @@ describe("CallService", () => {
       expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
     });
 
-    it("should save busy log when caller has an outgoing session", async () => {
+    it("should skip busy log when caller has an outgoing session (glare)", async () => {
       const handler = await getBusyRejectHandler();
       expect(handler).toBeDefined();
 
@@ -545,16 +545,8 @@ describe("CallService", () => {
         callType: "audio",
       });
 
-      expect(mockCallRepository.updateCallStatus).toHaveBeenCalledWith(
-        "call-abc",
-        expect.anything()
-      );
-      expect(mockChatService.saveCallLogWithReceipts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          peerId,
-          senderId: "test-user-id",
-        })
-      );
+      expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
+      expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
     });
   });
 });
