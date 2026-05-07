@@ -54,7 +54,7 @@ logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
 
 # On Windows: "C:/logs/fastapi_app"
-LOG_DIR = os.path.abspath("/home/emmanpip/Programming/YLP/logs") 
+LOG_DIR = os.path.abspath("../logs") 
 
 # Create the directory if it doesn't exist
 os.makedirs(LOG_DIR, exist_ok=True)
