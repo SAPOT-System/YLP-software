@@ -47,7 +47,6 @@ export class WebrtcAdapter extends EventEmitter {
   readonly peerId: string;
   private isPolite: boolean = false;
   private isIgnoringOffer = false;
-  private isSettingRemoteAnswerPending = false;
 
   private traceId;
 
@@ -403,6 +402,10 @@ export class WebrtcAdapter extends EventEmitter {
     if (this.isIceRestarting) return;
     if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
       webrtcLog.warn("webrtc › ice restart attempts exceeded", { reason });
+      this.emit(
+        "connection-failed",
+        new Error("ICE restart attempts exceeded")
+      );
       return;
     }
 
@@ -451,16 +454,18 @@ export class WebrtcAdapter extends EventEmitter {
 
     return this.enqueueNegotiation(async () => {
       try {
-        // Allow processing if we are the polite peer and we have a pending local offer
-        if (
-          pc.signalingState !== "stable" &&
-          !(this.isPolite && pc.signalingState === "have-local-offer")
-        ) {
-          webrtcLog.warn("webrtc › not stable, skipping offer", {
-            signalingState: pc.signalingState,
-            isPolite: this.isPolite,
-          });
-          return;
+        if (pc.signalingState !== "stable") {
+          if (!(this.isPolite && pc.signalingState === "have-local-offer")) {
+            webrtcLog.warn("webrtc › not stable, skipping offer", {
+              signalingState: pc.signalingState,
+              isPolite: this.isPolite,
+            });
+            return;
+          }
+          await pc.setLocalDescription(
+            new RTCSessionDescription({ type: "rollback", sdp: "" })
+          );
+          this.isMakingOffer = false;
         }
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -582,6 +587,7 @@ export class WebrtcAdapter extends EventEmitter {
 
       channel.onclose = () => {
         webrtcLog.info("webrtc › data channel closed");
+        this.emit("connection-closed");
       };
     } catch (error) {
       webrtcLog.error("webrtc › data channel setup failed", { error });
