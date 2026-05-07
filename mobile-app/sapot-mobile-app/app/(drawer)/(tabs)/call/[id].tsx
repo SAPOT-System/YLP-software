@@ -4,8 +4,16 @@ import { uiLog } from "@/features/shared/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { RTCView } from "react-native-webrtc";
 
 // ─────────────────────────────────────────────
@@ -95,227 +103,325 @@ export default function CallRoom() {
         uiLog.info("[CallRoom] initiating outgoing call", { id, type });
         resetCallState(id, type);
       }
-    }, [id, type, status, resetCallState])
+    }, [id, type, status, resetCallState]),
   );
 
   const { onPress: onEndCall, busy: ending } = useThrottledPress(handleEndCall);
-  const { onPress: onCallAgain, busy: callingAgain } = useThrottledPress(handleCallAgain);
+  const { onPress: onCallAgain, busy: callingAgain } =
+    useThrottledPress(handleCallAgain);
+
+  // ─────────────────────────────────────────────
+  //  CONTROL ROW ANIMATION
+  // ─────────────────────────────────────────────
+
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controlsAnim = useRef(new Animated.Value(1)).current;
+
+  const hideControls = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+
+    Animated.timing(controlsAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setControlsVisible(false);
+    });
+  }, [controlsAnim]);
+
+  const showControls = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+
+    setControlsVisible(true);
+
+    Animated.timing(controlsAnim, {
+      toValue: 1,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+
+    hideTimer.current = setTimeout(() => {
+      hideControls();
+    }, 5000);
+  }, [hideControls, controlsAnim]);
+
+  useEffect(() => {
+    if (callState === "connected") {
+      showControls();
+    }
+
+    return () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, [callState, showControls]);
 
   // ─────────────────────────────────────────────
   // Derived UI flags
   // ─────────────────────────────────────────────
 
   const isActive = callState === "calling" || callState === "connected";
-  const showRemoteStream = callState === "connected";
-  const showLocalPreview = !!localStream && localCam;
+  const showVideoStreams = callState === "connected";
 
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
 
   return (
-    <LinearGradient
-      colors={[COLORS.gradStart, COLORS.gradEnd]}
-      start={{ x: 0, y: 1 }}
-      end={{ x: 0, y: 0 }}
-      style={styles.container}
+    <Pressable
+      style={{ flex: 1 }}
+      onPress={() => {
+        if (callState === "connected") {
+          showControls();
+        }
+      }}
     >
-      {/* Back / minimize button (shown when connected) */}
-      {callState === "connected" && (
-        <TouchableOpacity style={styles.backButton} onPress={minimize}>
-          <Feather name="chevron-down" size={28} color={COLORS.primary} />
-        </TouchableOpacity>
-      )}
+      <LinearGradient
+        colors={[COLORS.gradStart, COLORS.gradEnd]}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 0, y: 0 }}
+        style={styles.container}
+      >
+        {/* Back / minimize button (shown when connected) */}
+        {callState === "connected" && (
+          <TouchableOpacity style={styles.backButton} onPress={minimize}>
+            <Feather name="chevron-down" size={28} color={COLORS.primary} />
+          </TouchableOpacity>
+        )}
 
-      {/* Peer section */}
-      <View style={styles.peerSection}>
-        <View style={styles.avatarWrap}>
-          {peerPhotoUrl ? (
-            <Image source={{ uri: peerPhotoUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarFallback]}>
-              <Text style={styles.avatarInitial}>
-                {peerDisplayName ? peerDisplayName[0].toUpperCase() : "?"}
-              </Text>
-            </View>
-          )}
+        {/* Peer section */}
+        <View style={styles.peerSection}>
+          <View style={styles.avatarWrap}>
+            {peerPhotoUrl ? (
+              <Image source={{ uri: peerPhotoUrl }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.avatarInitial}>
+                  {peerDisplayName ? peerDisplayName[0].toUpperCase() : "?"}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.peerName}>{peerDisplayName}</Text>
         </View>
-        <Text style={styles.peerName}>{peerDisplayName}</Text>
-      </View>
 
-      {/* Status / Timer */}
-      <Text style={styles.statusText}>
-        {callState === "calling" && "Calling..."}
-        {callState === "connected" && formatDuration(elapsed)}
-        {callState === "ended" && "Call ended"}
-        {callState === "no-answer" && "Did not answer"}
-        {callState === "busy" && `${peerDisplayName} is in another call`}
-      </Text>
+        {/* Status / Timer */}
+        <Text style={styles.statusText}>
+          {callState === "calling" && "Calling..."}
+          {callState === "connected" && formatDuration(elapsed)}
+          {callState === "ended" && "Call ended"}
+          {callState === "no-answer" && "Did not answer"}
+          {callState === "busy" && `${peerDisplayName} is in another call`}
+        </Text>
 
-      {/* Remote stream + local PiP (connected state) */}
-      {showRemoteStream && (
-        <View style={styles.videoContainer}>
-          <View style={styles.remoteVideoWrap}>
-            {remoteStreamUrl && remoteCam ? (
+        {/* Video streams (video call, connected state) */}
+        {showVideoStreams && (
+          <View style={styles.videoContainer}>
+            <View style={styles.remoteVideoWrap}>
+              {remoteStreamUrl && remoteCam ? (
+                <RTCView
+                  key={remoteStreamVersion}
+                  streamURL={remoteStreamUrl}
+                  mirror={false}
+                  objectFit="cover"
+                  zOrder={0}
+                  style={styles.remoteVideo}
+                />
+              ) : (
+                <View style={styles.remoteVideo} />
+              )}
+              <View
+                style={[
+                  styles.remoteMicBadge,
+                  !remoteMic && styles.remoteMicBadgeMuted,
+                ]}
+              >
+                <Feather
+                  name={remoteMic ? "mic" : "mic-off"}
+                  size={16}
+                  color="#FFFFFF"
+                />
+              </View>
+            </View>
+
+            {localStream && localCam ? (
               <RTCView
-                key={remoteStreamVersion}
-                streamURL={remoteStreamUrl}
-                mirror={false}
+                streamURL={localStream.toURL()}
+                mirror={true}
                 objectFit="cover"
-                zOrder={0}
-                style={styles.remoteVideo}
+                zOrder={1}
+                style={styles.localVideo}
               />
             ) : (
-              <View style={styles.remoteVideo} />
+              <View style={styles.localVideo} />
             )}
-            <View
-              style={[
-                styles.remoteMicBadge,
-                !remoteMic && styles.remoteMicBadgeMuted,
-              ]}
-            >
-              <Feather
-                name={remoteMic ? "mic" : "mic-off"}
-                size={16}
-                color="#FFFFFF"
-              />
-            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {/* Local camera preview — shown as soon as stream is ready (calling or connected) */}
-      {showLocalPreview && (
-        <RTCView
-          streamURL={localStream!.toURL()}
-          mirror={true}
-          objectFit="cover"
-          zOrder={1}
-          style={showRemoteStream ? styles.localVideo : styles.localVideoFullscreen}
-        />
-      )}
-
-      {/* Controls row (calling or connected) */}
-      {isActive && (
-        <View style={styles.controls}>
-          <View style={styles.controlRow}>
-            <TouchableOpacity
-              style={[styles.controlBtn, !localMic && styles.controlBtnOff]}
-              onPress={handleToggleMic}
-            >
-              <Feather
-                name={localMic ? "mic" : "mic-off"}
-                size={22}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.controlBtn, !localCam && styles.controlBtnOff]}
-                onPress={handleToggleCam}
+        {/* Controls row (calling or connected) */}
+        {isActive && (
+          <View style={styles.controls}>
+            {controlsVisible && (
+              <Animated.View
+                style={{
+                  opacity: controlsAnim,
+                  transform: [
+                    {
+                      translateY: controlsAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [60, 0], // slides whole block
+                      }),
+                    },
+                  ],
+                  alignItems: "center",
+                  gap: 48,
+                }}
               >
-                <Feather
-                  name={localCam ? "video" : "video-off"}
-                  size={22}
-                  color={COLORS.primary}
-                />
-              </TouchableOpacity>
-            <TouchableOpacity style={styles.controlBtn} onPress={handleVolume}>
-              <Feather
-                name={currentRoute === "earpiece" ? "volume-1" : "volume-2"}
-                size={22}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.controlBtn}
-                onPress={handleSwitchCamera}
-              >
-                <Feather
-                  name={isFrontCamera ? "rotate-cw" : "rotate-ccw"}
-                  size={22}
-                  color={COLORS.primary}
-                />
-              </TouchableOpacity>
-          </View>
+                <View style={styles.controlRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.controlBtn,
+                      !localMic && styles.controlBtnOff,
+                    ]}
+                    onPress={handleToggleMic}
+                  >
+                    <Feather
+                      name={localMic ? "mic" : "mic-off"}
+                      size={22}
+                      color={COLORS.primary}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.controlBtn,
+                      !localCam && styles.controlBtnOff,
+                    ]}
+                    onPress={handleToggleCam}
+                  >
+                    <Feather
+                      name={localCam ? "video" : "video-off"}
+                      size={22}
+                      color={COLORS.primary}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.controlBtn}
+                    onPress={handleVolume}
+                  >
+                    <Feather
+                      name={
+                        currentRoute === "earpiece" ? "volume-1" : "volume-2"
+                      }
+                      size={22}
+                      color={COLORS.primary}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.controlBtn}
+                    onPress={handleSwitchCamera}
+                  >
+                    <Feather
+                      name={isFrontCamera ? "rotate-cw" : "rotate-ccw"}
+                      size={22}
+                      color={COLORS.primary}
+                    />
+                  </TouchableOpacity>
+                </View>
 
-          {/* End call button */}
-          <View style={styles.actionRow}>
-            <View style={styles.actionItem}>
-              <TouchableOpacity
-                style={styles.endCallBtn}
-                onPress={onEndCall}
-                disabled={ending}
-              >
-                <Feather name="phone-off" size={28} color={COLORS.declineRed} />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>End Call</Text>
-            </View>
+                {/* End call button */}
+                <View style={styles.actionRow}>
+                  <View style={styles.actionItem}>
+                    <TouchableOpacity
+                      style={styles.endCallBtn}
+                      onPress={onEndCall}
+                      disabled={ending}
+                    >
+                      <Feather
+                        name="phone-off"
+                        size={28}
+                        color={COLORS.declineRed}
+                      />
+                    </TouchableOpacity>
+                    <Text style={styles.actionLabel}>End Call</Text>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
           </View>
-        </View>
-      )}
+        )}
 
-      {/* Ended actions */}
-      {callState === "ended" && (
-        <View style={styles.controls}>
-          <View style={styles.actionRow}>
-            <View style={styles.actionItem}>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleClose}>
-                <Feather name="x" size={28} color={COLORS.primary} />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>Close</Text>
+        {/* Ended actions */}
+        {callState === "ended" && (
+          <View style={styles.controls}>
+            <View style={styles.actionRow}>
+              <View style={styles.actionItem}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={handleClose}
+                >
+                  <Feather name="x" size={28} color={COLORS.primary} />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Close</Text>
+              </View>
             </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {/* Did not answer actions */}
-      {callState === "no-answer" && (
-        <View style={styles.controls}>
-          <View style={styles.actionRow}>
-            <View style={styles.actionItem}>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleClose}>
-                <Feather name="x" size={28} color={COLORS.primary} />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>Close</Text>
-            </View>
-            <View style={styles.actionItem}>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={onCallAgain}
-                disabled={callingAgain}
-              >
-                <Feather name="phone" size={28} color={COLORS.acceptGreen} />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>Call again</Text>
+        {/* Did not answer actions */}
+        {callState === "no-answer" && (
+          <View style={styles.controls}>
+            <View style={styles.actionRow}>
+              <View style={styles.actionItem}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={handleClose}
+                >
+                  <Feather name="x" size={28} color={COLORS.primary} />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Close</Text>
+              </View>
+              <View style={styles.actionItem}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={onCallAgain}
+                  disabled={callingAgain}
+                >
+                  <Feather name="phone" size={28} color={COLORS.acceptGreen} />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Call again</Text>
+              </View>
             </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {/* Busy actions */}
-      {callState === "busy" && (
-        <View style={styles.controls}>
-          <View style={styles.actionRow}>
-            <View style={styles.actionItem}>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleClose}>
-                <Feather name="x" size={28} color={COLORS.primary} />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>Close</Text>
-            </View>
-            <View style={styles.actionItem}>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={onCallAgain}
-                disabled={callingAgain}
-              >
-                <Feather name="phone" size={28} color={COLORS.acceptGreen} />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>Call again</Text>
+        {/* Busy actions */}
+        {callState === "busy" && (
+          <View style={styles.controls}>
+            <View style={styles.actionRow}>
+              <View style={styles.actionItem}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={handleClose}
+                >
+                  <Feather name="x" size={28} color={COLORS.primary} />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Close</Text>
+              </View>
+              <View style={styles.actionItem}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={onCallAgain}
+                  disabled={callingAgain}
+                >
+                  <Feather name="phone" size={28} color={COLORS.acceptGreen} />
+                </TouchableOpacity>
+                <Text style={styles.actionLabel}>Call again</Text>
+              </View>
             </View>
           </View>
-        </View>
-      )}
-    </LinearGradient>
+        )}
+      </LinearGradient>
+    </Pressable>
   );
 }
 
@@ -340,7 +446,6 @@ const styles = StyleSheet.create({
   peerSection: {
     alignItems: "center",
     marginTop: 160,
-    zIndex: 2,
   },
   avatarWrap: {
     width: 169,
@@ -376,7 +481,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 28,
     paddingHorizontal: 24,
-    zIndex: 2,
   },
   videoContainer: {
     position: "absolute",
@@ -417,14 +521,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a1a2e",
     zIndex: 2,
   },
-  localVideoFullscreen: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
-  },
   controls: {
     position: "absolute",
     bottom: 60,
@@ -432,29 +528,28 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     gap: 48,
-    zIndex: 2,
   },
   controlRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 40,
+    gap: 20,
   },
   controlBtn: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: "rgba(153, 174, 199, 0.25)",
+    backgroundColor: "#D6DFEA",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   controlBtnOff: {
-    backgroundColor: "rgba(153, 174, 199, 0.55)",
+    backgroundColor: "#D6DFEA",
   },
   actionRow: {
     flexDirection: "row",
