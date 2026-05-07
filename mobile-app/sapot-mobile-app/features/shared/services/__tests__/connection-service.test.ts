@@ -264,6 +264,81 @@ describe("ConnectionService", () => {
       );
     });
 
+    it("should send busy reject when activeCallPeerId matches the caller", async () => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+
+      connectionService.setActiveCall("peer-1");
+
+      const sendCallMessageSpy = jest.spyOn(signalingService, "sendCallMessage");
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await callMessageHandler?.({
+        type: "audio-call" as const,
+        data: { from_user: "peer-1", to: "test-user-id" },
+      });
+
+      expect(sendCallMessageSpy).toHaveBeenCalledWith(
+        "peer-1",
+        expect.objectContaining({ type: "call-rejected" })
+      );
+      expect(emitSpy).not.toHaveBeenCalledWith(
+        "audio-call",
+        expect.objectContaining({ peerId: "peer-1" })
+      );
+    });
+
+    it("should accept simultaneous call glare on the prioritized side", async () => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+
+      Object.defineProperty(mockUserStore.user, "id", {
+        value: "aaa-user",
+        configurable: true,
+      });
+      connectionService.setActiveCall("peer-1");
+
+      const sendCallMessageSpy = jest.spyOn(signalingService, "sendCallMessage");
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await callMessageHandler?.({
+        type: "audio-call" as const,
+        data: { from_user: "peer-1", to: "aaa-user", callId: "call-abc" },
+      });
+
+      expect(sendCallMessageSpy).not.toHaveBeenCalledWith(
+        "peer-1",
+        expect.objectContaining({ type: "call-rejected" })
+      );
+      expect(emitSpy).toHaveBeenCalledWith(
+        "audio-call",
+        expect.objectContaining({ peerId: "peer-1" })
+      );
+      expect(connectionService.shouldIgnoreCallBusy("peer-1")).toBe(true);
+    });
+
+    it("should send busy reject when activeCallPeerId is a different peer (true busy)", async () => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+
+      connectionService.setActiveCall("peer-2");
+
+      const sendCallMessageSpy = jest.spyOn(signalingService, "sendCallMessage");
+
+      await callMessageHandler?.({
+        type: "audio-call" as const,
+        data: { from_user: "peer-1", to: "test-user-id", callId: "call-abc" },
+      });
+
+      expect(sendCallMessageSpy).toHaveBeenCalledWith(
+        "peer-1",
+        expect.objectContaining({ type: "call-rejected" })
+      );
+    });
+
 
   });
 
@@ -783,16 +858,16 @@ describe("ConnectionService", () => {
       expect(mockWebrtcAdapter.toggleMic).toHaveBeenCalled();
     });
 
-    it("should throw error if peer not connected", () => {
+    it("should toggle mic even if peer not connected (no connection guard)", () => {
       Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
         configurable: true,
       });
       const peerId = "peer-1";
 
-      expect(() => connectionService.toggleMic(peerId)).toThrow(
-        "Webrtc not connected"
-      );
+      connectionService.toggleMic(peerId);
+
+      expect(mockWebrtcAdapter.toggleMic).toHaveBeenCalled();
     });
   });
 
@@ -805,16 +880,16 @@ describe("ConnectionService", () => {
       expect(mockWebrtcAdapter.toggleCamera).toHaveBeenCalled();
     });
 
-    it("should throw error if peer not connected", async () => {
+    it("should toggle camera even if peer not connected (no connection guard)", async () => {
       Object.defineProperty(mockWebrtcAdapter, "isConnected", {
         get: jest.fn().mockReturnValue(false),
         configurable: true,
       });
       const peerId = "peer-1";
 
-      await expect(connectionService.toggleCamera(peerId)).rejects.toThrow(
-        "Webrtc not connected"
-      );
+      await connectionService.toggleCamera(peerId);
+
+      expect(mockWebrtcAdapter.toggleCamera).toHaveBeenCalled();
     });
   });
 

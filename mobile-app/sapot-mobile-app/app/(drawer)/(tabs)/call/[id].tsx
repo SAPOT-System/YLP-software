@@ -106,7 +106,8 @@ export default function CallRoom() {
   // ─────────────────────────────────────────────
 
   const isActive = callState === "calling" || callState === "connected";
-  const showVideoStreams = callState === "connected";
+  const showRemoteStream = callState === "connected";
+  const showLocalPreview = !!localStream && localCam;
 
   // ─────────────────────────────────────────────
   // Render
@@ -151,8 +152,8 @@ export default function CallRoom() {
         {callState === "busy" && `${peerDisplayName} is in another call`}
       </Text>
 
-      {/* Video streams (video call, connected state) */}
-      {showVideoStreams && (
+      {/* Remote stream + local PiP (connected state) */}
+      {showRemoteStream && (
         <View style={styles.videoContainer}>
           <View style={styles.remoteVideoWrap}>
             {remoteStreamUrl && remoteCam ? (
@@ -180,19 +181,18 @@ export default function CallRoom() {
               />
             </View>
           </View>
-
-          {localStream && localCam ? (
-            <RTCView
-              streamURL={localStream.toURL()}
-              mirror={true}
-              objectFit="cover"
-              zOrder={1}
-              style={styles.localVideo}
-            />
-          ) : (
-            <View style={styles.localVideo} />
-          )}
         </View>
+      )}
+
+      {/* Local camera preview — shown as soon as stream is ready (calling or connected) */}
+      {showLocalPreview && (
+        <RTCView
+          streamURL={localStream!.toURL()}
+          mirror={true}
+          objectFit="cover"
+          zOrder={1}
+          style={showRemoteStream ? styles.localVideo : styles.localVideoFullscreen}
+        />
       )}
 
       {/* Controls row (calling or connected) */}
@@ -340,6 +340,7 @@ const styles = StyleSheet.create({
   peerSection: {
     alignItems: "center",
     marginTop: 160,
+    zIndex: 2,
   },
   avatarWrap: {
     width: 169,
@@ -375,6 +376,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 28,
     paddingHorizontal: 24,
+    zIndex: 2,
   },
   videoContainer: {
     position: "absolute",
@@ -415,6 +417,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a1a2e",
     zIndex: 2,
   },
+  localVideoFullscreen: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
   controls: {
     position: "absolute",
     bottom: 60,
@@ -422,6 +432,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     gap: 48,
+    zIndex: 2,
   },
   controlRow: {
     flexDirection: "row",

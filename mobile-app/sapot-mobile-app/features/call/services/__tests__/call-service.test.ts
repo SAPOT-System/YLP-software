@@ -194,6 +194,7 @@ describe("CallService", () => {
 
       await callService.informPeerForIncomingCall("audio", peerId);
 
+      expect(mockConnectionService.initializeStreamEarly).toHaveBeenCalledWith("audio", peerId);
       expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
         peerId,
         expect.objectContaining({
@@ -215,6 +216,22 @@ describe("CallService", () => {
       await expect(
         callService.informPeerForIncomingCall("audio", peerId)
       ).rejects.toThrow("Send failed");
+    });
+
+    it("should still send call message if early stream init fails", async () => {
+      const peerId = "peer-1";
+
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.initializeStreamEarly.mockRejectedValue(
+        new Error("camera denied")
+      );
+
+      await callService.informPeerForIncomingCall("audio", peerId);
+
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({ type: "audio-call" })
+      );
     });
   });
 
@@ -476,6 +493,60 @@ describe("CallService", () => {
       mockConnectionService.isWebrtcConnected.mockReturnValue(false);
       await callService.startCall("audio", peerId);
       expect(mockConnectionService.initializeStream).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("handleIncomingBusyReject", () => {
+    const peerId = "peer-1";
+
+    async function getBusyRejectHandler() {
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      await callService.informPeerForIncomingCall("audio", peerId);
+      const callBusyCall = mockConnectionService.on.mock.calls
+        .slice()
+        .reverse()
+        .find((call: [string, ...unknown[]]) => call[0] === "call-busy");
+      return callBusyCall?.[1] as
+        | ((
+            busyPeerId: string,
+            payload: {
+              callId: string;
+              conversationId: string;
+              messageId?: string;
+              callType: "audio" | "video";
+            }
+          ) => Promise<void>)
+        | undefined;
+    }
+
+    it("should ignore busy logs when glare was accepted locally", async () => {
+      mockConnectionService.shouldIgnoreCallBusy.mockReturnValue(true);
+
+      const handler = await getBusyRejectHandler();
+      expect(handler).toBeDefined();
+
+      await handler?.(peerId, {
+        callId: "call-abc",
+        conversationId: "conv-1",
+        callType: "audio",
+      });
+
+      expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
+      expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
+    });
+
+    it("should skip busy log when caller has an outgoing session (glare)", async () => {
+      const handler = await getBusyRejectHandler();
+      expect(handler).toBeDefined();
+
+      await handler?.(peerId, {
+        callId: "call-abc",
+        conversationId: "conv-1",
+        callType: "audio",
+      });
+
+      expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
+      expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
     });
   });
 });

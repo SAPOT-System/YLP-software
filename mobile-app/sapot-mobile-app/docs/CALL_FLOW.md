@@ -23,6 +23,7 @@ Caller                          Server / Direct                  Callee
 - WS payload uses `from_user`; TCP payload uses `from`
 - `callerName` is the caller's `firstName + lastName` and is used for the incoming call notification and UI
 - A local push notification is triggered on the callee's device (`incoming_call`)
+- If both peers call each other at the same time, the app uses a deterministic peer-id tie-breaker so only one side stays on the incoming-call path and the other side resolves to `busy`
 
 ---
 

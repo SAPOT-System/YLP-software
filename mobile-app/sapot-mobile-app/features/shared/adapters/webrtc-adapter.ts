@@ -92,7 +92,7 @@ export class WebrtcAdapter extends EventEmitter {
     });
   }
 
-  async initializeLocalStream(audio = false, video = false) {
+  async initializeLocalStreamEarly(audio = false, video = false) {
     try {
       const constraints = {
         audio,
@@ -104,11 +104,34 @@ export class WebrtcAdapter extends EventEmitter {
             }
           : false,
       };
-
       this.localStream = await mediaDevices.getUserMedia(constraints);
       this.audioTrack = this.localStream.getAudioTracks()[0];
       this.videoTrack = this.localStream.getVideoTracks()[0];
-      webrtcLog.debug("initializeLocalStream", this.videoTrack);
+      webrtcLog.debug("initializeLocalStreamEarly done", { hasVideo: video });
+    } catch (error) {
+      this.logFailure("initializeLocalStreamEarly failed", error);
+      throw error;
+    }
+  }
+
+  async initializeLocalStream(audio = false, video = false) {
+    try {
+      if (!this.localStream) {
+        const constraints = {
+          audio,
+          video: video
+            ? {
+                width: { min: 640, ideal: 1280 },
+                height: { min: 480, ideal: 720 },
+                frameRate: { min: 30, ideal: 60 },
+              }
+            : false,
+        };
+        this.localStream = await mediaDevices.getUserMedia(constraints);
+        this.audioTrack = this.localStream.getAudioTracks()[0];
+        this.videoTrack = this.localStream.getVideoTracks()[0];
+        webrtcLog.debug("initializeLocalStream", this.videoTrack);
+      }
 
       if (this.localStream) {
         webrtcLog.debug("webrtc › local stream add");

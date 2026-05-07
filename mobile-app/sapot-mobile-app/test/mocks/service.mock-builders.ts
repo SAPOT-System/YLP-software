@@ -37,6 +37,7 @@ export function createConnectionServiceDependencyMocks() {
 		addIceCandidate: jest.fn(),
 		sendDataMessage: jest.fn(),
 		initializeLocalStream: jest.fn(),
+		initializeLocalStreamEarly: jest.fn(),
 		terminateCall: jest.fn(),
 		toggleMic: jest.fn(),
 		toggleCamera: jest.fn(),
@@ -150,6 +151,7 @@ export function createCallServiceDependencyMocks() {
 	const connectionService = {
 		isWebrtcConnected: jest.fn(),
 		initializeStream: jest.fn(),
+		initializeStreamEarly: jest.fn(),
 		renegotiate: jest.fn(),
 		terminateCallConnection: jest.fn(),
 		sendCallMessage: jest.fn(),
@@ -167,7 +169,9 @@ export function createCallServiceDependencyMocks() {
 		sendAckMessage: jest.fn(),
 		isWebSocketAllowed: jest.fn(() => true),
 		setActiveCall: jest.fn(),
+		shouldIgnoreCallBusy: jest.fn(() => false),
 		getWebrtcAdapter: jest.fn(),
+		sendCallControlMessage: jest.fn(),
 	};
 
 	const peerService = {

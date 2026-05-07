@@ -109,6 +109,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [elapsed, setElapsed] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
   const hasTerminated = useRef(false);
+  const hasSyncedMediaState = useRef(false);
 
   // ── Peer info ──────────────────────────────
   const [peer, setPeer] = useState<Peer | null>(null);
@@ -203,6 +204,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setRemoteCam(type === "video");
       setIsMinimized(false);
       hasTerminated.current = false;
+      hasSyncedMediaState.current = false;
       remoteStreamRef.current = null;
       setRemoteStreamUrl(undefined);
       setReady(false);
@@ -289,6 +291,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         callLog.warn("[CallContext] call-busy rejected — peer mismatch", peerId);
         return;
       }
+      if (connectionService.shouldIgnoreCallBusy(incomingPeerId)) {
+        callLog.info("[CallContext] glare busy ignored", { peerId });
+        return;
+      }
       callLog.info("[CallContext] peer is busy", { peerId });
       setCallState("busy");
     };
@@ -329,6 +335,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       callService.off("remoteStream", handler);
     };
   }, [callService]);
+
+  // ─────────────────────────────────────────────
+  // Sync local mic/cam state to peer on connect
+  // (caller may have toggled before the call was answered)
+  // ─────────────────────────────────────────────
+
+  useEffect(() => {
+    if (callState !== "connected" || !peerId) return;
+    if (hasSyncedMediaState.current) return;
+    hasSyncedMediaState.current = true;
+    callService.syncMediaState(peerId, localMic, localCam);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callState, peerId, callService]);
 
   // ─────────────────────────────────────────────
   // Remote peer ending the call
@@ -427,6 +446,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       uiLog.error("[CallContext] Error in get local cam", { error });
     }
   }, [callService, peerId, callType]);
+
+  useEffect(() => {
+    if (!peerId) return;
+    const handler = (incomingPeerId: string) => {
+      if (incomingPeerId !== peerId) return;
+      uiLog.debug("[CallContext] local-stream-ready received", { peerId });
+      try {
+        setLocalStream(callService.getLocalCam(peerId));
+      } catch (error) {
+        uiLog.error("[CallContext] Error getting local cam after early init", { error });
+      }
+    };
+    callService.on("local-stream-ready", handler);
+    return () => {
+      callService.off("local-stream-ready", handler);
+    };
+  }, [callService, peerId]);
 
   useEffect(() => {
     if (!peerId) return;

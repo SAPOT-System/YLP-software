@@ -27,6 +27,19 @@ export class CallMediaService {
     }
   }
 
+  async initializeStreamEarly(
+    stream: "audio" | "video",
+    peerId: string
+  ): Promise<void> {
+    try {
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      await webrtcAdapter.initializeLocalStreamEarly(true, stream === "video");
+    } catch (error) {
+      callLog.error("call › early stream init failed", { peerId, error });
+      throw error;
+    }
+  }
+
   terminateCallConnection(peerId: string): void {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
@@ -41,7 +54,6 @@ export class CallMediaService {
   toggleMic(peerId: string): boolean {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
-      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       return webrtcAdapter.toggleMic();
     } catch (error) {
       callLog.error("call › mic toggle failed", { peerId, error });
@@ -52,7 +64,6 @@ export class CallMediaService {
   async toggleCamera(peerId: string): Promise<boolean> {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
-      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       return await webrtcAdapter.toggleCamera();
     } catch (error) {
       callLog.error("call › camera toggle failed", { peerId, error });
@@ -60,13 +71,12 @@ export class CallMediaService {
     }
   }
 
-  async switchCamera(peerId: string, isFrontCamera: boolean)  {
+  async switchCamera(peerId: string, isFrontCamera: boolean) {
     try {
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
-      if (!webrtcAdapter.isConnected) throw new Error("Webrtc not connected");
       await webrtcAdapter.switchCamera(isFrontCamera);
     } catch (error) {
-      callLog.error("call › camera toggle failed", { peerId, error });
+      callLog.error("call › camera switch failed", { peerId, error });
       throw error;
     }
   }
