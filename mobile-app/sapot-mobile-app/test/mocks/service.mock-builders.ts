@@ -35,6 +35,7 @@ export function createConnectionServiceDependencyMocks() {
 		handleOffer: jest.fn(),
 		handleAnswer: jest.fn(),
 		addIceCandidate: jest.fn(),
+		setIsPolite: jest.fn(),
 		sendDataMessage: jest.fn(),
 		initializeLocalStream: jest.fn(),
 		initializeLocalStreamEarly: jest.fn(),
