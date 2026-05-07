@@ -28,6 +28,7 @@ import {
 import { useMainContainer, useProfilePhoto, useServerAction, useToast, useUserProfile } from "../hooks";
 import { useSyncService } from "../hooks/use-sync-service";
 import { uiLog } from "../utils/logger";
+import Constants from "expo-constants";
 
 uiLog.debug("[custom-drawer-content] module loaded");
 
@@ -136,7 +137,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
       
       behavior={Platform.OS === "ios" 
         ? "padding" : "height"}
-              keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 20}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 20}
     >
       <GuestLogoutWarningModal
         visible={showLogoutWarning}
@@ -285,6 +286,10 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
         </View>
 
         <ServerHostInput />
+
+        <Text style={{ padding: 10 }}>
+          SAPOT v{Constants.expoConfig?.extra?.displayVersion}
+        </Text>
       </ScrollView>
       <Portal>
         <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
