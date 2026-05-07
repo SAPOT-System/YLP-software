@@ -1,0 +1,598 @@
+#+TITLE: Arduino GSM ↔ Python Architecture Plan
+#+AUTHOR: Emmanpip &ChatGPT
+#+DATE: 2026-05-07
+
+* Goal
+
+Build a layered SMS system using:
+
+#+begin_example
+Phone <-> GSM Module <-> Arduino <-> USB Serial <-> Python
+#+end_example
+
+The system should:
+
+1. Receive SMS messages
+2. Forward SMS data to Python
+3. Let Python decide responses
+4. Send SMS replies back through GSM
+
+FastAPI integration comes later.
+
+---
+
+* Architecture Decision
+
+Chosen Architecture: Option A (Thin Arduino)
+
+#+begin_example
+Phone
+  ↓
+GSM Module
+  ↓
+Arduino (bridge only)
+  ↓
+Python (application logic)
+#+end_example
+
+---
+
+* Responsibilities
+
+** GSM Module
+
+Responsibilities:
+- Connect to cellular network
+- Receive SMS
+- Send SMS
+
+Interface:
+- AT commands
+- UART serial
+
+The GSM module is treated as a dumb modem.
+
+---
+
+** Arduino
+
+Arduino acts only as a bridge layer.
+
+Responsibilities:
+- Read GSM responses
+- Detect if the module fails
+- Automatically reset the module until it functions, send log
+- Detect incoming SMS
+- Extract:
+  - sender number
+  - SMS body
+- Forward structured events to Python
+- Receive commands from Python
+- Execute GSM AT commands
+- Report success/failure events
+
+Arduino SHOULD NOT:
+- contain business logic
+- understand application commands
+- decide responses
+- store workflows
+- parse business meaning
+
+The Arduino firmware should remain generic.
+
+---
+
+** Python
+
+Python is the application brain.
+
+Responsibilities:
+- Parse SMS commands
+- Validate sender authorization
+- Handle business logic
+- Generate responses
+- Logging
+- Database integration later
+- FastAPI integration later
+
+---
+
+* Communication Design
+
+There are two communication layers.
+
+---
+
+** Layer 1: GSM ↔ Arduino
+
+Fixed protocol:
+- AT commands
+- GSM modem responses
+
+Example:
+
+#+begin_example
++CMT: "+639171234567","","26/05/07,10:30:00+32"
+HELLO
+#+end_example
+
+This protocol is controlled by the GSM modem.
+
+---
+
+** Layer 2: Arduino ↔ Python
+
+Custom serial protocol.
+
+Requirements:
+- Line-based
+- Human-readable
+- Easy to debug
+- One event per line
+
+Recommended structure:
+
+#+begin_example
+EVENT|DATA|DATA|DATA
+#+end_example
+
+---
+
+* Event Model
+
+System should be event-driven.
+
+Arduino emits EVENTS to Python.
+
+---
+
+** Incoming SMS Event
+
+Arduino → Python
+
+#+begin_example
+SMS_RECEIVED|+639171234567|PING
+#+end_example
+
+Fields:
+1. Event type
+2. Sender number
+3. SMS body
+
+---
+
+** SMS Sent Confirmation
+
+Arduino → Python
+
+#+begin_example
+SMS_SENT|+639171234567
+#+end_example
+
+Optional but recommended.
+
+---
+
+** SMS Failure
+
+Arduino → Python
+
+#+begin_example
+SMS_FAILED|+639171234567|NETWORK_ERROR
+#+end_example
+
+---
+
+** GSM Ready Event
+
+Arduino → Python
+
+#+begin_example
+GSM_READY
+#+end_example
+
+---
+
+** Network Status Events
+
+#+begin_example
+NETWORK_OK
+NETWORK_LOST
+SIM_MISSING
+#+end_example
+
+---
+
+* Python → Arduino Commands
+
+Python sends COMMANDS to Arduino.
+
+Recommended structure:
+
+#+begin_example
+COMMAND|DATA|DATA
+#+end_example
+
+Main command:
+
+#+begin_example
+SEND_SMS|+639171234567|PONG
+#+end_example
+
+---
+
+* SMS Command Strategy
+
+SMS body should follow:
+
+#+begin_example
+COMMAND[:ARGUMENTS]
+#+end_example
+
+Examples:
+
+#+begin_example
+PING
+STATUS
+TEMP
+LED:ON
+REGISTER:JOHN
+#+end_example
+
+Avoid natural-language SMS commands.
+
+Good:
+#+begin_example
+LED:ON
+#+end_example
+
+Bad:
+#+begin_example
+please turn on the light
+#+end_example
+
+Structured commands are:
+- predictable
+- easy to parse
+- scalable
+
+---
+
+* Parsing Strategy
+
+Arduino parses ONLY:
+- sender number
+- SMS body
+
+  
+Python parses:
+- command meaning
+- arguments
+- workflows
+
+Example:
+
+Incoming SMS body:
+#+begin_example
+LED:ON
+#+end_example
+
+Python parses:
+- command = LED
+- argument = ON
+
+---
+
+* Processing Pipeline
+
+#+begin_example
+Raw GSM Response
+    ↓
+Arduino extracts SMS
+    ↓
+Arduino emits serial event
+    ↓
+Python receives event
+    ↓
+Python parses command
+    ↓
+Python executes logic
+    ↓
+Python sends SEND_SMS command
+    ↓
+Arduino sends SMS via GSM
+#+end_example
+
+---
+
+* Reliability Planning
+
+** GSM Failures
+
+Arduino should monitor:
+- network registration
+- SIM presence
+- GSM readiness
+
+And emit events like:
+
+#+begin_example
+NETWORK_LOST
+SIM_MISSING
+#+end_example
+
+---
+
+** SMS Send Failures
+
+Arduino should notify Python:
+
+#+begin_example
+SMS_FAILED|+639171234567|TIMEOUT
+#+end_example
+
+---
+
+** Python Failure
+
+For MVP:
+- no message buffering
+- no retries
+- process only live serial data
+
+Keep initial system simple.
+
+---
+
+* Logging Strategy
+
+Log all events.
+
+Recommended fields:
+- timestamp
+- sender
+- message
+- response
+- status
+
+Example:
+
+#+begin_example
+[12:01:22]
+SMS_RECEIVED
+FROM: +639171234567
+BODY: PING
+#+end_example
+
+---
+
+* Security Planning
+
+Recommended MVP security:
+- whitelist authorized numbers
+
+Example:
+
+#+begin_example
+AUTHORIZED = [
+  "+639171234567"
+]
+#+end_example
+
+Avoid public unrestricted SMS control initially.
+
+---
+
+* Serial Communication Philosophy
+
+Treat serial communication like an API contract.
+
+Rules:
+- strict format
+- machine-readable
+- predictable
+- one event per line
+
+Avoid random debug prints mixed with protocol messages.
+
+Recommended prefixes:
+
+Protocol events:
+#+begin_example
+EVENT|...
+#+end_example
+
+Debug logs:
+#+begin_example
+LOG|...
+#+end_example
+
+---
+
+* Example End-to-End Flow
+
+** User Sends SMS
+
+#+begin_example
+PING
+#+end_example
+
+---
+
+** Arduino Emits Event
+
+#+begin_example
+SMS_RECEIVED|+639171234567|PING
+#+end_example
+
+---
+
+** Python Processes Command
+
+Python:
+- validates sender
+- parses command
+- generates response
+
+---
+
+** Python Sends Command
+
+#+begin_example
+SEND_SMS|+639171234567|PONG
+#+end_example
+
+---
+
+** Arduino Sends SMS
+
+Arduino executes GSM AT commands.
+
+---
+
+** Arduino Reports Success
+
+#+begin_example
+SMS_SENT|+639171234567
+#+end_example
+
+---
+
+* MVP Milestones
+
+** Milestone 1
+
+Goal:
+Receive SMS in Python console.
+
+Flow:
+
+#+begin_example
+Phone → GSM → Arduino → Python
+#+end_example
+
+---
+
+** Milestone 2
+
+Goal:
+Send SMS manually from Python.
+
+Flow:
+
+#+begin_example
+Python → Arduino → GSM → Phone
+#+end_example
+
+---
+
+** Milestone 3
+
+Goal:
+Automatic SMS reply.
+
+Example:
+
+#+begin_example
+PING → PONG
+#+end_example
+
+---
+
+** Milestone 4
+
+Goal:
+Command routing framework.
+
+Supported commands:
+
+#+begin_example
+STATUS
+TEMP
+RESTART
+#+end_example
+
+---
+
+* Core Architectural Principle
+
+Keep Arduino:
+- dumb
+- stateless
+- generic
+
+Keep Python:
+- smart
+- extensible
+- responsible for all business logic
+
+This makes future upgrades easier:
+- FastAPI
+- databases
+- dashboards
+- queues
+- cloud deployment
+- APIs
+
+  
+* Python Brain
+The python side will be responsible for creating the responses meant
+to be sent to clients who texted and will be texted.
+
+
+Showed below is the structure between a user and the system
+
+
+** User sends first chat to server
+
+#+BEGIN_SRC
+  hi there sapot server
+#+END_SRC
+
+** Server response
+#+BEGIN_SRC
+Hi! Welcome to SAPOT SMS relay feature. Please enter
+your target recipient with the following format
+
+[target] +6399238483948
+#+END_SRC
+
+** User sends the target
+#+BEGIN_SRC
+  [target] +639124323459
+#+END_SRC
+
+** Server responds
+*** if exists in the system
+#+BEGIN_SRC
+  Your message was forwarded to <username> both through SMS and the SAPOT app.
+  The user may or may not reply to this message of yours
+#+END_SRC
+
+if the user decides to send another message like ~hi <username>~,
+he/she will receive
+#+BEGIN_SRC
+  Your message was forwarded to <username> both through SMS and the SAPOT app.
+  The user may or may not reply to this message of yours
+#+END_SRC
+
+*** if the phone number does not exist on the system
+#+BEGIN_SRC
+  this user does not exist within the SAPOT database. Please enter a valid number.
+#+END_SRC
+the user will not be able to send messages here, and be prompted to
+start all over again.
+
+
+** NOTES
+The target for each phone number will not change for every message,
+user has to send another ~[target] <phone number>~ for it to change
+targets.
+
+
+if the user has no account on the SAPOT app, the system will send a
+message like
+
+
+~Your phone number does not exist within the SAPOT database, please
+create an account first.~
