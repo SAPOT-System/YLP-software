@@ -4,6 +4,7 @@ export type AxiosInterceptorMock = {
 
 export type AxiosInterceptorsMock = {
   request: AxiosInterceptorMock;
+  response: AxiosInterceptorMock;
 };
 
 export type AxiosInstanceMock = {
@@ -24,6 +25,9 @@ export function createMockAxiosInstance(
     defaults: {},
     interceptors: {
       request: {
+        use: interceptorUse,
+      },
+      response: {
         use: interceptorUse,
       },
     },
