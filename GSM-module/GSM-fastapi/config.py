@@ -14,13 +14,13 @@ import os
 
 class Settings:
     # Serial port the Arduino is connected to
-    serial_port: str = os.environ.get("SERIAL_PORT", "/dev/ttyUSB0")
+    serial_port: str = os.environ.get("SERIAL_PORT", "/dev/ttyACM0")
 
     # Baud rate — must match PC_BAUD in the Arduino sketch (9600)
     serial_baud: int = int(os.environ.get("SERIAL_BAUD", "9600"))
 
     # SQLite database file path
-    db_path: str = os.environ.get("DB_PATH", "sapot.db")
+    db_path: str = os.environ.get("DB_PATH", "mysql+pymysql://sapot:sapot@localhost:3306/sapot_db")
 
     # FastAPI host and port
     host: str = os.environ.get("HOST", "127.0.0.1")
