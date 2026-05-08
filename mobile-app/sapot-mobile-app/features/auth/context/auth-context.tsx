@@ -208,9 +208,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Network error
       if (!axiosError.response) {
-        setErrors({
-          general: "Network error. Please check your connection to the server.",
-        });
         return { success: false };
       }
 
