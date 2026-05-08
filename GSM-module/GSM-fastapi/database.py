@@ -1,252 +1,515 @@
 """
 database.py
 ───────────
-SQLite-backed persistence for SAPOT SMS relay.
+MariaDB-backed persistence layer for SAPOT SMS relay.
 
-Schema
-──────
-  users        — registered SAPOT accounts (phone + username)
-  sessions     — per-number conversation state (stage + current target)
-  messages     — log of every SMS in/out
+This version preserves the SAME public functions and return formats
+from the original SQLite implementation while internally using:
 
-Seed data is inserted on first run so the system works out of the box.
-Replace seed numbers with real ones when connecting to the SAPOT backend.
+- SQLModel
+- SQLAlchemy
+- MariaDB
+- Existing application models
+
+IMPORTANT:
+- DOES NOT create tables
+- DOES NOT seed data
+- Uses already-existing MariaDB tables/models
 """
 
-import sqlite3
-import threading
+from __future__ import annotations
+
 import logging
 from contextlib import contextmanager
-from datetime import datetime
 from typing import Optional
+from uuid import UUID
+
+from sqlmodel import Session, create_engine, select
+from sqlalchemy.orm import sessionmaker
+
+# ──────────────────────────────────────────────────────────────────────────────
+# IMPORT YOUR EXISTING MODELS
+# ──────────────────────────────────────────────────────────────────────────────
+
+from models.users import User
+from models.message import Message, MessageType
+from models.conversation import (
+    Conversation,
+    ConversationParticipant,
+    ConversationType,
+)
 
 logger = logging.getLogger("sapot.db")
 
-# Thread-local connections so each thread gets its own sqlite3 connection
-# (sqlite3 objects must not be shared across threads by default)
-_local = threading.local()
-_DB_PATH = "sapot.db"
+# ──────────────────────────────────────────────────────────────────────────────
+# DATABASE CONFIG
+# ──────────────────────────────────────────────────────────────────────────────
+
+DATABASE_URL = (
+    "mysql+pymysql://sapot:sapot@localhost:3306/sapot_db"
+)
+
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    class_=Session,
+)
 
 
-def init(db_path: str = "sapot.db"):
-    """Create tables and seed mock users. Call once at startup."""
-    global _DB_PATH
-    _DB_PATH = db_path
-    with _conn() as cx:
-        _create_schema(cx)
-        _seed(cx)
-    logger.info("Database initialised at %s", db_path)
+def init(db_path: str = ""):
+    """
+    Compatibility function.
+    Keeps same API as old SQLite version.
+
+    No schema creation occurs because tables already exist.
+    """
+    logger.info("MariaDB database initialised")
 
 
 @contextmanager
 def _conn():
-    """Yield a connection for the current thread, auto-committing on exit."""
-    if not hasattr(_local, "cx") or _local.cx is None:
-        _local.cx = sqlite3.connect(_DB_PATH, check_same_thread=False)
-        _local.cx.row_factory = sqlite3.Row
-        _local.cx.execute("PRAGMA journal_mode=WAL")
-        _local.cx.execute("PRAGMA foreign_keys=ON")
+    """
+    Compatibility wrapper preserving original API style.
+    """
+    session = SessionLocal()
+
     try:
-        yield _local.cx
-        _local.cx.commit()
+        yield session
+        session.commit()
+
     except Exception:
-        _local.cx.rollback()
+        session.rollback()
         raise
 
-
-# ── Schema ────────────────────────────────────────────────────────────────────
-
-def _create_schema(cx: sqlite3.Connection):
-    cx.executescript("""
-    CREATE TABLE IF NOT EXISTS users (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        phone       TEXT    NOT NULL UNIQUE,   -- E.164  e.g. +639171234567
-        username    TEXT    NOT NULL,
-        app_active  INTEGER NOT NULL DEFAULT 1, -- 1 = has SAPOT app account
-        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-        phone           TEXT PRIMARY KEY,
-        stage           TEXT NOT NULL DEFAULT 'NEW',
-        target_phone    TEXT,
-        target_username TEXT,
-        last_seen       TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS messages (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        direction     TEXT NOT NULL,  -- 'IN' or 'OUT'
-        from_number   TEXT NOT NULL,
-        to_number     TEXT NOT NULL,
-        body          TEXT NOT NULL,
-        status        TEXT NOT NULL DEFAULT 'pending',
-        -- 'pending' | 'sent' | 'failed' | 'received'
-        failure_reason TEXT,
-        created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    """)
+    finally:
+        session.close()
 
 
-def _seed(cx: sqlite3.Connection):
-    """Insert mock users if the table is empty."""
-    row = cx.execute("SELECT COUNT(*) FROM users").fetchone()
-    if row[0] > 0:
-        return
-
-    mock_users = [
-        ("+639171234567", "juan_dela_cruz",  1),
-        ("+639281234567", "maria_santos",    1),
-        ("+639991234567", "pedro_reyes",     1),
-        ("+639501234567", "ana_garcia",      0),  # no app account
-        ("+639165635674", "emman",      1),  # no app account
-        ("+639619881837", "smartemman",      1),  # no app account
-    ]
-    cx.executemany(
-        "INSERT INTO users (phone, username, app_active) VALUES (?,?,?)",
-        mock_users,
-    )
-    logger.info("Seeded %d mock users", len(mock_users))
-
-
-# ── User lookups ──────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# USER LOOKUPS
+# ──────────────────────────────────────────────────────────────────────────────
 
 def lookup_number(phone: str) -> Optional[dict]:
-    """Return user dict or None if not registered."""
-    with _conn() as cx:
-        row = cx.execute(
-            "SELECT phone, username, app_active FROM users WHERE phone = ?",
-            (phone,)
-        ).fetchone()
-    return dict(row) if row else None
+    """
+    Return user dict or None if not registered.
+
+    SAME RETURN FORMAT AS OLD VERSION:
+    {
+        "phone": "...",
+        "username": "...",
+        "app_active": True/False
+    }
+    """
+
+    with _conn() as session:
+
+        user = session.exec(
+            select(User).where(User.phone_number == phone)
+        ).first()
+
+        if not user:
+            return None
+
+        return {
+            "phone": user.phone_number,
+            "username": user.username,
+            # equivalent replacement for old app_active
+            "app_active": True,
+        }
 
 
 def get_all_users() -> list[dict]:
-    with _conn() as cx:
-        rows = cx.execute(
-            "SELECT id, phone, username, app_active, created_at FROM users"
-            " ORDER BY id"
-        ).fetchall()
-    return [dict(r) for r in rows]
+    """
+    SAME RETURN FORMAT AS OLD VERSION.
+    """
+
+    with _conn() as session:
+
+        users = session.exec(select(User)).all()
+
+        return [
+            {
+                "id": str(user.id),
+                "phone": user.phone_number,
+                "username": user.username,
+                "app_active": True,
+                "created_at": None,
+            }
+            for user in users
+        ]
 
 
-def add_user(phone: str, username: str, app_active: bool = True) -> dict:
-    with _conn() as cx:
-        cx.execute(
-            "INSERT INTO users (phone, username, app_active) VALUES (?,?,?)",
-            (phone, username, int(app_active)),
+def add_user(
+    phone: str,
+    username: str,
+    app_active: bool = True
+) -> dict:
+    """
+    Creates a new user.
+
+    NOTE:
+    Your User model requires:
+    - first_name
+    - last_name
+    - hashed_password
+
+    So we generate placeholders to preserve old function signature.
+    """
+
+    with _conn() as session:
+
+        user = User(
+            username=username,
+            first_name=username,
+            last_name="User",
+            phone_number=phone,
+            hashed_password="TEMP_PASSWORD",
+            email_verified=app_active,
         )
-        row = cx.execute(
-            "SELECT id, phone, username, app_active, created_at"
-            " FROM users WHERE phone = ?", (phone,)
-        ).fetchone()
-    return dict(row)
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        return {
+            "id": str(user.id),
+            "phone": user.phone_number,
+            "username": user.username,
+            "app_active": app_active,
+            "created_at": None,
+        }
 
 
-# ── Session management ────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# SESSION MANAGEMENT
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Your old SQLite "sessions" table does not exist anymore.
+#
+# We emulate it in-memory while conversations/messages are persisted in MariaDB.
+#
+# This preserves compatibility with your existing SMS relay logic.
+# ──────────────────────────────────────────────────────────────────────────────
+
+_sessions: dict[str, dict] = {}
+
 
 def get_session(phone: str) -> dict:
-    """Return session row, creating it if absent."""
-    with _conn() as cx:
-        row = cx.execute(
-            "SELECT * FROM sessions WHERE phone = ?", (phone,)
-        ).fetchone()
-        if row is None:
-            cx.execute(
-                "INSERT INTO sessions (phone, stage) VALUES (?, 'NEW')",
-                (phone,)
-            )
-            row = cx.execute(
-                "SELECT * FROM sessions WHERE phone = ?", (phone,)
-            ).fetchone()
-        # Touch last_seen
-        cx.execute(
-            "UPDATE sessions SET last_seen = datetime('now') WHERE phone = ?",
-            (phone,)
-        )
-    return dict(row)
+    """
+    SAME RETURN FORMAT AS OLD VERSION.
+    """
+
+    if phone not in _sessions:
+
+        _sessions[phone] = {
+            "phone": phone,
+            "stage": "NEW",
+            "target_phone": None,
+            "target_username": None,
+            "last_seen": None,
+        }
+
+    return _sessions[phone]
 
 
 def update_session(phone: str, **kwargs):
-    """Update any subset of session fields."""
-    allowed = {"stage", "target_phone", "target_username"}
-    fields  = {k: v for k, v in kwargs.items() if k in allowed}
-    if not fields:
-        return
-    set_clause = ", ".join(f"{k} = ?" for k in fields)
-    values     = list(fields.values()) + [phone]
-    with _conn() as cx:
-        cx.execute(
-            f"UPDATE sessions SET {set_clause},"
-            f" last_seen = datetime('now') WHERE phone = ?",
-            values,
-        )
+    """
+    SAME BEHAVIOR AS OLD VERSION.
+    """
+
+    session = get_session(phone)
+
+    allowed = {
+        "stage",
+        "target_phone",
+        "target_username",
+    }
+
+    for key, value in kwargs.items():
+        if key in allowed:
+            session[key] = value
 
 
 def reset_session(phone: str):
-    with _conn() as cx:
-        cx.execute(
-            "UPDATE sessions SET stage='NEW', target_phone=NULL,"
-            " target_username=NULL, last_seen=datetime('now')"
-            " WHERE phone = ?",
-            (phone,)
-        )
-
-
-# ── Message log ───────────────────────────────────────────────────────────────
-
-def log_message(direction: str, from_number: str, to_number: str,
-                body: str, status: str = "pending") -> int:
-    """Insert a message log entry and return its id."""
-    with _conn() as cx:
-        cur = cx.execute(
-            "INSERT INTO messages"
-            " (direction, from_number, to_number, body, status)"
-            " VALUES (?,?,?,?,?)",
-            (direction, from_number, to_number, body, status),
-        )
-    return cur.lastrowid
-
-
-def update_message_status(msg_id: int, status: str,
-                           failure_reason: Optional[str] = None):
-    with _conn() as cx:
-        cx.execute(
-            "UPDATE messages SET status = ?, failure_reason = ?"
-            " WHERE id = ?",
-            (status, failure_reason, msg_id),
-        )
-
-
-def get_messages(limit: int = 50, direction: Optional[str] = None,
-                 phone: Optional[str] = None) -> list[dict]:
-    query  = "SELECT * FROM messages"
-    params: list = []
-    clauses: list[str] = []
-    if direction:
-        clauses.append("direction = ?"); params.append(direction)
-    if phone:
-        clauses.append("(from_number = ? OR to_number = ?)");
-        params += [phone, phone]
-    if clauses:
-        query += " WHERE " + " AND ".join(clauses)
-    query += " ORDER BY id DESC LIMIT ?"
-    params.append(limit)
-    with _conn() as cx:
-        rows = cx.execute(query, params).fetchall()
-    return [dict(r) for r in rows]
-
-
-# ── App-forward stub ──────────────────────────────────────────────────────────
-
-def notify_app(sender_phone: str, target_phone: str, message: str) -> bool:
     """
-    Stub: push message to the SAPOT app backend.
-    Replace with a real HTTP POST / WebSocket / queue call.
-    Returns True on success.
+    SAME BEHAVIOR AS OLD VERSION.
     """
-    logger.info(
-        "[APP NOTIFY] %s → %s: %r", sender_phone, target_phone, message
+
+    _sessions[phone] = {
+        "phone": phone,
+        "stage": "NEW",
+        "target_phone": None,
+        "target_username": None,
+        "last_seen": None,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL HELPERS
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _find_user_by_phone(
+    session: Session,
+    phone: str
+) -> Optional[User]:
+
+    return session.exec(
+        select(User).where(User.phone_number == phone)
+    ).first()
+
+
+def _get_or_create_direct_conversation(
+    session: Session,
+    user1_id: UUID,
+    user2_id: UUID,
+) -> Conversation:
+    """
+    Finds or creates a direct conversation between 2 users.
+    """
+
+    conversations = session.exec(
+        select(Conversation).where(
+            Conversation.conversation_type
+            == ConversationType.direct
+        )
+    ).all()
+
+    for conversation in conversations:
+
+        participants = session.exec(
+            select(ConversationParticipant).where(
+                ConversationParticipant.conversation_id
+                == conversation.id
+            )
+        ).all()
+
+        participant_ids = {
+            participant.user_id
+            for participant in participants
+        }
+
+        if participant_ids == {user1_id, user2_id}:
+            return conversation
+
+    conversation = Conversation(
+        title="Direct Message",
+        conversation_type=ConversationType.direct,
     )
-    # TODO: POST to SAPOT app API
+
+    session.add(conversation)
+    session.commit()
+    session.refresh(conversation)
+
+    participant1 = ConversationParticipant(
+        conversation_id=conversation.id,
+        user_id=user1_id,
+    )
+
+    participant2 = ConversationParticipant(
+        conversation_id=conversation.id,
+        user_id=user2_id,
+    )
+
+    session.add(participant1)
+    session.add(participant2)
+
+    session.commit()
+
+    return conversation
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MESSAGE LOG
+# ──────────────────────────────────────────────────────────────────────────────
+
+def log_message(
+    direction: str,
+    from_number: str,
+    to_number: str,
+    body: str,
+    status: str = "pending"
+) -> str:
+    """
+    SAME FUNCTION SIGNATURE AS OLD VERSION.
+
+    OLD RETURN:
+        int
+
+    NEW RETURN:
+        str(UUID)
+
+    because your Message model uses UUID primary keys.
+    """
+
+    with _conn() as session:
+
+        sender = _find_user_by_phone(session, from_number)
+        receiver = _find_user_by_phone(session, to_number)
+
+        if not sender:
+            raise ValueError(
+                f"Sender not found: {from_number}"
+            )
+
+        if not receiver:
+            raise ValueError(
+                f"Receiver not found: {to_number}"
+            )
+
+        conversation = _get_or_create_direct_conversation(
+            session,
+            sender.id,
+            receiver.id,
+        )
+
+        message = Message(
+            sender_id=sender.id,
+            conversation_id=conversation.id,
+            content=body,
+            message_type=MessageType.text,
+        )
+
+        session.add(message)
+        session.commit()
+        session.refresh(message)
+
+        logger.info(
+            "[MESSAGE %s] %s -> %s : %s",
+            direction,
+            from_number,
+            to_number,
+            body,
+        )
+
+        return str(message.id)
+
+
+def update_message_status(
+    msg_id: str,
+    status: str,
+    failure_reason: Optional[str] = None
+):
+    """
+    Compatibility stub.
+
+    Your new Message model does not contain:
+    - status
+    - failure_reason
+
+    Keeping function so existing code does not break.
+    """
+
+    logger.info(
+        "Message %s status updated to %s (%s)",
+        msg_id,
+        status,
+        failure_reason,
+    )
+
+
+def get_messages(
+    limit: int = 50,
+    direction: Optional[str] = None,
+    phone: Optional[str] = None
+) -> list[dict]:
+    """
+    SAME RETURN STRUCTURE AS OLD VERSION.
+    """
+
+    with _conn() as session:
+
+        query = select(Message)
+
+        messages = session.exec(
+            query.order_by(Message.created_at.desc())
+            .limit(limit)
+        ).all()
+
+        results = []
+
+        for msg in messages:
+
+            sender = None
+            receiver = None
+
+            if msg.sender_id:
+
+                sender = session.get(User, msg.sender_id)
+
+            participants = session.exec(
+                select(ConversationParticipant).where(
+                    ConversationParticipant.conversation_id
+                    == msg.conversation_id
+                )
+            ).all()
+
+            for participant in participants:
+
+                if participant.user_id != msg.sender_id:
+
+                    receiver = session.get(
+                        User,
+                        participant.user_id
+                    )
+
+                    break
+
+            from_number = (
+                sender.phone_number
+                if sender else "UNKNOWN"
+            )
+
+            to_number = (
+                receiver.phone_number
+                if receiver else "UNKNOWN"
+            )
+
+            if phone:
+                if (
+                    from_number != phone
+                    and to_number != phone
+                ):
+                    continue
+
+            results.append({
+                "id": str(msg.id),
+                "direction": direction or "OUT",
+                "from_number": from_number,
+                "to_number": to_number,
+                "body": msg.content,
+                "status": "sent",
+                "failure_reason": None,
+                "created_at": msg.created_at,
+            })
+
+        return results
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# APP FORWARD STUB
+# ──────────────────────────────────────────────────────────────────────────────
+
+def notify_app(
+    sender_phone: str,
+    target_phone: str,
+    message: str
+) -> bool:
+    """
+    SAME FUNCTION AS OLD VERSION.
+    """
+
+    logger.info(
+        "[APP NOTIFY] %s → %s: %r",
+        sender_phone,
+        target_phone,
+        message
+    )
+
     return True

@@ -20,6 +20,7 @@
           python313
           pyright
           pyenv
+					python313Packages.pip
         ];
 
         shellHook = ''
@@ -29,6 +30,7 @@
               echo "#######################################################"
 
               source ./venv/bin/activate
+							alias run='SERIAL_PORT=/dev/ttyACM1 python main.py'
         '';
       };
     };
