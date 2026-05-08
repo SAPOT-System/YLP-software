@@ -6,12 +6,14 @@ import { useGlobalCallEndedListener } from "@/features/call/hooks/use-global-cal
 import { ChatRoomSource } from "@/features/chat/types";
 import { GpsPreferenceProvider } from "@/features/gps/context/gps-preference-context";
 import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
-import { ServerStatusBanner } from "@/features/shared/components/server-status-banner";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
+import { ServerStatusBanner } from "@/features/shared/components/server-status-banner";
+import { ZeroconfStatusIndicator } from "@/features/shared/components/zeroconf-status-indicator";
 import { HealthProvider, MainContainerProvider, useAppMode } from "@/features/shared/context";
 import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
 import { useForegroundSync } from "@/features/shared/hooks/use-foreground-sync";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
+import { useZeroconfPublished } from "@/features/shared/hooks/use-zeroconf-published";
 import { navLog } from "@/features/shared/utils/logger";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -43,14 +45,59 @@ const labelIcon = {
   lan: "lan",
 } as const;
 
+function HeaderRight() {
+  const { isPublished, isZeroconfAllowed } = useZeroconfPublished();
+  const { store } = useAppMode();
+
+  return (
+    <View
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        marginRight: 16,
+      }}
+    >
+      <ZeroconfStatusIndicator
+        isPublished={isPublished}
+        isZeroconfAllowed={isZeroconfAllowed}
+      />
+      <View
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          width: 60,
+          height: 23,
+          paddingVertical: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor: "#103462",
+        }}
+      >
+        <Icon source={labelIcon[store.mode]} size={12} color="#103462" />
+        <Text
+          style={{
+            marginLeft: 2,
+            fontSize: 11,
+            lineHeight: 13,
+            fontWeight: "600",
+            color: "#103462",
+          }}
+        >
+          {store.mode.toUpperCase()}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function DrawerLayout() {
   const { isAuthenticated, loading, isGuest, isRescuer } = useAuth();
   const theme = useTheme();
-  const { store } = useAppMode();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { unregister } = useBackgroundTask();
-
-  const modeLabel = store.mode.toUpperCase();
   const handledNotifIdRef = useRef<string | null>(null);
   const handledNotifTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -284,36 +331,7 @@ export default function DrawerLayout() {
                           </View>
                         </TouchableOpacity>
                       ),
-                      headerRight: () => (
-                        <View
-                          style={{
-                            display: "flex",
-                            flexDirection: "row",
-                            width: 60,
-                            height: 23,
-                            marginRight: 16,
-                            paddingVertical: 1,
-                            justifyContent: "center",
-                            alignItems: "center",
-                            borderRadius: 20,
-                            borderWidth: 1,
-                            borderColor: "#103462",
-                          }}
-                        >
-                          <Icon source={labelIcon[store.mode]} size={12} color="#103462" />
-                          <Text
-                            style={{
-                              marginLeft: 2,
-                              fontSize: 11,
-                              lineHeight: 13,
-                              fontWeight: "600",
-                              color: "#103462",
-                            }}
-                          >
-                            {modeLabel}
-                          </Text>
-                        </View>
-                      ),
+                      headerRight: () => <HeaderRight />,
                     };
                   }}
                 />

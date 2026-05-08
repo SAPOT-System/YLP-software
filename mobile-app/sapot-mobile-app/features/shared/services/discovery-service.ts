@@ -16,6 +16,8 @@ export class DiscoveryService {
   private chatService?: ChatService;
   private publishDeviceName: string = "";
   private intervalId: number = 0;
+  private published: boolean = false;
+  private publishedListeners = new Set<() => void>();
 
   /**
    * Constructs a DiscoveryService instance and sets up event listeners for service resolution and removal.
@@ -203,20 +205,19 @@ export class DiscoveryService {
    * Publishes this device/service on the local network so it can be discovered by others.
    * The service/device name is made unique to avoid conflicts.
    */
-  publishDevice() {
+  async publishDevice(): Promise<void> {
     try {
       if (!this.isZeroconfAllowed()) {
         discoveryLog.info("discovery › publish skipped", { reason: "mode" });
         return;
       }
-      // The service/device name must be unique to avoid conflict/error
-      this.publishDeviceName = `Device-${Date.now()}`;
+      const publishDeviceName = `Device-${Date.now()}`;
 
-      this.adapter.publishService({
+      await this.adapter.publishService({
         type: "lanchat",
         protocol: "tcp",
         domain: "local.",
-        name: this.publishDeviceName,
+        name: publishDeviceName,
         port: this.networkConfig.port,
         txt: {
           id: this.sessionStore.userId,
@@ -225,8 +226,15 @@ export class DiscoveryService {
           lastName: this.userStore.user.lastName || "",
         },
       });
+
+      this.publishDeviceName = publishDeviceName;
+      discoveryLog.info("discovery › device published", {
+        serviceName: this.publishDeviceName,
+      });
+      this.setPublished(true);
     } catch (error) {
       discoveryLog.error("discovery › publish failed", { error });
+      this.setPublished(false);
       throw error;
     }
   }
@@ -236,13 +244,32 @@ export class DiscoveryService {
    */
   destroy() {
     try {
-      this.adapter.cleanUp(this.publishDeviceName);
+      if (this.publishDeviceName) {
+        this.adapter.cleanUp(this.publishDeviceName);
+      }
       if (this.intervalId) clearInterval(this.intervalId);
       this.peerService.cleanUp();
+      this.setPublished(false);
     } catch (error) {
       discoveryLog.error("discovery › destroy failed", { error });
       throw error;
     }
+  }
+
+  isPublished(): boolean {
+    return this.published;
+  }
+
+  subscribeToPublished(listener: () => void): () => void {
+    this.publishedListeners.add(listener);
+    return () => this.publishedListeners.delete(listener);
+  }
+
+  private setPublished(value: boolean): void {
+    if (this.published === value) return;
+    this.published = value;
+    discoveryLog.debug("discovery › published state changed", { published: value });
+    this.publishedListeners.forEach((listener) => listener());
   }
 
   private isZeroconfAllowed(): boolean {

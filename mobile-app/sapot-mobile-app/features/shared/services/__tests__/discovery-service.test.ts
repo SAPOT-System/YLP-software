@@ -69,6 +69,8 @@ describe("DiscoveryService", () => {
     jest.mocked(PeerService).mockImplementation(() => mockPeerService);
     jest.mocked(ChatService).mockImplementation(() => mockChatService);
 
+    mockZeroconfAdapter.publishService.mockResolvedValue(undefined);
+
     // Create service instance
     discoveryService = new DiscoveryService(
       mockZeroconfAdapter,
@@ -83,6 +85,7 @@ describe("DiscoveryService", () => {
   afterEach(() => {
     jest.clearAllMocks();
     jest.clearAllTimers();
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 
@@ -209,6 +212,43 @@ describe("DiscoveryService", () => {
     });
   });
 
+  describe("publishDevice", () => {
+    it("publishes the service and stores the published name after success", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234);
+
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
+
+      expect(mockZeroconfAdapter.publishService).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "lanchat",
+          protocol: "tcp",
+          domain: "local.",
+          name: "Device-1234",
+          port: mockNetworkConfig.port,
+          txt: {
+            id: mockSessionStore.userId,
+            username: mockUserStore.user.username,
+            firstName: mockUserStore.user.firstName,
+            lastName: mockUserStore.user.lastName || "",
+          },
+        })
+      );
+
+      discoveryService.destroy();
+
+      expect(mockZeroconfAdapter.cleanUp).toHaveBeenCalledWith("Device-1234");
+      dateNowSpy.mockRestore();
+    });
+
+    it("skips publishing when zeroconf is not allowed", async () => {
+      mockAppModeStore.isZeroconfAllowed.mockReturnValue(false);
+
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
+
+      expect(mockZeroconfAdapter.publishService).not.toHaveBeenCalled();
+    });
+  });
+
   describe("setConnectionService", () => {
     let mockConnectionService: { on: jest.Mock };
 
@@ -306,32 +346,47 @@ describe("DiscoveryService", () => {
   });
 
   describe("publishDevice", () => {
-    it("should publish device on network", () => {
-      jest.spyOn(Date, "now").mockReturnValue(1234567890);
+    it("publishes the service and stores the published name after success", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234567890);
 
-      discoveryService.publishDevice();
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
 
-      expect(mockZeroconfAdapter.publishService).toHaveBeenCalledWith({
-        type: "lanchat",
-        protocol: "tcp",
-        domain: "local.",
-        name: "Device-1234567890",
-        port: mockNetworkConfig.port,
-        txt: {
-          id: mockSessionStore.userId,
-          username: mockUserStore.user.username,
-          firstName: mockUserStore.user.firstName,
-          lastName: mockUserStore.user.lastName || "",
-        },
-      });
+      expect(mockZeroconfAdapter.publishService).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "lanchat",
+          protocol: "tcp",
+          domain: "local.",
+          name: "Device-1234567890",
+          port: mockNetworkConfig.port,
+          txt: {
+            id: mockSessionStore.userId,
+            username: mockUserStore.user.username,
+            firstName: mockUserStore.user.firstName,
+            lastName: mockUserStore.user.lastName || "",
+          },
+        })
+      );
+
+      discoveryService.destroy();
+
+      expect(mockZeroconfAdapter.cleanUp).toHaveBeenCalledWith("Device-1234567890");
+      dateNowSpy.mockRestore();
     });
 
-    it("should throw error if publishService fails", () => {
-      mockZeroconfAdapter.publishService.mockImplementation(() => {
-        throw new Error("Publish service failed");
-      });
+    it("skips publishing when zeroconf is not allowed", async () => {
+      mockAppModeStore.isZeroconfAllowed.mockReturnValue(false);
 
-      expect(() => discoveryService.publishDevice()).toThrow(
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
+
+      expect(mockZeroconfAdapter.publishService).not.toHaveBeenCalled();
+    });
+
+    it("propagates publish failures", async () => {
+      mockZeroconfAdapter.publishService.mockRejectedValue(
+        new Error("Publish service failed")
+      );
+
+      await expect(discoveryService.publishDevice()).rejects.toThrow(
         "Publish service failed"
       );
     });
@@ -437,9 +492,9 @@ describe("DiscoveryService", () => {
   });
 
   describe("destroy", () => {
-    it("should cleanup resources", () => {
-      jest.spyOn(Date, "now").mockReturnValue(1234567890);
-      discoveryService.publishDevice(); // Sets publishDeviceName
+    it("should cleanup resources", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234567890);
+      await discoveryService.publishDevice();
 
       discoveryService.destroy();
 
@@ -447,6 +502,7 @@ describe("DiscoveryService", () => {
         "Device-1234567890"
       );
       expect(mockPeerService.cleanUp).toHaveBeenCalled();
+      dateNowSpy.mockRestore();
     });
 
     it("should clear interval if it exists", () => {
@@ -459,12 +515,68 @@ describe("DiscoveryService", () => {
       expect(clearIntervalSpy).toHaveBeenCalledWith(123);
     });
 
-    it("should throw error if cleanup fails", () => {
+    it("should throw error if cleanup fails", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234567890);
+      await discoveryService.publishDevice();
       mockZeroconfAdapter.cleanUp.mockImplementation(() => {
         throw new Error("Cleanup failed");
       });
 
       expect(() => discoveryService.destroy()).toThrow("Cleanup failed");
+      dateNowSpy.mockRestore();
+    });
+  });
+
+  describe("publication state tracking", () => {
+    it("should set published to true after successful publish", async () => {
+      expect(discoveryService.isPublished()).toBe(false);
+
+      await discoveryService.publishDevice();
+
+      expect(discoveryService.isPublished()).toBe(true);
+    });
+
+    it("should set published to false after failed publish", async () => {
+      mockZeroconfAdapter.publishService.mockRejectedValue(
+        new Error("Publish failed")
+      );
+
+      try {
+        await discoveryService.publishDevice();
+      } catch {
+        // Expected to fail
+      }
+
+      expect(discoveryService.isPublished()).toBe(false);
+    });
+
+    it("should set published to false on destroy", async () => {
+      await discoveryService.publishDevice();
+      expect(discoveryService.isPublished()).toBe(true);
+
+      discoveryService.destroy();
+
+      expect(discoveryService.isPublished()).toBe(false);
+    });
+
+    it("should notify listeners when publication state changes", async () => {
+      const listener = jest.fn();
+      discoveryService.subscribeToPublished(listener);
+
+      await discoveryService.publishDevice();
+
+      expect(listener).toHaveBeenCalled();
+    });
+
+    it("should allow unsubscribing from publication state changes", async () => {
+      const listener = jest.fn();
+      const unsubscribe = discoveryService.subscribeToPublished(listener);
+
+      unsubscribe();
+
+      await discoveryService.publishDevice();
+
+      expect(listener).not.toHaveBeenCalled();
     });
   });
 });

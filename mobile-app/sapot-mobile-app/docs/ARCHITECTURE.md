@@ -49,7 +49,7 @@ React context provider: `features/shared/context/main-container-context.tsx`
 | `CallMediaService` | Initializes and manages local mic/camera streams |
 | `CallService` | Call lifecycle, audio routing (earpiece/speaker/Bluetooth) |
 | `ChatService` | Message send/receive and persistence via WebRTC data channels |
-| `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN |
+| `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service only after `ZeroconfAdapter` confirms publication. |
 | `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
 | `CleanUpService` | Cleanup of stale data and connections |
 
@@ -102,7 +102,7 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 | `TcpClientAdapter` | `react-native-tcp-socket` (client, one per peer) |
 | `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat — shared by `SignalingService`, `ConnectionService`, and `PublicChatService` |
 | `WebrtcAdapter` | `react-native-webrtc` (RTCPeerConnection, one per peer) |
-| `ZeroconfAdapter` | `react-native-zeroconf` |
+| `ZeroconfAdapter` | `react-native-zeroconf`. Exposes publish confirmation via the native `published` event. |
 
 ---
 

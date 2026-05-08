@@ -55,11 +55,30 @@ export default function Chat() {
   }, []);
 
   useEffect(() => {
-    discoveryService.publishDevice();
-    discoveryService.startDiscovery();
-    connectionService.start();
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await discoveryService.publishDevice();
+
+        if (cancelled) {
+          return;
+        }
+
+        discoveryService.startDiscovery();
+        connectionService.start();
+      } catch (error) {
+        uiLog.error("[Chat] failed to publish discovery service", { error });
+
+        if (!cancelled) {
+          discoveryService.startDiscovery();
+          connectionService.start();
+        }
+      }
+    })();
 
     return () => {
+      cancelled = true;
       discoveryService.destroy();
       connectionService.stop();
     };

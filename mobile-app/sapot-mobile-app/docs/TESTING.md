@@ -63,7 +63,7 @@ Global mocks are set up in `jest-setup.js`. These run before every test file.
 | `@nozbe/watermelondb` | No SQLite in test environment |
 | `react-native-webrtc` | Native module — not available in Jest |
 | `react-native-tcp-socket` | Native module |
-| `react-native-zeroconf` | Native module |
+| `react-native-zeroconf` | Native module. Mock publication should emit a matching `published` event before the publish promise resolves. |
 | `expo-background-task` | Native module |
 | `expo-notifications` | Native module |
 | `expo-task-manager` | Native module |
@@ -97,7 +97,7 @@ A base `FactoryBuilder` class used by all factories. Provides a fluent API for c
 
 | Mock | Provides |
 |---|---|
-| `AdapterMockBuilder` | Mock `TcpServerAdapter`, `TcpClientAdapter`, `WsSignalingAdapter`, `WebrtcAdapter`, `ZeroconfAdapter` |
+| `AdapterMockBuilder` | Mock `TcpServerAdapter`, `TcpClientAdapter`, `WsSignalingAdapter`, `WebrtcAdapter`, `ZeroconfAdapter`. For Zeroconf publish tests, wire `published` and `error` events so the publish promise can resolve or reject deterministically. |
 | `ApiMockBuilder` | Mocked axios calls for API endpoints |
 | `AuthMockBuilder` | `SessionStore`, `UserStore` mocks |
 | `ServiceMockBuilder` | `ConnectionService`, `SignalingService`, `WebrtcSessionManager`, `CallMediaService` mocks |

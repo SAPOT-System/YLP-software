@@ -86,43 +86,81 @@ export class ZeroconfAdapter extends EventEmitter {
    * @param service The service details (type, protocol, domain, name, port, txt)
    * @throws Error if publishing fails
    */
-  publishService(service: PublishedService): void {
-    try {
-      if (!this.zeroconf) {
-        zeroconfLog.warn("zeroconf › not initialized");
-        return;
+  publishService(service: PublishedService): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        if (!this.zeroconf) {
+          const error = new Error("Zeroconf not initialized");
+          zeroconfLog.warn("zeroconf › not initialized");
+          reject(error);
+          return;
+        }
+
+        let settled = false;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+        const cleanup = () => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = undefined;
+          }
+
+          this.zeroconf.removeListener("published", onPublished);
+          this.zeroconf.removeListener("error", onError);
+        };
+
+        const settle = (callback: () => void) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          callback();
+        };
+
+        const onPublished = (publishedService: { name?: string }) => {
+          if (publishedService?.name !== service.name) {
+            return;
+          }
+
+          zeroconfLog.info("zeroconf › service published", {
+            hasServiceName: Boolean(publishedService?.name),
+          });
+
+          settle(resolve);
+        };
+
+        const onError = (error: Error) => {
+          zeroconfLog.error("zeroconf › publish error", { error });
+          settle(() => reject(error));
+        };
+
+        this.zeroconf.on("published", onPublished);
+        this.zeroconf.on("error", onError);
+
+        timeoutId = setTimeout(() => {
+          const error = new Error(
+            `Timed out waiting for Zeroconf to publish ${service.name}`
+          );
+          zeroconfLog.error("zeroconf › publish timed out", {
+            serviceName: service.name,
+          });
+          settle(() => reject(error));
+        }, 5000);
+
+        setTimeout(() => {
+          this.zeroconf.publishService(
+            service.type,
+            service.protocol,
+            service.domain,
+            service.name,
+            service.port,
+            service.txt
+          );
+        }, 500);
+      } catch (error) {
+        zeroconfLog.error("zeroconf › publish failed", { error });
+        reject(error as Error);
       }
-
-      this.zeroconf.on("published", (service) => {
-        zeroconfLog.info("zeroconf › service published", {
-          hasServiceName: Boolean(service?.name),
-        });
-      });
-
-      this.zeroconf.on("unpublished", (service) => {
-        zeroconfLog.info("zeroconf › service unpublished", {
-          hasServiceName: Boolean(service?.name),
-        });
-      });
-
-      this.zeroconf.on("error", (err) => {
-        zeroconfLog.error("zeroconf › publish error", { error: err });
-      });
-
-      setTimeout(() => {
-        this.zeroconf.publishService(
-          service.type,
-          service.protocol,
-          service.domain,
-          service.name,
-          service.port,
-          service.txt
-        );
-      }, 500);
-    } catch (error) {
-      zeroconfLog.error("zeroconf › publish failed", { error });
-      throw error;
-    }
+    });
   }
 
   /**

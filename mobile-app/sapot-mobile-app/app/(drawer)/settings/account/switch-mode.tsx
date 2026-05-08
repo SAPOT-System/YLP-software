@@ -41,7 +41,7 @@ export default function SwitchMode() {
     lan: "LAN",
   };
 
-  const applyMode = (nextMode: "auto" | "server" | "lan") => {
+  const applyMode = async (nextMode: "auto" | "server" | "lan") => {
     uiLog.debug("[SwitchMode] applyMode called", { nextMode });
     if (mode === nextMode) return;
     setMode(nextMode);
@@ -51,7 +51,13 @@ export default function SwitchMode() {
 
     if (allowZeroconf) {
       uiLog.info("[SwitchMode] enabling zeroconf");
-      discoveryService.publishDevice();
+      try {
+        await discoveryService.publishDevice();
+      } catch (error) {
+        uiLog.error("[SwitchMode] failed to publish discovery service", {
+          error,
+        });
+      }
       discoveryService.startDiscovery();
     } else {
       uiLog.info("[SwitchMode] disabling zeroconf");
@@ -72,7 +78,9 @@ export default function SwitchMode() {
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 16 }}>
         <RadioButton.Group
-          onValueChange={(value) => applyMode(value as "auto" | "server" | "lan")}
+          onValueChange={(value) => {
+            void applyMode(value as "auto" | "server" | "lan");
+          }}
           value={effectiveMode}
         >
           {allowedModes.map((allowedMode) => (
