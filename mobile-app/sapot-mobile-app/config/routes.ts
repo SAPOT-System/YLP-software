@@ -49,6 +49,7 @@ export const APP_ROUTES = {
   SEARCH: "/(drawer)/search",
   SCAN_QR: "/(drawer)/(tabs)/scan-qr",
   PEER_PROFILE: "/(drawer)/(tabs)/peer/[id]",
+  ANNOUNCEMENTS: "/(drawer)/announcements",
 } as const;
 
 routesLog.debug("[Routes] loaded");

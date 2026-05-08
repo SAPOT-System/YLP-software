@@ -1,5 +1,6 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
+import { AnnouncementSeenProvider } from "@/features/announcements/context/announcement-seen-context";
 import { CallBanner } from "@/features/call/components/call-banner";
 import { CallProvider } from "@/features/call/context/call-context";
 import { useGlobalCallEndedListener } from "@/features/call/hooks/use-global-call-ended-listener";
@@ -228,6 +229,7 @@ export default function DrawerLayout() {
           <GlobalCallEndedEffect />
           <ForegroundSyncEffect />
           <QueryClientProvider client={queryClient}>
+            <AnnouncementSeenProvider>
             <CallProvider>
               <CallBanner />
               <Drawer
@@ -345,6 +347,15 @@ export default function DrawerLayout() {
                   }}
                 />
                 <Drawer.Screen
+                  name="announcements"
+                  options={{
+                    drawerLabel: "announcements",
+                    drawerItemStyle: { display: "none" },
+                    title: "Announcements",
+                    headerShown: false,
+                  }}
+                />
+                <Drawer.Screen
                   name="gps"
                   options={{
                     drawerLabel: "map",
@@ -363,6 +374,7 @@ export default function DrawerLayout() {
                 />
               </Drawer>
             </CallProvider>
+            </AnnouncementSeenProvider>
           </QueryClientProvider>
         </MainContainerProvider>
       </GpsPreferenceProvider>
