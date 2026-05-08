@@ -18,7 +18,10 @@ Two categories of tables
 Engine is created once at startup via init().
 All public functions are thread-safe (SQLAlchemy handles connection pooling).
 """
-
+from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from datetime import datetime, timezone
+from datetime import datetime
 import logging
 import time
 import uuid
@@ -161,6 +164,12 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    banned = relationship(
+        "BannedUser",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
 
 # =============================================================================
 # CONVERSATION
@@ -258,6 +267,44 @@ class Message(Base, SyncableMixin):
     conversation = relationship("Conversation", back_populates="messages")
 
 
+class BannedUser(Base, SyncableMixin):
+    __tablename__ = "banneduser"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        String(32),
+        primary_key=True,
+        default=new_id,
+        index=True,
+    )
+
+    user_id = Column(
+        String(32),
+        ForeignKey("user.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    until = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+    )
+
+    user = relationship(
+        "User",
+        back_populates="banned",
+    )
+
+
+    user = relationship("User", back_populates="banned")
 # =============================================================================
 # RELAY ONLY TABLES
 # =============================================================================
@@ -299,7 +346,7 @@ def lookup_number(phone: str) -> Optional[dict]:
     """
     with new_get_session() as s:
         row = s.execute(
-            select(User).where(User.phone_number == phone)
+            select(User).where(User.phone_number == phone).where(~User.banned.has())
         ).scalar_one_or_none()
         if row is None:
             return None
