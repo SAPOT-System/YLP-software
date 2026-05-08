@@ -8,12 +8,13 @@ import {
 } from "@/features/auth";
 import { RegisterFormState } from "@/features/auth/types";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { useToast } from "@/features/shared/hooks";
 import { checkBackEndHealth } from "@/features/shared/api";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { Snackbar, useTheme } from "react-native-paper";
+import { useTheme } from "react-native-paper";
 
 type RegisterFormField = keyof RegisterFormState;
 
@@ -31,6 +32,7 @@ const Register = () => {
   // Form state
   const theme = useTheme();
   const [step, setStep] = useState(1);
+  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
   const [form, setForm] = useState<RegisterFormState>({
     username: "",
     firstName: "",
@@ -43,14 +45,6 @@ const Register = () => {
     confirmPassword: "",
     termsChecked: false,
   });
-
-  // Validation and UI state
-  const {
-    visible: toastVisible,
-    message: toastMessage,
-    showToast,
-    hideToast,
-  } = useToast();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState("");
@@ -164,7 +158,7 @@ const Register = () => {
       // TODO: Reset navigation to main app
     } else if (!serverSideResult.success) {
       authLog.warn("auth › register failed");
-      showToast("Account creation failed!");
+      showError("Account creation failed!");
     }
   };
 
@@ -176,9 +170,9 @@ const Register = () => {
   useEffect(() => {
     if (errors.general) {
       authLog.warn("[Register] general error", { message: errors.general });
-      showToast(errors.general);
+      showError(errors.general);
     }
-  }, [errors.general, showToast]);
+  }, [errors.general, showToast, showError]);
 
   return (
     <KeyboardAvoidingView
@@ -247,9 +241,9 @@ const Register = () => {
         </ScreenContent>
 
         {/* Toast Notification */}
-        <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+        <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
           {toastMessage}
-        </Snackbar>
+        </AppSnackbar>
         <RecoveryKeyDownloadModal
           visible={modalVisible}
           hideModal={hideModal}

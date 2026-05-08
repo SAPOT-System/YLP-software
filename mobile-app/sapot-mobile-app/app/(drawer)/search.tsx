@@ -1,5 +1,6 @@
 import { APP_ROUTES } from "@/config/routes";
 import { ChatRoomSource } from "@/features/chat/types";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
   usePeerService,
   useProfilePhoto,
@@ -15,7 +16,6 @@ import {
   Avatar,
   Icon,
   Searchbar,
-  Snackbar,
   Text,
   useTheme,
 } from "react-native-paper";
@@ -139,7 +139,8 @@ export default function SearchScreen() {
   const {
     visible: toastVisible,
     message: toastMessage,
-    showToast,
+    variant: toastVariant,
+    showError,
     hideToast,
   } = useToast();
 
@@ -264,7 +265,7 @@ export default function SearchScreen() {
                   peerId: selected.id,
                   error,
                 });
-                showToast("Unable to open chat");
+                showError("Unable to open chat");
               }
             }}
           />
@@ -277,16 +278,13 @@ export default function SearchScreen() {
           ) : null
         }
       />
-      <Snackbar
+      <AppSnackbar
         visible={toastVisible}
         onDismiss={hideToast}
-        duration={3000}
-        theme={{
-          colors: { inverseSurface: "#696969", inverseOnSurface: "#FFFFFF" },
-        }}
+        variant={toastVariant}
       >
         {toastMessage}
-      </Snackbar>
+      </AppSnackbar>
     </View>
   );
 }

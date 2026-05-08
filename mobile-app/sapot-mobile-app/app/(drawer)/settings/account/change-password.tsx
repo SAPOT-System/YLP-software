@@ -4,6 +4,7 @@ import {
     validatePassword,
 } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useServerAction, useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
@@ -12,7 +13,6 @@ import { View } from "react-native";
 import {
     Button,
     HelperText,
-    Snackbar,
     Text,
     useTheme,
 } from "react-native-paper";
@@ -32,7 +32,9 @@ export default function ChangePassword() {
   const {
     visible: toastVisible,
     message: toastMessage,
+    variant: toastVariant,
     showToast,
+    showError,
     hideToast,
   } = useToast();
   const { isServerOffline } = useServerAction();
@@ -60,7 +62,7 @@ export default function ChangePassword() {
       confirmPass: "[REDACTED]",
     });
     if (isServerOffline) {
-      showToast("Cannot reach server. Please check your connection.");
+      showError("Cannot reach server. Please check your connection.");
       return;
     }
     const nextErrors = {
@@ -180,9 +182,9 @@ export default function ChangePassword() {
           Save
         </Button>
       </View>
-      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
         {toastMessage}
-      </Snackbar>
+      </AppSnackbar>
     </View>
   );
 }

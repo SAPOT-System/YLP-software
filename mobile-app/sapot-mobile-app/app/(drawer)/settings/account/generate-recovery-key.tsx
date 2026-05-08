@@ -1,11 +1,12 @@
 import { RecoveryKeyDownloadModal } from "@/features/auth";
 import { generateNewRecoveryKeyApi } from "@/features/auth/api/auth.api";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { getItemAsync } from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
-import { Button, Snackbar, Text, useTheme } from "react-native-paper";
+import { Button, Text, useTheme } from "react-native-paper";
 
 export default function GenerateRecoveryKey() {
   const theme = useTheme();
@@ -16,7 +17,8 @@ export default function GenerateRecoveryKey() {
   const {
     visible: toastVisible,
     message: toastMessage,
-    showToast,
+    variant: toastVariant,
+    showError,
     hideToast,
   } = useToast();
 
@@ -33,7 +35,7 @@ export default function GenerateRecoveryKey() {
       setIsGenerating(true);
       const token = await getItemAsync("access_token");
       if (!token) {
-        showToast("Unable to authenticate. Please log in again.");
+        showError("Unable to authenticate. Please log in again.");
         return;
       }
       const res = await generateNewRecoveryKeyApi(token);
@@ -43,7 +45,7 @@ export default function GenerateRecoveryKey() {
       uiLog.error("[GenerateRecoveryKey] Error generating recovery key", {
         error,
       });
-      showToast("Failed to generate recovery key. Please try again.");
+      showError("Failed to generate recovery key. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -84,9 +86,9 @@ export default function GenerateRecoveryKey() {
         fileData={recoveryKeyData}
         hideModal={() => setModalVisible(false)}
       />
-      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
         {toastMessage}
-      </Snackbar>
+      </AppSnackbar>
     </View>
   );
 }

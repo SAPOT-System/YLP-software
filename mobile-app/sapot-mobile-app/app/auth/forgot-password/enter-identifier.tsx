@@ -8,14 +8,15 @@ import {
 } from "@/features/auth";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { useToast } from "@/features/shared/hooks";
 import { checkBackEndHealth } from "@/features/shared/api";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
-import { HelperText, Snackbar } from "react-native-paper";
+import { HelperText } from "react-native-paper";
 
 const EnterIdentifierScreen = () => {
   const {
@@ -29,7 +30,7 @@ const EnterIdentifierScreen = () => {
     error: emailResetError,
     sendCode,
   } = useEmailReset();
-  const { visible: toastVisible, message: toastMessage, showToast, hideToast } = useToast();
+  const { visible: toastVisible, message: toastMessage, variant: toastVariant,  showError, hideToast } = useToast();
   const [identifier, setIdentfier] = useState("");
   const [storedToken, setStoredToken] = useState<string | null>(null);
   const [storedIdentifier, setStoredIdentifier] =
@@ -76,7 +77,7 @@ const EnterIdentifierScreen = () => {
   const handleContinue = async () => {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showToast("Cannot reach server. Please check your connection.");
+      showError("Cannot reach server. Please check your connection.");
       return;
     }
     authLog.debug("[EnterIdentifierScreen] handleContinue called", {
@@ -211,9 +212,9 @@ const EnterIdentifierScreen = () => {
           </SecondaryButton>
         </ScreenContent>
       </View>
-      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
         {toastMessage}
-      </Snackbar>
+      </AppSnackbar>
     </KeyboardAvoidingView>
   );
 };

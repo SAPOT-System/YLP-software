@@ -1,6 +1,7 @@
 import { addSecurityQuestionApi } from "@/features/auth/api/auth.api";
 import { SECURITY_QUESTIONS } from "@/features/auth/components/register-step-2";
 import { SettingsTextInput } from "@/features/settings";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
@@ -10,7 +11,6 @@ import { View } from "react-native";
 import {
   Button,
   HelperText,
-  Snackbar,
   useTheme,
 } from "react-native-paper";
 import { Dropdown } from "react-native-paper-dropdown";
@@ -29,7 +29,9 @@ export default function SecurityQuestion() {
   const {
     visible: toastVisible,
     message: toastMessage,
+    variant: toastVariant,
     showToast,
+    showError,
     hideToast,
   } = useToast();
 
@@ -58,7 +60,7 @@ export default function SecurityQuestion() {
       setIsSaving(true);
       const token = await getItemAsync("access_token");
       if (!token) {
-        showToast("Unable to authenticate. Please log in again.");
+        showError("Unable to authenticate. Please log in again.");
         return;
       }
       await addSecurityQuestionApi(
@@ -77,7 +79,7 @@ export default function SecurityQuestion() {
       uiLog.error("[SecurityQuestion] Error updating security question", {
         error,
       });
-      showToast("Failed to update security question. Please try again.");
+      showError("Failed to update security question. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -130,9 +132,9 @@ export default function SecurityQuestion() {
           Save
         </Button>
       </View>
-      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
         {toastMessage}
-      </Snackbar>
+      </AppSnackbar>
     </View>
   );
 }

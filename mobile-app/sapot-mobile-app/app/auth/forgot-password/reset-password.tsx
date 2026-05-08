@@ -1,28 +1,28 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import {
-  AuthTextInput,
-  PrimaryButton,
-  SecondaryButton,
-  useChangePassword,
+    AuthTextInput,
+    PrimaryButton,
+    SecondaryButton,
+    useChangePassword,
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { useToast } from "@/features/shared/hooks";
 import { checkBackEndHealth } from "@/features/shared/api";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  deleteItemAsync,
-  getItemAsync,
-  setItemAsync,
+    deleteItemAsync,
+    getItemAsync,
+    setItemAsync,
 } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-  ActivityIndicator,
-  HelperText,
-  Snackbar,
-  Text,
+    ActivityIndicator,
+    HelperText,
+    Text,
 } from "react-native-paper";
 
 const ChangePasswordScreen = () => {
@@ -36,7 +36,9 @@ const ChangePasswordScreen = () => {
   const {
     visible: toastVisible,
     message: toastMessage,
+    variant: toastVariant,
     showToast,
+    showError,
     hideToast,
   } = useToast();
 
@@ -108,7 +110,7 @@ const ChangePasswordScreen = () => {
     });
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showToast("Cannot reach server. Please check your connection.");
+      showError("Cannot reach server. Please check your connection.");
       return;
     }
     const res = await changePassword({
@@ -194,9 +196,9 @@ const ChangePasswordScreen = () => {
             Back
           </SecondaryButton>
         </ScreenContent>
-        <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+        <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
           {toastMessage}
-        </Snackbar>
+        </AppSnackbar>
       </View>
     </KeyboardAwareScrollView>
   );

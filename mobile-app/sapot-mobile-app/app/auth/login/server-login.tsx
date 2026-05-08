@@ -1,8 +1,10 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { AuthTextInput, PrimaryButton, SecondaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { useAppMode } from "@/features/shared/context";
 import { checkBackEndHealth } from "@/features/shared/api";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { useAppMode } from "@/features/shared/context";
+import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -10,7 +12,6 @@ import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
   HelperText,
-  Snackbar,
   Text,
   useTheme,
 } from "react-native-paper";
@@ -19,8 +20,7 @@ const ServerLoginScreen = () => {
   const theme = useTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
 
   const { login, loading, errors } = useAuth();
   const { mode, setMode } = useAppMode();
@@ -31,11 +31,6 @@ const ServerLoginScreen = () => {
       authLog.info("[ServerLoginScreen] unmounted");
     };
   }, []);
-
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setToastVisible(true);
-  };
 
   // Handle general errors
   useEffect(() => {
@@ -52,9 +47,9 @@ const ServerLoginScreen = () => {
       authLog.warn("[ServerLoginScreen] general error", {
         message: errors.general,
       });
-      showToast(errors.general);
+      showError(errors.general);
     }
-  }, [errors.general]);
+  }, [errors.general, showError]);
 
   const handleLogin = async () => {
     authLog.debug("[ServerLoginScreen] handleLogin called", {
@@ -63,7 +58,7 @@ const ServerLoginScreen = () => {
     });
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showToast("Cannot reach server. Please check your connection.");
+      showError("Cannot reach server. Please check your connection.");
       return;
     }
     const result = await login({ username, password });
@@ -82,7 +77,7 @@ const ServerLoginScreen = () => {
       }, 1000);
     } else {
       authLog.warn("auth › login failed");
-      showToast("Login failed");
+      showError("Login failed");
     }
   };
 
@@ -179,13 +174,13 @@ const ServerLoginScreen = () => {
             </Link>
           </Text>
         </ScreenContent>
-        <Snackbar
+        <AppSnackbar
           visible={toastVisible}
-          onDismiss={() => setToastVisible(false)}
-          duration={3000}
+          onDismiss={hideToast}
+          variant={toastVariant}
         >
           {toastMessage}
-        </Snackbar>
+        </AppSnackbar>
       </View>
     </KeyboardAwareScrollView>
   );

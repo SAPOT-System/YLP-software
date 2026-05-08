@@ -11,6 +11,7 @@ import {
   DrawerItem,
   DrawerItemList,
 } from "@react-navigation/drawer";
+import Constants from "expo-constants";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
@@ -19,8 +20,6 @@ import {
   Avatar,
   Button,
   Icon,
-  Portal,
-  Snackbar,
   Text,
   TextInput,
   useTheme,
@@ -28,7 +27,7 @@ import {
 import { useMainContainer, useProfilePhoto, useServerAction, useToast, useUserProfile } from "../hooks";
 import { useSyncService } from "../hooks/use-sync-service";
 import { uiLog } from "../utils/logger";
-import Constants from "expo-constants";
+import { AppSnackbar } from "./app-snackbar";
 
 uiLog.debug("[custom-drawer-content] module loaded");
 
@@ -92,7 +91,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const auth = useAuth();
   const syncService = useSyncService();
   const { appModeStore } = useMainContainer();
-  const { visible: toastVisible, message: toastMessage, showToast, hideToast } = useToast();
+  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
   const { isServerOffline } = useServerAction();
   const { user, isGuest } = useUserProfile();
   const { url: profilePicUrl } = useProfilePhoto();
@@ -125,7 +124,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const handleSyncNow = async () => {
     uiLog.info("drawer › sync now pressed");
     if (isServerOffline) {
-      showToast("Server unavailable. Sync skipped.");
+      showError("Server unavailable. Sync skipped.");
       return;
     }
     await syncService.syncNow();
@@ -291,11 +290,9 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
           SAPOT v{Constants.expoConfig?.extra?.displayVersion}
         </Text>
       </ScrollView>
-      <Portal>
-        <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
-          {toastMessage}
-        </Snackbar>
-      </Portal>
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
+        {toastMessage}
+      </AppSnackbar>
     </KeyboardAvoidingView>
   );
 }

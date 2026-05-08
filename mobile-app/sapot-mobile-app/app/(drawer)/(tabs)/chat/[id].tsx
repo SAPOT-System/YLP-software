@@ -3,32 +3,32 @@ import { useInformCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Peer } from "@/features/shared";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
-    useIsUserActive,
-    usePeerService,
-    useProfilePhoto,
-    useThrottledPress,
-    useToast,
+  useIsUserActive,
+  usePeerService,
+  useProfilePhoto,
+  useThrottledPress,
+  useToast,
 } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import {
-    Appbar,
-    Avatar,
-    IconButton,
-    Snackbar,
-    useTheme,
+  Appbar,
+  Avatar,
+  IconButton,
+  useTheme,
 } from "react-native-paper";
 
 const ChatRoom = () => {
@@ -54,7 +54,9 @@ const ChatRoom = () => {
   const {
     visible: toastVisible,
     message: toastMessage,
+    variant: toastVariant,
     showToast,
+    showError,
     hideToast,
   } = useToast();
   const theme = useTheme();
@@ -137,7 +139,7 @@ const ChatRoom = () => {
         setIsConnected(true);
       } catch (error) {
         uiLog.warn("chat › connect failed", { peerId, error });
-        showToast("Connection failed");
+        showError("Connection failed");
         // TODO: try reconnect
       }
     };
@@ -164,7 +166,7 @@ const ChatRoom = () => {
       unsubscribeReconnected();
       chatService.disconnect();
     };
-  }, [peerId, isSelfChat, chatService, showToast]);
+  }, [peerId, isSelfChat, chatService, showToast, showError]);
 
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { isSelfChat });
@@ -374,16 +376,13 @@ const ChatRoom = () => {
         <IconButton icon="send" size={30} onPress={onSendMessage} disabled={sending} />
       </View>
 
-      <Snackbar
+      <AppSnackbar
         visible={toastVisible}
         onDismiss={hideToast}
-        duration={3000}
-        theme={{
-          colors: { inverseSurface: "#696969", inverseOnSurface: "#FFFFFF" },
-        }}
+        variant={toastVariant}
       >
         {toastMessage}
-      </Snackbar>
+      </AppSnackbar>
     </KeyboardAvoidingView>
   );
 };

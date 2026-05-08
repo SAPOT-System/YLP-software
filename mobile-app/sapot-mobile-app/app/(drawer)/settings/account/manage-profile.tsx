@@ -3,40 +3,41 @@ import { useUserService } from "@/features/auth";
 import { validateRegistrationForm } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import {
-  ExpoFileUpload,
-  Peer,
-  updateProfileApi,
-  uploadProfilePicApi,
+    ExpoFileUpload,
+    Peer,
+    updateProfileApi,
+    uploadProfilePicApi,
 } from "@/features/shared";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useProfilePhoto, useServerAction, useToast, useUserProfile } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  View,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-  ActivityIndicator,
-  Avatar,
-  Button,
-  HelperText,
-  Modal,
-  Portal,
-  Snackbar,
-  Text,
-  useTheme,
+    ActivityIndicator,
+    Avatar,
+    Button,
+    HelperText,
+    Modal,
+    Portal,
+    Text,
+    useTheme,
 } from "react-native-paper";
 
 export default function ManageProfile() {
   const theme = useTheme();
   const { user } = useUserProfile();
   const userService = useUserService();
+  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
   const [username, setUsername] = useState(user.username ?? "");
   const [firstName, setFirstName] = useState(user.firstName ?? "");
   const [lastName, setLastName] = useState(user.lastName ?? "");
@@ -51,7 +52,6 @@ export default function ManageProfile() {
     loading: isProfilePicLoading,
     setUrl: setProfilePicUrl,
   } = useProfilePhoto();
-  const { visible: toastVisible, message: toastMessage, showToast, hideToast } = useToast();
   const { isServerOffline } = useServerAction();
   const [isProfilePicUploading, setIsProfilePicUploading] = useState(false);
   const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
@@ -104,7 +104,7 @@ export default function ManageProfile() {
       return;
     }
     if (isServerOffline) {
-      showToast("Server unavailable. Cannot save profile.");
+      showError("Server unavailable. Cannot save profile.");
       return;
     }
 
@@ -406,9 +406,9 @@ export default function ManageProfile() {
           </View>
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
-      <Snackbar visible={toastVisible} onDismiss={hideToast} duration={3000}>
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
         {toastMessage}
-      </Snackbar>
+      </AppSnackbar>
       <Portal>
         <Modal
           visible={isPhotoOptionsVisible}
