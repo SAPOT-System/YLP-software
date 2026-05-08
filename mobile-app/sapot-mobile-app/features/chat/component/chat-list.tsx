@@ -1,4 +1,5 @@
 import { Conversation, database, formatDate } from "@/features/shared";
+import { AnnouncementListRow } from "@/features/announcements";
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
@@ -52,6 +53,7 @@ const ChatList = enhanceChats(
         </View>
         <FlatList
           data={chats}
+          ListHeaderComponent={AnnouncementListRow}
           renderItem={({ item }) => <ChatListItem chat={item} />}
           keyExtractor={(chat) => chat.id}
           refreshControl={
