@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.db_operations.protocol import build_send_sms
-from app.db_operations.gsm_utils import send_to_arduino
-from app import gsm_runtime
+from app.gsm.protocol import build_send_sms
+from app.gsm.gsm_utils import send_to_arduino
+from app.gsm import gsm_runtime
 
 
 router = APIRouter(prefix="/sms", tags=["SMS"])
@@ -37,6 +37,9 @@ def send_sms(req: SendSMSRequest):
         cmd = build_send_sms(req.number, req.body)
 
         # Send to Arduino
+        if not gsm_runtime.ser:
+            raise HTTPException(500)
+
         send_to_arduino(gsm_runtime.ser, cmd)
 
         return {

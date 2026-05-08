@@ -13,8 +13,8 @@ It only reads/writes sessions and calls the database stub.
 from typing import Optional
 import logging
 
-from app.db_operations.session_manager import SessionManager, Stage
-import app.db_operations.database 
+from app.gsm.session_manager import SessionManager, Stage
+import app.gsm.database 
 
 logger = logging.getLogger("sapot.sms")
 
@@ -50,7 +50,7 @@ MSG_UNAUTHORIZED = (
 def _forwarded_reply(username: str) -> str:
     return (
         f"Your message was forwarded to {username} both through SMS "
-        f"and the SAPOT app. The user may or may not reply to this message."
+        f"and the SAPOT app."
     )
 
 
@@ -76,7 +76,7 @@ def handle_sms(number: str, body: str,
         return MSG_UNAUTHORIZED
 
     # ── Verify sender exists in SAPOT ─────────────────────────────────────────
-    sender_record = database.lookup_number(number)
+    sender_record = app.gsm.database._FAKE_USERS.get(number)
     if sender_record is None:
         return MSG_TARGET_NO_ACCOUNT
 
@@ -123,7 +123,8 @@ def _handle_set_target(body: str, session) -> str:
             "[target] +639XXXXXXXXX"
         )
 
-    target_record = database.lookup_number(target_number)
+    target_record = app.gsm.database._FAKE_USERS.get(target_number)
+
     if target_record is None:
         return MSG_TARGET_NOT_FOUND
 
@@ -140,11 +141,16 @@ def _handle_set_target(body: str, session) -> str:
 
 def _handle_forward(sender: str, body: str, session) -> str:
     """Forward the message to the current target."""
-    success = database.forward_message(
-        sender_number=sender,
-        target_number=session.target,
-        message=body,
-    )
+    # success = database.forward_message(
+    #     sender_number=sender,
+    #     target_number=session.target,
+    #     message=body,
+    # )
+    success = True
+    print("session", session)
+    print(sender)
+    print(body)
+    # target_record = app.gsm.database._FAKE_USERS.get(target_number)
 
     if success:
         return _forwarded_reply(session.target_username)

@@ -20,14 +20,14 @@ from datetime import datetime
 
 import serial  # pyserial
 
-from app.db_operations.protocol import parse_line, build_send_sms, EventType
-from app.db_operations.session_manager import SessionManager
-from app.db_operations.sms_handler import handle_sms
-from app import gsm_runtime
+from app.gsm.protocol import parse_line, build_send_sms, EventType
+from app.gsm.session_manager import SessionManager
+from app.gsm.sms_handler import handle_sms
+from app.gsm import gsm_runtime
 
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-DEFAULT_PORT = "/dev/ttyACM1"   # change to COM3, /dev/ttyACM0, etc.
+DEFAULT_PORT = "/dev/ttyACM2"   # change to COM3, /dev/ttyACM0, etc.
 DEFAULT_BAUD = 9600
 LOG_FILE     = "sapot_sms.log"
 
@@ -135,7 +135,6 @@ def run(port: str, baud: int):
     logger.info("Connecting to Arduino on %s @ %d baud …", port, baud)
 
     try:
-        import app.gsm_runtime as gsm_runtime
         ser = serial.Serial(port, baud, timeout=1)
         gsm_runtime.ser = ser
     except serial.SerialException as e:

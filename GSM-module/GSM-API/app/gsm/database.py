@@ -19,6 +19,9 @@ _FAKE_USERS: Dict[str, dict] = {
     "+639171234567": {"username": "juan_dela_cruz",  "app_active": True},
     "+639281234567": {"username": "maria_santos",    "app_active": True},
     "+639991234567": {"username": "pedro_reyes",     "app_active": False},
+    "+639165635674": {"username": "emmanuel Parreno",     "app_active": True},
+    "+639062692265": {"username": "Linda",     "app_active": True},
+    "+639619881837": {"username": "Smart",     "app_active": True},
 }
 
 
