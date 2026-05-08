@@ -92,7 +92,7 @@ export default ({ config }: ConfigContext) => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
-  version: "0.2.0",
+  version: "0.2.2",
   orientation: "portrait",
   icon: "./assets/images/logo.png",
   scheme: "sapotmobileapp",
@@ -213,7 +213,7 @@ export default ({ config }: ConfigContext) => ({
     typedRoutes: true,
   },
   runtimeVersion: {
-    policy: "appVersion",
+    policy: "fingerprint",
   },
   updates: {
     channel: getUpdateChannel(),
