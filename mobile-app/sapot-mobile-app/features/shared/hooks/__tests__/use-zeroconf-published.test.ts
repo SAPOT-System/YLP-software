@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useAppMode } from "@/features/shared/context";
 import { renderHook } from "@testing-library/react-native";
 import { useDiscoveryService } from "../use-discovery-service";
@@ -15,6 +16,7 @@ describe("useZeroconfPublished", () => {
 
     mockDiscoveryService = {
       isPublished: jest.fn(() => true),
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       subscribeToPublished: jest.fn((listener: () => void) => {
         return () => {};
       }),
