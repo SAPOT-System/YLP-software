@@ -29,7 +29,7 @@ from sqlalchemy import (
     BigInteger, Boolean, Column, Enum as SAEnum,
     ForeignKey, String, Text, UniqueConstraint, text,
 )
-from sqlalchemy import create_engine, select, update, insert
+from sqlalchemy import create_engine, select, update, insert 
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 from sqlalchemy.dialects.mysql import CHAR
 import uuid
@@ -52,7 +52,7 @@ def direct_conversation_id(user_id_a: str, user_id_b: str):
         direct_conversation_id("bob", "alice")
     """
     name = ":".join(sorted([user_id_a, user_id_b]))
-    return uuid.uuid5(NAMESPACE, name)
+    return uuid.uuid5(NAMESPACE, name).hex
 
 
 logger = logging.getLogger("sapot.db")
@@ -86,6 +86,7 @@ def new_get_session() -> Session:
     return _Session()
 
 
+
 # =============================================================================
 # BASE
 # =============================================================================
@@ -98,35 +99,10 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
+def new_id() -> str:
+    """32-char UUID (NO dashes)"""
+    return uuid.uuid4().hex
 
-class GUID(TypeDecorator):
-    """
-    Platform-independent UUID type.
-
-    Stores UUID as CHAR(36) in MariaDB/MySQL.
-    Returns python uuid.UUID objects.
-    """
-
-    impl = CHAR
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect):
-        return dialect.type_descriptor(CHAR(36))
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return None
-
-        if isinstance(value, uuid.UUID):
-            return str(value)
-
-        return str(uuid.UUID(value))
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return None
-
-        return uuid.UUID(value)
 
 # =============================================================================
 # ENUMS
@@ -144,91 +120,34 @@ class ConversationType(str, Enum):
 
 
 # =============================================================================
-# BASE MIXIN
+# MIXIN
 # =============================================================================
 
 class SyncableMixin:
-    created_at = Column(
-        BigInteger,
-        nullable=False,
-        default=_now_ms,
-    )
+    created_at = Column(BigInteger, default=_now_ms, nullable=False)
+    updated_at = Column(BigInteger, default=_now_ms, onupdate=_now_ms, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
-    updated_at = Column(
-        BigInteger,
-        nullable=False,
-        default=_now_ms,
-        onupdate=_now_ms,
-    )
-
-    is_deleted = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-        index=True,
-    )
 
 # =============================================================================
 # USER
 # =============================================================================
 
 class User(Base):
-    """
-    Mirror of SQLModel User table.
-    DO NOT MODIFY STRUCTURE unless the main API changes.
-    """
-
     __tablename__ = "user"
     __table_args__ = {"extend_existing": True}
 
-    id = Column(
-        GUID(),
-        primary_key=True,
-        default=uuid.uuid4,
-        index=True,
-    )
+    id = Column(String(32), primary_key=True, default=new_id, index=True)
 
-    username = Column(
-        String(50),
-        nullable=False,
-        unique=True,
-        index=True,
-    )
+    username = Column(String(50), nullable=False, unique=True, index=True)
+    first_name = Column(String(50), nullable=False, index=True)
+    last_name = Column(String(50), nullable=False, index=True)
 
-    first_name = Column(
-        String(50),
-        nullable=False,
-        index=True,
-    )
+    phone_number = Column(String(20), unique=True, nullable=True)
+    email = Column(String(255), unique=True, nullable=True)
 
-    last_name = Column(
-        String(50),
-        nullable=False,
-        index=True,
-    )
-
-    phone_number = Column(
-        String(20),
-        unique=True,
-        nullable=True,
-    )
-
-    email = Column(
-        String(255),
-        unique=True,
-        nullable=True,
-    )
-
-    hashed_password = Column(
-        String(255),
-        nullable=False,
-    )
-
-    email_verified = Column(
-        Boolean,
-        default=False,
-        nullable=False,
-    )
+    hashed_password = Column(String(255), nullable=False)
+    email_verified = Column(Boolean, default=False, nullable=False)
 
     conversation_participants = relationship(
         "ConversationParticipant",
@@ -251,23 +170,11 @@ class Conversation(Base, SyncableMixin):
     __tablename__ = "conversation"
     __table_args__ = {"extend_existing": True}
 
-    id = Column(
-        GUID(),
-        primary_key=True,
-        default=uuid.uuid4,
-        unique=True,
-        index=True,
-    )
+    id = Column(String(32), primary_key=True, default=new_id, index=True)
 
-    title = Column(
-        String(100),
-        nullable=False,
-    )
+    title = Column(String(100), nullable=False)
 
-    conversation_type = Column(
-        SAEnum(ConversationType),
-        nullable=False,
-    )
+    conversation_type = Column(SAEnum(ConversationType), nullable=False)
 
     messages = relationship(
         "Message",
@@ -290,38 +197,25 @@ class ConversationParticipant(Base, SyncableMixin):
     __tablename__ = "conversationparticipant"
     __table_args__ = {"extend_existing": True}
 
-    id = Column(
-        GUID(),
-        primary_key=True,
-        default=uuid.uuid4,
-        unique=True,
-        index=True,
-    )
+    id = Column(String(32), primary_key=True, default=new_id, index=True)
 
     conversation_id = Column(
-        GUID(),
+        String(32),
         ForeignKey("conversation.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
 
     user_id = Column(
-        GUID(),
+        String(32),
         ForeignKey("user.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
-    joined_at = Column(
-        BigInteger,
-        nullable=False,
-        default=_now_ms,
-    )
+    joined_at = Column(BigInteger, default=_now_ms, nullable=False)
 
-    user = relationship(
-        "User",
-        back_populates="conversation_participants",
-    )
+    user = relationship("User", back_populates="conversation_participants")
 
     conversation = relationship(
         "Conversation",
@@ -337,83 +231,62 @@ class Message(Base, SyncableMixin):
     __tablename__ = "message"
     __table_args__ = {"extend_existing": True}
 
-    id = Column(
-        GUID(),
-        primary_key=True,
-        default=uuid.uuid4,
-        index=True,
-    )
+    id = Column(String(32), primary_key=True, default=new_id, index=True)
 
     message_type = Column(
         SAEnum(MessageType),
-        nullable=False,
         default=MessageType.text,
+        nullable=False,
     )
 
-    content = Column(
-        String(255),
-        nullable=False,
-    )
+    content = Column(String(255), nullable=False)
 
     conversation_id = Column(
-        GUID(),
+        String(32),
         ForeignKey("conversation.id", ondelete="CASCADE"),
         nullable=True,
     )
 
     sender_id = Column(
-        GUID(),
+        String(32),
         ForeignKey("user.id", ondelete="CASCADE"),
         nullable=True,
     )
 
-    user = relationship(
-        "User",
-        back_populates="messages",
-    )
+    user = relationship("User", back_populates="messages")
 
-    conversation = relationship(
-        "Conversation",
-        back_populates="messages",
-    )
+    conversation = relationship("Conversation", back_populates="messages")
+
 
 # =============================================================================
-# RELAY-ONLY MODELS
+# RELAY ONLY TABLES
 # =============================================================================
 
 class SmsSession(Base):
-    """
-    Per-phone-number conversation state for the SMS relay flow.
-    Completely invisible to the main SAPOT API.
-    """
     __tablename__ = "sms_session"
 
-    phone           = Column(String(20), primary_key=True)
-    stage           = Column(String(20), nullable=False, default="NEW")
-    # stage: NEW | AWAITING_TARGET | ACTIVE
-    target_phone    = Column(String(20), nullable=True)
+    phone = Column(String(20), primary_key=True)
+    stage = Column(String(20), default="NEW", nullable=False)
+    target_phone = Column(String(20), nullable=True)
     target_username = Column(String(50), nullable=True)
-    last_seen       = Column(BigInteger, nullable=False, default=_now_ms,
-                             onupdate=_now_ms)
+    last_seen = Column(BigInteger, default=_now_ms, onupdate=_now_ms, nullable=False)
 
 
 class SmsLog(Base):
-    """
-    Delivery log for every SMS in/out through the relay.
-    """
     __tablename__ = "sms_log"
 
-    id             = Column(CHAR(36), primary_key=True,
-                            default=lambda: str(uuid.uuid4()))
-    direction      = Column(String(3),  nullable=False)   # IN | OUT
-    from_number    = Column(String(20), nullable=False)
-    to_number      = Column(String(20), nullable=False)
-    body           = Column(Text,       nullable=False)
-    status         = Column(String(10), nullable=False, default="pending")
-    # pending | received | sent | failed
-    failure_reason = Column(String(100), nullable=True)
-    created_at     = Column(BigInteger,  nullable=False, default=_now_ms)
+    id = Column(String(32), primary_key=True, default=new_id)
 
+    direction = Column(String(3), nullable=False)
+    from_number = Column(String(20), nullable=False)
+    to_number = Column(String(20), nullable=False)
+
+    body = Column(Text, nullable=False)
+
+    status = Column(String(10), default="pending", nullable=False)
+    failure_reason = Column(String(100), nullable=True)
+
+    created_at = Column(BigInteger, default=_now_ms, nullable=False)
 
 # =============================================================================
 # USER LOOKUPS  (reads from shared `user` table)
@@ -646,14 +519,14 @@ def notify_app(sender_phone: str, target_phone: str, body: str) -> bool:
                 if sender:
                     participants_to_add.append(
                         ConversationParticipant(
-                            id=str(uuid.uuid4()),
+                            id=str(uuid.uuid4().hex),
                             conversation_id=conv.id,
                             user_id=str(sender.id),
                         )
                     )
                 participants_to_add.append(
                     ConversationParticipant(
-                        id=str(uuid.uuid4()),
+                        id=str(uuid.uuid4().hex),
                         conversation_id=conv.id,
                         user_id=str(target.id),
                     )
@@ -674,14 +547,14 @@ def notify_app(sender_phone: str, target_phone: str, body: str) -> bool:
 
                 if already_in is None:
                     s.add(ConversationParticipant(
-                        id=str(uuid.uuid4()),
+                        id=str(uuid.uuid4().hex),
                         conversation_id=conv_id,
                         user_id=str(target.id),
                     ))
 
             # 3. Insert the message
             msg = Message(
-                id=str(uuid.uuid4()),
+                id=str(uuid.uuid4().hex),
                 message_type=MessageType.text,
                 content=body[:255],         # enforce DB max_length
                 conversation_id=conv_id,

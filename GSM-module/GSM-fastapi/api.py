@@ -147,7 +147,7 @@ def _send_and_log(from_number: str, to_number: str, body: str):
         status="pending",
     )
     try:
-        result = _worker.send_sms(to_number, body, timeout=30)
+        result = _worker.send_sms(to_number, body, timeout=60)
         status = "sent" if result["ok"] else "failed"
         database.update_message_status(msg_id, status, result.get("reason"))
     except Exception as e:
@@ -278,7 +278,7 @@ def send_sms(req: SendSMSRequest):
     )
 
     try:
-        result = _worker.send_sms(req.number, req.body, timeout=30)
+        result = _worker.send_sms(req.number, req.body, timeout=60)
     except RuntimeError as e:
         database.update_message_status(msg_id, "failed", str(e))
         raise HTTPException(503, str(e))
