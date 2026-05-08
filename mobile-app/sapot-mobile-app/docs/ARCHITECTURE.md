@@ -118,7 +118,18 @@ features/<name>/
   index.ts        — Public API
 ```
 
-Features: `auth`, `call`, `chat`, `getting-started`, `settings`, `shared`, `sync`
+Features: `auth`, `announcements`, `call`, `chat`, `getting-started`, `settings`, `shared`, `sync`
+
+### `features/announcements/`
+
+Server-fetched announcement board — no WatermelonDB, purely React Query.
+
+- **`api.ts`** — `getAnnouncements()` calls `GET /user-utils/get-announcements` via the shared Axios client. Returns role-filtered, active, non-expired announcements.
+- **`hooks/use-announcements.ts`** — `useQuery` wrapper with a 2-minute stale time.
+- **`hooks/use-announcement-new-count.ts`** — Tracks unseen count by persisting `announcements_last_seen_at` timestamp in `expo-secure-store`. Exposes `newCount` and `markAllSeen()`.
+- **`components/announcement-card.tsx`** — Card UI with priority-colored header band (`high`→red, `normal`→amber, `low`→gray) and content body.
+- **`components/announcement-list-row.tsx`** — Chat-list entry row (matches Figma node 2274:6335). Shows unread badge; navigates to `/(drawer)/announcements`.
+- **Screen:** `app/(drawer)/announcements.tsx` — FlatList of cards with priority filter chips (`All`, `High`, `Medium`, `Low`) and a "N new" badge in the header. Calls `markAllSeen()` on mount.
 
 ---
 
