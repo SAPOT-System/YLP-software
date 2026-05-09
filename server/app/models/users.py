@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from app.models.banned_user import BannedUser
     from app.models.guest import Guest
     from app.models.announcement import Announcement
+    from app.models.phone_verification import PhoneVerification, PhoneVerified
     # from app.models.email_verification import EmailVerification
 
 
@@ -138,6 +139,24 @@ class User(UserBase, table=True):
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
+
+
+    phone_verifications: List["PhoneVerification"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan"
+        }
+    )
+
+    phone_is_verified: List["PhoneVerified"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan"
+        }
+    )
+
+
+
 
 class UserPublic(UserBase):
     id: uuid.UUID

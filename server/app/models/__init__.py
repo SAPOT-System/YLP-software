@@ -17,3 +17,4 @@ from app.models.activity import UserActivity, ActivityLog
 from app.models.banned_user import BannedUser
 from app.models.guest import Guest
 from app.models.announcement import Announcement
+from app.models.phone_verification import PhoneVerification, PhoneVerified
