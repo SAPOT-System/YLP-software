@@ -3,50 +3,61 @@ import { useUserService } from "@/features/auth";
 import { validateRegistrationForm } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import {
-    ExpoFileUpload,
-    Peer,
-    updateProfileApi,
-    uploadProfilePicApi,
+  ExpoFileUpload,
+  updateProfileApi,
+  uploadProfilePicApi,
 } from "@/features/shared";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useProfilePhoto, useServerAction, useToast, useUserProfile } from "@/features/shared/hooks";
+import {
+  useProfilePhoto,
+  useServerAction,
+  useToast,
+  useUserProfile,
+} from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    View,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-    ActivityIndicator,
-    Avatar,
-    Button,
-    HelperText,
-    Modal,
-    Portal,
-    Text,
-    useTheme,
+  ActivityIndicator,
+  Avatar,
+  Button,
+  HelperText,
+  Modal,
+  Portal,
+  Text,
+  useTheme,
 } from "react-native-paper";
 
 export default function ManageProfile() {
   const theme = useTheme();
-  const { user } = useUserProfile();
+  const { user, isGuest } = useUserProfile();
   const userService = useUserService();
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
-  const [username, setUsername] = useState(user.username ?? "");
-  const [firstName, setFirstName] = useState(user.firstName ?? "");
-  const [lastName, setLastName] = useState(user.lastName ?? "");
-  const [phoneNumber, setPhoneNumber] = useState(
-    (user instanceof Peer ? user.phoneNumber : "") ?? ""
-  );
-  const [email, setEmail] = useState(
-    (user instanceof Peer ? user.email : "") ?? ""
-  );
+  const {
+    visible: toastVisible,
+    message: toastMessage,
+    variant: toastVariant,
+    showToast,
+    showError,
+    hideToast,
+  } = useToast();
+  const currentPhoneNumber = isGuest
+    ? ""
+    : (user as { phoneNumber?: string }).phoneNumber ?? "";
+  const currentEmail = isGuest ? "" : (user as { email?: string }).email ?? "";
+  const currentEmailVerified = isGuest
+    ? false
+    : Boolean((user as { emailVerified?: boolean }).emailVerified);
+  const [phoneNumber, setPhoneNumber] = useState(currentPhoneNumber);
+  const [email, setEmail] = useState(currentEmail);
   const {
     url: profilePicUrl,
     loading: isProfilePicLoading,
@@ -57,13 +68,7 @@ export default function ManageProfile() {
   const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
   const actionColor = theme.dark ? "#ffffff" : "#000000";
-  const [editableField, setEditableField] = useState<
-    "username" | "firstName" | "lastName" | "phoneNumber" | "email" | null
-  >(null);
   const [errors, setErrors] = useState<{
-    username?: string;
-    firstName?: string;
-    lastName?: string;
     phoneNumber?: string;
     email?: string;
   }>({});
@@ -79,22 +84,27 @@ export default function ManageProfile() {
     useCallback(() => {
       uiLog.debug("[ManageProfile] useFocusEffect triggered");
       return () => {
-        setUsername(user.username ?? "");
-        setFirstName(user.firstName ?? "");
-        setLastName(user.lastName ?? "");
-        setPhoneNumber((user instanceof Peer ? user.phoneNumber : "") ?? "");
-        setEmail((user instanceof Peer ? user.email : "") ?? "");
-        setEditableField(null);
         setErrors({});
+        setPhoneNumber(currentPhoneNumber);
+        setEmail(currentEmail);
+        setIsPhotoOptionsVisible(false);
+        setIsPhotoViewerVisible(false);
       };
-    }, [user])
+    }, [currentEmail, currentPhoneNumber])
   );
 
+  useEffect(() => {
+    setPhoneNumber(currentPhoneNumber);
+    setEmail(currentEmail);
+  }, [currentEmail, currentPhoneNumber]);
+
   const normalizeValue = (value?: string) => (value ?? "").trim();
+  const emailHasChanged =
+    normalizeValue(email) !== normalizeValue(currentEmail);
   const hasChanges =
-    normalizeValue(username) !== normalizeValue(user.username) ||
-    normalizeValue(firstName) !== normalizeValue(user.firstName) ||
-    normalizeValue(lastName) !== normalizeValue(user.lastName);
+    !isGuest &&
+    (normalizeValue(phoneNumber) !== normalizeValue(currentPhoneNumber) ||
+      emailHasChanged);
 
   const handleSave = async () => {
     uiLog.debug("[ManageProfile] handleSave called", {
@@ -103,44 +113,56 @@ export default function ManageProfile() {
     if (!hasChanges) {
       return;
     }
+    if (isGuest) {
+      return;
+    }
     if (isServerOffline) {
       showError("Server unavailable. Cannot save profile.");
       return;
     }
 
     const validationErrors = validateRegistrationForm({
-      username,
-      firstName,
-      lastName,
+      phoneNumber,
+      email,
     });
 
-    setErrors({
-      username: validationErrors.username,
-      firstName: validationErrors.firstName,
-      lastName: validationErrors.lastName,
+    const nextErrors = {
       phoneNumber: validationErrors.phoneNumber,
       email: validationErrors.email,
-    });
+    };
 
-    if (Object.keys(validationErrors).length > 0) {
+    setErrors(nextErrors);
+
+    if (Object.values(nextErrors).some(Boolean)) {
       uiLog.warn("[ManageProfile] validation failed");
       return;
     }
 
-    await updateProfileApi({
-      username: normalizeValue(username),
-      firstName: normalizeValue(firstName),
-      lastName: normalizeValue(lastName),
-    });
+    const normalizedPhoneNumber = normalizeValue(phoneNumber);
+    const normalizedEmail = normalizeValue(email);
 
-    await userService.updateAuthenticatedUser({
-      username: normalizeValue(username),
-      firstName: normalizeValue(firstName),
-      lastName: normalizeValue(lastName),
-    });
+    try {
+      await updateProfileApi({
+        phoneNumber:
+          normalizedPhoneNumber === "" ? undefined : normalizedPhoneNumber,
+        email: normalizedEmail === "" ? undefined : normalizedEmail,
+      });
 
-    setEditableField(null);
-    uiLog.info("[ManageProfile] profile updated");
+      await userService.updateAuthenticatedUser({
+        phoneNumber: normalizedPhoneNumber,
+        email: normalizedEmail,
+        emailVerified: emailHasChanged ? false : undefined,
+      });
+
+      setPhoneNumber(normalizedPhoneNumber);
+      setEmail(normalizedEmail);
+      setErrors({});
+      uiLog.info("[ManageProfile] profile updated");
+      showToast("Profile updated");
+    } catch (error) {
+      uiLog.error("[ManageProfile] profile update failed", { error });
+      showError("Failed to update profile. Please try again.");
+    }
   };
 
   const uploadProfilePhotoAsset = async (
@@ -156,12 +178,20 @@ export default function ManageProfile() {
     };
 
     setIsProfilePicUploading(true);
-    const res = await uploadProfilePicApi(file);
-    setProfilePicUrl(res.data?.url ?? null);
+    try {
+      const res = await uploadProfilePicApi(file);
+      setProfilePicUrl(res.data?.url ?? null);
+    } catch (error) {
+      uiLog.error("[ManageProfile] upload profile photo failed", { error });
+      showError("Failed to upload profile photo.");
+    } finally {
+      setIsProfilePicUploading(false);
+    }
   };
 
   const handleUploadFromLibrary = async () => {
     uiLog.debug("[ManageProfile] handleUploadFromLibrary called");
+    if (isGuest) return;
     if (isProfilePicUploading) return;
     if (isServerOffline) {
       showToast("Server unavailable. Cannot upload photo.");
@@ -193,6 +223,7 @@ export default function ManageProfile() {
 
   const handleTakePhoto = async () => {
     uiLog.debug("[ManageProfile] handleTakePhoto called");
+    if (isGuest) return;
     if (isProfilePicUploading) return;
     if (isServerOffline) {
       showToast("Server unavailable. Cannot upload photo.");
@@ -245,15 +276,17 @@ export default function ManageProfile() {
                     style={{ backgroundColor: theme.colors.primary }}
                   />
                 )}
-                <Pressable
-                  onPress={() => {
-                    uiLog.debug("[ManageProfile] onPress triggered");
-                    setIsPhotoOptionsVisible(true);
-                  }}
-                  disabled={isProfilePicUploading}
-                >
-                  <Text style={{ color: "#3A7AFE" }}>Change Photo</Text>
-                </Pressable>
+                {!isGuest && (
+                  <Pressable
+                    onPress={() => {
+                      uiLog.debug("[ManageProfile] onPress triggered");
+                      setIsPhotoOptionsVisible(true);
+                    }}
+                    disabled={isProfilePicUploading}
+                  >
+                    <Text style={{ color: "#3A7AFE" }}>Change Photo</Text>
+                  </Pressable>
+                )}
               </View>
             )}
             <View style={{ alignItems: "stretch", width: "100%", gap: 4 }}>
@@ -261,139 +294,136 @@ export default function ManageProfile() {
                 <SettingsTextInput
                   placeholder="Username"
                   label="Username"
-                  value={username}
-                  disabled={editableField !== "username"}
-                  onChangeText={(text) => {
-                    setUsername(text);
-                    if (errors.username) {
-                      setErrors((prev) => ({ ...prev, username: undefined }));
-                    }
-                  }}
-                  icon="pencil"
-                  onIconPress={() => {
-                    uiLog.debug("[ManageProfile] onIconPress triggered");
-                    setEditableField("username");
-                  }}
-                  error={Boolean(errors.username)}
+                  value={user.username ?? ""}
+                  disabled={true}
+                  onChangeText={() => {}}
                 />
-                <HelperText type="error" visible={Boolean(errors.username)}>
-                  {errors.username}
-                </HelperText>
               </View>
               <View>
                 <SettingsTextInput
                   placeholder="First Name"
                   label="First Name"
-                  value={firstName}
-                  disabled={editableField !== "firstName"}
-                  onChangeText={(text) => {
-                    setFirstName(text);
-                    if (errors.firstName) {
-                      setErrors((prev) => ({ ...prev, firstName: undefined }));
-                    }
-                  }}
-                  icon="pencil"
-                  onIconPress={() => {
-                    uiLog.debug("[ManageProfile] onIconPress triggered");
-                    setEditableField("firstName");
-                  }}
-                  error={Boolean(errors.firstName)}
+                  value={user.firstName ?? ""}
+                  disabled={true}
+                  onChangeText={() => {}}
                 />
-                <HelperText type="error" visible={Boolean(errors.firstName)}>
-                  {errors.firstName}
-                </HelperText>
               </View>
               <View>
                 <SettingsTextInput
                   placeholder="Last Name"
                   label="Last Name"
-                  value={lastName}
-                  disabled={editableField !== "lastName"}
-                  onChangeText={(text) => {
-                    setLastName(text);
-                    if (errors.lastName) {
-                      setErrors((prev) => ({ ...prev, lastName: undefined }));
-                    }
-                  }}
-                  icon="pencil"
-                  onIconPress={() => {
-                    uiLog.debug("[ManageProfile] onIconPress triggered");
-                    setEditableField("lastName");
-                  }}
-                  error={Boolean(errors.lastName)}
-                />
-                <HelperText type="error" visible={Boolean(errors.lastName)}>
-                  {errors.lastName}
-                </HelperText>
-              </View>
-              <View style={{ marginBottom: 20 }}>
-                <SettingsTextInput
+                  value={user.lastName ?? ""}
                   disabled={true}
-                  placeholder="Phone Number"
-                  label="Phone Number"
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  icon="pencil"
-                  labelRight={
-                    <Pressable>
-                      <Text
-                        style={{
-                          color: "#3A7AFE",
-                          fontWeight: "semibold",
-                          textDecorationLine: "underline",
-                          textDecorationColor: "#3A7AFE",
-                        }}
-                      >
-                        Verify
-                      </Text>
-                    </Pressable>
-                  }
+                  onChangeText={() => {}}
                 />
               </View>
-              <SettingsTextInput
-                placeholder="Email Address"
-                label="Email Address"
-                disabled={true}
-                value={email}
-                onChangeText={setEmail}
-                icon="pencil"
-                checkIcon={user instanceof Peer && user.emailVerified === true}
-                labelRight={
-                  user instanceof Peer &&
-                  user.emailVerified === false && (
-                    <Pressable
-                      onPress={() => {
-                        uiLog.info("[Navigation] Navigating to VerifyEmail", {
-                          screen: SETTINGS_ROUTES.VERIFY_EMAIL,
-                        });
-                        router.push({
-                          pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
-                          params: {
-                            email: user instanceof Peer ? user.email : "",
-                          },
-                        });
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: "#3A7AFE",
-                          fontWeight: "semibold",
-                          textDecorationLine: "underline",
-                          textDecorationColor: "#3A7AFE",
-                        }}
-                      >
-                        Verify
-                      </Text>
-                    </Pressable>
-                  )
-                }
-                onIconPress={() => {
-                  uiLog.info("[Navigation] Navigating to UpdateEmail", {
-                    screen: SETTINGS_ROUTES.UPDATE_EMAIL,
-                  });
-                  router.push(SETTINGS_ROUTES.UPDATE_EMAIL);
-                }}
-              />
+              {!isGuest && (
+                <View style={{ marginBottom: 4 }}>
+                  <SettingsTextInput
+                    placeholder="Phone Number"
+                    label="Phone Number"
+                    value={phoneNumber}
+                    onChangeText={(text) => {
+                      setPhoneNumber(text);
+                      if (errors.phoneNumber) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          phoneNumber: undefined,
+                        }));
+                      }
+                    }}
+                    error={Boolean(errors.phoneNumber)}
+                    labelRight={
+                      !emailHasChanged && !currentEmailVerified ? (
+                        <Pressable
+                          onPress={() => {
+                            uiLog.info(
+                              "[Navigation] Navigating to VerifyEmail",
+                              {
+                                screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+                              }
+                            );
+                            router.push({
+                              pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+                              params: {
+                                email: normalizeValue(email),
+                              },
+                            });
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: "#3A7AFE",
+                              fontWeight: "semibold",
+                              textDecorationLine: "underline",
+                              textDecorationColor: "#3A7AFE",
+                            }}
+                          >
+                            Verify
+                          </Text>
+                        </Pressable>
+                      ) : undefined
+                    }
+                  />
+                  <HelperText
+                    type="error"
+                    visible={Boolean(errors.phoneNumber)}
+                  >
+                    {errors.phoneNumber}
+                  </HelperText>
+                </View>
+              )}
+              {!isGuest && (
+                <View style={{ marginBottom: 4 }}>
+                  <SettingsTextInput
+                    placeholder="Email Address"
+                    label="Email Address"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (errors.email) {
+                        setErrors((prev) => ({ ...prev, email: undefined }));
+                      }
+                    }}
+                    error={Boolean(errors.email)}
+                    checkIcon={currentEmailVerified && !emailHasChanged}
+                    labelRight={
+                      !emailHasChanged && !currentEmailVerified ? (
+                        <Pressable
+                          onPress={() => {
+                            uiLog.info(
+                              "[Navigation] Navigating to VerifyEmail",
+                              {
+                                screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+                              }
+                            );
+                            router.push({
+                              pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+                              params: {
+                                email: normalizeValue(email),
+                              },
+                            });
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: "#3A7AFE",
+                              fontWeight: "semibold",
+                              textDecorationLine: "underline",
+                              textDecorationColor: "#3A7AFE",
+                            }}
+                          >
+                            Verify
+                          </Text>
+                        </Pressable>
+                      ) : undefined
+                    }
+                  />
+                  <HelperText type="error" visible={Boolean(errors.email)}>
+                    {errors.email}
+                  </HelperText>
+                </View>
+              )}
             </View>
             <Button
               mode="contained"
@@ -406,106 +436,112 @@ export default function ManageProfile() {
           </View>
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
-      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
+      <AppSnackbar
+        visible={toastVisible}
+        onDismiss={hideToast}
+        variant={toastVariant}
+      >
         {toastMessage}
       </AppSnackbar>
-      <Portal>
-        <Modal
-          visible={isPhotoOptionsVisible}
-          onDismiss={() => setIsPhotoOptionsVisible(false)}
-          contentContainerStyle={{
-            backgroundColor: theme.colors.background,
-            padding: 0,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-          }}
-          style={{ justifyContent: "flex-end" }}
-        >
-          <Button
-            icon={"camera-outline"}
-            onPress={handleTakePhoto}
-            loading={isProfilePicUploading}
-            textColor={actionColor}
-            style={{ alignSelf: "stretch" }}
-            contentStyle={{
-              justifyContent: "flex-start",
-              paddingHorizontal: 26,
-              paddingVertical: 14,
+      {!isGuest && (
+        <Portal>
+          <Modal
+            visible={isPhotoOptionsVisible}
+            onDismiss={() => setIsPhotoOptionsVisible(false)}
+            contentContainerStyle={{
+              backgroundColor: theme.colors.background,
+              padding: 0,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
             }}
-            labelStyle={{ fontSize: 17 }}
+            style={{ justifyContent: "flex-end" }}
           >
-            Take Photo
-          </Button>
-          <Button
-            icon={"folder-multiple-image"}
-            onPress={handleUploadFromLibrary}
-            loading={isProfilePicUploading}
-            textColor={actionColor}
-            style={{ alignSelf: "stretch" }}
-            contentStyle={{
-              justifyContent: "flex-start",
-              paddingHorizontal: 26,
-              paddingVertical: 14,
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: "#D9D9D9",
-            }}
-            labelStyle={{ fontSize: 17 }}
-          >
-            Upload Photo
-          </Button>
-          <Button
-            icon={"eye-outline"}
-            onPress={() => {
-              if (profilePicUrl) {
-                setIsPhotoViewerVisible(true);
-                setIsPhotoOptionsVisible(false);
-              }
-            }}
-            disabled={!profilePicUrl}
-            textColor={actionColor}
-            style={{ alignSelf: "stretch" }}
-            contentStyle={{
-              justifyContent: "flex-start",
-              paddingHorizontal: 26,
-              paddingVertical: 14,
-            }}
-            labelStyle={{ fontSize: 17 }}
-          >
-            View Photo
-          </Button>
-        </Modal>
-        <Modal
-          visible={isPhotoViewerVisible}
-          onDismiss={() => setIsPhotoViewerVisible(false)}
-          contentContainerStyle={{
-            flex: 1,
-            margin: 0,
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Pressable
-            style={{
+            <Button
+              icon={"camera-outline"}
+              onPress={handleTakePhoto}
+              loading={isProfilePicUploading}
+              textColor={actionColor}
+              style={{ alignSelf: "stretch" }}
+              contentStyle={{
+                justifyContent: "flex-start",
+                paddingHorizontal: 26,
+                paddingVertical: 14,
+              }}
+              labelStyle={{ fontSize: 17 }}
+            >
+              Take Photo
+            </Button>
+            <Button
+              icon={"folder-multiple-image"}
+              onPress={handleUploadFromLibrary}
+              loading={isProfilePicUploading}
+              textColor={actionColor}
+              style={{ alignSelf: "stretch" }}
+              contentStyle={{
+                justifyContent: "flex-start",
+                paddingHorizontal: 26,
+                paddingVertical: 14,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: "#D9D9D9",
+              }}
+              labelStyle={{ fontSize: 17 }}
+            >
+              Upload Photo
+            </Button>
+            <Button
+              icon={"eye-outline"}
+              onPress={() => {
+                if (profilePicUrl) {
+                  setIsPhotoViewerVisible(true);
+                  setIsPhotoOptionsVisible(false);
+                }
+              }}
+              disabled={!profilePicUrl}
+              textColor={actionColor}
+              style={{ alignSelf: "stretch" }}
+              contentStyle={{
+                justifyContent: "flex-start",
+                paddingHorizontal: 26,
+                paddingVertical: 14,
+              }}
+              labelStyle={{ fontSize: 17 }}
+            >
+              View Photo
+            </Button>
+          </Modal>
+          <Modal
+            visible={isPhotoViewerVisible}
+            onDismiss={() => setIsPhotoViewerVisible(false)}
+            contentContainerStyle={{
               flex: 1,
-              backgroundColor: "rgba(0, 0, 0, 0.8)",
+              margin: 0,
               justifyContent: "center",
               alignItems: "center",
-              padding: 16,
-              alignSelf: "stretch",
             }}
-            onPress={() => setIsPhotoViewerVisible(false)}
           >
-            {profilePicUrl && (
-              <Image
-                source={{ uri: profilePicUrl }}
-                style={{ width: "100%", height: "70%", borderRadius: 12 }}
-                resizeMode="contain"
-              />
-            )}
-          </Pressable>
-        </Modal>
-      </Portal>
+            <Pressable
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0, 0, 0, 0.8)",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: 16,
+                alignSelf: "stretch",
+              }}
+              onPress={() => setIsPhotoViewerVisible(false)}
+            >
+              {profilePicUrl && (
+                <Image
+                  source={{ uri: profilePicUrl }}
+                  style={{ width: "100%", height: "70%", borderRadius: 12 }}
+                  resizeMode="contain"
+                />
+              )}
+            </Pressable>
+          </Modal>
+        </Portal>
+      )}
     </View>
   );
 }
