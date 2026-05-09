@@ -30,7 +30,7 @@ import asyncio
 import logging
 import re
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Counter, Optional
 
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -230,10 +230,27 @@ def health():
 
 
 @app.get("/health/detailed", tags=["health"])
-def health_detailed():
+def health_detailed(
+    phone: Optional[str] = None,
+        ):
     """Full diagnostic — serial state, queue depth, pending SMS."""
     if _worker is None:
         raise HTTPException(503, "Worker not initialised")
+
+
+    messages = database.get_messages(limit=10_000, phone=phone)
+
+    total = len(messages)
+
+    direction_counts = Counter(m["direction"] for m in messages)
+    status_counts = Counter(m["status"] for m in messages)
+
+    failure_counts = Counter(
+        m["failure_reason"] for m in messages if m["failure_reason"]
+    )
+
+    def pct(value):
+        return round((value / total) * 100, 2) if total else 0
     return {
         "gsm_ready":    _worker.gsm_ready,
         "connected":    _worker.connected,
@@ -241,6 +258,31 @@ def health_detailed():
         "queue_depth":  _worker.incoming_queue.qsize(),
         "port":         settings.serial_port,
         "baud":         settings.serial_baud,
+        "total_messages": total,
+
+        "direction": {
+            k: {
+                "count": v,
+                "percent": pct(v)
+            }
+            for k, v in direction_counts.items()
+        },
+
+        "status": {
+            k: {
+                "count": v,
+                "percent": pct(v)
+            }
+            for k, v in status_counts.items()
+        },
+
+        "failure_reasons": {
+            k: {
+                "count": v,
+                "percent": pct(v)
+            }
+            for k, v in failure_counts.items()
+        }
     }
 
 
