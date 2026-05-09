@@ -22,7 +22,7 @@ const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
     const existing = services.find(
       (service) =>
         service.$?.["android:name"] === BACKGROUND_ACTIONS_SERVICE ||
-        service.$?.["android:name"] === ".RNBackgroundActionsTask",
+        service.$?.["android:name"] === ".RNBackgroundActionsTask"
     );
 
     const serviceAttributes = {
@@ -52,7 +52,7 @@ const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
 
 const IS_DEV = process.env.APP_VARIANT === "development";
 const IS_PREVIEW = process.env.APP_VARIANT === "preview";
-const getUpdateChannel = () => {
+const getChannel = () => {
   if (IS_DEV) {
     return "development";
   }
@@ -103,8 +103,8 @@ export default ({ config }: ConfigContext) => ({
     resizeMode: "contain",
     backgroundColor: "#EAEDF3",
   },
-  hooks:{
-    prebuild: "node ./scripts/setup-android-signing.js"
+  hooks: {
+    prebuild: "node ./scripts/setup-android-signing.js",
   },
   android: {
     adaptiveIcon: {
@@ -212,11 +212,9 @@ export default ({ config }: ConfigContext) => ({
   experiments: {
     typedRoutes: true,
   },
-  runtimeVersion: {
-    policy: "fingerprint",
-  },
+  runtimeVersion: "preview",
   updates: {
-    channel: getUpdateChannel(),
+    channel: getChannel(),
     url: "https://u.expo.dev/ee940ed5-5653-43cb-8938-d5f54a830c59",
   },
   extra: {
