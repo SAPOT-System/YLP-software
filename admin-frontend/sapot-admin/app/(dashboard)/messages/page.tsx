@@ -9,6 +9,8 @@ import { connectWebSocket } from "@/lib/ws/Websocketmanager";
 import { onMessage, sendChatMessage, sendSeen } from "@/lib/ws/Websocketmanager";
 import { markConversationMessagesAsRead } from "@/lib/records/Createmessagereceipt";
 import { useEffect, useRef, useState } from "react";
+import { Loader } from "lucide-react";
+import { initSessionCleanup } from "@/lib/sessionCleanup";
 
 export function usePolling(callback: () => Promise<void>, interval: number) {
   const isRunning = useRef(false);
@@ -40,7 +42,9 @@ export default function Messages() {
   const [messages, setMessages] = useState<any[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [onlinePeers, setOnlinePeers] = useState<Set<string>>(new Set());
+	const [loadingConversations, setLoadingConversations] = useState(true);
+	const [loadingMessages, setLoadingMessages] = useState(false);
+	const [initializing, setInitializing] = useState(true); const [onlinePeers, setOnlinePeers] = useState<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeConversationRef = useRef<any>(null);
@@ -51,6 +55,144 @@ export default function Messages() {
   useEffect(() => { userIdRef.current = userid; }, [userid]);
   useEffect(() => { currentUserInfoRef.current = currentUserInfo; }, [currentUserInfo]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+	useEffect(() => {
+
+		initSessionCleanup();
+
+		let unsubscribe: (() => void) | null = null;
+
+		(async () => {
+
+			try {
+
+				const user = await ensureCurrentUser();
+
+				await connectWebSocket(user.id);
+
+				try {
+					await sync();
+				} catch (e) {
+					console.warn("sync error", e);
+				}
+
+				await hydratePeers(user.id);
+
+				const convos = await getConversations();
+
+				setConversations(convos);
+
+				setLoadingConversations(false);
+
+				setInitializing(false);
+
+				unsubscribe = onMessage(async (msg: any) => {
+
+					if (msg.type === "chat") {
+
+						const current = activeConversationRef.current;
+
+						if (msg.data.conversationId === current?.id) {
+
+							await loadMessages(msg.data.conversationId);
+
+							const senderId = msg.data.from ?? msg.data.from_user;
+
+							if (
+								userIdRef.current &&
+								senderId &&
+								senderId !== userIdRef.current
+							) {
+
+								sendSeen({
+									conversationId: current.id,
+									to: senderId,
+								});
+
+								await markConversationMessagesAsRead({
+									conversation_id: current.id,
+									current_user_id: userIdRef.current,
+								});
+							}
+						}
+
+						const updated = await getConversations();
+
+						setConversations(updated);
+					}
+
+					if (msg.type === "server-ack" || msg.type === "ack") {
+
+						const current = activeConversationRef.current;
+
+						if (current) {
+							await loadMessages(current.id);
+						}
+
+						const updated = await getConversations();
+
+						setConversations(updated);
+					}
+
+					if (msg.type === "seen") {
+
+						const current = activeConversationRef.current;
+
+						if (current) {
+							await loadMessages(current.id);
+						}
+
+						const updated = await getConversations();
+
+						setConversations(updated);
+					}
+
+					if (msg.type === "status-update") {
+
+						const { user_id, status } = msg;
+
+						setOnlinePeers((prev) => {
+
+							const next = new Set(prev);
+
+							if (status === "online") {
+								next.add(user_id);
+							} else {
+								next.delete(user_id);
+							}
+
+							return next;
+						});
+
+						const peer = await db.peers.get(user_id);
+
+						if (peer) {
+							await db.peers.put({
+								...peer,
+								is_online: status === "online",
+							});
+						}
+					}
+				});
+
+			} catch (err) {
+
+				console.error(err);
+
+			} finally {
+
+				setLoadingConversations(false);
+
+				setInitializing(false);
+			}
+
+		})();
+
+		return () => {
+			unsubscribe?.();
+		};
+
+	}, []);
 
   async function ensureCurrentUser() {
     if (userIdRef.current && currentUserInfoRef.current) {
@@ -219,30 +361,62 @@ export default function Messages() {
     );
   }
 
-  async function loadMessages(conversationId: string) {
-    const msgs = await db.messages
-      .where("conversation_id")
-      .equals(conversationId)
-      .sortBy("created_at");
+	async function loadMessages(conversationId: string) {
 
-    // Attach best receipt status to each message for the receipt indicator
-    const statusPriority: Record<string, number> = { read: 3, sent: 2, delivered: 1 };
-    const msgsWithReceipts = await Promise.all(
-      msgs.map(async (msg) => {
-        const receipts = await db.message_receipts
-          .where("message_id")
-          .equals(msg.id)
-          .toArray();
-        const best = receipts.reduce<"sent" | "delivered" | "read" | null>((acc, r) => {
-          if (!acc) return r.status;
-          return (statusPriority[r.status] ?? 0) > (statusPriority[acc] ?? 0) ? r.status : acc;
-        }, null);
-        return { ...msg, receiptStatus: best };
-      })
-    );
+		try {
 
-    setMessages(msgsWithReceipts);
-  }
+			setLoadingMessages(true);
+
+			const msgs = await db.messages
+				.where("conversation_id")
+				.equals(conversationId)
+				.sortBy("created_at");
+
+			const statusPriority: Record<string, number> = {
+				read: 3,
+				sent: 2,
+				delivered: 1,
+			};
+
+			const msgsWithReceipts = await Promise.all(
+				msgs.map(async (msg) => {
+
+					const receipts = await db.message_receipts
+						.where("message_id")
+						.equals(msg.id)
+						.toArray();
+
+					const best = receipts.reduce<
+						"sent" | "delivered" | "read" | null
+					>((acc, r) => {
+
+						if (!acc) return r.status;
+
+						return (statusPriority[r.status] ?? 0) >
+							(statusPriority[acc] ?? 0)
+							? r.status
+							: acc;
+
+					}, null);
+
+					return {
+						...msg,
+						receiptStatus: best,
+					};
+				})
+			);
+
+			setMessages(msgsWithReceipts);
+
+		} catch (err) {
+
+			console.error("Load messages failed:", err);
+
+		} finally {
+
+			setLoadingMessages(false);
+		}
+	}
 
   async function search(identifier: string) {
     setSearchQuery(identifier);
@@ -389,7 +563,7 @@ export default function Messages() {
               value={searchQuery}
               placeholder="Search users..."
               className="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-gray-100 outline-none text-gray-800 placeholder-gray-400 focus:bg-gray-200 transition-colors"
-              onChange={async (e) => await search(e.target.value)}
+              onChange={(e) => search(e.target.value)}
             />
             {searchQuery && (
               <button
@@ -435,7 +609,20 @@ export default function Messages() {
 
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto">
-          {conversations.length === 0 ? (
+          {loadingConversations ? (
+						<div className="flex items-center justify-center h-full">
+							<div className="flex flex-col items-center gap-2">
+								<Loader
+									size={20}
+									className="animate-spin text-gray-400"
+								/>
+								<p className="text-xs text-gray-500">
+									Loading conversations...
+								</p>
+							</div>
+						</div>
+
+					) : conversations.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-gray-400">No conversations yet</div>
           ) : (
             conversations.map((conversation) => {
@@ -510,7 +697,26 @@ export default function Messages() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
-              {messages.length === 0 ? (
+						{loadingMessages ? (
+
+							<div className="flex items-center justify-center h-full">
+
+								<div className="flex flex-col items-center gap-2">
+
+									<Loader
+										size={20}
+										className="animate-spin text-gray-400"
+									/>
+
+									<p className="text-xs text-gray-500">
+										Loading messages...
+									</p>
+
+								</div>
+
+							</div>
+
+						) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-sm text-gray-400">
                   No messages yet. Say hi!
                 </div>
