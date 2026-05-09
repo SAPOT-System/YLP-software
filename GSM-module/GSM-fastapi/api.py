@@ -239,7 +239,6 @@ def health_detailed():
         "queue_depth":  _worker.incoming_queue.qsize(),
         "port":         settings.serial_port,
         "baud":         settings.serial_baud,
-        "db_path":      settings.db_path,
     }
 
 
