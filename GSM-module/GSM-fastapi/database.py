@@ -18,7 +18,7 @@ Two categories of tables
 Engine is created once at startup via init().
 All public functions are thread-safe (SQLAlchemy handles connection pooling).
 """
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from datetime import datetime
@@ -519,8 +519,8 @@ def update_message_status(msg_id: str, status: str,
         s.commit()
 
 
-def get_messages(limit: int = 50, direction: Optional[str] = None,
-                 phone: Optional[str] = None) -> list[dict]:
+def get_messages(limit: int = 50, offset: int = 0, direction: Optional[str] = None,
+                 phone: Optional[str] = None) -> dict:
     with new_get_session() as s:
         q = select(SmsLog)
         if direction:
@@ -529,18 +529,31 @@ def get_messages(limit: int = 50, direction: Optional[str] = None,
             q = q.where(
                 (SmsLog.from_number == phone) | (SmsLog.to_number == phone)
             )
-        q = q.order_by(SmsLog.created_at.desc()).limit(limit)
+        
+        # Get total count before limiting
+        total = s.execute(select(func.count()).select_from(SmsLog).where(
+            (SmsLog.direction == direction if direction else True) and
+            ((SmsLog.from_number == phone) | (SmsLog.to_number == phone) if phone else True)
+        )).scalar()
+        
+        q = q.order_by(SmsLog.created_at.desc()).offset(offset).limit(limit)
         rows = s.execute(q).scalars().all()
-        return [{
-            "id":             str(r.id),
-            "direction":      r.direction,
-            "from_number":    r.from_number,
-            "to_number":      r.to_number,
-            "body":           r.body,
-            "status":         r.status,
-            "failure_reason": r.failure_reason,
-            "created_at":     r.created_at,
-        } for r in rows]
+        
+        return {
+            "messages": [{
+                "id":             str(r.id),
+                "direction":      r.direction,
+                "from_number":    r.from_number,
+                "to_number":      r.to_number,
+                "body":           r.body,
+                "status":         r.status,
+                "failure_reason": r.failure_reason,
+                "created_at":     r.created_at,
+            } for r in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
 
 
 # =============================================================================

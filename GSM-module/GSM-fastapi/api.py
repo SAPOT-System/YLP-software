@@ -237,20 +237,20 @@ def health_detailed(
     if _worker is None:
         raise HTTPException(503, "Worker not initialised")
 
+    response = database.get_messages(limit=10_000, phone=phone)
 
-    messages = database.get_messages(limit=10_000, phone=phone)
-
-    total = len(messages)
+    messages = response["messages"]  # Extract the list
+    total = response["total"]  # Use total from response
 
     direction_counts = Counter(m["direction"] for m in messages)
     status_counts = Counter(m["status"] for m in messages)
-
     failure_counts = Counter(
         m["failure_reason"] for m in messages if m["failure_reason"]
     )
 
     def pct(value):
         return round((value / total) * 100, 2) if total else 0
+
     return {
         "gsm_ready":    _worker.gsm_ready,
         "connected":    _worker.connected,
