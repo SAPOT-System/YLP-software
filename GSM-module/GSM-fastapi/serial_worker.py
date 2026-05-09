@@ -33,7 +33,7 @@ from protocol import EventType, SerialEvent, build_send_sms, parse_line
 
 logger = logging.getLogger("sapot.serial")
 
-RECONNECT_DELAY = 5   # seconds between reconnect attempts
+RECONNECT_DELAY = 10   # seconds between reconnect attempts
 
 
 @dataclass

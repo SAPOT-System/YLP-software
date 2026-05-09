@@ -120,6 +120,15 @@ def _process_incoming(event):
 
     reply, forward_number, forward_body = handle_incoming_sms(number, body)
 
+    # Forward to target via SMS
+    if forward_number and forward_body and _worker:
+        _send_and_log(
+            from_number="SERVER",
+            to_number=forward_number,
+            body=forward_body,
+        )
+
+
     # Send reply back to sender
     if reply and _worker:
         _send_and_log(
@@ -128,13 +137,6 @@ def _process_incoming(event):
             body=reply,
         )
 
-    # Forward to target via SMS
-    if forward_number and forward_body and _worker:
-        _send_and_log(
-            from_number="SERVER",
-            to_number=forward_number,
-            body=forward_body,
-        )
 
 
 def _send_and_log(from_number: str, to_number: str, body: str):
@@ -147,7 +149,7 @@ def _send_and_log(from_number: str, to_number: str, body: str):
         status="pending",
     )
     try:
-        result = _worker.send_sms(to_number, body, timeout=60)
+        result = _worker.send_sms(to_number, body, timeout=120)
         status = "sent" if result["ok"] else "failed"
         database.update_message_status(msg_id, status, result.get("reason"))
     except Exception as e:

@@ -77,10 +77,18 @@ ForwardTuple = Tuple[Optional[str], Optional[str], Optional[str]]
 def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
     body = body.strip()
     logger.info("SMS in  %s: %r", number, body)
-
-    if AUTHORIZED is not None and number not in AUTHORIZED:
-        logger.warning("Unauthorised: %s", number)
-        return MSG_UNAUTHORIZED, None, None
+    sender_user = database.get_user_by_phone(number)
+    
+    if not sender_user:
+        logger.warning("Account does not exist: %s", number)
+        return MSG_NO_ACCOUNT, None, None
+    
+    if sender_user.get("banned"):
+        logger.warning("Banned: %s", number)
+        return "This number has been banned by the system", None, None
+    if   not sender_user.get("phone_is_verified"):
+        logger.warning("Unverified number: %s", number)
+        return "Please verify your account first.", None, None
 
     sender = database.lookup_number(number)
     if sender is None:
@@ -141,6 +149,19 @@ def _cmd_set_target(number: str, body: str) -> ForwardTuple:
 def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
     target_phone    = session.get("target_phone")
     target_username = session.get("target_username")
+
+    target_user = database.get_user_by_phone(target_phone)
+
+    if not target_user:
+        logger.warning("Target does not exist: %s", target_phone)
+        return f"Target {target_phone} does not exist.", sender_phone, None
+
+    if target_user.get("banned"):
+        logger.warning("Banned: %s", target_phone)
+        return f"This number ({target_phone}) has been banned by the system.", None, None
+    if   not target_user.get("phone_is_verified"):
+        logger.warning("Unverified number: %s", target_phone)
+        return f"Target {target_phone} is not verified.", None, None
 
     if not target_phone:
         database.reset_session(sender_phone)

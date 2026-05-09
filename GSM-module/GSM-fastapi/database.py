@@ -89,6 +89,24 @@ def new_get_session() -> Session:
     return _Session()
 
 
+def get_user_by_phone(phone:str):
+    with new_get_session() as s:
+        row = s.execute(
+            select(User).where(User.phone_number == phone)
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "id":           str(row.id),
+            "phone":        row.phone_number,
+            "username":     row.username,
+            "first_name":   row.first_name,
+            "last_name":    row.last_name,
+            "email":        row.email,
+            'banned': bool(row.banned),
+            "phone_is_verified": bool(row.phone_is_verified),
+            "app_active":   True,   # presence in DB = active account
+        }
 
 # =============================================================================
 # BASE
@@ -168,6 +186,38 @@ class User(Base):
         "BannedUser",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+
+    phone_is_verified = relationship(
+        "PhoneVerified",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class PhoneVerified(Base):
+    __tablename__ = "phone_verified"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        String(32),
+        primary_key=True,
+        default=new_id,
+        index=True,
+    )
+
+    user_id = Column(
+        String(32),
+        ForeignKey("user.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        unique=True,
+    )
+
+    user = relationship(
+        "User",
+        back_populates="phone_is_verified",
     )
 
 
@@ -267,7 +317,7 @@ class Message(Base, SyncableMixin):
     conversation = relationship("Conversation", back_populates="messages")
 
 
-class BannedUser(Base, SyncableMixin):
+class BannedUser(Base):
     __tablename__ = "banneduser"
     __table_args__ = {"extend_existing": True}
 
@@ -346,7 +396,7 @@ def lookup_number(phone: str) -> Optional[dict]:
     """
     with new_get_session() as s:
         row = s.execute(
-            select(User).where(User.phone_number == phone).where(~User.banned.has())
+            select(User).where(User.phone_number == phone).where(~User.banned.any())
         ).scalar_one_or_none()
         if row is None:
             return None
