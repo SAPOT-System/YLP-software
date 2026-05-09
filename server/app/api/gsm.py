@@ -1,5 +1,5 @@
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4, uuid5
 from fastapi import Depends, HTTPException
 from fastapi.routing import APIRouter
 import time
@@ -8,8 +8,10 @@ from sqlmodel import select
 
 from app.db_operations.auth import SessionDep
 from app.db_operations.token import get_current_user, get_current_user_admin, get_current_user_rescuer
+from app.models.conversation import Conversation, ConversationParticipant, ConversationType
+from app.models.guest import Guest
 from app.models.phone_verification import PhoneVerification, PhoneVerified, RequestPhoneVerification, VerifyPhoneCode, generate_otp, now_ms
-from app.models.users import User
+from app.models.users import PhoneStr, User
 import httpx
 
 
@@ -94,7 +96,7 @@ async def send_sms(
 
 
 async def sendToModule(phone_number: str, message: str):
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
             "http://localhost:8001/sms/send",
             json={
@@ -308,3 +310,91 @@ def check_if_verified(
     current_user : Annotated[User, Depends(get_current_user)],
     ):
     return { 'is_verified': bool(current_user.phone_is_verified) }
+
+
+# Same namespace as uuid.URL
+NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+
+def direct_conversation_id(user_id_a: str, user_id_b: str):
+    """
+    Generate a deterministic conversation ID
+    regardless of user order.
+
+    Example:
+        direct_conversation_id("alice", "bob")
+        ==
+        direct_conversation_id("bob", "alice")
+    """
+    name = ":".join(sorted([user_id_a, user_id_b]))
+    return uuid5(NAMESPACE, name).hex
+
+
+
+@router.post("/contact-unknown-user")
+async def contact_unknown_user(
+    current_user : Annotated[User, Depends(get_current_user)],
+    target_phone_number: PhoneStr,
+    session: SessionDep,
+
+    ):
+    """
+    this is an endpoint for contacting unknown users. Use this to create 
+    the conversation between an authenticated user and a user without an account. 
+    This does not send any message to the target user.
+    """
+    unknown_user_id = direct_conversation_id(target_phone_number, str(NAMESPACE.hex))
+
+    unknown_user_exists = session.get(User, UUID(unknown_user_id))
+
+    if not unknown_user_exists:
+        createUser = User(
+                id=UUID(unknown_user_id),
+                username=target_phone_number,
+                phone_number=target_phone_number,
+                first_name="Unknown",
+                last_name="Unknown",
+                hashed_password=""
+                )
+        guest = Guest(user_id=UUID(unknown_user_id))
+        verify_phone = PhoneVerified(user_id=UUID(unknown_user_id))
+        session.add_all([createUser, guest, verify_phone])
+
+    conversation_id = direct_conversation_id(unknown_user_id, str(current_user.id))
+    conversation = session.get(Conversation, UUID(conversation_id))
+
+    if not conversation:
+        convo = Conversation(
+                id=UUID(conversation_id),
+                title=conversation_id,
+                conversation_type=ConversationType.direct,
+
+                )
+        session.add(convo)
+
+    participant_1 = session.exec(
+            select(ConversationParticipant)
+                .where(ConversationParticipant.user_id==UUID(unknown_user_id))
+                .where(ConversationParticipant.conversation_id == UUID(conversation_id))
+                ).first()
+    participant_2 = session.exec(
+            select(ConversationParticipant) .where(ConversationParticipant.user_id==current_user.id)
+                .where(ConversationParticipant.conversation_id == UUID(conversation_id))
+                ).first()
+
+    if not participant_1:
+        ConversationParticipant(
+                user_id=UUID(unknown_user_id),
+                conversation_id=UUID(conversation_id)
+                )
+    if not participant_2:
+        ConversationParticipant(
+                user_id=current_user.id,
+                conversation_id=UUID(conversation_id)
+                )
+
+    session.commit()
+
+    await sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
+
+    return { "status": "ok", "detail": "Sync from the database"}

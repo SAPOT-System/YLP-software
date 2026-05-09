@@ -27,7 +27,9 @@ if TYPE_CHECKING:
 
 PhoneStr = Annotated[
     str,
-    StringConstraints(pattern=r"^\+?1?\d{9,15}$")
+    StringConstraints(
+        pattern=r"^\+639\d{9}$"
+    )
 ]
 
 class UserBase(SQLModel):
