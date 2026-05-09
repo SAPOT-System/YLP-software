@@ -37,7 +37,16 @@ def get_current_user_info(
         current_user : Annotated[User, Depends(get_current_user)],
 ):
 
-    return current_user
+    return UserInfo(
+        id=str(current_user.id),
+        username=current_user.username,
+        first_name=current_user.first_name,
+        last_name=current_user.last_name,
+        phone_number=current_user.phone_number,
+        email=current_user.email,
+        email_verified=current_user.email_verified,
+        phone_verified=current_user.phone_is_verified is not None
+    )
 
 
 @router.get("/search-user/{id}")

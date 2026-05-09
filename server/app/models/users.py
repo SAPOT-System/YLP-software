@@ -303,3 +303,4 @@ class UserInfo(UserBase):
     # (email, phone number, username, first name, last name, and id
     id: uuid.UUID
     email_verified: bool
+    phone_verified: bool
