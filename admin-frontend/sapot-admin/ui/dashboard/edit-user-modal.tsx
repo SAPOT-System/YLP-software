@@ -118,7 +118,7 @@ export default function EditUserModal({ user, isOpen, onClose, onRefresh, mode="
 		      "Create New User"
 		    )}
 		  </div>
-                  <XIcon className="w-6 h-6 cursor-pointer text-gray-400 hover:text-gray-600" onClick={onClose} />
+                  <XIcon className="w-6 h-6 cursor-pointer text-gray-400 hover:text-gray-600" onClick={()=>onClose(false)} />
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
