@@ -1,25 +1,39 @@
-import { Peer } from "../database";
+import { GuestUser, Peer } from "../database";
+import { userLog } from "../utils/logger";
+userLog.debug("[user-store] module loaded");
 
 /**
  * UserStore manages the current user's Peer object.
  */
 export class UserStore {
-  private _user?: Peer;
+  private _user?: Peer | GuestUser;
+  private _isGuest: boolean = false;
+  private _isRescuer: boolean = false;
 
   /**
    * Gets the current user as a Peer object.
    * @throws Error if the user is not initialized
    */
-  get user(): Peer {
+  get user(): Peer | GuestUser {
     if (!this._user) throw new Error("Current user not initialized");
     return this._user;
   }
 
-  /**
-   * Sets the current user as a Peer object.
-   * @param peer The Peer object to set as the current user
-   */
-  setUser(peer: Peer) {
-    this._user = peer;
+  get isGuest(): boolean {
+    return this._isGuest;
+  }
+
+  get isRescuer(): boolean {
+    return this._isRescuer;
+  }
+
+  setIsRescuer(value: boolean) {
+    this._isRescuer = value;
+  }
+
+  setUser(user: Peer | GuestUser, isGuest: boolean) {
+    userLog.info("user › set", { isGuest, hasUser: Boolean(user) });
+    this._user = user;
+    this._isGuest = isGuest;
   }
 }

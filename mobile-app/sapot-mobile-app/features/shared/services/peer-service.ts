@@ -1,6 +1,10 @@
 import { Service } from "react-native-zeroconf";
+import { getUserById } from "../api/search.api";
 import { PeerRepository } from "../repositories";
 import { DiscoveredService } from "../types";
+import { peerLog } from "../utils/logger";
+
+peerLog.debug("[peer-service] module loaded");
 
 /**
  * PeerService manages peer discovery, registration, online/offline state, and peer repository operations.
@@ -20,7 +24,11 @@ export class PeerService {
    * Constructs a PeerService instance.
    * @param peerRepository Repository for peer data
    */
-  constructor(private peerRepository: PeerRepository) {}
+  constructor(private peerRepository: PeerRepository) {
+    peerLog.info("peer › service constructed", {
+      hasPeerRepository: Boolean(peerRepository),
+    });
+  }
 
   /**
    * Registers a discovered peer service. If the peer exists, marks it online; otherwise, saves it.
@@ -30,38 +38,42 @@ export class PeerService {
    */
   async register(peerService: Service) {
     try {
-      const peerExist = await this.peerRepository.isPeerExist(
-        peerService.txt.id
-      );
-
-      if (peerExist) {
-        await this.markOnline(peerService.txt.id);
-      } else {
-        await this.peerRepository.savePeer({
-          id: peerService.txt.id,
-          username: peerService.txt.username,
+      const peerId = peerService.txt?.id;
+      if (!peerId) {
+        peerLog.warn("peer › register skipped", {
+          reason: "missing id",
+          serviceName: peerService.name,
         });
+        return;
       }
 
+      await this.peerRepository.createOrUpdatePeer(
+        {
+          id: peerId,
+          username: peerService.txt?.username,
+          firstName: peerService.txt?.firstName,
+          lastName: peerService.txt?.lastName,
+        },
+        { markOnline: true }
+      );
+
       const isServiceExist = this.discoveredPeerServices.find(
-        (peer) => peer.id === peerService.txt.id
+        (peer) => peer.id === peerId
       );
       if (!isServiceExist) {
         this.discoveredPeerServices.push({
           serviceName: peerService.name,
-          id: peerService.txt.id,
+          id: peerId,
           port: peerService.port,
           ipAddress: peerService.addresses[0],
         });
       }
     } catch (error) {
-      console.error(
-        `[PeerService]: Error regestring peer\n${JSON.stringify(
-          peerService,
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › register failed", {
+        peerId: peerService.txt?.id,
+        serviceName: peerService.name,
+        error,
+      });
       throw error;
     }
   }
@@ -75,13 +87,7 @@ export class PeerService {
     try {
       await this.peerRepository.markPeerOnline(id);
     } catch (error) {
-      console.error(
-        `[PeerService]: Error marking peer online\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › mark online failed", { peerId: id, error });
       throw error;
     }
   }
@@ -105,13 +111,10 @@ export class PeerService {
 
       await this.peerRepository.markPeerOffline(removedService.id);
     } catch (error) {
-      console.error(
-        `[PeerService]: Error marking peer offline\n${JSON.stringify(
-          { serviceName },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › mark offline failed", {
+        serviceName,
+        error,
+      });
       throw error;
     }
   }
@@ -125,7 +128,7 @@ export class PeerService {
       const peers = await this.peerRepository.queryAllPeers();
       return peers;
     } catch (error) {
-      console.error("[PeerService]: Error getting all peers:", error);
+      peerLog.error("peer › list failed", { error });
       throw error;
     }
   }
@@ -140,13 +143,39 @@ export class PeerService {
       const peer = await this.peerRepository.queryPeerById(id);
       return peer;
     } catch (error) {
-      console.error(
-        `[PeerService]: Error finding peer\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › find failed", { peerId: id, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Updates peer profile fields in the repository.
+   * @param id The peer id
+   * @param peerInfo The fields to update
+   * @returns Promise<void>
+   */
+  async updatePeerInfo(
+    id: string,
+    peerInfo: {
+      firstName?: string;
+      username?: string;
+      lastName?: string;
+      email?: string;
+      phoneNumber?: string;
+      emailVerified?: boolean;
+    }
+  ) {
+    try {
+      await this.peerRepository.updatePeerInfoById(id, peerInfo);
+    } catch (error) {
+      peerLog.error("peer › update failed", {
+        peerId: id,
+        hasEmail: peerInfo.email !== undefined,
+        hasPhoneNumber: peerInfo.phoneNumber !== undefined,
+        hasLastName: peerInfo.lastName !== undefined,
+        emailVerified: peerInfo.emailVerified,
+        error,
+      });
       throw error;
     }
   }
@@ -158,17 +187,13 @@ export class PeerService {
    */
   findDiscoveredPeerById(id: string) {
     try {
-      console.log(this.discoveredPeerServices);
+      peerLog.debug("peer › discovered list checked", {
+        count: this.discoveredPeerServices.length,
+      });
       const peer = this.discoveredPeerServices.find((peer) => peer.id === id);
       return peer;
     } catch (error) {
-      console.error(
-        `[PeerService]: Error finding discovered peer\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › discover find failed", { peerId: id, error });
       throw error;
     }
   }
@@ -181,17 +206,57 @@ export class PeerService {
    * @param username The username
    * @returns Promise<any> The created peer object
    */
-  async createUser(id: string, username: string) {
+  async createUser(
+    id: string,
+    username: string,
+    firstName: string,
+    lastName?: string,
+    email?: string,
+    phoneNumber?: string,
+    emailVerified?: boolean
+  ) {
     try {
-      return await this.peerRepository.savePeer({ id, username });
+      return await this.peerRepository.savePeer({
+        id,
+        username,
+        firstName,
+        lastName,
+        email,
+        phoneNumber,
+        emailVerified,
+      });
     } catch (error) {
-      console.error(
-        `[PeerService]: Error creating user\n${JSON.stringify(
-          { id, username },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › create failed", { peerId: id, error });
+      throw error;
+    }
+  }
+
+
+
+  async getOrCreatePeerById(
+    id: string,
+    connectionService: { isWebSocketAllowed(): boolean }
+  ) {
+    try {
+      const existing = await this.peerRepository.queryPeerById(id);
+      if (existing) return existing;
+
+      if (!connectionService.isWebSocketAllowed()) {
+        peerLog.warn("peer › get or create skipped, ws not allowed", {
+          peerId: id,
+        });
+        return null;
+      }
+
+      const user = await getUserById(id);
+      return await this.peerRepository.savePeer({
+        id: user.id,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+      });
+    } catch (error) {
+      peerLog.error("peer › get or create failed", { peerId: id, error });
       throw error;
     }
   }

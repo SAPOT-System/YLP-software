@@ -1,29 +1,74 @@
-import { View, Text, FlatList, Pressable } from "react-native";
-import React, { useCallback } from "react";
-import { useRouter } from "expo-router";
+import { Conversation, database, formatDate } from "@/features/shared";
+import { AnnouncementListRow } from "@/features/announcements";
+import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
-import { Conversation, database } from "@/features/shared";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { FlatList, Pressable, RefreshControl, View } from "react-native";
+import { Avatar, Text, useTheme } from "react-native-paper";
 
 import { ChatRoomSource } from "@/features/chat/types";
+import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/utils/logger";
 import { useChatService } from "../hooks";
-import { usePeerService, useDiscoveryService } from "@/features/shared/hooks";
+uiLog.debug("[chat-list] module loaded");
 
 const enhanceChats = withObservables([], () => ({
-  chats: database.get<Conversation>("conversations").query().observe(),
+  chats: database
+    .get<Conversation>("conversations")
+    .query(Q.where("is_deleted", false))
+    .observe(),
 }));
 
-const ChatList = enhanceChats(({ chats }: { chats: Conversation[] }) => {
-  return (
-    <View>
-      <Text style={{ fontSize: 16 }}>Chat List</Text>
-      <FlatList
-        data={chats}
-        renderItem={({ item }) => <ChatListItem chat={item} />}
-        keyExtractor={(chat) => chat.id}
-      />
-    </View>
-  );
-});
+const ChatList = enhanceChats(
+  ({
+    chats,
+    refreshing,
+    onRefresh,
+  }: {
+    chats: Conversation[];
+    refreshing?: boolean;
+    onRefresh?: () => void;
+  }) => {
+    const theme = useTheme();
+    return (
+      <View>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            paddingHorizontal: 16,
+            marginBottom: 20,
+          }}
+        >
+          <Text
+            variant="titleLarge"
+            style={{
+              fontWeight: 700,
+              color: theme.dark ? "#9AA7C1" : "#103462",
+            }}
+          >
+            Chats
+          </Text>
+        </View>
+        <FlatList
+          data={chats}
+          ListHeaderComponent={AnnouncementListRow}
+          renderItem={({ item }) => <ChatListItem chat={item} />}
+          keyExtractor={(chat) => chat.id}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing ?? false}
+                onRefresh={onRefresh}
+              />
+            ) : undefined
+          }
+        />
+      </View>
+    );
+  }
+);
 
 const enhanceChat = withObservables(
   ["chat"],
@@ -34,47 +79,124 @@ const enhanceChat = withObservables(
 
 const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
   const router = useRouter();
+  const theme = useTheme();
   const chatService = useChatService();
   const peerService = usePeerService();
-  const discoveryService = useDiscoveryService();
+  const [peerName, setPeerName] = useState("Loading...");
+  const [peerId, setPeerId] = useState<string | null>(null);
+  const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
 
-  const handleResend = useCallback(
-    async (chatId: string) => {
-      const peerId = await chatService.findPeerIdByChatId(chatId);
-      const peer = peerService.findDiscoveredPeerById(peerId);
+  useEffect(() => {
+    let isMounted = true;
 
-      // TODO: catch
-      if (!peer) throw Error("Peer not found");
+    const loadPeerName = async () => {
+      try {
+        uiLog.debug("chat-list › load peer", { chatId: chat.id });
+        const resolvedPeerId = await chatService.findPeerIdByChatId(chat.id);
+        setPeerId(resolvedPeerId);
+        const peer = await peerService.findPeerById(resolvedPeerId);
 
-      await discoveryService.performResendMessagesForPeer(
-        peerId,
-        peer.ipAddress,
-        peer.port
-      );
-    },
-    [chatService, peerService, discoveryService]
-  );
+        if (!isMounted) return;
+
+        if (!peer) {
+          setPeerName("Unknown peer");
+          return;
+        }
+
+        const fullName = `${peer.firstName || ""} ${
+          peer.lastName || ""
+        }`.trim();
+        setPeerName(fullName || peer.username || "Unknown peer");
+
+      } catch (error) {
+        uiLog.warn("chat-list › load peer failed", {
+          chatId: chat.id,
+          error,
+        });
+        if (isMounted) setPeerName("Unknown peer");
+      }
+    };
+
+    loadPeerName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [chat.id, chatService, peerService]);
+
+  // const handleResend = useCallback(
+  //   async (chatId: string) => {
+  //     const peerId = await chatService.findPeerIdByChatId(chatId);
+  //     const peer = peerService.findDiscoveredPeerById(peerId);
+
+  //     // TODO: catch
+  //     if (!peer) throw Error("Peer not found");
+
+  //     await discoveryService.performResendMessagesForPeer(
+  //       peerId,
+  //       peer.ipAddress,
+  //       peer.port
+  //     );
+  //   },
+  //   [chatService, peerService, discoveryService]
+  // );
 
   return (
     <Pressable
-      onPress={() =>
+      onPress={() => {
+        uiLog.info("chat-list › open chat", { chatId: chat.id });
         router.push({
           pathname: "/(drawer)/(tabs)/chat/[id]",
           params: { id: chat.id, source: ChatRoomSource.CHAT },
-        })
-      }
+        });
+      }}
       style={{
-        paddingVertical: 5,
-        paddingHorizontal: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderColor: theme.dark ? "#0B1020" : "#EEEEEE",
+        backgroundColor: theme.dark ? "#121A2E" : "",
+        borderTopWidth: 2,
+        borderBottomWidth: 2,
         borderRadius: 4,
       }}
     >
-      <Text>
-        {chat.id}^^^{chat.createdAt.toLocaleString()}
-      </Text>
-      <Pressable onPress={() => handleResend(chat.id)}>
-        <Text>Resend</Text>
-      </Pressable>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-start",
+        }}
+      >
+        {peerProfilePicUrl ? (
+          <Avatar.Image size={60} source={{ uri: peerProfilePicUrl }} />
+        ) : (
+          <Avatar.Text
+            size={60}
+            label={(peerName[0] ?? "?").toUpperCase()}
+          />
+        )}
+        <View style={{ flexGrow: 1, marginLeft: 16 }}>
+          <Text
+            style={{ fontSize: 17, color: theme.dark ? "#E6ECF5" : "#1E1E1E" }}
+          >
+            {peerName}
+          </Text>
+          <Text
+            style={{ fontSize: 17, color: theme.dark ? "#6E7891" : "#6B7280" }}
+          >
+            messages
+            {/* TODO: make a message field in the conversation table */}
+          </Text>
+        </View>
+        <Text
+          style={{
+            alignSelf: "flex-end",
+            color: theme.dark ? "#6E7891" : "#6B7280",
+          }}
+        >
+          {formatDate(chat.createdAt)}
+        </Text>
+      </View>
     </Pressable>
   );
 });

@@ -1,54 +1,111 @@
-import { View, Text, FlatList, Pressable } from "react-native";
-import React from "react";
+import { ChatRoomSource } from "@/features/chat/types";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
-import { database, Peer } from "../database";
-import { ChatRoomSource } from "@/features/chat/types";
+import React from "react";
+import { FlatList, Pressable, View } from "react-native";
+import { Avatar, Text, useTheme } from "react-native-paper";
+import { Peer } from "../database";
+import { PeerListEntry, usePeerListData } from "../hooks/use-peer-list-data";
+import { useProfilePhoto } from "../hooks/use-profile-photo";
+import { uiLog } from "../utils/logger";
 
-const enhancePeers = withObservables([], () => ({
-  peers: database.get<Peer>("peers").query().observe(),
-}));
+uiLog.debug("[peer-list] module loaded");
 
-const PeerList = enhancePeers(({ peers }: { peers: Peer[] }) => {
+const ONLINE_DOT_SIZE = 14;
+
+const PeerList = () => {
+  const entries = usePeerListData();
+  const theme = useTheme();
   return (
-    <View>
-      <Text style={{ fontSize: 16 }}>Peer List</Text>
+    <View style={{ gap: 12, marginTop: 12 }}>
+      <Text
+        variant="bodyLarge"
+        style={{
+          fontSize: 20,
+          fontWeight: 700,
+          color: theme.dark ? "#9AA7C1" : "#103462",
+        }}
+      >
+        Peers
+      </Text>
 
       <FlatList
         horizontal
-        contentContainerStyle={{ gap: 5, paddingHorizontal: 4 }}
-        data={peers}
-        renderItem={({ item }) => <PeerListItem peer={item} />}
-        keyExtractor={(peer) => peer.id}
+        contentContainerStyle={{ gap: 24 }}
+        data={entries}
+        renderItem={({ item }) => (
+          <PeerListItem peer={item.peer} isOnline={item.isOnline} />
+        )}
+        keyExtractor={({ peer }: PeerListEntry) => peer.id}
       />
     </View>
   );
-});
+};
 
 const enhancePeer = withObservables(["peer"], ({ peer }: { peer: Peer }) => ({
-  peer,
+  peer: peer.observe(),
 }));
 
-const PeerListItem = enhancePeer(({ peer }: { peer: Peer }) => {
+const PeerListItemInner = ({
+  peer,
+  isOnline,
+}: {
+  peer: Peer;
+  isOnline: boolean;
+}) => {
   const router = useRouter();
+  const theme = useTheme();
+  const { url: profilePicUrl } = useProfilePhoto(peer.id);
+
+  const handlePress = () => {
+    uiLog.info("peer-list › open chat", { peerId: peer.id });
+    router.push({
+      pathname: "/(drawer)/(tabs)/chat/[id]",
+      params: { id: peer.id, source: ChatRoomSource.PEER },
+    });
+  };
+
   return (
     <Pressable
-      onPress={() =>
-        router.push({
-          pathname: "/(drawer)/(tabs)/chat/[id]",
-          params: { id: peer.id, source: ChatRoomSource.PEER },
-        })
-      }
-      style={{
-        backgroundColor: `${peer.isOnline ? "green" : "grey"}`,
-        paddingVertical: 5,
-        paddingHorizontal: 10,
-        borderRadius: 4,
-      }}
+      onPress={handlePress}
+      style={{ display: "flex", alignItems: "center" }}
     >
-      <Text>{peer.username}</Text>
+      <View style={{ position: "relative" }}>
+        {profilePicUrl ? (
+          <Avatar.Image size={60} source={{ uri: profilePicUrl }} />
+        ) : (
+          <Avatar.Text
+            size={60}
+            label={(
+              peer.firstName?.[0] ??
+              peer.username?.[0] ??
+              "?"
+            ).toUpperCase()}
+          />
+        )}
+        {isOnline && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 2,
+              right: 2,
+              width: ONLINE_DOT_SIZE,
+              height: ONLINE_DOT_SIZE,
+              borderRadius: ONLINE_DOT_SIZE / 2,
+              backgroundColor: "#22c55e",
+              borderWidth: 2,
+              borderColor: theme.colors.background,
+            }}
+          />
+        )}
+      </View>
+      <Text style={{ color: theme.dark ? "#9AA7C1" : "#103462" }}>
+        {peer.firstName}
+      </Text>
     </Pressable>
   );
-});
+};
+
+const PeerListItem = enhancePeer(PeerListItemInner);
 
 export default PeerList;

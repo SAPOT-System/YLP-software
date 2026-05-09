@@ -5,10 +5,14 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 
+if (__DEV__) {
+  import("../features/shared/utils/reactotron");
+}
+
 import Colors from "@/constants/Colors";
+import { layoutLog } from "@/features/shared/utils/logger";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
-import { useColorScheme } from "react-native";
 
 import {
   MD3DarkTheme,
@@ -23,7 +27,15 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 
+import { AuthContainerProvider, AuthProvider } from "@/features/auth";
+import {
+  AppModeProvider,
+  ThemePreferenceProvider,
+  useThemePreference,
+} from "@/features/shared/context";
 import merge from "deepmerge";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+// import { usePing } from "@/features/shared/hooks";
 
 const customDarkTheme = { ...MD3DarkTheme, colors: Colors.dark };
 const customLightTheme = { ...MD3LightTheme, colors: Colors.light };
@@ -38,7 +50,7 @@ const CombinedDarkTheme = merge(DarkTheme, customDarkTheme);
 
 export {
   // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
+  ErrorBoundary
 } from "expo-router";
 
 export const unstable_settings = {
@@ -59,11 +71,17 @@ export default function RootLayout() {
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
+    layoutLog.debug("[RootLayout] useEffect triggered, deps:", { error });
+    if (error) {
+      layoutLog.error("[RootLayout] Error in font loading", { error });
+      throw error;
+    }
   }, [error]);
 
   useEffect(() => {
+    layoutLog.debug("[RootLayout] useEffect triggered, deps:", { loaded });
     if (loaded) {
+      layoutLog.info("[RootLayout] fonts loaded");
       SplashScreen.hideAsync();
       setTimeout(() => {
         setShowSplash(false);
@@ -71,10 +89,18 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  useEffect(() => {
+    layoutLog.info("[RootLayout] mounted");
+    return () => {
+      layoutLog.info("[RootLayout] unmounted");
+    };
+  }, []);
+
   if (!loaded || showSplash) {
     return (
       <AnimatedSplash
         onFinish={async () => {
+          layoutLog.info("[RootLayout] splash finished");
           await SplashScreen.hideAsync();
           setShowSplash(false);
         }}
@@ -86,21 +112,53 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-  const paperTheme =
-    colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
+  useEffect(() => {
+    layoutLog.info("[RootLayoutNav] mounted");
+    return () => {
+      layoutLog.info("[RootLayoutNav] unmounted");
+    };
+  }, []);
+
   return (
-    <PaperProvider theme={paperTheme}>
-      <ThemeProvider value={paperTheme}>
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="getting-started"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-        </Stack>
-      </ThemeProvider>
-    </PaperProvider>
+    <ThemePreferenceProvider>
+      <RootLayoutWithTheme />
+    </ThemePreferenceProvider>
+  );
+}
+
+function RootLayoutWithTheme() {
+  // const { latency } = usePing();
+  const { resolvedTheme } = useThemePreference();
+
+  const paperTheme =
+    resolvedTheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
+
+  useEffect(() => {
+    layoutLog.debug("[RootLayoutWithTheme] useEffect triggered, deps:", {
+      resolvedTheme,
+    });
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    layoutLog.info("[RootLayoutWithTheme] mounted");
+    return () => {
+      layoutLog.info("[RootLayoutWithTheme] unmounted");
+    };
+  }, []);
+
+  return (
+    <SafeAreaProvider>
+      <AuthContainerProvider>
+        <AuthProvider>
+          <AppModeProvider>
+            <PaperProvider theme={paperTheme}>
+              <ThemeProvider value={paperTheme}>
+                <Stack screenOptions={{ headerShown: false }} />
+              </ThemeProvider>
+            </PaperProvider>
+          </AppModeProvider>
+        </AuthProvider>
+      </AuthContainerProvider>
+    </SafeAreaProvider>
   );
 }

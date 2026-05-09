@@ -1,69 +1,221 @@
-import {
-  View,
-  Text,
-  ActivityIndicator,
-  Pressable,
-  TextInput,
-  StyleSheet,
-} from "react-native";
-import React, { useEffect, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChatRoomSource } from "@/features/chat/types";
-import { useCallService } from "@/features/call";
+import { APP_ROUTES } from "@/config/routes";
+import { useInformCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
+import { ChatRoomSource } from "@/features/chat/types";
+import { Peer } from "@/features/shared";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import {
+  useIsUserActive,
+  usePeerService,
+  useProfilePhoto,
+  useThrottledPress,
+  useToast,
+} from "@/features/shared/hooks";
+import { useUserStore } from "@/features/shared/hooks/use-user-store";
+import { uiLog } from "@/features/shared/utils/logger";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import {
+  Appbar,
+  Avatar,
+  IconButton,
+  useTheme,
+} from "react-native-paper";
 
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<
+    "connecting" | "connected" | "failed" | "timeout" | "idle"
+  >("idle");
   const [isRendered, setIsRendered] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
+  const [isSelfChat, setIsSelfChat] = useState(false);
+  const [peer, setPeer] = useState<Peer | undefined>();
+  const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
+  const isServerActive = useIsUserActive(peerId);
   const [message, setMessage] = useState("");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const chatService = useChatService();
+  const peerService = usePeerService();
+  const userStore = useUserStore();
   const router = useRouter();
-  const callService = useCallService();
+  const call = useInformCall();
+  const {
+    visible: toastVisible,
+    message: toastMessage,
+    variant: toastVariant,
+    showToast,
+    showError,
+    hideToast,
+  } = useToast();
+  const theme = useTheme();
+
+  useEffect(() => {
+    uiLog.info("[ChatRoom] mounted");
+    return () => {
+      uiLog.info("[ChatRoom] unmounted");
+    };
+  }, []);
 
   // This will initialize the connection to the peer and conversations by the id params
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
+      id,
+      source,
+    });
+
+    // Abort previous request if it's still in-flight
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    const signal = abortController.signal;
+
     const connect = async () => {
+      if (signal.aborted) return;
+
       if (source === ChatRoomSource.PEER) {
-        setPeerId(id as string);
-        const chatId = await chatService.findChatByPeer(id as string);
+        const resolvedPeerId = id as string;
+        const isSelf = resolvedPeerId === userStore.user?.id;
+        uiLog.debug("[ChatRoom] peer resolved from PEER source", {
+          resolvedPeerId,
+          isSelf,
+        });
+        setIsSelfChat(isSelf);
+        setPeerId(resolvedPeerId);
+
+        if (signal.aborted) return;
+        const chatId = await chatService.findChatByPeer(resolvedPeerId);
+        if (signal.aborted) return;
+
         if (chatId) setConversationId(chatId);
       } else if (source === ChatRoomSource.CHAT) {
-        setPeerId(await chatService.findPeerIdByChatId(id as string));
+        const foundPeerId = await chatService.findPeerIdByChatId(id as string);
+        if (signal.aborted) return;
+
+        const isSelf = foundPeerId === userStore.user?.id;
+        uiLog.debug("[ChatRoom] peer resolved from CHAT source", {
+          foundPeerId,
+          isSelf,
+        });
+        setIsSelfChat(isSelf);
+        setPeerId(foundPeerId);
         setConversationId(id as string);
       } else {
         throw Error("Error in passed source paramater");
       }
+
+      if (signal.aborted) return;
       setIsRendered(true);
     };
     connect();
-  }, [chatService, id, source]);
+
+    return () => {
+      abortControllerRef.current = null;
+    };
+  }, [chatService, id, source, userStore]);
 
   useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
+    if (isSelfChat) return;
 
     const connect = async () => {
       try {
         await chatService.connect(peerId);
         setIsConnected(true);
       } catch (error) {
-        console.warn("Connection failed", error);
+        uiLog.warn("chat › connect failed", { peerId, error });
+        showError("Connection failed");
         // TODO: try reconnect
       }
     };
 
     connect();
 
+    const unsubscribe = chatService.onConnectionState((payload) => {
+      if (payload.peerId !== peerId) return;
+      setConnectionState(payload.state);
+      setIsConnected(payload.state === "connected");
+      if (payload.state === "failed" || payload.state === "timeout") {
+        chatService.connect(peerId).catch(() => {});
+      }
+    });
+
+    const unsubscribeReconnected = chatService.onPeerReconnected((reconnectedPeerId) => {
+      if (reconnectedPeerId !== peerId) return;
+      setIsConnected(true);
+      setConnectionState("connected");
+    });
+
     return () => {
+      unsubscribe();
+      unsubscribeReconnected();
       chatService.disconnect();
     };
-  }, [peerId, chatService]);
+  }, [peerId, isSelfChat, chatService, showToast, showError]);
 
-  if (!isRendered) return <ActivityIndicator />;
+  useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { isSelfChat });
+    if (!isSelfChat || !peerId) return;
+    const connect = async () => {
+      chatService.setPeer(peerId);
+      setIsConnected(true);
+      setConnectionState("connected");
+    };
+    connect();
 
-  const handleSendMessage = async () => {
+    return () => {
+      chatService.removePeer();
+    };
+  }, [isSelfChat, peerId, chatService]);
+
+  // Notify the sender that messages have been seen when connected and viewing a conversation
+  useFocusEffect(
+    useCallback(() => {
+      uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
+        isConnected,
+        conversationId,
+      });
+      if ((!isConnected && !isSelfChat) || !conversationId) return;
+      chatService.markConversationAsRead(conversationId);
+    }, [isConnected, isSelfChat, conversationId, chatService])
+  );
+
+  useEffect(() => {
+    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
+    if (!peerId) return;
+
+    const getPeer = async () => {
+      try {
+        const foundPeer = await peerService.findPeerById(peerId);
+        setPeer(foundPeer);
+      } catch (error) {
+        uiLog.error("chat › load peer failed", { peerId, error });
+      }
+    };
+
+    getPeer();
+  }, [peerId, peerService]);
+
+  const handleSendMessage = useCallback(async () => {
+    uiLog.debug("[ChatRoom] handleSendMessage called", {
+      hasMessage: Boolean(message.trim()),
+      conversationId,
+    });
     if (!message.trim()) return;
     try {
       const chatId = await chatService.sendChatMessage(message);
@@ -74,57 +226,239 @@ const ChatRoom = () => {
 
       setMessage("");
     } catch (error) {
-      console.error("[ChatRoom]: Error handling message:", error);
+      uiLog.error("chat › send message failed", {
+        conversationId,
+        error,
+      });
     }
-  };
+  }, [message, conversationId, chatService]);
 
-  const handleCall = async (peerId: string) => {
-    callService.informPeerForIncomingAudioCall(peerId);
-    await callService.startCall(peerId);
-    router.push({
-      pathname: "/(drawer)/(tabs)/call/[id]",
-      params: { id: peerId! },
-    });
-  };
+  const handleAudioCall = useCallback(() => {
+    if (peerId) {
+      uiLog.info("[ChatRoom] start call", { type: "audio", peerId });
+      call("audio", peerId);
+    }
+  }, [call, peerId]);
+
+  const handleVideoCall = useCallback(() => {
+    if (peerId) {
+      uiLog.info("[ChatRoom] start call", { type: "video", peerId });
+      call("video", peerId);
+    }
+  }, [call, peerId]);
+
+  const { onPress: onSendMessage, busy: sending } = useThrottledPress(handleSendMessage);
+  const { onPress: onAudioCall, busy: callingAudio } = useThrottledPress(handleAudioCall);
+  const { onPress: onVideoCall, busy: callingVideo } = useThrottledPress(handleVideoCall);
+
+  if (!isRendered) return <ActivityIndicator />;
+
+  const peerDisplayName = peer
+    ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
+    : "Unknown user";
+  const connectionStatusLabel = isConnected
+    ? "Connected"
+    : connectionState === "connecting"
+    ? "Connecting..."
+    : connectionState === "timeout"
+    ? "Connection timeout"
+    : connectionState === "failed"
+    ? "Connection failed"
+    : isServerActive || peer?.isOnline
+    ? "Active now"
+    : "Offline";
 
   return (
-    <View>
-      <Text>
-        ChatRoom:{" "}
-        {source === ChatRoomSource.PEER
-          ? "Peer list source"
-          : "Chat list source"}{" "}
-        {id}, ConversationID: {conversationId}
-      </Text>
-      {!isConnected && <Text>Not connected</Text>}
-      <TextInput
-        style={styles.input}
-        onChangeText={setMessage}
-        value={message}
-        placeholder="Message"
-      />
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 20}
+    >
+      <View style={styles.header}>
+        <View style={styles.headerLeftGroup}>
+          <Appbar.BackAction
+            onPress={() => {
+              uiLog.info("[Navigation] goBack triggered from ChatRoom");
+              router.back();
+            }}
+          />
+          {peerProfilePicUrl ? (
+            <Avatar.Image size={40} source={{ uri: peerProfilePicUrl }} />
+          ) : (
+            <Avatar.Text
+              size={40}
+              label={peer?.firstName?.[0]?.toUpperCase() ?? "?"}
+            />
+          )}
+          <View style={styles.identityGroup}>
+            <Text
+              style={[
+                styles.nameText,
+                { color: theme.dark ? "#E6ECF5" : "#000000" },
+              ]}
+              numberOfLines={1}
+            >
+              {peerDisplayName}
+            </Text>
+            <Text
+              style={[
+                styles.statusText,
+                { color: theme.dark ? "#E6ECF5" : "#6B7280" },
+              ]}
+              numberOfLines={1}
+            >
+              {isConnected ? "Connected" : connectionStatusLabel}
+            </Text>
+          </View>
+        </View>
 
-      <Pressable onPress={handleSendMessage}>
-        <Text>Send Message</Text>
-      </Pressable>
-      <Pressable onPress={() => handleCall(peerId!)}>
-        <Text>Voice call</Text>
-      </Pressable>
-      {conversationId ? (
-        <MessageList conversationId={conversationId} />
-      ) : (
-        <Text>No message</Text>
-      )}
-    </View>
+        <View style={styles.headerActions}>
+          <IconButton
+            icon="phone"
+            size={20}
+            iconColor="#00E700"
+            disabled={isSelfChat || callingAudio}
+            onPress={onAudioCall}
+            style={styles.headerActionButton}
+          />
+          <IconButton
+            icon="video"
+            size={20}
+            disabled={isSelfChat || callingVideo}
+            onPress={onVideoCall}
+            style={styles.headerActionButton}
+          />
+          <IconButton
+            icon="dots-vertical"
+            size={20}
+            onPress={() => {
+              uiLog.debug("[ChatRoom] onPress triggered");
+              if (peerId) {
+                uiLog.info("[Navigation] Navigating to PeerProfile", {
+                  screen: APP_ROUTES.PEER_PROFILE,
+                  peerId,
+                });
+                router.push({
+                  pathname: APP_ROUTES.PEER_PROFILE,
+                  params: { id: peerId },
+                });
+              }
+            }}
+            style={styles.headerActionButton}
+          />
+        </View>
+      </View>
+
+      <View style={styles.body}>
+        {conversationId ? (
+          <MessageList conversationId={conversationId} peerId={peerId ?? ""} />
+        ) : (
+          <View style={styles.emptyStateContainer}>
+            <Text style={styles.emptyStateText}>No messages yet</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.composerContainer}>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
+              color: theme.dark ? "#FFF" : "#000",
+            },
+          ]}
+          onChangeText={setMessage}
+          value={message}
+          placeholder="Message..."
+          placeholderTextColor="#696969"
+        />
+        <IconButton icon="send" size={30} onPress={onSendMessage} disabled={sending} />
+      </View>
+
+      <AppSnackbar
+        visible={toastVisible}
+        onDismiss={hideToast}
+        variant={toastVariant}
+      >
+        {toastMessage}
+      </AppSnackbar>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  header: {
+    height: 82,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
+  headerLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6,
+  },
+  identityGroup: {
+    marginLeft: 10,
+    justifyContent: "center",
+    flex: 1,
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    marginRight: 4,
+  },
+  nameText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  statusText: {
+    fontSize: 12,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
+    marginLeft: 2,
+  },
+  headerActionButton: {
+    margin: 0,
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateText: {
+    color: "#758695",
+    fontSize: 14,
+  },
+  composerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   input: {
-    height: 40,
-    margin: 12,
-    borderWidth: 1,
-    padding: 10,
+    flex: 1,
+    minHeight: 60,
+    maxHeight: 120,
+    borderRadius: 40,
+    paddingHorizontal: 28,
+    paddingVertical: 20,
   },
 });
 

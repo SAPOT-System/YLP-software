@@ -1,5 +1,7 @@
-import { useContainer } from "./use-container";
+import { useAuthContainer } from "@/features/auth";
+import { hookLog } from "../utils/logger";
+hookLog.debug("[use-peer-service] module loaded");
 
 export function usePeerService() {
-  return useContainer().peerService;
+  return useAuthContainer().peerService;
 }

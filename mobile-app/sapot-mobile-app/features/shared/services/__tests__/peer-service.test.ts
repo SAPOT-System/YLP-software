@@ -1,3 +1,10 @@
+import {
+    createTestDiscoveredService,
+    createTestDiscoveredServices,
+    createTestZeroconfService,
+} from "@/test/factories/peer-service.factory";
+import { createTestPeer } from "@/test/factories/user.factory";
+import { createPeerRepositoryMock } from "@/test/mocks/service.mock-builders";
 import { Service } from "react-native-zeroconf";
 import { Peer } from "../../database";
 import { PeerRepository } from "../../repositories";
@@ -15,16 +22,8 @@ describe("PeerService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Setup mocks
-    mockPeerRepository = {
-      isPeerExist: jest.fn(),
-      savePeer: jest.fn(),
-      markPeerOnline: jest.fn(),
-      markPeerOffline: jest.fn(),
-      queryAllPeers: jest.fn(),
-      queryPeerById: jest.fn(),
-    } as Partial<PeerRepository> as jest.Mocked<PeerRepository>;
+    mockPeerRepository =
+      createPeerRepositoryMock() as unknown as jest.Mocked<PeerRepository>;
 
     // Mock constructor
     jest.mocked(PeerRepository).mockImplementation(() => mockPeerRepository);
@@ -46,27 +45,17 @@ describe("PeerService", () => {
 
   describe("register", () => {
     it("should mark existing peer as online and add to discovered services", async () => {
-      const mockService: Service = {
-        name: "test-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
-        port: 8080,
-        addresses: ["192.168.1.101"],
-        txt: {
-          id: "peer-1",
-          username: "peeruser",
-        },
-      };
-
-      mockPeerRepository.isPeerExist.mockResolvedValue(true);
-      const markOnlineSpy = jest
-        .spyOn(peerService, "markOnline")
-        .mockResolvedValue();
+      const mockService = createTestZeroconfService() as unknown as Service;
 
       await peerService.register(mockService);
 
-      expect(mockPeerRepository.isPeerExist).toHaveBeenCalledWith("peer-1");
-      expect(markOnlineSpy).toHaveBeenCalledWith("peer-1");
+      expect(mockPeerRepository.createOrUpdatePeer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "peer-1",
+          username: "peeruser",
+        }),
+        { markOnline: true }
+      );
       expect(peerService.discoveredPeerServices).toContainEqual({
         serviceName: "test-device",
         id: "peer-1",
@@ -76,26 +65,22 @@ describe("PeerService", () => {
     });
 
     it("should save new peer and add to discovered services", async () => {
-      const mockService: Service = {
+      const mockService = createTestZeroconfService({
         name: "new-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
         port: 8081,
         addresses: ["192.168.1.102"],
-        txt: {
-          id: "peer-2",
-          username: "newuser",
-        },
-      };
-      mockPeerRepository.isPeerExist.mockResolvedValue(false);
+        txt: { id: "peer-2", username: "newuser" },
+      }) as unknown as Service;
 
       await peerService.register(mockService);
 
-      expect(mockPeerRepository.isPeerExist).toHaveBeenCalledWith("peer-2");
-      expect(mockPeerRepository.savePeer).toHaveBeenCalledWith({
-        id: "peer-2",
-        username: "newuser",
-      });
+      expect(mockPeerRepository.createOrUpdatePeer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "peer-2",
+          username: "newuser",
+        }),
+        { markOnline: true }
+      );
       expect(peerService.discoveredPeerServices).toContainEqual({
         serviceName: "new-device",
         id: "peer-2",
@@ -105,30 +90,10 @@ describe("PeerService", () => {
     });
 
     it("should not add duplicate service to discovered services", async () => {
-      const mockService: Service = {
-        name: "test-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
-        port: 8080,
-        addresses: ["192.168.1.101"],
-        txt: {
-          id: "peer-1",
-          username: "peeruser",
-        },
-      };
+      const mockService = createTestZeroconfService() as unknown as Service;
 
       // Pre-populate with existing service
-      peerService.discoveredPeerServices = [
-        {
-          serviceName: "test-device",
-          id: "peer-1",
-          port: 8080,
-          ipAddress: "192.168.1.101",
-        },
-      ];
-
-      mockPeerRepository.isPeerExist.mockResolvedValue(true);
-      jest.spyOn(peerService, "markOnline").mockResolvedValue();
+      peerService.discoveredPeerServices = [createTestDiscoveredService()];
 
       await peerService.register(mockService);
 
@@ -136,25 +101,26 @@ describe("PeerService", () => {
     });
 
     it("should throw error if peer registration fails", async () => {
-      const mockService: Service = {
-        name: "test-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
-        port: 8080,
-        addresses: ["192.168.1.101"],
-        txt: {
-          id: "peer-1",
-          username: "peeruser",
-        },
-      };
+      const mockService = createTestZeroconfService() as unknown as Service;
 
-      mockPeerRepository.isPeerExist.mockRejectedValue(
+      mockPeerRepository.createOrUpdatePeer.mockRejectedValue(
         new Error("Database error")
       );
 
       await expect(peerService.register(mockService)).rejects.toThrow(
         "Database error"
       );
+    });
+
+    it("should skip registration when peer id is missing", async () => {
+      const mockService = createTestZeroconfService({
+        txt: { id: "" },
+      }) as unknown as Service;
+
+      await peerService.register(mockService);
+
+      expect(mockPeerRepository.createOrUpdatePeer).not.toHaveBeenCalled();
+      expect(peerService.discoveredPeerServices).toHaveLength(0);
     });
   });
 
@@ -183,31 +149,22 @@ describe("PeerService", () => {
       const serviceName = "test-device";
 
       // Pre-populate discovered services
-      peerService.discoveredPeerServices = [
-        {
-          serviceName: "test-device",
-          id: "peer-1",
-          port: 8080,
-          ipAddress: "192.168.1.101",
-        },
-        {
-          serviceName: "other-device",
-          id: "peer-2",
-          port: 8081,
-          ipAddress: "192.168.1.102",
-        },
-      ];
+      peerService.discoveredPeerServices = createTestDiscoveredServices(2, (i) =>
+        i === 0
+          ? { serviceName: "test-device", id: "peer-1", port: 8080, ipAddress: "192.168.1.101" }
+          : { serviceName: "other-device", id: "peer-2", port: 8081, ipAddress: "192.168.1.102" }
+      );
 
       await peerService.markOffline(serviceName);
 
       expect(mockPeerRepository.markPeerOffline).toHaveBeenCalledWith("peer-1");
       expect(peerService.discoveredPeerServices).toEqual([
-        {
+        createTestDiscoveredService({
           serviceName: "other-device",
           id: "peer-2",
           port: 8081,
           ipAddress: "192.168.1.102",
-        },
+        }),
       ]);
     });
 
@@ -222,12 +179,7 @@ describe("PeerService", () => {
 
     it("should throw error if marking offline fails", async () => {
       peerService.discoveredPeerServices = [
-        {
-          serviceName: "test-device",
-          id: "peer-1",
-          port: 8080,
-          ipAddress: "192.168.1.101",
-        },
+        createTestDiscoveredService(),
       ];
 
       mockPeerRepository.markPeerOffline.mockRejectedValue(
@@ -243,9 +195,9 @@ describe("PeerService", () => {
   describe("getAllPeers", () => {
     it("should return all peers from repository", async () => {
       const mockPeers = [
-        { id: "peer-1", username: "user1", isOnline: true },
-        { id: "peer-2", username: "user2", isOnline: false },
-      ] as Peer[];
+        createTestPeer({ id: "peer-1", username: "user1", isOnline: true }),
+        createTestPeer({ id: "peer-2", username: "user2", isOnline: false }),
+      ] as unknown as Peer[];
 
       mockPeerRepository.queryAllPeers.mockResolvedValue(mockPeers);
 
@@ -267,11 +219,11 @@ describe("PeerService", () => {
   describe("findPeerById", () => {
     it("should return peer by id from repository", async () => {
       const peerId = "peer-1";
-      const mockPeer = {
+      const mockPeer = createTestPeer({
         id: "peer-1",
         username: "user1",
         isOnline: true,
-      } as Peer;
+      }) as unknown as Peer;
 
       mockPeerRepository.queryPeerById.mockResolvedValue(mockPeer);
 
@@ -295,21 +247,17 @@ describe("PeerService", () => {
   describe("findDiscoveredPeerById", () => {
     it("should return discovered peer by id", () => {
       const peerId = "peer-1";
-      const mockDiscoveredPeer: DiscoveredService = {
-        serviceName: "test-device",
-        id: "peer-1",
-        port: 8080,
-        ipAddress: "192.168.1.101",
-      };
+      const mockDiscoveredPeer =
+        createTestDiscoveredService() as unknown as DiscoveredService;
 
       peerService.discoveredPeerServices = [
         mockDiscoveredPeer,
-        {
+        createTestDiscoveredService({
           serviceName: "other-device",
           id: "peer-2",
           port: 8081,
           ipAddress: "192.168.1.102",
-        },
+        }),
       ];
 
       const result = peerService.findDiscoveredPeerById(peerId);
@@ -320,14 +268,7 @@ describe("PeerService", () => {
     it("should return undefined if peer not found", () => {
       const peerId = "non-existent-peer";
 
-      peerService.discoveredPeerServices = [
-        {
-          serviceName: "test-device",
-          id: "peer-1",
-          port: 8080,
-          ipAddress: "192.168.1.101",
-        },
-      ];
+      peerService.discoveredPeerServices = [createTestDiscoveredService()];
 
       const result = peerService.findDiscoveredPeerById(peerId);
 
@@ -339,15 +280,20 @@ describe("PeerService", () => {
     it("should create new user/peer in repository", async () => {
       const id = "user-1";
       const username = "testuser";
-      const mockUser = { id, username, isOnline: false } as Peer;
+      const firstName = "First Name";
+      const mockUser = createTestPeer({ id, username, isOnline: false }) as unknown as Peer;
 
       mockPeerRepository.savePeer.mockResolvedValue(mockUser);
 
-      const result = await peerService.createUser(id, username);
+      const result = await peerService.createUser(id, username, firstName);
 
       expect(mockPeerRepository.savePeer).toHaveBeenCalledWith({
         id,
         username,
+        firstName,
+        lastName: undefined,
+        email: undefined,
+        phoneNumber: undefined,
       });
       expect(result).toEqual(mockUser);
     });
@@ -358,21 +304,37 @@ describe("PeerService", () => {
       );
 
       await expect(
-        peerService.createUser("user-1", "testuser")
+        peerService.createUser("user-1", "testuser", "usertest")
       ).rejects.toThrow("Database error");
+    });
+
+    it("should pass optional fields to repository", async () => {
+      const mockUser = createTestPeer({ id: "user-3", username: "optional" }) as unknown as Peer;
+      mockPeerRepository.savePeer.mockResolvedValue(mockUser);
+
+      await peerService.createUser(
+        "user-3",
+        "optional",
+        "First",
+        "Last",
+        "optional@example.com",
+        "+10000000000"
+      );
+
+      expect(mockPeerRepository.savePeer).toHaveBeenCalledWith({
+        id: "user-3",
+        username: "optional",
+        firstName: "First",
+        lastName: "Last",
+        email: "optional@example.com",
+        phoneNumber: "+10000000000",
+      });
     });
   });
 
   describe("cleanUp", () => {
     it("should clear discovered peer services", () => {
-      peerService.discoveredPeerServices = [
-        {
-          serviceName: "test-device",
-          id: "peer-1",
-          port: 8080,
-          ipAddress: "192.168.1.101",
-        },
-      ];
+      peerService.discoveredPeerServices = [createTestDiscoveredService()];
 
       peerService.cleanUp();
 

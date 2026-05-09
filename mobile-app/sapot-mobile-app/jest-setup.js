@@ -10,6 +10,28 @@ global.console = {
   debug: jest.fn(),
 };
 
+// Mock Reactotron to avoid XMLHttpRequest usage in Jest
+jest.mock('reactotron-react-native', () => ({
+  display: jest.fn(),
+}));
+
+// Mock axios to avoid fetch adapter issues in Jest
+jest.mock('axios', () => {
+  const create = jest.fn(() => ({
+    defaults: {},
+    interceptors: {
+      request: { use: jest.fn() },
+      response: { use: jest.fn() },
+    },
+  }));
+
+  return {
+    __esModule: true,
+    default: { create },
+    create,
+  };
+});
+
 // Mock react-native-webrtc
 jest.mock('react-native-webrtc', () => ({
   RTCPeerConnection: jest.fn(),
@@ -74,6 +96,17 @@ jest.mock('react-native-tcp-socket', () => ({
   createServer: jest.fn()
 }));
 
+// Mock InCallManager
+jest.mock('react-native-incall-manager', () => ({
+  start: jest.fn(),
+  stop: jest.fn(),
+  setKeepScreenOn: jest.fn(),
+  setSpeakerphoneOn: jest.fn(),
+  setForceSpeakerphoneOn: jest.fn(),
+  chooseAudioRoute: jest.fn(),
+  getAudioRoutes: jest.fn().mockResolvedValue([]),
+}));
+
 // Mock reanimated for components
 jest.mock('react-native-reanimated', () => {
   const Reanimated = require('react-native-reanimated/mock');
@@ -99,12 +132,55 @@ jest.mock('expo-router', () => {
   };
 });
 
+// Mock Expo task APIs used by background signaling task
+jest.mock('expo-task-manager', () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn().mockResolvedValue(false),
+  isTaskDefined: jest.fn().mockReturnValue(true),
+}));
+
+jest.mock('expo-background-task', () => ({
+  registerTaskAsync: jest.fn().mockResolvedValue(undefined),
+  unregisterTaskAsync: jest.fn().mockResolvedValue(undefined),
+  BackgroundTaskResult: {
+    Success: 'Success',
+    Failed: 'Failed',
+  },
+}));
+
+jest.mock('expo-notifications', () => ({
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notification-id'),
+  dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
+  setNotificationChannelAsync: jest.fn().mockResolvedValue(undefined),
+  AndroidImportance: {
+    LOW: 2,
+    DEFAULT: 3,
+    HIGH: 4,
+  },
+}));
+
+// Mock document picker (native module)
+jest.mock('@react-native-documents/picker', () => ({
+  saveDocuments: jest.fn(),
+  pick: jest.fn(),
+  getCacheDir: jest.fn(),
+  isKnownType: jest.fn()
+}));
+
 // Mock react-native-paper minimal API
 jest.mock('react-native-paper', () => {
   const React = require('react');
   const { Text, View, TextInput } = require('react-native');
+  const AvatarText = ({ label, ...props }) =>
+    React.createElement(View, props, React.createElement(Text, null, label));
+
   return {
     Text: ({ children, ...props }) => React.createElement(Text, props, children),
+    Avatar: {
+      Text: AvatarText
+    },
+    ActivityIndicator: (props) =>
+      React.createElement(View, { ...props, testID: props?.testID || 'activity-indicator' }),
     Icon: ({ source, size = 20 }) =>
       React.createElement(View, { accessibilityLabel: typeof source === 'string' ? source : 'icon', style: { width: size, height: size } }),
     TextInput: React.forwardRef((props, ref) => React.createElement(TextInput, { ...props, ref })),

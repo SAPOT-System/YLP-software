@@ -1,13 +1,15 @@
 import { Model, Relation } from "@nozbe/watermelondb";
 import { date, field, relation } from "@nozbe/watermelondb/decorators";
-import {Peer} from "./Peer";
+import { modelLog } from "../../utils/logger";
 import { Conversation } from "./Conversation";
+import { GuestUser } from "./guest-user";
+import { Peer } from "./Peer";
+modelLog.debug("[model] Message loaded");
 
 export enum MessageType {
   TEXT = "text",
-  PHOTO = "photo",
-  VIDEO = "video",
   FILE = "file",
+  CALL_LOG = "call_log",
 }
 
 export class Message extends Model {
@@ -16,10 +18,10 @@ export class Message extends Model {
   @field("message_type") messageType!: MessageType;
   @field("content") content!: string;
   @date("created_at") createdAt!: Date;
-  @date("edited_at") editedAt!: Date;
-  @date("is_deleted") isDeleted!: boolean;
+  @date("updated_at") updatedAt!: Date;
+  @field("is_deleted") isDeleted!: boolean;
 
   @relation("conversations", "conversation")
   conversation!: Relation<Conversation>;
-  @relation("peers", "sender") sender!: Relation<Peer>;
+  @relation("peers", "sender") sender!: Relation<GuestUser | Peer>;
 }

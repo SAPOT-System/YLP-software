@@ -1,0 +1,59 @@
+import { database } from "../shared/database/database";
+import { GuestUserRepository } from "../shared/repositories/guest-user-repository";
+import { PeerRepository } from "../shared/repositories/peer-repository";
+import { PeerService } from "../shared/services/peer-service";
+import { UserService } from "../shared/services/user-service";
+import { SessionStore } from "../shared/stores/session-store";
+import { UserStore } from "../shared/stores/user-store";
+import { authLog } from "../shared/utils/logger";
+import { GuestMigrationService } from "./services/guest-migration-service";
+
+authLog.debug("[auth-container] module loaded");
+
+export class AuthContainer {
+  readonly userService: UserService;
+  readonly peerService: PeerService;
+  readonly peerRepository: PeerRepository;
+  readonly guestUserRepository: GuestUserRepository;
+  readonly guestMigrationService: GuestMigrationService;
+  readonly userStore: UserStore;
+  readonly sessionStore: SessionStore;
+  private initPromise?: Promise<void>;
+
+  constructor() {
+    authLog.debug("[AuthContainer] constructor");
+    this.sessionStore = new SessionStore();
+    this.peerRepository = new PeerRepository(database);
+    this.peerService = new PeerService(this.peerRepository);
+
+    this.userStore = new UserStore();
+
+    this.guestUserRepository = new GuestUserRepository(database);
+    this.guestMigrationService = new GuestMigrationService(
+      this.guestUserRepository
+    );
+
+    this.userService = new UserService(
+      this.userStore,
+      this.peerService,
+      this.sessionStore,
+      this.guestUserRepository
+    );
+  }
+
+  async initialize() {
+    try {
+      if (this.initPromise) return this.initPromise;
+
+      this.initPromise = (async () => {
+        authLog.info("auth › container initializing");
+        // await this.userService.initialize();
+      })();
+
+      return this.initPromise;
+    } catch (error) {
+      authLog.error("auth › container init failed", { error });
+      throw error;
+    }
+  }
+}

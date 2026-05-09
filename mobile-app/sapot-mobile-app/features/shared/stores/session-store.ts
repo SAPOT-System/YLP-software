@@ -1,3 +1,6 @@
+import { sessionLog } from "../utils/logger";
+sessionLog.debug("[session-store] module loaded");
+
 /**
  * SessionStore manages the current session's user ID.
  */
@@ -17,7 +20,8 @@ export class SessionStore {
    * Sets the user ID for the current session.
    * @param id The user ID to set
    */
-  setUserId(id: string) {
+  setUserId(id: string | undefined) {
+    sessionLog.info("session › user id set", { hasUserId: Boolean(id) });
     this._userId = id;
   }
 }

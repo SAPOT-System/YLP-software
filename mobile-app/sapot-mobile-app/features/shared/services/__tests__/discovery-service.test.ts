@@ -1,9 +1,15 @@
 import { ChatService } from "@/features/chat/services/chat-service";
+import { discoveryLog } from "@/features/shared/utils/logger";
+import {
+    createTestMessage,
+    createTestMessages,
+} from "@/test/factories/chat-model.factory";
+import { createTestZeroconfService } from "@/test/factories/peer-service.factory";
+import { createDiscoveryServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../../adapters";
 import { Message } from "../../database";
-import { NetworkConfig, SessionStore, UserStore } from "../../stores";
-import { Peer } from "../../types";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../stores";
 import { DiscoveryService } from "../discovery-service";
 import { PeerService } from "../peer-service";
 
@@ -17,6 +23,7 @@ jest.mock("../../stores", () => ({
   NetworkConfig: jest.fn(),
   SessionStore: jest.fn(),
   UserStore: jest.fn(),
+  AppModeStore: jest.fn(),
 }));
 
 // Mock PeerService
@@ -37,54 +44,22 @@ describe("DiscoveryService", () => {
   let mockUserStore: jest.Mocked<UserStore>;
   let mockPeerService: jest.Mocked<PeerService>;
   let mockChatService: jest.Mocked<ChatService>;
+  let mockAppModeStore: jest.Mocked<AppModeStore>;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const mocks = createDiscoveryServiceDependencyMocks();
 
-    // Setup mocks
-    mockZeroconfAdapter = {
-      on: jest.fn(),
-      startScan: jest.fn(),
-      stopScan: jest.fn(),
-      publishService: jest.fn(),
-      cleanUp: jest.fn(),
-    } as Partial<ZeroconfAdapter> as jest.Mocked<ZeroconfAdapter>;
-
-    mockSessionStore = {
-      userId: "test-user-id",
-      setUserId: jest.fn(),
-    } as Partial<SessionStore> as jest.Mocked<SessionStore>;
-
-    mockNetworkConfig = {
-      port: 8080,
-      ipAddress: "192.168.1.100",
-    } as Partial<NetworkConfig> as jest.Mocked<NetworkConfig>;
-
-    mockUserStore = {
-      user: {
-        id: "test-user-id",
-        username: "testuser",
-      } as unknown as Peer,
-      setUser: jest.fn(),
-    } as unknown as jest.Mocked<UserStore>;
-
-    mockPeerService = {
-      register: jest.fn(),
-      markOffline: jest.fn(),
-      markOnline: jest.fn(),
-      getAllPeers: jest.fn(),
-      findPeerById: jest.fn(),
-      findDiscoveredPeerById: jest.fn(),
-      createUser: jest.fn(),
-      cleanUp: jest.fn(),
-    } as Partial<PeerService> as jest.Mocked<PeerService>;
-
-    mockChatService = {
-      getAllNotSentMessageForPeer: jest.fn(),
-      tryResendMessage: jest.fn(),
-      handleIncomingChatMessage: jest.fn(),
-      handleAckMessage: jest.fn(),
-    } as Partial<ChatService> as jest.Mocked<ChatService>;
+    mockZeroconfAdapter =
+      mocks.zeroconfAdapter as unknown as jest.Mocked<ZeroconfAdapter>;
+    mockSessionStore =
+      mocks.sessionStore as unknown as jest.Mocked<SessionStore>;
+    mockNetworkConfig =
+      mocks.networkConfig as unknown as jest.Mocked<NetworkConfig>;
+    mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
+    mockPeerService = mocks.peerService as unknown as jest.Mocked<PeerService>;
+    mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
+    mockAppModeStore = mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
 
     // Mock constructors
     jest.mocked(ZeroconfAdapter).mockImplementation(() => mockZeroconfAdapter);
@@ -94,19 +69,23 @@ describe("DiscoveryService", () => {
     jest.mocked(PeerService).mockImplementation(() => mockPeerService);
     jest.mocked(ChatService).mockImplementation(() => mockChatService);
 
+    mockZeroconfAdapter.publishService.mockResolvedValue(undefined);
+
     // Create service instance
     discoveryService = new DiscoveryService(
       mockZeroconfAdapter,
       mockSessionStore,
       mockNetworkConfig,
       mockUserStore,
-      mockPeerService
+      mockPeerService,
+      mockAppModeStore
     );
   });
 
   afterEach(() => {
     jest.clearAllMocks();
     jest.clearAllTimers();
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 
@@ -124,17 +103,8 @@ describe("DiscoveryService", () => {
     });
 
     it("should handle service resolved event", async () => {
-      const mockService: Service = {
-        name: "test-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
-        port: 8080,
-        addresses: ["192.168.1.101"],
-        txt: {
-          id: "peer-1",
-          username: "peeruser",
-        },
-      };
+      const mockService =
+        createTestZeroconfService() as unknown as Service;
 
       discoveryService.setChatService(mockChatService);
       const performResendSpy = jest
@@ -158,18 +128,49 @@ describe("DiscoveryService", () => {
       );
     });
 
+    it("should skip service resolved when peer id is missing", async () => {
+      const mockService = createTestZeroconfService({
+        txt: { id: "" },
+      }) as unknown as Service;
+
+      discoveryService.setChatService(mockChatService);
+      const performResendSpy = jest
+        .spyOn(discoveryService, "performResendMessagesForPeer")
+        .mockResolvedValue();
+
+      const serviceResolvedHandler = mockZeroconfAdapter.on.mock.calls.find(
+        (call) => call[0] === "serviceResolved"
+      )?.[1];
+
+      await serviceResolvedHandler?.(mockService);
+
+      expect(mockPeerService.register).not.toHaveBeenCalled();
+      expect(performResendSpy).not.toHaveBeenCalled();
+    });
+
+    it("should skip self service resolved", async () => {
+      const mockService =
+        createTestZeroconfService() as unknown as Service;
+      Object.defineProperty(mockSessionStore, "userId", { value: "peer-1" });
+
+      discoveryService.setChatService(mockChatService);
+      const performResendSpy = jest
+        .spyOn(discoveryService, "performResendMessagesForPeer")
+        .mockResolvedValue();
+
+      const serviceResolvedHandler = mockZeroconfAdapter.on.mock.calls.find(
+        (call) => call[0] === "serviceResolved"
+      )?.[1];
+
+      await serviceResolvedHandler?.(mockService);
+
+      expect(mockPeerService.register).not.toHaveBeenCalled();
+      expect(performResendSpy).not.toHaveBeenCalled();
+    });
+
     it("should handle service resolved event error when chat service not set", async () => {
-      const mockService: Service = {
-        name: "test-device",
-        host: "test-device.local",
-        fullName: "test-device.local.tcp",
-        port: 8080,
-        addresses: ["192.168.1.101"],
-        txt: {
-          id: "peer-1",
-          username: "peeruser",
-        },
-      };
+      const mockService =
+        createTestZeroconfService() as unknown as Service;
 
       const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
@@ -211,6 +212,103 @@ describe("DiscoveryService", () => {
     });
   });
 
+  describe("publishDevice", () => {
+    it("publishes the service and stores the published name after success", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234);
+
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
+
+      expect(mockZeroconfAdapter.publishService).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "lanchat",
+          protocol: "tcp",
+          domain: "local.",
+          name: "Device-1234",
+          port: mockNetworkConfig.port,
+          txt: {
+            id: mockSessionStore.userId,
+            username: mockUserStore.user.username,
+            firstName: mockUserStore.user.firstName,
+            lastName: mockUserStore.user.lastName || "",
+          },
+        })
+      );
+
+      discoveryService.destroy();
+
+      expect(mockZeroconfAdapter.cleanUp).toHaveBeenCalledWith("Device-1234");
+      dateNowSpy.mockRestore();
+    });
+
+    it("skips publishing when zeroconf is not allowed", async () => {
+      mockAppModeStore.isZeroconfAllowed.mockReturnValue(false);
+
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
+
+      expect(mockZeroconfAdapter.publishService).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("setConnectionService", () => {
+    let mockConnectionService: { on: jest.Mock };
+
+    beforeEach(() => {
+      mockConnectionService = { on: jest.fn() };
+    });
+
+    it("subscribes to peer-reconnected event on ConnectionService", () => {
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      expect(mockConnectionService.on).toHaveBeenCalledWith(
+        "peer-reconnected",
+        expect.any(Function)
+      );
+    });
+
+    it("calls performResendMessagesForPeer when peer is in discovered cache", async () => {
+      const peerId = "peer-1";
+      const discoveredPeer = { id: peerId, ipAddress: "192.168.1.101", port: 8080, serviceName: "dev" };
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(discoveredPeer);
+      discoveryService.setChatService(mockChatService);
+      mockChatService.getAllNotSentMessageForPeer.mockResolvedValue([]);
+
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      const handler = mockConnectionService.on.mock.calls.find(
+        (call) => call[0] === "peer-reconnected"
+      )?.[1];
+
+      await handler?.(peerId);
+
+      expect(mockPeerService.findDiscoveredPeerById).toHaveBeenCalledWith(peerId);
+      expect(mockChatService.getAllNotSentMessageForPeer).toHaveBeenCalledWith(peerId);
+    });
+
+    it("skips retry when peer is not in discovered cache", async () => {
+      const peerId = "peer-unknown";
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      discoveryService.setChatService(mockChatService);
+
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+
+      const handler = mockConnectionService.on.mock.calls.find(
+        (call) => call[0] === "peer-reconnected"
+      )?.[1];
+
+      const warnSpy = jest.spyOn(discoveryLog, "warn");
+      await handler?.(peerId);
+
+      expect(mockChatService.getAllNotSentMessageForPeer).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+  });
+
   describe("startDiscovery", () => {
     it("should start network discovery", () => {
       discoveryService.startDiscovery();
@@ -248,30 +346,47 @@ describe("DiscoveryService", () => {
   });
 
   describe("publishDevice", () => {
-    it("should publish device on network", () => {
-      jest.spyOn(Date, "now").mockReturnValue(1234567890);
+    it("publishes the service and stores the published name after success", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234567890);
 
-      discoveryService.publishDevice();
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
 
-      expect(mockZeroconfAdapter.publishService).toHaveBeenCalledWith({
-        type: "lanchat",
-        protocol: "tcp",
-        domain: "local.",
-        name: "Device-1234567890",
-        port: mockNetworkConfig.port,
-        txt: {
-          id: mockSessionStore.userId,
-          username: mockUserStore.user.username,
-        },
-      });
+      expect(mockZeroconfAdapter.publishService).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "lanchat",
+          protocol: "tcp",
+          domain: "local.",
+          name: "Device-1234567890",
+          port: mockNetworkConfig.port,
+          txt: {
+            id: mockSessionStore.userId,
+            username: mockUserStore.user.username,
+            firstName: mockUserStore.user.firstName,
+            lastName: mockUserStore.user.lastName || "",
+          },
+        })
+      );
+
+      discoveryService.destroy();
+
+      expect(mockZeroconfAdapter.cleanUp).toHaveBeenCalledWith("Device-1234567890");
+      dateNowSpy.mockRestore();
     });
 
-    it("should throw error if publishService fails", () => {
-      mockZeroconfAdapter.publishService.mockImplementation(() => {
-        throw new Error("Publish service failed");
-      });
+    it("skips publishing when zeroconf is not allowed", async () => {
+      mockAppModeStore.isZeroconfAllowed.mockReturnValue(false);
 
-      expect(() => discoveryService.publishDevice()).toThrow(
+      await expect(discoveryService.publishDevice()).resolves.toBeUndefined();
+
+      expect(mockZeroconfAdapter.publishService).not.toHaveBeenCalled();
+    });
+
+    it("propagates publish failures", async () => {
+      mockZeroconfAdapter.publishService.mockRejectedValue(
+        new Error("Publish service failed")
+      );
+
+      await expect(discoveryService.publishDevice()).rejects.toThrow(
         "Publish service failed"
       );
     });
@@ -282,10 +397,11 @@ describe("DiscoveryService", () => {
       const peerId = "peer-1";
       const ipAddress = "192.168.1.101";
       const port = 8080;
-      const mockMessages = [
-        { id: "msg-1", content: "Hello" },
-        { id: "msg-2", content: "World" },
-      ] as Message[];
+      const mockMessages = createTestMessages(2, (index) =>
+        index === 0
+          ? { id: "msg-1", content: "Hello" }
+          : { id: "msg-2", content: "World" }
+      ) as unknown as Message[];
 
       discoveryService.setChatService(mockChatService);
       mockChatService.getAllNotSentMessageForPeer.mockResolvedValue(
@@ -320,19 +436,21 @@ describe("DiscoveryService", () => {
       const ipAddress = "192.168.1.101";
       const port = 8080;
       const mockMessages = [
-        { id: "msg-1", content: "Hello" },
-        { id: "msg-2", content: "World" },
-      ] as Message[];
+        createTestMessage({ id: "msg-1", content: "Hello" }),
+        createTestMessage({ id: "msg-2", content: "World" }),
+      ] as unknown as Message[];
 
       discoveryService.setChatService(mockChatService);
       mockChatService.getAllNotSentMessageForPeer.mockResolvedValue(
         mockMessages
       );
+      const resendError = new Error("Resend failed");
+
       mockChatService.tryResendMessage
-        .mockRejectedValueOnce(new Error("Resend failed"))
+        .mockRejectedValueOnce(resendError)
         .mockResolvedValueOnce();
 
-      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+      const warnSpy = jest.spyOn(discoveryLog, "warn");
 
       await discoveryService.performResendMessagesForPeer(
         peerId,
@@ -341,12 +459,10 @@ describe("DiscoveryService", () => {
       );
 
       expect(mockChatService.tryResendMessage).toHaveBeenCalledTimes(2);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        "Failed to resend the message:",
-        mockMessages[0]
-      );
-
-      consoleWarnSpy.mockRestore();
+      expect(warnSpy).toHaveBeenCalledWith("discovery › resend failed", {
+        peerId,
+        error: resendError,
+      });
     });
 
     it("should throw error if chat service not initialized", async () => {
@@ -376,9 +492,9 @@ describe("DiscoveryService", () => {
   });
 
   describe("destroy", () => {
-    it("should cleanup resources", () => {
-      jest.spyOn(Date, "now").mockReturnValue(1234567890);
-      discoveryService.publishDevice(); // Sets publishDeviceName
+    it("should cleanup resources", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234567890);
+      await discoveryService.publishDevice();
 
       discoveryService.destroy();
 
@@ -386,6 +502,7 @@ describe("DiscoveryService", () => {
         "Device-1234567890"
       );
       expect(mockPeerService.cleanUp).toHaveBeenCalled();
+      dateNowSpy.mockRestore();
     });
 
     it("should clear interval if it exists", () => {
@@ -398,12 +515,68 @@ describe("DiscoveryService", () => {
       expect(clearIntervalSpy).toHaveBeenCalledWith(123);
     });
 
-    it("should throw error if cleanup fails", () => {
+    it("should throw error if cleanup fails", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234567890);
+      await discoveryService.publishDevice();
       mockZeroconfAdapter.cleanUp.mockImplementation(() => {
         throw new Error("Cleanup failed");
       });
 
       expect(() => discoveryService.destroy()).toThrow("Cleanup failed");
+      dateNowSpy.mockRestore();
+    });
+  });
+
+  describe("publication state tracking", () => {
+    it("should set published to true after successful publish", async () => {
+      expect(discoveryService.isPublished()).toBe(false);
+
+      await discoveryService.publishDevice();
+
+      expect(discoveryService.isPublished()).toBe(true);
+    });
+
+    it("should set published to false after failed publish", async () => {
+      mockZeroconfAdapter.publishService.mockRejectedValue(
+        new Error("Publish failed")
+      );
+
+      try {
+        await discoveryService.publishDevice();
+      } catch {
+        // Expected to fail
+      }
+
+      expect(discoveryService.isPublished()).toBe(false);
+    });
+
+    it("should set published to false on destroy", async () => {
+      await discoveryService.publishDevice();
+      expect(discoveryService.isPublished()).toBe(true);
+
+      discoveryService.destroy();
+
+      expect(discoveryService.isPublished()).toBe(false);
+    });
+
+    it("should notify listeners when publication state changes", async () => {
+      const listener = jest.fn();
+      discoveryService.subscribeToPublished(listener);
+
+      await discoveryService.publishDevice();
+
+      expect(listener).toHaveBeenCalled();
+    });
+
+    it("should allow unsubscribing from publication state changes", async () => {
+      const listener = jest.fn();
+      const unsubscribe = discoveryService.subscribeToPublished(listener);
+
+      unsubscribe();
+
+      await discoveryService.publishDevice();
+
+      expect(listener).not.toHaveBeenCalled();
     });
   });
 });

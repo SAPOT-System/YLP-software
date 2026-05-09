@@ -1,5 +1,8 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { Peer } from "../database";
+import { peerLog } from "../utils/logger";
+
+peerLog.debug("[peer-repository] module loaded");
 
 /**
  * PeerRepository communicates with the peers table in the database and manages CRUD operations for peers.
@@ -15,6 +18,7 @@ export class PeerRepository {
   constructor(db: Database) {
     this.db = db;
     this.peersCollection = this.db.get<Peer>(Peer.table);
+    peerLog.info("peer › repository constructed", { hasDatabase: Boolean(db) });
   }
 
   /**
@@ -22,25 +26,120 @@ export class PeerRepository {
    * @param newPeer The peer data (id, username)
    * @returns Promise<Peer> The saved peer
    */
-  async savePeer(newPeer: { id: string; username: string }) {
+  async savePeer(newPeer: {
+    id: string;
+    username: string;
+    firstName: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+    emailVerified?: boolean;
+  }) {
     try {
       return await this.db.write(async () => {
         const peer = await this.peersCollection.create((peer: Peer) => {
           peer.username = newPeer.username;
           peer.isOnline = false;
           peer._raw.id = newPeer.id;
+          peer.firstName = newPeer.firstName;
+          peer.lastName = newPeer.lastName || "";
+          peer.email = newPeer.email || "";
+          peer.phoneNumber = newPeer.phoneNumber || "";
+          if (newPeer.emailVerified !== undefined) {
+            peer.emailVerified = newPeer.emailVerified;
+          }
         });
         return peer;
       });
     } catch (error) {
-      console.error(
-        `[PeerRepository]: Error creating a peer\n${JSON.stringify(
-          newPeer,
-          null,
-          2
-        )}`,
-        error
-      );
+      peerLog.error("peer › create failed", {
+        peerId: newPeer.id,
+        hasEmail: Boolean(newPeer.email),
+        hasPhoneNumber: Boolean(newPeer.phoneNumber),
+        hasLastName: Boolean(newPeer.lastName),
+        emailVerified: newPeer.emailVerified,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Creates or updates a peer in a single write to avoid race conditions.
+   * @param peerInfo The peer data (id plus optional fields)
+   * @param options Optional behavior flags
+   * @returns Promise<Peer> The created or updated peer
+   */
+  async createOrUpdatePeer(
+    peerInfo: {
+      id: string;
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phoneNumber?: string;
+      emailVerified?: boolean;
+    },
+    options?: { markOnline?: boolean }
+  ) {
+    try {
+      return await this.db.write(async () => {
+        const peers = await this.peersCollection
+          .query(Q.where("id", peerInfo.id))
+          .fetch();
+
+        if (peers.length > 0) {
+          await peers[0].update((peer) => {
+            if (peerInfo.username !== undefined) {
+              peer.username = peerInfo.username;
+            }
+            if (peerInfo.firstName !== undefined) {
+              peer.firstName = peerInfo.firstName;
+            }
+            if (peerInfo.lastName !== undefined) {
+              peer.lastName = peerInfo.lastName;
+            }
+            if (peerInfo.email !== undefined) {
+              peer.email = peerInfo.email;
+            }
+            if (peerInfo.phoneNumber !== undefined) {
+              peer.phoneNumber = peerInfo.phoneNumber;
+            }
+            if (peerInfo.emailVerified !== undefined) {
+              peer.emailVerified = peerInfo.emailVerified;
+            }
+            if (options?.markOnline) {
+              peer.isOnline = true;
+            }
+          });
+          return peers[0];
+        }
+
+        const peer = await this.peersCollection.create((peer: Peer) => {
+          peer.username = peerInfo.username ?? "Guest";
+          peer.isOnline = false;
+          peer._raw.id = peerInfo.id;
+          peer.firstName = peerInfo.firstName ?? "Guest";
+          peer.lastName = peerInfo.lastName ?? "";
+          peer.email = peerInfo.email ?? "";
+          peer.phoneNumber = peerInfo.phoneNumber ?? "";
+          if (peerInfo.emailVerified !== undefined) {
+            peer.emailVerified = peerInfo.emailVerified;
+          }
+        });
+        return peer;
+      });
+    } catch (error) {
+      peerLog.error("peer › upsert failed", {
+        peerId: peerInfo.id,
+        hasUsername: peerInfo.username !== undefined,
+        hasFirstName: peerInfo.firstName !== undefined,
+        hasLastName: peerInfo.lastName !== undefined,
+        hasEmail: peerInfo.email !== undefined,
+        hasPhoneNumber: peerInfo.phoneNumber !== undefined,
+        emailVerified: peerInfo.emailVerified,
+        error,
+      });
       throw error;
     }
   }
@@ -52,7 +151,7 @@ export class PeerRepository {
    */
   async markPeerOffline(id: string) {
     if (!id) {
-      console.error("[PeerRepository]: id param is undefined:");
+      peerLog.warn("peer › missing id", { action: "markPeerOffline" });
     }
     try {
       await this.db.write(async () => {
@@ -65,13 +164,7 @@ export class PeerRepository {
         }
       });
     } catch (error) {
-      console.error(
-        `[PeerRepository]: Error marking peer offline\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › mark offline failed", { peerId: id, error });
       throw error;
     }
   }
@@ -83,7 +176,7 @@ export class PeerRepository {
    */
   async markPeerOnline(id: string) {
     if (!id) {
-      console.error("[PeerRepository]: id param is undefined:");
+      peerLog.warn("peer › missing id", { action: "markPeerOnline" });
     }
     try {
       await this.db.write(async () => {
@@ -96,13 +189,58 @@ export class PeerRepository {
         }
       });
     } catch (error) {
-      console.error(
-        `[PeerRepository]: Error marking peer online\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › mark online failed", { peerId: id, error });
+      throw error;
+    }
+  }
+
+  async updatePeerInfoById(
+    peerId: string,
+    peerInfo: {
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phoneNumber?: string;
+      emailVerified?: boolean;
+    }
+  ) {
+    try {
+      return await this.db.write(async () => {
+        const peers = await this.peersCollection.query(Q.where("id", peerId));
+
+        if (peers.length > 0) {
+          await peers[0].update((peer) => {
+            if (peerInfo.username !== undefined) {
+              peer.username = peerInfo.username;
+            }
+            if (peerInfo.firstName !== undefined) {
+              peer.firstName = peerInfo.firstName;
+            }
+            if (peerInfo.lastName !== undefined) {
+              peer.lastName = peerInfo.lastName;
+            }
+            if (peerInfo.email !== undefined) {
+              peer.email = peerInfo.email;
+            }
+            if (peerInfo.phoneNumber !== undefined) {
+              peer.phoneNumber = peerInfo.phoneNumber;
+            }
+            if (peerInfo.emailVerified !== undefined) {
+              peer.emailVerified = peerInfo.emailVerified;
+            }
+          });
+        }
+      });
+    } catch (error) {
+      peerLog.error("peer › update info failed", {
+        peerId,
+        hasEmail: peerInfo.email !== undefined,
+        hasPhoneNumber: peerInfo.phoneNumber !== undefined,
+        hasLastName: peerInfo.lastName !== undefined,
+        emailVerified: peerInfo.emailVerified,
+        error,
+      });
       throw error;
     }
   }
@@ -119,13 +257,7 @@ export class PeerRepository {
         .fetch();
       return existing.length > 0;
     } catch (error) {
-      console.error(
-        `[PeerRepository]: Error checking if peer exist\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › check exists failed", { peerId: id, error });
       throw error;
     }
   }
@@ -140,13 +272,7 @@ export class PeerRepository {
       const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
       return peer[0];
     } catch (error) {
-      console.error(
-        `[PeerRepository]: Error querying peer\n${JSON.stringify(
-          { id },
-          null,
-          2
-        )}\n${error}`
-      );
+      peerLog.error("peer › query by id failed", { peerId: id, error });
       throw error;
     }
   }
@@ -158,10 +284,10 @@ export class PeerRepository {
   async queryAllPeers() {
     try {
       const allPeers = await this.peersCollection.query().fetch();
-      //   console.log("[PeerRepository]: All stored peers:", allPeers);
+      //   peerLog.debug("peer › list", { count: allPeers.length });
       return allPeers;
     } catch (error) {
-      console.error("[PeerRepository]: Error showing peers:", error);
+      peerLog.error("peer › list failed", { error });
       throw error;
     }
   }
@@ -181,8 +307,15 @@ export class PeerRepository {
         await this.db.batch(...ops);
       });
     } catch (error) {
-      console.error("[PeerRepository]: Error deleting peers:", error);
+      peerLog.error("peer › delete all failed", { error });
       throw error;
     }
+  }
+
+  async getPeerDestroyOps() {
+    peerLog.debug("peer › destroy ops requested");
+    const records = await this.peersCollection.query().fetch();
+
+    return records.map((r) => r.prepareDestroyPermanently());
   }
 }

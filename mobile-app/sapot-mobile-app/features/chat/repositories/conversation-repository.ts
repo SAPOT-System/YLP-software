@@ -1,5 +1,8 @@
 import { Conversation, ConversationType } from "@/features/shared";
+import { chatLog } from "@/features/shared/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
+
+chatLog.debug("[conversation-repository] module loaded");
 
 /**
  * ConversationRepository manages CRUD operations for conversations in the database.
@@ -14,6 +17,9 @@ export class ConversationRepository {
     this.conversationCollections = this.db.get<Conversation>(
       Conversation.table
     );
+    chatLog.info("chat › conversation repo constructed", {
+      hasDatabase: Boolean(db),
+    });
   }
 
   /**
@@ -23,7 +29,7 @@ export class ConversationRepository {
    * @returns Promise<Conversation> The saved conversation
    */
   async saveConversation(
-    newConversation: { type: ConversationType; id?: string },
+    newConversation: { type: ConversationType; id?: string; title?: string },
     isInTransaction = false
   ) {
     try {
@@ -35,9 +41,11 @@ export class ConversationRepository {
 
           conversation.type = newConversation.type;
           conversation.createdAt = new Date();
+          conversation.updatedAt = new Date();
           conversation.isDeleted = false;
-          // conversation.name = newConversation.name;
-          // conversation.updatedAt = newConversation.unreadCount;
+          if (newConversation.title) {
+            conversation.title = newConversation.title;
+          }
         });
       };
       if (isInTransaction) {
@@ -46,13 +54,12 @@ export class ConversationRepository {
         return this.conversationCollections.database.write(action);
       }
     } catch (error) {
-      console.error(
-        `[ConversationRepository]: Error saving conversation\nNew Conversation:\n${JSON.stringify(
-          newConversation,
-          null,
-          2
-        )}\nIs in transaction?${isInTransaction}`
-      );
+      chatLog.error("chat › conversation save failed", {
+        conversationId: newConversation.id,
+        type: newConversation.type,
+        isInTransaction,
+        error,
+      });
       throw error;
     }
   }
@@ -71,9 +78,7 @@ export class ConversationRepository {
 
       return result[0].type === ConversationType.DIRECT ? true : false;
     } catch (error) {
-      console.error(
-        `[ConversationRepository]: Error finding if direct conversation with the id of ${chatId} exists: ${error}`
-      );
+      chatLog.error("chat › direct check failed", { conversationId: chatId, error });
       throw error;
     }
   }
@@ -86,10 +91,7 @@ export class ConversationRepository {
     try {
       return (await this.conversationCollections.query().fetch()) || [];
     } catch (error) {
-      console.error(
-        "[ConversationRepository]: Error finding if conversation exist:",
-        error
-      );
+      chatLog.error("chat › conversation list failed", { error });
       throw error;
     }
   }
@@ -107,9 +109,10 @@ export class ConversationRepository {
 
       return conversation.length > 0;
     } catch (error) {
-      console.error(
-        `[ConversationRepository]: Error finding if conversation with the ID of ${id} exists: ${error}`
-      );
+      chatLog.error("chat › conversation exists check failed", {
+        conversationId: id,
+        error,
+      });
       throw error;
     }
   }
@@ -127,9 +130,10 @@ export class ConversationRepository {
       // TODO: make a logic to return nothing if id is not exists
       return conversation[0];
     } catch (error) {
-      console.error(
-        `[ConversationRepository]: Error querying conversation with the ID of ${id}: ${error}`
-      );
+      chatLog.error("chat › conversation query failed", {
+        conversationId: id,
+        error,
+      });
       throw error;
     }
   }
@@ -140,7 +144,9 @@ export class ConversationRepository {
    */
   async getConversationDestroyOps() {
     const records = await this.conversationCollections.query().fetch();
-    console.log(records);
+    chatLog.debug("chat › conversation destroy ops", {
+      count: records.length,
+    });
 
     return records.map((r) => r.prepareDestroyPermanently());
   }

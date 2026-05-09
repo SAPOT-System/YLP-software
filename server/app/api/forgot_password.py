@@ -1,0 +1,439 @@
+import random
+import json
+import requests
+import hashlib
+from typing import Optional, List
+from app.models.securityQuestions import UserSecurityQuestion
+from urllib.parse import urlencode
+from fastapi import APIRouter, File, Request, UploadFile, BackgroundTasks
+import hmac
+import time
+from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
+import secrets
+from typing import Annotated
+import uuid
+import io
+
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.utils import generate_unique_id
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+
+from datetime import datetime, timedelta, timezone
+from typing import Annotated
+
+import jwt
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import  OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pwdlib import PasswordHash
+from pydantic import BaseModel
+from starlette.status import HTTP_401_UNAUTHORIZED
+
+from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_password_hash, update_user_password
+from app.models.token import Token
+from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from app.models.users import User, UserCreate, UserPublic
+from app.db_operations.token import get_current_user
+from app.db_operations.forgot_password import generate_and_save_new_recovery_key, sign, send_email, EMAIL_API_KEY
+from app.models.recovery import RecoveryKeyCreate
+from app.db_operations.forgot_password import verify_recovery_key
+from app.db_operations.auth import get_user, verify_password
+from app.models.users import UserPasswordUpdateNoOldPassword
+from app.models.securityQuestions import AddSecurityQuestion, SecurityQuestionOut, SecurityAnswerOut, SecurityAnswerIn
+from app.models.token import PasswordResetToken
+from app.db_operations.forgot_password import store_reset_token_in_db
+from app.db_operations.forgot_password import get_reset_token_hash
+from app.db_operations.forgot_password import get_reset_token_from_db
+from app.db_operations.forgot_password import validate_reset_token
+from app.db_operations.auth import get_domain
+from app.db_operations.forgot_password import generate_reset_token
+from app.db_operations.verify_user import require_verified_user
+from app.db_operations.forgot_password import generate_reset_code
+from app.models.PasswordResetCode import PasswordResetCode
+
+LINK_TTL_SECONDS = 30 * 60  # 30 minutes
+
+
+def reset_link_template(token:str, request: Request):
+    RESET_LINK = f"{get_domain(request)}:8000/auth/forgot-password/reset-password?token={token}"
+    return RESET_LINK
+
+router = APIRouter(
+    prefix='/auth/forgot-password',
+    tags=['auth', 'forgot password'],
+    responses={
+        404: {'description': 'Not Found'}
+    },
+    # dependencies=[Depends(require_verified_user)]
+)
+
+@router.post('/generate-new-recovery-key')
+def get_recovery_key(
+        current_user : Annotated[User, Depends(get_current_user)],
+        session : SessionDep,
+):
+    key_data = RecoveryKeyCreate(user=current_user)
+    new_key = generate_and_save_new_recovery_key(session, key_data)
+    return Response(
+        content=new_key,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": "attachment; filename=recovery-key.txt",
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+        },
+    )
+
+
+@router.post('/recovery-with-recovery-key')
+async def recover_with_recovery_key(
+        user_identifier: str,
+        request: Request,
+        session : SessionDep,
+        key_file: UploadFile = File(...)
+):
+    current_user = get_user(user_identifier, session)
+
+    if not current_user:
+        raise HTTPException(status_code=400, detail="Invalid account identier.")
+
+    if key_file.content_type not in ("text/plain", "application/octet-stream"):
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    content = await key_file.read()
+
+    key_text = content.decode("utf-8").strip()
+
+    if len(key_text) < 20:
+        raise HTTPException(status_code=400, detail="Recovery key is too short")
+
+
+    if not verify_recovery_key(session, current_user, key_text):
+        raise HTTPException(status_code=400, detail="Invalid key.")
+
+    # give a signed link for password reset
+    expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
+
+    raw_token = secrets.token_urlsafe(32)  # this goes in URL
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    store_reset_token_in_db(
+        user_id=current_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        session=session
+    )
+
+    return {
+        'recovery-link': reset_link_template(raw_token, request),
+        'method': 'POST',
+        'expire_in_seconds': LINK_TTL_SECONDS
+    }
+
+from fastapi.responses import HTMLResponse
+
+@router.get("/reset-password")
+def can_reset_password(token: str, session: SessionDep):
+    validate_reset_token(token, session)
+    return {"detail": "Valid token. Use POST request."}
+
+
+@router.post("/reset-password")
+def reset_password(
+        token: str,
+        new_password_data: UserPasswordUpdateNoOldPassword,
+        session: SessionDep
+):
+    reset_record = validate_reset_token(token, session)
+
+    user = session.exec(select(User).where(reset_record.user_id == User.id)).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid user data")
+
+    update_user_password(user, new_password_data.new_password, session)
+
+    session.delete(reset_record)
+    session.commit()
+
+    return {
+        "message": "password updated successfully."
+    }
+
+
+@router.post("/email-code")
+def confirm_code(email: str, code: str, session: SessionDep, request: Request):
+    current_user = get_user(email, session)
+    if current_user:
+        statement=  select(PasswordResetCode).where(
+            PasswordResetCode.email == email,
+            PasswordResetCode.code == code
+        )
+
+        record = session.exec(statement).first()
+
+        if not record:
+            raise HTTPException(400, "Invalid code")
+
+
+        if record.expires_at < datetime.utcnow():
+            raise HTTPException(400, "Code expired")
+
+        session.delete(record)
+        session.commit()
+
+        raw_token, token_hash = generate_reset_token().values()
+        print("TOKEN", raw_token, token_hash)
+        expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
+
+        store_reset_token_in_db(
+            user_id=current_user.id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            session=session
+        )
+
+        reset_link = reset_link_template(raw_token, request)
+
+        return {
+            'link': reset_link,
+            'detail': 'Use POST request with the new password to reset the password'
+        }
+    raise HTTPException(401, "Invalid user.")
+
+@router.post("/email")
+def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDep, request: Request):
+
+    current_user = get_user(email, session)
+
+    if current_user:
+        code = generate_reset_code()
+
+        reset_code = PasswordResetCode(
+            email=email,
+            code=code,
+            expires_at=datetime.utcnow() + timedelta(minutes=10)
+        )
+        session.add(reset_code)
+        session.commit()
+
+
+        html = f"""
+        <h3>Password Reset</h3>
+        <p>Your code is:</p>
+        <h3>{code}</h3>
+        """
+
+        background_tasks.add_task(
+            send_email,
+            email,
+            "Reset Your Password",
+            html
+        )
+    return {"message": "If the account exists, a reset link was sent."}
+
+
+@router.post("/security-questions")
+def add_security_questions(
+        current_user : Annotated[User, Depends(get_current_user)],
+        questions: AddSecurityQuestion,  # [{"question": "...", "answer": "..."}]
+        session: SessionDep
+):
+
+    for q in questions.questions:
+        question_record = UserSecurityQuestion(
+            user_id=current_user.id,
+            question=q.question.strip(),
+            answer_hash=get_password_hash(q.answer)
+        )
+        session.add(question_record)
+    session.commit()
+    return {"message": "Security questions saved successfully."}
+
+
+@router.get("/security-question", response_model=SecurityQuestionOut)
+def get_security_question(
+        identifier: str,
+        session: SessionDep
+):
+    current_user = get_user(identifier, session)
+    questions = session.exec(
+        select(UserSecurityQuestion).where(UserSecurityQuestion.user_id == current_user.id)
+    ).all()
+
+    if not questions:
+        raise HTTPException(status_code=404, detail="No security questions found for this user")
+
+    # pick one random question
+    question = random.choice(questions)
+
+    raw_token, token_hash = generate_reset_token().values()
+    expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
+
+    store_reset_token_in_db(
+        user_id=current_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        session=session
+    )
+
+    return SecurityQuestionOut(question=question.question)
+
+
+@router.post("/security-question/answer")
+def verify_security_answer(
+        identifier: str,
+        payload: SecurityAnswerIn,
+        session: SessionDep,
+        request: Request
+):
+
+    user = get_user(identifier, session)
+
+    if not user:
+        raise HTTPException(404, 'Invalid token')
+
+    user_id = user.id
+
+    db_question = session.exec(
+        select(UserSecurityQuestion)
+        .where(UserSecurityQuestion.user_id == user_id)
+        .where(UserSecurityQuestion.question == payload.question)
+    ).first()
+
+    if not db_question:
+        raise HTTPException(status_code=404, detail="Security question not found")
+
+    is_correct = verify_password(
+        payload.answer.strip(),
+        db_question.answer_hash
+    )
+
+    if not is_correct:
+        return {"correct": False}
+
+    raw_token, token_hash = generate_reset_token().values()
+    expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
+
+    store_reset_token_in_db(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        session=session
+    )
+
+    reset_link = reset_link_template(raw_token, request)
+
+    return {
+        "correct": True,
+        "reset_link": reset_link,
+    }
+
+@router.get("/generate-security-question")
+def generate_security_question(
+        current_user : Annotated[User, Depends(get_current_user)]
+):
+    questions = [
+        "What was the name of your first pet?",
+        "In what city was your first job?",
+        "What is the name of the street you grew up on?",
+        "What was your childhood nickname?",
+        "What was the make of your first car?",
+        "What was your high school mascot?",
+        "What is your mother's maiden name?",
+        "What is your paternal grandmother's first name?",
+        "What is the name of your favorite childhood teacher?",
+        "In what city did your parents meet?",
+        "What was the name of your first elementary school?",
+        "What is the name of your favorite book?",
+        "What is your favorite movie?",
+        "What was your favorite food as a child?",
+        "What was the name of the hospital where you were born?",
+        "What is the name of your oldest cousin?",
+        "What is the first name of your best friend in high school?",
+        "What was the first concert you attended?",
+        "What is the name of your favorite sports team?",
+        "What was the destination of your first flight?",
+        "What was the color of your first bicycle?",
+        "What was the title of your first job?",
+        "What was your favorite toy as a child?",
+        "In what city did you spend your honeymoon?",
+        "What was the name of your first boyfriend or girlfriend?",
+        "What was the name of your first stuffed animal?",
+        "What is the name of the street where your best friend lives?",
+        "What was your favorite subject in school?",
+        "What was the name of your first boss?",
+        "What is the middle name of your youngest sibling?",
+        "What is the name of the first company you worked for?",
+        "What is your favorite singer's name?",
+        "What was the name of your high school graduation speaker?",
+        "What was the name of your favorite cartoon character?",
+        "What was your favorite place to visit as a child?",
+        "What is the name of the beach you visited most often?",
+        "What was the name of your first neighborhood?",
+        "What is the name of your favorite pizza topping?",
+        "What is the name of the person you first kissed?",
+        "What is the last name of your favorite musician?",
+        "In what town was your maternal grandfather born?",
+        "What was the first video game you ever played?",
+        "What is the name of the first street you lived on?",
+        "What was the name of your primary school principal?",
+        "What is the middle name of your oldest sibling?",
+        "What was your childhood dream job?",
+        "What is the name of your favorite aunt?",
+        "What is the name of your favorite uncle?",
+        "What was your favorite hobby in high school?",
+        "In what city did you celebrate your 21st birthday?",
+        "What is the name of your favorite coffee shop?",
+        "What was the brand of your first cell phone?",
+        "What was the name of your first college roommate?",
+        "In what city is your favorite vacation spot?",
+        "What was the first album you ever bought?",
+        "What was the name of the park near your childhood home?",
+        "What is the name of your favorite local restaurant?",
+        "What was your favorite holiday as a child?",
+        "What is the name of your favorite board game?",
+        "What is your father's middle name?",
+        "What is your mother's middle name?",
+        "What was your favorite color in kindergarten?",
+        "What is the first name of your favorite author?",
+        "What was the name of your high school English teacher?",
+        "In what city did you get engaged?",
+        "What is the name of your favorite museum?",
+        "What was the name of the person who taught you to drive?",
+        "What was your favorite snack in grade school?",
+        "What is the name of your favorite poem?",
+        "What is your favorite brand of shoes?",
+        "What is the first name of your favorite athlete?",
+        "What was the first musical instrument you learned?",
+        "What is the name of your favorite flower?",
+        "What was the name of your first manager?",
+        "What is your favorite video game character?",
+        "What is the middle name of your favorite cousin?",
+        "In what city was your father born?",
+        "In what city was your mother born?",
+        "What was the name of your first car's model?",
+        "What was your favorite fairy tale as a child?",
+        "What was your favorite outdoor activity as a kid?",
+        "What is the name of your favorite ice cream flavor?",
+        "What is the first name of your wedding's best man?",
+        "What is the first name of your maid of honor?",
+        "What was the name of your childhood church?",
+        "What was your favorite sitcom in high school?",
+        "What was the first brand of computer you owned?",
+        "What was the name of your first pet's veterinarian?",
+        "What is the name of your favorite historical figure?",
+        "What was your favorite dessert as a child?",
+        "What is the name of your favorite superhero?",
+        "What was the first play or musical you saw?",
+        "What was the name of your favorite campsite?",
+        "What is the name of your favorite national park?",
+        "What was the first movie you saw in a theater?",
+        "What is the name of your favorite childhood library?",
+        "What was your favorite clothing brand in high school?",
+        "What was the name of your high school science teacher?",
+        "What is the name of the first lake you swam in?",
+        "What was the first brand of watch you owned?",
+        "What is the first name of your favorite poet?"
+    ]
+    return {"question": random.choice(questions)}

@@ -1,0 +1,292 @@
+import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
+import { getWsUrl } from "@/config/runtime";
+import {
+  TcpServerAdapter,
+  WsSignalingAdapter,
+  ZeroconfAdapter,
+} from "./adapters";
+import { database } from "./database";
+import { GuestUserRepository } from "./repositories";
+import {
+  ActiveUsersService,
+  CallMediaService,
+  CleanUpService,
+  ConnectionService,
+  DiscoveryService,
+  SignalingService,
+  WebrtcSessionManager,
+} from "./services";
+import { AppModeStore, NetworkConfig } from "./stores";
+
+import { CallService } from "@/features/call/services/call-service";
+import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
+import { ConversationRepository } from "@/features/chat/repositories/conversation-repository";
+import { MessageRepository } from "@/features/chat/repositories/message-repository";
+import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
+import { ChatService } from "@/features/chat/services/chat-service";
+import { PublicChatService } from "@/features/chat/services/public-chat-service";
+import { setAppAlive } from "@/task/signaling-task";
+import { AuthContainer } from "../auth/auth-container";
+import { CallParticipantRepository } from "../call/repositories/call-participant-repository";
+import { CallRepository } from "../call/repositories/call-repository";
+import { SyncService } from "../sync";
+import {
+  clearConnectionConfig,
+  saveConnectionConfig,
+  saveUserProfile,
+} from "./stores/secure-config";
+import { appLog } from "./utils/logger";
+
+appLog.debug("[main-container] module loaded");
+
+/**
+ * AppContainer is responsible for initializing and wiring up all core services, repositories, and stores for the mobile app.
+ * It acts as a dependency injection container and provides a single point of initialization for the application.
+ */
+export class MainContainer {
+  readonly zeroconfAdapter: ZeroconfAdapter;
+  readonly networkConfig: NetworkConfig;
+  readonly discoveryService: DiscoveryService;
+  readonly tcpServerAdapter: TcpServerAdapter;
+  readonly webrtcSessionManager: WebrtcSessionManager;
+  readonly signalingService: SignalingService;
+  readonly callMediaService: CallMediaService;
+  readonly connectionService: ConnectionService;
+  readonly chatService: ChatService;
+  readonly messageRepository: MessageRepository;
+  readonly conversationRepository: ConversationRepository;
+  readonly conversationParticipantRepository: ConversationParticipantRepository;
+  readonly messageStatusRepository: MessageStatusRepository;
+  readonly callRepository: CallRepository;
+  readonly callParticipantRepository: CallParticipantRepository;
+  readonly callService: CallService;
+  readonly guestUserRepository: GuestUserRepository;
+  readonly userContainer: AuthContainer;
+  readonly cleanUpService: CleanUpService;
+  readonly appModeStore: AppModeStore;
+  readonly syncService: SyncService;
+  readonly wsSignalingAdapter: WsSignalingAdapter;
+  readonly publicChatService: PublicChatService;
+  readonly activeUsersService: ActiveUsersService;
+
+  private initPromise?: Promise<void>;
+  private unsubscribeNetInfo?: () => void;
+  private periodicSyncTimer?: ReturnType<typeof setInterval>;
+
+  /**
+   * Constructs an AppContainer instance and initializes all dependencies and services.
+   * Sets up dependency injection and cross-service references.
+   */
+  constructor(userContainer: AuthContainer, appModeStore: AppModeStore) {
+    appLog.info("app › container constructed", {
+      hasUserContainer: Boolean(userContainer),
+      hasAppModeStore: Boolean(appModeStore),
+    });
+    this.userContainer = userContainer;
+    this.appModeStore = appModeStore;
+
+    this.networkConfig = new NetworkConfig();
+
+    this.messageRepository = new MessageRepository(database);
+    this.messageStatusRepository = new MessageStatusRepository(database);
+    this.zeroconfAdapter = new ZeroconfAdapter();
+    this.discoveryService = new DiscoveryService(
+      this.zeroconfAdapter,
+      this.userContainer.sessionStore,
+      this.networkConfig,
+      this.userContainer.userStore,
+      this.userContainer.peerService,
+      this.appModeStore
+    );
+
+    this.wsSignalingAdapter = new WsSignalingAdapter();
+    this.activeUsersService = new ActiveUsersService(this.wsSignalingAdapter);
+    this.tcpServerAdapter = new TcpServerAdapter();
+
+    // Construction order: WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService
+    this.webrtcSessionManager = new WebrtcSessionManager(
+      this.userContainer.userStore,
+      this.networkConfig
+    );
+
+    this.signalingService = new SignalingService(
+      this.webrtcSessionManager.getWebrtcAdapter.bind(
+        this.webrtcSessionManager
+      ),
+      this.wsSignalingAdapter,
+      getWsUrl(),
+      this.userContainer.userStore,
+      this.networkConfig,
+      this.appModeStore
+    );
+
+    this.callMediaService = new CallMediaService(
+      this.webrtcSessionManager.getWebrtcAdapter.bind(this.webrtcSessionManager)
+    );
+
+    this.connectionService = new ConnectionService(
+      this.tcpServerAdapter,
+      this.networkConfig,
+      this.userContainer.userStore,
+      this.appModeStore,
+      this.wsSignalingAdapter,
+      this.webrtcSessionManager,
+      this.signalingService,
+      this.callMediaService
+    );
+
+    this.messageRepository = new MessageRepository(database);
+    this.conversationRepository = new ConversationRepository(database);
+    this.conversationParticipantRepository =
+      new ConversationParticipantRepository(database);
+    this.messageStatusRepository = new MessageStatusRepository(database);
+
+    this.syncService = new SyncService({
+      db: database,
+      currentUserId: this.userContainer.userStore.user.id,
+      peerService: this.userContainer.peerService,
+      peerRepository: this.userContainer.peerRepository,
+    });
+
+    this.chatService = new ChatService(
+      this.connectionService,
+      this.conversationRepository,
+      this.conversationParticipantRepository,
+      this.messageRepository,
+      this.messageStatusRepository,
+      this.userContainer.peerService,
+      this.userContainer.userStore,
+      this.syncService
+    );
+
+    // Inject messageReceiptManager into SyncService after ChatService construction
+    this.syncService.setMessageReceiptManager(
+      this.chatService.getMessageReceiptManager()
+    );
+
+    this.publicChatService = new PublicChatService(
+      this.userContainer.userStore,
+      this.wsSignalingAdapter,
+      this.appModeStore
+    );
+
+    this.callRepository = new CallRepository(database);
+    this.callParticipantRepository = new CallParticipantRepository(database);
+    this.callService = new CallService(
+      this.connectionService,
+      this.userContainer.userStore,
+      this.userContainer.peerService,
+      this.callRepository,
+      this.callParticipantRepository,
+      this.chatService,
+      this.syncService
+    );
+
+    this.connectionService.setChatService(this.chatService);
+    this.discoveryService.setChatService(this.chatService);
+    this.discoveryService.setConnectionService(this.connectionService);
+
+    this.guestUserRepository = new GuestUserRepository(database);
+
+    // Clean up
+    this.cleanUpService = new CleanUpService(
+      this.guestUserRepository,
+      this.userContainer.peerRepository,
+      this.messageRepository,
+      this.messageStatusRepository,
+      this.conversationRepository,
+      this.conversationParticipantRepository
+    );
+    this.userContainer.userService.setCleanUpService(this.cleanUpService);
+  }
+
+  /**
+   * Initializes the application by initializing the user service and network configuration.
+   * Ensures initialization is only performed once (idempotent).
+   * @returns Promise<void>
+   */
+  async initialize() {
+    try {
+      if (this.initPromise) return this.initPromise;
+
+      this.initPromise = (async () => {
+        appLog.info("app › init start");
+        await this.networkConfig.initialize();
+        this.networkConfig.startWatching();
+
+        // Persist peerId and wsUrl for background task
+        await saveConnectionConfig({
+          peerId: this.userContainer.userStore.user.id ?? "unknown",
+          wsUrl: getWsUrl(),
+        });
+        await saveUserProfile({
+          username: this.userContainer.userStore.user.username,
+          firstName: this.userContainer.userStore.user.firstName,
+          lastName: this.userContainer.userStore.user.lastName || undefined,
+        });
+
+        setAppAlive(true);
+        if (
+          this.appModeStore.getEffectiveMode(
+            this.userContainer.userStore.isGuest
+          ) !== "lan"
+        ) {
+          void this.syncService.syncNow();
+
+          this.unsubscribeNetInfo = NetInfo.addEventListener(
+            (state: NetInfoState) => {
+              // isInternetReachable can be null on Android during transitions; treat null as online
+              const isOnline =
+                state.isConnected === true &&
+                state.isInternetReachable !== false;
+              void this.syncService.handleConnectivityChange(isOnline);
+            }
+          );
+
+          this.periodicSyncTimer = setInterval(() => {
+            void this.syncService.syncNow();
+          }, 5 * 60 * 1_000);
+        }
+      })();
+
+      return this.initPromise;
+    } catch (error) {
+      appLog.error("app › init failed", { error });
+      throw error;
+    }
+  }
+
+  // Call on logout or app destroy
+  async cleanup() {
+    try {
+      appLog.info("app › cleanup start");
+
+      // Release the lock — background task takes over transport ownership
+      setAppAlive(false);
+
+      this.networkConfig.stopWatching();
+
+      this.unsubscribeNetInfo?.();
+      this.unsubscribeNetInfo = undefined;
+
+      if (this.periodicSyncTimer) {
+        clearInterval(this.periodicSyncTimer);
+        this.periodicSyncTimer = undefined;
+      }
+
+      this.syncService.cleanup();
+
+      this.connectionService.stop(); // stops TCP + WS + WebRTC
+      this.discoveryService.destroy(); // stops Zeroconf
+
+      await clearConnectionConfig();
+
+      this.initPromise = undefined;
+
+      appLog.info("app › cleanup complete");
+    } catch (error) {
+      appLog.error("app › cleanup failed", { error });
+      throw error;
+    }
+  }
+}

@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+
+from fastapi import HTTPException
+from pydantic import ValidationError
+import pytest
+import logging
+import uuid
+import pytest
+from sqlmodel import SQLModel, Session, StaticPool, create_engine, select
+
+from app.main import app
+from fastapi.testclient import TestClient
+
+from app.db_operations.auth import SessionDep, db_create_user, get_password_hash, get_session, get_user_by_email, get_user_by_phone_number, get_user_by_username, verify_password
+from app.models.users import User, UserCreate
+from app.tests.assets import dummy_data, sample_users
+from app.db_operations.auth import update_user_info, update_user_password
+from app.models.users import UserUpdate,UserPasswordUpdate
+from app.models.guest import Guest
+
+def test_db_create_user_with_id(session: SessionDep):
+    user = db_create_user(
+        session=session,
+        user=UserCreate(**dummy_data)
+    )
+
+    assert user.id == dummy_data.get('id')
+    assert user.username == dummy_data.get('username')
+    assert user.last_name == dummy_data.get('last_name')
+    assert user.first_name == dummy_data.get('first_name')
+    assert user.phone_number == dummy_data.get('phone_number')
+    assert user.email == dummy_data.get('email')
+    assert verify_password(str(dummy_data.get('password')), user.hashed_password)
+
+
+def test_db_get_users_by_email(session : SessionDep):
+    user_data = sample_users['steve_rogers']
+    user = get_user_by_email(session, user_data.get('email'))
+
+    assert user
+    assert user.username == user_data.get('username')
+    assert user.last_name == user_data.get('last_name')
+    assert user.first_name == user_data.get('first_name')
+    assert user.phone_number == user_data.get('phone_number')
+    assert user.email == user_data.get('email')
+    assert verify_password(str(user_data.get('password')), user.hashed_password)
+
+
+def test_db_get_users_by_username(session : SessionDep):
+    user_data = sample_users['steve_rogers']
+    user = get_user_by_username(session, user_data.get('username'))
+
+    assert user
+    assert user.username == user_data.get('username')
+    assert user.last_name == user_data.get('last_name')
+    assert user.first_name == user_data.get('first_name')
+    assert user.phone_number == user_data.get('phone_number')
+    assert user.email == user_data.get('email')
+    assert verify_password(str(user_data.get('password')), user.hashed_password)
+
+
+def test_db_get_users_by_phone_number(session : SessionDep):
+    user_data = sample_users['test']
+    user = get_user_by_phone_number(session, user_data.get('phone_number'))
+
+    assert user
+    assert user.username == user_data.get('username')
+    assert user.last_name == user_data.get('last_name')
+    assert user.first_name == user_data.get('first_name')
+    assert user.phone_number == user_data.get('phone_number')
+    assert user.email == user_data.get('email')
+    assert verify_password(str(user_data.get('password')), user.hashed_password)
+
+
+def test_db_change_info(session : SessionDep):
+    user_data = sample_users['test']
+    new_username = 'testing_new_username'
+
+    user = get_user_by_username(session, str(user_data.get('username')))
+    print("USERR", user)
+    update_model = UserUpdate(
+        username=new_username
+    )
+    update_user_info(user, update_model, session)
+
+    # test if the update occured
+    user = get_user_by_username(session, new_username)
+    assert user
+    assert user.username == new_username
+
+
+
+def test_db_change_info(session : SessionDep):
+    user_data = sample_users['test']
+    new_username = 'testing_new_username'
+
+    user = get_user_by_username(session, str(user_data.get('username')))
+    print("USERR", user)
+    update_model = UserUpdate(
+        username=new_username
+    )
+    update_user_info(user, update_model, session)
+
+    # test if the update occured
+    user = get_user_by_username(session, new_username)
+    assert user
+    assert user.username == new_username
+
+
+def test_db_update_user_password(session: SessionDep, client: TestClient):
+    user_data = sample_users['test']
+    user = get_user_by_username(session, str(user_data.get('username')))
+    updated_password = 'Testing_9999'
+
+    password_update = UserPasswordUpdate(
+        current_password=str(user_data.get('password')),
+        new_password=updated_password
+    )
+
+    # update_user_password(user, password_update, session)
+    update_user_password(user, updated_password, session)
+
+    user = get_user_by_username(session, str(user_data.get('username')))
+
+    assert user
+    assert verify_password(updated_password, user.hashed_password)
+
+def test_convert_guest_to_user(session: Session):
+    # 1. Create a Guest User first
+    guest_id = uuid.uuid4()
+    existing_user = User(
+        id=guest_id,
+        username="guest_123",
+        first_name="Guest",
+        last_name="User",
+        hashed_password="old_hash",
+    )
+    session.add(existing_user)
+    session.commit()
+    
+    guest_record = Guest(user_id=existing_user.id)
+    session.add(guest_record)
+    session.commit()
+
+    # 2. Prepare UserCreate with same ID but new data
+    user_in = UserCreate(
+        id=guest_id,
+        username="permanent_user",
+        first_name="John",
+        last_name="Doe",
+        email="permanent@example.com",
+        password="NewStrongPass123"
+    )
+
+    # 3. Execute
+    updated_user = db_create_user(user_in, session)
+
+    # 4. Assertions
+    assert updated_user.id == guest_id
+    assert updated_user.username == "permanent_user"
+    assert updated_user.guest is None  # Guest record should be deleted
+    
+    # Verify guest record is actually gone from DB
+    deleted_guest = session.get(Guest, guest_id)
+    assert deleted_guest is None
+

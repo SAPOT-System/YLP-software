@@ -26,7 +26,7 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
     // hide splash screen after 6 seconds
     const timeout = setTimeout(onFinish, 6000);
     return () => clearTimeout(timeout);
-  }, []);
+  }, [onFinish, opacity]);
 
   // binds the animated values to the logo's style
   const logoStyle = useAnimatedStyle(() => ({

@@ -1,5 +1,7 @@
-import { useContainer } from "./use-container";
+import { hookLog } from "../utils/logger";
+import { useMainContainer } from "./use-main-container";
+hookLog.debug("[use-discovery-service] module loaded");
 
 export function useDiscoveryService() {
-  return useContainer().discoveryService;
+  return useMainContainer().discoveryService;
 }

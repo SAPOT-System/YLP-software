@@ -1,0 +1,201 @@
+import { authLog } from "@/features/shared/utils/logger";
+import { AxiosError } from "axios";
+import { setItemAsync } from "expo-secure-store";
+import { useState } from "react";
+import {
+    addSecurityQuestionApi,
+    existsApi,
+    generateNewRecoveryKeyApi,
+    register,
+} from "../api/auth.api";
+import {
+    RegisterApiErrorResponse,
+    RegisterApiResponse,
+    RegisterFormState,
+    RegisterFormStateErrors,
+} from "../types";
+import { hasValidationErrors, validateRegistrationForm } from "../utils";
+
+export const useRegister = () => {
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<RegisterFormStateErrors>({});
+
+  const registerUser = async (
+    form: RegisterFormState
+  ): Promise<{
+    success: boolean;
+    recoveryKeyFileLink?: string;
+    info?: RegisterApiResponse;
+  }> => {
+    authLog.debug("[useRegister] registerUser called", {
+      hasUsername: Boolean(form.username?.trim()),
+      hasFirstName: Boolean(form.firstName?.trim()),
+      hasLastName: Boolean(form.lastName?.trim()),
+      hasEmail: Boolean(form.email?.trim()),
+      hasPhoneNumber: Boolean(form.phoneNumber?.trim()),
+      password: "[REDACTED]",
+    });
+    setLoading(true);
+    setErrors({});
+
+    const errors = validateRegistrationForm(form);
+
+    if (hasValidationErrors(errors)) {
+      authLog.warn("[useRegister] validation failed");
+      setErrors(errors);
+      setLoading(false);
+      return { success: false };
+    }
+
+    // Mapping from server keys to client keys
+    function mapServerErrors(
+      serverErrors: Record<string, string>
+    ): RegisterFormStateErrors {
+      const errorKeyMap: Record<string, string> = {
+        first_name: "firstName",
+        last_name: "lastName",
+        phone_number: "phoneNumber",
+      };
+
+      const clientErrors: RegisterFormStateErrors = {};
+      for (const key in serverErrors) {
+        const clientKey = errorKeyMap[key] || key; // fallback to original if not mapped
+        clientErrors[clientKey as keyof RegisterFormStateErrors] =
+          serverErrors[key];
+      }
+      return clientErrors;
+    }
+
+    try {
+      const res = await register({
+        username: form.username,
+        first_name: form.firstName,
+        last_name: form.lastName,
+        password: form.password,
+        email: form.email || undefined,
+        phone_number: form.phoneNumber || undefined,
+      });
+      const data = res.data;
+
+      await setItemAsync("access_token", data.access_token);
+      await setItemAsync("refresh_token", data.refresh_token);
+
+      await addSecurityQuestionApi(
+        [{ question: form.securityQuestion, answer: form.questionAnswer }],
+        data.access_token
+      );
+
+      const res2 = await generateNewRecoveryKeyApi(data.access_token);
+
+      return {
+        success: res.status === 201,
+        recoveryKeyFileLink: res2.data,
+        info: data,
+      };
+    } catch (err) {
+      authLog.error("[useRegister] Error in registerUser", { error: err });
+      const axiosError = err as AxiosError<RegisterApiErrorResponse>;
+
+      // Network error
+      if (!axiosError.response) {
+        setErrors({
+          general: "Network error. Please check your connection to the server.",
+        });
+        return { success: false };
+      }
+
+      const status = axiosError.response.status;
+      const data = axiosError.response.data;
+
+      // 422 Unprocessable Entity - validation errors
+      if (status === 422 && Array.isArray(data.detail)) {
+        authLog.warn("[useRegister] validation error response", { status });
+        const fieldErrors = {};
+        data.detail.forEach((detail) => {
+          const fieldName = String(detail.loc[1]); // Convert to string explicitly
+          const message = detail.msg;
+          const serverError = mapServerErrors({ [fieldName]: message });
+          Object.assign(fieldErrors, serverError);
+        });
+        setErrors(fieldErrors);
+
+        return { success: false };
+      }
+
+      if (status === 400 && !Array.isArray(data.detail)) {
+        authLog.warn("[useRegister] bad request response", { status });
+        const serverErrors = data.detail;
+
+        setErrors(mapServerErrors(serverErrors));
+
+        return { success: false };
+      }
+
+      // 500 Server error
+      if (status === 500) {
+        authLog.error("[useRegister] server error response", { status });
+        setErrors({ general: "Server error. Please try again later." });
+
+        return { success: false };
+      }
+
+      // Generic error
+      // TODO: Add the message from the server response
+      setErrors({
+        general: "An error occurred. Please try again",
+      });
+
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkIfIdentifierExists = async (identifier: string) => {
+    try {
+      authLog.debug("[useRegister] checkIfIdentifierExists called", {
+        identifierLength: identifier.length,
+      });
+      const { exists } = await existsApi(identifier);
+      return exists;
+    } catch (error) {
+      authLog.error("[useRegister] Error in checkIfIdentifierExists", {
+        error,
+      });
+      return false;
+    }
+  };
+
+  const validateRegisterStep = (form: Partial<RegisterFormState>) => {
+    authLog.debug("[useRegister] validateRegisterStep called", {
+      hasUsername: Boolean(form.username?.trim()),
+      hasFirstName: Boolean(form.firstName?.trim()),
+      hasLastName: Boolean(form.lastName?.trim()),
+      hasEmail: Boolean(form.email?.trim()),
+      hasPhoneNumber: Boolean(form.phoneNumber?.trim()),
+      hasPassword: Boolean(form.password),
+      hasConfirmPassword: Boolean(form.confirmPassword),
+      hasSecurityQuestion: Boolean(form.securityQuestion),
+      hasQuestionAnswer: Boolean(form.questionAnswer),
+      termsChecked: Boolean(form.termsChecked),
+    });
+    setLoading(true);
+    const errors = validateRegistrationForm(form);
+    if (hasValidationErrors(errors)) {
+      authLog.warn("[useRegister] validateRegisterStep failed");
+      setErrors(errors);
+      setLoading(false);
+      return { success: false };
+    }
+    setLoading(false);
+    return { success: true };
+  };
+  return {
+    registerUser,
+    validateRegisterStep,
+    checkIfIdentifierExists,
+    loading,
+    setErrors,
+    errors,
+  };
+};

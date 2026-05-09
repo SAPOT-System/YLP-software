@@ -1,46 +1,152 @@
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
+import { APP_ROUTES } from "@/config/routes";
+import { useAuth } from "@/features/auth";
 import { ChatList, useChats } from "@/features/chat";
-import { PeerList } from "@/features/shared";
+import PeerList from "@/features/shared/components/peer-list";
 import {
   useConnectionService,
   useDiscoveryService,
-  usePeers,
 } from "@/features/shared/hooks";
+import { useSyncService } from "@/features/shared/hooks/use-sync-service";
+import { uiLog } from "@/features/shared/utils/logger";
+import { useHeaderHeight } from "@react-navigation/elements";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { TouchableOpacity } from "react-native";
+import { Icon, Searchbar, useTheme } from "react-native-paper";
 
 export default function Chat() {
-  const { peers } = usePeers();
+  const auth = useAuth();
+  const theme = useTheme();
+  const headerHeight = useHeaderHeight();
+  const topGradientColors: [string, string] = theme.dark
+    ? ["#0F1830", "#1E2E67"]
+    : ["#FFF", "#99AEC7"];
+
   const { chats } = useChats();
+  const syncService = useSyncService();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await syncService.syncNow();
+    setRefreshing(false);
+  };
 
   const router = useRouter();
   const discoveryService = useDiscoveryService();
   const connectionService = useConnectionService();
 
   useEffect(() => {
-    console.log("hello");
-    discoveryService.publishDevice();
-    discoveryService.startDiscovery();
-    connectionService.start();
-    const audioCallHandler = (peerId: string) =>
-      router.push({ pathname: "/(drawer)/(tabs)/call/[id]", params: { id: peerId } });
-    const callEndedHandler = () => router.back();
-    connectionService.on("audio-call", audioCallHandler);
-    connectionService.on("call-ended", callEndedHandler);
+    uiLog.debug("[Chat] useEffect triggered, deps:", {
+      accessToken: auth.accessToken ? "[REDACTED]" : undefined,
+    });
+    connectionService.setSignalingToken(auth.accessToken ?? undefined);
+  }, [auth.accessToken, connectionService]);
+
+  useEffect(() => {
+    uiLog.info("[Chat] mounted");
 
     return () => {
-      discoveryService.destroy();
-      connectionService.stop();
-      connectionService.off("audio-call", audioCallHandler);
-      connectionService.off("call-ended", callEndedHandler);
+      uiLog.info("[Chat] unmounted");
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await discoveryService.publishDevice();
+
+        if (cancelled) {
+          return;
+        }
+
+        discoveryService.startDiscovery();
+        connectionService.start();
+      } catch (error) {
+        uiLog.error("[Chat] failed to publish discovery service", { error });
+
+        if (!cancelled) {
+          discoveryService.startDiscovery();
+          connectionService.start();
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      discoveryService.destroy();
+      connectionService.stop();
+    };
+  }, [discoveryService, connectionService]);
+
   return (
     <View style={styles.container}>
-      <PeerList peers={peers} />
-      <ChatList chats={chats} />
+      <LinearGradient
+        colors={topGradientColors}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={[styles.topSection, { paddingTop: headerHeight + 16 }]}
+      >
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => {
+              uiLog.debug("[Chat] onPress triggered");
+              uiLog.info("[Navigation] Navigating to Search", {
+                screen: APP_ROUTES.SEARCH,
+              });
+              router.push(APP_ROUTES.SEARCH);
+            }}
+            style={{ flexGrow: 1 }}
+          >
+            <Searchbar
+              pointerEvents="none"
+              editable={false}
+              value=""
+              placeholder="Search"
+              iconColor={theme.dark ? "#7E8AA6" : "#000000"}
+              placeholderTextColor={theme.dark ? "#7E8AA6" : "#696969"}
+              style={[
+                styles.searchbar,
+                {
+                  backgroundColor: theme.dark ? "#0F172A" : "#FFFFFF",
+                  color: theme.dark ? "#7E8AA6" : "#696969",
+                },
+              ]}
+            />
+          </TouchableOpacity>
+          <Pressable
+            onPress={() => {
+              uiLog.debug("[Chat] onPress triggered");
+              uiLog.info("[Navigation] Navigating to ScanQr", {
+                screen: APP_ROUTES.SCAN_QR,
+              });
+              router.push(APP_ROUTES.SCAN_QR);
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#3A7AFE",
+                padding: 12,
+                borderWidth: 1,
+                borderColor: "#000000",
+                elevation: 6,
+                borderRadius: 55,
+              }}
+            >
+              <Icon source="qrcode" size={30} color="white" />
+            </View>
+          </Pressable>
+        </View>
+        <PeerList />
+      </LinearGradient>
+      <View style={[styles.chatListContainer, { backgroundColor: "none" }]}>
+        <ChatList chats={chats} refreshing={refreshing} onRefresh={onRefresh} />
+      </View>
     </View>
   );
 }
@@ -48,14 +154,24 @@ export default function Chat() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    gap: 10,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
+  topSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomLeftRadius: 27,
+    borderBottomRightRadius: 27,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
   },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: "80%",
+  chatListContainer: {
+    flex: 1,
+    paddingTop: 10,
+  },
+  searchbar: {
+    marginBottom: 12,
   },
 });

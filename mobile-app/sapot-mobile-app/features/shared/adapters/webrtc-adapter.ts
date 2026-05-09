@@ -9,6 +9,9 @@ import {
 } from "react-native-webrtc";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { WebrtcDataMessage } from "../types";
+import { webrtcLog } from "../utils/logger";
+
+webrtcLog.debug("[webrtc-adapter] module loaded");
 
 interface RTCIceCandidateInit {
   candidate: string;
@@ -21,90 +24,74 @@ interface RTCIceCandidateInit {
  * It handles signaling, ICE candidates, media control, and emits events for connection and media state changes.
  */
 export class WebrtcAdapter extends EventEmitter {
-  /**
-   * This property holds the connection of webrtc
-   */
   private peerConnection?: RTCPeerConnection;
-
-  /**
-   * This property stores the audio and video of the current user of the app
-   */
   private localStream?: MediaStream;
-
-  // Note: remoteStream and dataChannel have a type of any because there is a conflict on its type
-
-  /**
-   * This property stores the audio and video of the peer that is currently interacting by the user
-   */
   private remoteStream?: MediaStream;
-
-  /**
-   * This property manages the chat connection
-   */
   private dataChannel?: RTCDataChannel;
-
-  /**
-   * This property holds the information whether the app will use servers or not
-   */
+  // eslint-disable-next-line no-undef
   private configuration: RTCConfiguration;
-
-  /**
-   * This property holds the array of data that is essential to the connection
-   */
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
 
-  /**
-   * This flag will be used to by the app to know if remote description is set which is useful on forming connection
-   */
+  private iceRestartTimer?: ReturnType<typeof setTimeout>;
+  private iceRestartAttempts = 0;
+  private isIceRestarting = false;
+  private isMakingOffer = false;
+  private negotiationQueue: Promise<void> = Promise.resolve();
+  private readonly maxIceRestartAttempts = 3;
+  private readonly iceRestartDelayMs = 1500;
+
   private remoteDescriptionSet: boolean = false;
-
-  /**
-   * This property is capable of controlling microphone
-   */
   private audioTrack?: MediaStreamTrack;
-
-  /**
-   * This property is capable of controlling camera visibility
-   */
   private videoTrack?: MediaStreamTrack;
 
-  /**
-   * This property holds the id of peer that holds this class state
-   */
   readonly peerId: string;
+  private isPolite: boolean = false;
+  private isIgnoringOffer = false;
 
-  /**
-   * Constructs a WebrtcAdapter instance for a given peer.
-   * @param peerId The peer id this adapter is associated with
-   */
+  private traceId;
+
   constructor(peerId: string) {
     super();
     this.peerId = peerId;
+    this.traceId = `${this.peerId}-${Date.now()}`;
+    webrtcLog.info("webrtc › adapter constructed", { peerId });
     this.configuration = {
-      iceServers: [
-        // No turn server for physical devices
-        // Just for development for android emulators. Note that the host computer needs to run turn server to make this work.
-        // {
-        //   urls: [
-        //     "turn:10.0.2.2:5349?transport=udp",
-        //     "turn:10.0.2.2:5349?transport=tcp",
-        //   ],
-        //   username: "test",
-        //   credential: "test",
-        // },
-      ],
+      iceServers: [],
       iceTransportPolicy: "all",
     };
   }
 
-  /**
-   * Initializes the local media stream with audio and/or video.
-   * Adds tracks to the peer connection if available.
-   * @param audio Whether to enable audio
-   * @param video Whether to enable video
-   * @returns Promise<void>
-   */
-  async initializeLocalStream(audio = false, video = false) {
+  setIsPolite(isPolite: boolean) {
+    webrtcLog.debug("polite set to", isPolite);
+    this.isPolite = isPolite;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private trace(event: string, data: Record<string, any> = {}) {
+    webrtcLog.debug(`webrtc [${this.traceId}] ${event}`, {
+      peerId: this.peerId,
+      signalingState: this.peerConnection?.signalingState,
+      iceConnectionState: this.peerConnection?.iceConnectionState,
+      connectionState: this.peerConnection?.connectionState,
+      ...data,
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private logFailure(reason: string, error?: any) {
+    this.trace("CALL FAILED", {
+      reason,
+      error,
+      signalingState: this.peerConnection?.signalingState,
+      iceState: this.peerConnection?.iceConnectionState,
+      connectionState: this.peerConnection?.connectionState,
+      pendingCandidates: this.pendingIceCandidates.length,
+      isMakingOffer: this.isMakingOffer,
+      isIgnoringOffer: this.isIgnoringOffer,
+    });
+  }
+
+  async initializeLocalStreamEarly(audio = false, video = false) {
     try {
       const constraints = {
         audio,
@@ -116,297 +103,481 @@ export class WebrtcAdapter extends EventEmitter {
             }
           : false,
       };
-
       this.localStream = await mediaDevices.getUserMedia(constraints);
-
       this.audioTrack = this.localStream.getAudioTracks()[0];
       this.videoTrack = this.localStream.getVideoTracks()[0];
-
-      // Add local stream to connection for audio calls and video calls
-      if (this.localStream) {
-        console.log("[WebrtcAdapter]: Adding local stream to connection");
-        this.localStream.getTracks().forEach((track) => {
-          console.log("[WebrtcAdapter]: Adding track: ", track.kind);
-          if (!this.peerConnection)
-            throw new Error("Peer connection not initialized");
-          this.peerConnection.addTrack(track, this.localStream!);
-        });
-      } else {
-        console.log("[WebrtcAdapter]: No local stream to connection");
-      }
+      webrtcLog.debug("initializeLocalStreamEarly done", { hasVideo: video });
     } catch (error) {
-      console.error(
-        `[WebrtcAdapter]: Error initializing local stream\n${JSON.stringify(
-          { audio, video },
-          null,
-          2
-        )}`
-      );
+      this.logFailure("initializeLocalStreamEarly failed", error);
       throw error;
     }
   }
 
-  /**
-   * Creates and configures a new RTCPeerConnection, sets up event handlers, and creates a data channel.
-   */
+  async initializeLocalStream(audio = false, video = false) {
+    try {
+      if (!this.localStream) {
+        const constraints = {
+          audio,
+          video: video
+            ? {
+                width: { min: 640, ideal: 1280 },
+                height: { min: 480, ideal: 720 },
+                frameRate: { min: 30, ideal: 60 },
+              }
+            : false,
+        };
+        this.localStream = await mediaDevices.getUserMedia(constraints);
+        this.audioTrack = this.localStream.getAudioTracks()[0];
+        this.videoTrack = this.localStream.getVideoTracks()[0];
+        webrtcLog.debug("initializeLocalStream", this.videoTrack);
+      }
+
+      if (this.localStream) {
+        webrtcLog.debug("webrtc › local stream add");
+        for (const track of this.localStream.getTracks()) {
+          webrtcLog.debug("webrtc › track add", { kind: track.kind });
+          if (!this.peerConnection)
+            throw new Error("Peer connection not initialized");
+          const existingSender = this.peerConnection
+            .getSenders()
+            .find((sender) => sender.track?.kind === track.kind);
+
+          if (existingSender) {
+            await existingSender.replaceTrack(track);
+          } else {
+            this.peerConnection.addTrack(track, this.localStream!);
+          }
+        }
+      } else {
+        webrtcLog.warn("webrtc › local stream missing");
+      }
+    } catch (error) {
+      this.logFailure("initializeLocalStream failed", error);
+      throw error;
+    }
+  }
+
   createPeerConnection() {
     try {
-      console.log("[WebrtcAdapter]: Creating peer connection...");
+      webrtcLog.debug("webrtc › peer connection create");
       this.peerConnection = new RTCPeerConnection(this.configuration);
 
-      // This will receive media such as audio and video of peers
       this.peerConnection.ontrack = (event) => {
-        this.remoteStream = event.streams[0];
-        this.emit("remoteStream", event.streams[0]);
+        webrtcLog.debug("webrtc › ontrack event:", {
+          hasStreams: !!event.streams,
+          streamsLength: event.streams?.length,
+          trackKind: event.track?.kind,
+          trackId: event.track?.id,
+        });
+
+        let stream = event.streams?.[0];
+
+        if (!stream && this.remoteStream) {
+          stream = this.remoteStream;
+          stream.addTrack(event.track);
+        } else if (!stream && !this.remoteStream) {
+          stream = new MediaStream();
+          stream.addTrack(event.track);
+        }
+
+        if (stream) {
+          this.remoteStream = stream;
+          setTimeout(() => {
+            if (this.remoteStream && this.remoteStream.getTracks().length > 0) {
+              this.emit("remoteStream", this.remoteStream);
+            } else {
+              webrtcLog.warn("webrtc › Stream has no tracks after delay");
+            }
+          }, 100);
+        } else {
+          webrtcLog.error("webrtc › Failed to get or create remote stream");
+        }
       };
 
       this.peerConnection.onconnectionstatechange = (_event) => {
-        // console.log(this.peerConnection?.connectionState);
+        this.trace("connection-state-change");
+
         switch (this.peerConnection?.connectionState) {
           case "closed":
-            console.log("[WebrtcAdapter]: Call being disconnected");
+            this.trace("connection-closed");
             this.emit("connection-closed");
             break;
           case "connected":
             if (this.dataChannel?.readyState == "open") {
+              this.trace("connection-success");
               this.emit("connection-established");
             }
+            break;
+          case "failed":
+            this.trace("connection-failed"); // fixed typo
             break;
         }
       };
 
       this.peerConnection.ondatachannel = (event) => {
-        // console.log(`Data channel received: ${event.channel}`);
+        webrtcLog.debug("webrtc › data channel received");
         this.setDataChannel(event.channel);
       };
 
       this.peerConnection.oniceconnectionstatechange = (_event) => {
-        // console.log(
-        //   "[WebrtcAdapter]: ICE Connection state:",
-        //   this.peerConnection?.iceConnectionState
-        // );
+        this.trace("ice-state-change");
+
         switch (this.peerConnection?.iceConnectionState) {
           case "connected":
-            console.log("[WebrtcAdapter]: ICE connection connected");
-            break;
           case "completed":
-            console.log("[WebrtcAdapter]: ICE connection completed");
+            this.resetIceRestartState();
+            if (this.peerConnection?.iceConnectionState === "connected") {
+              webrtcLog.info("webrtc › ice connected");
+            }
+            if (this.peerConnection?.iceConnectionState === "completed") {
+              webrtcLog.info("webrtc › ice completed");
+            }
+            break;
+          case "disconnected":
+            this.scheduleIceRestart("disconnected");
+            break;
+          case "failed":
+            this.scheduleIceRestart("failed", true);
+            this.trace("ice-failed", {
+              pendingCandidates: this.pendingIceCandidates.length,
+            });
             break;
         }
+      };
+
+      this.peerConnection.onnegotiationneeded = () => {
+        this.enqueueNegotiation(async () => {
+          if (!this.peerConnection) return;
+          if (this.isMakingOffer) return;
+          if (this.peerConnection.signalingState !== "stable") {
+            webrtcLog.debug("webrtc › skip negotiation (not stable)");
+            return;
+          }
+
+          try {
+            this.isMakingOffer = true;
+            this.trace("create-offer:start");
+            const offer = await this.peerConnection!.createOffer();
+            this.trace("create-offer:success", {
+              sdpLength: offer.sdp?.length,
+            });
+            this.trace("set-local-description:start", {
+              type: offer.type,
+            });
+
+            await this.peerConnection!.setLocalDescription(offer);
+
+            this.trace("set-local-description:done");
+
+            this.emit("signal-offer", {
+              type: "offer",
+              sdp: offer.sdp,
+              reason: "negotiationneeded",
+            });
+          } catch (error) {
+            webrtcLog.warn("webrtc › negotiationneeded failed", { error });
+          } finally {
+            this.isMakingOffer = false;
+          }
+        });
       };
 
       this.peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          // console.log(`[WebrtcAdapter]: Sending ice cnadidate`);
+          this.trace("ice-candidate:generated", {
+            candidate: event.candidate.candidate,
+          });
           this.emit("onicecandidate", event.candidate);
+        } else {
+          this.trace("ice-candidate:gathering-complete");
         }
       };
 
-      // Create data channel for text chat
-      const channel = this.peerConnection.createDataChannel("chat") as unknown as RTCDataChannel;
+      const channel = this.peerConnection.createDataChannel(
+        "chat"
+      ) as unknown as RTCDataChannel;
       this.dataChannel = channel;
-      // console.log(this.dataChannel ? "Data channel on" : "Data channel off");
       this.setupDataChannel(channel);
-
-      // console.log("Peer connection created:", this.peerConnection ? true : false);
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error creating peer connection:", error);
+      this.logFailure("createPeerConnection failed", error);
       throw error;
     }
   }
 
-  /**
-   * Sets the data channel and attaches event handlers for messaging and state changes.
-   * @param channel The RTCDataChannel to set
-   */
   setDataChannel(channel: RTCDataChannel) {
     try {
       this.dataChannel = channel;
       this.setupDataChannel(channel);
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error to set data channel:", error);
+      webrtcLog.error("webrtc › data channel set failed", { error });
       throw error;
     }
   }
 
-  /**
-   * Creates a WebRTC offer and sets the local description.
-   * Waits for signaling state to be stable if needed.
-   * @returns Promise<{ type: "offer"; sdp: any }>
-   */
-  async createOffer() {
-    return new Promise<{ type: "offer"; sdp: string }>((resolve, reject) => {
+  async createOffer(): Promise<{ type: "offer"; sdp: string }> {
+    if (!this.peerConnection) {
+      this.createPeerConnection();
+    }
+
+    try {
+      this.isMakingOffer = true;
+
+      this.trace("create-offer:start");
+      const offer = await this.peerConnection!.createOffer();
+      this.trace("create-offer:success", {
+        sdpLength: offer.sdp?.length,
+      });
+      this.trace("set-local-description:start", {
+        type: offer.type,
+      });
+
+      await this.peerConnection!.setLocalDescription(offer);
+
+      this.trace("set-local-description:done");
+
+      return {
+        type: "offer",
+        sdp: offer.sdp!,
+      };
+    } catch (error) {
+      this.logFailure("createOffer failed", error);
+      throw error;
+    } finally {
+      this.isMakingOffer = false;
+    }
+  }
+
+  async restartIce() {
+    if (!this.peerConnection) return;
+
+    return this.enqueueNegotiation(async () => {
       try {
-        if (!this.peerConnection) {
-          console.log(
-            "[WebrtcAdapter]: Creating peer connection in create offer method"
-          );
-          this.createPeerConnection();
+        if (this.peerConnection!.signalingState !== "stable") {
+          webrtcLog.warn("webrtc › skip ice restart (not stable)");
+          return;
         }
-        // console.log(`[WebrtcAdapter]: Creating offer...`);
-        if (this.peerConnection?.signalingState === "stable") {
-          console.log("stable");
-          this.peerConnection!.createOffer().then(async (offer) => {
-            // console.log(`[WebrtcAdapter]: Setting local description...`);
-            await this.peerConnection!.setLocalDescription(offer);
 
-            resolve({
-              type: "offer",
-              sdp: offer.sdp,
-            });
-          }).catch(reject);
-        } else {
-          console.log("Not stable");
-          const onStable = async () => {
-            if (this.peerConnection?.signalingState === "stable") {
-              console.log("run");
-              this.peerConnection.onsignalingstatechange = () => null;
-              const offer = await this.peerConnection!.createOffer();
-              // console.log(`[WebrtcAdapter]: Setting local description...`);
-              await this.peerConnection!.setLocalDescription(offer);
+        webrtcLog.info("webrtc › ice restart");
+        this.trace("create-offer:start");
 
-              resolve({
-                type: "offer",
-                sdp: offer.sdp,
-              });
-            }
-          };
-          this.peerConnection!.onsignalingstatechange = async () =>
-            await onStable();
-        }
+        const offer = await this.peerConnection!.createOffer({
+          iceRestart: true,
+        });
+        this.trace("create-offer:success", {
+          sdpLength: offer.sdp?.length,
+        });
+
+        this.trace("set-local-description:start", {
+          type: offer.type,
+        });
+
+        await this.peerConnection!.setLocalDescription(offer);
+
+        this.trace("set-local-description:done");
+
+        this.emit("signal-offer", {
+          type: "offer",
+          sdp: offer.sdp,
+          iceRestart: true,
+        });
       } catch (error) {
-        console.error("[WebrtcAdapter]: Error creating offer:", error);
-
-        reject(error);
+        webrtcLog.warn("webrtc › ice restart failed", { error });
+        this.logFailure("restartIce failed", error);
       }
     });
   }
 
-  /**
-   * Handles an incoming WebRTC offer, sets the remote description, creates and returns an answer.
-   * @param offer The RTCSessionDescriptionInit offer
-   * @returns Promise<{ type: "answer"; sdp: string }>
-   */
+  private resetIceRestartState() {
+    this.iceRestartAttempts = 0;
+    if (this.iceRestartTimer) {
+      clearTimeout(this.iceRestartTimer);
+      this.iceRestartTimer = undefined;
+    }
+  }
+
+  private scheduleIceRestart(
+    reason: "disconnected" | "failed",
+    immediate = false
+  ) {
+    if (this.isIceRestarting) return;
+    if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
+      webrtcLog.warn("webrtc › ice restart attempts exceeded", { reason });
+      this.emit(
+        "connection-failed",
+        new Error("ICE restart attempts exceeded")
+      );
+      return;
+    }
+
+    if (this.iceRestartTimer) {
+      clearTimeout(this.iceRestartTimer);
+      this.iceRestartTimer = undefined;
+    }
+
+    const delayMs = immediate ? 0 : this.iceRestartDelayMs;
+    this.iceRestartTimer = setTimeout(() => {
+      this.iceRestartAttempts += 1;
+      this.restartIce();
+    }, delayMs);
+  }
+
   async handleOffer(
-    offer: RTCSessionDescriptionInit | undefined
-  ): Promise<{ type: "answer"; sdp: string }> {
-    try {
-      if (!this.peerConnection) {
-        console.log(
-          "[WebrtcAdapter]: Creating peer connection in handle offer method"
+    offer: RTCSessionDescriptionInit
+  ): Promise<{ type: "answer"; sdp: string } | undefined> {
+    if (!this.peerConnection) {
+      this.createPeerConnection();
+    }
+
+    const pc = this.peerConnection!;
+
+    this.trace("handle-offer:received", {
+      sdpLength: offer.sdp?.length,
+    });
+    const offerCollision = this.isMakingOffer || pc.signalingState !== "stable";
+
+    if (offerCollision) {
+      this.trace("glare-detected", {
+        isMakingOffer: this.isMakingOffer,
+        signalingState: pc.signalingState,
+      });
+    }
+
+    this.isIgnoringOffer = !this.isPolite && offerCollision;
+
+    if (this.isIgnoringOffer) {
+      this.trace("offer-ignored", {
+        reason: "impolite-peer-collision",
+      });
+      webrtcLog.warn("webrtc › ignoring offer (glare)", this.isPolite);
+      return;
+    }
+
+    return this.enqueueNegotiation(async () => {
+      try {
+        if (pc.signalingState !== "stable") {
+          if (!(this.isPolite && pc.signalingState === "have-local-offer")) {
+            webrtcLog.warn("webrtc › not stable, skipping offer", {
+              signalingState: pc.signalingState,
+              isPolite: this.isPolite,
+            });
+            return;
+          }
+          await pc.setLocalDescription(
+            new RTCSessionDescription({ type: "rollback", sdp: "" })
+          );
+          this.isMakingOffer = false;
+        }
+
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+        this.trace("create-answer:start");
+
+        const answer = await pc.createAnswer();
+
+        this.trace("create-answer:success", {
+          sdpLength: answer.sdp?.length,
+        });
+        this.trace("set-local-description:start", {
+          type: offer.type,
+        });
+
+        // FIXED: set local description with the answer, not the offer
+        await this.peerConnection!.setLocalDescription(answer);
+
+        this.trace("set-local-description:done");
+
+        this.remoteDescriptionSet = true;
+
+        for (const candidate of this.pendingIceCandidates) {
+          await this.addIceCandidate(candidate);
+        }
+
+        this.pendingIceCandidates = [];
+
+        return {
+          type: "answer",
+          sdp: answer.sdp!,
+        };
+      } catch (error) {
+        this.logFailure("handleOffer failed", error);
+        throw error;
+      }
+    });
+  }
+
+  async handleAnswer(answer: RTCSessionDescriptionInit) {
+    if (!this.peerConnection) return;
+
+    // ADDED: guard against wrong signaling state
+    if (this.peerConnection.signalingState !== "have-local-offer") {
+      webrtcLog.warn("webrtc › cannot set remote answer in state", {
+        state: this.peerConnection?.signalingState,
+      });
+      return;
+    }
+
+    await this.enqueueNegotiation(async () => {
+      try {
+        await this.peerConnection!.setRemoteDescription(
+          new RTCSessionDescription(answer)
         );
-        this.createPeerConnection();
+
+        this.remoteDescriptionSet = true;
+
+        for (const candidate of this.pendingIceCandidates) {
+          await this.addIceCandidate(candidate);
+        }
+
+        this.pendingIceCandidates = [];
+      } catch (error) {
+        webrtcLog.error("webrtc › handleAnswer failed", { error });
       }
-
-      // console.log(`[WebrtcAdapter]: Setting remote description`);
-
-      await this.peerConnection!.setRemoteDescription(
-        new RTCSessionDescription(offer)
-      );
-
-      const answer = await this.peerConnection!.createAnswer();
-      // console.log(`[WebrtcAdapter]: Setting local description`);
-      await this.peerConnection!.setLocalDescription(answer);
-
-      this.remoteDescriptionSet = true;
-
-      for (const candidate of this.pendingIceCandidates) {
-        await this.addIceCandidate(candidate);
-      }
-
-      this.pendingIceCandidates = [];
-
-      return {
-        type: "answer",
-        sdp: answer.sdp,
-      };
-    } catch (error) {
-      console.error("[WebrtcAdapter]: Error handling offer:", error);
-      throw error;
-    }
+    });
   }
 
-  /**
-   * Handles an incoming WebRTC answer, sets the remote description, and processes pending ICE candidates.
-   * @param answer The RTCSessionDescriptionInit answer
-   * @returns Promise<void>
-   */
-  async handleAnswer(answer: RTCSessionDescriptionInit | undefined) {
-    try {
-      if (!this.peerConnection) {
-        console.log("[WebrtcAdapter]: No peer connection");
-        return;
-      }
-
-      // console.log(`[WebrtcAdapter]: Setting remote description`);
-
-      await this.peerConnection!.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
-
-      this.remoteDescriptionSet = true;
-
-      for (const candidate of this.pendingIceCandidates) {
-        await this.addIceCandidate(candidate);
-      }
-      this.pendingIceCandidates = [];
-    } catch (error) {
-      console.error("[WebrtcAdapter]: Error handling answer:", error);
-    }
-  }
-
-  /**
-   * Adds an ICE candidate to the peer connection, or queues it if remote description is not set.
-   * @param candidate The ICE candidate to add
-   * @returns Promise<void>
-   */
   async addIceCandidate(candidate: RTCIceCandidateInit) {
+    if (!this.peerConnection) return;
+
+    if (this.isIgnoringOffer) {
+      this.trace("offer-ignored", {
+        reason: "impolite-peer-collision",
+      });
+      webrtcLog.debug("webrtc › ignoring candidate (glare)");
+      return;
+    }
+
+    if (!this.remoteDescriptionSet) {
+      this.pendingIceCandidates.push(candidate);
+      this.trace("ice-candidate:queued");
+      return;
+    }
+
     try {
-      if (!this.peerConnection) {
-        console.log("[WebrtcAdapter]: No peer connection");
-        return;
-      }
-
-      if (!this.remoteDescriptionSet) {
-        // console.log("[WebrtcAdapter]: Queueing ICE candidate");
-        this.pendingIceCandidates.push(candidate);
-        return;
-      }
-
-      // console.log(`[WebrtcAdapter]: Adding ice candidate`);
-
-      await this.peerConnection!.addIceCandidate(
-        new RTCIceCandidate(candidate)
-      );
+      await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      this.trace("ice-candidate:add", {
+        queued: !this.remoteDescriptionSet,
+      });
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error adding ice candidate:", error);
-      throw error;
+      this.logFailure("addIceCandidate failed", error);
     }
   }
 
-  /**
-   * Sets up event handlers for the data channel (open, message, error, close).
-   * @param channel The RTCDataChannel to set up
-   */
   setupDataChannel(channel: RTCDataChannel) {
     try {
-      // console.log(`[WebrtcAdapter]: Setup data channel`);
       channel.onopen = () => {
-        console.log("[WebrtcAdapter]: Data channel opened");
+        webrtcLog.info("webrtc › data channel open");
         this.emit("datachannel-open");
 
         if (this.peerConnection?.connectionState === "connected")
           this.emit("connection-established");
       };
 
-      // This will recieve message from peers webrtc's datachannel
       channel.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          // console.log(`[WebrtcAdapter]: Data channel received: ${message}`);
           this.emit("receivedMessage", message);
         } catch (error) {
-          console.error("Error parsing receive message:", error);
+          webrtcLog.error("webrtc › data channel parse failed", { error });
         }
       };
 
@@ -415,20 +586,15 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       channel.onclose = () => {
-        console.log("[WebrtcAdapter]: Data channel closed");
+        webrtcLog.info("webrtc › data channel closed");
+        this.emit("connection-closed");
       };
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error to setup data channel:", error);
+      webrtcLog.error("webrtc › data channel setup failed", { error });
       throw error;
     }
   }
 
-  // TODO: make a type interface for the payload paramater
-  /**
-   * Sends a data message over the WebRTC data channel.
-   * @param payload The message payload to send
-   * @throws Error if data channel is not open or not connected
-   */
   sendDataMessage(payload: WebrtcDataMessage) {
     try {
       if (
@@ -436,89 +602,170 @@ export class WebrtcAdapter extends EventEmitter {
         this.dataChannel.readyState === "open" &&
         this.isConnected
       ) {
-        // console.log(`[WebrtcAdapter]: Sending payload: ${payload}`);
+        webrtcLog.debug("webrtc › data send", { messageType: payload.type });
         this.dataChannel.send(JSON.stringify(payload));
       } else {
         throw new Error("Unable to send payload`");
       }
     } catch (error) {
-      console.error(
-        `[WebrtcAdapter]: Error sending data message\n${JSON.stringify(
-          payload,
-          null,
-          2
-        )}`
-      );
+      webrtcLog.warn("webrtc › data send failed", {
+        messageType: payload.type,
+        error,
+      });
       throw error;
     }
   }
 
-  /**
-   * Terminates the call by stopping local media tracks and removing them from the peer connection.
-   * @throws Error if termination fails
-   */
   terminateCall() {
     try {
       if (!this.localStream) {
-        console.log("local stream null");
+        webrtcLog.warn("webrtc › terminate skipped", {
+          reason: "no local stream",
+        });
         return;
       }
       if (!this.peerConnection) {
-        console.log("peer connection null");
+        webrtcLog.warn("webrtc › terminate skipped", {
+          reason: "no peer connection",
+        });
         return;
       }
-      // stop local media tracks
-      this.localStream.getTracks().forEach((track) => track.stop());
 
-      // remove tracks from connection
-      this.peerConnection.getSenders().forEach((sender) => {
-        if (
-          sender.track &&
-          (sender.track.kind === "audio" || sender.track.kind === "video")
-        ) {
-          this.peerConnection!.removeTrack(sender);
-        }
-      });
+      if (this.remoteStream) {
+        webrtcLog.info("webrtc › terminating remote stream");
+        this.remoteStream.getTracks().forEach((track) => track.stop());
+        this.remoteStream.release();
+        this.remoteStream = undefined;
+      }
+
+      this.cleanup();
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error terminating the call:", error);
+      webrtcLog.error("webrtc › terminate failed", { error });
       throw error;
     }
   }
 
-  /**
-   * Toggles the microphone (audio track) enabled state.
-   * @throws Error if audio track is not initialized
-   */
   toggleMic() {
     try {
       if (!this.audioTrack) throw Error("Audio track not initialized");
-      this.audioTrack.enabled = this.audioTrack.enabled ? false : true;
-      console.log("toggling mic to", this.audioTrack.enabled);
+      this.audioTrack.enabled = !this.audioTrack.enabled;
+      webrtcLog.debug("webrtc › mic toggled", {
+        enabled: this.audioTrack.enabled,
+      });
+      return this.audioTrack.enabled;
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error toggling the microphone:", error);
+      webrtcLog.error("webrtc › mic toggle failed", { error });
       throw error;
     }
   }
 
-  /**
-   * Toggles the camera (video track) enabled state.
-   * @throws Error if video track is not initialized
-   */
-  toggleCamera() {
+  async toggleCamera(): Promise<boolean> {
+    try {
+      webrtcLog.debug("toggleCamera", this.videoTrack);
+
+      if (!this.videoTrack) {
+        const newStream = await mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 },
+            frameRate: { min: 30, ideal: 60 },
+          },
+        });
+
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        if (!newVideoTrack) throw new Error("Failed to acquire video track");
+
+        this.localStream?.addTrack(newVideoTrack);
+
+        if (this.peerConnection) {
+          const videoSender = this.peerConnection
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
+          if (videoSender) {
+            await videoSender.replaceTrack(newVideoTrack);
+          } else {
+            this.peerConnection.addTrack(newVideoTrack, this.localStream!);
+          }
+        }
+
+        this.videoTrack = newVideoTrack;
+        webrtcLog.debug("webrtc › camera acquired and enabled");
+        return true;
+      }
+
+      this.videoTrack.enabled = !this.videoTrack.enabled;
+      webrtcLog.debug("webrtc › camera toggled", {
+        enabled: this.videoTrack.enabled,
+      });
+      return this.videoTrack.enabled;
+    } catch (error) {
+      webrtcLog.error("webrtc › camera toggle failed", { error });
+      throw error;
+    }
+  }
+
+  async switchCamera(isFrontCamera: boolean) {
     try {
       if (!this.videoTrack) throw Error("Video track not initialized");
-      this.videoTrack.enabled = this.videoTrack.enabled ? false : true;
-      console.log("toggling camera to", this.videoTrack.enabled);
+      webrtcLog.debug("webrtc › camera switch");
+
+      // isFrontCamera=true means currently on front → switch to back ("environment")
+      const newFacingMode = isFrontCamera ? "environment" : "user";
+
+      // Acquire new stream BEFORE stopping old track to avoid black screen
+      const newStream = await mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: newFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) throw new Error("Failed to acquire new video track");
+
+      // Replace in peer connection while old track is still live
+      if (this.peerConnection) {
+        const videoSender = this.peerConnection
+          .getSenders()
+          .find((s) => s.track?.kind === "video");
+        if (videoSender) {
+          await videoSender.replaceTrack(newVideoTrack);
+        }
+      }
+
+      // Stop old track only after replacement is in place
+      this.videoTrack.stop();
+      this.videoTrack = newVideoTrack;
+
+      // Rebuild local stream preserving audio track
+      const audioTrack = this.localStream?.getAudioTracks()[0];
+      const tracks: MediaStreamTrack[] = audioTrack
+        ? [audioTrack, newVideoTrack]
+        : [newVideoTrack];
+      this.localStream = new MediaStream(tracks);
+
+      this.emit("switch-cam", this.localStream);
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error toggling the camera:", error);
+      webrtcLog.error("webrtc › camera switch failed", { error });
       throw error;
     }
   }
 
-  /**
-   * Returns whether the WebRTC connection and data channel are both open/connected.
-   * @returns boolean True if connected, false otherwise
-   */
+  private enqueueNegotiation<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.negotiationQueue.then(task);
+
+    this.negotiationQueue = result
+      .then(() => {})
+      .catch((err) => {
+        webrtcLog.warn("webrtc › negotiation task failed", { err });
+      });
+
+    return result;
+  }
+
   get isConnected() {
     try {
       return (
@@ -526,33 +773,21 @@ export class WebrtcAdapter extends EventEmitter {
         this.dataChannel?.readyState === "open"
       );
     } catch (error) {
-      console.error(
-        "[WebrtcAdapter]: Error getting if webrtc is connected:",
-        error
-      );
+      webrtcLog.error("webrtc › connection state read failed", { error });
       throw error;
     }
   }
 
-  /**
-   * Gets the local media stream.
-   * @returns MediaStream The local stream
-   * @throws Error if local stream is undefined
-   */
   getLocalStream() {
     try {
       if (!this.localStream) throw new Error("Local stream is undefined");
       return this.localStream;
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error getting local stream:", error);
+      webrtcLog.error("webrtc › local stream get failed", { error });
       throw error;
     }
   }
 
-  /**
-   * Cleans up all WebRTC resources, closes streams and connections, and resets state.
-   * @throws Error if cleanup fails
-   */
   cleanup() {
     try {
       if (this.localStream) {
@@ -565,13 +800,21 @@ export class WebrtcAdapter extends EventEmitter {
         this.peerConnection = undefined;
       }
 
+      // Properly close the data channel before discarding
+      if (this.dataChannel) {
+        this.dataChannel.close();
+        this.dataChannel = undefined;
+      }
+
       this.remoteStream = undefined;
-      this.dataChannel = undefined;
       this.pendingIceCandidates = [];
       this.remoteDescriptionSet = false;
-      console.log("[WebrtcAdapter]: Cleanup");
+      this.videoTrack = undefined;
+      this.audioTrack = undefined;
+      this.resetIceRestartState();
+      webrtcLog.info("webrtc › cleanup");
     } catch (error) {
-      console.error("[WebrtcAdapter]: Error getting local stream:", error);
+      webrtcLog.error("webrtc › cleanup failed", { error });
       throw error;
     }
   }

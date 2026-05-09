@@ -1,6 +1,69 @@
-import { ConfigContext, ExpoConfig } from "expo/config";
+import { ConfigPlugin, withAndroidManifest } from "@expo/config-plugins";
+import { ConfigContext } from "expo/config";
+
+const BACKGROUND_ACTIONS_SERVICE =
+  "com.asterinet.react.bgactions.RNBackgroundActionsTask";
+
+const withCleartextTraffic: ConfigPlugin = (config) =>
+  withAndroidManifest(config, (mod) => {
+    const app = mod.modResults.manifest.application?.[0];
+    if (app?.$) {
+      app.$["android:usesCleartextTraffic"] = "true";
+    }
+    return mod;
+  });
+
+const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
+  withAndroidManifest(config, (mod) => {
+    const app = mod.modResults.manifest.application?.[0];
+    if (!app) return mod;
+
+    const services = app.service ?? [];
+    const existing = services.find(
+      (service) =>
+        service.$?.["android:name"] === BACKGROUND_ACTIONS_SERVICE ||
+        service.$?.["android:name"] === ".RNBackgroundActionsTask",
+    );
+
+    const serviceAttributes = {
+      "android:name": BACKGROUND_ACTIONS_SERVICE,
+      "android:enabled": "true" as const,
+      "android:exported": "false" as const,
+      "android:foregroundServiceType": "dataSync",
+      "tools:replace":
+        "android:enabled,android:exported,android:foregroundServiceType",
+    };
+
+    if (existing) {
+      existing.$ = {
+        ...existing.$,
+        ...serviceAttributes,
+      };
+    } else {
+      services.push({
+        $: serviceAttributes,
+      });
+    }
+
+    app.service = services;
+
+    return mod;
+  });
+
 const IS_DEV = process.env.APP_VARIANT === "development";
 const IS_PREVIEW = process.env.APP_VARIANT === "preview";
+const getUpdateChannel = () => {
+  if (IS_DEV) {
+    return "development";
+  }
+
+  if (IS_PREVIEW) {
+    return "preview";
+  }
+
+  return "production";
+};
+
 const getUniqueIdentifier = () => {
   if (IS_DEV) {
     return "com.devamt.sapotmobileapp.dev";
@@ -25,11 +88,11 @@ const getAppName = () => {
   return "SAPOT: LAN Messenger";
 };
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
+export default ({ config }: ConfigContext) => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
-  version: "0.1.0",
+  version: "0.2.2",
   orientation: "portrait",
   icon: "./assets/images/logo.png",
   scheme: "sapotmobileapp",
@@ -39,6 +102,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     image: "./assets/images/logo.png",
     resizeMode: "contain",
     backgroundColor: "#EAEDF3",
+  },
+  hooks:{
+    prebuild: "node ./scripts/setup-android-signing.js"
   },
   android: {
     adaptiveIcon: {
@@ -52,6 +118,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.ACCESS_NETWORK_STATE",
       "android.permission.ACCESS_WIFI_STATE",
       "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.BLUETOOTH",
+      "android.permission.BLUETOOTH_CONNECT",
+      "android.permission.WAKE_LOCK",
+      "android.permission.BLUETOOTH_ADMIN",
       "android.permission.INTERNET",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.SYSTEM_ALERT_WINDOW",
@@ -61,17 +134,70 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.RECORD_AUDIO",
       "android.permission.CHANGE_NETWORK_STATE",
       "android.permission.MODIFY_AUDIO_SETTINGS",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.ACCESS_COARSE_LOCATION",
     ],
   },
   plugins: [
+    [
+      "expo-notifications",
+      {
+        sounds: ["./assets/ringtone.mp3"],
+      },
+    ],
+    [
+      "expo-background-task",
+      {
+        android: {
+          foregroundService: {
+            notificationTitle: "App is running",
+            notificationBody: "Listening for incoming calls...",
+            notificationColor: "#ffffff",
+          },
+        },
+      },
+    ],
     [
       "@lovesworking/watermelondb-expo-plugin-sdk-52-plus",
       {
         disableJsi: true,
       },
     ],
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission:
+          "Allow $(PRODUCT_NAME) to access your location.",
+      },
+    ],
+    withBackgroundActionsForegroundService,
+    withCleartextTraffic,
     "expo-router",
     "expo-secure-store",
+    [
+      "expo-camera",
+      {
+        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera",
+        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
+        recordAudioAndroid: true,
+        barcodeScannerEnabled: true,
+      },
+    ],
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "The app accesses your photos to let you share them with your friends.",
+        colors: {
+          cropToolbarColor: "#000000",
+        },
+        dark: {
+          colors: {
+            cropToolbarColor: "#000000",
+          },
+        },
+      },
+    ],
     [
       "expo-build-properties",
       {
@@ -87,13 +213,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     typedRoutes: true,
   },
   runtimeVersion: {
-    policy: "appVersion",
+    policy: "fingerprint",
+  },
+  updates: {
+    channel: getUpdateChannel(),
+    url: "https://u.expo.dev/ee940ed5-5653-43cb-8938-d5f54a830c59",
   },
   extra: {
     router: {},
     eas: {
       projectId: "ee940ed5-5653-43cb-8938-d5f54a830c59",
     },
+    apiUrl: process.env.EXPO_PUBLIC_API_URL,
+    displayVersion: "0.2.2",
   },
 });
-

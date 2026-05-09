@@ -13,12 +13,13 @@ jest.mock("@/features/shared", () => {
         })
       })
     },
-    Conversation: class {}
+    Conversation: class {},
+    formatDate: () => "Jan 1, 2024"
   };
 });
 
 jest.mock("@/features/shared/hooks", () => ({
-  useContainer: () => ({
+  useMainContainer: () => ({
     chatService: {
       findPeerIdByChatId: jest.fn().mockResolvedValue("peer-1")
     },
@@ -37,11 +38,17 @@ jest.mock("@/features/shared/hooks", () => ({
     findPeerIdByChatId: jest.fn().mockResolvedValue("peer-1")
   }),
   usePeerService: () => ({
-    findDiscoveredPeerById: jest.fn().mockReturnValue({
+    findPeerById: jest.fn().mockResolvedValue({
       id: "peer-1",
-      ipAddress: "127.0.0.1",
-      port: 1234
+      firstName: "Alice",
+      lastName: "Doe",
+      username: "alice"
     })
+  }),
+  useProfilePhoto: () => ({
+    url: null,
+    loading: false,
+    setUrl: jest.fn()
   }),
   useDiscoveryService: () => ({
     performResendMessagesForPeer: jest.fn().mockResolvedValue(undefined)
@@ -49,9 +56,9 @@ jest.mock("@/features/shared/hooks", () => ({
 }));
 
 describe("ChatList", () => {
-  it("renders chats", () => {
-    const { getByText } = render(<ChatList />);
-    expect(getByText("Chat List")).toBeTruthy();
-    expect(getByText(/chat-1/)).toBeTruthy();
+  it("renders chats", async () => {
+    const { getByText, findByText } = render(<ChatList />);
+    expect(getByText("Chats")).toBeTruthy();
+    expect(await findByText("Alice Doe")).toBeTruthy();
   });
 });
