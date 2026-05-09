@@ -1,3 +1,5 @@
+import { AnnouncementSeenProvider } from "@/features/announcements/context/announcement-seen-context";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react-native";
 import React from "react";
 import ChatList from "../chat-list";
@@ -57,7 +59,14 @@ jest.mock("@/features/shared/hooks", () => ({
 
 describe("ChatList", () => {
   it("renders chats", async () => {
-    const { getByText, findByText } = render(<ChatList />);
+    const queryClient = new QueryClient();
+    const { getByText, findByText } = render(
+      <QueryClientProvider client={queryClient}>
+        <AnnouncementSeenProvider>
+          <ChatList />
+        </AnnouncementSeenProvider>
+      </QueryClientProvider>
+    );
     expect(getByText("Chats")).toBeTruthy();
     expect(await findByText("Alice Doe")).toBeTruthy();
   });
