@@ -29,10 +29,32 @@ async def gsm_health(
 async def gsm_health_detailed(
         current_user : Annotated[User, Depends(get_current_user_admin)],
         ):
+    """Admin only"""
     async with httpx.AsyncClient() as client:
         response = await client.get(
             "http://localhost:8001/health/detailed",
         )
+
+    return response.json()
+
+
+@router.get("/sms/messages")
+async def gsm_messages(
+        current_user : Annotated[User, Depends(get_current_user_admin)],
+        limit=50,
+        direction=None,
+        phone=None
+        ):
+    """Admin only"""
+    url = f"http://localhost:8001/sms/messages?limit={limit}"
+    if direction:
+        url += f"&direction={direction}"
+
+    if phone:
+        url += f"&phone={phone}"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
 
     return response.json()
 
