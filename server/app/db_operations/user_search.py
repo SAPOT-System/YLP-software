@@ -22,19 +22,22 @@ def search_case_insensitive(
     reverse_full_name = User.last_name + " " + User.first_name
 
     statement = (
-        select(User)
-        .where(
-            or_(
-                User.username.ilike(search_val),
-                User.first_name.ilike(search_val),
-                User.last_name.ilike(search_val),
-                full_name.ilike(search_val),
-                reverse_full_name.ilike(search_val),
+            select(User)
+            .where(
+                User.guest == None  # exclude guests
+                )
+            .where(
+                or_(
+                    User.username.ilike(search_val),
+                    User.first_name.ilike(search_val),
+                    User.last_name.ilike(search_val),
+                    full_name.ilike(search_val),
+                    reverse_full_name.ilike(search_val),
+                    )
+                )
+            .offset(offset)
+            .limit(limit)
             )
-        )
-        .offset(offset)
-        .limit(limit)
-    )
 
     users = session.exec(statement).all()
 
