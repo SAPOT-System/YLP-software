@@ -48,12 +48,13 @@ async def gsm_health_detailed(
 @router.get("/sms/messages")
 async def gsm_messages(
         current_user : Annotated[User, Depends(get_current_user_admin)],
-        limit=50,
-        direction=None,
-        phone=None
+        limit: int = 25,
+        offset: int = 0,
+        direction: str|None = None,
+        phone: str|None = None
         ):
     """Admin only"""
-    url = f"http://localhost:8001/sms/messages?limit={limit}"
+    url = f"http://localhost:8001/sms/messages?limit={limit}&offset={offset}"
     if direction:
         url += f"&direction={direction}"
 
