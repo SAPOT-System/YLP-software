@@ -2,7 +2,8 @@ import { APP_ROUTES } from "@/config/routes";
 import { useInformCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
-import { Peer } from "@/features/shared";
+import { Message, Peer, database } from "@/features/shared";
+import { Q } from "@nozbe/watermelondb";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
   useIsUserActive,
@@ -49,6 +50,7 @@ const ChatRoom = () => {
   const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
   const isServerActive = useIsUserActive(peerId);
   const [message, setMessage] = useState("");
+  const [incomingMessageCount, setIncomingMessageCount] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -211,6 +213,16 @@ const ChatRoom = () => {
     };
   }, [isSelfChat, peerId, chatService]);
 
+  useEffect(() => {
+    if (!conversationId || !peerId) return;
+    const subscription = database
+      .get<Message>(Message.table)
+      .query(Q.where("conversation", conversationId), Q.where("sender", peerId))
+      .observeCount()
+      .subscribe(setIncomingMessageCount);
+    return () => subscription.unsubscribe();
+  }, [conversationId, peerId]);
+
   // Notify the sender that messages have been seen when connected and viewing a conversation
   useFocusEffect(
     useCallback(() => {
@@ -218,9 +230,11 @@ const ChatRoom = () => {
         isConnected,
         conversationId,
       });
+
+      if(!incomingMessageCount) return
       if ((!isConnected && !isSelfChat) || !conversationId) return;
-      chatService.markConversationAsRead(conversationId);
-    }, [isConnected, isSelfChat, conversationId, chatService])
+      void chatService.markConversationAsRead(conversationId);
+    }, [isConnected, isSelfChat, conversationId, chatService, incomingMessageCount])
   );
 
   useEffect(() => {

@@ -1,22 +1,35 @@
-import { Conversation, database, formatDate } from "@/features/shared";
+import {
+  Conversation,
+  ConversationParticipant,
+  Message,
+  MessageStatus,
+  MessageStatusType,
+  MessageType,
+  database,
+  formatDate,
+} from "@/features/shared";
 import { AnnouncementListRow } from "@/features/announcements";
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { memo } from "react";
 import { FlatList, Pressable, RefreshControl, View } from "react-native";
-import { Avatar, Text, useTheme } from "react-native-paper";
+import { Avatar, Badge, Text, useTheme } from "react-native-paper";
+import { catchError, map, of, switchMap } from "rxjs";
 
 import { ChatRoomSource } from "@/features/chat/types";
-import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { useProfilePhoto } from "@/features/shared/hooks";
+import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
-import { useChatService } from "../hooks";
 uiLog.debug("[chat-list] module loaded");
 
 const enhanceChats = withObservables([], () => ({
   chats: database
     .get<Conversation>("conversations")
-    .query(Q.where("is_deleted", false))
+    .query(
+      Q.where("is_deleted", false),
+      Q.sortBy("updated_at", Q.desc)
+    )
     .observe(),
 }));
 
@@ -31,8 +44,10 @@ const ChatList = enhanceChats(
     onRefresh?: () => void;
   }) => {
     const theme = useTheme();
+    const userStore = useUserStore();
+    const currentUserId = userStore.user?.id ?? "";
     return (
-      <View>
+      <View style={{ flex: 1 }}>
         <View
           style={{
             flexDirection: "row",
@@ -53,9 +68,16 @@ const ChatList = enhanceChats(
         </View>
         <FlatList
           data={chats}
+          style={{ flex: 1 }}
           ListHeaderComponent={AnnouncementListRow}
-          renderItem={({ item }) => <ChatListItem chat={item} />}
+          renderItem={({ item }) => (
+            <ChatListItem chat={item} currentUserId={currentUserId} />
+          )}
           keyExtractor={(chat) => chat.id}
+          maxToRenderPerBatch={10}
+          initialNumToRender={15}
+          windowSize={5}
+          removeClippedSubviews
           refreshControl={
             onRefresh ? (
               <RefreshControl
@@ -71,134 +93,177 @@ const ChatList = enhanceChats(
 );
 
 const enhanceChat = withObservables(
-  ["chat"],
-  ({ chat }: { chat: Conversation }) => ({
+  ["chat", "currentUserId"],
+  ({ chat, currentUserId }: { chat: Conversation; currentUserId: string }) => ({
     chat,
+    latestMessage: database
+      .get<Message>(Message.table)
+      .query(
+        Q.where("conversation", chat.id),
+        Q.where("is_deleted", false),
+        Q.sortBy("created_at", Q.desc),
+        Q.take(1)
+      )
+      .observe()
+      .pipe(map((msgs) => msgs[0] ?? null)),
+    participants: database
+      .get<ConversationParticipant>(ConversationParticipant.table)
+      .query(Q.where("conversation", chat.id), Q.where("is_deleted", false))
+      .observe(),
+    unreadCount: database
+      .get<Message>(Message.table)
+      .query(
+        Q.where("conversation", chat.id),
+        Q.where("is_deleted", false),
+        Q.where("sender", Q.notEq(currentUserId))
+      )
+      .observe()
+      .pipe(
+        switchMap((messages) => {
+          const ids = messages.map((m) => m.id);
+          if (ids.length === 0) return of(0);
+          return database
+            .get<MessageStatus>(MessageStatus.table)
+            .query(
+              Q.where("message", Q.oneOf(ids)),
+              Q.where("user", currentUserId),
+              Q.where("status", Q.notEq(MessageStatusType.READ)),
+              Q.where("is_deleted", false)
+            )
+            .observeCount();
+        })
+      ),
   })
 );
 
-const ChatListItem = enhanceChat(({ chat }: { chat: Conversation }) => {
-  const router = useRouter();
-  const theme = useTheme();
-  const chatService = useChatService();
-  const peerService = usePeerService();
-  const [peerName, setPeerName] = useState("Loading...");
-  const [peerId, setPeerId] = useState<string | null>(null);
-  const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
+const enhanceChatPeer = withObservables(
+  ["peerParticipant"],
+  ({ peerParticipant }: { peerParticipant: ConversationParticipant | null }) => ({
+    peer: peerParticipant
+      ? peerParticipant.user.observe().pipe(catchError(() => of(null)))
+      : of(null),
+  })
+);
 
-  useEffect(() => {
-    let isMounted = true;
+const getMessagePreview = (msg: Message | null): string => {
+  if (!msg) return "No messages yet";
+  if (msg.messageType === MessageType.CALL_LOG) return "📞 Call";
+  if (msg.messageType === MessageType.FILE) return "📎 File";
+  const c = msg.content ?? "";
+  return c.length > 40 ? c.slice(0, 40) + "…" : c;
+};
 
-    const loadPeerName = async () => {
-      try {
-        uiLog.debug("chat-list › load peer", { chatId: chat.id });
-        const resolvedPeerId = await chatService.findPeerIdByChatId(chat.id);
-        setPeerId(resolvedPeerId);
-        const peer = await peerService.findPeerById(resolvedPeerId);
+type ChatListItemInnerProps = {
+  peerParticipant: ConversationParticipant | null;
+  peer: { id: string; firstName?: string; lastName?: string; username?: string } | null;
+  chat: Conversation;
+  latestMessage: Message | null;
+  unreadCount: number;
+};
 
-        if (!isMounted) return;
+const ChatListItemInner = enhanceChatPeer(
+  memo(({ peer, chat, latestMessage, unreadCount }: ChatListItemInnerProps) => {
+    const router = useRouter();
+    const theme = useTheme();
+    const peerId = peer?.id ?? null;
+    const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
 
-        if (!peer) {
-          setPeerName("Unknown peer");
-          return;
-        }
+    const peerName = peer
+      ? (
+          `${peer.firstName ?? ""} ${peer.lastName ?? ""}`.trim() ||
+          peer.username ||
+          "Unknown peer"
+        )
+      : "Unknown peer";
 
-        const fullName = `${peer.firstName || ""} ${
-          peer.lastName || ""
-        }`.trim();
-        setPeerName(fullName || peer.username || "Unknown peer");
-
-      } catch (error) {
-        uiLog.warn("chat-list › load peer failed", {
-          chatId: chat.id,
-          error,
-        });
-        if (isMounted) setPeerName("Unknown peer");
-      }
-    };
-
-    loadPeerName();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [chat.id, chatService, peerService]);
-
-  // const handleResend = useCallback(
-  //   async (chatId: string) => {
-  //     const peerId = await chatService.findPeerIdByChatId(chatId);
-  //     const peer = peerService.findDiscoveredPeerById(peerId);
-
-  //     // TODO: catch
-  //     if (!peer) throw Error("Peer not found");
-
-  //     await discoveryService.performResendMessagesForPeer(
-  //       peerId,
-  //       peer.ipAddress,
-  //       peer.port
-  //     );
-  //   },
-  //   [chatService, peerService, discoveryService]
-  // );
-
-  return (
-    <Pressable
-      onPress={() => {
-        uiLog.info("chat-list › open chat", { chatId: chat.id });
-        router.push({
-          pathname: "/(drawer)/(tabs)/chat/[id]",
-          params: { id: chat.id, source: ChatRoomSource.CHAT },
-        });
-      }}
-      style={{
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderColor: theme.dark ? "#0B1020" : "#EEEEEE",
-        backgroundColor: theme.dark ? "#121A2E" : "",
-        borderTopWidth: 2,
-        borderBottomWidth: 2,
-        borderRadius: 4,
-      }}
-    >
-      <View
+    return (
+      <Pressable
+        onPress={() => {
+          uiLog.info("chat-list › open chat", { chatId: chat.id });
+          router.push({
+            pathname: "/(drawer)/(tabs)/chat/[id]",
+            params: { id: chat.id, source: ChatRoomSource.CHAT },
+          });
+        }}
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "flex-start",
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          borderColor: theme.dark ? "#0B1020" : "#EEEEEE",
+          backgroundColor: theme.dark ? "#121A2E" : "",
+          borderTopWidth: 2,
+          borderBottomWidth: 2,
+          borderRadius: 4,
         }}
       >
-        {peerProfilePicUrl ? (
-          <Avatar.Image size={60} source={{ uri: peerProfilePicUrl }} />
-        ) : (
-          <Avatar.Text
-            size={60}
-            label={(peerName[0] ?? "?").toUpperCase()}
-          />
-        )}
-        <View style={{ flexGrow: 1, marginLeft: 16 }}>
-          <Text
-            style={{ fontSize: 17, color: theme.dark ? "#E6ECF5" : "#1E1E1E" }}
-          >
-            {peerName}
-          </Text>
-          <Text
-            style={{ fontSize: 17, color: theme.dark ? "#6E7891" : "#6B7280" }}
-          >
-            messages
-            {/* TODO: make a message field in the conversation table */}
-          </Text>
-        </View>
-        <Text
+        <View
           style={{
-            alignSelf: "flex-end",
-            color: theme.dark ? "#6E7891" : "#6B7280",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "flex-start",
           }}
         >
-          {formatDate(chat.createdAt)}
-        </Text>
-      </View>
-    </Pressable>
-  );
-});
+          {peerProfilePicUrl ? (
+            <Avatar.Image size={60} source={{ uri: peerProfilePicUrl }} />
+          ) : (
+            <Avatar.Text
+              size={60}
+              label={(peerName[0] ?? "?").toUpperCase()}
+            />
+          )}
+          <View style={{ flexGrow: 1, marginLeft: 16 }}>
+            <Text
+              style={{ fontSize: 17, color: theme.dark ? "#E6ECF5" : "#1E1E1E" }}
+            >
+              {peerName}
+            </Text>
+            <Text
+              style={{ fontSize: 17, color: theme.dark ? "#6E7891" : "#6B7280" }}
+            >
+              {getMessagePreview(latestMessage)}
+            </Text>
+          </View>
+          <View style={{ alignItems: "flex-end", alignSelf: "flex-end" }}>
+            <Text
+              style={{
+                color: theme.dark ? "#6E7891" : "#6B7280",
+              }}
+            >
+              {formatDate(latestMessage?.createdAt ?? chat.createdAt)}
+            </Text>
+            {unreadCount > 0 && (
+              <Badge size={20}>{unreadCount > 99 ? "99+" : unreadCount}</Badge>
+            )}
+          </View>
+        </View>
+      </Pressable>
+    );
+  })
+);
+
+type ChatListItemProps = {
+  chat: Conversation;
+  currentUserId: string;
+  latestMessage: Message | null;
+  participants: ConversationParticipant[];
+  unreadCount: number;
+};
+
+const ChatListItem = enhanceChat(
+  memo(({ chat, currentUserId, latestMessage, participants, unreadCount }: ChatListItemProps) => {
+    const filtered = participants.filter(
+      (p) => (p._raw as Record<string, unknown>).user !== currentUserId
+    );
+    const peerParticipant = filtered[0] ?? participants[0] ?? null;
+
+    return (
+      <ChatListItemInner
+        peerParticipant={peerParticipant}
+        chat={chat}
+        latestMessage={latestMessage}
+        unreadCount={unreadCount}
+      />
+    );
+  })
+);
 
 export default ChatList;

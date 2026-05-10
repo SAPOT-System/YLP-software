@@ -1,7 +1,7 @@
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Feather } from "@expo/vector-icons";
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
 import { catchError, map, of } from "rxjs";
 
@@ -29,22 +29,41 @@ const enhanceMessages = withObservables(
   ({ conversationId }: { conversationId: string }) => ({
     messages: database
       .get<Message>(Message.table)
-      .query(Q.where("conversation", conversationId))
+      .query(
+        Q.where("conversation", conversationId),
+        Q.sortBy("created_at", Q.asc),
+        Q.take(100)
+      )
       .observe(),
   })
 );
 
 const MessageList = enhanceMessages(
   ({ messages, peerId }: { messages: Message[]; peerId: string }) => {
+    const listRef = useRef<FlatList<Message>>(null);
+    const prevLengthRef = useRef(0);
+
+    useEffect(() => {
+      if (messages.length === 0) return;
+      const isInitialLoad = prevLengthRef.current === 0;
+      prevLengthRef.current = messages.length;
+      listRef.current?.scrollToEnd({ animated: !isInitialLoad });
+    }, [messages.length]);
+
     return (
-      <View>
+      <View style={{ flex: 1 }}>
         <FlatList
+          ref={listRef}
           data={messages}
           renderItem={({ item }) => (
             <MessageListItem message={item} peerId={peerId} />
           )}
           keyExtractor={(message) => message.id}
           ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
+          maxToRenderPerBatch={10}
+          initialNumToRender={20}
+          windowSize={5}
+          removeClippedSubviews
         />
       </View>
     );
@@ -243,20 +262,22 @@ const CallLogMessageCard = ({
   );
 };
 
-const MessageListItem = enhanceMessage(
+type MessageListItemProps = {
+  message: Message;
+  sender?: Peer | GuestUser | null;
+  guestSender?: GuestUser | null;
+  status: MessageStatus[];
+  peerId: string;
+};
+
+const MessageListItemInner = memo(
   ({
     message,
     sender,
     guestSender,
     status,
     peerId,
-  }: {
-    message: Message;
-    sender?: Peer | GuestUser | null;
-    guestSender?: GuestUser | null;
-    status: MessageStatus[];
-    peerId: string;
-  }) => {
+  }: MessageListItemProps) => {
     const statusObj = status?.[0];
     const senderName = getSenderName(sender ?? guestSender);
     const userStore = useUserStore();
@@ -389,5 +410,7 @@ const MessageListItem = enhanceMessage(
     return null;
   }
 );
+
+const MessageListItem = enhanceMessage(MessageListItemInner);
 
 export default memo(MessageList);
