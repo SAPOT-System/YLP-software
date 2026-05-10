@@ -4,63 +4,101 @@ import { render } from "@testing-library/react-native";
 import React from "react";
 import ChatList from "../chat-list";
 
+// Override withObservables to synchronously subscribe to of() observables
+jest.mock("@nozbe/watermelondb/react", () => {
+  const React = require("react");
+  return {
+    withObservables:
+      (_keys: string[], getProps: (p: unknown) => Record<string, unknown>) =>
+      (Component: React.ComponentType<unknown>) =>
+      (props: unknown) => {
+        const observables =
+          typeof getProps === "function" ? getProps(props) : {};
+        const extraProps: Record<string, unknown> = {};
+        for (const [key, obs] of Object.entries(observables)) {
+          if (obs && typeof (obs as { subscribe?: unknown }).subscribe === "function") {
+            let value: unknown;
+            const sub = (obs as { subscribe: (fn: (v: unknown) => void) => { unsubscribe: () => void } }).subscribe(
+              (v: unknown) => { value = v; }
+            );
+            sub.unsubscribe();
+            extraProps[key] = value;
+          } else {
+            extraProps[key] = obs;
+          }
+        }
+        return React.createElement(Component, { ...(props as object), ...extraProps });
+      },
+  };
+});
+
 jest.mock("@/features/shared", () => {
+  const { of } = require("rxjs");
+
+  const mockPeer = {
+    id: "peer-1",
+    firstName: "Alice",
+    lastName: "Doe",
+    username: "alice",
+  };
+
+  const mockParticipant = {
+    id: "part-1",
+    _raw: { user: "peer-1" },
+    user: { observe: () => of(mockPeer) },
+  };
+
   return {
     database: {
-      get: () => ({
+      get: (table: string) => ({
         query: () => ({
-          observe: () => [
-            { id: "chat-1", createdAt: new Date("2024-01-01T00:00:00Z") }
-          ]
-        })
-      })
+          observe: () => {
+            if (table === "conversations") {
+              return of([{ id: "chat-1", createdAt: new Date("2024-01-01T00:00:00Z") }]);
+            }
+            if (table === "conversation_participants") {
+              return of([mockParticipant]);
+            }
+            return of([]);
+          },
+          observeCount: () => of(0),
+        }),
+      }),
     },
     Conversation: class {},
-    formatDate: () => "Jan 1, 2024"
+    ConversationParticipant: class {
+      static table = "conversation_participants";
+    },
+    Message: class {
+      static table = "messages";
+    },
+    MessageStatus: class {
+      static table = "message_receipts";
+    },
+    MessageStatusType: { READ: "read" },
+    MessageType: { CALL_LOG: "call_log", FILE: "file" },
+    formatDate: () => "Jan 1, 2024",
   };
 });
 
 jest.mock("@/features/shared/hooks", () => ({
-  useMainContainer: () => ({
-    chatService: {
-      findPeerIdByChatId: jest.fn().mockResolvedValue("peer-1")
-    },
-    peerService: {
-      findDiscoveredPeerById: jest.fn().mockReturnValue({
-        id: "peer-1",
-        ipAddress: "127.0.0.1",
-        port: 1234
-      })
-    },
-    discoveryService: {
-      performResendMessagesForPeer: jest.fn().mockResolvedValue(undefined)
-    }
-  }),
-  useChatService: () => ({
-    findPeerIdByChatId: jest.fn().mockResolvedValue("peer-1")
-  }),
-  usePeerService: () => ({
-    findPeerById: jest.fn().mockResolvedValue({
-      id: "peer-1",
-      firstName: "Alice",
-      lastName: "Doe",
-      username: "alice"
-    })
-  }),
   useProfilePhoto: () => ({
     url: null,
     loading: false,
-    setUrl: jest.fn()
+    setUrl: jest.fn(),
   }),
-  useDiscoveryService: () => ({
-    performResendMessagesForPeer: jest.fn().mockResolvedValue(undefined)
-  })
+}));
+
+jest.mock("@/features/shared/hooks/use-user-store", () => ({
+  useUserStore: () => ({
+    user: { id: "current-user" },
+  }),
 }));
 
 describe("ChatList", () => {
-  it("renders chats", async () => {
+  it("renders chats heading", () => {
     const queryClient = new QueryClient();
-    const { getByText, findByText } = render(
+    const { getByText } = render(
       <QueryClientProvider client={queryClient}>
         <AnnouncementSeenProvider>
           <ChatList />
@@ -68,6 +106,17 @@ describe("ChatList", () => {
       </QueryClientProvider>
     );
     expect(getByText("Chats")).toBeTruthy();
+  });
+
+  it("renders peer name from reactive observation", async () => {
+    const queryClient = new QueryClient();
+    const { findByText } = render(
+      <QueryClientProvider client={queryClient}>
+        <AnnouncementSeenProvider>
+          <ChatList />
+        </AnnouncementSeenProvider>
+      </QueryClientProvider>
+    );
     expect(await findByText("Alice Doe")).toBeTruthy();
   });
 });
