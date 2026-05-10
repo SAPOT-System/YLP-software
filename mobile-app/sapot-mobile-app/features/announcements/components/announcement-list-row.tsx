@@ -5,12 +5,23 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, Text, useTheme } from 'react-native-paper';
 import { useAnnouncementNewCount } from '../hooks/use-announcement-new-count';
 import { useAnnouncements } from '../hooks/use-announcements';
+import { formatAnnouncementDate } from '../utils/format-announcement-date';
 
 export const AnnouncementListRow = React.memo(function AnnouncementListRow() {
   const router = useRouter();
   const theme = useTheme();
   const { data } = useAnnouncements();
   const { newCount } = useAnnouncementNewCount(data?.announcements ?? []);
+
+  const latest = data?.announcements
+    ?.slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+  const preview = latest
+    ? latest.content.length > 40
+      ? latest.content.slice(0, 40) + '…'
+      : latest.content
+    : 'No announcements yet';
 
   return (
     <Pressable
@@ -30,10 +41,19 @@ export const AnnouncementListRow = React.memo(function AnnouncementListRow() {
         <Text style={[styles.title, { color: theme.dark ? '#E6ECF5' : '#1E1E1E' }]}>
           Admin Announcements
         </Text>
-        <Text style={[styles.subtitle, { color: theme.dark ? '#6E7891' : '#6B7280' }]}>
-          Announcements
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={[styles.subtitle, { color: theme.dark ? '#6E7891' : '#6B7280' }]}
+        >
+          {preview}
         </Text>
       </View>
+      {latest && (
+        <Text style={[styles.date, { color: theme.dark ? '#6E7891' : '#6B7280' }]}>
+          {formatAnnouncementDate(latest.created_at).label}
+        </Text>
+      )}
       {newCount > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{newCount}</Text>
@@ -86,5 +106,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  date: {
+    fontSize: 12,
+    flexShrink: 0,
   },
 });
