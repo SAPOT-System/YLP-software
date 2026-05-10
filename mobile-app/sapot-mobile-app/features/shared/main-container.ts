@@ -277,7 +277,7 @@ export class MainContainer {
       this.syncService.cleanup();
 
       this.connectionService.stop(); // stops TCP + WS + WebRTC
-      this.discoveryService.destroy(); // stops Zeroconf
+      await this.discoveryService.destroy(); // stops Zeroconf (await cleanup)
 
       await clearConnectionConfig();
 

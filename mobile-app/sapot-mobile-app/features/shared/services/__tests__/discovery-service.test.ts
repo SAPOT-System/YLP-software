@@ -70,6 +70,7 @@ describe("DiscoveryService", () => {
     jest.mocked(ChatService).mockImplementation(() => mockChatService);
 
     mockZeroconfAdapter.publishService.mockResolvedValue(undefined);
+    mockZeroconfAdapter.cleanUp.mockResolvedValue(undefined);
 
     // Create service instance
     discoveryService = new DiscoveryService(
@@ -234,9 +235,19 @@ describe("DiscoveryService", () => {
         })
       );
 
-      discoveryService.destroy();
+      await discoveryService.destroy();
 
       expect(mockZeroconfAdapter.cleanUp).toHaveBeenCalledWith("Device-1234");
+      dateNowSpy.mockRestore();
+    });
+
+    it("does not publish again when already published", async () => {
+      const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234);
+
+      await discoveryService.publishDevice();
+      await discoveryService.publishDevice();
+
+      expect(mockZeroconfAdapter.publishService).toHaveBeenCalledTimes(1);
       dateNowSpy.mockRestore();
     });
 
@@ -367,7 +378,7 @@ describe("DiscoveryService", () => {
         })
       );
 
-      discoveryService.destroy();
+        await discoveryService.destroy();
 
       expect(mockZeroconfAdapter.cleanUp).toHaveBeenCalledWith("Device-1234567890");
       dateNowSpy.mockRestore();
@@ -496,7 +507,7 @@ describe("DiscoveryService", () => {
       const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(1234567890);
       await discoveryService.publishDevice();
 
-      discoveryService.destroy();
+      await discoveryService.destroy();
 
       expect(mockZeroconfAdapter.cleanUp).toHaveBeenCalledWith(
         "Device-1234567890"
@@ -505,12 +516,12 @@ describe("DiscoveryService", () => {
       dateNowSpy.mockRestore();
     });
 
-    it("should clear interval if it exists", () => {
+    it("should clear interval if it exists", async () => {
       const clearIntervalSpy = jest.spyOn(global, "clearInterval");
       // Set intervalId to simulate an active interval
       (discoveryService as unknown as { intervalId: number }).intervalId = 123;
 
-      discoveryService.destroy();
+      await discoveryService.destroy();
 
       expect(clearIntervalSpy).toHaveBeenCalledWith(123);
     });
@@ -522,7 +533,7 @@ describe("DiscoveryService", () => {
         throw new Error("Cleanup failed");
       });
 
-      expect(() => discoveryService.destroy()).toThrow("Cleanup failed");
+      await expect(discoveryService.destroy()).rejects.toThrow("Cleanup failed");
       dateNowSpy.mockRestore();
     });
   });
@@ -554,7 +565,7 @@ describe("DiscoveryService", () => {
       await discoveryService.publishDevice();
       expect(discoveryService.isPublished()).toBe(true);
 
-      discoveryService.destroy();
+      await discoveryService.destroy();
 
       expect(discoveryService.isPublished()).toBe(false);
     });

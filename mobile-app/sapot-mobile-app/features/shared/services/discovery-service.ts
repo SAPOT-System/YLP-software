@@ -15,6 +15,7 @@ discoveryLog.debug("[discovery-service] module loaded");
 export class DiscoveryService {
   private chatService?: ChatService;
   private publishDeviceName: string = "";
+  private publishDevicePromise?: Promise<void>;
   private intervalId: number = 0;
   private published: boolean = false;
   private publishedListeners = new Set<() => void>();
@@ -211,41 +212,76 @@ export class DiscoveryService {
         discoveryLog.info("discovery › publish skipped", { reason: "mode" });
         return;
       }
+
+      if (this.published) {
+        discoveryLog.debug("discovery › publish skipped", {
+          reason: "already published",
+          serviceName: this.publishDeviceName,
+        });
+        return;
+      }
+
+      if (this.publishDevicePromise) {
+        return this.publishDevicePromise;
+      }
+
       const publishDeviceName = `Device-${Date.now()}`;
 
-      await this.adapter.publishService({
-        type: "lanchat",
-        protocol: "tcp",
-        domain: "local.",
-        name: publishDeviceName,
-        port: this.networkConfig.port,
-        txt: {
-          id: this.sessionStore.userId,
-          username: this.userStore.user.username,
-          firstName: this.userStore.user.firstName,
-          lastName: this.userStore.user.lastName || "",
-        },
-      });
-
       this.publishDeviceName = publishDeviceName;
-      discoveryLog.info("discovery › device published", {
-        serviceName: this.publishDeviceName,
-      });
-      this.setPublished(true);
+      this.publishDevicePromise = (async () => {
+        try {
+          await this.adapter.publishService({
+            type: "lanchat",
+            protocol: "tcp",
+            domain: "local.",
+            name: publishDeviceName,
+            port: this.networkConfig.port,
+            txt: {
+              id: this.sessionStore.userId,
+              username: this.userStore.user.username,
+              firstName: this.userStore.user.firstName,
+              lastName: this.userStore.user.lastName || "",
+            },
+          });
+
+          discoveryLog.info("discovery › device published", {
+            serviceName: this.publishDeviceName,
+          });
+          this.setPublished(true);
+        } catch (error) {
+          if (this.publishDeviceName === publishDeviceName) {
+            this.publishDeviceName = "";
+          }
+
+          throw error;
+        }
+      })();
+
+      await this.publishDevicePromise;
     } catch (error) {
       discoveryLog.error("discovery › publish failed", { error });
       this.setPublished(false);
       throw error;
+    } finally {
+      this.publishDevicePromise = undefined;
     }
   }
 
   /**
    * Cleans up resources, stops discovery, and resets peer state. Should be called when the service is no longer needed.
    */
-  destroy() {
+  async destroy(): Promise<void> {
     try {
+      if (this.publishDevicePromise) {
+        try {
+          await this.publishDevicePromise;
+        } catch {
+          // Continue cleanup even if publish failed or timed out.
+        }
+      }
+
       if (this.publishDeviceName) {
-        this.adapter.cleanUp(this.publishDeviceName);
+        await this.adapter.cleanUp(this.publishDeviceName);
       }
       if (this.intervalId) clearInterval(this.intervalId);
       this.peerService.cleanUp();

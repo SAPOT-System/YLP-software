@@ -49,7 +49,7 @@ React context provider: `features/shared/context/main-container-context.tsx`
 | `CallMediaService` | Initializes and manages local mic/camera streams |
 | `CallService` | Call lifecycle, audio routing (earpiece/speaker/Bluetooth) |
 | `ChatService` | Message send/receive and persistence via WebRTC data channels |
-| `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service only after `ZeroconfAdapter` confirms publication. |
+| `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service idempotently and only marks it active after `ZeroconfAdapter` confirms publication. |
 | `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
 | `CleanUpService` | Cleanup of stale data and connections |
 
@@ -102,7 +102,7 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 | `TcpClientAdapter` | `react-native-tcp-socket` (client, one per peer) |
 | `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat — shared by `SignalingService`, `ConnectionService`, and `PublicChatService` |
 | `WebrtcAdapter` | `react-native-webrtc` (RTCPeerConnection, one per peer) |
-| `ZeroconfAdapter` | `react-native-zeroconf`. Exposes publish confirmation via the native `published` event. |
+| `ZeroconfAdapter` | `react-native-zeroconf`. Tracks the active published service name, exposes publish confirmation via the native `published` event, and serializes scan/publish cleanup. |
 
 ---
 
@@ -140,7 +140,7 @@ On Android, a background task (`task/signaling-task.ts`) maintains WebSocket con
 Two mechanisms coordinate foreground ↔ background:
 
 1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down. `setAppAlive(false)` on cleanup lets it resume.
-2. **Secure storage handoff** — `features/shared/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes the latest IP immediately on WiFi change so the background task always reads fresh config.
+2. **Secure storage handoff** — `features/shared/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes the latest IP immediately on WiFi change so the background task always reads fresh config. Background Zeroconf cleanup also uses the adapter-tracked published service name so teardown can unpublish the correct mDNS registration.
 
 ---
 

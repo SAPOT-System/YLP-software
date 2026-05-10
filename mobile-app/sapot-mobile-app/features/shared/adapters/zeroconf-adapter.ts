@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import Zeroconf from "react-native-zeroconf";
+import Zeroconf, { Service } from "react-native-zeroconf";
 import { PublishedService } from "../types";
 import { zeroconfLog } from "../utils/logger";
 
@@ -11,6 +11,12 @@ zeroconfLog.debug("[zeroconf-adapter] module loaded");
  */
 export class ZeroconfAdapter extends EventEmitter {
   private zeroconf: Zeroconf;
+  private cleanupPromise?: Promise<void>;
+  private publishPromise?: Promise<void>;
+  private publishedServiceName?: string;
+  private publishActive = false;
+  private scanning = false;
+  private scanListenersAttached = false;
 
   /**
    * Constructs a ZeroconfAdapter instance and initializes the underlying Zeroconf object.
@@ -21,6 +27,51 @@ export class ZeroconfAdapter extends EventEmitter {
     zeroconfLog.info("zeroconf › adapter constructed");
   }
 
+  private readonly onScanStart = () => {};
+
+  private readonly onScanStop = () => {
+    this.scanning = false;
+    zeroconfLog.info("zeroconf › scan stopped");
+  };
+
+  private readonly onScanUpdate = () => {
+    zeroconfLog.debug("zeroconf › updated");
+  };
+
+  private readonly onServiceResolved = (service: Service) => {
+    this.emit("serviceResolved", service);
+  };
+
+  private readonly onServiceRemoved = (serviceName: string) => {
+    zeroconfLog.debug("zeroconf › service removed", {
+      hasService: true,
+      serviceName,
+    });
+    this.emit("serviceRemoved", serviceName);
+  };
+
+  private attachScanListeners(): void {
+    if (this.scanListenersAttached) return;
+
+    this.zeroconf.on("start", this.onScanStart);
+    this.zeroconf.on("stop", this.onScanStop);
+    this.zeroconf.on("update", this.onScanUpdate);
+    this.zeroconf.on("resolved", this.onServiceResolved);
+    this.zeroconf.on("remove", this.onServiceRemoved);
+    this.scanListenersAttached = true;
+  }
+
+  private detachScanListeners(): void {
+    if (!this.scanListenersAttached) return;
+
+    this.zeroconf.removeListener("start", this.onScanStart);
+    this.zeroconf.removeListener("stop", this.onScanStop);
+    this.zeroconf.removeListener("update", this.onScanUpdate);
+    this.zeroconf.removeListener("resolved", this.onServiceResolved);
+    this.zeroconf.removeListener("remove", this.onServiceRemoved);
+    this.scanListenersAttached = false;
+  }
+
   /**
    * Starts scanning for network services using Zeroconf.
    * Emits 'serviceResolved' and 'serviceRemoved' events for discovered/removed services.
@@ -28,40 +79,22 @@ export class ZeroconfAdapter extends EventEmitter {
    */
   startScan(): void {
     try {
+      if (this.scanning) {
+        zeroconfLog.debug("zeroconf › scan already active");
+        return;
+      }
+
       if (!this.zeroconf) {
         zeroconfLog.warn("zeroconf › not initialized");
       }
 
-      this.zeroconf.on("start", () => {});
-      zeroconfLog.info("zeroconf › scan started");
-
-      this.zeroconf.on("stop", () => {
-        zeroconfLog.info("zeroconf › scan stopped");
-      });
-
-      this.zeroconf.on("update", () => {
-        zeroconfLog.debug("zeroconf › updated");
-      });
-
-      // this.zeroconf.on("found", (serviceName) => {
-      //   zeroconfLog.debug("zeroconf › service found", { hasService: true });
-      // });
-
-      this.zeroconf.on("resolved", (service) => {
-        // zeroconfLog.debug("zeroconf › service resolved", { hasService: true });
-        // The resolved device/service will inform the service that use this class
-        this.emit("serviceResolved", service);
-      });
-
-      this.zeroconf.on("remove", (serviceName) => {
-        // zeroconfLog.debug("zeroconf › service removed", { hasService: true });
-        // The removej device/service will inform the service that use this class
-        this.emit("serviceRemoved", serviceName);
-      });
-
+      this.attachScanListeners();
+      this.scanning = true;
       this.zeroconf.scan("lanchat", "tcp", "local.");
-      zeroconfLog.info("zeroconf › scanning");
+      zeroconfLog.info("zeroconf › scan started");
     } catch (error) {
+      this.scanning = false;
+      this.detachScanListeners();
       zeroconfLog.error("zeroconf › scan start failed", { error });
       throw error;
     }
@@ -73,6 +106,8 @@ export class ZeroconfAdapter extends EventEmitter {
    */
   stopScan(): void {
     try {
+      this.scanning = false;
+      this.detachScanListeners();
       this.zeroconf.stop();
       zeroconfLog.info("zeroconf › scan stop requested");
     } catch (error) {
@@ -86,81 +121,156 @@ export class ZeroconfAdapter extends EventEmitter {
    * @param service The service details (type, protocol, domain, name, port, txt)
    * @throws Error if publishing fails
    */
-  publishService(service: PublishedService): Promise<void> {
-    return new Promise((resolve, reject) => {
+  async publishService(service: PublishedService): Promise<void> {
+    if (this.publishPromise) {
+      return this.publishPromise;
+    }
+
+    this.publishPromise = (async () => {
       try {
-        if (!this.zeroconf) {
-          const error = new Error("Zeroconf not initialized");
-          zeroconfLog.warn("zeroconf › not initialized");
-          reject(error);
-          return;
+        if (this.cleanupPromise) {
+          try {
+            await this.cleanupPromise;
+          } catch (error) {
+            zeroconfLog.warn("zeroconf › waiting cleanup failed", { error });
+          }
         }
 
-        let settled = false;
-        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (!this.zeroconf) {
+          zeroconfLog.warn("zeroconf › not initialized");
+          throw new Error("Zeroconf not initialized");
+        }
 
-        const cleanup = () => {
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = undefined;
-          }
+        this.publishedServiceName = service.name;
+        this.publishActive = true;
 
-          this.zeroconf.removeListener("published", onPublished);
-          this.zeroconf.removeListener("error", onError);
-        };
+        await new Promise<void>((resolve, reject) => {
+          let settled = false;
+          let publishTimerId: ReturnType<typeof setTimeout> | undefined;
+          let timeoutId: ReturnType<typeof setTimeout> | undefined;
+          let retries = 0;
+          const maxRetries = 1;
+          const initialTimeout = 10000;
+          const retryDelay = 500;
 
-        const settle = (callback: () => void) => {
-          if (settled) return;
-          settled = true;
-          cleanup();
-          callback();
-        };
+          const cleanup = () => {
+            if (publishTimerId) {
+              clearTimeout(publishTimerId);
+              publishTimerId = undefined;
+            }
 
-        const onPublished = (publishedService: { name?: string }) => {
-          if (publishedService?.name !== service.name) {
-            return;
-          }
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = undefined;
+            }
 
-          zeroconfLog.info("zeroconf › service published", {
-            hasServiceName: Boolean(publishedService?.name),
-          });
+            this.zeroconf.removeListener("published", onPublished);
+            this.zeroconf.removeListener("error", onError);
+          };
 
-          settle(resolve);
-        };
+          const settle = (callback: () => void) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            callback();
+          };
 
-        const onError = (error: Error) => {
-          zeroconfLog.error("zeroconf › publish error", { error });
-          settle(() => reject(error));
-        };
+          const publishNow = () => {
+            try {
+              this.zeroconf.publishService(
+                service.type,
+                service.protocol,
+                service.domain,
+                service.name,
+                service.port,
+                service.txt
+              );
+            } catch (error) {
+              zeroconfLog.error("zeroconf › publishService call failed", {
+                error,
+              });
+            }
+          };
 
-        this.zeroconf.on("published", onPublished);
-        this.zeroconf.on("error", onError);
+          const scheduleTimeout = () => {
+            timeoutId = setTimeout(() => {
+              if (retries < maxRetries) {
+                retries += 1;
+                zeroconfLog.warn("zeroconf › publish timed out, retrying", {
+                  serviceName: service.name,
+                  attempt: retries,
+                });
 
-        timeoutId = setTimeout(() => {
-          const error = new Error(
-            `Timed out waiting for Zeroconf to publish ${service.name}`
-          );
-          zeroconfLog.error("zeroconf › publish timed out", {
-            serviceName: service.name,
-          });
-          settle(() => reject(error));
-        }, 5000);
+                try {
+                  this.zeroconf.removeListener("error", onError);
+                  this.zeroconf.unpublishService(service.name);
+                } catch (error) {
+                  zeroconfLog.debug("zeroconf › retry unpublish ignored", {
+                    error,
+                  });
+                }
 
-        setTimeout(() => {
-          this.zeroconf.publishService(
-            service.type,
-            service.protocol,
-            service.domain,
-            service.name,
-            service.port,
-            service.txt
-          );
-        }, 500);
+                publishTimerId = setTimeout(() => {
+                  this.zeroconf.on("error", onError);
+                  publishNow();
+                }, retryDelay);
+
+                scheduleTimeout();
+                return;
+              }
+
+              const error = new Error(
+                `Timed out waiting for Zeroconf to publish ${service.name}`
+              );
+              zeroconfLog.error("zeroconf › publish timed out", {
+                serviceName: service.name,
+              });
+              settle(() => reject(error));
+            }, initialTimeout);
+          };
+
+          const onPublished = (publishedService: { name?: string }) => {
+            if (publishedService?.name !== service.name) {
+              return;
+            }
+
+            zeroconfLog.info("zeroconf › service published", {
+              hasServiceName: Boolean(publishedService?.name),
+            });
+
+            settle(resolve);
+          };
+
+          const onError = (error: Error) => {
+            zeroconfLog.error("zeroconf › publish error", { error });
+            settle(() => reject(error));
+          };
+
+          this.zeroconf.on("published", onPublished);
+          this.zeroconf.on("error", onError);
+
+          publishTimerId = setTimeout(() => {
+            publishNow();
+          }, 500);
+          scheduleTimeout();
+        });
       } catch (error) {
+        if (this.publishedServiceName === service.name) {
+          this.publishedServiceName = undefined;
+        }
+
         zeroconfLog.error("zeroconf › publish failed", { error });
-        reject(error as Error);
+        throw error;
+      } finally {
+        this.publishActive = false;
       }
-    });
+    })();
+
+    try {
+      await this.publishPromise;
+    } finally {
+      this.publishPromise = undefined;
+    }
   }
 
   /**
@@ -168,22 +278,56 @@ export class ZeroconfAdapter extends EventEmitter {
    * @param publishedServiceName The name of the published service to unpublish
    * @throws Error if cleanup fails
    */
-  cleanUp(publishedServiceName: string): void {
+  async cleanUp(publishedServiceName?: string): Promise<void> {
     if (!this.zeroconf) return;
 
-    try {
-      zeroconfLog.info("zeroconf › unpublish", {
-        hasServiceName: Boolean(publishedServiceName),
-      });
+    if (this.cleanupPromise) return this.cleanupPromise;
 
-      this.zeroconf.unpublishService(publishedServiceName);
-      this.stopScan();
-      this.zeroconf.removeDeviceListeners();
+    this.cleanupPromise = (async () => {
+      try {
+        if (this.publishActive && this.publishPromise) {
+          try {
+            await this.publishPromise;
+          } catch (error) {
+            zeroconfLog.warn("zeroconf › waiting publish failed", { error });
+          }
+        }
 
-      zeroconfLog.info("zeroconf › cleanup complete");
-    } catch (error) {
-      zeroconfLog.error("zeroconf › cleanup failed", { error });
-      throw error;
-    }
+        const serviceName = publishedServiceName || this.publishedServiceName;
+
+        zeroconfLog.info("zeroconf › unpublish", {
+          hasServiceName: Boolean(serviceName),
+        });
+
+        if (serviceName) {
+          try {
+            this.zeroconf.unpublishService(serviceName);
+          } catch (error) {
+            zeroconfLog.warn("zeroconf › unpublish threw", { error });
+          }
+        }
+
+        this.stopScan();
+        this.zeroconf.removeDeviceListeners();
+        this.publishedServiceName = undefined;
+
+        await new Promise((res) => setTimeout(res, 500));
+
+        // Reinitialize so the next publishService/startScan gets a working
+        // native event bridge. removeDeviceListeners() above severs it and
+        // addDeviceListeners() is never re-called otherwise.
+        this.zeroconf = new Zeroconf();
+        this.scanListenersAttached = false;
+
+        zeroconfLog.info("zeroconf › cleanup complete");
+      } catch (error) {
+        zeroconfLog.error("zeroconf › cleanup failed", { error });
+        throw error;
+      } finally {
+        this.cleanupPromise = undefined;
+      }
+    })();
+
+    return this.cleanupPromise;
   }
 }

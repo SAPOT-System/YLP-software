@@ -77,6 +77,17 @@ describe("ZeroconfAdapter", () => {
     expect(adapter).toBeDefined();
   });
 
+  it("does not attach duplicate scan listeners while scanning", () => {
+    adapter.startScan();
+    adapter.startScan();
+
+    const resolvedListenerCalls = mockZeroconfInstance.on.mock.calls.filter(
+      ([event]) => event === "resolved"
+    );
+
+    expect(resolvedListenerCalls).toHaveLength(1);
+  });
+
   it("emits serviceResolved event", () => {
     const service = createTestZeroconfService({
       name: "test-service",
@@ -148,12 +159,13 @@ describe("ZeroconfAdapter", () => {
     };
 
     const publishPromise = adapter.publishService(service);
-
-    jest.advanceTimersByTime(5000);
-
-    await expect(publishPromise).rejects.toThrow(
+    const rejectionExpectation = expect(publishPromise).rejects.toThrow(
       "Timed out waiting for Zeroconf to publish test-device"
     );
+
+    await jest.advanceTimersByTimeAsync(20000);
+
+    await rejectionExpectation;
     expect(mockZeroconfInstance.removeListener).toHaveBeenCalledWith(
       "published",
       expect.any(Function)
@@ -164,12 +176,42 @@ describe("ZeroconfAdapter", () => {
     );
   });
 
-  it("cleans up resources", () => {
+  it("cleans up resources", async () => {
     const serviceName = "test-service";
-    adapter.cleanUp(serviceName);
+    // Capture before cleanUp, which reinitializes this.zeroconf (new Zeroconf())
+    // and causes the mock factory to reassign mockZeroconfInstance.
+    const originalInstance = mockZeroconfInstance;
+    const cleanupPromise = adapter.cleanUp(serviceName);
 
-    expect(mockZeroconfInstance.unpublishService).toHaveBeenCalledWith(
-      serviceName
-    );
+    await jest.advanceTimersByTimeAsync(500);
+    await expect(cleanupPromise).resolves.toBeUndefined();
+
+    expect(originalInstance.unpublishService).toHaveBeenCalledWith(serviceName);
+  });
+
+  it("falls back to the tracked published service name during cleanup", async () => {
+    const service = {
+      type: "_lanchat._tcp",
+      protocol: "tcp",
+      domain: "local.",
+      name: "tracked-service",
+      port: 3000,
+      txt: { id: "device-1", username: "Alice", firstName: "Alice" },
+    };
+
+    const publishPromise = adapter.publishService(service);
+    const publishExpectation = expect(publishPromise).resolves.toBeUndefined();
+
+    await jest.advanceTimersByTimeAsync(500);
+    mockZeroconfInstance.emit("published", { name: service.name });
+    await publishExpectation;
+
+    // Capture before cleanUp reinitializes this.zeroconf.
+    const originalInstance = mockZeroconfInstance;
+    const cleanupPromise = adapter.cleanUp();
+    await jest.advanceTimersByTimeAsync(500);
+    await expect(cleanupPromise).resolves.toBeUndefined();
+
+    expect(originalInstance.unpublishService).toHaveBeenCalledWith(service.name);
   });
 });
