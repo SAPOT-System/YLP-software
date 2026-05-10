@@ -31,6 +31,10 @@ import {
   useTheme,
 } from "react-native-paper";
 
+const MAX_RECONNECT_RETRIES = 5;
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+
 const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
@@ -46,6 +50,8 @@ const ChatRoom = () => {
   const isServerActive = useIsUserActive(peerId);
   const [message, setMessage] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatService = useChatService();
   const peerService = usePeerService();
   const userStore = useUserStore();
@@ -150,18 +156,40 @@ const ChatRoom = () => {
       if (payload.peerId !== peerId) return;
       setConnectionState(payload.state);
       setIsConnected(payload.state === "connected");
+      if (payload.state === "connected") {
+        retryCountRef.current = 0;
+      }
       if (payload.state === "failed" || payload.state === "timeout") {
-        chatService.connect(peerId).catch(() => {});
+        if (retryCountRef.current >= MAX_RECONNECT_RETRIES) return;
+        const raw = Math.min(
+          RECONNECT_MAX_MS,
+          RECONNECT_BASE_MS * Math.pow(1.8, retryCountRef.current)
+        );
+        const delay = Math.round(raw * (0.8 + Math.random() * 0.4));
+        retryCountRef.current += 1;
+        uiLog.warn("chat › scheduling reconnect", {
+          peerId,
+          attempt: retryCountRef.current,
+          delayMs: delay,
+        });
+        retryTimerRef.current = setTimeout(() => {
+          chatService.connect(peerId).catch(() => {});
+        }, delay);
       }
     });
 
     const unsubscribeReconnected = chatService.onPeerReconnected((reconnectedPeerId) => {
       if (reconnectedPeerId !== peerId) return;
+      retryCountRef.current = 0;
       setIsConnected(true);
       setConnectionState("connected");
     });
 
     return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       unsubscribe();
       unsubscribeReconnected();
       chatService.disconnect();
