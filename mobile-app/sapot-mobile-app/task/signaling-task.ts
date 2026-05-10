@@ -1,19 +1,19 @@
 import {
-  backgroundLog,
-  NetworkConfig,
-  TcpServerAdapter,
-  WsSignalingAdapter,
-  ZeroconfAdapter,
+    backgroundLog,
+    NetworkConfig,
+    TcpServerAdapter,
+    WsSignalingAdapter,
+    ZeroconfAdapter,
 } from "@/features/shared";
 import {
-  getAppAlive,
-  getStoredAccessToken,
-  getStoredFirstName,
-  getStoredLastName,
-  getStoredPeerId,
-  getStoredUsername,
-  getStoredWsUrl,
-  saveAppAlive,
+    getAppAlive,
+    getStoredAccessToken,
+    getStoredFirstName,
+    getStoredLastName,
+    getStoredPeerId,
+    getStoredUsername,
+    getStoredWsUrl,
+    saveAppAlive,
 } from "@/features/shared/stores/secure-config";
 import { CallMessage } from "@/features/shared/types";
 import * as BackgroundTask from "expo-background-task";
@@ -207,7 +207,7 @@ export const stopBackgroundOnlyServices = () => {
   try {
     bgTcpServer?.stop();
     bgWsAdapter?.disconnect();
-    bgZeroconf?.cleanUp("");
+    void bgZeroconf?.cleanUp();
     bgTcpServer = null;
     bgWsAdapter = null;
     bgZeroconf = null;

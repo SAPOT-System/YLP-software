@@ -79,7 +79,7 @@ export default function Chat() {
 
     return () => {
       cancelled = true;
-      discoveryService.destroy();
+      void discoveryService.destroy();
       connectionService.stop();
     };
   }, [discoveryService, connectionService]);
