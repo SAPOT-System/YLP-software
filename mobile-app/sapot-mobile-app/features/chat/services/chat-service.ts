@@ -213,6 +213,7 @@ export class ChatService {
         data.conversationId
       );
       await this.saveIncomingMessage(sender, conversation, data);
+      void this.conversationRepository.touchConversation(conversation.id);
       this.acknowledgeIncomingMessage(sender.id, data.messageId);
       const senderName =
         `${sender.firstName} ${sender.lastName ?? ""}`.trim() ||
@@ -313,11 +314,20 @@ export class ChatService {
     conversation: Conversation,
     data: DataChatMessageI
   ): Promise<void> {
-    await this.messageRepository.saveMessage({
+    const preparedMessage = this.messageRepository.prepareMessageCreate({
       sender: sender,
       content: data.message,
       conversation: conversation,
       messageId: data.messageId,
+    });
+    const preparedStatus =
+      this.messageStatusRepository.prepareMessageStatusCreate({
+        message: preparedMessage,
+        user: this.userStore.user,
+        status: MessageStatusType.DELIVERED,
+      });
+    await database.write(async () => {
+      await database.batch(preparedMessage, preparedStatus);
     });
     chatLog.debug("chat › incoming saved", {
       conversationId: conversation.id,
@@ -372,7 +382,7 @@ export class ChatService {
    * Called by the receiver when they open/view a conversation.
    * @param conversationId The conversation id to mark as read
    */
-  markConversationAsRead(conversationId: string): void {
+  async markConversationAsRead(conversationId: string): Promise<void> {
     if (!this.peer) return;
     try {
       chatLog.debug("chat › mark as read", {
@@ -380,6 +390,15 @@ export class ChatService {
         peerId: this.peer.id,
       });
       this.connectionService.sendSeenMessage(this.peer.id, conversationId);
+      const peerMessages =
+        await this.messageRepository.queryMessagesByConversationAndSender(
+          conversationId,
+          this.peer.id
+        );
+      const messageIds = peerMessages.map((m) => m.id);
+      await this.messageStatusRepository.updateDeliveredMessagesToRead(
+        messageIds
+      );
     } catch (error) {
       chatLog.warn("chat › mark as read failed", { conversationId, error });
     }
@@ -452,6 +471,7 @@ export class ChatService {
         message: message,
         conversation: this.conversation!,
       });
+      void this.conversationRepository.touchConversation(this.conversation!.id);
       const isSelfChat = this.peer.id === this.userStore.user.id;
       console.log(isSelfChat);
       if (isSelfChat) {
@@ -533,10 +553,27 @@ export class ChatService {
     try {
       chatLog.debug("chat › send message", {
         messageId: newMessage.id,
+        messageStatusId: newMessageStatus.id,
         conversationId: this.conversation?.id,
         peerId: this.peer?.id,
         messageLength: message.length,
       });
+      // Start 12s ACK timeout — if no DELIVERED (WebRTC) or server-ack (WS) arrives,
+      // flip back to NOT_SENT so the message is eligible for the retry queue.
+      const timeout = setTimeout(async () => {
+        this.ackTimeouts.delete(newMessage.id);
+        chatLog.warn(
+          "chat › sending message timeout",
+          newMessage.id,
+          newMessageStatus.id
+        );
+        await this.messageStatusRepository.updateMessageStatusById(
+          newMessageStatus.id,
+          MessageStatusType.NOT_SENT
+        );
+      }, 12000);
+      chatLog.info("chat › acktimeout sets");
+      this.ackTimeouts.set(newMessage.id, timeout);
       const transport = this.connectionService.sendChatMessage(this.peer!.id, {
         message: message,
         conversationId: this.conversation!.id,
@@ -557,16 +594,6 @@ export class ChatService {
           MessageStatusType.SENT
         );
       }
-      // Start 12s ACK timeout — if no DELIVERED (WebRTC) or server-ack (WS) arrives,
-      // flip back to NOT_SENT so the message is eligible for the retry queue.
-      const timeout = setTimeout(async () => {
-        this.ackTimeouts.delete(newMessage.id);
-        await this.messageStatusRepository.updateMessageStatusById(
-          newMessageStatus.id,
-          MessageStatusType.NOT_SENT
-        );
-      }, 12000);
-      this.ackTimeouts.set(newMessage.id, timeout);
     } catch (error) {
       chatLog.warn("chat › send failed", {
         messageId: newMessage.id,

@@ -34,6 +34,27 @@ export class MessageRepository {
    * @param newMessage The message data (sender, content, conversation, optional messageId)
    * @returns Promise<Message> The saved message
    */
+  prepareMessageCreate(newMessage: {
+    sender: GuestUser | Peer;
+    content: string;
+    conversation: Conversation;
+    messageId?: string;
+    messageType?: MessageType;
+  }): Message {
+    return this.messagesCollection.prepareCreate((message: Message) => {
+      if (newMessage.messageId) {
+        message._raw.id = newMessage.messageId;
+      }
+      message.sender.set(newMessage.sender);
+      message.conversation.set(newMessage.conversation);
+      message.messageType = newMessage.messageType ?? MessageType.TEXT;
+      message.content = newMessage.content;
+      message.createdAt = new Date();
+      message.updatedAt = new Date();
+      message.isDeleted = false;
+    });
+  }
+
   async saveMessage(newMessage: {
     sender: GuestUser | Peer;
     content: string;

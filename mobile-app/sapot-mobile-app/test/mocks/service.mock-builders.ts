@@ -252,6 +252,7 @@ export function createChatServiceDependencyMocks() {
 		saveConversation: jest.fn(),
 		queryAllConversation: jest.fn(),
 		getConversationDestroyOps: jest.fn(),
+		touchConversation: jest.fn().mockResolvedValue(undefined),
 	};
 
 	const conversationParticipantRepository = {

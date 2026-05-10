@@ -52,8 +52,10 @@ jest.mock('@nozbe/watermelondb', () => ({
     sortBy: jest.fn(),
     oneOf: jest.fn(),
     desc: jest.fn(),
+    asc: jest.fn(),
     skip: jest.fn(),
-    take: jest.fn()
+    take: jest.fn(),
+    notEq: jest.fn(),
   },
   tableSchema: jest.fn((config) => config),
   appSchema: jest.fn((config) => config),

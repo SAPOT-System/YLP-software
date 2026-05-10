@@ -138,6 +138,22 @@ export class ConversationRepository {
     }
   }
 
+  async touchConversation(id: string): Promise<void> {
+    try {
+      const [conversation] = await this.conversationCollections
+        .query(Q.where("id", id))
+        .fetch();
+      if (!conversation) return;
+      await this.conversationCollections.database.write(async () => {
+        await conversation.update((record) => {
+          record.updatedAt = new Date();
+        });
+      });
+    } catch (error) {
+      chatLog.error("chat › touch conversation failed", { conversationId: id, error });
+    }
+  }
+
   /**
    * Gets destroy operations for all conversations (for debugging/testing purposes).
    * @returns Promise<any[]> Array of destroy operations

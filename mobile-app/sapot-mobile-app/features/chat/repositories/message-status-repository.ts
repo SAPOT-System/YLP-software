@@ -1,11 +1,12 @@
 import {
-    GuestUser,
-    Message,
-    MessageStatus,
-    MessageStatusType,
-    Peer,
+  GuestUser,
+  Message,
+  MessageStatus,
+  MessageStatusType,
+  Peer,
 } from "@/features/shared";
 import { chatLog } from "@/features/shared/utils/logger";
+import { messageStatusId } from "@/features/chat/utils/message-status-id";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 chatLog.debug("[message-status-repository] module loaded");
@@ -32,6 +33,28 @@ export class MessageStatusRepository {
    * @param params Object containing message, user, and status
    * @returns Promise<MessageStatus> The saved message status
    */
+  prepareMessageStatusCreate({
+    message,
+    user,
+    status,
+  }: {
+    message: Message;
+    user: Peer | GuestUser;
+    status: MessageStatusType;
+  }): MessageStatus {
+    return this.messageStatusCollection.prepareCreate(
+      (messageStatus: MessageStatus) => {
+        messageStatus._raw.id = messageStatusId(message.id, user.id);
+        messageStatus.message.set(message);
+        messageStatus.user.set(user);
+        messageStatus.status = status;
+        messageStatus.createdAt = new Date();
+        messageStatus.updatedAt = new Date();
+        messageStatus.isDeleted = false;
+      }
+    );
+  }
+
   async saveMessageStatus({
     message,
     user,
@@ -42,9 +65,11 @@ export class MessageStatusRepository {
     status: MessageStatusType;
   }) {
     try {
+      chatLog.debug("chat › saving", message.content, "into", status);
       return await this.db.write(async () => {
         return await this.messageStatusCollection.create(
           (messageStatus: MessageStatus) => {
+            messageStatus._raw.id = messageStatusId(message.id, user.id);
             messageStatus.message.set(message);
             messageStatus.user.set(user);
             messageStatus.status = status;
@@ -84,6 +109,7 @@ export class MessageStatusRepository {
           chatLog.debug("chat › message status updating", {
             messageId,
             status,
+            messageStatusId: messageStatus[0].id,
           });
           await messageStatus[0].update((messageStatus) => {
             messageStatus.status = status;
@@ -112,6 +138,7 @@ export class MessageStatusRepository {
     status: MessageStatusType
   ) {
     try {
+      chatLog.debug("chat › message", messageStatusId, " saving into", status);
       return await this.db.write(async () => {
         const messageStatus = await this.messageStatusCollection.query(
           Q.where("id", messageStatusId)
