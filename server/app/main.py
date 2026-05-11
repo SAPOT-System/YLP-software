@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi import Request
 from starlette.responses import JSONResponse
 
-from app.api import user_utils
+from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
 from app.db_operations.auth import SessionDep, create_db_and_tables
 from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, testing, public_chat
@@ -141,6 +141,7 @@ app.include_router(admin.router)
 # delete when going to production
 app.include_router(testing.router)
 app.include_router(public_chat.router)
+app.include_router(gsm.router)
 
 STATIC_PATH = "static"
 PROFILE_PICS_PATH = os.path.join(STATIC_PATH, "profile_pictures")

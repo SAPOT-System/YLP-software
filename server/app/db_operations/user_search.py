@@ -5,37 +5,51 @@ from app.models.users import User
 from sqlmodel import select, Session, func, or_
 from fastapi.responses import JSONResponse
 
-def search_case_insensitive(value: str, session: Session, limit: int, offset: int):
+def search_case_insensitive(
+    value: str,
+    session: Session,
+    limit: int = 20,
+    offset: int = 0,
+):
+    value = value.strip()
+
+    if not value:
+        return []
+
     search_val = f"%{value}%"
 
-    statement = (
-        select(User)
-        .where(
-            or_(
-                # Search username
-                User.username.ilike(search_val),
-                # Search first_name independently
-                User.first_name.ilike(search_val),
-                # Search last_name independently
-                User.last_name.ilike(search_val),
-                # Search combined "First Last"
-                (func.concat(User.first_name, " ", User.last_name)).ilike(search_val),
-                # Search combined "Last First" (optional, for "Doe John" queries)
-                (func.concat(User.last_name, " ", User.first_name)).ilike(search_val)
-            )
-        )
-        .offset(offset)
-        .limit(limit)
-    )
+    full_name = User.first_name + " " + User.last_name
+    reverse_full_name = User.last_name + " " + User.first_name
 
-    results = session.exec(statement).all()
+    statement = (
+            select(User)
+            .where(
+                User.guest == None  # exclude guests
+                )
+            .where(
+                or_(
+                    User.username.ilike(search_val),
+                    User.first_name.ilike(search_val),
+                    User.last_name.ilike(search_val),
+                    full_name.ilike(search_val),
+                    reverse_full_name.ilike(search_val),
+                    )
+                )
+            .offset(offset)
+            .limit(limit)
+            )
+
+    users = session.exec(statement).all()
 
     return [
-        user.model_dump(
-            mode="json",
-            include={"id", "username", "first_name", "last_name"}
-        )
-        for user in results
+        {
+            "id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone_is_verified": len(user.phone_is_verified) > 0
+        }
+        for user in users
     ]
 
 def search_by_id(value: UUID, session: SessionDep):
