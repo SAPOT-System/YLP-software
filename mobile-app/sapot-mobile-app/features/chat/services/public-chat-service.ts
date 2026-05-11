@@ -3,6 +3,7 @@ import { UserStore } from "@/features/shared";
 import { AppModeStore } from "@/features/shared/stores";
 import { chatLog } from "@/features/shared/utils/logger";
 import { PublicChatMessage, SendPublicChatPayload } from "../types";
+import { fetchPublicChatHistory } from "../api/public-chat.api";
 
 chatLog.debug("[public-chat-service] module loaded");
 
@@ -10,10 +11,90 @@ export class PublicChatService {
   private messages: PublicChatMessage[] = [];
   private listeners = new Set<() => void>();
 
+  private hasLoadedHistory = false;
+  private isLoadingHistory = false;
+  private hasMoreHistory = true;
+  private historyOffset = 0;
+  private readonly historyPageSize = 50;
+
   constructor(private userStore: UserStore, private adapter: WsSignalingAdapter, private appModeStore: AppModeStore) {
     adapter.on("open",           () => this.notify());
     adapter.on("close",          () => this.notify());
     adapter.on("public-message", (data: unknown) => this.handleMessage(data));
+  }
+
+  async loadHistory(): Promise<void> {
+    if (this.hasLoadedHistory || this.isLoadingHistory) return;
+
+    this.isLoadingHistory = true;
+    this.notify();
+
+    try {
+      const res = await fetchPublicChatHistory(this.historyPageSize, this.historyOffset);
+
+      const mapped: PublicChatMessage[] = res.messages
+        .filter((m) => !m.is_deleted)
+        .map((m) => ({
+          id: m.id,
+          type: "public-chat" as const,
+          content: m.content,
+          is_deleted: m.is_deleted,
+          sender_id: m.sender_id,
+          received_at: new Date(m.created_at),
+        }));
+
+      // server returns newest-first; reverse to oldest-first before prepending
+      this.messages = [...mapped.reverse(), ...this.messages];
+      this.historyOffset += res.messages.length;
+      this.hasMoreHistory = res.messages.length >= this.historyPageSize;
+      this.hasLoadedHistory = true;
+
+      chatLog.debug("public-chat › history loaded", {
+        count: mapped.length,
+        hasMore: this.hasMoreHistory,
+      });
+    } catch (err) {
+      chatLog.warn("public-chat › history load failed", { error: err });
+    } finally {
+      this.isLoadingHistory = false;
+      this.notify();
+    }
+  }
+
+  async loadMoreHistory(): Promise<void> {
+    if (!this.hasLoadedHistory || this.isLoadingHistory || !this.hasMoreHistory) return;
+
+    this.isLoadingHistory = true;
+    this.notify();
+
+    try {
+      const res = await fetchPublicChatHistory(this.historyPageSize, this.historyOffset);
+
+      const mapped: PublicChatMessage[] = res.messages
+        .filter((m) => !m.is_deleted)
+        .map((m) => ({
+          id: m.id,
+          type: "public-chat" as const,
+          content: m.content,
+          is_deleted: m.is_deleted,
+          sender_id: m.sender_id,
+          received_at: new Date(m.created_at),
+        }));
+
+      this.messages = [...mapped.reverse(), ...this.messages];
+      this.historyOffset += res.messages.length;
+      this.hasMoreHistory = res.messages.length >= this.historyPageSize;
+
+      chatLog.debug("public-chat › more history loaded", {
+        count: mapped.length,
+        hasMore: this.hasMoreHistory,
+      });
+    } catch (err) {
+      chatLog.warn("public-chat › load more history failed", { error: err });
+    } finally {
+      this.isLoadingHistory = false;
+      this.notify();
+    }
   }
 
   sendMessage(content: string): void {
@@ -51,6 +132,14 @@ export class PublicChatService {
 
   getMessages(): PublicChatMessage[] {
     return [...this.messages];
+  }
+
+  getIsLoadingHistory(): boolean {
+    return this.isLoadingHistory;
+  }
+
+  getHasMoreHistory(): boolean {
+    return this.hasMoreHistory;
   }
 
   get isConnected(): boolean {
