@@ -132,26 +132,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     (async () => {
       authLog.debug("auth › bootstrap start");
       setLoading(true);
-      const token = await getItemAsync("access_token");
-      const uuid = await getItemAsync("userUUID");
-      if (token && uuid) {
-        authLog.info("[AuthProvider] restoring authenticated session");
+      try {
+        const token = await getItemAsync("access_token");
+        const uuid = await getItemAsync("userUUID");
+        if (token && uuid) {
+          authLog.info("[AuthProvider] restoring authenticated session");
 
-        const isValid = await isAccessTokenValid(token);
-        if (isValid) {
-          await userService.initialize({ isGuest: false });
-          setIsRescuer(userService.getIsRescuer());
-          setAccessToken(token);
-          setIsAuthenticated(true);
-        } else {
-          await refreshSession();
+          const isValid = await isAccessTokenValid(token);
+          if (isValid) {
+            await userService.initialize({ isGuest: false });
+            try {
+              userService.getUser();
+              setIsRescuer(userService.getIsRescuer());
+              setAccessToken(token);
+              setIsAuthenticated(true);
+            } catch {
+              authLog.warn("auth › user missing from local DB, falling back to refresh");
+              await refreshSession();
+            }
+          } else {
+            await refreshSession();
+          }
+        } else if (await userService.isCurrentUserGuest()) {
+          authLog.info("[AuthProvider] restoring guest session");
+          await userService.initialize({ isGuest: true });
+          setIsGuest(true);
         }
-      } else if (await userService.isCurrentUserGuest()) {
-        authLog.info("[AuthProvider] restoring guest session");
-        await userService.initialize({ isGuest: true });
-        setIsGuest(true);
+      } catch (err) {
+        authLog.error("auth › bootstrap failed", { error: err });
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [refreshSession, userService]);
 
