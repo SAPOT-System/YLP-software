@@ -19,11 +19,7 @@ export interface RegisterFormState {
   username: string;
   firstName: string;
   lastName: string;
-  phoneNumber: string;
-  email: string;
   password: string;
-  securityQuestion: string;
-  questionAnswer: string;
   confirmPassword: string;
   termsChecked: boolean;
 }
