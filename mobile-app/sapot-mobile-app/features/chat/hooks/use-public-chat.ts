@@ -23,11 +23,19 @@ export function usePublicChat() {
   const [isConnected, setIsConnected] = useState(
     () => publicChatService.isConnected
   );
+  const [isLoadingHistory, setIsLoadingHistory] = useState(
+    () => publicChatService.getIsLoadingHistory()
+  );
+  const [hasMoreHistory, setHasMoreHistory] = useState(
+    () => publicChatService.getHasMoreHistory()
+  );
 
   useEffect(() => {
     const unsub = publicChatService.subscribe(() => {
       setMessages(publicChatService.getMessages());
       setIsConnected(publicChatService.isConnected);
+      setIsLoadingHistory(publicChatService.getIsLoadingHistory());
+      setHasMoreHistory(publicChatService.getHasMoreHistory());
     });
     return unsub;
   }, [publicChatService]);
@@ -50,6 +58,11 @@ export function usePublicChat() {
     });
   }, [isAvailable, wsSignalingAdapter]);
 
+  useEffect(() => {
+    if (!isAvailable) return;
+    publicChatService.loadHistory();
+  }, [isAvailable, publicChatService]);
+
   const sendMessage = useCallback(
     (content: string) => {
       publicChatService.sendMessage(content);
@@ -57,5 +70,9 @@ export function usePublicChat() {
     [publicChatService]
   );
 
-  return { messages, sendMessage, isConnected, isAvailable };
+  const loadMoreHistory = useCallback(() => {
+    publicChatService.loadMoreHistory();
+  }, [publicChatService]);
+
+  return { messages, sendMessage, isConnected, isAvailable, isLoadingHistory, hasMoreHistory, loadMoreHistory };
 }
