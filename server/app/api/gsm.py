@@ -717,8 +717,7 @@ async def MOCK_contact_unknown_user(
         convo = Conversation(
                 id=UUID(conversation_id),
                 title=conversation_id,
-                conversation_type=ConversationType.direct,
-
+                conversation_type=ConversationType.sms,
                 )
         session.add(convo)
 

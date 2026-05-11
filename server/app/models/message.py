@@ -18,6 +18,7 @@ class MessageType(str, Enum):
     text = 'text'
     file = 'file'
     call_log = 'call_log'
+    sms = 'sms'
 
 
 def now_ms():

@@ -652,7 +652,7 @@ def notify_app(sender_phone: str, target_phone: str, body: str) -> bool:
             # 3. Insert the message
             msg = Message(
                 id=str(uuid.uuid4().hex),
-                message_type=MessageType.text,
+                message_type=MessageType.sms,
                 content=body[:255],         # enforce DB max_length
                 conversation_id=conv_id,
                 sender_id=sender_id,        # bot or real sender

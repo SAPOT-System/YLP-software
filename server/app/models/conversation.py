@@ -20,6 +20,7 @@ class ConversationType(str, Enum):
     direct = 'direct'
     # group = 'group'
     solo = 'solo'
+    sms = 'sms'
 
 class Conversation(SyncableModel, table=True):
     id: UUID | None = Field(default_factory=uuid4, unique=True, primary_key=True, index=True)
