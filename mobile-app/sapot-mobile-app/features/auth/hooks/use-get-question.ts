@@ -5,6 +5,7 @@ import { getSecurityQuestionApi } from "../api";
 export const useGetQuestion = (identfier: string) => {
   const [loading, setLoading] = useState(false);
   const [question, setQuestion] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const getQuestion = async () => {
@@ -23,6 +24,7 @@ export const useGetQuestion = (identfier: string) => {
         setQuestion(question);
       } catch (err) {
         authLog.error("auth › fetch security question failed", { error: err });
+        setError("Failed to load security question. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -31,5 +33,5 @@ export const useGetQuestion = (identfier: string) => {
     getQuestion();
   }, [identfier]);
 
-  return { loading, question };
+  return { loading, question, error };
 };

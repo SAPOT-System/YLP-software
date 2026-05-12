@@ -22,7 +22,7 @@ const QuestionResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
 
   const getQuestionResult = useGetQuestion(identifier);
-  const { loading: gettingQuestionLoading, question } = getQuestionResult;
+  const { loading: gettingQuestionLoading, question, error: questionError } = getQuestionResult;
 
   const {
     loading: verifyAnswerLoading,
@@ -92,6 +92,26 @@ const QuestionResetScreen = () => {
   if (gettingQuestionLoading) {
     return <ActivityIndicator />;
   }
+
+  if (questionError || !question) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}>
+        <ScreenHeader headerName="Resetting Password" />
+        <ScreenContent
+          title="Password Recovery"
+          description="We couldn't load your security question."
+        >
+          <HelperText type="error" visible>
+            {questionError || "No security question found for this account."}
+          </HelperText>
+          <SecondaryButton onPress={() => router.back()}>
+            Back
+          </SecondaryButton>
+        </ScreenContent>
+      </View>
+    );
+  }
+
   const handleVerify = async () => {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
