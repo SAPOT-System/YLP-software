@@ -70,6 +70,7 @@ export class TcpServerAdapter extends EventEmitter {
               try {
                 message = JSON.parse(messageStr);
                 this.emit("data", message);
+                socket.write(messageStr + "\n");
               } catch (error) {
                 tcpLog.error("tcp › parse failed", { error });
               }

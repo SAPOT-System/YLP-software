@@ -17,6 +17,7 @@ export class ZeroconfAdapter extends EventEmitter {
   private publishActive = false;
   private scanning = false;
   private scanListenersAttached = false;
+  private scanStartedAt: number | undefined = undefined;
 
   /**
    * Constructs a ZeroconfAdapter instance and initializes the underlying Zeroconf object.
@@ -31,6 +32,7 @@ export class ZeroconfAdapter extends EventEmitter {
 
   private readonly onScanStop = () => {
     this.scanning = false;
+    this.scanStartedAt = undefined;
     zeroconfLog.info("zeroconf › scan stopped");
   };
 
@@ -39,6 +41,14 @@ export class ZeroconfAdapter extends EventEmitter {
   };
 
   private readonly onServiceResolved = (service: Service) => {
+    const latencyMs =
+      this.scanStartedAt !== undefined
+        ? Date.now() - this.scanStartedAt
+        : undefined;
+    zeroconfLog.info("zeroconf › service resolved", {
+      serviceName: service.name,
+      latencyMs,
+    });
     this.emit("serviceResolved", service);
   };
 
@@ -90,6 +100,7 @@ export class ZeroconfAdapter extends EventEmitter {
 
       this.attachScanListeners();
       this.scanning = true;
+      this.scanStartedAt = Date.now();
       this.zeroconf.scan("lanchat", "tcp", "local.");
       zeroconfLog.info("zeroconf › scan started");
     } catch (error) {
