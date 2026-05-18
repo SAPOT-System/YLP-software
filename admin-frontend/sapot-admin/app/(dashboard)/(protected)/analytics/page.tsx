@@ -29,10 +29,10 @@ function RouterHealthChart({ data }) {
   );
 }
 
-function TrafficChart({ data }) {
+function TrafficChart({ data, iface= "Ether5" }) {
   return (
     <div className="custom-white rounded-2xl p-3 shadow-sm h-[260px]">
-      <p className="text-xs text-gray-500 mb-2">Ether5 Traffic</p>
+      <p className="text-xs text-gray-500 mb-2">{iface + " Traffic"}</p>
 
       <ResponsiveContainer width="100%" height="90%">
         <LineChart data={data}>
@@ -51,6 +51,7 @@ export default function Analytics() {
 	const [routerHealthLatest, setRouterHealthLatest] = useState(null);
 	const [routerHealthHistory, setRouterHealthHistory] = useState([]);
 	const [trafficHistory, setTrafficHistory] = useState([]);
+	const [trafficHistory2, setTrafficHistory2] = useState([]);
 
 	const fetchRouterHealthLatest = async () => {
 		try {
@@ -114,6 +115,33 @@ export default function Analytics() {
 			console.error(err);
 		}
 	};
+
+
+	const fetchTrafficHistory2 = async (iface = "ether4") => {
+		try {
+			const res = await fetch("/api/router/traffic/ether5?limit=100");
+
+			if (!res.ok) throw new Error("Failed traffic fetch");
+
+			const data = await res.json();
+
+			const formatted = data
+				.map((item) => ({
+					time: new Date(item.created_at).toLocaleTimeString([], {
+						hour: "2-digit",
+						minute: "2-digit",
+					}),
+					rx: item.rx_bps / 1_000_000,
+					tx: item.tx_bps / 1_000_000,
+				}))
+				.reverse();
+
+			setTrafficHistory2(formatted);
+		} catch (err) {
+			console.error(err);
+		}
+	};
+
 
   const [netData, setNetData] = useState({
     download_mbps: 0,
@@ -288,6 +316,7 @@ export default function Analytics() {
 					fetchRouterHealthLatest(),
 					fetchRouterHealthHistory(),
 					fetchTrafficHistory("ether5"),
+					fetchTrafficHistory("ether4"),
 				]);
 
       if (!hasInitialized) {
@@ -527,7 +556,8 @@ export default function Analytics() {
 
 			<div className="grid grid-cols-1 xl:grid-cols-2 gap-2 mt-2">
 				<RouterHealthChart data={routerHealthHistory} />
-				<TrafficChart data={trafficHistory} />
+				<TrafficChart data={trafficHistory} iface="Site 1 (Ether5)" />
+				<TrafficChart data={trafficHistory2} iface="Site 2 (Ether4)" />
 			</div>
     </WhiteContainer>
   );

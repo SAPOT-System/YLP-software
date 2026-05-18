@@ -51,7 +51,6 @@ def collect_metrics():
 
     finally:
         client.close()
-        
 
 
 def collect_metrics_loop():

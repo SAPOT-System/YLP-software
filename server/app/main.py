@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
     ).start()
 
     yield
+
 app = FastAPI(
     title="SAPOT Server",
     description="A server that will mitigate the backend of the SAPOT mobile application",
