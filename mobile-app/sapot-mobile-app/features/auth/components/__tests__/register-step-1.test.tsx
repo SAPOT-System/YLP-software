@@ -1,7 +1,6 @@
 import { createRegisterFormState, createRegisterFormStateErrors } from "@/test/factories/auth-form-state.factory";
 import {
   createRegisterCallbacks,
-  createRegisterNavigationMock,
 } from "@/test/mocks/auth-component.mock-builders";
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
@@ -34,9 +33,12 @@ jest.mock("expo-router", () => {
 });
 
 jest.mock("react-native-paper", () => {
-  const { Text } = require("react-native");
+  const { Text, Pressable } = require("react-native");
 
   return {
+    Checkbox: ({ status, onPress }: { status: string; onPress: () => void }) => (
+      <Pressable onPress={onPress} accessibilityState={{ checked: status === "checked" }} />
+    ),
     HelperText: ({ children }: { children: React.ReactNode }) => (
       <Text>{children}</Text>
     ),
@@ -44,7 +46,7 @@ jest.mock("react-native-paper", () => {
       <Text>{children}</Text>
     ),
     useTheme: () => ({
-      colors: { inverseOnSurface: "#fff" },
+      colors: { primary: "#000", inverseOnSurface: "#fff" },
     }),
   };
 });
@@ -93,7 +95,6 @@ jest.mock("../primary-button", () => {
 
 describe("RegisterStep1", () => {
   const defaultValues: RegisterFormState = createRegisterFormState();
-
   const defaultErrors: RegisterFormStateErrors = createRegisterFormStateErrors();
 
   const createProps = () => ({
@@ -117,9 +118,9 @@ describe("RegisterStep1", () => {
       expect(getByLabelText("First Name")).toBeTruthy();
       expect(getByLabelText("Last Name")).toBeTruthy();
       expect(getByLabelText("Username")).toBeTruthy();
-      expect(getByLabelText("Phone Number")).toBeTruthy();
-      expect(getByLabelText("Email Address")).toBeTruthy();
-      expect(getByText("Continue")).toBeTruthy();
+      expect(getByLabelText("Password")).toBeTruthy();
+      expect(getByLabelText("Confirm Password")).toBeTruthy();
+      expect(getByText("Create Account")).toBeTruthy();
       expect(getByText("Login here")).toBeTruthy();
     });
 
@@ -128,35 +129,30 @@ describe("RegisterStep1", () => {
       const { getByLabelText } = render(<RegisterStep1 {...props} />);
 
       fireEvent.changeText(getByLabelText("First Name"), "Ada");
-      fireEvent.changeText(getByLabelText("Email Address"), "ada@example.com");
+      fireEvent.changeText(getByLabelText("Username"), "ada-user");
 
-      // Verifies isolated field mapping logic in each input callback.
       expect(props.onChange).toHaveBeenNthCalledWith(1, "firstName", "Ada");
-      expect(props.onChange).toHaveBeenNthCalledWith(
-        2,
-        "email",
-        "ada@example.com"
-      );
+      expect(props.onChange).toHaveBeenNthCalledWith(2, "username", "ada-user");
     });
 
     it("shows validation helper text for supplied errors", () => {
       const props = createProps();
       props.errors = {
         firstName: "First name is required",
-        email: "Email is invalid",
+        password: "Password is required",
       };
 
       const { getByText } = render(<RegisterStep1 {...props} />);
 
       expect(getByText("First name is required")).toBeTruthy();
-      expect(getByText("Email is invalid")).toBeTruthy();
+      expect(getByText("Password is required")).toBeTruthy();
     });
 
-    it("submits current values when continue is pressed", () => {
+    it("submits current values when create account is pressed", () => {
       const props = createProps();
       const { getByText } = render(<RegisterStep1 {...props} />);
 
-      fireEvent.press(getByText("Continue"));
+      fireEvent.press(getByText("Create Account"));
 
       expect(props.onSubmit).toHaveBeenCalledWith(props.values);
     });
@@ -167,7 +163,6 @@ describe("RegisterStep1", () => {
 
       render(<RegisterStep1 {...props} />);
 
-      // Edge case: loading should produce a disabled submit button.
       expect(mockPrimaryButton).toHaveBeenCalledWith(
         expect.objectContaining({
           disabled: true,
@@ -182,7 +177,6 @@ describe("RegisterStep1", () => {
       navigate: jest.MockedFunction<
         (screen: string, params?: Partial<RegisterFormState>) => void
       >;
-      goBack: jest.MockedFunction<() => void>;
     };
 
     const ParentHarness = ({ navigation }: { navigation: MockNavigation }) => {
@@ -198,13 +192,15 @@ describe("RegisterStep1", () => {
           onChange={(name, value) =>
             setValues((previous) => ({ ...previous, [name]: value }))
           }
-          onSubmit={(payload) => navigation.navigate("RegisterStep2", payload)}
+          onSubmit={(payload) => navigation.navigate("RegisterSubmit", payload)}
         />
       );
     };
 
-    it("updates parent state and submits merged values to navigation", () => {
-      const navigation: MockNavigation = createRegisterNavigationMock();
+    it("updates parent state and submits merged values", () => {
+      const navigation: MockNavigation = {
+        navigate: jest.fn(),
+      };
 
       const { getByLabelText, getByText } = render(
         <ParentHarness navigation={navigation} />
@@ -212,16 +208,15 @@ describe("RegisterStep1", () => {
 
       fireEvent.changeText(getByLabelText("First Name"), "Pat");
       fireEvent.changeText(getByLabelText("Username"), "pat-user");
-      fireEvent.press(getByText("Continue"));
+      fireEvent.press(getByText("Create Account"));
 
       expect(navigation.navigate).toHaveBeenCalledWith(
-        "RegisterStep2",
+        "RegisterSubmit",
         expect.objectContaining({
           firstName: "Pat",
           username: "pat-user",
         })
       );
-      expect(navigation.goBack).not.toHaveBeenCalled();
     });
   });
 

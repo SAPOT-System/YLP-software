@@ -6,11 +6,7 @@ export const validateRegistrationForm = ({
   username,
   firstName,
   lastName,
-  email,
-  phoneNumber,
   password,
-  questionAnswer,
-  securityQuestion,
   confirmPassword,
   termsChecked,
 }: Partial<RegisterFormState>): RegisterFormStateErrors => {
@@ -18,16 +14,12 @@ export const validateRegistrationForm = ({
     hasUsername: Boolean(username?.trim()),
     hasFirstName: Boolean(firstName?.trim()),
     hasLastName: Boolean(lastName?.trim()),
-    hasEmail: Boolean(email?.trim()),
-    hasPhoneNumber: Boolean(phoneNumber?.trim()),
     hasPassword: Boolean(password),
     hasConfirmPassword: Boolean(confirmPassword),
-    hasSecurityQuestion: Boolean(securityQuestion),
-    hasQuestionAnswer: Boolean(questionAnswer),
     termsChecked: Boolean(termsChecked),
   });
   const errors: RegisterFormStateErrors = {};
-  // First Name validation
+
   if (username !== undefined && !username.trim()) {
     errors.username = "Username is required";
   } else if (username !== undefined && username.trim().length <= 2) {
@@ -36,7 +28,6 @@ export const validateRegistrationForm = ({
     errors.username = "Username must be less than 50 characters";
   }
 
-  // First Name validation
   if (firstName !== undefined && !firstName.trim()) {
     errors.firstName = "First name is required";
   } else if (
@@ -51,7 +42,6 @@ export const validateRegistrationForm = ({
     errors.firstName = "First name must be less than 50 characters";
   }
 
-  // Last Name validation
   if (lastName !== undefined && !lastName.trim()) {
     errors.lastName = "Last name is required";
   } else if (
@@ -66,40 +56,8 @@ export const validateRegistrationForm = ({
     errors.lastName = "First name must be less than or equal to 50 characters";
   }
 
-  // Phone Number validation
-  if (
-    phoneNumber !== undefined &&
-    phoneNumber.length !== 11 &&
-    phoneNumber.length > 0
-  ) {
-    errors.phoneNumber = "Phone number must be at least 11 digits";
-  } else if (
-    phoneNumber !== undefined &&
-    phoneNumber.length > 0 &&
-    !/^09\d{9}$/.test(phoneNumber)
-  ) {
-    errors.phoneNumber = "Phone number must be in the format 09XXXXXXXXX";
-  }
-
-  // Email validation
-  const emailError = validateEmail(email);
-  if (emailError) {
-    errors.email = emailError;
-  }
-
-  // Question validation
-  if (securityQuestion !== undefined && !securityQuestion) {
-    errors.securityQuestion = "Security question is required";
-  }
-  // Answer validation
-  if (questionAnswer !== undefined && !questionAnswer) {
-    errors.questionAnswer = "Answer is required";
-  }
-
-  // Password and confirm password validation
   Object.assign(errors, validatePassword(password, confirmPassword));
 
-  // Terms & Conditions validation
   if (termsChecked !== undefined && !termsChecked) {
     errors.termsChecked = "You must agree to the terms and conditions";
   }

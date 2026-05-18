@@ -82,16 +82,14 @@ const ServerLoginScreen = () => {
   };
 
   return (
-    <KeyboardAwareScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
-      bounces={false}
-      enableOnAndroid
-      keyboardShouldPersistTaps="handled"
-    >
-      <View
-        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <View style={{ flex: 1 }}>
+      <ScreenHeader headerName="Login" />
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
       >
-        <ScreenHeader headerName="Login" />
         <ScreenContent
           title="Welcome back"
           description="Please login to continue"
@@ -181,8 +179,8 @@ const ServerLoginScreen = () => {
         >
           {toastMessage}
         </AppSnackbar>
-      </View>
-    </KeyboardAwareScrollView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 

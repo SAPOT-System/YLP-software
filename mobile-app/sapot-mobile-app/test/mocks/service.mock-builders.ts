@@ -265,6 +265,7 @@ export function createChatServiceDependencyMocks() {
 	};
 
 	const messageRepository = {
+		prepareMessageCreate: jest.fn(),
 		saveMessage: jest.fn(),
 		queryMessagesByConversation: jest.fn(),
 		queryMessageById: jest.fn(),
@@ -272,6 +273,7 @@ export function createChatServiceDependencyMocks() {
 	};
 
 	const messageStatusRepository = {
+		prepareMessageStatusCreate: jest.fn(),
 		saveMessageStatus: jest.fn(),
 		updateMessageStatusById: jest.fn(),
 		updateMessageStatusByMessage: jest.fn(),

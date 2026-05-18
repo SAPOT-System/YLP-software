@@ -1,6 +1,6 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { useUserService } from "@/features/auth";
-import { validateRegistrationForm } from "@/features/auth/utils/validation";
+import { validateEmail } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import {
   ExpoFileUpload,
@@ -121,15 +121,21 @@ export default function ManageProfile() {
       return;
     }
 
-    const validationErrors = validateRegistrationForm({
-      phoneNumber,
-      email,
-    });
+    const nextErrors: { phoneNumber?: string; email?: string } = {};
+    const normalizedPhoneNumber = normalizeValue(phoneNumber);
+    const normalizedEmail = normalizeValue(email);
 
-    const nextErrors = {
-      phoneNumber: validationErrors.phoneNumber,
-      email: validationErrors.email,
-    };
+    if (
+      normalizedPhoneNumber.length > 0 &&
+      !/^09\d{9}$/.test(normalizedPhoneNumber)
+    ) {
+      nextErrors.phoneNumber = "Phone number must be in the format 09XXXXXXXXX";
+    }
+
+    const emailError = validateEmail(normalizedEmail);
+    if (emailError) {
+      nextErrors.email = emailError;
+    }
 
     setErrors(nextErrors);
 
@@ -138,8 +144,6 @@ export default function ManageProfile() {
       return;
     }
 
-    const normalizedPhoneNumber = normalizeValue(phoneNumber);
-    const normalizedEmail = normalizeValue(email);
 
     try {
       await updateProfileApi({

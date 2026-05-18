@@ -3,9 +3,7 @@ import { AxiosError } from "axios";
 import { setItemAsync } from "expo-secure-store";
 import { useState } from "react";
 import {
-    addSecurityQuestionApi,
     existsApi,
-    generateNewRecoveryKeyApi,
     register,
 } from "../api/auth.api";
 import {
@@ -24,15 +22,12 @@ export const useRegister = () => {
     form: RegisterFormState
   ): Promise<{
     success: boolean;
-    recoveryKeyFileLink?: string;
     info?: RegisterApiResponse;
   }> => {
     authLog.debug("[useRegister] registerUser called", {
       hasUsername: Boolean(form.username?.trim()),
       hasFirstName: Boolean(form.firstName?.trim()),
       hasLastName: Boolean(form.lastName?.trim()),
-      hasEmail: Boolean(form.email?.trim()),
-      hasPhoneNumber: Boolean(form.phoneNumber?.trim()),
       password: "[REDACTED]",
     });
     setLoading(true);
@@ -54,7 +49,6 @@ export const useRegister = () => {
       const errorKeyMap: Record<string, string> = {
         first_name: "firstName",
         last_name: "lastName",
-        phone_number: "phoneNumber",
       };
 
       const clientErrors: RegisterFormStateErrors = {};
@@ -72,24 +66,14 @@ export const useRegister = () => {
         first_name: form.firstName,
         last_name: form.lastName,
         password: form.password,
-        email: form.email || undefined,
-        phone_number: form.phoneNumber || undefined,
       });
       const data = res.data;
 
       await setItemAsync("access_token", data.access_token);
       await setItemAsync("refresh_token", data.refresh_token);
 
-      await addSecurityQuestionApi(
-        [{ question: form.securityQuestion, answer: form.questionAnswer }],
-        data.access_token
-      );
-
-      const res2 = await generateNewRecoveryKeyApi(data.access_token);
-
       return {
         success: res.status === 201,
-        recoveryKeyFileLink: res2.data,
         info: data,
       };
     } catch (err) {
@@ -171,12 +155,8 @@ export const useRegister = () => {
       hasUsername: Boolean(form.username?.trim()),
       hasFirstName: Boolean(form.firstName?.trim()),
       hasLastName: Boolean(form.lastName?.trim()),
-      hasEmail: Boolean(form.email?.trim()),
-      hasPhoneNumber: Boolean(form.phoneNumber?.trim()),
       hasPassword: Boolean(form.password),
       hasConfirmPassword: Boolean(form.confirmPassword),
-      hasSecurityQuestion: Boolean(form.securityQuestion),
-      hasQuestionAnswer: Boolean(form.questionAnswer),
       termsChecked: Boolean(form.termsChecked),
     });
     setLoading(true);
