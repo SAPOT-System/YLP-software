@@ -19,3 +19,4 @@ from app.models.guest import Guest
 from app.models.announcement import Announcement
 from app.models.phone_verification import PhoneVerification, PhoneVerified
 from app.models.captive_portal import GuestSession
+from app.models.router import RouterHealth, InterfaceTraffic

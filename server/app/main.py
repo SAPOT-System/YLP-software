@@ -12,19 +12,22 @@ from starlette.responses import JSONResponse
 from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
 from app.db_operations.auth import SessionDep, create_db_and_tables
-from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, testing, public_chat, captive_portal
+from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, testing, public_chat, mikrotik, captive_portal
 
 import logging
 from logging.handlers import RotatingFileHandler
 from pythonjsonlogger import jsonlogger
 import time
 from app.db_operations.auth import SessionDep, engine
+from app.db_operations.router_metrics_collector import collect_metrics
 from app.models.activity import ActivityLog
 from app.db_operations.token import get_user_id_from_header
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import threading
+    threading.Thread(target=collect_metrics, daemon=True).start()
     create_db_and_tables()
     yield
 
@@ -143,6 +146,7 @@ app.include_router(testing.router)
 app.include_router(public_chat.router)
 app.include_router(gsm.router)
 app.include_router(captive_portal.router)
+app.include_router(mikrotik.router)
 
 STATIC_PATH = "static"
 PROFILE_PICS_PATH = os.path.join(STATIC_PATH, "profile_pictures")
