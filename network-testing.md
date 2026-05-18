@@ -316,7 +316,7 @@ Measures bidirectional TCP throughput between a client and server over a specifi
 iperf3 -s
 
 # On Android device or test host — run 60-second TCP test
-iperf3 -c 192.168.1.10 -t 60 -i 5 --json -o result.json
+iperf3 -c 192.168.1.10 -t 60 -i 5 --json > result.json
 
 # Parallel streams (used in Scenario 3)
 iperf3 -c 192.168.1.10 -t 60 -P <N> --json
@@ -601,7 +601,13 @@ Establish baseline performance metrics for all tested protocols within a single 
 - **[QA-P]** discovers the listening port via ADB (Step 0) and sends the IP + port to **[QA-S]** before Step 2 begins
 - The listening port must be discovered before each run — the app assigns it at runtime
 
-> **Note:** The Android app must echo back the full JSON payload unchanged for `sim_tcp_client.py` to compute RTT correctly. Confirm this behavior in the app's TCP server implementation before running the script. If the app sends a different response format, update the `sock.recv()` parsing logic in the script accordingly.
+> **Required app change before running this test:** `TcpServerAdapter` does not echo by default — it parses incoming JSON and emits a `data` event internally but never writes back to the socket. `sim_tcp_client.py` waits for an echo to compute RTT and will hang indefinitely without this fix.
+>
+> Add one line to `features/shared/adapters/tcp-server-adapter.ts` inside the `data` socket handler, immediately after `this.emit("data", message)`:
+> ```typescript
+> socket.write(messageStr + "\n");  // echo raw message back for RTT measurement
+> ```
+> This echoes the original newline-terminated JSON string to the test client. The real app's `TcpClientAdapter` (on a peer device) is not affected — it receives data via its own incoming `data` event and ignores unsolicited writes from the server side.
 
 **Procedure:**
 0. **[QA-P]** After enabling TCP server mode in the app on Device A, discover its LAN IP and port via ADB. Send the resulting IP and port to **[QA-S]** via the agreed channel before proceeding:
@@ -908,15 +914,22 @@ python3 ws_rtt_client.py 192.168.1.10 8080 120 500
 
 ### 7.7 Sub-Test 5 — GSM Modem Integration (Single-LAN Baseline)
 
-**Tool:** `curl`, `gsm_burst.sh`, test GSM handset
+**Tool:** `curl`, `adb`, `gsm_burst.sh`, test GSM handset (USB debugging enabled)
 
 **Purpose:** Establish the GSM delivery latency baseline with no PtP backhaul traffic. Delivery path: Backend Server (192.168.1.10) → GSM Modem → SMS recipient handset. Results serve as the reference for Scenarios 2 and 3.
 
 > **Role assignments for this sub-test:**
-> - **[QA-P]** — runs all `curl` send commands from the test laptop on LAN A
-> - **[QA-S]** — physically holds and watches the test GSM handset; sends `SMS-RECEIVED [time]` signal to **[QA-P]** the moment the message thread timestamp is visible
-> - **[BE-ADMIN]** — tails server logs during sends to capture server-side dispatch timestamps as backup: `tail -f /var/log/gsm-server.log`
+> - **[QA-P]** — runs all `curl` send commands and reads ADB logcat timestamps from the test laptop on LAN A; the test handset is cabled to this laptop so both clocks are the same machine
+> - **[QA-S]** — monitors the handset screen during burst sub-test to count visible deliveries, duplicates, and failures as a secondary check against the ADB log
+> - **[BE-ADMIN]** — tails server logs during sends to capture server-side dispatch timestamps as backup: `tail -f /var/log/gsm-server.log`; provides Bearer token and target `user_id` before the sub-test begins
 > - **[TL]** — times the ≥ 30 s interval between sends and gives `GO` signal for each send
+
+> **Pre-condition — ADB setup (complete before step 1):**
+> On the test handset: Settings → Developer Options → enable **USB Debugging**. Connect to **[QA-P]**'s laptop via USB and confirm:
+> ```bash
+> adb devices   # handset must appear as "device", not "unauthorized"
+> ```
+> If `unauthorized`, unlock the handset and tap **Allow** on the RSA key prompt.
 
 **Procedure:**
 
@@ -924,38 +937,71 @@ python3 ws_rtt_client.py 192.168.1.10 8080 120 500
 
 1. **[QA-P]** Confirm the server GSM endpoint is reachable (check with **[BE-ADMIN]** if this fails):
    ```bash
-   curl -I http://192.168.1.10:8000/api/gsm/send
+   curl -s -o /dev/null -w "%{http_code}\n" \
+        http://192.168.1.10:8000/api/gsm/health \
+        -H "Authorization: Bearer <TOKEN>"
    ```
-2. **[TL]** gives `GO`. **[QA-P]** sends one server-originated GSM message and records the HTTP response time (proxy for server dispatch latency). **[QA-S]** watches the handset and sends `SMS-RECEIVED [time]` when the message arrives. **[QA-P]** records both timestamps in the result table:
+   Expected: `200`. A `401` means the token is invalid; a `5xx` means the GSM module at port 8001 is not running.
+
+2. **[BE-ADMIN]** provides **[QA-P]** with:
+   - A valid Bearer token for an authenticated non-banned test account (`<TOKEN>`)
+   - The `user_id` (UUID) of the test recipient account whose `phone_number` is the test handset (`<TARGET_USER_UUID>`)
+
+3. **[QA-P]** opens a second terminal and starts the ADB SMS arrival listener. Leave this running for the entire sub-test:
    ```bash
-   curl -s -w "\nHTTP %{http_code}  dispatch %{time_total}s\n" \
-        -X POST http://192.168.1.10:8000/api/gsm/send \
-        -H "Content-Type: application/json" \
-        -d '{"to": "<TEST_HANDSET_NUMBER>", "message": "S1-A-1"}'
+   adb logcat -v time InboundSmsHandler:D SmsManager:D *:S \
+     | tee s1_sms_arrivals.log
    ```
-3. **[TL]** enforces ≥ 30 s between each send and gives `GO` before each repeat. **[QA-P]** repeats 10 times total.
+   Each received SMS appears as a timestamped line. The format is `MM-DD HH:MM:SS.mmm` — millisecond precision, on the laptop clock. Example:
+   ```
+   05-17 14:23:01.842  D InboundSmsHandler: Received SMS from +639XXXXXXXXX
+   ```
+
+4. **[TL]** gives `GO`. **[QA-P]** sends one message and records the curl dispatch timestamp and HTTP response in the result table:
+   ```bash
+   echo "SEND $(date +%H:%M:%S.%3N)" && \
+   curl -s -w "\nHTTP %{http_code}  dispatch %{time_total}s\n" \
+        -X POST "http://192.168.1.10:8000/api/gsm/sms/send?user_id=<TARGET_USER_UUID>&message=S1-A-1" \
+        -H "Authorization: Bearer <TOKEN>"
+   ```
+   - **Server Send Time** = the `SEND HH:MM:SS.mmm` printed before the curl call
+   - **SMS Arrival Time** = the `InboundSmsHandler` timestamp from `s1_sms_arrivals.log` for the matching message
+   - **Latency** = Arrival Time − Send Time
+   > **Note:** The endpoint accepts `user_id` (UUID) and `message` as query parameters, not a JSON body. A `200` response with `{"ok": true}` confirms dispatch; a `200` with a `"detail"` key is a lookup failure — treat as a failed send.
+
+5. **[TL]** enforces ≥ 30 s between each send and gives `GO` before each repeat. **[QA-P]** repeats 10 times total. After all 10 sends, **[QA-P]** stops the logcat listener (`Ctrl-C`) and saves `s1_sms_arrivals.log`.
 
 **Sub-Test B — Burst Reliability (20 rapid sends, 1 per 5 s):**
 
-**[QA-P]** saves and runs `gsm_burst.sh` on the test laptop. **[QA-S]** watches the handset and counts deliveries, duplicates, and failures — calling out each received message. **[TL]** monitors the burst log for HTTP errors:
+**[QA-P]** restarts the ADB listener into a separate log file, then runs `gsm_burst.sh`. **[QA-S]** monitors the handset screen as a secondary count. **[TL]** watches the burst log for HTTP errors:
+
+```bash
+# Terminal 1 — restart arrival listener for burst sub-test
+adb logcat -v time InboundSmsHandler:D SmsManager:D *:S \
+  | tee s1_sms_arrivals_burst.log
+```
+
 ```bash
 #!/bin/bash
 # gsm_burst.sh — 20 server-originated GSM sends at 1 per 5 s
 # The 5 s interval is intentional: sending faster risks carrier-side throttling
 # or duplicate suppression, which would skew the reliability measurement.
+TOKEN="<TOKEN>"
+TARGET_USER_UUID="<TARGET_USER_UUID>"
 for i in $(seq 1 20); do
-  TS=$(date +%s%3N)  # current timestamp in milliseconds — embedded in message body
+  TS=$(date +%s%3N)  # milliseconds — used to match send to arrival in log
+  SEND_TIME=$(date +%H:%M:%S.%3N)
   curl -s \
-    -X POST http://192.168.1.10:8000/api/gsm/send \
-    -H "Content-Type: application/json" \
-    -d "{\"to\": \"<TEST_HANDSET_NUMBER>\", \"message\": \"burst-${i}-ts-${TS}\"}" \
-    -o /dev/null -w "send $i  HTTP %{http_code}  dispatch %{time_total}s\n" \
-    >> s1_gsm_burst.log   # append each result line to the log file
+    -X POST "http://192.168.1.10:8000/api/gsm/sms/send?user_id=${TARGET_USER_UUID}&message=burst-${i}-ts-${TS}" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -o /dev/null -w "send $i  ${SEND_TIME}  HTTP %{http_code}  dispatch %{time_total}s\n" \
+    >> s1_gsm_burst.log
   echo "Queued send $i at ${TS} ms"
-  sleep 5  # wait 5 s before next send to avoid carrier throttle
+  sleep 5
 done
-echo "Done. Results in s1_gsm_burst.log"
+echo "Done. Cross-reference s1_gsm_burst.log with s1_sms_arrivals_burst.log to compute per-message latency."
 ```
+Match each `burst-${i}-ts-${TS}` message body in `s1_sms_arrivals_burst.log` to its send line in `s1_gsm_burst.log` by index `i` to compute per-message delivery latency.
 
 **Metrics Collected:** Delivery latency per attempt (s), avg latency (s), success rate (%), burst duplicates, burst failures
 
