@@ -122,7 +122,7 @@ dummy_data = {
     "username": "test2",
     "first_name": "Test",
     "last_name": "Two",
-    "phone_number": "+638788667679",
+    "phone_number": "+639788667679",
     "email": "test2@test.com",
     "password": "Test_password2",
     "hashed_password": get_password_hash("Test_password2"),
@@ -142,6 +142,6 @@ sample_valid_user = {
     'first_name': "Emmanuel",
     'last_name': "Valid",
     'email': "Emmanuel@gmail.com",
-    'phone_number': "093985984598",
+    'phone_number': "+639788667679",
     'password': "hiWorld123"
 }
