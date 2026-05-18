@@ -54,6 +54,7 @@ jest.mock("@/features/shared", () => ({
   },
   database: {
     write: jest.fn(),
+    batch: jest.fn(),
   },
   Message: jest.fn(),
   MessageStatus: jest.fn(),
@@ -105,6 +106,10 @@ describe("ChatService", () => {
     mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
 
     mockDatabase = jest.mocked(database);
+    mockDatabase.write.mockImplementation(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (fn: (writer: any) => Promise<any>) => await fn({} as any)
+    );
 
     // Mock constructors
     jest
@@ -247,6 +252,12 @@ describe("ChatService", () => {
       mockMessageRepository.saveMessage.mockResolvedValue({
         ...createTestMessage({ id: "msg-1" }),
       } as unknown as Message);
+      mockMessageRepository.prepareMessageCreate.mockReturnValue(
+        createTestMessage({ id: "msg-1" }) as unknown as Message
+      );
+      mockMessageStatusRepository.prepareMessageStatusCreate.mockReturnValue(
+        createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus
+      );
 
       await chatService.handleIncomingChatMessage(mockData);
 
@@ -257,7 +268,25 @@ describe("ChatService", () => {
       expect(
         mockConversationRepository.queryConversationById
       ).toHaveBeenCalledWith("conv-1");
-      expect(mockMessageRepository.saveMessage).toHaveBeenCalled();
+      expect(mockMessageRepository.prepareMessageCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sender: mockSender,
+          content: "Hello World",
+          conversation: mockConversation,
+          messageId: "msg-1",
+        })
+      );
+      expect(
+        mockMessageStatusRepository.prepareMessageStatusCreate
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.any(Object),
+          user: mockUserStore.user,
+          status: MessageStatusType.DELIVERED,
+        })
+      );
+      expect(mockDatabase.write).toHaveBeenCalled();
+      expect(mockDatabase.batch).toHaveBeenCalled();
       expect(mockConnectionService.sendAckMessage).toHaveBeenCalledWith(
         "peer-1",
         expect.objectContaining({
@@ -301,6 +330,12 @@ describe("ChatService", () => {
       mockMessageRepository.saveMessage.mockResolvedValue({
         ...createTestMessage({ id: "msg-1" }),
       } as unknown as Message);
+      mockMessageRepository.prepareMessageCreate.mockReturnValue(
+        createTestMessage({ id: "msg-1" }) as unknown as Message
+      );
+      mockMessageStatusRepository.prepareMessageStatusCreate.mockReturnValue(
+        createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus
+      );
 
       await chatService.handleIncomingChatMessage(mockData);
 
@@ -311,6 +346,7 @@ describe("ChatService", () => {
       expect(
         mockConversationParticipantRepository.saveMultipleConversationParticipant
       ).toHaveBeenCalled();
+      expect(mockDatabase.batch).toHaveBeenCalled();
     });
 
     it("should throw error if handling fails", async () => {
