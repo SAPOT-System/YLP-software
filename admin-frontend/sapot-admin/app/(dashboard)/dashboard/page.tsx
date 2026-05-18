@@ -25,6 +25,28 @@ export function getTime() {
 export default function Dashboard() {
   const size = 5;
 
+	const [routerData, setRouterData] = useState(null);
+	const [routerLoading, setRouterLoading] = useState(true);
+
+	const [routerStatus, setRouterStatus] = useState({
+		val: false,
+		date: getTime()
+	});
+
+	const latestTraffic = routerData?.traffic?.[0];
+
+	const cpuLoad = routerData?.health?.cpu_load ?? 0;
+
+	const freeMem = routerData?.health?.free_memory ?? 0;
+	const totalMem = routerData?.health?.total_memory ?? 1;
+
+	const memUsage = ((totalMem - freeMem) / totalMem) * 100;
+
+	const rxBps = latestTraffic?.rx_bps ?? 0;
+	const txBps = latestTraffic?.tx_bps ?? 0;
+	const rxMbps = rxBps / 1_000_000;
+	const txMbps = txBps / 1_000_000;
+
   const [page, setPage] = useState(1);
 
   // NODE DATA
@@ -73,6 +95,41 @@ export default function Dashboard() {
 
   // Prevent overlapping fetches
   const isFetchingRef = useRef(false);
+
+	const fetchRouterDashboard = async () => {
+		try {
+			const res = await fetch("/api/router/dashboard");
+
+			if (!res.ok) {
+				throw new Error("Failed router dashboard fetch");
+			}
+
+			const data = await res.json();
+
+			if (data?.error) {
+				throw new Error(data.error);
+			}
+
+			setRouterData(data);
+
+			setRouterStatus({
+				val: true,
+				date: getTime()
+			});
+
+		} catch (err) {
+			console.error(err);
+
+			setRouterStatus({
+				val: false,
+				date: getTime()
+			});
+
+			toast.error("Failed to fetch router dashboard.");
+		} finally {
+			setRouterLoading(false);
+		}
+	};
 
   // =====================================================
   // FETCH NODE DATA
@@ -268,6 +325,7 @@ export default function Dashboard() {
         fetchNetworkData(),
         fetchNICData(),
         fetchUserActivity(),
+				fetchRouterDashboard(),
       ]);
     } finally {
       isFetchingRef.current = false;
@@ -318,6 +376,11 @@ export default function Dashboard() {
         {/* LEFT SIDE */}
         <div className="col-span-3 flex flex-col gap-2 row-span-full">
 
+						<div className="flex items-center justify-between px-1">
+							<h2 className="text-sm font-semibold text-gray-700">
+								User Location Broadcast
+							</h2>
+						</div>
           {/* NODE CARDS */}
           {nodeLoading ? (
             <div className="flex gap-2 items-stretch">
@@ -367,7 +430,94 @@ export default function Dashboard() {
             </WhiteContainer>
           )}
 
+					{/* ROUTER SHIT */}
+					<div className="flex flex-col gap-2">
+
+						{/* TITLE */}
+						<div className="flex items-center justify-between px-1">
+							<h2 className="text-sm font-semibold text-gray-700">
+								Router Board Quick Stats
+							</h2>
+						</div>
+
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+
+							{/* CPU */}
+							<div className="rounded-2xl p-3 custom-white shadow-sm min-h-[90px] flex flex-col justify-center">
+								{routerLoading ? (
+									<div className="flex flex-col items-center gap-1 text-gray-400">
+										<Loader size={18} className="animate-spin" />
+										<p className="text-xs">Loading...</p>
+									</div>
+								) : (
+									<>
+										<p className="text-xs text-gray-500">CPU Load</p>
+										<p className="text-lg font-semibold">{cpuLoad}%</p>
+									</>
+								)}
+							</div>
+
+							{/* MEMORY */}
+							<div className="rounded-2xl p-3 custom-white shadow-sm min-h-[90px] flex flex-col justify-center">
+								{routerLoading ? (
+									<div className="flex flex-col items-center gap-1 text-gray-400">
+										<Loader size={18} className="animate-spin" />
+										<p className="text-xs">Loading...</p>
+									</div>
+								) : (
+									<>
+										<p className="text-xs text-gray-500">Memory</p>
+										<p className="text-lg font-semibold">
+											{memUsage.toFixed(1)}%
+										</p>
+									</>
+								)}
+							</div>
+
+							{/* DOWNLOAD */}
+							<div className="rounded-2xl p-3 custom-white shadow-sm min-h-[90px] flex flex-col justify-center">
+								{routerLoading ? (
+									<div className="flex flex-col items-center gap-1 text-gray-400">
+										<Loader size={18} className="animate-spin" />
+										<p className="text-xs">Loading...</p>
+									</div>
+								) : (
+									<>
+										<p className="text-xs text-gray-500">RX</p>
+										<p className="text-lg font-semibold">
+											{rxMbps.toFixed(2)} Mbps
+										</p>
+									</>
+								)}
+							</div>
+
+							{/* UPLOAD */}
+							<div className="rounded-2xl p-3 custom-white shadow-sm min-h-[90px] flex flex-col justify-center">
+								{routerLoading ? (
+									<div className="flex flex-col items-center gap-1 text-gray-400">
+										<Loader size={18} className="animate-spin" />
+										<p className="text-xs">Loading...</p>
+									</div>
+								) : (
+									<>
+										<p className="text-xs text-gray-500">TX</p>
+										<p className="text-lg font-semibold">
+											{txMbps.toFixed(2)} Mbps
+										</p>
+									</>
+								)}
+							</div>
+
+						</div>
+					</div>
           {/* NETWORK */}
+
+						<div className="flex items-center justify-between px-1">
+							<h2 className="text-sm font-semibold text-gray-700">
+								Server Quick Stats
+							</h2>
+						</div>
+
           {netLoading ? (
             <div className="flex gap-2 items-stretch relative flex-wrap xl:flex-nowrap">
 
@@ -574,7 +724,11 @@ export default function Dashboard() {
 
       {/* USER TABLE */}
       <div className="pt-2">
-
+						<div className="flex items-center justify-between px-1">
+							<h2 className="text-sm font-semibold text-gray-700">
+								User Location Broadcast
+							</h2>
+						</div>
         {userLoading ? (
           <div className="rounded-3xl p-6 flex items-center justify-center min-h-[300px] custom-white border border-gray-200 shadow-md">
 
