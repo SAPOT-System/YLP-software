@@ -12,5 +12,7 @@ class Queue(SQLModel, table=True):
         sa_column=Column(String(6000))
     )
     data_id: str = Field(index=True)
-    data: str
+    data: str = Field(
+        sa_column=Column(String(6000))
+        )
 Queue.model_rebuild()
