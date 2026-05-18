@@ -51,3 +51,26 @@ def collect_metrics():
 
     finally:
         client.close()
+        
+
+
+def collect_metrics_loop():
+    backoff = 2  # start retry delay
+
+    while True:
+        try:
+            # 👇 your actual collector function (ONE cycle only)
+            collect_metrics()
+
+            # reset backoff after success
+            backoff = 2
+
+            # normal polling interval
+            time.sleep(3)
+
+        except Exception as e:
+            # logger.error(f"MikroTik collector error: {e}")
+
+            # exponential backoff (max 60s)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)

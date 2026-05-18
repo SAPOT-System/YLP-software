@@ -19,7 +19,7 @@ from logging.handlers import RotatingFileHandler
 from pythonjsonlogger import jsonlogger
 import time
 from app.db_operations.auth import SessionDep, engine
-from app.db_operations.router_metrics_collector import collect_metrics
+from app.db_operations.router_metrics_collector import collect_metrics, collect_metrics_loop
 from app.models.activity import ActivityLog
 from app.db_operations.token import get_user_id_from_header
 
@@ -27,7 +27,7 @@ from app.db_operations.token import get_user_id_from_header
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import threading
-    threading.Thread(target=collect_metrics, daemon=True).start()
+    threading.Thread(target=collect_metrics_loop, daemon=True).start()
     create_db_and_tables()
     yield
 
