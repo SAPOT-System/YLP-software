@@ -46,12 +46,6 @@ export default function LoginPage() {
 
           <form action={handleSubmit} className="w-full space-y-5">
 
-            {/* Error */}
-            {state?.error && (
-              <div className="p-3 bg-red-50 text-red-500 text-xs rounded-xl text-center">
-                {state.error}
-              </div>
-            )}
 
             {/* Username */}
             <div>
@@ -61,6 +55,7 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Username"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500"
+								required
               />
             </div>
 
@@ -72,6 +67,7 @@ export default function LoginPage() {
                 type="password"
                 placeholder="Password"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500"
+								required
               />
             </div>
 
@@ -83,6 +79,12 @@ export default function LoginPage() {
               {isPending ? <Spinner /> : 'Login'}
             </button>
 
+            {/* Error */}
+						{state?.error && (
+							<div className="p-3 bg-red-50 text-red-500 text-xs rounded-xl text-center">
+								{state.error.msg || "Invalid Credentials"}
+							</div>
+						)}
           </form>
         </div>
       </div>
