@@ -1,6 +1,8 @@
 'use server'
 
+import { db } from '@/lib/db';
 import { clearSessionData } from '@/lib/sync/collectChanges';
+import { pull, sync } from '@/lib/sync/syncEngine';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -50,6 +52,9 @@ export async function loginAction(formData: FormData) {
         maxAge: 60 * 60 * 24 * 7, // 7 days
       });
     }
+
+		await db.open();
+		await sync();
 
   } catch (err) {
     return { error: 'Connection to backend failed' };

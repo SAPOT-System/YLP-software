@@ -4,7 +4,7 @@ import { createConversation } from "@/lib/actions/conversations";
 import { createPeer } from "@/lib/actions/peers";
 import { db } from "@/lib/db";
 import { directConversationId } from "@/lib/directConversationId";
-import { push, sync } from "@/lib/sync/syncEngine";
+import { pull, push, sync } from "@/lib/sync/syncEngine";
 import { connectWebSocket } from "@/lib/ws/Websocketmanager";
 import { onMessage, sendChatMessage, sendSeen } from "@/lib/ws/Websocketmanager";
 import { markConversationMessagesAsRead } from "@/lib/records/Createmessagereceipt";
@@ -57,7 +57,6 @@ export default function Messages() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
 	useEffect(() => {
-
 		initSessionCleanup();
 
 		let unsubscribe: (() => void) | null = null;
