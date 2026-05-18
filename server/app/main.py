@@ -19,6 +19,7 @@ from logging.handlers import RotatingFileHandler
 from pythonjsonlogger import jsonlogger
 import time
 from app.db_operations.auth import SessionDep, engine
+from app.db_operations.expire_announcements import expire_announcements_loop
 from app.db_operations.router_metrics_collector import collect_metrics, collect_metrics_loop
 from app.models.activity import ActivityLog
 from app.db_operations.token import get_user_id_from_header
@@ -27,10 +28,22 @@ from app.db_operations.token import get_user_id_from_header
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import threading
-    threading.Thread(target=collect_metrics_loop, daemon=True).start()
-    create_db_and_tables()
-    yield
 
+    create_db_and_tables()
+
+    # existing worker
+    threading.Thread(
+        target=collect_metrics_loop,
+        daemon=True
+    ).start()
+
+    # NEW worker (announcement expiry)
+    threading.Thread(
+        target=expire_announcements_loop,
+        daemon=True
+    ).start()
+
+    yield
 app = FastAPI(
     title="SAPOT Server",
     description="A server that will mitigate the backend of the SAPOT mobile application",
