@@ -293,11 +293,6 @@ export class WebrtcAdapter extends EventEmitter {
         }
       };
 
-      const channel = this.peerConnection.createDataChannel(
-        "chat"
-      ) as unknown as RTCDataChannel;
-      this.dataChannel = channel;
-      this.setupDataChannel(channel);
     } catch (error) {
       this.logFailure("createPeerConnection failed", error);
       throw error;
@@ -317,6 +312,14 @@ export class WebrtcAdapter extends EventEmitter {
   async createOffer(): Promise<{ type: "offer"; sdp: string }> {
     if (!this.peerConnection) {
       this.createPeerConnection();
+    }
+
+    if (!this.dataChannel) {
+      const channel = this.peerConnection!.createDataChannel(
+        "chat"
+      ) as unknown as RTCDataChannel;
+      this.dataChannel = channel;
+      this.setupDataChannel(channel);
     }
 
     try {
@@ -523,6 +526,7 @@ export class WebrtcAdapter extends EventEmitter {
         );
 
         this.remoteDescriptionSet = true;
+        this.isIgnoringOffer = false;
 
         for (const candidate of this.pendingIceCandidates) {
           await this.addIceCandidate(candidate);
