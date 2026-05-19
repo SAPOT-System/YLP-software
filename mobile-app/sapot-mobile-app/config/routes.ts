@@ -33,6 +33,8 @@ export const SETTINGS_ROUTES = {
   // Account email
   UPDATE_EMAIL: "/(drawer)/settings/account/email/update-email",
   VERIFY_EMAIL: "/(drawer)/settings/account/email/verify-email",
+  // Account phone
+  VERIFY_PHONE: "/(drawer)/settings/account/phone/verify-phone",
 
   // Preferences
   THEME: "/(drawer)/settings/preferences/theme",

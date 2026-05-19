@@ -8,6 +8,7 @@ const CODE_LENGTH = 6;
 interface VerificationCodeModalProps {
   visible: boolean;
   email?: string;
+  phone?: string;
   error?: string;
   onDismiss: () => void;
   onVerifyCode: (code: string) => Promise<void> | void;
@@ -17,6 +18,7 @@ interface VerificationCodeModalProps {
 const VerificationCodeModal = ({
   visible,
   email,
+  phone,
   error,
   onDismiss,
   onVerifyCode,
@@ -74,7 +76,11 @@ const VerificationCodeModal = ({
             textAlign: "center",
           }}
         >
-          {email ? `We've sent it on your email ${email}` : "We've sent a code"}
+          {email
+            ? `We've sent it to your email ${email}`
+            : phone
+            ? `We've sent it to your phone ${phone}`
+            : "We've sent a code"}
         </Text>
         <HelperText type="error" visible={Boolean(error)}>
           {error}

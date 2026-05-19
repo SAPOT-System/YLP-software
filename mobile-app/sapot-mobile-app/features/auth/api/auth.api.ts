@@ -281,3 +281,39 @@ export const verifyCodeEmail = async (code: string) => {
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res.data;
 };
+
+export const checkGsmHealth = async (): Promise<boolean> => {
+  try {
+    apiLog.info("[AuthApi] Calling /gsm/health");
+    const res = await apiClient.get<{ status: string }>("/gsm/health");
+    apiLog.info("[AuthApi] GSM health response", { status: res.status });
+    return res.status === 200;
+  } catch (error) {
+    apiLog.warn("[AuthApi] GSM health check failed", { error });
+    return false;
+  }
+};
+
+export const requestPhoneVerification = async () => {
+  apiLog.info("[AuthApi] Calling /gsm/request");
+  const res = await apiClient.post<{ message: string }>("/gsm/request");
+
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res.data;
+};
+
+export const verifyCodePhone = async (code: string) => {
+  apiLog.info("[AuthApi] Calling /gsm/verify", { codeLength: code.length });
+  const res = await apiClient.post("/gsm/verify", { code });
+
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res.data;
+};
+
+export const resendVerificationCodePhone = async () => {
+  apiLog.info("[AuthApi] Calling /gsm/resend");
+  const res = await apiClient.post<{ message: string }>("/gsm/resend");
+
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res.data;
+};

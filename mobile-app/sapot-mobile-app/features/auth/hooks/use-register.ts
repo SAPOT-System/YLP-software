@@ -2,17 +2,17 @@ import { authLog } from "@/features/shared/utils/logger";
 import { AxiosError } from "axios";
 import { setItemAsync } from "expo-secure-store";
 import { useState } from "react";
+import { existsApi, register } from "../api/auth.api";
 import {
-    existsApi,
-    register,
-} from "../api/auth.api";
-import {
-    RegisterApiErrorResponse,
-    RegisterApiResponse,
-    RegisterFormState,
-    RegisterFormStateErrors,
+  RegisterApiErrorResponse,
+  RegisterApiResponse,
+  RegisterFormState,
+  RegisterFormStateErrors,
 } from "../types";
-import { hasValidationErrors, validateRegistrationForm } from "../utils";
+import {
+  hasValidationErrors,
+  validateRegistrationForm,
+} from "../utils";
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
