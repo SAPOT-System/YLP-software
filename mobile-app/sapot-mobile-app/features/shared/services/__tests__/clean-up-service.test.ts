@@ -12,6 +12,8 @@ jest.mock("../../database", () => ({
 describe("CleanUpService", () => {
   let service: CleanUpService;
   const repositoryMocks = createCleanUpRepositoriesMocks();
+  let connectionServiceMock: { stop: jest.Mock };
+  let discoveryServiceMock: { destroy: jest.Mock };
 
    
   const { database } = require("../../database");
@@ -19,6 +21,8 @@ describe("CleanUpService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     Object.assign(repositoryMocks, createCleanUpRepositoriesMocks());
+    connectionServiceMock = { stop: jest.fn() };
+    discoveryServiceMock = { destroy: jest.fn() };
 
     service = new CleanUpService(
       repositoryMocks.guestUserRepository as never,
@@ -27,6 +31,9 @@ describe("CleanUpService", () => {
       repositoryMocks.messageStatusRepository as never,
       repositoryMocks.conversationRepository as never,
       repositoryMocks.conversationParticipantRepository as never
+      ,
+      connectionServiceMock as never,
+      discoveryServiceMock as never
     );
   });
 

@@ -1,12 +1,14 @@
 import {
-    ConversationParticipantRepository,
-    ConversationRepository,
-    MessageRepository,
-    MessageStatusRepository,
+  ConversationParticipantRepository,
+  ConversationRepository,
+  MessageRepository,
+  MessageStatusRepository,
 } from "@/features/chat";
 import { database } from "../database";
 import { GuestUserRepository, PeerRepository } from "../repositories";
 import { cleanUpLog } from "../utils/logger";
+import { ConnectionService } from "./connection-service";
+import { DiscoveryService } from "./discovery-service";
 
 cleanUpLog.debug("[clean-up-service] module loaded");
 
@@ -17,7 +19,9 @@ export class CleanUpService {
     private messageRepository: MessageRepository,
     private messageStatusRepository: MessageStatusRepository,
     private conversationRepository: ConversationRepository,
-    private conversationParticipantRepository: ConversationParticipantRepository
+    private conversationParticipantRepository: ConversationParticipantRepository,
+    private connectionService: ConnectionService,
+    private discoveryService: DiscoveryService
   ) {
     cleanUpLog.info("cleanup › service constructed", {
       hasGuestUserRepository: Boolean(guestUserRepository),
@@ -25,7 +29,11 @@ export class CleanUpService {
       hasMessageRepository: Boolean(messageRepository),
       hasMessageStatusRepository: Boolean(messageStatusRepository),
       hasConversationRepository: Boolean(conversationRepository),
-      hasConversationParticipantRepository: Boolean(conversationParticipantRepository),
+      hasConversationParticipantRepository: Boolean(
+        conversationParticipantRepository
+      ),
+      hasConnectionService: Boolean(connectionService),
+      hasDiscoveryService: Boolean(discoveryService),
     });
   }
 
@@ -52,6 +60,9 @@ export class CleanUpService {
           ...guestUserOps
         );
       });
+
+      this.discoveryService.destroy();
+      this.connectionService.stop();
       cleanUpLog.info("cleanup › complete");
     } catch (error) {
       cleanUpLog.error("cleanup › failed", { error });

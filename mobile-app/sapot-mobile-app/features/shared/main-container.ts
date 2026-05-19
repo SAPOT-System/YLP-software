@@ -195,7 +195,9 @@ export class MainContainer {
       this.messageRepository,
       this.messageStatusRepository,
       this.conversationRepository,
-      this.conversationParticipantRepository
+      this.conversationParticipantRepository,
+      this.connectionService,
+      this.discoveryService
     );
     this.userContainer.userService.setCleanUpService(this.cleanUpService);
   }
