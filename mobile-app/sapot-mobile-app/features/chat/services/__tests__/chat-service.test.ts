@@ -537,7 +537,7 @@ describe("ChatService", () => {
       expect(
         mockMessageStatusRepository.updateMessageStatusById
       ).toHaveBeenCalledWith("status-1", MessageStatusType.SENT);
-      expect(result).toBe("conv-1");
+      expect(result.conversationId).toBe("conv-1");
     });
 
     it("should create new conversation if none exists", async () => {
@@ -573,7 +573,7 @@ describe("ChatService", () => {
       const result = await chatService.sendChatMessage(message);
 
       expect(mockConversationRepository.saveConversation).toHaveBeenCalled();
-      expect(result).toBe("conv-1");
+      expect(result.conversationId).toBe("conv-1");
     });
 
     it("should handle send failure and update status to not sent", async () => {

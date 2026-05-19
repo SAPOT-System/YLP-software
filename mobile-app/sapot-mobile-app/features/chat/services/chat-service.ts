@@ -458,7 +458,10 @@ export class ChatService {
    * @param message The message content
    * @returns Promise<string> The conversation id
    */
-  async sendChatMessage(message: string): Promise<string> {
+  async sendChatMessage(
+    message: string,
+    messageType?: MessageType
+  ): Promise<{ conversationId: string; messageId: string }> {
     try {
       if (!this.peer) throw new Error("No peer state stored");
       chatLog.debug("chat › send start", {
@@ -470,10 +473,11 @@ export class ChatService {
         sender: this.userStore.user,
         message: message,
         conversation: this.conversation!,
+        messageType,
       });
       void this.conversationRepository.touchConversation(this.conversation!.id);
       const isSelfChat = this.peer.id === this.userStore.user.id;
-      console.log(isSelfChat);
+      // console.log(isSelfChat);
       if (isSelfChat) {
         await this.messageStatusRepository.updateMessageStatusById(
           newMessageStatus.id,
@@ -485,7 +489,7 @@ export class ChatService {
           messageId: newMessage.id,
         });
         if (!this.userStore.isGuest) void this.syncService.syncNow();
-        return this.conversation!.id;
+        return { conversationId: this.conversation!.id, messageId: newMessage.id };
       }
       await this.sendAndTrackMessageStatus(
         newMessage,
@@ -498,7 +502,7 @@ export class ChatService {
         conversationId: this.conversation?.id,
         messageId: newMessage.id,
       });
-      return this.conversation!.id;
+      return { conversationId: this.conversation!.id, messageId: newMessage.id };
     } catch (error) {
       chatLog.error("chat › send failed", {
         peerId: this.peer?.id,
@@ -507,6 +511,22 @@ export class ChatService {
       });
       throw error;
     }
+  }
+
+  async sendSmsChannelMessage(
+    message: string
+  ): Promise<{ conversationId: string; messageId: string }> {
+    if (!this.peer) throw new Error("No peer state stored");
+    await this.ensureConversationInitialized();
+    const { newMessage } = await this.createMessage({
+      sender: this.userStore.user,
+      message,
+      conversation: this.conversation!,
+      messageType: MessageType.SMS,
+    });
+    void this.conversationRepository.touchConversation(this.conversation!.id);
+    if (!this.userStore.isGuest) void this.syncService.syncNow();
+    return { conversationId: this.conversation!.id, messageId: newMessage.id };
   }
 
   /**
@@ -619,13 +639,15 @@ export class ChatService {
     sender: Peer | GuestUser;
     message: string;
     conversation: Conversation;
+    messageType?: MessageType;
   }): Promise<{ newMessage: Message; newMessageStatus: MessageStatus }> {
-    const { sender, message, conversation } = params;
+    const { sender, message, conversation, messageType } = params;
     try {
       const newMessage = await this.messageRepository.saveMessage({
         sender: sender,
         content: message,
         conversation: conversation,
+        messageType,
       });
       const newMessageStatus =
         await this.messageStatusRepository.saveMessageStatus({
