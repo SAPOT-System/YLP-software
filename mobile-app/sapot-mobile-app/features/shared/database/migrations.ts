@@ -110,5 +110,16 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 7,
+      steps: [
+        addColumns({
+          table: "peers",
+          columns: [
+            { name: "phone_number_verified", type: "boolean", isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

@@ -211,7 +211,7 @@ export class WsSignalingAdapter extends EventEmitter {
   ) {
     const payload = JSON.stringify(message);
     // const summary = this.summarizeSignalingMessage(message);
-    console.log(payload);
+    // console.log(payload);
 
     if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
       // wsLog.debug("ws › signaling send", summary);

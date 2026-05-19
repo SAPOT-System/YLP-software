@@ -3,7 +3,7 @@ import { schemaLog } from "../utils/logger";
 schemaLog.debug("[database-schema] module loaded");
 
 export default appSchema({
-  version: 6,
+  version: 7,
   tables: [
     tableSchema(
       // For current guest user data:
@@ -43,6 +43,11 @@ export default appSchema({
         },
         {
           name: "email_verified",
+          type: "boolean",
+          isOptional: true,
+        },
+        {
+          name: "phone_number_verified",
           type: "boolean",
           isOptional: true,
         },

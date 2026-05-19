@@ -50,7 +50,7 @@ export const useNotifications = (
     notificationListener.current =
       Notifications.addNotificationReceivedListener((notification) => {
         const data = notification.request.content.data;
-        console.log("useNotification", data);
+        // console.log("useNotification", data);
 
         if (data?.type === "incoming_call") {
           backgroundLog.info("notifications › incoming call received (fg)");

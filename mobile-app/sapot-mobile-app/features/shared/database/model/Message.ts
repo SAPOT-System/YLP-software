@@ -10,6 +10,7 @@ export enum MessageType {
   TEXT = "text",
   FILE = "file",
   CALL_LOG = "call_log",
+  SMS = "sms",
 }
 
 export class Message extends Model {
