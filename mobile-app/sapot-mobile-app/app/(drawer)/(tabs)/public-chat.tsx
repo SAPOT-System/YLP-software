@@ -19,7 +19,7 @@ import { IconButton, Text, useTheme } from "react-native-paper";
 export default function PublicChat() {
   const theme = useTheme();
   const [message, setMessage] = useState("");
-  const { messages, sendMessage, isConnected, isAvailable } = usePublicChat();
+  const { messages, sendMessage, isConnected, isAvailable, isLoadingHistory, hasMoreHistory, loadMoreHistory } = usePublicChat();
   const listRef = useRef<FlatList<PublicChatMessage>>(null);
   const userStore = useUserStore();
   const myId = userStore.user.id;
@@ -32,8 +32,12 @@ export default function PublicChat() {
     };
   }, []);
 
+  const prevLengthRef = useRef(messages.length);
   useEffect(() => {
-    if (messages.length > 0) {
+    const delta = messages.length - prevLengthRef.current;
+    prevLengthRef.current = messages.length;
+    // only auto-scroll for single new messages, not bulk history prepends
+    if (delta === 1) {
       listRef.current?.scrollToEnd({ animated: true });
     }
   }, [messages.length]);
@@ -78,7 +82,14 @@ export default function PublicChat() {
       </View>
 
       <View style={styles.body}>
-        {messages.length === 0 ? (
+        {messages.length === 0 && isLoadingHistory ? (
+          <View style={styles.emptyStateContainer}>
+            <ActivityIndicator size="small" color="#758695" />
+            <Text style={[styles.emptyStateText, { marginTop: 8 }]}>
+              Loading messages…
+            </Text>
+          </View>
+        ) : messages.length === 0 ? (
           <View style={styles.emptyStateContainer}>
             <Text style={styles.emptyStateText}>
               {isConnected ? "No messages yet" : "Waiting for connection…"}
@@ -88,8 +99,24 @@ export default function PublicChat() {
           <FlatList
             ref={listRef}
             data={messages}
-            keyExtractor={(_, index) => String(index)}
+            keyExtractor={(item, index) => item.id ?? String(index)}
             ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
+            ListHeaderComponent={
+              hasMoreHistory ? (
+                <View style={styles.loadEarlierContainer}>
+                  {isLoadingHistory ? (
+                    <ActivityIndicator size="small" color="#758695" />
+                  ) : (
+                    <Text
+                      style={styles.loadEarlierText}
+                      onPress={loadMoreHistory}
+                    >
+                      Load earlier messages
+                    </Text>
+                  )}
+                </View>
+              ) : null
+            }
             renderItem={({ item }) => {
               const isOutgoing = item.sender_id === myId;
               const senderLabel = `${item.sender_id.slice(0, 8)}…`;
@@ -229,6 +256,14 @@ const styles = StyleSheet.create({
   },
   messageList: {
     paddingBottom: 4,
+  },
+  loadEarlierContainer: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  loadEarlierText: {
+    color: "#758695",
+    fontSize: 13,
   },
   outgoingBubble: {
     alignSelf: "flex-end",

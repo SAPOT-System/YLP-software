@@ -28,6 +28,7 @@ export enum ChatRoomSource {
 }
 
 export interface PublicChatMessage {
+  id?: string;
   type: "public-chat";
   content: string;
   is_deleted: boolean;
