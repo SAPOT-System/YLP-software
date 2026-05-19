@@ -68,7 +68,6 @@ interface GuestLoginFormErrors {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<LoginFormErrors>({});
-  // TODO: remove
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
@@ -206,7 +205,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await userService.syncAuthenticatedUser(userInfo);
 
       setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
+      setIsAuthenticated(true);
       setIsRescuer(userService.getIsRescuer());
       return {
         success: true,
@@ -241,16 +240,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const loginAfterRegister = async (data: RegisterApiResponse) => {
-    const { access_token } = data;
+    const { access_token, refresh_token } = data;
 
     authLog.debug("[AuthProvider] loginAfterRegister called", {
       hasAccessToken: Boolean(access_token),
     });
 
+    await setItemAsync("access_token", access_token);
+    await setItemAsync("refresh_token", refresh_token);
+
     const userInfo = await getUserApi(access_token);
     await userService.syncAuthenticatedUser(userInfo);
 
-    setIsAuthenticated(await isAccessTokenValid(access_token));
+    setAccessToken(access_token);
+    setIsAuthenticated(true);
     setIsRescuer(userService.getIsRescuer());
   };
 
@@ -311,7 +314,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await userService.syncAuthenticatedUser(res.data);
       setIsRescuer(userService.getIsRescuer());
       setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
+      setIsAuthenticated(true);
       setIsGuest(false);
 
       authLog.info("[AuthProvider] registerAndMigrate success");
@@ -352,32 +355,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsAuthenticated(false);
     setIsRescuer(false);
   };
-
-  // silent login on app start
-  //   const bootstrapAuth = async () => {
-  //     const refreshToken = await SecureStore.getItemAsync("refresh_token");
-
-  //     if (!refreshToken) {
-  //       setLoading(false);
-  //       return;
-  //     }
-
-  //     try {
-  //       const res = await api.post("/refresh", {
-  //         refreshToken,
-  //       });
-
-  //       tokenService.setAccessToken(res.data.accessToken);
-  //     } catch {
-  //       await logout();
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   useEffect(() => {
-  //     bootstrapAuth();
-  //   }, []);
 
   return (
     <AuthContext.Provider
