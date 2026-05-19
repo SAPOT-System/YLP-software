@@ -29,7 +29,10 @@ describe("getUserApi", () => {
         },
       }
     );
-    expect(result).toEqual(response.data);
+    expect(result).toEqual({
+      ...response.data,
+      phone_number_verified: response.data.phone_verified,
+    });
   });
 
   it("calls user profile endpoint without auth header when token is missing", async () => {

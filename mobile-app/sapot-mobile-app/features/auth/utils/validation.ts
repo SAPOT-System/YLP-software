@@ -124,6 +124,19 @@ export const validatePassword = (
   return errors;
 };
 
+export const toInternationalPhone = (phone: string): string => {
+  if (!phone) return phone;
+  if (phone.startsWith("+63")) return phone;
+  if (phone.startsWith("0")) return "+63" + phone.slice(1);
+  return phone;
+};
+
+export const toLocalPhone = (phone: string): string => {
+  if (!phone) return phone;
+  if (phone.startsWith("+63")) return "0" + phone.slice(3);
+  return phone;
+};
+
 export const validateGuestLoginForm = (firstName: string, lastName: string) => {
   authUtilsLog.debug("[validateGuestLoginForm] called", {
     hasFirstName: Boolean(firstName?.trim()),

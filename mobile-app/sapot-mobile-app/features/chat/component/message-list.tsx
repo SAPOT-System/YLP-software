@@ -13,6 +13,7 @@ import {
   database,
   formatDate,
 } from "@/features/shared";
+import { MessageType } from "@/features/shared/database/model/Message";
 import { CallType } from "@/features/shared/database/model/Call";
 import { useMainContainer } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
@@ -22,6 +23,7 @@ import { uiLog } from "@/features/shared/utils/logger";
 import { useChatService } from "@/features/chat/hooks/use-chat-service";
 import { useTheme } from "react-native-paper";
 import { useInformCall } from "@/features/call";
+import { sendSmsToUser } from "@/features/shared/api/gsm.api";
 uiLog.debug("[message-list] module loaded");
 
 const enhanceMessages = withObservables(
@@ -96,6 +98,7 @@ const enhanceMessage = withObservables(
     };
   }
 );
+
 
 const getSenderName = (sender?: Peer | GuestUser | null) => {
   if (!sender) {
@@ -305,18 +308,30 @@ const MessageListItemInner = memo(
     ]);
 
     const handleResend = async () => {
-      const discoveredPeer = peerService.findDiscoveredPeerById(peerId);
       setIsResending(true);
       try {
-        await chatService.tryResendMessage(
-          message,
-          peerId,
-          discoveredPeer
-            ? { ipAddress: discoveredPeer.ipAddress, port: discoveredPeer.port }
-            : undefined
-        );
+        if (message.messageType === MessageType.SMS) {
+          await chatService.updateMessageStatus(message.id, MessageStatusType.SENDING);
+          const res = await sendSmsToUser(peerId, message.content);
+          const status = res.ok
+            ? MessageStatusType.DELIVERED
+            : MessageStatusType.NOT_SENT;
+          await chatService.updateMessageStatus(message.id, status);
+        } else {
+          const discoveredPeer = peerService.findDiscoveredPeerById(peerId);
+          await chatService.tryResendMessage(
+            message,
+            peerId,
+            discoveredPeer
+              ? { ipAddress: discoveredPeer.ipAddress, port: discoveredPeer.port }
+              : undefined
+          );
+        }
       } catch (err) {
         uiLog.warn("[message-list] resend failed", { peerId, err });
+        if (message.messageType === MessageType.SMS) {
+          await chatService.updateMessageStatus(message.id, MessageStatusType.NOT_SENT).catch(() => {});
+        }
       } finally {
         setIsResending(false);
       }
@@ -386,9 +401,15 @@ const MessageListItemInner = memo(
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
-              {statusObj?.status}
-            </Text>
+            {message.messageType === MessageType.SMS ? (
+              <Text style={{ color: theme.dark ? "#9C9C9C" : "#6B7280", fontSize: 11 }}>
+                SMS: {statusObj?.status ?? "sending"}
+              </Text>
+            ) : (
+              <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
+                {statusObj?.status}
+              </Text>
+            )}
             {isNotSent && (
               <TouchableOpacity onPress={handleResend} disabled={isResending}>
                 <Text

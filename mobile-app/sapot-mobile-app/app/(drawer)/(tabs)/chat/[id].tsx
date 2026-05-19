@@ -3,15 +3,17 @@ import { useInformCall } from "@/features/call";
 import { MessageList, useChatService } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Message, Peer, database } from "@/features/shared";
+import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { Q } from "@nozbe/watermelondb";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
   useIsUserActive,
-  usePeerService,
   useProfilePhoto,
   useThrottledPress,
   useToast,
 } from "@/features/shared/hooks";
+import { sendSmsToUser } from "@/features/shared/api/gsm.api";
+import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -28,6 +30,7 @@ import {
 import {
   Appbar,
   Avatar,
+  Chip,
   IconButton,
   useTheme,
 } from "react-native-paper";
@@ -54,8 +57,9 @@ const ChatRoom = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isSmsMode, setIsSmsMode] = useState(false);
+  const { gsmReady, loading: gsmLoading } = useGsmHealth();
   const chatService = useChatService();
-  const peerService = usePeerService();
   const userStore = useUserStore();
   const router = useRouter();
   const call = useInformCall();
@@ -241,39 +245,69 @@ const ChatRoom = () => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
 
-    const getPeer = async () => {
-      try {
-        const foundPeer = await peerService.findPeerById(peerId);
-        setPeer(foundPeer);
-      } catch (error) {
-        uiLog.error("chat › load peer failed", { peerId, error });
-      }
-    };
+    const subscription = database
+      .get<Peer>(Peer.table)
+      .findAndObserve(peerId)
+      .subscribe({
+        next: setPeer,
+        error: (err) => uiLog.error("chat › peer observe failed", { peerId, error: err }),
+      });
 
-    getPeer();
-  }, [peerId, peerService]);
+    return () => subscription.unsubscribe();
+  }, [peerId]);
+
+  const isSmsEnabled =
+    gsmReady &&
+    !!peer?.phoneNumberVerified &&
+    !userStore.isGuest &&
+    !!(userStore.user as Peer).phoneNumberVerified;
+
+  useEffect(() => {
+    if (!isSmsEnabled) setIsSmsMode(false);
+  }, [isSmsEnabled]);
 
   const handleSendMessage = useCallback(async () => {
+    const textToSend = message.trim();
     uiLog.debug("[ChatRoom] handleSendMessage called", {
-      hasMessage: Boolean(message.trim()),
+      hasMessage: Boolean(textToSend),
       conversationId,
     });
-    if (!message.trim()) return;
+    if (!textToSend) return;
     try {
-      const chatId = await chatService.sendChatMessage(message);
+      const { conversationId: chatId } = await chatService.sendChatMessage(textToSend);
+      if (!conversationId && chatId) setConversationId(chatId);
 
-      if (!conversationId && chatId) {
-        setConversationId(chatId);
+      if (isSmsMode && peerId) {
+        let smsMessageId: string;
+        try {
+          const { messageId } = await chatService.sendSmsChannelMessage(textToSend);
+          smsMessageId = messageId;
+        } catch (smsChannelError) {
+          uiLog.error("chat › SMS channel message failed", { conversationId, error: smsChannelError });
+          showError("Failed to record SMS message");
+          return;
+        }
+
+        sendSmsToUser(peerId, textToSend)
+          .then((res) => {
+            const status = res.ok
+              ? MessageStatusType.DELIVERED
+              : MessageStatusType.NOT_SENT;
+            chatService.updateMessageStatus(smsMessageId, status).catch(() => {});
+            if (!res.ok) showError("SMS could not be delivered");
+          })
+          .catch(() => {
+            chatService.updateMessageStatus(smsMessageId, MessageStatusType.NOT_SENT).catch(() => {});
+            showError("Message sent, but SMS delivery failed.");
+          });
       }
 
       setMessage("");
     } catch (error) {
-      uiLog.error("chat › send message failed", {
-        conversationId,
-        error,
-      });
+      uiLog.error("chat › send message failed", { conversationId, error });
+      showError("Failed to send message");
     }
-  }, [message, conversationId, chatService]);
+  }, [message, conversationId, chatService, isSmsMode, peerId, showError]);
 
   const handleAudioCall = useCallback(() => {
     if (peerId) {
@@ -401,6 +435,19 @@ const ChatRoom = () => {
         )}
       </View>
 
+      {isSmsEnabled && !gsmLoading && (
+        <View style={styles.smsToggleRow}>
+          <Chip
+            icon={isSmsMode ? "message-text" : "message-text-outline"}
+            onPress={() => setIsSmsMode((v) => !v)}
+            selected={isSmsMode}
+            compact
+          >
+            {isSmsMode ? "Sending via P2P + SMS" : "Also send via SMS"}
+          </Chip>
+        </View>
+      )}
+
       <View style={styles.composerContainer}>
         <TextInput
           style={[
@@ -408,6 +455,10 @@ const ChatRoom = () => {
             {
               backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
               color: theme.dark ? "#FFF" : "#000",
+            },
+            isSmsMode && {
+              borderWidth: 1.5,
+              borderColor: theme.colors.primary,
             },
           ]}
           onChangeText={setMessage}
@@ -486,6 +537,12 @@ const styles = StyleSheet.create({
   emptyStateText: {
     color: "#758695",
     fontSize: 14,
+  },
+  smsToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 4,
   },
   composerContainer: {
     flexDirection: "row",

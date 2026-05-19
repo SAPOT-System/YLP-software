@@ -2,20 +2,38 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { APP_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
+import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { ChatList, useChats } from "@/features/chat";
+import { contactUnknownUser } from "@/features/shared/api/gsm.api";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import PeerList from "@/features/shared/components/peer-list";
+import { Peer } from "@/features/shared/database";
 import {
   useConnectionService,
   useDiscoveryService,
+  useToast,
 } from "@/features/shared/hooks";
+import { useDialogVisibility } from "@/features/shared/hooks/use-dialog-visibility";
+import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useSyncService } from "@/features/shared/hooks/use-sync-service";
+import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { TouchableOpacity } from "react-native";
-import { Icon, Searchbar, useTheme } from "react-native-paper";
+import {
+  Button,
+  Dialog,
+  FAB,
+  HelperText,
+  Icon,
+  Portal,
+  Searchbar,
+  TextInput as PaperTextInput,
+  useTheme,
+} from "react-native-paper";
 
 export default function Chat() {
   const auth = useAuth();
@@ -28,6 +46,27 @@ export default function Chat() {
   const { chats } = useChats();
   const syncService = useSyncService();
   const [refreshing, setRefreshing] = useState(false);
+  const { gsmReady } = useGsmHealth();
+  const userStore = useUserStore();
+  const { visible: fabDialogVisible, show: showFabDialog, hide: hideFabDialog } = useDialogVisibility();
+  const [targetPhone, setTargetPhone] = useState("");
+  const [contacting, setContacting] = useState(false);
+  const {
+    visible: toastVisible,
+    message: toastMessage,
+    variant: toastVariant,
+    showToast,
+    showError,
+    hideToast,
+  } = useToast();
+
+  const isFabEnabled =
+    gsmReady &&
+    !userStore.isGuest &&
+    !!(userStore.user as Peer).phoneNumberVerified;
+
+  const isValidPhone = (phone: string) =>
+    /^\+[1-9]\d{6,14}$/.test(toInternationalPhone(phone.trim()));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -147,6 +186,74 @@ export default function Chat() {
       <View style={[styles.chatListContainer, { backgroundColor: "none" }]}>
         <ChatList chats={chats} refreshing={refreshing} onRefresh={onRefresh} />
       </View>
+
+      <FAB
+        icon="cellphone-message"
+        style={[styles.fab, !isFabEnabled && { opacity: 0.5 }]}
+        onPress={() => {
+          if (!isFabEnabled) {
+            if (!gsmReady) showToast("SMS service is not available right now.");
+            else if (userStore.isGuest) showToast("Sign in to use this feature.");
+            else showToast("Verify your phone number to use this feature.");
+            return;
+          }
+          showFabDialog();
+        }}
+      />
+
+      <Portal>
+        <Dialog visible={fabDialogVisible} onDismiss={hideFabDialog}>
+          <Dialog.Title>Contact by Phone</Dialog.Title>
+          <Dialog.Content>
+            <PaperTextInput
+              label="Phone number"
+              value={targetPhone}
+              onChangeText={setTargetPhone}
+              keyboardType="phone-pad"
+              autoFocus
+              error={targetPhone.length > 0 && !isValidPhone(targetPhone)}
+            />
+            <HelperText
+              type="error"
+              visible={targetPhone.length > 0 && !isValidPhone(targetPhone)}
+            >
+              Use international format: +63XXXXXXXXX
+            </HelperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideFabDialog}>Cancel</Button>
+            <Button
+              loading={contacting}
+              disabled={contacting || !isValidPhone(targetPhone)}
+              onPress={async () => {
+                setContacting(true);
+                try {
+                  await contactUnknownUser(toInternationalPhone(targetPhone.trim()));
+                  hideFabDialog();
+                  setTargetPhone("");
+                  showToast("SMS sent! They'll receive a message to connect with you.");
+                } catch {
+                  showError(
+                    "Failed to contact user. Check phone number format (+63...)."
+                  );
+                } finally {
+                  setContacting(false);
+                }
+              }}
+            >
+              Contact
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <AppSnackbar
+        visible={toastVisible}
+        onDismiss={hideToast}
+        variant={toastVariant}
+      >
+        {toastMessage}
+      </AppSnackbar>
     </View>
   );
 }
@@ -170,6 +277,11 @@ const styles = StyleSheet.create({
   chatListContainer: {
     flex: 1,
     paddingTop: 10,
+  },
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
   },
   searchbar: {
     marginBottom: 12,

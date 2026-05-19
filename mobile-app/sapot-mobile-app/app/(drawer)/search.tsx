@@ -26,6 +26,7 @@ type SearchUser = {
   username: string;
   first_name: string;
   last_name?: string;
+  phone_is_verified?: boolean;
 };
 
 const SearchResultItem = ({
@@ -102,6 +103,7 @@ export default function SearchScreen() {
           username: p.username  ?? "",
           first_name: p.firstName ?? "",
           last_name: p.lastName ?? "",
+          phone_is_verified: p.phoneNumberVerified ?? false,
         }));
 
         const filtered =
@@ -235,6 +237,7 @@ export default function SearchScreen() {
             onPress={async (selected) => {
               uiLog.debug("[SearchScreen] onPress triggered", {
                 peerId: selected.id,
+                phoneNumberIsVerified: selected.phone_is_verified
               });
               try {
                 const existingPeer = await peerService.findPeerById(
@@ -246,7 +249,11 @@ export default function SearchScreen() {
                     selected.id,
                     selected.username,
                     selected.first_name,
-                    selected.last_name
+                    selected.last_name,
+                    undefined,
+                    undefined,
+                    undefined,
+                    selected.phone_is_verified
                   );
                   // refresh local peers after creating
                   await loadLocalPeers(debouncedQuery);

@@ -1,3 +1,4 @@
+import { toLocalPhone } from "@/features/auth/utils/validation";
 import { isRescuerApi } from "@/features/shared/api/user-profile.api";
 import { authLog } from "@/features/shared/utils/logger";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
@@ -146,9 +147,10 @@ export class UserService {
     email?: string;
     phone_number?: string;
     email_verified?: boolean;
+    phone_number_verified?: boolean;
   }) {
     try {
-      this.log("sync auth start");
+      this.log("sync auth start", userInfo);
       await setItemAsync("userUUID", userInfo.id);
       const userExist = await this.peerService.findPeerById(userInfo.id);
       if (!userExist) {
@@ -158,8 +160,9 @@ export class UserService {
           userInfo.first_name,
           userInfo.last_name,
           userInfo.email,
-          userInfo.phone_number,
-          userInfo.email_verified
+          userInfo.phone_number ? toLocalPhone(userInfo.phone_number) : userInfo.phone_number,
+          userInfo.email_verified,
+          userInfo.phone_number_verified
         );
         this.log("sync auth user created");
       } else {
@@ -207,6 +210,7 @@ export class UserService {
     email?: string;
     phoneNumber?: string;
     emailVerified?: boolean;
+    phoneNumberVerified?: boolean;
   }) {
     this.log("update auth start", {
       hasUsername: Boolean(userInfo.username),
@@ -215,6 +219,7 @@ export class UserService {
       hasEmail: Boolean(userInfo.email),
       hasPhoneNumber: Boolean(userInfo.phoneNumber),
       emailVerified: userInfo.emailVerified,
+      phoneNumberVerified: userInfo.phoneNumberVerified,
     });
     const id = await getItemAsync("userUUID");
     if (id === null) return; //TODO: inform user of error
@@ -226,6 +231,7 @@ export class UserService {
       email: userInfo.email,
       phoneNumber: userInfo.phoneNumber,
       emailVerified: userInfo.emailVerified,
+      phoneNumberVerified: userInfo.phoneNumberVerified,
     });
 
     const user = await this.peerService.findPeerById(id);

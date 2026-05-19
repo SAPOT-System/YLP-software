@@ -34,6 +34,7 @@ export class PeerRepository {
     email?: string;
     phoneNumber?: string;
     emailVerified?: boolean;
+    phoneNumberVerified?: boolean;
   }) {
     try {
       return await this.db.write(async () => {
@@ -48,6 +49,9 @@ export class PeerRepository {
           if (newPeer.emailVerified !== undefined) {
             peer.emailVerified = newPeer.emailVerified;
           }
+          if (newPeer.phoneNumberVerified !== undefined) {
+            peer.phoneNumberVerified = newPeer.phoneNumberVerified;
+          }
         });
         return peer;
       });
@@ -58,6 +62,7 @@ export class PeerRepository {
         hasPhoneNumber: Boolean(newPeer.phoneNumber),
         hasLastName: Boolean(newPeer.lastName),
         emailVerified: newPeer.emailVerified,
+        phoneNumberVerified: newPeer.phoneNumberVerified,
         error,
       });
       throw error;
@@ -79,6 +84,7 @@ export class PeerRepository {
       email?: string;
       phoneNumber?: string;
       emailVerified?: boolean;
+      phoneNumberVerified?: boolean;
     },
     options?: { markOnline?: boolean }
   ) {
@@ -108,6 +114,9 @@ export class PeerRepository {
             if (peerInfo.emailVerified !== undefined) {
               peer.emailVerified = peerInfo.emailVerified;
             }
+            if (peerInfo.phoneNumberVerified !== undefined) {
+              peer.phoneNumberVerified = peerInfo.phoneNumberVerified;
+            }
             if (options?.markOnline) {
               peer.isOnline = true;
             }
@@ -126,6 +135,9 @@ export class PeerRepository {
           if (peerInfo.emailVerified !== undefined) {
             peer.emailVerified = peerInfo.emailVerified;
           }
+          if (peerInfo.phoneNumberVerified !== undefined) {
+            peer.phoneNumberVerified = peerInfo.phoneNumberVerified;
+          }
         });
         return peer;
       });
@@ -138,6 +150,7 @@ export class PeerRepository {
         hasEmail: peerInfo.email !== undefined,
         hasPhoneNumber: peerInfo.phoneNumber !== undefined,
         emailVerified: peerInfo.emailVerified,
+        phoneNumberVerified: peerInfo.phoneNumberVerified,
         error,
       });
       throw error;
@@ -203,6 +216,7 @@ export class PeerRepository {
       email?: string;
       phoneNumber?: string;
       emailVerified?: boolean;
+      phoneNumberVerified?: boolean;
     }
   ) {
     try {
@@ -229,6 +243,9 @@ export class PeerRepository {
             if (peerInfo.emailVerified !== undefined) {
               peer.emailVerified = peerInfo.emailVerified;
             }
+            if (peerInfo.phoneNumberVerified !== undefined) {
+              peer.phoneNumberVerified = peerInfo.phoneNumberVerified;
+            }
           });
         }
       });
@@ -239,6 +256,7 @@ export class PeerRepository {
         hasPhoneNumber: peerInfo.phoneNumber !== undefined,
         hasLastName: peerInfo.lastName !== undefined,
         emailVerified: peerInfo.emailVerified,
+        phoneNumberVerified: peerInfo.phoneNumberVerified,
         error,
       });
       throw error;

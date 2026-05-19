@@ -1,9 +1,13 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { useUserService } from "@/features/auth";
-import { validateEmail } from "@/features/auth/utils/validation";
+import {
+  toInternationalPhone,
+  validateEmail,
+} from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import {
   ExpoFileUpload,
+  getUserApi,
   updateProfileApi,
   uploadProfilePicApi,
 } from "@/features/shared";
@@ -56,6 +60,9 @@ export default function ManageProfile() {
   const currentEmailVerified = isGuest
     ? false
     : Boolean((user as { emailVerified?: boolean }).emailVerified);
+  const currentPhoneNumberVerified = isGuest
+    ? false
+    : Boolean((user as { phoneNumberVerified?: boolean }).phoneNumberVerified);
   const [phoneNumber, setPhoneNumber] = useState(currentPhoneNumber);
   const [email, setEmail] = useState(currentEmail);
   const {
@@ -83,6 +90,19 @@ export default function ManageProfile() {
   useFocusEffect(
     useCallback(() => {
       uiLog.debug("[ManageProfile] useFocusEffect triggered");
+      (async () => {
+        try {
+          const fresh = await getUserApi();
+          await userService.updateAuthenticatedUser({
+            email: fresh.email || undefined,
+            phoneNumber: fresh.phone_number || undefined,
+            emailVerified: fresh.email_verified,
+            phoneNumberVerified: fresh.phone_number_verified,
+          });
+        } catch {
+          // silent — store retains last-known state
+        }
+      })();
       return () => {
         setErrors({});
         setPhoneNumber(currentPhoneNumber);
@@ -90,7 +110,7 @@ export default function ManageProfile() {
         setIsPhotoOptionsVisible(false);
         setIsPhotoViewerVisible(false);
       };
-    }, [currentEmail, currentPhoneNumber])
+    }, [currentEmail, currentPhoneNumber, userService])
   );
 
   useEffect(() => {
@@ -101,6 +121,8 @@ export default function ManageProfile() {
   const normalizeValue = (value?: string) => (value ?? "").trim();
   const emailHasChanged =
     normalizeValue(email) !== normalizeValue(currentEmail);
+  const phoneHasChanged =
+    normalizeValue(phoneNumber) !== normalizeValue(currentPhoneNumber);
   const hasChanges =
     !isGuest &&
     (normalizeValue(phoneNumber) !== normalizeValue(currentPhoneNumber) ||
@@ -144,18 +166,21 @@ export default function ManageProfile() {
       return;
     }
 
-
     try {
       await updateProfileApi({
         phoneNumber:
-          normalizedPhoneNumber === "" ? undefined : normalizedPhoneNumber,
+          normalizedPhoneNumber === ""
+            ? undefined
+            : toInternationalPhone(normalizedPhoneNumber),
         email: normalizedEmail === "" ? undefined : normalizedEmail,
       });
 
+      const fresh = await getUserApi();
       await userService.updateAuthenticatedUser({
-        phoneNumber: normalizedPhoneNumber,
-        email: normalizedEmail,
-        emailVerified: emailHasChanged ? false : undefined,
+        phoneNumber: fresh.phone_number || undefined,
+        email: fresh.email || undefined,
+        emailVerified: fresh.email_verified,
+        phoneNumberVerified: fresh.phone_number_verified,
       });
 
       setPhoneNumber(normalizedPhoneNumber);
@@ -337,20 +362,21 @@ export default function ManageProfile() {
                       }
                     }}
                     error={Boolean(errors.phoneNumber)}
+                    checkIcon={currentPhoneNumberVerified && !phoneHasChanged}
                     labelRight={
-                      !emailHasChanged && !currentEmailVerified ? (
+                      !phoneHasChanged && !currentPhoneNumberVerified ? (
                         <Pressable
                           onPress={() => {
                             uiLog.info(
-                              "[Navigation] Navigating to VerifyEmail",
+                              "[Navigation] Navigating to VerifyPhone",
                               {
-                                screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+                                screen: SETTINGS_ROUTES.VERIFY_PHONE,
                               }
                             );
                             router.push({
-                              pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+                              pathname: SETTINGS_ROUTES.VERIFY_PHONE,
                               params: {
-                                email: normalizeValue(email),
+                                phone: normalizeValue(phoneNumber),
                               },
                             });
                           }}

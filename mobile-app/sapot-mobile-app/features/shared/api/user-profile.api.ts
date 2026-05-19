@@ -1,3 +1,4 @@
+import { toLocalPhone } from "@/features/auth/utils/validation";
 import { apiLog } from "@/features/shared/utils/logger";
 import { apiClient } from "./client";
 apiLog.debug("[user-profile-api] module loaded");
@@ -12,6 +13,7 @@ export const getUserApi = async (accessToken?: string) => {
     email: string;
     id: string;
     email_verified: boolean;
+    phone_verified: boolean;
   }>("/user-utils/current-user-info/", {
     headers: accessToken
       ? {
@@ -19,7 +21,11 @@ export const getUserApi = async (accessToken?: string) => {
         }
       : {},
   });
-  return res.data;
+  return {
+    ...res.data,
+    phone_number: toLocalPhone(res.data.phone_number),
+    phone_number_verified: res.data.phone_verified,
+  };
 };
 
 export const updateProfileApi = async (credentials: {

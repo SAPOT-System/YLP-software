@@ -7,6 +7,7 @@ type SearchUserResult = {
   first_name: string;
   last_name: string;
   username: string;
+  phone_is_verified: boolean;
 };
 
 export const searchUsers = async ({

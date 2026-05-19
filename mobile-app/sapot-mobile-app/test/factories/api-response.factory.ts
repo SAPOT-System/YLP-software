@@ -8,6 +8,8 @@ export interface TestUserProfileResponse {
     phone_number: string;
     email: string;
     id: string;
+    email_verified: boolean;
+    phone_verified: boolean;
   };
 }
 
@@ -27,6 +29,8 @@ export const createTestUserProfileResponse =
       phone_number: "+10000000000",
       email: "alice@example.com",
       id: "user-1",
+      email_verified: false,
+      phone_verified: false,
     },
   }));
 
