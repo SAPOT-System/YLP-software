@@ -78,6 +78,10 @@ const enhanceMessage = withObservables(
     const senderId = (message._raw as Record<string, unknown>).sender as
       | string
       | null;
+    const linkedMessageId = (message._raw as Record<string, unknown>).linked_message_id as
+      | string
+      | null;
+    const messageType = (message._raw as Record<string, unknown>).message_type as string | null;
     return {
       message,
       sender: message.sender.observe().pipe(catchError(() => of(null))),
@@ -95,6 +99,24 @@ const enhanceMessage = withObservables(
         .get<MessageStatus>(MessageStatus.table)
         .query(Q.where("message", message.id))
         .observeWithColumns(["status"]),
+      linkedSmsStatus: linkedMessageId
+        ? database
+            .get<MessageStatus>(MessageStatus.table)
+            .query(Q.where("message", linkedMessageId))
+            .observeWithColumns(["status"])
+            .pipe(
+              map((r) => r[0] ?? null),
+              catchError(() => of(null))
+            )
+        : of(null),
+      // True when this SMS message is already shown inside a P2P message's bubble
+      isLinkedSms: messageType === MessageType.SMS
+        ? database
+            .get<Message>(Message.table)
+            .query(Q.where("linked_message_id", message.id))
+            .observeCount()
+            .pipe(map((count) => count > 0))
+        : of(false),
     };
   }
 );
@@ -270,6 +292,8 @@ type MessageListItemProps = {
   sender?: Peer | GuestUser | null;
   guestSender?: GuestUser | null;
   status: MessageStatus[];
+  linkedSmsStatus?: MessageStatus | null;
+  isLinkedSms?: boolean;
   peerId: string;
 };
 
@@ -279,6 +303,8 @@ const MessageListItemInner = memo(
     sender,
     guestSender,
     status,
+    linkedSmsStatus,
+    isLinkedSms,
     peerId,
   }: MessageListItemProps) => {
     const statusObj = status?.[0];
@@ -337,6 +363,11 @@ const MessageListItemInner = memo(
       }
     };
 
+    if (isLinkedSms) {
+      uiLog.debug("[message-list] suppressed linked SMS bubble", { messageId: message.id });
+      return null;
+    }
+
     if (message.messageType === "call_log") {
       return (
         <CallLogMessageCard
@@ -383,6 +414,23 @@ const MessageListItemInner = memo(
     // For the current user message (outgoing)
     if (isCurrentUserMessage) {
       const isNotSent = statusObj?.status === MessageStatusType.NOT_SENT;
+      const isSmsNotSent = linkedSmsStatus?.status === MessageStatusType.NOT_SENT;
+      const hasSmsLink = message.linkedMessageId != null;
+
+      const handleResendSms = async () => {
+        if (!message.linkedMessageId) return;
+        setIsResending(true);
+        try {
+          await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.SENDING);
+          const res = await sendSmsToUser(peerId, message.content);
+          const newStatus = res.ok ? MessageStatusType.DELIVERED : MessageStatusType.NOT_SENT;
+          await chatService.updateMessageStatus(message.linkedMessageId, newStatus);
+        } catch {
+          await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.NOT_SENT).catch(() => {});
+        } finally {
+          setIsResending(false);
+        }
+      };
 
       return (
         <View style={{ alignSelf: "flex-end" }}>
@@ -401,16 +449,42 @@ const MessageListItemInner = memo(
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {message.messageType === MessageType.SMS ? (
+            {hasSmsLink ? (
+              // Combined P2P + SMS footer
+              <>
+                <Text style={{ color: theme.dark ? "#9C9C9C" : "#6B7280", fontSize: 11 }}>
+                  P2P: {statusObj?.status ?? "sending"}
+                </Text>
+                <Text style={{ color: theme.dark ? "#A78BFA" : "#7C3AED", fontSize: 11 }}>
+                  SMS: {linkedSmsStatus?.status ?? "sending"}
+                </Text>
+                {isNotSent && (
+                  <TouchableOpacity onPress={handleResend} disabled={isResending}>
+                    <Text style={{ color: isResending ? "#9C9C9C" : "#3A7AFE", fontSize: 13 }}>
+                      {isResending ? "Resending..." : "Resend P2P"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {isSmsNotSent && (
+                  <TouchableOpacity onPress={handleResendSms} disabled={isResending}>
+                    <Text style={{ color: isResending ? "#9C9C9C" : "#3A7AFE", fontSize: 13 }}>
+                      Resend SMS
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : message.messageType === MessageType.SMS ? (
+              // SMS-only message (in SMS conversation)
               <Text style={{ color: theme.dark ? "#9C9C9C" : "#6B7280", fontSize: 11 }}>
                 SMS: {statusObj?.status ?? "sending"}
               </Text>
             ) : (
+              // P2P-only message (no SMS link)
               <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
                 {statusObj?.status}
               </Text>
             )}
-            {isNotSent && (
+            {!hasSmsLink && isNotSent && (
               <TouchableOpacity onPress={handleResend} disabled={isResending}>
                 <Text
                   style={{

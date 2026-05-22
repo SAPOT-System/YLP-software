@@ -13,7 +13,6 @@ import {
 } from "@/features/shared";
 import {
     createTestConversation,
-    createTestConversationParticipant,
     createTestMessage,
     createTestMessages,
     createTestMessageStatus,
@@ -109,6 +108,12 @@ describe("ChatService", () => {
     mockDatabase.write.mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       async (fn: (writer: any) => Promise<any>) => await fn({} as any)
+    );
+    mockMessageRepository.prepareMessageCreate.mockReturnValue(
+      createTestMessage({ id: "msg-1" }) as unknown as Message
+    );
+    mockMessageStatusRepository.prepareMessageStatusCreate.mockReturnValue(
+      createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus
     );
 
     // Mock constructors
@@ -514,16 +519,31 @@ describe("ChatService", () => {
 
       (chatService as unknown as { conversation: Conversation }).conversation =
         mockConversation as unknown as Conversation;
-      mockMessageRepository.saveMessage.mockResolvedValue(mockMessage);
-      mockMessageStatusRepository.saveMessageStatus.mockResolvedValue(
+      mockMessageRepository.prepareMessageCreate.mockReturnValue(mockMessage);
+      mockMessageStatusRepository.prepareMessageStatusCreate.mockReturnValue(
         mockMessageStatus
       );
       mockConnectionService.sendChatMessage.mockReturnValue("webrtc");
 
       const result = await chatService.sendChatMessage(message);
 
-      expect(mockMessageRepository.saveMessage).toHaveBeenCalled();
-      expect(mockMessageStatusRepository.saveMessageStatus).toHaveBeenCalled();
+      expect(mockMessageRepository.prepareMessageCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sender: mockUserStore.user,
+          content: message,
+          conversation: mockConversation,
+          messageType: undefined,
+        })
+      );
+      expect(
+        mockMessageStatusRepository.prepareMessageStatusCreate
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: mockMessage,
+          user: mockUserStore.user,
+          status: MessageStatusType.SENDING,
+        })
+      );
       expect(mockConnectionService.sendChatMessage).toHaveBeenCalledWith(
         "peer-1",
         expect.objectContaining({
@@ -649,19 +669,16 @@ describe("ChatService", () => {
   describe("findChatByPeer", () => {
     it("should return conversation id for given peer", async () => {
       const peerId = "peer-1";
-      const mockConversations = [
-        { conversation: { id: "conv-1" } },
-      ] as ConversationParticipant[];
 
-      mockConversationParticipantRepository.queryConversationByPeer.mockResolvedValue(
-        mockConversations
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        "conv-1"
       );
 
       const result = await chatService.findChatByPeer(peerId);
 
       expect(
-        mockConversationParticipantRepository.queryConversationByPeer
-      ).toHaveBeenCalledWith(peerId, "test-user-id");
+        mockConversationParticipantRepository.isDirectConversationExists
+      ).toHaveBeenCalledWith([peerId, "test-user-id"]);
       expect(result).toBe("conv-1");
     });
 
@@ -826,11 +843,6 @@ describe("ChatService", () => {
   describe("getAllNotSentMessageForPeer", () => {
     it("should return unsent messages for peer", async () => {
       const peerId = "peer-1";
-      const mockConversations = [
-        createTestConversationParticipant({
-          conversation: { id: "conv-1" },
-        }),
-      ] as unknown as ConversationParticipant[];
       const mockMessages = createTestMessages(2, (index) =>
         index === 0
           ? { id: "msg-1", content: "Hello" }
@@ -840,8 +852,8 @@ describe("ChatService", () => {
         createTestUnsentStatus({ message: { id: "msg-1" } }),
       ] as unknown as MessageStatus[];
 
-      mockConversationParticipantRepository.queryConversationByPeer.mockResolvedValue(
-        mockConversations
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        "conv-1"
       );
       mockMessageRepository.queryMessagesByConversation.mockResolvedValue(
         mockMessages
@@ -853,8 +865,8 @@ describe("ChatService", () => {
       const result = await chatService.getAllNotSentMessageForPeer(peerId);
 
       expect(
-        mockConversationParticipantRepository.queryConversationByPeer
-      ).toHaveBeenCalledWith(peerId, "test-user-id");
+        mockConversationParticipantRepository.isDirectConversationExists
+      ).toHaveBeenCalledWith([peerId, "test-user-id"]);
       expect(
         mockMessageRepository.queryMessagesByConversation
       ).toHaveBeenCalledWith("conv-1");

@@ -13,6 +13,7 @@ import {
   UserStore,
 } from "@/features/shared";
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
+import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
 import { chatLog } from "@/features/shared/utils/logger";
 import * as Notifications from "expo-notifications";
 import {
@@ -449,35 +450,35 @@ export class ChatService {
     }
   }
 
-  // TODO: make a transaction on this function to follow ACID principle
-  // TODO: make a logic where user can send conversation even if the receiver is not online. Store the sent conversation and wait for receiver to be online.
-  // This method will use the current class state about peer and conversation
-
   /**
    * Sends a chat message to the current peer, ensuring conversation state and updating message status.
+   * If the peer is unreachable, the message is persisted as NOT_SENT and retried when the peer reconnects.
    * @param message The message content
-   * @returns Promise<string> The conversation id
+   * @returns Promise<{ conversationId: string; messageId: string }>
    */
   async sendChatMessage(
     message: string,
     messageType?: MessageType
   ): Promise<{ conversationId: string; messageId: string }> {
+    if (!this.peer) throw new Error("No peer state stored");
+
+    let newMessage: Message | undefined;
+    let newMessageStatus: MessageStatus | undefined;
+
     try {
-      if (!this.peer) throw new Error("No peer state stored");
-      chatLog.debug("chat › send start", {
+      chatLog.debug("chat › send chat start", {
         peerId: this.peer.id,
         messageLength: message.length,
       });
       await this.ensureConversationInitialized();
-      const { newMessage, newMessageStatus } = await this.createMessage({
+      ({ newMessage, newMessageStatus } = await this.createMessage({
         sender: this.userStore.user,
         message: message,
         conversation: this.conversation!,
         messageType,
-      });
+      }));
       void this.conversationRepository.touchConversation(this.conversation!.id);
       const isSelfChat = this.peer.id === this.userStore.user.id;
-      // console.log(isSelfChat);
       if (isSelfChat) {
         await this.messageStatusRepository.updateMessageStatusById(
           newMessageStatus.id,
@@ -491,11 +492,7 @@ export class ChatService {
         if (!this.userStore.isGuest) void this.syncService.syncNow();
         return { conversationId: this.conversation!.id, messageId: newMessage.id };
       }
-      await this.sendAndTrackMessageStatus(
-        newMessage,
-        newMessageStatus,
-        message
-      );
+      await this.sendAndTrackMessageStatus(newMessage, newMessageStatus, message);
       if (!this.userStore.isGuest) void this.syncService.syncNow();
       chatLog.debug("chat › send complete", {
         peerId: this.peer.id,
@@ -509,6 +506,14 @@ export class ChatService {
         conversationId: this.conversation?.id,
         error,
       });
+      // Message was persisted before the send attempt failed — mark NOT_SENT
+      // so the existing retry path picks it up when the peer reconnects.
+      if (newMessage && newMessageStatus) {
+        await this.messageStatusRepository
+          .updateMessageStatusById(newMessageStatus.id, MessageStatusType.NOT_SENT)
+          .catch(() => {});
+        return { conversationId: this.conversation!.id, messageId: newMessage.id };
+      }
       throw error;
     }
   }
@@ -517,16 +522,130 @@ export class ChatService {
     message: string
   ): Promise<{ conversationId: string; messageId: string }> {
     if (!this.peer) throw new Error("No peer state stored");
-    await this.ensureConversationInitialized();
+    // Prefer an existing direct conversation over creating a new SMS conversation —
+    // if the peers already have a P2P chat, SMS messages belong in the same thread.
+    const existingDirectId =
+      await this.conversationParticipantRepository.isDirectConversationExists([
+        this.peer.id,
+        this.userStore.user.id,
+      ]);
+    const smsConversation = existingDirectId
+      ? await this.conversationRepository.queryConversationById(existingDirectId)
+      : await this.getOrCreateSmsConversationByPeer(this.peer.id);
     const { newMessage } = await this.createMessage({
       sender: this.userStore.user,
       message,
-      conversation: this.conversation!,
+      conversation: smsConversation,
       messageType: MessageType.SMS,
     });
-    void this.conversationRepository.touchConversation(this.conversation!.id);
+    void this.conversationRepository.touchConversation(smsConversation.id);
     if (!this.userStore.isGuest) void this.syncService.syncNow();
-    return { conversationId: this.conversation!.id, messageId: newMessage.id };
+    return { conversationId: smsConversation.id, messageId: newMessage.id };
+  }
+
+  /**
+   * Sends a message via P2P and SMS simultaneously. Both message records are written in a
+   * single atomic database batch so `linked_message_id` is set from the start — no post-hoc
+   * patch needed, and the UI never shows two separate bubbles.
+   */
+  async sendChatMessageWithSms(message: string): Promise<{
+    conversationId: string;
+    p2pMessageId: string;
+    smsMessageId: string;
+  }> {
+    if (!this.peer) throw new Error("No peer state stored");
+
+    let preparedP2pMessage: Message | undefined;
+    let preparedP2pStatus: MessageStatus | undefined;
+
+    try {
+      chatLog.debug("chat › send+sms start", { peerId: this.peer.id, messageLength: message.length });
+      await this.ensureConversationInitialized();
+
+      const existingDirectId =
+        await this.conversationParticipantRepository.isDirectConversationExists([
+          this.peer.id,
+          this.userStore.user.id,
+        ]);
+      const smsConversation = existingDirectId
+        ? await this.conversationRepository.queryConversationById(existingDirectId)
+        : await this.getOrCreateSmsConversationByPeer(this.peer.id);
+
+      // Prepare SMS message first — read its auto-assigned id before committing.
+      const preparedSmsMessage = this.messageRepository.prepareMessageCreate({
+        sender: this.userStore.user,
+        content: message,
+        conversation: smsConversation,
+        messageType: MessageType.SMS,
+      });
+
+      // Prepare P2P message with the SMS id already linked.
+      preparedP2pMessage = this.messageRepository.prepareMessageCreate({
+        sender: this.userStore.user,
+        content: message,
+        conversation: this.conversation!,
+        linkedMessageId: preparedSmsMessage.id,
+      });
+
+      preparedP2pStatus = this.messageStatusRepository.prepareMessageStatusCreate({
+        message: preparedP2pMessage,
+        user: this.userStore.user,
+        status: MessageStatusType.SENDING,
+      });
+
+      const preparedSmsStatus = this.messageStatusRepository.prepareMessageStatusCreate({
+        message: preparedSmsMessage,
+        user: this.userStore.user,
+        status: MessageStatusType.SENDING,
+      });
+
+      // Single atomic write — link is set from the very first render.
+      await database.write(() =>
+        database.batch(
+          preparedP2pMessage!,
+          preparedSmsMessage,
+          preparedP2pStatus!,
+          preparedSmsStatus
+        )
+      );
+
+      void this.conversationRepository.touchConversation(this.conversation!.id);
+      void this.conversationRepository.touchConversation(smsConversation.id);
+
+      await this.sendAndTrackMessageStatus(preparedP2pMessage, preparedP2pStatus, message);
+
+      if (!this.userStore.isGuest) void this.syncService.syncNow();
+
+      chatLog.debug("chat › send+sms complete", {
+        peerId: this.peer.id,
+        conversationId: this.conversation!.id,
+        p2pMessageId: preparedP2pMessage.id,
+        smsMessageId: preparedSmsMessage.id,
+      });
+
+      return {
+        conversationId: this.conversation!.id,
+        p2pMessageId: preparedP2pMessage.id,
+        smsMessageId: preparedSmsMessage.id,
+      };
+    } catch (error) {
+      chatLog.error("chat › send+sms failed", {
+        peerId: this.peer?.id,
+        conversationId: this.conversation?.id,
+        error,
+      });
+      if (preparedP2pMessage && preparedP2pStatus) {
+        await this.messageStatusRepository
+          .updateMessageStatusById(preparedP2pStatus.id, MessageStatusType.NOT_SENT)
+          .catch(() => {});
+        return {
+          conversationId: this.conversation!.id,
+          p2pMessageId: preparedP2pMessage.id,
+          smsMessageId: "",
+        };
+      }
+      throw error;
+    }
   }
 
   /**
@@ -628,10 +747,8 @@ export class ChatService {
     }
   }
 
-  // TODO: Apply transaction
-
   /**
-   * Creates a message and its status in a transaction.
+   * Creates a message and its status atomically in a single database transaction.
    * @param params Object containing sender, message, and conversation
    * @returns Promise<{ newMessage: Message; newMessageStatus: MessageStatus }>
    */
@@ -643,20 +760,21 @@ export class ChatService {
   }): Promise<{ newMessage: Message; newMessageStatus: MessageStatus }> {
     const { sender, message, conversation, messageType } = params;
     try {
-      const newMessage = await this.messageRepository.saveMessage({
-        sender: sender,
+      const preparedMessage = this.messageRepository.prepareMessageCreate({
+        sender,
         content: message,
-        conversation: conversation,
+        conversation,
         messageType,
       });
-      const newMessageStatus =
-        await this.messageStatusRepository.saveMessageStatus({
-          message: newMessage,
-          user: sender,
-          status: MessageStatusType.SENDING,
-        });
+      const preparedStatus = this.messageStatusRepository.prepareMessageStatusCreate({
+        message: preparedMessage,
+        user: sender,
+        status: MessageStatusType.SENDING,
+      });
 
-      return { newMessage, newMessageStatus };
+      await database.write(() => database.batch(preparedMessage, preparedStatus));
+
+      return { newMessage: preparedMessage, newMessageStatus: preparedStatus };
     } catch (error) {
       chatLog.error("chat › create message failed", {
         conversationId: conversation.id,
@@ -691,8 +809,11 @@ export class ChatService {
           },
           true
         );
+        const participants = peer.id === this.userStore.user.id
+          ? [peer]
+          : [peer, this.userStore.user];
         await this.conversationParticipantRepository.saveMultipleConversationParticipant(
-          [peer, this.userStore.user],
+          participants,
           conversation,
           true
         );
@@ -738,15 +859,9 @@ export class ChatService {
    */
   async findChatByPeer(peerId: string): Promise<string | undefined> {
     try {
-      const chat =
-        await this.conversationParticipantRepository.queryConversationByPeer(
-          peerId,
-          this.userStore.user.id
-        );
-
-      if (chat.length <= 0) return undefined;
-
-      return chat[0].conversation.id;
+      return await this.conversationParticipantRepository.isDirectConversationExists(
+        [peerId, this.userStore.user.id]
+      );
     } catch (error) {
       chatLog.error("chat › chat by peer failed", { peerId, error });
       throw error;
@@ -808,6 +923,46 @@ export class ChatService {
       });
     } catch (error) {
       chatLog.error("chat › direct conversation resolve/create failed", {
+        peerId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  async getOrCreateSmsConversationByPeer(peerId: string): Promise<Conversation> {
+    try {
+      const peer = await this.peerService.findPeerById(peerId);
+      if (!peer) throw new Error("Peer not found");
+
+      const effectiveId = smsConversationId(this.userStore.user.id, peerId);
+
+      return await database.write(async () => {
+        const existsById =
+          await this.conversationRepository.isConversationExist(effectiveId);
+        if (existsById) {
+          return await this.conversationRepository.queryConversationById(
+            effectiveId
+          );
+        }
+
+        const conversation = await this.conversationRepository.saveConversation(
+          { type: ConversationType.SMS, id: effectiveId },
+          true
+        );
+        await this.conversationParticipantRepository.saveMultipleConversationParticipant(
+          [peer, this.userStore.user],
+          conversation,
+          true
+        );
+        chatLog.info("chat › sms room create", {
+          peerId: peer.id,
+          conversationId: conversation.id,
+        });
+        return conversation;
+      });
+    } catch (error) {
+      chatLog.error("chat › sms conversation resolve/create failed", {
         peerId,
         error,
       });
@@ -904,6 +1059,25 @@ export class ChatService {
         status,
         error,
       });
+      throw error;
+    }
+  }
+
+  async linkMessages(p2pMessageId: string, smsMessageId: string): Promise<void> {
+    try {
+      const message = await this.messageRepository.queryMessageById(p2pMessageId);
+      if (!message) {
+        chatLog.warn("chat › linkMessages: p2p message not found", { p2pMessageId });
+        return;
+      }
+      await database.write(async () => {
+        await message.update((m) => {
+          m.linkedMessageId = smsMessageId;
+        });
+      });
+      chatLog.debug("chat › linkMessages complete", { p2pMessageId, smsMessageId });
+    } catch (error) {
+      chatLog.error("chat › linkMessages failed", { p2pMessageId, smsMessageId, error });
       throw error;
     }
   }
@@ -1007,17 +1181,16 @@ export class ChatService {
   async getAllNotSentMessageForPeer(peerId: string): Promise<Message[]> {
     // get the conversation between peer
     try {
-      const conversation =
-        await this.conversationParticipantRepository.queryConversationByPeer(
-          peerId,
-          this.userStore.user.id
+      const directConversationId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [peerId, this.userStore.user.id]
         );
 
-      if (conversation.length <= 0) return [];
+      if (!directConversationId) return [];
 
       // get the all messages on the conversation
       const messages = await this.messageRepository.queryMessagesByConversation(
-        conversation[0].conversation.id
+        directConversationId
       );
       const messageIds = messages.map((m) => m.id);
       chatLog.debug("chat › message ids loaded", {

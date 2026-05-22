@@ -40,6 +40,7 @@ export class MessageRepository {
     conversation: Conversation;
     messageId?: string;
     messageType?: MessageType;
+    linkedMessageId?: string;
   }): Message {
     return this.messagesCollection.prepareCreate((message: Message) => {
       if (newMessage.messageId) {
@@ -49,6 +50,7 @@ export class MessageRepository {
       message.conversation.set(newMessage.conversation);
       message.messageType = newMessage.messageType ?? MessageType.TEXT;
       message.content = newMessage.content;
+      message.linkedMessageId = newMessage.linkedMessageId ?? null;
       message.createdAt = new Date();
       message.updatedAt = new Date();
       message.isDeleted = false;

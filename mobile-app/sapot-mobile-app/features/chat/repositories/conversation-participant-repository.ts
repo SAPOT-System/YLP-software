@@ -245,16 +245,12 @@ export class ConversationParticipantRepository {
         .query(Q.where("conversation", conversationId))
         .fetch();
 
-      if (
-        participants.length === 2 &&
-        participants[0].user.id === participants[1].user.id
-      ) {
+      // Self-conversation: all participants are the current user
+      const others = participants.filter((p) => p.user.id !== currentUserId);
+      if (others.length === 0 && participants.length > 0) {
         return [participants[0]];
       }
-
-      // Exclude the user
-      const peer = participants.filter((p) => p.user.id !== currentUserId);
-      return peer;
+      return others;
     } catch (error) {
       chatLog.error("chat › peer query by conversation failed", {
         conversationId,
