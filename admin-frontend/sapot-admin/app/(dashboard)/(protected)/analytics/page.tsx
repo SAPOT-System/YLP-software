@@ -52,6 +52,7 @@ export default function Analytics() {
 	const [routerHealthHistory, setRouterHealthHistory] = useState([]);
 	const [trafficHistory, setTrafficHistory] = useState([]);
 	const [trafficHistory2, setTrafficHistory2] = useState([]);
+	const [trafficHistory3, setTrafficHistory3] = useState([]);
 
 	const fetchRouterHealthLatest = async () => {
 		try {
@@ -137,6 +138,32 @@ export default function Analytics() {
 				.reverse();
 
 			setTrafficHistory2(formatted);
+		} catch (err) {
+			console.error(err);
+		}
+	};
+
+
+	const fetchTrafficHistory3 = async (iface = "ether1") => {
+		try {
+			const res = await fetch("/api/router/traffic/ether5?limit=100");
+
+			if (!res.ok) throw new Error("Failed traffic fetch");
+
+			const data = await res.json();
+
+			const formatted = data
+				.map((item) => ({
+					time: new Date(item.created_at).toLocaleTimeString([], {
+						hour: "2-digit",
+						minute: "2-digit",
+					}),
+					rx: item.rx_bps / 1_000_000,
+					tx: item.tx_bps / 1_000_000,
+				}))
+				.reverse();
+
+			setTrafficHistory3(formatted);
 		} catch (err) {
 			console.error(err);
 		}
@@ -316,7 +343,8 @@ export default function Analytics() {
 					fetchRouterHealthLatest(),
 					fetchRouterHealthHistory(),
 					fetchTrafficHistory("ether5"),
-					fetchTrafficHistory("ether4"),
+					fetchTrafficHistory2("ether4"),
+					fetchTrafficHistory3("ether4"),
 				]);
 
       if (!hasInitialized) {
@@ -558,6 +586,7 @@ export default function Analytics() {
 				<RouterHealthChart data={routerHealthHistory} />
 				<TrafficChart data={trafficHistory} iface="Site 1 (Ether5)" />
 				<TrafficChart data={trafficHistory2} iface="Site 2 (Ether4)" />
+				<TrafficChart data={trafficHistory3} iface="Internet Gateway (Ether1)" />
 			</div>
     </WhiteContainer>
   );
