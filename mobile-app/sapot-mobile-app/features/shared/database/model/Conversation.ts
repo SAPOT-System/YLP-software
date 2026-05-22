@@ -6,6 +6,7 @@ modelLog.debug("[model] Conversation loaded");
 export enum ConversationType {
   DIRECT = "direct",
   GROUP = "group",
+  SMS = "sms",
 }
 
 export class Conversation extends Model {

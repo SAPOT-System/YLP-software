@@ -121,5 +121,16 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 8,
+      steps: [
+        addColumns({
+          table: "messages",
+          columns: [
+            { name: "linked_message_id", type: "string", isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

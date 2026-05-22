@@ -41,12 +41,14 @@ export const getUserById = async (
   first_name: string;
   username: string;
   last_name: string;
+  phone_is_verified: boolean;
 }> => {
   const res = await apiClient.get<{
     id: string;
     first_name: string;
     username: string;
     last_name: string;
+    phone_is_verified: boolean;
   }>("/user-utils/search-user/{id}", {
     params: { user_id },
   });

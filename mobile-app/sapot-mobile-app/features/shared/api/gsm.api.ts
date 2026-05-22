@@ -17,6 +17,7 @@ export type SendSmsResponse = {
 export type ContactUnknownUserResponse = {
   status: string;
   detail: string;
+  user_id: string;
 };
 
 export const getGsmHealth = async (): Promise<GsmHealthResponse> => {

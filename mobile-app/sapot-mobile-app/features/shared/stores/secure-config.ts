@@ -263,7 +263,7 @@ export const clearConnectionConfig = async () => {
   try {
     await Promise.all(
       Object.values(KEYS).map((key) => {
-        if (key !== KEYS.ACCESS_TOKEN && key !== KEYS.APP_MODE) {
+        if (key !== KEYS.ACCESS_TOKEN && key !== KEYS.APP_MODE && key !== KEYS.SERVER_HOST_OVERRIDE) {
           deleteItemAsync(key);
         }
       })

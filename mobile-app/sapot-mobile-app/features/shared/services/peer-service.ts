@@ -235,7 +235,21 @@ export class PeerService {
     }
   }
 
-
+  async upsertPeer(peerInfo: {
+    id: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    phoneNumberVerified?: boolean;
+  }) {
+    try {
+      return await this.peerRepository.createOrUpdatePeer(peerInfo);
+    } catch (error) {
+      peerLog.error("peer › upsert failed", { peerId: peerInfo.id, error });
+      throw error;
+    }
+  }
 
   async getOrCreatePeerById(
     id: string,
@@ -258,6 +272,7 @@ export class PeerService {
         username: user.username,
         firstName: user.first_name,
         lastName: user.last_name,
+        phoneNumberVerified: user.phone_is_verified,
       });
     } catch (error) {
       peerLog.error("peer › get or create failed", { peerId: id, error });
