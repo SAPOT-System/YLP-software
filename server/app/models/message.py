@@ -51,6 +51,8 @@ class Message(SyncableModel, table=True):
     content : str = Field(max_length=255, min_length=1)
     is_deleted : bool = Field(default=False)
 
+    linked_message_id: UUID | None = Field(default=None, foreign_key='message.id', ondelete="SET NULL", nullable=True)
+
     # foreign_key
     conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id', ondelete="CASCADE")
     sender_id : UUID | None = Field(default=None, foreign_key='user.id', ondelete="CASCADE")

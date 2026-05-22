@@ -57,7 +57,10 @@ def search_by_id(value: UUID, session: SessionDep):
     results = session.exec(statement).first()
     if not results:
         raise HTTPException(404, "user not found")
-    return results.model_dump(
+    return {
+        **results.model_dump(
             mode="json",
             include={"id", "username", "first_name", "last_name"}
-        )
+        ),
+        "phone_is_verified": len(results.phone_is_verified) > 0
+    }

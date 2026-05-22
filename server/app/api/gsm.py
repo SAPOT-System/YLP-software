@@ -1,6 +1,6 @@
 from typing import Annotated
 from uuid import UUID, uuid4, uuid5
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 from fastapi.routing import APIRouter
 import time
 
@@ -327,7 +327,7 @@ def direct_conversation_id(user_id_a: str, user_id_b: str):
 @router.post("/contact-unknown-user")
 async def contact_unknown_user(
     current_user : Annotated[User, Depends(get_current_user)],
-    target_phone_number: PhoneStr,
+    target_phone_number: Annotated[str, Query(pattern=r"^\+639\d{9}$")],
     session: SessionDep,
 
     ):
@@ -390,7 +390,7 @@ async def contact_unknown_user(
 
     await sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
 
-    return { "status": "ok", "detail": "Sync from the database"}
+    return { "status": "ok", "detail": "Sync from the database", "user_id": unknown_user_id}
 
 
 # MOCK ###############################################
@@ -685,7 +685,7 @@ def MOCK_direct_conversation_id(user_id_a: str, user_id_b: str):
 @router.post("/mock/contact-unknown-user")
 async def MOCK_contact_unknown_user(
     current_user : Annotated[User, Depends(get_current_user)],
-    target_phone_number: PhoneStr,
+    target_phone_number: Annotated[str, Query(pattern=r"^\+639\d{9}$")],
     session: SessionDep,
 
     ):
@@ -747,4 +747,4 @@ async def MOCK_contact_unknown_user(
 
     await MOCK_sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
 
-    return { "status": "ok", "detail": "Sync from the database"}
+    return { "status": "ok", "detail": "Sync from the database", "user_id": unknown_user_id}

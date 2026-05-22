@@ -44,7 +44,7 @@ class EmailVerificationPublic(SQLModel):
 def generate_verification_token():
     return secrets.token_urlsafe(32)
 
-def send_verification_email(user_id:uuid.UUID, session: SessionDep, background_tasks: BackgroundTasks, request: Request):
+def send_verification_email(user_id:uuid.UUID, session: SessionDep, background_tasks: BackgroundTasks, request: Request, email: str | None = None):
     # generate and save token (6-digit code)
     token = "".join(random.choices(string.digits, k=6))
 
@@ -62,7 +62,10 @@ def send_verification_email(user_id:uuid.UUID, session: SessionDep, background_t
     session.add(verification)
     session.commit()
 
-    email = user.email
+    email = email or user.email
+
+    if not email:
+        raise Exception("User has no email address")
 
     html = f"""
     <h3>Email Verification</h3>

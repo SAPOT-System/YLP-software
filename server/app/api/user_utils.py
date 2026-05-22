@@ -45,7 +45,7 @@ def get_current_user_info(
         phone_number=current_user.phone_number,
         email=current_user.email,
         email_verified=current_user.email_verified,
-        phone_verified=current_user.phone_is_verified is not None
+        phone_verified=bool(current_user.phone_is_verified)
     )
 
 

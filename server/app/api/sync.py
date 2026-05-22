@@ -178,6 +178,7 @@ def cast_to_uuids(model, datum: dict):
     elif model is Message:
         if "sender_id" in datum: datum["sender_id"] = UUID(datum["sender_id"])
         if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
+        if "linked_message_id" in datum and datum["linked_message_id"]: datum["linked_message_id"] = UUID(datum["linked_message_id"])
         
     elif model is Call:
         if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
@@ -216,7 +217,43 @@ async def push_local_data(
 
     
     try:
-        # Cache to avoid repeated DB hits for the same users
+        # Cache to avoid repeated DB hits for the same conversations/users
+        existing_conversation_ids: set[UUID] = set()
+        def ensure_conversation_exists(conversation_id: UUID | None) -> bool:
+            """Returns False if the conversation doesn't exist — caller should skip the record."""
+            if not conversation_id:
+                return True
+            if not isinstance(conversation_id, UUID):
+                try:
+                    conversation_id = UUID(str(conversation_id))
+                except ValueError:
+                    return False
+            if conversation_id in existing_conversation_ids:
+                return True
+            row = session.get(Conversation, conversation_id)
+            if row:
+                existing_conversation_ids.add(conversation_id)
+                return True
+            return False
+
+        existing_call_ids: set[UUID] = set()
+        def ensure_call_exists(call_id: UUID | None) -> bool:
+            """Returns False if the call doesn't exist — caller should skip the record."""
+            if not call_id:
+                return True
+            if not isinstance(call_id, UUID):
+                try:
+                    call_id = UUID(str(call_id))
+                except ValueError:
+                    return False
+            if call_id in existing_call_ids:
+                return True
+            row = session.get(Call, call_id)
+            if row:
+                existing_call_ids.add(call_id)
+                return True
+            return False
+
         existing_user_ids: set[UUID] = set()
         missing_user_ids: set[UUID] = set()
         def ensure_user_exists(user_id: UUID | None):
@@ -266,14 +303,18 @@ async def push_local_data(
             all_upserts = table_changes.created + table_changes.updated
             
             for datum in all_upserts:
-                # --- USER FK VALIDATION ---
+                # --- FK VALIDATION ---
                 if model is Message:
                     ensure_user_exists(datum.get("sender_id"))
                 elif model is ConversationParticipant:
                     ensure_user_exists(datum.get("user_id"))
                 elif model is Call:
+                    if not ensure_conversation_exists(datum.get("conversation_id")):
+                        continue
                     ensure_user_exists(datum.get("initiator_id"))
                 elif model is CallParticipant:
+                    if not ensure_call_exists(datum.get("call_id")):
+                        continue
                     ensure_user_exists(datum.get("user_id"))
                 elif model is MessageReceipt:
                     ensure_user_exists(datum.get("user_id"))
@@ -306,6 +347,12 @@ async def push_local_data(
                     # Protocol: Sanitize data (handled by model validation/SQLModel)
                     new_record = model(**datum)
                     session.add(new_record)
+                    # Cache newly inserted calls so same-batch call_participants resolve without a DB hit
+                    if model is Call and datum.get("id"):
+                        try:
+                            existing_call_ids.add(UUID(str(datum["id"])))
+                        except ValueError:
+                            pass
 
             # --- 2. HANDLE DELETED ---
             for datum_id in table_changes.deleted:

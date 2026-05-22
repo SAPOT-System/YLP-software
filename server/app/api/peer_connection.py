@@ -220,8 +220,12 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                 await relay_public_message(user_id, payload, session)
             # relay message data
             elif isinstance(payload, MessageData):
+                if payload.data.to is None:
+                    continue
                 await relay_message(user_id, UUID(payload.data.to), payload, session)
             elif isinstance(payload, SignalMessage) and validate_sender(payload, user_id):
+                if payload.data.to is None:
+                    continue
                 await relay_signal(user_id, UUID(payload.data.to), payload, session)
 
     except WebSocketDisconnect:

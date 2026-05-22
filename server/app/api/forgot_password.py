@@ -50,6 +50,9 @@ from app.db_operations.forgot_password import generate_reset_token
 from app.db_operations.verify_user import require_verified_user
 from app.db_operations.forgot_password import generate_reset_code
 from app.models.PasswordResetCode import PasswordResetCode
+from app.models.PhonePasswordResetCode import PhonePasswordResetCode
+from app.api.gsm import sendToModule
+from app.db_operations.auth import get_user_by_phone_number
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
 
@@ -66,6 +69,74 @@ router = APIRouter(
     },
     # dependencies=[Depends(require_verified_user)]
 )
+
+class PhoneResetRequest(BaseModel):
+    phone_number: str
+
+class PhoneCodeRequest(BaseModel):
+    phone_number: str
+    code: str
+
+
+@router.post('/phone')
+async def send_phone_reset(body: PhoneResetRequest, background_tasks: BackgroundTasks, session: SessionDep):
+    try:
+        current_user = get_user_by_phone_number(session, body.phone_number)
+    except HTTPException:
+        return {"message": "If the account exists, a reset code was sent."}
+
+    code = generate_reset_code()
+    reset_code = PhonePasswordResetCode(
+        phone_number=body.phone_number,
+        code=code,
+        expires_at=datetime.utcnow() + timedelta(minutes=10)
+    )
+    session.add(reset_code)
+    session.commit()
+    background_tasks.add_task(
+        sendToModule,
+        body.phone_number,
+        f"Your password reset code is: {code}. It expires in 10 minutes."
+    )
+    return {"message": "If the account exists, a reset code was sent."}
+
+
+@router.post('/phone-code')
+def confirm_phone_code(body: PhoneCodeRequest, session: SessionDep, request: Request):
+    phone_number, code = body.phone_number, body.code
+    current_user = get_user_by_phone_number(session, phone_number)
+
+    record = session.exec(
+        select(PhonePasswordResetCode).where(
+            PhonePasswordResetCode.phone_number == phone_number,
+            PhonePasswordResetCode.code == code,
+        )
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid code.")
+
+    if record.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Code expired.")
+
+    session.delete(record)
+    session.commit()
+
+    raw_token, token_hash = generate_reset_token().values()
+    expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
+
+    store_reset_token_in_db(
+        user_id=current_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+        session=session
+    )
+
+    return {
+        'link': reset_link_template(raw_token, request),
+        'detail': 'Use POST request with the new password to reset the password'
+    }
+
 
 @router.post('/generate-new-recovery-key')
 def get_recovery_key(

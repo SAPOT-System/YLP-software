@@ -62,17 +62,18 @@ def verify_email_code(payload: VerifyCodeRequest, db: SessionDep):
 
 @router.post("/resend-verification-code")
 def resend_verification_email(
-    current_user: Annotated[User, Depends(get_current_user)], 
-    session: SessionDep, 
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: SessionDep,
     background_tasks: BackgroundTasks,
-    request: Request
+    request: Request,
+    email: str | None = None,
 ):
     if current_user.email_verified:
         return {"message": "Email already verified"}
 
     # Generate new 6-digit code
     otp_code = generate_reset_code()
-    
+
     # Update or Create verification record
     # Note: It's best practice to delete old codes for that user first
     existing_code = session.exec(
@@ -86,11 +87,11 @@ def resend_verification_email(
         user_id=current_user.id,
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=10) # Shorter expiry for OTPs
     )
-    
+
     session.add(new_verification)
     session.commit()
 
-    # Pass the otp_code to your background task to send the actual email
-    send_verification_email(current_user.id, session, background_tasks, request)
+    send_verification_email(current_user.id, session, background_tasks, request, email=email)
 
-    return {"message": f"Verification code sent to {current_user.email}"}
+    target_email = email or current_user.email
+    return {"message": f"Verification code sent to {target_email}"}
