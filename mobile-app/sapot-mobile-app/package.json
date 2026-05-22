@@ -15,7 +15,7 @@
     "android:prev": "eas build --platform android --profile preview",
     "android:prod": "eas build --platform android --profile production",
     "update:dev": "eas update --platform android --channel development",
-    "update:prev": "eas update --platform android --channel preview",
+    "update:prev": "eas update --platform android --channel preview && npx sentry-expo-upload-sourcemaps dist",
     "update:prod": "eas update --platform android --channel production",
     "ios": "expo run:ios"
   },
