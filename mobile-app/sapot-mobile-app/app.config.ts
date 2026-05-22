@@ -184,6 +184,14 @@ export default ({ config }: ConfigContext) => ({
       },
     ],
     [
+      "@sentry/react-native/expo",
+      {
+        "url": "https://sentry.io/",
+        "project": "sapot-mobile-app",
+        "organization": "adriele-matthew-tosino"
+      }
+    ],
+    [
       "expo-image-picker",
       {
         photosPermission:

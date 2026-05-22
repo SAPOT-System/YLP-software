@@ -58,6 +58,7 @@
     "@react-native-documents/picker": "^12.0.1",
     "@react-navigation/drawer": "^7.5.0",
     "@react-navigation/native": "^7.1.8",
+    "@sentry/react-native": "^8.12.0",
     "@tanstack/react-query": "^5.90.21",
     "axios": "^1.13.5",
     "deepmerge": "^4.3.1",
