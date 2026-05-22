@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Important
 
-**Do not edit the FastAPI server code** in `server/`. It is included as a working directory for reference only.
+The FastAPI server code in `server/` may be edited when the user explicitly requests a backend change.
 
 **Keep documentation in sync.** When adding or updating features, APIs, messages, database tables, or services, update the relevant file in `docs/`:
 - `docs/ARCHITECTURE.md` — new services, adapters, stores, DI wiring, transport changes
