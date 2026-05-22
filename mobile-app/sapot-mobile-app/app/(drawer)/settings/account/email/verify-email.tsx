@@ -4,136 +4,144 @@ import {
   resendVerificationCodeEmail,
   verifyCodeEmail,
 } from "@/features/auth/api/auth.api";
-import VerificationCodeModal from "@/features/settings/components/verification-code-modal";
+import { VerificationCodeContent } from "@/features/settings";
 import { updateProfileApi } from "@/features/shared/api/user-profile.api";
+import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
-import { Button, Text, useTheme } from "react-native-paper";
+import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
 
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const theme = useTheme();
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [modalError, setModalError] = useState<string | undefined>(undefined);
+  const [isSending, setIsSending] = useState(true);
+  const [sendFailed, setSendFailed] = useState(false);
+  const [codeError, setCodeError] = useState<string | undefined>(undefined);
+  const [snackbar, setSnackbar] = useState<{
+    visible: boolean;
+    message: string;
+    variant: "neutral" | "error";
+  }>({ visible: false, message: "", variant: "neutral" });
   const userService = useUserService();
 
   useEffect(() => {
     uiLog.info("[VerifyEmail] mounted");
+    sendCode();
     return () => {
       uiLog.info("[VerifyEmail] unmounted");
     };
   }, []);
-  const handleVerify = async () => {
-    uiLog.debug("[VerifyEmail] handleVerify called");
-    await resendVerificationCodeEmail();
-    setModalError(undefined);
-    setIsModalVisible(true);
+
+  const sendCode = async () => {
+    setIsSending(true);
+    setSendFailed(false);
+    try {
+      await resendVerificationCodeEmail();
+      setCodeError(undefined);
+    } catch (error) {
+      uiLog.error("[VerifyEmail] Error sending verification code", { error });
+      setSendFailed(true);
+      setSnackbar({
+        visible: true,
+        message: "Failed to send verification code. Please try again.",
+        variant: "error",
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleVerifyCode = async (code: string) => {
     if (!email) {
-      setModalError("Email address is missing.");
+      setCodeError("Email address is missing.");
       return;
     }
 
-    setModalError(undefined);
+    setCodeError(undefined);
 
     try {
       await verifyCodeEmail(code);
       await updateProfileApi({ email });
-      setIsModalVisible(false);
-
       await userService.updateAuthenticatedUser({ emailVerified: true });
-      uiLog.info("[Navigation] Navigating to ManageProfile", {
-        screen: SETTINGS_ROUTES.MANAGE_PROFILE,
-      });
-      router.replace(SETTINGS_ROUTES.MANAGE_PROFILE);
+      uiLog.info("[VerifyEmail] email verified, navigating to EmailVerified");
+      router.replace(SETTINGS_ROUTES.EMAIL_VERIFIED);
     } catch (error) {
-      uiLog.error("[VerifyEmail] Error in verify code", { error });
-      setModalError("Invalid or expired code.");
+      uiLog.error("[VerifyEmail] Error verifying code", { error });
+      setCodeError("Invalid or expired code.");
     }
   };
 
   const handleResendCode = async () => {
     if (!email) {
-      setModalError("Email address is missing.");
+      setCodeError("Email address is missing.");
       return;
     }
 
-    setModalError(undefined);
+    setCodeError(undefined);
 
     try {
       await resendVerificationCodeEmail();
     } catch (error) {
-      uiLog.error("[VerifyEmail] Error in resend code", { error });
-      setModalError("Failed to resend code. Please try again.");
+      uiLog.error("[VerifyEmail] Error resending code", { error });
+      setCodeError("Failed to resend code. Please try again.");
     }
   };
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.dark ? "#0B1020" : "#FFF" }}>
-      <View
-        style={{
-          paddingHorizontal: 24,
-          paddingTop: 30,
-          alignItems: "center",
-          gap: 10,
-        }}
-      >
+      {isSending ? (
         <View
           style={{
-            paddingHorizontal: 40,
-            paddingVertical: 46,
-            backgroundColor: theme.dark ? "#1A233A" : "#EAEDF3",
-            borderRadius: 10,
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+          }}
+        >
+          <ActivityIndicator size="large" />
+          <Text style={{ color: theme.dark ? "#9BA8C0" : "#6B7280" }}>
+            Sending verification code…
+          </Text>
+        </View>
+      ) : sendFailed ? (
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+            paddingHorizontal: 24,
           }}
         >
           <Text
             style={{
-              fontWeight: "medium",
               textAlign: "center",
-              fontSize: 17,
-              color: theme.dark ? "#E6ECF5" : "#000000",
+              color: theme.dark ? "#9BA8C0" : "#6B7280",
             }}
           >
-            Verify with Email
+            Could not send verification code.
           </Text>
-          <Text
-            style={{
-              fontSize: 17,
-              textAlign: "center",
-              color: theme.dark ? "#E6ECF5" : "#000000",
-            }}
-          >
-            A 6-digit code will be sent to{" "}
-          </Text>
-          <Text
-            style={{
-              fontWeight: "medium",
-              fontSize: 17,
-              textAlign: "center",
-              color: theme.dark ? "#3A7AFE" : "#103462",
-            }}
-          >
-            {email}
-          </Text>
+          <Button mode="contained" onPress={sendCode}>
+            Try again
+          </Button>
         </View>
-        <Button mode="contained" style={{ width: 164 }} onPress={handleVerify}>
-          Verify Email
-        </Button>
-      </View>
-      <VerificationCodeModal
-        visible={isModalVisible}
-        email={email}
-        onDismiss={() => {
-          uiLog.debug("[VerifyEmail] modal dismissed");
-          setIsModalVisible(false);
-        }}
-        error={modalError}
-        onVerifyCode={handleVerifyCode}
-        onResendCode={handleResendCode}
-      />
+      ) : (
+        <VerificationCodeContent
+          email={email}
+          error={codeError}
+          onVerifyCode={handleVerifyCode}
+          onResendCode={handleResendCode}
+        />
+      )}
+      <AppSnackbar
+        visible={snackbar.visible}
+        variant={snackbar.variant}
+        onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
+      >
+        {snackbar.message}
+      </AppSnackbar>
     </View>
   );
 }

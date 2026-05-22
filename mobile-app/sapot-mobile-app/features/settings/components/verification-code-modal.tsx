@@ -1,9 +1,18 @@
 import { OTPInput } from "input-otp-native";
 import React, { useEffect, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { HelperText, Modal, Portal, Text, useTheme } from "react-native-paper";
+import {
+  ActivityIndicator,
+  HelperText,
+  Modal,
+  Portal,
+  Text,
+  useTheme,
+} from "react-native-paper";
 
 const CODE_LENGTH = 6;
+const OTP_TTL_SECONDS = 300;
+const RESEND_COOLDOWN = 60;
 
 interface VerificationCodeModalProps {
   visible: boolean;
@@ -34,18 +43,80 @@ const VerificationCodeModal = ({
   );
   const slotHeight = Math.max(48, Math.floor(slotWidth * 1.2));
   const [code, setCode] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(OTP_TTL_SECONDS);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendConfirmed, setResendConfirmed] = useState(false);
 
   useEffect(() => {
     if (!visible) {
       setCode("");
+      setIsVerifying(false);
+      setResendConfirmed(false);
+      return;
     }
+    setSecondsLeft(OTP_TTL_SECONDS);
+    setResendCooldown(RESEND_COOLDOWN);
+    const id = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(id);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
   }, [visible]);
 
-  const handleOnChange = async (newCode: string) => {
-    setCode(newCode);
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setInterval(() => {
+      setResendCooldown((c) => {
+        if (c <= 1) {
+          clearInterval(id);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [resendCooldown]);
 
+  // Clear code when parent signals an error (wrong/expired code)
+  useEffect(() => {
+    if (error) setCode("");
+  }, [error]);
+
+  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+  const ss = String(secondsLeft % 60).padStart(2, "0");
+
+  const cooldownMm = String(Math.floor(resendCooldown / 60)).padStart(2, "0");
+  const cooldownSs = String(resendCooldown % 60).padStart(2, "0");
+
+  const handleOnChange = async (newCode: string) => {
+    if (isVerifying) return;
+    setCode(newCode);
     if (newCode.length === CODE_LENGTH) {
-      await onVerifyCode(newCode);
+      setIsVerifying(true);
+      try {
+        await onVerifyCode(newCode);
+      } finally {
+        setIsVerifying(false);
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    try {
+      await onResendCode?.();
+      setSecondsLeft(OTP_TTL_SECONDS);
+      setResendCooldown(RESEND_COOLDOWN);
+      setResendConfirmed(true);
+      setTimeout(() => setResendConfirmed(false), 3000);
+    } catch {
+      // error surfaces via parent's onResendCode error handling
     }
   };
 
@@ -90,6 +161,7 @@ const VerificationCodeModal = ({
           onChange={handleOnChange}
           maxLength={CODE_LENGTH}
           autoFocus
+          editable={!isVerifying}
           containerStyle={{
             marginVertical: 20,
             flexDirection: "row",
@@ -127,28 +199,62 @@ const VerificationCodeModal = ({
             </>
           )}
         />
-        <Text
-          variant="bodySmall"
-          style={{ color: theme.colors.onPrimaryContainer, textAlign: "center" }}
-        >
-          The code will expire in {/* TODO: make a countdown */}
-        </Text>
-        <Text
-          variant="bodyMedium"
-          style={{ color: theme.colors.onPrimaryContainer, textAlign: "center" }}
-        >
-          Didn't receive code?{" "}
+        {isVerifying ? (
+          <ActivityIndicator size="small" style={{ marginBottom: 12 }} />
+        ) : (
+          <Text
+            variant="bodySmall"
+            style={{
+              color: theme.colors.onPrimaryContainer,
+              textAlign: "center",
+              marginBottom: 12,
+            }}
+          >
+            The code will expire in {mm}:{ss}
+          </Text>
+        )}
+        {resendConfirmed ? (
           <Text
             variant="bodyMedium"
             style={{
+              color: theme.colors.primary,
+              textAlign: "center",
               fontWeight: "bold",
-              color: theme.colors.onPrimaryContainer,
             }}
-            onPress={onResendCode}
           >
-            Resend
+            Code resent!
           </Text>
-        </Text>
+        ) : resendCooldown > 0 ? (
+          <Text
+            variant="bodyMedium"
+            style={{
+              color: theme.colors.onPrimaryContainer,
+              textAlign: "center",
+            }}
+          >
+            Resend available in {cooldownMm}:{cooldownSs}
+          </Text>
+        ) : (
+          <Text
+            variant="bodyMedium"
+            style={{
+              color: theme.colors.onPrimaryContainer,
+              textAlign: "center",
+            }}
+          >
+            Didn't receive code?{" "}
+            <Text
+              variant="bodyMedium"
+              style={{
+                fontWeight: "bold",
+                color: theme.colors.primary,
+              }}
+              onPress={handleResend}
+            >
+              Resend
+            </Text>
+          </Text>
+        )}
       </Modal>
     </Portal>
   );

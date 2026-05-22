@@ -134,6 +134,30 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
+        name="account/email/email-verified"
+        options={{
+          title: "Email Verified",
+        }}
+      />
+      <Stack.Screen
+        name="account/phone/edit-phone"
+        options={{
+          title: "Phone Number",
+        }}
+      />
+      <Stack.Screen
+        name="account/phone/verify-phone"
+        options={{
+          title: "Verify Phone Number",
+        }}
+      />
+      <Stack.Screen
+        name="account/phone/phone-verified"
+        options={{
+          title: "Phone Verified",
+        }}
+      />
+      <Stack.Screen
         name="account/switch-mode"
         options={{
           title: "Switch Mode",

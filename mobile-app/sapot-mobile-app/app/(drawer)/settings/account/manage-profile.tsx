@@ -1,14 +1,9 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { useUserService } from "@/features/auth";
-import {
-  toInternationalPhone,
-  validateEmail,
-} from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import {
   ExpoFileUpload,
   getUserApi,
-  updateProfileApi,
   uploadProfilePicApi,
 } from "@/features/shared";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -34,7 +29,6 @@ import {
   ActivityIndicator,
   Avatar,
   Button,
-  HelperText,
   Modal,
   Portal,
   Text,
@@ -49,7 +43,6 @@ export default function ManageProfile() {
     visible: toastVisible,
     message: toastMessage,
     variant: toastVariant,
-    showToast,
     showError,
     hideToast,
   } = useToast();
@@ -63,8 +56,6 @@ export default function ManageProfile() {
   const currentPhoneNumberVerified = isGuest
     ? false
     : Boolean((user as { phoneNumberVerified?: boolean }).phoneNumberVerified);
-  const [phoneNumber, setPhoneNumber] = useState(currentPhoneNumber);
-  const [email, setEmail] = useState(currentEmail);
   const {
     url: profilePicUrl,
     loading: isProfilePicLoading,
@@ -75,10 +66,6 @@ export default function ManageProfile() {
   const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
   const actionColor = theme.dark ? "#ffffff" : "#000000";
-  const [errors, setErrors] = useState<{
-    phoneNumber?: string;
-    email?: string;
-  }>({});
 
   useEffect(() => {
     uiLog.info("[ManageProfile] mounted");
@@ -104,95 +91,11 @@ export default function ManageProfile() {
         }
       })();
       return () => {
-        setErrors({});
-        setPhoneNumber(currentPhoneNumber);
-        setEmail(currentEmail);
         setIsPhotoOptionsVisible(false);
         setIsPhotoViewerVisible(false);
       };
-    }, [currentEmail, currentPhoneNumber, userService])
+    }, [userService])
   );
-
-  useEffect(() => {
-    setPhoneNumber(currentPhoneNumber);
-    setEmail(currentEmail);
-  }, [currentEmail, currentPhoneNumber]);
-
-  const normalizeValue = (value?: string) => (value ?? "").trim();
-  const emailHasChanged =
-    normalizeValue(email) !== normalizeValue(currentEmail);
-  const phoneHasChanged =
-    normalizeValue(phoneNumber) !== normalizeValue(currentPhoneNumber);
-  const hasChanges =
-    !isGuest &&
-    (normalizeValue(phoneNumber) !== normalizeValue(currentPhoneNumber) ||
-      emailHasChanged);
-
-  const handleSave = async () => {
-    uiLog.debug("[ManageProfile] handleSave called", {
-      hasChanges,
-    });
-    if (!hasChanges) {
-      return;
-    }
-    if (isGuest) {
-      return;
-    }
-    if (isServerOffline) {
-      showError("Server unavailable. Cannot save profile.");
-      return;
-    }
-
-    const nextErrors: { phoneNumber?: string; email?: string } = {};
-    const normalizedPhoneNumber = normalizeValue(phoneNumber);
-    const normalizedEmail = normalizeValue(email);
-
-    if (
-      normalizedPhoneNumber.length > 0 &&
-      !/^09\d{9}$/.test(normalizedPhoneNumber)
-    ) {
-      nextErrors.phoneNumber = "Phone number must be in the format 09XXXXXXXXX";
-    }
-
-    const emailError = validateEmail(normalizedEmail);
-    if (emailError) {
-      nextErrors.email = emailError;
-    }
-
-    setErrors(nextErrors);
-
-    if (Object.values(nextErrors).some(Boolean)) {
-      uiLog.warn("[ManageProfile] validation failed");
-      return;
-    }
-
-    try {
-      await updateProfileApi({
-        phoneNumber:
-          normalizedPhoneNumber === ""
-            ? undefined
-            : toInternationalPhone(normalizedPhoneNumber),
-        email: normalizedEmail === "" ? undefined : normalizedEmail,
-      });
-
-      const fresh = await getUserApi();
-      await userService.updateAuthenticatedUser({
-        phoneNumber: fresh.phone_number || undefined,
-        email: fresh.email || undefined,
-        emailVerified: fresh.email_verified,
-        phoneNumberVerified: fresh.phone_number_verified,
-      });
-
-      setPhoneNumber(normalizedPhoneNumber);
-      setEmail(normalizedEmail);
-      setErrors({});
-      uiLog.info("[ManageProfile] profile updated");
-      showToast("Profile updated");
-    } catch (error) {
-      uiLog.error("[ManageProfile] profile update failed", { error });
-      showError("Failed to update profile. Please try again.");
-    }
-  };
 
   const uploadProfilePhotoAsset = async (
     asset: ImagePicker.ImagePickerAsset
@@ -223,7 +126,7 @@ export default function ManageProfile() {
     if (isGuest) return;
     if (isProfilePicUploading) return;
     if (isServerOffline) {
-      showToast("Server unavailable. Cannot upload photo.");
+      showError("Server unavailable. Cannot upload photo.");
       setIsPhotoOptionsVisible(false);
       return;
     }
@@ -255,7 +158,7 @@ export default function ManageProfile() {
     if (isGuest) return;
     if (isProfilePicUploading) return;
     if (isServerOffline) {
-      showToast("Server unavailable. Cannot upload photo.");
+      showError("Server unavailable. Cannot upload photo.");
       setIsPhotoOptionsVisible(false);
       return;
     }
@@ -346,123 +249,93 @@ export default function ManageProfile() {
                   onChangeText={() => {}}
                 />
               </View>
+
               {!isGuest && (
-                <View style={{ marginBottom: 4 }}>
+                <View style={{ marginBottom: 8 }}>
                   <SettingsTextInput
                     placeholder="Phone Number"
                     label="Phone Number"
-                    value={phoneNumber}
-                    onChangeText={(text) => {
-                      setPhoneNumber(text);
-                      if (errors.phoneNumber) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          phoneNumber: undefined,
-                        }));
-                      }
-                    }}
-                    error={Boolean(errors.phoneNumber)}
-                    checkIcon={currentPhoneNumberVerified && !phoneHasChanged}
+                    value={currentPhoneNumber}
+                    disabled={true}
+                    onChangeText={() => {}}
                     labelRight={
-                      !phoneHasChanged && !currentPhoneNumberVerified ? (
-                        <Pressable
-                          onPress={() => {
-                            uiLog.info(
-                              "[Navigation] Navigating to VerifyPhone",
-                              {
-                                screen: SETTINGS_ROUTES.VERIFY_PHONE,
-                              }
-                            );
-                            router.push({
-                              pathname: SETTINGS_ROUTES.VERIFY_PHONE,
-                              params: {
-                                phone: normalizeValue(phoneNumber),
-                              },
-                            });
-                          }}
-                        >
+                      <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                        {currentPhoneNumber.length > 0 && (
                           <Text
                             style={{
-                              color: "#3A7AFE",
-                              fontWeight: "semibold",
-                              textDecorationLine: "underline",
-                              textDecorationColor: "#3A7AFE",
+                              fontSize: 12,
+                              color: currentPhoneNumberVerified ? "#15803D" : "#854D0E",
                             }}
                           >
-                            Verify
+                            {currentPhoneNumberVerified ? "✓ Verified" : "Not verified"}
+                          </Text>
+                        )}
+                        {currentPhoneNumber.length > 0 && !currentPhoneNumberVerified && (
+                          <Pressable
+                            onPress={() =>
+                              router.push({
+                                pathname: SETTINGS_ROUTES.VERIFY_PHONE,
+                                params: { phone: currentPhoneNumber },
+                              })
+                            }
+                          >
+                            <Text style={{ color: "#3A7AFE", fontSize: 12 }}>Verify</Text>
+                          </Pressable>
+                        )}
+                        <Pressable onPress={() => router.push(SETTINGS_ROUTES.EDIT_PHONE)}>
+                          <Text style={{ color: "#3A7AFE", fontSize: 12 }}>
+                            {currentPhoneNumber.length > 0 ? "Change" : "Add"}
                           </Text>
                         </Pressable>
-                      ) : undefined
+                      </View>
                     }
                   />
-                  <HelperText
-                    type="error"
-                    visible={Boolean(errors.phoneNumber)}
-                  >
-                    {errors.phoneNumber}
-                  </HelperText>
                 </View>
               )}
+
               {!isGuest && (
-                <View style={{ marginBottom: 4 }}>
+                <View style={{ marginBottom: 8 }}>
                   <SettingsTextInput
                     placeholder="Email Address"
                     label="Email Address"
-                    value={email}
-                    onChangeText={(text) => {
-                      setEmail(text);
-                      if (errors.email) {
-                        setErrors((prev) => ({ ...prev, email: undefined }));
-                      }
-                    }}
-                    error={Boolean(errors.email)}
-                    checkIcon={currentEmailVerified && !emailHasChanged}
+                    value={currentEmail}
+                    disabled={true}
+                    onChangeText={() => {}}
                     labelRight={
-                      !emailHasChanged && !currentEmailVerified ? (
-                        <Pressable
-                          onPress={() => {
-                            uiLog.info(
-                              "[Navigation] Navigating to VerifyEmail",
-                              {
-                                screen: SETTINGS_ROUTES.VERIFY_EMAIL,
-                              }
-                            );
-                            router.push({
-                              pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
-                              params: {
-                                email: normalizeValue(email),
-                              },
-                            });
-                          }}
-                        >
+                      <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                        {currentEmail.length > 0 && (
                           <Text
                             style={{
-                              color: "#3A7AFE",
-                              fontWeight: "semibold",
-                              textDecorationLine: "underline",
-                              textDecorationColor: "#3A7AFE",
+                              fontSize: 12,
+                              color: currentEmailVerified ? "#15803D" : "#854D0E",
                             }}
                           >
-                            Verify
+                            {currentEmailVerified ? "✓ Verified" : "Not verified"}
+                          </Text>
+                        )}
+                        {currentEmail.length > 0 && !currentEmailVerified && (
+                          <Pressable
+                            onPress={() =>
+                              router.push({
+                                pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+                                params: { email: currentEmail },
+                              })
+                            }
+                          >
+                            <Text style={{ color: "#3A7AFE", fontSize: 12 }}>Verify</Text>
+                          </Pressable>
+                        )}
+                        <Pressable onPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}>
+                          <Text style={{ color: "#3A7AFE", fontSize: 12 }}>
+                            {currentEmail.length > 0 ? "Change" : "Add"}
                           </Text>
                         </Pressable>
-                      ) : undefined
+                      </View>
                     }
                   />
-                  <HelperText type="error" visible={Boolean(errors.email)}>
-                    {errors.email}
-                  </HelperText>
                 </View>
               )}
             </View>
-            <Button
-              mode="contained"
-              style={{ width: 164 }}
-              onPress={handleSave}
-              disabled={!hasChanges}
-            >
-              Save
-            </Button>
           </View>
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>

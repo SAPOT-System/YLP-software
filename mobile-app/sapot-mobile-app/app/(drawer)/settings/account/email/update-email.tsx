@@ -1,6 +1,7 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { validateEmail } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
+import { updateProfileApi } from "@/features/shared/api/user-profile.api";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -30,6 +31,8 @@ export default function UpdateEmail() {
     });
   }, [newEmail, confirmNewEmail]);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async () => {
     uiLog.debug("[UpdateEmail] handleSubmit called");
     const nextErrors: { newEmail?: string; confirmNewEmail?: string } = {};
@@ -51,13 +54,23 @@ export default function UpdateEmail() {
       return;
     }
 
-    uiLog.info("[Navigation] Navigating to VerifyEmail", {
-      screen: SETTINGS_ROUTES.VERIFY_EMAIL,
-    });
-    router.push({
-      pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
-      params: { email: newEmail.trim() },
-    });
+    setIsSubmitting(true);
+    try {
+      await updateProfileApi({ email: newEmail.trim() });
+      uiLog.info("[Navigation] Navigating to VerifyEmail", {
+        screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+        newEmail: newEmail,
+      });
+      router.push({
+        pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+        params: { email: newEmail.trim() },
+      });
+    } catch (error) {
+      uiLog.error("[UpdateEmail] updateProfileApi failed", { error });
+      setErrors({ newEmail: "Failed to update email. Please try again." });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
@@ -100,7 +113,13 @@ export default function UpdateEmail() {
             {errors.confirmNewEmail}
           </HelperText>
         </View>
-        <Button mode="contained" style={{ width: 164 }} onPress={handleSubmit}>
+        <Button
+          mode="contained"
+          style={{ width: 164 }}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+          loading={isSubmitting}
+        >
           Submit
         </Button>
       </View>

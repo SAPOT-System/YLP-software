@@ -2,8 +2,10 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { APP_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
+import { ChatRoomSource } from "@/features/chat/types";
 import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { ChatList, useChats } from "@/features/chat";
+import { useChatService } from "@/features/chat/hooks/use-chat-service";
 import { contactUnknownUser } from "@/features/shared/api/gsm.api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import PeerList from "@/features/shared/components/peer-list";
@@ -11,6 +13,7 @@ import { Peer } from "@/features/shared/database";
 import {
   useConnectionService,
   useDiscoveryService,
+  usePeerService,
   useToast,
 } from "@/features/shared/hooks";
 import { useDialogVisibility } from "@/features/shared/hooks/use-dialog-visibility";
@@ -66,7 +69,7 @@ export default function Chat() {
     !!(userStore.user as Peer).phoneNumberVerified;
 
   const isValidPhone = (phone: string) =>
-    /^\+[1-9]\d{6,14}$/.test(toInternationalPhone(phone.trim()));
+    /^\+639\d{9}$/.test(toInternationalPhone(phone.trim()));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -77,6 +80,8 @@ export default function Chat() {
   const router = useRouter();
   const discoveryService = useDiscoveryService();
   const connectionService = useConnectionService();
+  const peerService = usePeerService();
+  const chatService = useChatService();
 
   useEffect(() => {
     uiLog.debug("[Chat] useEffect triggered, deps:", {
@@ -217,7 +222,7 @@ export default function Chat() {
               type="error"
               visible={targetPhone.length > 0 && !isValidPhone(targetPhone)}
             >
-              Use international format: +63XXXXXXXXX
+              Use format: +639XXXXXXXXX or 09XXXXXXXXX
             </HelperText>
           </Dialog.Content>
           <Dialog.Actions>
@@ -228,10 +233,22 @@ export default function Chat() {
               onPress={async () => {
                 setContacting(true);
                 try {
-                  await contactUnknownUser(toInternationalPhone(targetPhone.trim()));
+                  const phone = toInternationalPhone(targetPhone.trim());
+                  const res = await contactUnknownUser(phone);
+                  await peerService.upsertPeer({
+                    id: res.user_id,
+                    username: phone,
+                    phoneNumber: phone,
+                    phoneNumberVerified: true,
+                  });
+                  const conversation = await chatService.getOrCreateSmsConversationByPeer(res.user_id);
                   hideFabDialog();
                   setTargetPhone("");
                   showToast("SMS sent! They'll receive a message to connect with you.");
+                  router.push({
+                    pathname: "/(drawer)/(tabs)/chat/[id]",
+                    params: { id: conversation.id, source: ChatRoomSource.CHAT },
+                  });
                 } catch {
                   showError(
                     "Failed to contact user. Check phone number format (+63...)."
