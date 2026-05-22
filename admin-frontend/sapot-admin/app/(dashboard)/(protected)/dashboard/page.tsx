@@ -11,7 +11,7 @@ import WhiteContainer from "@/ui/dashboard/white-rounded-container";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader } from "lucide-react";
+import { ArrowRight, ChevronRight, Loader, MoveRight } from "lucide-react";
 
 export function getTime() {
   return new Intl.DateTimeFormat('en-PH', {
@@ -438,6 +438,14 @@ export default function Dashboard() {
 							<h2 className="text-sm font-semibold text-gray-700">
 								Router Board Quick Stats
 							</h2>
+              <Link
+                href="http://192.168.0.1"
+								target="_blank"
+								className="text-xs flex gap-1 items-center justify-center hover:text-blue-300"
+              >
+								Router Board Web Interface
+								<ChevronRight/>
+              </Link>
 						</div>
 
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-2">

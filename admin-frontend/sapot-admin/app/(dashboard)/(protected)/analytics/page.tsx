@@ -7,8 +7,9 @@ import SpeedometerGauge from "@/ui/dashboard/speedometer";
 import PacketLossChart from "@/ui/dashboard/packet-loss-chart";
 import NetworkTable from "@/ui/dashboard/network-table";
 import { useEffect, useState, useRef } from "react";
-import { Loader } from "lucide-react";
+import { ChevronRight, Loader } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import Link from "next/link";
 
 
 function RouterHealthChart({ data }) {
@@ -505,11 +506,19 @@ export default function Analytics() {
 			<div className="flex flex-col gap-2">
 
 				{/* TITLE */}
-				<div className="flex items-center justify-between px-1">
-					<h2 className="text-sm font-semibold text-gray-700">
-						Router Board Quick Stats
-					</h2>
-				</div>
+					<div className="flex items-center justify-between px-1">
+						<h2 className="text-sm font-semibold text-gray-700">
+							Router Board Quick Stats
+						</h2>
+						<Link
+							href="http://192.168.0.1"
+							target="_blank"
+							className="text-xs flex gap-1 items-center justify-center hover:text-blue-300"
+						>
+							Router Board Web Interface
+							<ChevronRight/>
+						</Link>
+					</div>
 
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-2">
 
