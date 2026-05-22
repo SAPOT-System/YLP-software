@@ -13,7 +13,7 @@ import {
 import EditUserModal from "@/ui/dashboard/edit-user-modal";
 
 export default function Users() {
-  const [data, setData] = useState(null);
+	const [data, setData] = useState<any | undefined>(undefined);
 
   const [page, setPage] = useState(1);
 
@@ -148,33 +148,33 @@ export default function Users() {
 
       </div>
 
-      {/* TABLE */}
-      {loading && !data ? (
-        <div className="rounded-3xl p-6 flex items-center justify-center min-h-[400px] custom-white border border-gray-200 shadow-md">
+			{/* TABLE */}
+			{loading || data === undefined ? (
+				<div className="rounded-3xl p-6 flex items-center justify-center min-h-[400px] custom-white shadow-sm">
 
-          <div className="flex flex-col items-center gap-2">
+					<div className="flex flex-col items-center gap-3">
 
-            <Loader
-              size={20}
-              className="animate-spin text-gray-400"
-            />
+						<Loader
+							size={22}
+							className="animate-spin"
+						/>
 
-            <p className="text-xs text-gray-500">
-              Loading User Activity...
-            </p>
+						<p className="text-sm text-gray-500">
+							Loading users...
+						</p>
 
-          </div>
+					</div>
 
-        </div>
-      ) : (
-        <UserTable
-          data={data?.items ?? []}
-          currentPage={data?.page ?? 1}
-          totalPages={data?.pages ?? 1}
-          onPageChange={setPage}
-          refreshData={fetchData}
-        />
-      )}
+				</div>
+			) : (
+				<UserTable
+					data={data?.items ?? []}
+					currentPage={data?.page ?? 1}
+					totalPages={data?.pages ?? 1}
+					onPageChange={setPage}
+					refreshData={fetchData}
+				/>
+			)}
 
     </div>
   );
