@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+
+        <meta charset="UTF-8">
+        <meta
+            name="viewport"
+            content="width=device-width,initial-scale=1.0">
+
+        <title>
+            SAPOT Network — Resources
+        </title>
+
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+            rel="stylesheet">
+
+        <style>
+
+         *{
+             margin:0;
+             padding:0;
+             box-sizing:border-box;
+         }
+
+         :root{
+
+             --ink:#0f1117;
+             --ink2:#6b7280;
+
+             --surface:#f6f5f0;
+             --card:#fff;
+
+             --accent:#1a3cff;
+
+             --border:
+                 rgba(15,17,23,.08);
+
+             --success:#15803d;
+
+         }
+
+         html,
+         body{
+
+             font-family:
+                 Inter,sans-serif;
+
+             background:
+                 var(--surface);
+
+             color:
+                 var(--ink);
+
+             min-height:
+                 100vh;
+
+             overflow-x:hidden;
+
+         }
+
+         body{
+
+             position:relative;
+
+         }
+
+         body::before{
+
+             content:'';
+
+             position:fixed;
+
+             inset:0;
+
+             background:
+
+                 radial-gradient(
+                     ellipse 80% 60%
+                     at 10% 0%,
+
+                     rgba(26,60,255,.07),
+
+                     transparent 60%
+                 ),
+
+                 radial-gradient(
+                     ellipse 60% 50%
+                     at 90% 100%,
+
+                     rgba(26,60,255,.05),
+
+                     transparent 60%
+                 );
+
+             pointer-events:none;
+
+         }
+
+         .grid{
+
+             position:fixed;
+
+             inset:0;
+
+             background-image:
+
+                 linear-gradient(
+                     rgba(15,17,23,.04)
+                     1px,
+                     transparent 1px),
+
+                     linear-gradient(
+                         90deg,
+
+                         rgba(15,17,23,.04)
+                         1px,
+
+                         transparent 1px);
+
+             background-size:
+
+                 40px 40px;
+
+             pointer-events:none;
+
+         }
+
+         /* NAVBAR */
+
+         .navbar{
+
+             position:sticky;
+
+             top:0;
+
+             z-index:100;
+
+             background:
+
+                 rgba(246,245,240,.85);
+
+             backdrop-filter:
+
+                 blur(12px);
+
+             border-bottom:
+
+                 1px solid var(--border);
+
+         }
+
+         .nav-inner{
+
+             max-width:1200px;
+
+             margin:auto;
+
+             padding:
+
+                 14px 24px;
+
+             display:flex;
+
+             justify-content:
+                 space-between;
+
+             align-items:center;
+
+         }
+
+         .brand{
+
+             display:flex;
+
+             align-items:center;
+
+             gap:12px;
+
+         }
+
+         .logo{
+
+             width:42px;
+             height:42px;
+
+             background:#111827;
+
+             border-radius:12px;
+
+             display:flex;
+
+             align-items:center;
+
+             justify-content:center;
+
+             font-weight:800;
+
+             color:white;
+
+         }
+
+         .brand-title{
+
+             font-size:18px;
+
+             font-weight:800;
+
+             letter-spacing:-.03em;
+
+         }
+
+         .brand-sub{
+
+             font-size:11px;
+
+             color:var(--ink2);
+
+             letter-spacing:.08em;
+
+             text-transform:uppercase;
+
+         }
+
+         .nav-right{
+
+             display:flex;
+
+             align-items:center;
+
+             gap:28px;
+
+         }
+
+         .nav-link{
+
+             text-decoration:none;
+
+             color:var(--ink2);
+
+             font-weight:600;
+
+             font-size:14px;
+
+         }
+
+         .nav-link:hover{
+
+             color:var(--accent);
+
+         }
+
+         .nav-link.active{
+
+             color:var(--ink);
+
+         }
+
+         .connection{
+
+             padding:
+
+                 8px 14px;
+
+             background:
+
+                 rgba(21,128,61,.08);
+
+             color:
+
+                 var(--success);
+
+             font-size:
+
+                 12px;
+
+             font-weight:
+
+                 700;
+
+             border-radius:
+
+                 999px;
+
+         }
+
+         .mobile{
+
+             display:none;
+
+             background:none;
+
+             border:none;
+
+             font-size:24px;
+
+             cursor:pointer;
+
+         }
+
+         /* CONTENT */
+
+         .wrapper{
+
+             max-width:
+
+                 950px;
+
+             margin:
+
+                 40px auto;
+
+             padding:
+
+                 0 20px;
+
+             position:relative;
+
+             z-index:1;
+
+         }
+
+         .hero{
+
+             margin-bottom:
+
+                 32px;
+
+         }
+
+         .hero h1{
+
+             font-size:
+
+                 34px;
+
+             margin-bottom:
+
+                 8px;
+
+         }
+
+         .hero p{
+
+             color:
+
+                 var(--ink2);
+
+             line-height:
+
+                 1.7;
+
+         }
+
+         .notice{
+
+             margin-bottom:
+
+                 24px;
+
+             padding:
+
+                 18px;
+
+             background:
+
+                 rgba(26,60,255,.06);
+
+             border:
+
+                 1px solid
+             rgba(26,60,255,.12);
+
+             border-radius:
+
+                 14px;
+
+             color:
+
+                 #1731d0;
+
+         }
+
+         .files{
+
+             display:grid;
+
+             gap:14px;
+
+         }
+
+         .file{
+
+             background:white;
+
+             border:
+
+                 1px solid var(--border);
+
+             border-radius:
+
+                 18px;
+
+             padding:
+
+                 18px;
+
+             display:flex;
+
+             justify-content:
+                 space-between;
+
+             align-items:center;
+
+             transition:.2s;
+
+         }
+
+         .file:hover{
+
+             transform:
+
+                 translateY(-2px);
+
+             box-shadow:
+
+                 0 10px 30px rgba(0,0,0,.05);
+
+         }
+
+         .file-left{
+
+             display:flex;
+
+             gap:16px;
+
+             align-items:center;
+
+             min-width:0;
+
+         }
+
+         .icon{
+
+             width:50px;
+
+             height:50px;
+
+             border-radius:14px;
+
+             background:
+
+                 rgba(26,60,255,.08);
+
+             display:flex;
+
+             align-items:center;
+
+             justify-content:center;
+
+         }
+
+         .icon svg{
+
+             width:24px;
+
+             height:24px;
+
+             stroke:
+
+                 var(--accent);
+
+             fill:none;
+
+             stroke-width:2;
+
+         }
+
+         .file-info{
+
+             min-width:0;
+
+         }
+
+         .file-name{
+
+             font-weight:700;
+
+             margin-bottom:6px;
+
+         }
+
+         .file-meta{
+
+             font-size:13px;
+
+             color:
+
+                 var(--ink2);
+
+         }
+
+         .download{
+
+             height:44px;
+
+             padding:
+
+                 0 18px;
+
+             border:none;
+
+             border-radius:
+
+                 10px;
+
+             background:
+
+                 #111827;
+
+             color:white;
+
+             font-weight:700;
+
+             cursor:pointer;
+
+         }
+
+         .download:hover{
+
+             background:
+
+                 #1f2937;
+
+         }
+
+         @media(max-width:720px){
+
+             .mobile{
+
+                 display:block;
+
+             }
+
+             .nav-right{
+
+                 display:none;
+
+                 position:absolute;
+
+                 top:72px;
+
+                 left:0;
+
+                 right:0;
+
+                 background:white;
+
+                 padding:20px;
+
+                 flex-direction:column;
+
+                 align-items:flex-start;
+
+                 gap:18px;
+
+                 border-bottom:
+
+                     1px solid var(--border);
+
+             }
+
+             .nav-right.show{
+
+                 display:flex;
+
+             }
+
+             .file{
+
+                 flex-direction:column;
+
+                 align-items:flex-start;
+
+                 gap:16px;
+
+             }
+
+             .hero h1{
+
+                 font-size:26px;
+
+             }
+
+             .download{
+
+                 width:100%;
+
+             }
+
+         }
+
+        </style>
+
+    </head>
+
+    <body>
+
+        <div class="grid"></div>
+
+        <nav class="navbar">
+
+            <div class="nav-inner">
+
+                <div class="brand">
+
+                    <div class="logo">
+
+                        S
+
+                    </div>
+
+                    <div>
+
+                        <div class="brand-title">
+
+                            SAPOT Network
+
+                        </div>
+
+                        <div class="brand-sub">
+
+                            Secure Access Gateway
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <button
+                    class="mobile"
+                    onclick="toggleMenu()">
+
+                    ☰
+
+                </button>
+
+                <div
+                    class="nav-right"
+                    id="menu">
+
+                    <a
+                        href="status.html"
+                        class="nav-link">
+
+                        Status
+
+                    </a>
+
+                    <a
+                        href="downloads.html"
+                        class="nav-link active">
+
+                        Resources
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </nav>
+
+        <div class="wrapper">
+
+            <div class="hero">
+
+                <h1>
+
+                    Downloads
+
+                </h1>
+
+                <p>
+
+                    Applications, installers, documentation, and resources available over the local network.
+
+                </p>
+
+            </div>
+
+            <div class="notice">
+
+                Files are served locally through the SAPOT network for faster access.
+
+            </div>
+
+            <div
+                class="files"
+                id="files">
+
+            </div>
+
+        </div>
+
+        <script>
+
+         function toggleMenu(){
+
+             document
+                 .getElementById(
+                     'menu'
+                 )
+                 .classList
+                 .toggle(
+                     'show'
+                 );
+
+         }
+
+         var FILES=[
+
+             {
+                 name:"SAPOT Mobile App",
+                 meta:"APK • 28.4 MB",
+                 path:"files/sapot.apk"
+             },
+
+             {
+                 name:"User Guide",
+                 meta:"PDF • 3.2 MB",
+                 path:"files/guide.pdf"
+             },
+
+             {
+                 name:"Quick Start",
+                 meta:"PDF • 512 KB",
+                 path:"files/quickstart.pdf"
+             },
+
+             {
+                 name:"Desktop Installer",
+                 meta:"ZIP • 64.1 MB",
+                 path:"files/desktop.zip"
+             }
+
+         ];
+
+         var html='';
+
+         FILES.forEach(function(file){
+
+             html+=`
+
+<div class="file">
+
+<div class="file-left">
+
+<div class="icon">
+
+<svg viewBox="0 0 24 24">
+<path d="M12 3v12"/>
+<path d="M7 10l5 5 5-5"/>
+<path d="M4 21h16"/>
+</svg>
+
+</div>
+
+<div class="file-info">
+
+<div class="file-name">
+
+${file.name}
+
+</div>
+
+<div class="file-meta">
+
+${file.meta}
+
+</div>
+
+</div>
+
+</div>
+
+<button
+class="download"
+onclick="location.href='${file.path}'">
+
+Download
+
+</button>
+
+</div>
+
+             `;
+
+         });
+
+         document
+             .getElementById(
+                 'files'
+             )
+             .innerHTML=html;
+
+        </script>
+
+    </body>
+</html>

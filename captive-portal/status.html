@@ -1,0 +1,885 @@
+<html>
+    <head>
+
+        $(if refresh-timeout)
+        <meta http-equiv="refresh" content="$(refresh-timeout-secs)">
+        $(endif)
+
+        <meta charset="utf-8">
+
+        <meta
+            name="viewport"
+            content="width=device-width,initial-scale=1">
+
+        <meta
+            http-equiv="pragma"
+            content="no-cache">
+
+        <meta
+            http-equiv="expires"
+            content="-1">
+
+        <title>
+            SAPOT Network — Status
+        </title>
+
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+            rel="stylesheet">
+
+        <style>
+
+         *{
+             margin:0;
+             padding:0;
+             box-sizing:border-box;
+         }
+
+         :root{
+
+             --ink:#0f1117;
+             --ink2:#6b7280;
+
+             --surface:#f6f5f0;
+             --card:#ffffff;
+
+             --accent:#1a3cff;
+
+             --success:#15803d;
+
+             --border:
+                 rgba(15,17,23,.08);
+
+         }
+
+         html,
+         body{
+
+             font-family:
+                 Inter,
+                 sans-serif;
+
+             background:
+                 var(--surface);
+
+             color:
+                 var(--ink);
+
+             min-height:
+                 100vh;
+
+             overflow-x:hidden;
+
+         }
+
+         body{
+
+             position:relative;
+
+         }
+
+         body::before{
+
+             content:'';
+
+             position:fixed;
+
+             inset:0;
+
+             background:
+
+                 radial-gradient(
+                     ellipse 80% 60%
+                     at 10% 0%,
+
+                     rgba(26,60,255,.07),
+
+                     transparent 60%
+                 ),
+
+                 radial-gradient(
+                     ellipse 60% 50%
+                     at 90% 100%,
+
+                     rgba(26,60,255,.05),
+
+                     transparent 60%
+                 );
+
+             pointer-events:none;
+
+             z-index:0;
+
+         }
+
+         .grid-bg{
+
+             position:fixed;
+
+             inset:0;
+
+             background-image:
+
+                 linear-gradient(
+                     rgba(15,17,23,.04)
+                     1px,
+
+                     transparent 1px),
+
+                     linear-gradient(
+                         90deg,
+
+                         rgba(15,17,23,.04)
+                         1px,
+
+                         transparent 1px);
+
+             background-size:
+
+                 40px 40px;
+
+             pointer-events:none;
+
+             z-index:0;
+
+         }
+
+         /* NAVIGATION */
+
+         .navbar{
+
+             position:sticky;
+
+             top:0;
+
+             z-index:100;
+
+             background:
+
+                 rgba(246,245,240,.85);
+
+             backdrop-filter:
+
+                 blur(12px);
+
+             border-bottom:
+
+                 1px solid
+             var(--border);
+
+         }
+
+         .nav-inner{
+
+             max-width:
+
+                 1200px;
+
+             margin:auto;
+
+             padding:
+
+                 14px 24px;
+
+             display:flex;
+
+             align-items:center;
+
+             justify-content:
+                 space-between;
+
+         }
+
+         .brand{
+
+             display:flex;
+
+             align-items:center;
+
+             gap:12px;
+
+         }
+
+         .logo{
+
+             width:42px;
+             height:42px;
+
+             background:
+
+                 #111827;
+
+             border-radius:
+
+                 12px;
+
+             display:flex;
+
+             align-items:center;
+
+             justify-content:center;
+
+             color:white;
+
+             font-weight:800;
+
+         }
+
+         .brand-title{
+
+             font-size:18px;
+
+             font-weight:800;
+
+             letter-spacing:-.03em;
+
+         }
+
+         .brand-sub{
+
+             font-size:11px;
+
+             color:var(--ink2);
+
+             text-transform:uppercase;
+
+             letter-spacing:.08em;
+
+         }
+
+         .nav-right{
+
+             display:flex;
+
+             gap:28px;
+
+             align-items:center;
+
+         }
+
+         .nav-link{
+
+             text-decoration:none;
+
+             color:var(--ink2);
+
+             font-weight:600;
+
+             font-size:14px;
+
+             transition:.18s;
+
+         }
+
+         .nav-link:hover{
+
+             color:var(--accent);
+
+         }
+
+         .nav-link.active{
+
+             color:var(--ink);
+
+         }
+
+         .connection{
+
+             padding:
+
+                 8px 14px;
+
+             border-radius:
+
+                 999px;
+
+             background:
+
+                 rgba(21,128,61,.10);
+
+             color:
+
+                 var(--success);
+
+             font-size:
+
+                 12px;
+
+             font-weight:
+
+                 700;
+
+         }
+
+         .mobile-button{
+
+             display:none;
+
+             border:none;
+
+             background:none;
+
+             font-size:24px;
+
+             cursor:pointer;
+
+         }
+
+         /* CONTENT */
+
+         .wrapper{
+
+             position:relative;
+
+             z-index:1;
+
+             max-width:
+
+                 950px;
+
+             margin:
+
+                 40px auto;
+
+             padding:
+
+                 0 20px;
+
+         }
+
+         .card{
+
+             background:
+
+                 white;
+
+             border:
+
+                 1px solid
+             var(--border);
+
+             border-radius:
+
+                 22px;
+
+             padding:
+
+                 32px;
+
+             box-shadow:
+
+                 0 4px 48px
+             rgba(0,0,0,.06);
+
+         }
+
+         .heading{
+
+             margin-bottom:
+
+                 28px;
+
+         }
+
+         .heading h1{
+
+             font-size:
+
+                 30px;
+
+             margin-bottom:
+
+                 8px;
+
+         }
+
+         .heading p{
+
+             color:
+
+                 var(--ink2);
+
+             line-height:
+
+                 1.6;
+
+         }
+
+         .stats{
+
+             display:grid;
+
+             grid-template-columns:
+
+                 repeat(2,1fr);
+
+             gap:16px;
+
+             margin-bottom:
+
+                 28px;
+
+         }
+
+         .stat{
+
+             padding:
+
+                 18px;
+
+             border:
+
+                 1px solid
+             var(--border);
+
+             border-radius:
+
+                 14px;
+
+             background:
+
+                 #fafafa;
+
+         }
+
+         .label{
+
+             font-size:
+
+                 12px;
+
+             text-transform:
+                 uppercase;
+
+             letter-spacing:
+
+                 .08em;
+
+             color:
+
+                 var(--ink2);
+
+             margin-bottom:
+
+                 8px;
+
+         }
+
+         .value{
+
+             font-size:
+
+                 16px;
+
+             font-weight:
+
+                 700;
+
+             word-break:
+
+                 break-word;
+
+         }
+
+         .button{
+
+             width:100%;
+
+             height:52px;
+
+             border:none;
+
+             border-radius:
+
+                 12px;
+
+             background:
+
+                 #111827;
+
+             color:white;
+
+             font-family:
+
+                 Inter;
+
+             font-weight:
+
+                 700;
+
+             font-size:
+
+                 15px;
+
+             cursor:pointer;
+
+             transition:
+
+                 .18s;
+
+         }
+
+         .button:hover{
+
+             background:
+
+                 #1f2937;
+
+         }
+
+         /* MOBILE */
+
+         @media(max-width:720px){
+
+             .mobile-button{
+
+                 display:block;
+
+             }
+
+             .nav-right{
+
+                 display:none;
+
+                 position:absolute;
+
+                 top:72px;
+
+                 left:0;
+
+                 right:0;
+
+                 background:white;
+
+                 padding:20px;
+
+                 flex-direction:column;
+
+                 align-items:flex-start;
+
+                 border-bottom:
+
+                     1px solid
+                 var(--border);
+
+                 gap:18px;
+
+             }
+
+             .nav-right.show{
+
+                 display:flex;
+
+             }
+
+             .stats{
+
+                 grid-template-columns:
+
+                     1fr;
+
+             }
+
+             .heading h1{
+
+                 font-size:
+
+                     24px;
+
+             }
+
+             .card{
+
+                 padding:
+
+                     22px;
+
+             }
+
+         }
+
+        </style>
+
+        <script>
+
+         $(if advert-pending == 'yes')
+
+         var popup='';
+
+         function focusAdvert(){
+
+             if(window.focus)
+                 popup.focus();
+
+         }
+
+         function openAdvert(){
+
+             popup=open(
+
+                 '$(link-advert)',
+
+                 'hotspot_advert',
+
+                 ''
+
+             );
+
+             setTimeout(
+                 focusAdvert,
+                 1000
+             );
+
+         }
+
+         $(endif)
+
+         function openLogout(){
+
+             if(
+                 window.name!='hotspot_status'
+             )
+
+                 return true;
+
+             open(
+
+                 '$(link-logout)',
+
+                 'hotspot_logout',
+
+                 'toolbar=0,location=0,status=0,width=320,height=300'
+
+             );
+
+             window.close();
+
+             return false;
+
+         }
+
+         function toggleMenu(){
+
+             document
+                 .getElementById(
+                     'menu'
+                 )
+                 .classList
+                 .toggle(
+                     'show'
+                 );
+
+         }
+
+        </script>
+
+    </head>
+
+    <body
+
+        $(if advert-pending == 'yes')
+
+        onload="openAdvert()"
+
+        $(endif)
+
+    >
+
+        <div class="grid-bg"></div>
+
+        <nav class="navbar">
+
+            <div class="nav-inner">
+
+                <div class="brand">
+
+                    <div class="logo">
+
+                        S
+
+                    </div>
+
+                    <div>
+
+                        <div class="brand-title">
+
+                            SAPOT Network
+
+                        </div>
+
+                        <div class="brand-sub">
+
+                            Secure Access Gateway
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <button
+                    class="mobile-button"
+                    onclick="toggleMenu()">
+
+                    ☰
+
+                </button>
+
+                <div
+                    class="nav-right"
+                    id="menu">
+
+                    <a
+                        href="downloads.html"
+                        class="nav-link">
+
+                        Resources
+
+                    </a>
+
+                    <a
+                        href="$(link-status)"
+                        class="nav-link active">
+
+                        Status
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </nav>
+
+        <div class="wrapper">
+
+            <div class="card">
+
+                <div class="heading">
+
+                    $(if login-by == 'trial')
+
+                    <h1>
+
+                        Trial Session
+
+                    </h1>
+
+                    $(elif login-by != 'mac')
+
+                    <h1>
+
+                        $(username)
+
+                    </h1>
+
+                    $(endif)
+
+                    <p>
+
+                        Your network session is active.
+
+                    </p>
+
+                </div>
+
+                <form
+                    action="$(link-logout)"
+                    name="logout"
+                    onsubmit="return openLogout()">
+
+                    <div class="stats">
+
+                        <div class="stat">
+
+                            <div class="label">
+
+                                IP Address
+
+                            </div>
+
+                            <div class="value">
+
+                                $(ip)
+
+                            </div>
+
+                        </div>
+
+                        <div class="stat">
+
+                            <div class="label">
+
+                                Traffic
+
+                            </div>
+
+                            <div class="value">
+
+                                $(bytes-in-nice)
+                                /
+                                $(bytes-out-nice)
+
+                            </div>
+
+                        </div>
+
+                        <div class="stat">
+
+                            <div class="label">
+
+                                Connected
+
+                            </div>
+
+                            <div class="value">
+
+                                $(uptime)
+
+                            </div>
+
+                        </div>
+
+                        $(if session-time-left)
+
+                        <div class="stat">
+
+                            <div class="label">
+
+                                Remaining
+
+                            </div>
+
+                            <div class="value">
+
+                                $(session-time-left)
+
+                            </div>
+
+                        </div>
+
+                        $(endif)
+
+                    </div>
+
+                    $(if login-by-mac != 'yes')
+
+                    <button
+                        class="button"
+                        type="submit">
+
+                        End Session
+
+                    </button>
+
+                    $(endif)
+
+                </form>
+
+            </div>
+
+        </div>
+
+    </body>
+
+</html>

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAPOT — API Debug</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: monospace;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 1.5rem;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  h1 { font-size: 1rem; color: #60a5fa; margin-bottom: 1.5rem; letter-spacing: 0.05em; }
+  .section { margin-bottom: 2rem; }
+  .section-title { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem; border-bottom: 1px solid #1e293b; padding-bottom: 4px; }
+  .row { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; }
+  .label { color: #64748b; min-width: 180px; flex-shrink: 0; }
+  .val { color: #e2e8f0; word-break: break-all; }
+  .pass { color: #34d399; }
+  .fail { color: #f87171; }
+  .warn { color: #fbbf24; }
+  .pending { color: #94a3b8; }
+  button {
+    background: #1e40af;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-family: monospace;
+    font-size: 13px;
+    cursor: pointer;
+    margin-right: 8px;
+    margin-bottom: 8px;
+  }
+  button:hover { background: #2563eb; }
+  button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+  textarea {
+    width: 100%;
+    height: 180px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e2e8f0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 10px;
+    resize: vertical;
+    margin-top: 8px;
+  }
+  input[type="text"] {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e2e8f0;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 6px 10px;
+    width: 320px;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .log-entry { margin-bottom: 4px; }
+  .log-time { color: #475569; margin-right: 8px; }
+  #log { max-height: 400px; overflow-y: auto; background: #0a0f1a; border: 1px solid #1e293b; border-radius: 6px; padding: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>▶ SAPOT API DIAGNOSTICS</h1>
+
+<!-- 1. Environment info -->
+<div class="section">
+  <div class="section-title">1 — Client Environment</div>
+  <div class="row"><span class="label">Page URL</span><span class="val" id="env-url"></span></div>
+  <div class="row"><span class="label">Protocol</span><span class="val" id="env-proto"></span></div>
+  <div class="row"><span class="label">User Agent</span><span class="val" id="env-ua"></span></div>
+  <div class="row"><span class="label">fetch() supported</span><span class="val" id="env-fetch"></span></div>
+  <div class="row"><span class="label">Promise supported</span><span class="val" id="env-promise"></span></div>
+  <div class="row"><span class="label">sessionStorage</span><span class="val" id="env-ss"></span></div>
+</div>
+
+<!-- 2. DNS resolution test -->
+<div class="section">
+  <div class="section-title">2 — API Base URL Under Test</div>
+  <input type="text" id="api-url-input" value="http://mock.sapot.lan.server" />
+  <button onclick="runAll()">▶ Run All Tests</button>
+  <button onclick="clearLog()">Clear log</button>
+</div>
+
+<!-- 3. Test results -->
+<div class="section">
+  <div class="section-title">3 — Test Results</div>
+  <div class="row"><span class="label">GET /api/v1/guests/stats</span><span class="val pending" id="r-stats">pending</span></div>
+  <div class="row"><span class="label">POST /api/v1/guests</span><span class="val pending" id="r-post">pending</span></div>
+  <div class="row"><span class="label">GET /api/v1/guests</span><span class="val pending" id="r-list">pending</span></div>
+  <div class="row"><span class="label">CORS headers present</span><span class="val pending" id="r-cors">pending</span></div>
+  <div class="row"><span class="label">Response time (stats)</span><span class="val pending" id="r-latency">pending</span></div>
+</div>
+
+<!-- 4. Raw log -->
+<div class="section">
+  <div class="section-title">4 — Raw Log</div>
+  <div id="log"></div>
+</div>
+
+<!-- 5. Manual curl commands -->
+<div class="section">
+  <div class="section-title">5 — Equivalent curl commands (run on your server)</div>
+  <textarea readonly id="curl-cmds"></textarea>
+</div>
+
+<script>
+  // Populate environment info
+  document.getElementById('env-url').textContent = window.location.href;
+  document.getElementById('env-proto').textContent = window.location.protocol;
+  document.getElementById('env-ua').textContent = navigator.userAgent;
+  document.getElementById('env-fetch').className = 'val ' + (typeof fetch !== 'undefined' ? 'pass' : 'fail');
+  document.getElementById('env-fetch').textContent = typeof fetch !== 'undefined' ? 'YES' : 'NO — fetch not available in this browser!';
+  document.getElementById('env-promise').className = 'val ' + (typeof Promise !== 'undefined' ? 'pass' : 'fail');
+  document.getElementById('env-promise').textContent = typeof Promise !== 'undefined' ? 'YES' : 'NO';
+  try { sessionStorage.setItem('_t', '1'); sessionStorage.removeItem('_t'); setEl('env-ss', 'pass', 'available'); }
+  catch(e) { setEl('env-ss', 'fail', 'NOT available: ' + e.message); }
+
+  function setEl(id, cls, text) {
+    var el = document.getElementById(id);
+    el.className = 'val ' + cls;
+    el.textContent = text;
+  }
+
+  function log(msg, cls) {
+    var logEl = document.getElementById('log');
+    var entry = document.createElement('div');
+    entry.className = 'log-entry';
+    var now = new Date();
+    var ts = now.toTimeString().slice(0,8) + '.' + String(now.getMilliseconds()).padStart(3,'0');
+    entry.innerHTML = '<span class="log-time">' + ts + '</span><span class="' + (cls||'') + '">' + escHtml(msg) + '</span>';
+    logEl.appendChild(entry);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function clearLog() {
+    document.getElementById('log').innerHTML = '';
+    ['r-stats','r-post','r-list','r-cors','r-latency'].forEach(function(id) {
+      setEl(id, 'pending', 'pending');
+    });
+  }
+
+  function getBase() {
+    return document.getElementById('api-url-input').value.trim().replace(/\/$/, '');
+  }
+
+  function updateCurl() {
+    var base = getBase();
+    document.getElementById('curl-cmds').value =
+      '# Test 1 — stats (GET)\n' +
+      'curl -v "' + base + '/api/v1/guests/stats"\n\n' +
+      '# Test 2 — create guest (POST)\n' +
+      'curl -v -X POST "' + base + '/api/v1/guests" \\\n' +
+      '  -H "Content-Type: application/json" \\\n' +
+      '  -d \'{"session_id":"debug_001","first_name":"Debug","last_name":"Test","mac_address":"AA:BB:CC:DD:EE:FF","ip_address":"192.168.88.100","hotspot_name":"SAPOT"}\'\n\n' +
+      '# Test 3 — list guests (GET)\n' +
+      'curl -v "' + base + '/api/v1/guests"\n\n' +
+      '# Test 4 — check if uvicorn is listening\n' +
+      'ss -tlnp | grep :80\n' +
+      '# or\n' +
+      'netstat -tlnp | grep :80';
+  }
+
+  function runAll() {
+    updateCurl();
+    var base = getBase();
+    log('=== Starting tests against: ' + base + ' ===', 'warn');
+
+    testStats(base).then(function() {
+      return testPost(base);
+    }).then(function() {
+      return testList(base);
+    }).then(function() {
+      log('=== All tests complete ===', 'warn');
+    });
+  }
+
+  function testStats(base) {
+    log('→ GET ' + base + '/api/v1/guests/stats');
+    var t0 = Date.now();
+    return fetch(base + '/api/v1/guests/stats', { method: 'GET' })
+      .then(function(res) {
+        var ms = Date.now() - t0;
+        setEl('r-latency', 'pass', ms + ' ms');
+        log('← HTTP ' + res.status + ' in ' + ms + 'ms', res.ok ? 'pass' : 'fail');
+
+        // Check CORS header
+        var corsHeader = res.headers.get('access-control-allow-origin');
+        if (corsHeader) {
+          setEl('r-cors', 'pass', 'Access-Control-Allow-Origin: ' + corsHeader);
+          log('✔ CORS header present: ' + corsHeader, 'pass');
+        } else {
+          setEl('r-cors', 'fail', 'MISSING — requests will be blocked by browser!');
+          log('✘ No Access-Control-Allow-Origin header! This is the problem.', 'fail');
+        }
+
+        return res.json().then(function(data) {
+          setEl('r-stats', res.ok ? 'pass' : 'fail', res.ok ? 'HTTP ' + res.status + ' — ' + JSON.stringify(data) : 'HTTP ' + res.status);
+          log('Response body: ' + JSON.stringify(data), 'pass');
+        });
+      })
+      .catch(function(err) {
+        var ms = Date.now() - t0;
+        setEl('r-stats', 'fail', 'FAILED: ' + err.message);
+        setEl('r-cors', 'fail', 'Could not determine (request failed)');
+        setEl('r-latency', 'fail', ms + 'ms (failed)');
+        log('✘ Fetch error: ' + err.name + ': ' + err.message, 'fail');
+        log('  Possible causes:', 'warn');
+        log('  • DNS "mock.sapot.lan.server" not resolving from this device', 'warn');
+        log('  • FastAPI not running / wrong port', 'warn');
+        log('  • MikroTik firewall blocking client→server on port 80', 'warn');
+        log('  • Page is served over HTTPS but API is HTTP (mixed content block)', 'warn');
+      });
+  }
+
+  function testPost(base) {
+    var payload = {
+      session_id:   'debug_' + Date.now(),
+      first_name:   'Debug',
+      last_name:    'Test',
+      mac_address:  'AA:BB:CC:DD:EE:FF',
+      ip_address:   '192.168.88.100',
+      hotspot_name: 'SAPOT-Debug'
+    };
+    log('→ POST ' + base + '/api/v1/guests  body=' + JSON.stringify(payload));
+    return fetch(base + '/api/v1/guests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function(res) {
+      log('← HTTP ' + res.status, res.ok ? 'pass' : 'fail');
+      return res.text().then(function(txt) {
+        setEl('r-post', res.ok ? 'pass' : 'fail', 'HTTP ' + res.status + ' — ' + txt.slice(0, 120));
+        log('Response: ' + txt.slice(0, 300), res.ok ? 'pass' : 'fail');
+      });
+    })
+    .catch(function(err) {
+      setEl('r-post', 'fail', 'FAILED: ' + err.message);
+      log('✘ POST failed: ' + err.message, 'fail');
+    });
+  }
+
+  function testList(base) {
+    log('→ GET ' + base + '/api/v1/guests');
+    return fetch(base + '/api/v1/guests', { method: 'GET' })
+    .then(function(res) {
+      log('← HTTP ' + res.status, res.ok ? 'pass' : 'fail');
+      return res.json().then(function(data) {
+        setEl('r-list', res.ok ? 'pass' : 'fail', 'HTTP ' + res.status + ' — ' + data.total + ' total sessions');
+        log('Total sessions in DB: ' + data.total, 'pass');
+        if (data.results && data.results.length) {
+          log('Latest: ' + JSON.stringify(data.results[0]), 'pass');
+        }
+      });
+    })
+    .catch(function(err) {
+      setEl('r-list', 'fail', 'FAILED: ' + err.message);
+      log('✘ List failed: ' + err.message, 'fail');
+    });
+  }
+
+  // Init
+  updateCurl();
+  document.getElementById('api-url-input').addEventListener('input', updateCurl);
+  log('Page loaded. Press "Run All Tests" to begin.', 'warn');
+</script>
+</body>
+</html>
