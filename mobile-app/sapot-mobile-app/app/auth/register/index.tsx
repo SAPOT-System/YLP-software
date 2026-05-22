@@ -5,6 +5,7 @@ import {
   useRegister,
 } from "@/features/auth";
 import { RegisterFormState } from "@/features/auth/types";
+import { validateRegistrationForm } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -44,6 +45,22 @@ const Register = () => {
     };
   }, []);
 
+  const handleBlur = async (name: RegisterFormField) => {
+    const fields: Partial<RegisterFormState> =
+      name === "password" || name === "confirmPassword"
+        ? { password: form.password, confirmPassword: form.confirmPassword }
+        : { [name]: form[name] as string };
+    const fieldErrors = validateRegistrationForm(fields);
+    setErrors((prev) => ({ ...prev, ...fieldErrors }));
+
+    if (name === "username" && form.username && !fieldErrors.username) {
+      if (await checkIfIdentifierExists(form.username)) {
+        authLog.warn("[Register] username exists on blur");
+        setErrors((prev) => ({ ...prev, username: "Username already exists" }));
+      }
+    }
+  };
+
   const handleSubmit = async (values: Partial<RegisterFormState>) => {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
@@ -59,7 +76,7 @@ const Register = () => {
 
     if (values.username && (await checkIfIdentifierExists(values.username))) {
       authLog.warn("[Register] username exists");
-      setErrors({ username: "Username exists" });
+      setErrors({ username: "Username already exists" });
       return;
     }
 
@@ -81,6 +98,9 @@ const Register = () => {
 
   const handleChange = (name: RegisterFormField, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
   useEffect(() => {
@@ -113,6 +133,7 @@ const Register = () => {
               loading={loading}
               onChange={handleChange}
               onSubmit={handleSubmit}
+              onBlur={handleBlur}
             />
           </ScrollView>
         </ScreenContent>

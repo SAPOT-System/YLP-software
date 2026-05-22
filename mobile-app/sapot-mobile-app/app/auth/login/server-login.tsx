@@ -77,7 +77,6 @@ const ServerLoginScreen = () => {
       }, 1000);
     } else {
       authLog.warn("auth › login failed");
-      showError("Login failed");
     }
   };
 

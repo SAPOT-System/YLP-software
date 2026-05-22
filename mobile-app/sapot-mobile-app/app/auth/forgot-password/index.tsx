@@ -20,7 +20,7 @@ const ForgotPasswordScreen = () => {
       <ScreenHeader headerName="Resetting Password" />
       <ScreenContent
         title="Forgot Password"
-        description="Please select an option to receive a password reset link."
+        description="Please select an option to verify your identity and reset your password."
       >
         <ScrollView
           style={{ width: "100%" }}

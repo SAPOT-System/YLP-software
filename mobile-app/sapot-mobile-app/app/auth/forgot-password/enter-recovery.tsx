@@ -1,6 +1,9 @@
 import { AUTH_ROUTES } from "@/config/routes";
-import { useEmailReset } from "@/features/auth";
+import { SecondaryButton, StepDots, useEmailReset, useSmsReset } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
+import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { OTPInput } from "input-otp-native";
@@ -12,11 +15,19 @@ const CODE_LENGTH = 6;
 const COUNTDOWN_SECONDS = 5 * 60;
 
 const EnterRecoveryScreen = () => {
-  const { identifier: email } = useLocalSearchParams<{ identifier: string }>();
-  const { verifyCode, sendCode, error } = useEmailReset();
+  const { identifier, method } = useLocalSearchParams<{
+    identifier: string;
+    method?: string;
+  }>();
+  const isSms = method === "sms";
+  const emailReset = useEmailReset();
+  const smsReset = useSmsReset();
+  const { verifyCode, sendCode, error } = isSms ? smsReset : emailReset;
   const theme = useTheme();
   const [code, setCode] = useState<string>("");
   const [secondsLeft, setSecondsLeft] = useState<number>(COUNTDOWN_SECONDS);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
 
   useEffect(() => {
     authLog.info("[EnterRecoveryScreen] mounted");
@@ -26,9 +37,7 @@ const EnterRecoveryScreen = () => {
   }, []);
 
   useEffect(() => {
-    if (secondsLeft <= 0) {
-      return;
-    }
+    if (secondsLeft <= 0) return;
 
     const timerId = setInterval(() => {
       setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
@@ -43,42 +52,54 @@ const EnterRecoveryScreen = () => {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     authLog.debug("[EnterRecoveryScreen] handleResend called");
-    sendCode(email);
-    setSecondsLeft(COUNTDOWN_SECONDS);
+    const res = await sendCode(identifier);
+    if (res.success) {
+      setSecondsLeft(COUNTDOWN_SECONDS);
+      setCode("");
+    } else {
+      showError("Failed to resend code. Please try again.");
+    }
   };
 
   const handleOnChange = async (newCode: string) => {
     setCode(newCode);
 
     if (newCode.length === CODE_LENGTH) {
-      const res = await verifyCode(email, newCode);
+      setIsVerifying(true);
+      try {
+        const res = await verifyCode(identifier, newCode);
 
-      if (res.success && res.recoveryLink) {
-        const token = res.recoveryLink.split("token=")[1];
+        if (res.success && res.recoveryLink) {
+          const token = res.recoveryLink.split("token=")[1];
 
-        router.push({
-          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-          params: {
-            token: token,
-            identifier: email,
-          },
-        });
+          router.push({
+            pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+            params: {
+              token: token,
+              identifier: identifier,
+            },
+          });
+        }
+      } finally {
+        setIsVerifying(false);
       }
     }
   };
+
+  const description = isSms
+    ? `We've sent it to your phone ${identifier}`
+    : `We've sent it to your email ${identifier}`;
 
   return (
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
     >
       <ScreenHeader headerName="Resetting Password" />
-      <ScreenContent
-        title="Enter Recovery Code"
-        description={`We've sent it on your email ${email}`}
-      >
-        <HelperText type="error">{error}</HelperText>
+      <StepDots total={3} current={2} />
+      <ScreenContent title="Enter Recovery Code" description={description}>
+        <HelperText type="error" visible={!!error}>{error}</HelperText>
         <OTPInput
           value={code}
           onChange={handleOnChange}
@@ -103,7 +124,7 @@ const EnterRecoveryScreen = () => {
                     borderRadius: 8,
                     width: 44,
                     height: 56,
-                    marginHorizontal: 4,
+                    marginHorizontal: index === 2 ? 12 : 4,
                     justifyContent: "center",
                     alignItems: "center",
                   }}
@@ -158,7 +179,20 @@ const EnterRecoveryScreen = () => {
             </Text>
           </Text>
         </View>
+        <SecondaryButton
+          style={{ marginTop: 24 }}
+          onPress={() => {
+            authLog.info("[Navigation] goBack triggered from EnterRecovery");
+            router.back();
+          }}
+        >
+          Back
+        </SecondaryButton>
       </ScreenContent>
+      <LoadingOverlay visible={isVerifying} text="Verifying…" />
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
+        {toastMessage}
+      </AppSnackbar>
     </View>
   );
 };

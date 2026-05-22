@@ -1,13 +1,16 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import {
     AuthTextInput,
+    PasswordRequirements,
     PrimaryButton,
     SecondaryButton,
+    StepDots,
     useChangePassword,
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
@@ -19,11 +22,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import {
-    ActivityIndicator,
-    HelperText,
-    Text,
-} from "react-native-paper";
+import { HelperText } from "react-native-paper";
 
 const ChangePasswordScreen = () => {
   const { token, identifier } = useLocalSearchParams<{
@@ -37,7 +36,6 @@ const ChangePasswordScreen = () => {
     visible: toastVisible,
     message: toastMessage,
     variant: toastVariant,
-    showToast,
     showError,
     hideToast,
   } = useToast();
@@ -72,9 +70,7 @@ const ChangePasswordScreen = () => {
         setIdentifierValue(identifierParam);
         await setItemAsync("reset_password_identifier", identifierParam);
       } else {
-        const storedIdentifier = await getItemAsync(
-          "reset_password_identifier"
-        );
+        const storedIdentifier = await getItemAsync("reset_password_identifier");
         if (storedIdentifier) setIdentifierValue(storedIdentifier);
       }
     };
@@ -90,17 +86,42 @@ const ChangePasswordScreen = () => {
   }, [tokenValue, identifierValue]);
 
   if (!changePasswordResult) {
-    return <ActivityIndicator />;
+    return (
+      <View style={{ flex: 1 }}>
+        <LoadingOverlay visible />
+      </View>
+    );
   }
 
-  const { changePassword, loading, errors, isTokenValid } =
-    changePasswordResult;
+  const { changePassword, loading, errors, isTokenValid } = changePasswordResult;
 
   if (isTokenValid === null) {
-    return <ActivityIndicator />;
+    return (
+      <View style={{ flex: 1 }}>
+        <LoadingOverlay visible />
+      </View>
+    );
   }
+
   if (isTokenValid === false) {
-    return <Text>Invalid. Please retry.</Text>;
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}>
+        <ScreenHeader headerName="Resetting Password" />
+        <ScreenContent
+          title="Link Expired"
+          description="Your password reset link is invalid or has expired. Please start the process again."
+        >
+          <SecondaryButton
+            onPress={() => {
+              authLog.info("[Navigation] goBack from expired token");
+              router.replace(AUTH_ROUTES.FORGOT_PASSWORD.INDEX);
+            }}
+          >
+            Start Over
+          </SecondaryButton>
+        </ScreenContent>
+      </View>
+    );
   }
 
   const handleChangePassword = async () => {
@@ -121,14 +142,13 @@ const ChangePasswordScreen = () => {
     if (res.success) {
       await deleteItemAsync("reset_password_token");
       await deleteItemAsync("reset_password_identifier");
-      showToast("Change password successfully");
       authLog.info("[Navigation] Navigating to ResetSuccess", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS,
       });
       router.replace(AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS);
     } else {
+      showError(errors.general || errors.password || "Failed to change password. Please try again.");
       authLog.warn("[ChangePasswordScreen] change password failed");
-      showToast("Change password failed");
     }
   };
 
@@ -143,6 +163,7 @@ const ChangePasswordScreen = () => {
         style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
         <ScreenHeader headerName="Change Password" />
+        <StepDots total={3} current={3} />
         <ScreenContent
           title="Change your password"
           description="Please enter your new password"
@@ -164,6 +185,7 @@ const ChangePasswordScreen = () => {
                 {errors.password}
               </HelperText>
             )}
+            <PasswordRequirements password={password} />
             <AuthTextInput
               label="Confirm password"
               placeholder="Confirm your password"
@@ -184,9 +206,10 @@ const ChangePasswordScreen = () => {
             loading={loading}
             disabled={loading}
           >
-            Change
+            Set New Password
           </PrimaryButton>
           <SecondaryButton
+            style={{ marginTop: 8 }}
             onPress={() => {
               authLog.info("[Navigation] goBack triggered from ChangePassword");
               router.back();
@@ -212,4 +235,5 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 });
+
 export default ChangePasswordScreen;

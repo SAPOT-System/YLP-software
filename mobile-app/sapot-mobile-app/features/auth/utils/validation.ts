@@ -53,7 +53,7 @@ export const validateRegistrationForm = ({
   } else if (lastName !== undefined && lastName.trim().length < 2) {
     errors.lastName = "Last name must be at least 2 characters";
   } else if (lastName !== undefined && lastName.trim().length > 50) {
-    errors.lastName = "First name must be less than or equal to 50 characters";
+    errors.lastName = "Last name must be less than or equal to 50 characters";
   }
 
   Object.assign(errors, validatePassword(password, confirmPassword));

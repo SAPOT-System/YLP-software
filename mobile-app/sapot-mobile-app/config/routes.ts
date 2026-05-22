@@ -12,7 +12,6 @@ export const AUTH_ROUTES = {
     QUESTION_RESET: "/auth/forgot-password/question-reset",
     RECOVERY_KEY_RESET: "/auth/forgot-password/recovery-key-reset",
     RESET_PASSWORD: "/auth/forgot-password/reset-password",
-    SMS_RESET: "/auth/forgot-password/sms-reset",
     SUCCESS: "/auth/forgot-password/success",
   },
   REGISTER: "/auth/register",
@@ -33,8 +32,11 @@ export const SETTINGS_ROUTES = {
   // Account email
   UPDATE_EMAIL: "/(drawer)/settings/account/email/update-email",
   VERIFY_EMAIL: "/(drawer)/settings/account/email/verify-email",
+  EMAIL_VERIFIED: "/(drawer)/settings/account/email/email-verified",
   // Account phone
+  EDIT_PHONE: "/(drawer)/settings/account/phone/edit-phone",
   VERIFY_PHONE: "/(drawer)/settings/account/phone/verify-phone",
+  PHONE_VERIFIED: "/(drawer)/settings/account/phone/phone-verified",
 
   // Preferences
   THEME: "/(drawer)/settings/preferences/theme",

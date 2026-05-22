@@ -4,6 +4,7 @@ authHooksLog.debug("[auth hooks] module loaded");
 export * from "./use-auth-container";
 export * from "./use-change-password";
 export * from "./use-email-reset";
+export * from "./use-sms-reset";
 export * from "./use-get-question";
 export * from "./use-guest-user-repository";
 export * from "./use-register";

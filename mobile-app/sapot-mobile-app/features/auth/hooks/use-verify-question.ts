@@ -65,8 +65,7 @@ export const useVerifyAnswer = (identifier: string) => {
       }
 
       // Generic error
-      // TODO: Add the message from the server response
-      setError({ general: "Invalid. Please try again" });
+      setError({ general: data?.detail ?? "Invalid. Please try again" });
 
       return { success: false };
     } finally {

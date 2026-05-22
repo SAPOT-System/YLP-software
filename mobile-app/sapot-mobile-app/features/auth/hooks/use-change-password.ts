@@ -95,9 +95,8 @@ export const useChangePassword = (token: string) => {
       }
 
       // Generic error
-      // TODO: Add the message from the server response
       setErrors({
-        general: "An error occurred. Please try again",
+        general: data?.detail ?? "An error occurred. Please try again",
       });
 
       return { success: false };

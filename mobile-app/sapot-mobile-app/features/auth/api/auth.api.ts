@@ -262,10 +262,12 @@ export const verifyResetEmailCodeApi = async (email: string, code: string) => {
   return res;
 };
 
-export const resendVerificationCodeEmail = async () => {
+export const resendVerificationCodeEmail = async (email?: string) => {
   apiLog.info("[AuthApi] Calling /auth/verify/resend-verification-code");
   const res = await apiClient.post<{ message: string }>(
-    "/auth/verify/resend-verification-code"
+    "/auth/verify/resend-verification-code",
+    null,
+    email ? { params: { email } } : undefined
   );
 
   apiLog.info("[AuthApi] Response received");
@@ -308,6 +310,30 @@ export const verifyCodePhone = async (code: string) => {
 
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res.data;
+};
+
+export const sendResetSmsCodeApi = async (phone: string) => {
+  apiLog.info("[AuthApi] Calling /auth/forgot-password/phone", {
+    phoneLength: phone.length,
+  });
+  const res = await apiClient.post("/auth/forgot-password/phone", {
+    phone_number: phone,
+  });
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};
+
+export const verifyResetSmsCodeApi = async (phone: string, code: string) => {
+  apiLog.info("[AuthApi] Calling /auth/forgot-password/phone-code", {
+    phoneLength: phone.length,
+    codeLength: code.length,
+  });
+  const res = await apiClient.post<{ link: string; detail: string }>(
+    "/auth/forgot-password/phone-code",
+    { phone_number: phone, code }
+  );
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
 };
 
 export const resendVerificationCodePhone = async () => {

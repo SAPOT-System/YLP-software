@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { authLog } from "../../shared/utils/logger";
 import { getSecurityQuestionApi } from "../api";
+import { AxiosError } from "axios";
 
 export const useGetQuestion = (identfier: string) => {
   const [loading, setLoading] = useState(false);
@@ -24,7 +25,21 @@ export const useGetQuestion = (identfier: string) => {
         setQuestion(question);
       } catch (err) {
         authLog.error("auth › fetch security question failed", { error: err });
-        setError("Failed to load security question. Please try again.");
+        const axiosError = err as AxiosError<{ detail: string }>;
+        if (axiosError.response) {
+          const status = axiosError.response.status;
+          const data = axiosError.response.data;
+
+          console.log(status, data);
+
+          if (status === 404) {
+            setError(data.detail);
+          } else {
+            setError("Failed to load security question. Please try again.");
+          }
+        } else {
+          setError("Failed to load security question. Please try again.");
+        }
       } finally {
         setLoading(false);
       }

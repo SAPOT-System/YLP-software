@@ -4,25 +4,28 @@ import {
     canResetPasswordApi,
     PrimaryButton,
     SecondaryButton,
+    StepDots,
     useGetQuestion,
     useVerifyAnswer,
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
-import { ActivityIndicator, HelperText } from "react-native-paper";
+import { HelperText } from "react-native-paper";
 
 const QuestionResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
 
   const getQuestionResult = useGetQuestion(identifier);
   const { loading: gettingQuestionLoading, question, error: questionError } = getQuestionResult;
+  console.log("qe",questionError)
 
   const {
     loading: verifyAnswerLoading,
@@ -45,17 +48,10 @@ const QuestionResetScreen = () => {
     const checkStoredToken = async () => {
       try {
         const storedToken = await getItemAsync("reset_password_token");
-        const storedIdentifier = await getItemAsync(
-          "reset_password_identifier"
-        );
+        const storedIdentifier = await getItemAsync("reset_password_identifier");
 
-        if (!storedToken || !storedIdentifier) {
-          return;
-        }
-
-        if (storedIdentifier !== identifier) {
-          return;
-        }
+        if (!storedToken || !storedIdentifier) return;
+        if (storedIdentifier !== identifier) return;
 
         const isValid = await canResetPasswordApi(storedToken);
 
@@ -72,9 +68,7 @@ const QuestionResetScreen = () => {
           await deleteItemAsync("reset_password_identifier");
         }
       } catch (error) {
-        authLog.error("[QuestionResetScreen] Error in check stored token", {
-          error,
-        });
+        authLog.error("[QuestionResetScreen] Error in check stored token", { error });
         await deleteItemAsync("reset_password_token");
         await deleteItemAsync("reset_password_identifier");
       } finally {
@@ -85,12 +79,12 @@ const QuestionResetScreen = () => {
     checkStoredToken();
   }, [identifier]);
 
-  if (checkingStoredToken) {
-    return <ActivityIndicator />;
-  }
-
-  if (gettingQuestionLoading) {
-    return <ActivityIndicator />;
+  if (checkingStoredToken || gettingQuestionLoading) {
+    return (
+      <View style={{ flex: 1 }}>
+        <LoadingOverlay visible />
+      </View>
+    );
   }
 
   if (questionError || !question) {
@@ -104,6 +98,12 @@ const QuestionResetScreen = () => {
           <HelperText type="error" visible>
             {questionError || "No security question found for this account."}
           </HelperText>
+          <PrimaryButton
+            style={{ marginBottom: 8 }}
+            onPress={() => router.back()}
+          >
+            Try Again
+          </PrimaryButton>
           <SecondaryButton onPress={() => router.back()}>
             Back
           </SecondaryButton>
@@ -145,6 +145,7 @@ const QuestionResetScreen = () => {
         style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
         <ScreenHeader headerName="Resetting Password" />
+        <StepDots total={3} current={2} />
         <ScreenContent
           title="Password Recovery"
           description="Please enter the answer to your security question"
@@ -152,15 +153,15 @@ const QuestionResetScreen = () => {
           <View
             style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
           >
-            <HelperText type="error">{error.general}</HelperText>
+            <HelperText type="error" visible={!!error.general}>{error.general}</HelperText>
             <AuthTextInput
               label={question}
-              placeholder={question}
+              placeholder="Enter your answer"
               value={answer}
               onChangeText={setAnswer}
               error={!!error.answer}
             />
-            <HelperText type="error">{error.answer}</HelperText>
+            <HelperText type="error" visible={!!error.answer}>{error.answer}</HelperText>
           </View>
           <PrimaryButton
             onPress={handleVerify}

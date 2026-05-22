@@ -51,6 +51,10 @@ jest.mock("react-native-paper", () => {
   };
 });
 
+jest.mock("../password-requirements", () => ({
+  PasswordRequirements: () => null,
+}));
+
 jest.mock("../auth-text-input", () => {
   const { TextInput } = require("react-native");
 

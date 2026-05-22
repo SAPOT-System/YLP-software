@@ -124,9 +124,10 @@ export const useRegister = () => {
       }
 
       // Generic error
-      // TODO: Add the message from the server response
       setErrors({
-        general: "An error occurred. Please try again",
+        general:
+          (axiosError.response?.data as { detail?: string })?.detail ??
+          "An error occurred. Please try again",
       });
 
       return { success: false };
@@ -159,15 +160,12 @@ export const useRegister = () => {
       hasConfirmPassword: Boolean(form.confirmPassword),
       termsChecked: Boolean(form.termsChecked),
     });
-    setLoading(true);
     const errors = validateRegistrationForm(form);
     if (hasValidationErrors(errors)) {
       authLog.warn("[useRegister] validateRegisterStep failed");
       setErrors(errors);
-      setLoading(false);
       return { success: false };
     }
-    setLoading(false);
     return { success: true };
   };
   return {

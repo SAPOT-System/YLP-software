@@ -13,13 +13,13 @@ const resetOptionData = {
   email: {
     link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Reset via email",
-    description: "If you have email linked to account",
+    description: "If you have an email linked to your account",
     icon: "email",
   },
   sms: {
     link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Reset via SMS",
-    description: "If you have number linked to account",
+    description: "If you have a phone number linked to your account",
     icon: "cellphone",
   },
   question: {

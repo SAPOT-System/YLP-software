@@ -12,6 +12,7 @@ export interface RegisterStepProps {
   loading: boolean;
   onChange: (name: keyof RegisterFormState, value: string | boolean) => void;
   onSubmit: (values: Partial<RegisterFormState>) => void;
+  onBlur?: (name: keyof RegisterFormState) => void;
   onBack?: () => void;
 }
 

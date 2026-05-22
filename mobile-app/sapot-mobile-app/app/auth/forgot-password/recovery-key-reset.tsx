@@ -4,6 +4,7 @@ import {
     FileUploadResultCard,
     PrimaryButton,
     SecondaryButton,
+    StepDots,
     useVerifyRecoveryKey,
 } from "@/features/auth";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
@@ -11,6 +12,7 @@ import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { FailedDialog } from "@/features/shared/components/failed-dialog";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { useDialogVisibility, useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { pick } from "@react-native-documents/picker";
@@ -18,19 +20,17 @@ import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, HelperText } from "react-native-paper";
+import { HelperText } from "react-native-paper";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
 
-  // Dialog
   const insertFailedDialog = useDialogVisibility();
 
   const [file, setFile] = useState<ExpoFileUpload>();
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
-  const { loading, error, verifyRecoveryKey } =
-    useVerifyRecoveryKey(identifier);
+  const { loading, error, verifyRecoveryKey } = useVerifyRecoveryKey(identifier);
   const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
 
   useEffect(() => {
@@ -44,17 +44,10 @@ const RecoveryKeyResetScreen = () => {
     const checkStoredToken = async () => {
       try {
         const storedToken = await getItemAsync("reset_password_token");
-        const storedIdentifier = await getItemAsync(
-          "reset_password_identifier"
-        );
+        const storedIdentifier = await getItemAsync("reset_password_identifier");
 
-        if (!storedToken || !storedIdentifier) {
-          return;
-        }
-
-        if (storedIdentifier !== identifier) {
-          return;
-        }
+        if (!storedToken || !storedIdentifier) return;
+        if (storedIdentifier !== identifier) return;
 
         const isValid = await canResetPasswordApi(storedToken);
 
@@ -71,9 +64,7 @@ const RecoveryKeyResetScreen = () => {
           await deleteItemAsync("reset_password_identifier");
         }
       } catch (error) {
-        authLog.error("[RecoveryKeyResetScreen] Error in check stored token", {
-          error,
-        });
+        authLog.error("[RecoveryKeyResetScreen] Error in check stored token", { error });
         await deleteItemAsync("reset_password_token");
         await deleteItemAsync("reset_password_identifier");
       } finally {
@@ -85,7 +76,11 @@ const RecoveryKeyResetScreen = () => {
   }, [identifier]);
 
   if (checkingStoredToken) {
-    return <ActivityIndicator />;
+    return (
+      <View style={{ flex: 1 }}>
+        <LoadingOverlay visible />
+      </View>
+    );
   }
 
   const handleFileUpload = async () => {
@@ -146,18 +141,19 @@ const RecoveryKeyResetScreen = () => {
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
     >
       <ScreenHeader headerName="Resetting Password" />
+      <StepDots total={3} current={2} />
       <ScreenContent
         title="Upload Recovery Key"
-        description="Recovery key was provided when you first created your account"
+        description="Recovery key was provided when you first created your account. Check your Downloads folder or saved files from when you registered."
       >
         <View
           style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
         >
-          <HelperText type="error">{error.general}</HelperText>
+          <HelperText type="error" visible={!!error.general}>{error.general}</HelperText>
           <SecondaryButton onPress={handleFileUpload} disabled={!!file}>
-            Insert File
+            Choose File
           </SecondaryButton>
-          <HelperText type="error">{error.recoveryKey}</HelperText>
+          <HelperText type="error" visible={!!error.recoveryKey}>{error.recoveryKey}</HelperText>
           {file && (
             <FileUploadResultCard
               fileName={file.name}
@@ -168,7 +164,7 @@ const RecoveryKeyResetScreen = () => {
         <PrimaryButton
           onPress={handleVerify}
           loading={loading}
-          disabled={loading}
+          disabled={!file || loading}
         >
           Verify
         </PrimaryButton>
