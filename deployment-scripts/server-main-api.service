@@ -8,6 +8,7 @@ User=sapot
 Group=sapot
 
 # Tell systemd to execute your bash script
+WorkingDirectory=/home/sapot/YLP-software/server
 ExecStart=/home/sapot/YLP-software/server/runserver.sh
 
 

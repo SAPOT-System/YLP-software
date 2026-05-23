@@ -1,18 +1,15 @@
-
 [Unit]
 Description=Service for running GSM API for server
 After=network.target
 
 [Service]
-User=sapot
-Group=sapot
-
-# Tell systemd to execute your bash script
+User=sapot 
+Group=sapot 
+WorkingDirectory=/home/sapot/YLP-software/GSM-module/GSM-fastapi
 ExecStart=/home/sapot/YLP-software/GSM-module/GSM-fastapi/run-api.sh
-
+Restart=always
 
 # Automatic restart logic
-Restart=always
 RestartSec=3
 
 # Standardizes where logs go

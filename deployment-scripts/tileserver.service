@@ -3,18 +3,15 @@ Description=Tile server instance
 After=network.target
 
 [Service]
-User=sapot
-Group=sapot
+User=root
+Group=root
 
-# Tell systemd to execute your bash script
-ExecStart=/home/sapot/YLP-software/tileserver/deploy-tiling-server.sh
+WorkingDirectory=/home/sapot/YLP-software/tileserver
+ExecStart=/home/sapot/YLP-software/tileserver/deploy-tiling-server-detached.sh
 
-
-# Automatic restart logic
 Restart=always
 RestartSec=3
 
-# Standardizes where logs go
 StandardOutput=journal
 StandardError=journal
 
