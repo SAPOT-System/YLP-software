@@ -1,9 +1,9 @@
 import { formatRelativeTime } from "../utils/format-relative-time";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -25,7 +25,10 @@ interface UserMarkerSheetProps {
   hasPath: boolean;
   isPathLoading: boolean;
   onClearPath: () => void;
+  pathMode: boolean;
 }
+
+const SLIDE_CONFIG = { duration: 220, easing: Easing.out(Easing.cubic) };
 
 const SHEET_HEIGHT = 240;
 // Height of the handle strip that stays visible when hidden
@@ -41,6 +44,7 @@ export function UserMarkerSheet({
   hasPath,
   isPathLoading,
   onClearPath,
+  pathMode,
 }: UserMarkerSheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -56,21 +60,38 @@ export function UserMarkerSheet({
     setIsHidden(val);
   };
 
-  // Slide in when a user is selected; reset hidden state
+  // Slide to peek when a path loads; snap back when path is cleared
+  useEffect(() => {
+    if (hasPath) {
+      setHidden(true);
+      snapTo(true);
+    } else if (isHiddenRef.current) {
+      setHidden(false);
+      snapTo(false);
+    }
+  }, [hasPath]);
+
+  // Slide in when a user is selected; peek when path mode is active
   useEffect(() => {
     if (selectedUser !== null) {
-      setHidden(false);
-      translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
-      backdropOpacity.value = withTiming(1, { duration: 200 });
+      if (pathMode) {
+        setHidden(true);
+        snapTo(true);
+      } else {
+        setHidden(false);
+        translateY.value = withTiming(0, SLIDE_CONFIG);
+        backdropOpacity.value = withTiming(1, { duration: 200 });
+      }
     } else {
-      translateY.value = withTiming(SHEET_HEIGHT, { duration: 250 });
+      setHidden(false);
+      translateY.value = withTiming(SHEET_HEIGHT, SLIDE_CONFIG);
       backdropOpacity.value = withTiming(0, { duration: 200 });
     }
-  }, [selectedUser]);
+  }, [selectedUser, pathMode]);
 
   const snapTo = (hidden: boolean) => {
     const targetY = hidden ? HIDDEN_TRANSLATE : 0;
-    translateY.value = withSpring(targetY, { damping: 20, stiffness: 200 });
+    translateY.value = withTiming(targetY, SLIDE_CONFIG);
     backdropOpacity.value = withTiming(hidden ? 0 : 1, { duration: 200 });
   };
 
@@ -168,7 +189,7 @@ export function UserMarkerSheet({
             variant="bodySmall"
             style={[styles.lastSeen, { color: theme.colors.onSurfaceVariant }]}
           >
-            Last seen: {formatRelativeTime(selectedUser.timestamp)}
+            Updated {formatRelativeTime(selectedUser.timestamp)}
           </Text>
 
           <View style={styles.actions}>

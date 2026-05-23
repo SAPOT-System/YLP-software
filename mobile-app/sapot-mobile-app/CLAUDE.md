@@ -178,7 +178,7 @@ Claude Code acts as the orchestrator. Use these tools purposefully — never cal
 |---|---|---|
 | **Gemini CLI** | `gemini -p "<task>"` | Repo scanning, file discovery, summarization, context gathering before reasoning |
 | **Codex CLI** | `codex exec "<task>"` | Writing code, implementing fixes, generating tests, applying changes |
-| **GitHub Copilot CLI** | `gh copilot suggest -t git "<task>"` | Analyzing staged changes and generating commit messages |
+| **GitHub Copilot CLI** | `copilot -p "<task>" --allow-all-tools` | Analyzing staged changes and generating commit messages |
 
 ### Rules
 
@@ -195,7 +195,7 @@ When preparing a commit, use Copilot to analyze the diff and suggest a message:
 
 ```bash
 # Stage changes first, then generate a commit message
-git diff --staged | gh copilot suggest -t git "write a conventional commit message for these changes"
+git diff --staged | copilot -p "Write a conventional commit message for these changes. Output only the commit message, nothing else." --allow-all-tools
 ```
 
 - Use the Copilot-suggested message as the baseline; refine it if needed before committing.

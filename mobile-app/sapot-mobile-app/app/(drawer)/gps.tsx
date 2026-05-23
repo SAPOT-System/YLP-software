@@ -8,7 +8,11 @@ import {
   SelectedUser,
   UserMarkerSheet,
 } from "@/features/gps/components/UserMarkerSheet";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { useToast } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
+import { getGpsHistoryApi } from "@/features/gps/api/gps.api";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Camera,
   GeoJSONSource,
@@ -20,7 +24,7 @@ import {
 } from "@maplibre/maplibre-react-native";
 import { Redirect, router } from "expo-router";
 import { useMemo, useState } from "react";
-import { Linking, StyleSheet, View } from "react-native";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
   Appbar,
@@ -53,14 +57,17 @@ export default function GpsScreen() {
     refetch,
   } = useLatestLocations();
 
+  const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [pathUserId, setPathUserId] = useState<string | null>(null);
+  const [showPath, setShowPath] = useState(false);
+  const [isPathFetching, setIsPathFetching] = useState(false);
+  const [followUser, setFollowUser] = useState(true);
+  const [pathMode, setPathMode] = useState(false);
+  const [showNoHistoryBanner, setShowNoHistoryBanner] = useState(false);
+  const { visible, message, variant, showError, hideToast } = useToast();
 
-  const {
-    data: historyData,
-    isFetching: isPathFetching,
-    refetch: fetchPath,
-  } = useGpsHistory(pathUserId);
+  const { data: historyData } = useGpsHistory(pathUserId);
 
   const currentUserId = userStore.user.id;
   const userLocations = rawLocations.filter(
@@ -94,6 +101,18 @@ export default function GpsScreen() {
     };
   }, [historyData]);
 
+  const pathEndpoints = useMemo(() => {
+    if (!historyData || historyData.length < 1) return null;
+    const ordered = [...historyData].reverse();
+    return {
+      oldest: [ordered[0].longitude, ordered[0].latitude] as [number, number],
+      newest: [
+        ordered[ordered.length - 1].longitude,
+        ordered[ordered.length - 1].latitude,
+      ] as [number, number],
+    };
+  }, [historyData]);
+
   const handleMessage = (userId: string) => {
     setSelectedUser(null);
     router.push({
@@ -103,8 +122,35 @@ export default function GpsScreen() {
   };
 
   const handleViewPath = async (userId: string) => {
-    setPathUserId(userId);
-    await fetchPath();
+    setFollowUser(false);
+    setIsPathFetching(true);
+    try {
+      const data = await queryClient.fetchQuery({
+        queryKey: ["gps", "history", userId],
+        queryFn: () => getGpsHistoryApi(userId),
+        staleTime: 30_000,
+      });
+      if (data.length < 2) {
+        setShowNoHistoryBanner(true);
+        return;
+      }
+      setPathUserId(userId);
+      setShowPath(true);
+    } catch {
+      showError("Could not load path. Please try again.");
+    } finally {
+      setIsPathFetching(false);
+    }
+  };
+
+  const clearPath = () => {
+    setPathUserId(null);
+    setShowPath(false);
+    setShowNoHistoryBanner(false);
+  };
+
+  const handleRecenter = () => {
+    setFollowUser(true);
   };
 
   const header = (
@@ -190,7 +236,7 @@ export default function GpsScreen() {
       {header}
       <View style={styles.mapContainer}>
         <Map style={styles.map} mapStyle={EMPTY_STYLE} androidView="texture">
-          <Camera trackUserLocation="default" zoom={14} />
+          <Camera trackUserLocation={followUser ? "default" : undefined} zoom={14} />
           <RasterSource
             id="tileserver"
             tiles={[TILE_URL]}
@@ -207,13 +253,18 @@ export default function GpsScreen() {
               id={String(loc.user_id)}
               lngLat={[loc.longitude, loc.latitude]}
               anchor="bottom"
-              onPress={() =>
+              onPress={() => {
+                setFollowUser(false);
+                clearPath();
                 setSelectedUser({
                   user_id: loc.user_id,
                   username: loc.username,
                   timestamp: loc.timestamp,
-                })
-              }
+                });
+                if (pathMode) {
+                  handleViewPath(loc.user_id);
+                }
+              }}
             >
               <View style={styles.marker}>
                 <Icon
@@ -241,15 +292,26 @@ export default function GpsScreen() {
               </View>
             </Marker>
           ))}
-          {pathGeoJSON && (
-            <GeoJSONSource id="user-path-source" data={pathGeoJSON}>
+          {showPath && pathGeoJSON && (
+            <GeoJSONSource id="user-path-source" data={pathGeoJSON} lineMetrics>
               <Layer
                 id="user-path-line"
                 type="line"
                 paint={{
-                  "line-color": "#E53935",
-                  "line-width": 3,
-                  "line-opacity": 0.85,
+                  "line-gradient": [
+                    "interpolate",
+                    ["linear"],
+                    ["line-progress"],
+                    0, `${theme.colors.error}1A`,
+                    1, theme.colors.error,
+                  ],
+                  "line-width": [
+                    "interpolate",
+                    ["linear"],
+                    ["line-progress"],
+                    0, 1.5,
+                    1, 4,
+                  ],
                 }}
                 layout={{
                   "line-cap": "round",
@@ -258,7 +320,136 @@ export default function GpsScreen() {
               />
             </GeoJSONSource>
           )}
+          {showPath && pathEndpoints && (
+            <>
+              <GeoJSONSource
+                id="path-start-source"
+                data={{
+                  type: "FeatureCollection",
+                  features: [
+                    {
+                      type: "Feature",
+                      geometry: {
+                        type: "Point",
+                        coordinates: pathEndpoints.oldest,
+                      },
+                      properties: {},
+                    },
+                  ],
+                }}
+              >
+                <Layer
+                  id="path-start-circle"
+                  type="circle"
+                  paint={{
+                    "circle-radius": 5,
+                    "circle-color": "transparent",
+                    "circle-stroke-width": 2,
+                    "circle-stroke-color": theme.colors.error,
+                  }}
+                />
+              </GeoJSONSource>
+              <GeoJSONSource
+                id="path-end-source"
+                data={{
+                  type: "FeatureCollection",
+                  features: [
+                    {
+                      type: "Feature",
+                      geometry: {
+                        type: "Point",
+                        coordinates: pathEndpoints.newest,
+                      },
+                      properties: {},
+                    },
+                  ],
+                }}
+              >
+                <Layer
+                  id="path-end-circle"
+                  type="circle"
+                  paint={{
+                    "circle-radius": 7,
+                    "circle-color": theme.colors.error,
+                    "circle-stroke-width": 2.5,
+                    "circle-stroke-color": theme.colors.surface,
+                  }}
+                />
+              </GeoJSONSource>
+            </>
+          )}
         </Map>
+        {((showPath && pathGeoJSON) || showNoHistoryBanner) && (
+          <View style={styles.pathBanner}>
+            <View
+              style={[
+                styles.pathBannerCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+            >
+              <Icon
+                source={showNoHistoryBanner ? "map-marker-off" : "map-marker-path"}
+                size={16}
+                color={showNoHistoryBanner ? theme.colors.onSurfaceVariant : theme.colors.primary}
+              />
+              <Text variant="bodySmall" style={styles.pathBannerText} numberOfLines={1}>
+                {showNoHistoryBanner
+                  ? `No history for ${selectedUser?.username ?? "User"}`
+                  : `${selectedUser?.username ?? "User"}'s path`}
+              </Text>
+              <Pressable onPress={clearPath} hitSlop={8}>
+                <Icon source="close-circle" size={20} color={theme.colors.onSurfaceVariant} />
+              </Pressable>
+            </View>
+          </View>
+        )}
+        <View style={styles.pathToggle}>
+          <View
+            style={[
+              styles.pathToggleCard,
+              {
+                backgroundColor: pathMode
+                  ? theme.colors.primaryContainer
+                  : theme.colors.surface,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => {
+                if (pathMode) clearPath();
+                setPathMode((prev) => !prev);
+              }}
+              hitSlop={8}
+            >
+              <Icon
+                source="map-marker-path"
+                size={22}
+                color={pathMode ? theme.colors.onPrimaryContainer : theme.colors.primary}
+              />
+            </Pressable>
+          </View>
+        </View>
+        {!followUser && (
+          <View style={styles.recenterButton}>
+            <View
+              style={[
+                styles.recenterCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+            >
+              <Pressable onPress={handleRecenter} hitSlop={8}>
+                <Icon source="crosshairs-gps" size={22} color={theme.colors.primary} />
+              </Pressable>
+            </View>
+          </View>
+        )}
         {isInitialLoading && (
           <View style={[styles.overlay, { bottom: overlayBottom }]}>
             <View
@@ -280,7 +471,7 @@ export default function GpsScreen() {
           </View>
         )}
         {isError && (
-          <View style={[styles.overlay, { bottom: overlayBottom }]}>
+          <View pointerEvents="box-none" style={[styles.overlay, { bottom: overlayBottom }]}>
             <View
               style={[
                 styles.overlayCard,
@@ -300,7 +491,7 @@ export default function GpsScreen() {
             </View>
           </View>
         )}
-        {showEmptyState && !isError && !isInitialLoading && (
+        {showEmptyState && (
           <View
             pointerEvents="none"
             style={[styles.overlay, { bottom: overlayBottom }]}
@@ -316,8 +507,7 @@ export default function GpsScreen() {
             >
               <Icon source="account-group-outline" size={20} color={theme.colors.primary} />
               <Text variant="bodySmall" style={{ textAlign: "center" }}>
-                No active rescuers yet. We will show them here when they
-                appear.
+                No other rescuers are sharing their location right now.
               </Text>
             </View>
           </View>
@@ -325,16 +515,20 @@ export default function GpsScreen() {
       </View>
       <UserMarkerSheet
         selectedUser={selectedUser}
+        pathMode={pathMode}
         onDismiss={() => {
           setSelectedUser(null);
-          setPathUserId(null);
+          clearPath();
         }}
         onMessage={handleMessage}
         onViewPath={handleViewPath}
-        hasPath={pathGeoJSON !== null}
+        hasPath={showPath && pathGeoJSON !== null}
         isPathLoading={isPathFetching}
-        onClearPath={() => setPathUserId(null)}
+        onClearPath={clearPath}
       />
+      <AppSnackbar visible={visible} onDismiss={hideToast} variant={variant}>
+        {message}
+      </AppSnackbar>
     </View>
   );
 }
@@ -343,7 +537,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   mapContainer: { flex: 1 },
   map: { flex: 1 },
-  header: { height: 80 },
+  header: {},
   headerTitle: {
     fontWeight: "bold",
     fontSize: 24,
@@ -372,6 +566,65 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     gap: 6,
+  },
+  pathBanner: {
+    position: "absolute",
+    top: 12,
+    left: 16,
+    right: 56,
+  },
+  pathBannerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+  },
+  pathBannerText: {
+    flex: 1,
+  },
+  pathToggle: {
+    position: "absolute",
+    top: 60,
+    right: 8,
+  },
+  pathToggleCard: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+  },
+  recenterButton: {
+    position: "absolute",
+    top: 108,
+    right: 8,
+  },
+  recenterCard: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
   },
   marker: { alignItems: "center" },
   markerLabel: {
