@@ -168,6 +168,42 @@ The FastAPI server (`server/app/`) provides:
 - WebSocket signaling endpoint (`/ws`) — relays WebRTC `offer`/`answer`/`ICE` messages between peers via `connection_manager.py`
 - Static file serving from `static/profile_pictures/`
 
+## External CLI Orchestration
+
+Claude Code acts as the orchestrator. Use these tools purposefully — never call them speculatively or in rapid succession.
+
+### Tools
+
+| Tool | Command | When to use |
+|---|---|---|
+| **Gemini CLI** | `gemini -p "<task>"` | Repo scanning, file discovery, summarization, context gathering before reasoning |
+| **Codex CLI** | `codex exec "<task>"` | Writing code, implementing fixes, generating tests, applying changes |
+| **GitHub Copilot CLI** | `gh copilot suggest -t git "<task>"` | Analyzing staged changes and generating commit messages |
+
+### Rules
+
+1. **Analysis first** — when codebase understanding is needed before acting, run `gemini -p "<task>"` and read its output fully before proceeding.
+2. **Implementation via Codex** — when writing or modifying code, delegate to `codex "<task>"` rather than editing directly, unless the change is trivial (single-line fix, renaming, etc.).
+3. **Default workflow order:** Gemini (gather context) → Claude reasoning → Codex (implement) → Claude review.
+4. **Minimal calls** — do not call Gemini or Codex if the answer is already in context. One well-scoped call beats two redundant ones.
+5. **Always read output** — never fire a CLI tool and skip its output. Synthesize the result before continuing.
+6. **Claude reviews last** — after Codex applies changes, run `npx tsc --noEmit` and review the diff before reporting done.
+
+### Commit Message Workflow
+
+When preparing a commit, use Copilot to analyze the diff and suggest a message:
+
+```bash
+# Stage changes first, then generate a commit message
+git diff --staged | gh copilot suggest -t git "write a conventional commit message for these changes"
+```
+
+- Use the Copilot-suggested message as the baseline; refine it if needed before committing.
+- Follow [Conventional Commits](https://www.conventionalcommits.org/) format: `type(scope): description`.
+- Valid types: `feat`, `fix`, `chore`, `patch`, `refactor`, `test`, `docs`.
+
+---
+
 ## Conventions
 - Screens in app/ using Expo Router file-based routing
 - Use useTheme() for dark mode

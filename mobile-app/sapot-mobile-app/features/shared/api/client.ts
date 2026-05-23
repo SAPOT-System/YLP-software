@@ -66,7 +66,7 @@ apiClient.interceptors.response.use(
 
     try {
       const refreshToken = await getItemAsync("refresh_token");
-      if (!refreshToken) throw new Error("no refresh token");
+      if (!refreshToken) return Promise.reject(error);
 
       const { data } = await axios.post<{
         access_token: string;
