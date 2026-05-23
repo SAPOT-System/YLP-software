@@ -9,6 +9,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { OTPInput } from "input-otp-native";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { HelperText, Text, useTheme } from "react-native-paper";
 
 const CODE_LENGTH = 6;
@@ -93,6 +94,12 @@ const EnterRecoveryScreen = () => {
     : `We've sent it to your email ${identifier}`;
 
   return (
+    <KeyboardAwareScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      bounces={false}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
+    >
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
     >
@@ -194,6 +201,7 @@ const EnterRecoveryScreen = () => {
         {toastMessage}
       </AppSnackbar>
     </View>
+    </KeyboardAwareScrollView>
   );
 };
 

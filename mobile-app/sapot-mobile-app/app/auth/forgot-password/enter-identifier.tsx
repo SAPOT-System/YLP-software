@@ -17,7 +17,8 @@ import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, View } from "react-native";
+import { View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { HelperText } from "react-native-paper";
 
 const PHONE_REGEX = /^\+639\d{9}$/;
@@ -209,9 +210,11 @@ const EnterIdentifierScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
+    <KeyboardAwareScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      bounces={false}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
     >
       <View
         style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
@@ -267,7 +270,7 @@ const EnterIdentifierScreen = () => {
       <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
         {toastMessage}
       </AppSnackbar>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 };
 
