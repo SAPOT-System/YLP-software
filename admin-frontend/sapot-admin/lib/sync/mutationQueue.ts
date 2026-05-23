@@ -4,6 +4,7 @@ import { db } from "../db";
  * We store mutations separately from tables
  * so we can retry safely.
  */
+import { v4 as uuidv4 } from "uuid";
 
 export type Mutation = {
   id: string;
@@ -49,7 +50,7 @@ export function addMutation(m: Omit<Mutation, "id" | "created_at" | "retries">) 
   if (exists) return;
   
   queue.push({
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     created_at: Date.now(),
     retries: 0,
     ...m,
