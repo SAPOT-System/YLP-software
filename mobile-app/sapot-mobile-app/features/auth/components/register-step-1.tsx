@@ -15,6 +15,7 @@ export const RegisterStep1 = ({
   onSubmit,
   onBlur,
   loading,
+  onTermsPress,
 }: RegisterStepProps) => {
   const theme = useTheme();
 
@@ -147,7 +148,11 @@ export const RegisterStep1 = ({
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Checkbox
             status={values.termsChecked ? "checked" : "unchecked"}
-            onPress={() => onChange("termsChecked", !values.termsChecked)}
+            onPress={() =>
+              values.termsChecked
+                ? onChange("termsChecked", false)
+                : onTermsPress?.()
+            }
           />
           <Text variant="bodyMedium">
             I agree to{" "}
@@ -155,8 +160,10 @@ export const RegisterStep1 = ({
               variant="bodyMedium"
               style={{
                 fontWeight: "600",
-                color: theme.colors.inverseOnSurface,
+                color: theme.colors.primary,
+                textDecorationLine: "underline",
               }}
+              onPress={onTermsPress}
             >
               Terms & Conditions
             </Text>

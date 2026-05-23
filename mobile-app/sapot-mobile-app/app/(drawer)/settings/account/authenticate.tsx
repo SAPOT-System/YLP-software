@@ -35,6 +35,7 @@ export default function Authenticate() {
       last_name: lastName.trim(),
       username: username.trim(),
       password,
+      terms_accepted: true,
     };
 
     const result = await registerAndMigrate(data);

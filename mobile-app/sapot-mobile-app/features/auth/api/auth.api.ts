@@ -336,6 +336,13 @@ export const verifyResetSmsCodeApi = async (phone: string, code: string) => {
   return res;
 };
 
+export const fetchTermsContent = async (): Promise<string> => {
+  apiLog.info("[AuthApi] Calling /auth/terms");
+  const res = await apiClient.get<{ content: string }>("/auth/terms");
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res.data.content;
+};
+
 export const resendVerificationCodePhone = async () => {
   apiLog.info("[AuthApi] Calling /gsm/resend");
   const res = await apiClient.post<{ message: string }>("/gsm/resend");

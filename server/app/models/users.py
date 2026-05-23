@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import unique
 from typing import Annotated, List, Optional
 import uuid
@@ -48,6 +49,7 @@ class User(UserBase, table=True):
     )
     hashed_password: str
     email_verified : bool =  Field(default=False)
+    terms_accepted_at: datetime | None = Field(default=None, nullable=True)
 
     security_questions: List["UserSecurityQuestion"] = Relationship(
             back_populates="user",
@@ -219,6 +221,12 @@ class UserCreate(UserBase):
         examples=["StrongPass123"]
     )
 
+    terms_accepted: bool = PyField(
+        default=False,
+        description="Whether the user has accepted the Terms & Conditions.",
+        examples=[True]
+    )
+
     @field_validator("password")
     @classmethod
     def password_complexity(cls, v: str):
@@ -228,6 +236,13 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one lowercase letter")
         if not any(char.isupper() for char in v):
             raise ValueError("Password must contain at least one uppercase letter")
+        return v
+
+    @field_validator("terms_accepted")
+    @classmethod
+    def must_accept_terms(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("You must accept the Terms & Conditions to register.")
         return v
 
 class UserCreateThroughAdmin(UserCreate):

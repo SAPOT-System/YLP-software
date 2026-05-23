@@ -66,6 +66,7 @@ export const useRegister = () => {
         first_name: form.firstName,
         last_name: form.lastName,
         password: form.password,
+        terms_accepted: true,
       });
       const data = res.data;
 

@@ -14,6 +14,7 @@ export interface RegisterStepProps {
   onSubmit: (values: Partial<RegisterFormState>) => void;
   onBlur?: (name: keyof RegisterFormState) => void;
   onBack?: () => void;
+  onTermsPress?: () => void;
 }
 
 export interface RegisterFormState {
@@ -36,6 +37,7 @@ export interface RegisterApiRequest {
   last_name: string;
   phone_number?: string;
   email?: string;
+  terms_accepted: boolean;
 }
 
 type ApiRegisterFieldErrorResponse = Partial<

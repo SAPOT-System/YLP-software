@@ -1,6 +1,7 @@
 import { APP_ROUTES } from "@/config/routes";
 import {
   RegisterStep1,
+  TermsModal,
   useAuth,
   useRegister,
 } from "@/features/auth";
@@ -29,6 +30,7 @@ const Register = () => {
   const auth = useAuth();
 
   const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [form, setForm] = useState<RegisterFormState>({
     username: "",
     firstName: "",
@@ -103,6 +105,22 @@ const Register = () => {
     }
   };
 
+  const handleTermsPress = () => {
+    setTermsModalVisible(true);
+  };
+
+  const handleTermsAccept = () => {
+    setForm((prev) => ({ ...prev, termsChecked: true }));
+    if (errors.termsChecked) {
+      setErrors((prev) => ({ ...prev, termsChecked: undefined }));
+    }
+    setTermsModalVisible(false);
+  };
+
+  const handleTermsDismiss = () => {
+    setTermsModalVisible(false);
+  };
+
   useEffect(() => {
     if (errors.general) {
       authLog.warn("[Register] general error", { message: errors.general });
@@ -134,6 +152,7 @@ const Register = () => {
               onChange={handleChange}
               onSubmit={handleSubmit}
               onBlur={handleBlur}
+              onTermsPress={handleTermsPress}
             />
           </ScrollView>
         </ScreenContent>
@@ -141,6 +160,12 @@ const Register = () => {
         <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
           {toastMessage}
         </AppSnackbar>
+
+        <TermsModal
+          visible={termsModalVisible}
+          onAccept={handleTermsAccept}
+          onDismiss={handleTermsDismiss}
+        />
       </View>
     </KeyboardAvoidingView>
   );

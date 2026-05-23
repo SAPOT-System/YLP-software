@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Annotated, Dict
 from uuid import UUID
 from fastapi import Depends, HTTPException, Request
@@ -92,6 +93,9 @@ def db_create_user(user: UserCreate, session: SessionDep):
         if hasattr(user, 'id') and user.id:
             db_user.id = user.id
 
+        if user.terms_accepted:
+            db_user.terms_accepted_at = datetime.now(timezone.utc)
+
         session.add(db_user)
         session.commit()
         session.refresh(db_user)
@@ -107,6 +111,9 @@ def db_create_user(user: UserCreate, session: SessionDep):
         
         for field, value in new_user_dump.items():
             setattr(user_in_db, field, value)
+
+        if user.terms_accepted:
+            user_in_db.terms_accepted_at = datetime.now(timezone.utc)
 
         session.add(user_in_db)
         # delete guest record
