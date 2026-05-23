@@ -1,9 +1,10 @@
 import { push } from "@/sync/push";
 import { queueMutation } from "@/sync/queue";
 import { useChatStore } from "@/store/chatStore";
+import { v4 as uuidv4 } from "uuid";
 
 export async function sendMessage(payload) {
-  const tempId = crypto.randomUUID();
+  const tempId = uuidv4();
 
   const store = useChatStore.getState();
 

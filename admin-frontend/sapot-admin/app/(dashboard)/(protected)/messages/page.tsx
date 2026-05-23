@@ -11,6 +11,7 @@ import { markConversationMessagesAsRead } from "@/lib/records/Createmessagerecei
 import { useEffect, useRef, useState } from "react";
 import { Loader } from "lucide-react";
 import { initSessionCleanup } from "@/lib/sessionCleanup";
+import { v4 as uuidv4 } from "uuid";
 
 export function usePolling(callback: () => Promise<void>, interval: number) {
   const isRunning = useRef(false);
@@ -519,8 +520,8 @@ export default function Messages() {
 
     if (!record) {
       await createConversation({ id: conversationId, conversation_type: "solo" });
-      await createConversationParticipant({ id: crypto.randomUUID(), conversation_id: conversationId, user_id: currentUserId });
-      await createConversationParticipant({ id: crypto.randomUUID(), conversation_id: conversationId, user_id: userIDB });
+      await createConversationParticipant({ id: uuidv4(), conversation_id: conversationId, user_id: currentUserId });
+      await createConversationParticipant({ id: uuidv4(), conversation_id: conversationId, user_id: userIDB });
       await push();
     }
 
