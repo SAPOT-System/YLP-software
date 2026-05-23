@@ -41,7 +41,7 @@ from app.db_operations.auth import SessionDep
 
 router = APIRouter(
     prefix='/portal',
-    tags=['auth'],
+    tags=['captive portal'],
     responses={
         404: {'description': 'Not Found'}
     }
@@ -66,7 +66,6 @@ router = APIRouter(
     response_model=GuestSessionRead,
     status_code=201,
     summary="Record a new guest login",
-    tags=["Guests"],
 )
 def create_guest_session(
     payload: GuestLoginRequest,
@@ -97,7 +96,6 @@ def create_guest_session(
     "/api/v1/guests/{session_id}/disconnect",
     response_model=GuestSessionRead,
     summary="Mark a session as disconnected",
-    tags=["Guests"],
 )
 def disconnect_guest_session(
     session_id: str,
@@ -130,7 +128,6 @@ def disconnect_guest_session(
     "/api/v1/guests/stats",
     response_model=StatsResponse,
     summary="Aggregate session statistics",
-    tags=["Guests"],
 )
 def get_stats(
     session: SessionDep
@@ -156,7 +153,6 @@ def get_stats(
     "/api/v1/guests",
     response_model=GuestListResponse,
     summary="List all guest sessions",
-    tags=["Guests"],
 )
 def list_guests(
     session: SessionDep,
@@ -201,7 +197,6 @@ def list_guests(
     "/api/v1/guests/{session_id}",
     response_model=GuestSessionRead,
     summary="Retrieve a single guest session",
-    tags=["Guests"],
 )
 def get_guest_session(
     session: SessionDep,
