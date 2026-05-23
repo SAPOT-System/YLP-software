@@ -95,7 +95,7 @@ function HeaderRight() {
 }
 
 export default function DrawerLayout() {
-  const { isAuthenticated, loading, isGuest, isRescuer } = useAuth();
+  const { isAuthenticated, loading, isGuest } = useAuth();
   const theme = useTheme();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { unregister } = useBackgroundTask();
@@ -258,7 +258,7 @@ export default function DrawerLayout() {
                     const routesWithoutHeader = [
                       "settings",
                       "public-chat",
-                      "calls",
+                      "map",
                       "server",
                       "chat/[id]",
                       "call/[id]",
@@ -353,15 +353,6 @@ export default function DrawerLayout() {
                     drawerItemStyle: { display: "none" },
                     title: "Announcements",
                     headerShown: false,
-                  }}
-                />
-                <Drawer.Screen
-                  name="gps"
-                  options={{
-                    drawerLabel: "map",
-                    title: "GPS Map",
-                    headerShown: false,
-                    drawerItemStyle: isRescuer ? undefined : { display: "none" },
                   }}
                 />
                 <Drawer.Screen

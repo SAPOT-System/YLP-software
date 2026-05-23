@@ -1,3 +1,4 @@
+import { useAuth } from "@/features/auth";
 import { useConnectionService } from "@/features/shared/hooks";
 import { navLog } from "@/features/shared/utils/logger";
 import Entypo from "@expo/vector-icons/Entypo";
@@ -108,6 +109,7 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
+  const { isRescuer } = useAuth();
 
   useEffect(() => {
     navLog.info("[TabLayout] mounted");
@@ -199,14 +201,19 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="calls"
+          name="map"
           options={{
-            title: "Calls",
+            title: "Live Map",
+            tabBarLabel: "Map",
             tabBarIcon: ({ color }) => (
-              <Feather name="phone-call" size={24} color={color} />
+              <Feather name="map" size={24} color={color} />
             ),
-            headerShown: false,
-            tabBarLabel: "Calls",
+            headerTitleAlign: "center",
+            headerTitleStyle: { fontWeight: "bold", fontSize: 24 },
+            headerTransparent: true,
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: "transparent" },
+            href: isRescuer ? undefined : null,
           }}
         />
         <Tabs.Screen

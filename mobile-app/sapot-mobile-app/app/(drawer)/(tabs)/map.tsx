@@ -27,7 +27,6 @@ import { useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
-  Appbar,
   Button,
   Icon,
   Text,
@@ -78,9 +77,6 @@ export default function GpsScreen() {
     locationGranted === true && !isLoading && !isError && userLocations.length === 0;
   const errorMessage =
     error instanceof Error ? error.message : "Unable to load live locations.";
-  const headerTitleColor =
-    theme.colors.onSecondary ?? (theme.dark ? "#E6ECF5" : "#000");
-  const headerIconColor = headerTitleColor;
   const overlayBottom = insets.bottom + 16;
 
   const pathGeoJSON = useMemo(() => {
@@ -153,29 +149,6 @@ export default function GpsScreen() {
     setFollowUser(true);
   };
 
-  const header = (
-    <Appbar.Header
-      statusBarHeight={0}
-      style={[
-        styles.header,
-        {
-          backgroundColor: theme.colors.secondary,
-        },
-      ]}
-    >
-      <Appbar.BackAction
-        onPress={() => router.back()}
-        color={headerIconColor}
-      />
-      <Appbar.Content
-        title="Live Map"
-        titleStyle={[styles.headerTitle, {
-          color: headerTitleColor
-        }]}
-      />
-    </Appbar.Header>
-  );
-
   const handleOpenSettings = () => {
     Linking.openSettings().catch(() => null);
   };
@@ -187,7 +160,6 @@ export default function GpsScreen() {
   if (locationGranted === null) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {header}
         <View style={styles.stateContainer}>
           <ActivityIndicator
             animating
@@ -205,7 +177,6 @@ export default function GpsScreen() {
   if (locationGranted === false) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {header}
         <View style={styles.stateContainer}>
           <Icon source="map-marker-off" size={48} color={theme.colors.error} />
           <Text
@@ -233,7 +204,6 @@ export default function GpsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {header}
       <View style={styles.mapContainer}>
         <Map style={styles.map} mapStyle={EMPTY_STYLE} androidView="texture">
           <Camera trackUserLocation={followUser ? "default" : undefined} zoom={14} />
@@ -537,13 +507,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   mapContainer: { flex: 1 },
   map: { flex: 1 },
-  header: {},
-  headerTitle: {
-    fontWeight: "bold",
-    fontSize: 24,
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
   stateContainer: {
     flex: 1,
     justifyContent: "center",
