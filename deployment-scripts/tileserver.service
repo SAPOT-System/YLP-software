@@ -1,0 +1,22 @@
+[Unit]
+Description=Tile server instance
+After=network.target
+
+[Service]
+User=sapot
+Group=sapot
+
+# Tell systemd to execute your bash script
+ExecStart=/home/sapot/YLP-software/tileserver/deploy-tiling-server.sh
+
+
+# Automatic restart logic
+Restart=always
+RestartSec=3
+
+# Standardizes where logs go
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
