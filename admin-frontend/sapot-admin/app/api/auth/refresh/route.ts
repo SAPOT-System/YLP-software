@@ -35,14 +35,14 @@ export async function POST(request: NextRequest) {
 
     nextResponse.cookies.set('access_token', data.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false,
       sameSite: 'lax',
       path: '/',
     });
 
     nextResponse.cookies.set('refresh_token', data.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false,
       sameSite: 'lax',
       path: '/',
     });

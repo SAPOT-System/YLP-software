@@ -7,10 +7,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  allowedDevOrigins: [
-    "192.168.254.106", // your LAN IP (NO http, no port)
-    "*",
-  ],
+	allowedDevOrigins: ['192.168.0.99', '192.168.0.100'],
 };
 
 export default nextConfig;

@@ -1,30 +1,61 @@
-'use client'
-import { useActionState, useRef } from 'react';
-import { loginAction } from '@/actions/auth';
+'use client';
+
+import { useRef, useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const [state, formAction, isPending] = useActionState(loginAction, null);
   const hasSubmitted = useRef(false);
+  const router = useRouter();
 
-  const handleSubmit = async (formData: FormData) => {
-    if (hasSubmitted.current) return; // prevent multiple requests
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (hasSubmitted.current) return;
     hasSubmitted.current = true;
-    await formAction(formData);
-    hasSubmitted.current = false;
+
+    setIsPending(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        body: formData, // ✅ IMPORTANT: matches req.formData()
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error || 'Invalid credentials');
+        return;
+      }
+
+      // success → redirect
+      router.push('/dashboard');
+    } catch (err) {
+      setError('Network error');
+    } finally {
+      hasSubmitted.current = false;
+      setIsPending(false);
+    }
   };
 
   return (
     <main className="relative min-h-screen w-full flex flex-col p-4">
-      
-      {/* Background (defer heavy loading) */}
+
+      {/* Background */}
       <div className="fixed inset-0 -z-10">
         <Image
           src="/backgrounds/login.png"
           alt="Background"
           fill
-          priority={false} // ✅ don't block page load
-          loading="lazy"   // ✅ defer load
+          priority={false}
+          loading="lazy"
           className="object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
@@ -34,18 +65,17 @@ export default function LoginPage() {
       {/* Logo */}
       <div className="flex py-4 items-center gap-2 text-white font-bold text-xl">
         <Image src="/logos/logo.png" alt="Logo" width={32} height={32} />
-        <span className='font-custom-color'>SAPOT</span>
+        <span className="font-custom-color">SAPOT</span>
       </div>
 
       {/* Card */}
-      <div className='w-full flex justify-center items-center'>
+      <div className="w-full flex justify-center items-center">
         <div className="w-full max-w-[400px] bg-white rounded-3xl shadow-2xl p-10 flex flex-col items-center">
 
           <h1 className="text-2xl font-bold mb-1">Welcome Admin!</h1>
           <p className="text-gray-400 text-xs mb-8">Please login to continue</p>
 
-          <form action={handleSubmit} className="w-full space-y-5">
-
+          <form onSubmit={handleSubmit} className="w-full space-y-5">
 
             {/* Username */}
             <div>
@@ -55,7 +85,7 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Username"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500"
-								required
+                required
               />
             </div>
 
@@ -67,7 +97,7 @@ export default function LoginPage() {
                 type="password"
                 placeholder="Password"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500"
-								required
+                required
               />
             </div>
 
@@ -80,11 +110,11 @@ export default function LoginPage() {
             </button>
 
             {/* Error */}
-						{state?.error && (
-							<div className="p-3 bg-red-50 text-red-500 text-xs rounded-xl text-center">
-								{state.error.msg || "Invalid Credentials"}
-							</div>
-						)}
+            {error && (
+              <div className="p-3 bg-red-50 text-red-500 text-xs rounded-xl text-center">
+                {error}
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -92,7 +122,7 @@ export default function LoginPage() {
   );
 }
 
-/* Extracted spinner (prevents re-render noise) */
+/* Spinner */
 function Spinner() {
   return (
     <div className="flex justify-center">

@@ -39,7 +39,7 @@ export async function loginAction(formData: FormData) {
     
     cookieStore.set('access_token', data.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false,
       sameSite: 'lax',
       maxAge: 60 * 15, // 15 minutes
     });
@@ -47,7 +47,7 @@ export async function loginAction(formData: FormData) {
     if (data.refresh_token) {
       cookieStore.set('refresh_token', data.refresh_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: false,
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7, // 7 days
       });
