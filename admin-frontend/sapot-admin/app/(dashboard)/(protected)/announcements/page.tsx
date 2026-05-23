@@ -463,10 +463,54 @@ export default function AnnouncementsPage() {
       >
         <h2 style={{ marginBottom: 20, fontWeight: 700 }}>Announcements</h2>
 
-        {!mounted || loading  ? (
-          <p>Loading...</p>
-        ) : (
-          data.map((a) => (
+			{!mounted || loading ? (
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "center",
+						alignItems: "center",
+						minHeight: 220,
+						color: "#888",
+						fontSize: 14,
+						fontWeight: 500,
+					}}
+				>
+					Loading announcements...
+				</div>
+			) : data.length === 0 ? (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+						justifyContent: "center",
+						minHeight: 220,
+						gap: 8,
+						color: "#999",
+						textAlign: "center",
+					}}
+				>
+					<div
+						style={{
+							fontSize: 16,
+							fontWeight: 600,
+							color: "#666",
+						}}
+					>
+						No announcements issued yet
+					</div>
+
+					<div
+						style={{
+							fontSize: 13,
+							color: "#999",
+						}}
+					>
+						Create your first announcement to notify users.
+					</div>
+				</div>
+			) : (
+				data.map((a) => (
             <div
               key={a.id}
               style={{

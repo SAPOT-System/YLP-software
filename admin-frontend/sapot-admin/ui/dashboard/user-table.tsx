@@ -148,8 +148,8 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
 	    <div className="flex flex-col gap-10">
 	      <div className="px-2 py-4">{`This action will COMPLETELY DELETE USER '${selectedUser?.username}.' `}</div>
 	      <div className="grid grid-cols-3 gap-2">
-		<div className="border border-black/30 hover:border-black/50 cursor-pointer bg-transparent transition-all duration-150 w-full rounded-3xl px-2 py-1 text-xl text-center font-medium col-span-1" onClick={() => setIsDeleteOpen(false)}>Cancel</div>
-		<div className="text-white bg-red-600 hover:bg-red-500 transition-all duration-150 cursor-pointer w-full rounded-3xl px-2 py-1 text-xl text-center font-medium col-span-2" onClick={() => handleDeleteClick()}>Delete User</div>
+		<div className="border border-black/30 hover:border-black/50 cursor-pointer bg-transparent transition-all duration-150 w-full rounded-xl px-2 py-1 text-xl text-center font-medium col-span-1" onClick={() => setIsDeleteOpen(false)}>Cancel</div>
+		<div className="text-white bg-red-600 hover:bg-red-500 transition-all duration-150 cursor-pointer w-full rounded-xl px-2 py-1 text-xl text-center font-medium col-span-2" onClick={() => handleDeleteClick()}>Delete User</div>
 	      </div>
 	    </div>
 	  </Modal>
@@ -167,8 +167,8 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
 					</div>
 				}
 	      <div className="grid grid-cols-3 gap-2">
-		<div className="border border-black/30 hover:border-black/50 cursor-pointer bg-transparent transition-all duration-150 w-full rounded-3xl px-2 py-1 text-xl text-center font-medium col-span-1" onClick={() => setIsBanOpen(false)}>Cancel</div>
-		<button className={clsx("text-white  transition-all duration-150 cursor-pointer w-full rounded-3xl px-2 py-1 text-xl text-center font-medium col-span-2", {
+		<div className="border border-black/30 hover:border-black/50 cursor-pointer bg-transparent transition-all duration-150 w-full rounded-xl px-2 py-1 text-xl text-center font-medium col-span-1" onClick={() => setIsBanOpen(false)}>Cancel</div>
+		<button className={clsx("text-white  transition-all duration-150 cursor-pointer w-full rounded-xl px-2 py-1 text-xl text-center font-medium col-span-2", {
 			"bg-blue-600 hover:bg-blue-500": isBanned
 		},
 		{

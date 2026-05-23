@@ -1,17 +1,17 @@
-import React from 'react';
+import React from "react";
 
 const Modal = ({
-	children,
-	style=""
+  children,
 }: Readonly<{
-	children?: React.ReactNode,
-	style?: string
+  children?: React.ReactNode;
 }>) => {
   return (
-    <div className="fixed inset-0 bg-black/10 bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-3xl w-full max-w-[700px] p-8 shadow-xl relative">
-				{children}
-			</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      
+      <div className="w-full max-w-[520px] bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-4">
+        {children}
+      </div>
+
     </div>
   );
 };
