@@ -183,6 +183,7 @@ export default ({ config }: ConfigContext) => ({
         barcodeScannerEnabled: true,
       },
     ],
+    "@sentry/react-native",
     [
       "@sentry/react-native/expo",
       {
