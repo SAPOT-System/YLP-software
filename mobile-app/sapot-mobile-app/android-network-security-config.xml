@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="true">sapot.online</domain>
+    <pin-set expiration="2027-01-01">
+      <!-- Primary: current sapot.online public key (SHA-256 SPKI) -->
+      <pin digest="SHA-256">NvLkb+bdGgg0Q2uwhUgVHayWL8a9l42OFdV2y5W8tn0=</pin>
+      <!-- Backup: replace this with a pre-generated backup key before primary rotation -->
+      <pin digest="SHA-256">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin>
+    </pin-set>
+  </domain-config>
+</network-security-config>
