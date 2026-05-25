@@ -60,6 +60,7 @@ rignore==0.7.6
 RouterOS-api==0.21.0
 sentry-sdk==2.50.0
 shellingham==1.5.4
+slowapi==0.1.9
 SQLAlchemy==2.0.46
 sqlmodel==0.0.31
 starlette==0.50.0
