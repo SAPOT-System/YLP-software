@@ -1,7 +1,7 @@
 import {
-    addColumns,
-    createTable,
-    schemaMigrations,
+  addColumns,
+  createTable,
+  schemaMigrations,
 } from "@nozbe/watermelondb/Schema/migrations";
 import { migrationLog } from "../utils/logger";
 migrationLog.debug("[database-migrations] module loaded");
@@ -29,9 +29,7 @@ export default schemaMigrations({
       steps: [
         addColumns({
           table: "messages",
-          columns: [
-            { name: "updated_at", type: "number" },
-          ],
+          columns: [{ name: "updated_at", type: "number" }],
         }),
         addColumns({
           table: "conversations",
@@ -116,7 +114,11 @@ export default schemaMigrations({
         addColumns({
           table: "peers",
           columns: [
-            { name: "phone_number_verified", type: "boolean", isOptional: true },
+            {
+              name: "phone_number_verified",
+              type: "boolean",
+              isOptional: true,
+            },
           ],
         }),
       ],
@@ -137,8 +139,12 @@ export default schemaMigrations({
       steps: [
         addColumns({
           table: "peers",
+          columns: [{ name: "role", type: "string", isOptional: true }],
+        }),
+        addColumns({
+          table: "messages",
           columns: [
-            { name: "role", type: "string", isOptional: true },
+            { name: "is_encrypted", type: "boolean", isOptional: true },
           ],
         }),
       ],
