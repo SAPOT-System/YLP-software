@@ -86,6 +86,7 @@ export type ConnectionServiceEvents = {
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
+  private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string }) => Promise<void> };
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
   private incomingCallNotifId: string | null = null;
@@ -378,6 +379,13 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         ) {
           await this.signalingService.handleIncomingSignaling(message);
         }
+        if (message.type === "profile-info") {
+          await this.peerService?.updatePeerInfo(message.data.from, {
+            username: message.data.username,
+            firstName: message.data.firstName,
+            lastName: message.data.lastName,
+          });
+        }
         if (message.type === "audio-call" && "from" in message.data) {
           const callerPeerId = message.data.from;
           if (this.shouldBusyRejectIncomingCall(callerPeerId)) {
@@ -586,6 +594,10 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.setChatService(chatService);
   }
 
+  setPeerService(peerService: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string }) => Promise<void> }) {
+    this.peerService = peerService;
+  }
+
   /**
    * Retrieves or creates a TcpClientAdapter for the given peer.
    * Stays in ConnectionService per design constraint.
@@ -692,6 +704,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         }
         await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
         isTcpConnected = true;
+        this.sendProfileInfo(peerId);
       }
     } else {
       if (canUseTcp && !isTcpConnected) {
@@ -699,6 +712,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           try {
             await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
             isTcpConnected = true;
+            this.sendProfileInfo(peerId);
           } catch (error) {
             connectionLog.warn("connection › tcp connect failed after retries", {
               peerId,
@@ -1180,6 +1194,23 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private sendProfileInfo(peerId: string) {
+    try {
+      const user = this.userStore.user;
+      this.sendMessage(peerId, {
+        type: "profile-info",
+        data: {
+          from: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      });
+    } catch (error) {
+      connectionLog.warn("connection › profile-info send failed", { peerId, error });
+    }
   }
 
   private async connectTcpWithRetry(

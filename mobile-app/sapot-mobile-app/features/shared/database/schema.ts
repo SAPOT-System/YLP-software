@@ -3,7 +3,7 @@ import { schemaLog } from "../utils/logger";
 schemaLog.debug("[database-schema] module loaded");
 
 export default appSchema({
-  version: 8,
+  version: 9,
   tables: [
     tableSchema(
       // For current guest user data:
@@ -69,6 +69,7 @@ export default appSchema({
         { name: "updated_at", type: "number" },
         { name: "is_deleted", type: "boolean" },
         { name: "linked_message_id", type: "string", isOptional: true },
+        { name: "is_encrypted", type: "boolean", isOptional: true },
       ],
     }),
     tableSchema({

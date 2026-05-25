@@ -217,8 +217,9 @@ const CallLogMessageCard = ({
   callType: CallType | null;
 }) => {
   const handleCall = useInformCall();
+  const content = useDecryptedContent(message);
   const { isMissed, isBusy, isAudio, title, subtitle } = parseCallLog(
-    message.content,
+    content,
     message.createdAt
   );
 
@@ -297,6 +298,16 @@ type MessageListItemProps = {
   peerId: string;
 };
 
+const useDecryptedContent = (message: Message): string => {
+  const { localEncryptionService } = useMainContainer();
+  if (!message.isEncrypted) return message.content;
+  try {
+    return localEncryptionService.decrypt(message.content);
+  } catch {
+    return message.content;
+  }
+};
+
 const MessageListItemInner = memo(
   ({
     message,
@@ -309,6 +320,7 @@ const MessageListItemInner = memo(
   }: MessageListItemProps) => {
     const statusObj = status?.[0];
     const senderName = getSenderName(sender ?? guestSender);
+    const content = useDecryptedContent(message);
     const userStore = useUserStore();
     const theme = useTheme();
     const isCurrentUserMessage = message.sender?.id === userStore.user?.id;
@@ -338,7 +350,7 @@ const MessageListItemInner = memo(
       try {
         if (message.messageType === MessageType.SMS) {
           await chatService.updateMessageStatus(message.id, MessageStatusType.SENDING);
-          const res = await sendSmsToUser(peerId, message.content);
+          const res = await sendSmsToUser(peerId, content);
           const status = res.ok
             ? MessageStatusType.DELIVERED
             : MessageStatusType.NOT_SENT;
@@ -404,7 +416,7 @@ const MessageListItemInner = memo(
                 fontSize: 17,
               }}
             >
-              {message.content}
+              {content}
             </Text>
           </View>
         );
@@ -422,7 +434,7 @@ const MessageListItemInner = memo(
         setIsResending(true);
         try {
           await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.SENDING);
-          const res = await sendSmsToUser(peerId, message.content);
+          const res = await sendSmsToUser(peerId, content);
           const newStatus = res.ok ? MessageStatusType.DELIVERED : MessageStatusType.NOT_SENT;
           await chatService.updateMessageStatus(message.linkedMessageId, newStatus);
         } catch {
@@ -445,7 +457,7 @@ const MessageListItemInner = memo(
               You, {formatDate(message.createdAt)}
             </Text>
             <Text style={{ color: "#FFFFFF", fontSize: 17 }}>
-              {message.content}
+              {content}
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

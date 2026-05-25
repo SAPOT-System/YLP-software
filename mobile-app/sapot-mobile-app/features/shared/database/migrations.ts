@@ -132,5 +132,16 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 9,
+      steps: [
+        addColumns({
+          table: "messages",
+          columns: [
+            { name: "is_encrypted", type: "boolean", isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });
