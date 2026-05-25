@@ -17,6 +17,7 @@ export interface DataChatMessageI {
   sentAt: Date;
   messageType: MessageType;
   senderProfile: SenderProfile;
+  linkedMessageId?: string;
 }
 
 /**

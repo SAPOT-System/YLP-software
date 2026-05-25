@@ -416,7 +416,11 @@ const MessageListItemInner = memo(
               }}
             >
               {senderName}, {formatDate(message.createdAt)}
-              {message.messageType === MessageType.SMS ? " · SMS" : ""}
+              {message.messageType === MessageType.SMS
+                ? " · SMS"
+                : message.linkedMessageId != null
+                ? " · +SMS"
+                : ""}
             </Text>
             <Text
               style={{

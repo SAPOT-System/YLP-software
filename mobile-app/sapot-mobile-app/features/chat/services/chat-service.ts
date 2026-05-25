@@ -465,6 +465,7 @@ export class ChatService {
       // discarding; the onKeySet observer re-derives the key for subsequent reads.
       allowPlaintext: true,
       messageType: data.messageType,
+      linkedMessageId: data.linkedMessageId,
     });
     const preparedStatus =
       this.messageStatusRepository.prepareMessageStatusCreate({
@@ -917,6 +918,7 @@ export class ChatService {
           firstName: this.userStore.user.firstName,
           lastName: this.userStore.user.lastName || undefined,
         },
+        linkedMessageId: newMessage.linkedMessageId ?? undefined,
       });
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusById(
@@ -1503,6 +1505,7 @@ export class ChatService {
           firstName: this.userStore.user.firstName,
           lastName: this.userStore.user.lastName || undefined,
         },
+        linkedMessageId: message.linkedMessageId ?? undefined,
       });
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusByMessage(
