@@ -16,8 +16,10 @@ from app.models.guest import Guest
 from app.models.message import Message, MessageType
 from app.models.message_receipt import MessageReceipt, StatusType
 from app.models.phone_verification import PhoneVerification, PhoneVerified, RequestPhoneVerification, VerifyPhoneCode, generate_otp, now_ms
+from app.models.queued import Queue
 from app.models.users import PhoneStr, User
 import httpx
+import json
 
 
 class InboundSMSPayload(BaseModel):
@@ -106,7 +108,7 @@ async def inbound_sms(
     is_connected = target.id in manager.active_connections
     print(f"[gsm/inbound] sender={sender.username} target={target.username} connected={is_connected} msg_id={msg.id}")
 
-    await manager.send_personal_message(target.id, {
+    ws_payload = {
         "type": "chat",
         "data": {
             "from": str(sender.id),
@@ -122,7 +124,20 @@ async def inbound_sms(
                 "lastName": sender.last_name,
             },
         }
-    })
+    }
+
+    if is_connected:
+        await manager.send_personal_message(target.id, ws_payload)
+    else:
+        q = Queue(
+            id=uuid4(),
+            to=target.id,
+            payload_type="chat",
+            data=json.dumps(ws_payload, default=str),
+            data_id=str(msg.id),
+        )
+        session.add(q)
+        session.commit()
 
     return {"ok": True, "message_id": str(msg.id)}
 
