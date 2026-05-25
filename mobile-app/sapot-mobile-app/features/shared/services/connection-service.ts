@@ -2,6 +2,7 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { DataChatMessageI } from "@/features/chat/types";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { MessageType } from "@/features/shared/database/model/Message";
 import { connectionLog } from "@/features/shared/utils/logger";
 import uuid from "react-native-uuid";
 import * as Notifications from "expo-notifications";
@@ -22,6 +23,7 @@ import {
   Message,
   ServerAckMessage,
   SignalingMessage,
+  SmsMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
@@ -312,6 +314,25 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         await this.chatService.handleIncomingChatMessage(normalized);
       } catch (error) {
         connectionLog.error("connection › ws chat handling failed", { error });
+      }
+    });
+
+    this.wsSignalingAdapter.on("ws-sms", async (message: SmsMessage) => {
+      try {
+        if (!this.chatService) return;
+        const { data } = message;
+        await this.chatService.handleIncomingChatMessage({
+          from: data.from,
+          to: data.to,
+          message: data.message,
+          conversationId: data.conversationId,
+          messageId: data.messageId,
+          sentAt: new Date(data.sentAt),
+          messageType: MessageType.SMS,
+          senderProfile: data.senderProfile,
+        });
+      } catch (error) {
+        connectionLog.error("connection › ws sms handling failed", { error });
       }
     });
 

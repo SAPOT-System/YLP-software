@@ -6,6 +6,7 @@ import {
   ChatMessage,
   ServerAckMessage,
   SignalingMessage,
+  SmsMessage,
 } from "../types";
 import { wsLog } from "../utils/logger";
 import { encryptSignalingPayload, decryptSignalingPayload, WsEncryptionContext, WsEncryptedPayload } from "../services/ws-encryption";
@@ -459,6 +460,15 @@ export class WsSignalingAdapter extends EventEmitter {
           return;
         }
       }
+      
+      if (this.isSmsMessage(parsed)) {
+        wsLog.debug("ws › sms message", {
+          messageId: (parsed as SmsMessage).data.messageId,
+          from: (parsed as SmsMessage).data.from,
+        });
+        this.emit("ws-sms", parsed as SmsMessage);
+        return;
+      }
 
       if (this.isDirectChatMessage(parsed)) {
         wsLog.debug("ws › direct chat message", {
@@ -604,6 +614,15 @@ export class WsSignalingAdapter extends EventEmitter {
     if (typeof data.from === "string") return true;
 
     return false;
+  }
+
+  private isSmsMessage(value: unknown): value is SmsMessage {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value as { type?: unknown; data?: unknown };
+    if (candidate.type !== "chat") return false;
+    if (!candidate.data || typeof candidate.data !== "object") return false;
+    const data = candidate.data as { messageType?: unknown; senderProfile?: unknown };
+    return data.messageType === "sms" && typeof data.senderProfile === "object" && data.senderProfile !== null;
   }
 
   private isDirectChatMessage(value: unknown): boolean {

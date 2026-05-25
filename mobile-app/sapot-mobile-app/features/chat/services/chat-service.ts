@@ -345,7 +345,8 @@ export class ChatService {
       }
       const conversation = await this.getOrCreateConversationForIncoming(
         sender,
-        data.conversationId
+        data.conversationId,
+        data.messageType
       );
       await this.deriveAndSetConversationKey(sender.id, conversation.id);
       await this.saveIncomingMessage(sender, conversation, data);
@@ -408,7 +409,8 @@ export class ChatService {
    */
   private async getOrCreateConversationForIncoming(
     sender: Peer,
-    conversationId: string
+    conversationId: string,
+    messageType: MessageType = MessageType.TEXT
   ): Promise<Conversation> {
     const isConversationExist =
       await this.conversationRepository.isConversationExist(conversationId);
@@ -417,20 +419,23 @@ export class ChatService {
       exists: isConversationExist,
     });
     if (!isConversationExist) {
+      const isSms = messageType === MessageType.SMS;
       const existingConversationId =
         await this.conversationParticipantRepository.isDirectConversationExists(
-          [sender.id, this.userStore.user.id]
+          [sender.id, this.userStore.user.id],
+          isSms ? ConversationType.SMS : ConversationType.DIRECT
         );
       if (existingConversationId) {
-        chatLog.debug("chat › reusing existing direct conversation", {
+        chatLog.debug("chat › reusing existing conversation", {
           conversationId: existingConversationId,
+          type: isSms ? "sms" : "direct",
           senderId: sender.id,
         });
         return await this.conversationRepository.queryConversationById(
           existingConversationId
         );
       }
-      return await this.createChatRoom(sender, conversationId);
+      return await this.createChatRoom(sender, conversationId, messageType);
     } else {
       return await this.conversationRepository.queryConversationById(
         conversationId
@@ -459,6 +464,7 @@ export class ChatService {
       // (e.g. first contact with a guest peer). Persist as plaintext rather than
       // discarding; the onKeySet observer re-derives the key for subsequent reads.
       allowPlaintext: true,
+      messageType: data.messageType,
     });
     const preparedStatus =
       this.messageStatusRepository.prepareMessageStatusCreate({
@@ -529,7 +535,11 @@ export class ChatService {
         conversationId,
         peerId: this.peer.id,
       });
-      this.connectionService.sendSeenMessage(this.peer.id, conversationId);
+      const conversation =
+        await this.conversationRepository.queryConversationById(conversationId);
+      if (conversation?.type !== ConversationType.SMS) {
+        this.connectionService.sendSeenMessage(this.peer.id, conversationId);
+      }
       const peerMessages =
         await this.messageRepository.queryMessagesByConversationAndSender(
           conversationId,
@@ -977,7 +987,8 @@ export class ChatService {
    */
   private async createChatRoom(
     peer: Peer,
-    conversationId?: string
+    conversationId?: string,
+    messageType: MessageType = MessageType.TEXT
   ): Promise<Conversation> {
     // Wrap into write method to ensure ACID for safety transaction
     try {
@@ -986,9 +997,11 @@ export class ChatService {
         hasConversationId: Boolean(conversationId),
       });
       return await database.write(async () => {
+        const conversationType =
+          messageType === MessageType.SMS ? ConversationType.SMS : ConversationType.DIRECT;
         const conversation = await this.conversationRepository.saveConversation(
           {
-            type: ConversationType.DIRECT,
+            type: conversationType,
             id: conversationId,
           },
           true

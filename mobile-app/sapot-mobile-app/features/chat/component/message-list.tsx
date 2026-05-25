@@ -400,7 +400,7 @@ const MessageListItemInner = memo(
 
     // For the peer message (incoming)
     if (!isCurrentUserMessage) {
-      if (message.messageType === "text") {
+      if (message.messageType === "text" || message.messageType === MessageType.SMS) {
         return (
           <View
             style={{
@@ -416,6 +416,7 @@ const MessageListItemInner = memo(
               }}
             >
               {senderName}, {formatDate(message.createdAt)}
+              {message.messageType === MessageType.SMS ? " · SMS" : ""}
             </Text>
             <Text
               style={{

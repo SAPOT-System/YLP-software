@@ -283,11 +283,12 @@ const ChatRoom = () => {
       });
 
       if (!incomingMessageCount) return;
-      if ((!isConnected && !isSelfChat) || !conversationId) return;
+      if ((!isConnected && !isSelfChat && !isSmsConversation) || !conversationId) return;
       void chatService.markConversationAsRead(conversationId);
     }, [
       isConnected,
       isSelfChat,
+      isSmsConversation,
       conversationId,
       chatService,
       incomingMessageCount,

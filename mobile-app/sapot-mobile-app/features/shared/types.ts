@@ -225,6 +225,24 @@ export type WsCallMessage =
   | WsCallRejectedMessage
   | WsCallMissedMessage;
 
+export type SmsMessage = {
+  type: "chat";
+  data: {
+    from: string;
+    to: string;
+    message: string;
+    conversationId: string;
+    messageId: string;
+    sentAt: number;
+    messageType: "sms";
+    senderProfile: {
+      username: string;
+      firstName: string;
+      lastName: string;
+    };
+  };
+};
+
 export type ServerAckMessage = {
   type: "server-ack";
   data: {
