@@ -3,6 +3,10 @@ from app.db_operations.token import get_current_user
 from fastapi import APIRouter, BackgroundTasks, Request
 from typing import Annotated, Literal
 import uuid
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlmodel import Field, Session, SQLModel, create_engine, select
@@ -267,8 +271,10 @@ def get_terms_and_conditions():
 
 
 
-@router.post("/token", response_model=Token) # 1. Added response_model for validation
+@router.post("/token", response_model=Token)
+@limiter.limit("5/minute")
 async def login_for_access_token(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
 ):
@@ -310,14 +316,17 @@ async def logout_user(
     return logout(token, session)
 
 @router.post("/refresh", response_model=Token)
+@limiter.limit("10/minute")
 async def refresh_access_token(
-    request: RefreshRequest,
+    request: Request,
+    body: RefreshRequest,
     session: SessionDep
 ):
-    return refresh_token(request, session)
+    return refresh_token(body, session)
 
 @router.post("/", response_model=UserPublic, status_code=201)
-def create_account(user: UserCreate, session: SessionDep, background_tasks: BackgroundTasks, request: Request):
+@limiter.limit("3/minute")
+def create_account(request: Request, user: UserCreate, session: SessionDep, background_tasks: BackgroundTasks):
     if not user.terms_accepted:
         raise HTTPException(
             status_code=400,
@@ -338,16 +347,22 @@ def exists(identifier: str, session: SessionDep):
     return {"exists" : bool(get_user(identifier, session))}
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 @router.post("/change-password")
+@limiter.limit("3/minute")
 def change_password(
-        current_user : Annotated[User, Depends(get_current_user)],
-        current_password: str,
-        new_password: str,
+        request: Request,
+        current_user: Annotated[User, Depends(get_current_user)],
+        body: ChangePasswordRequest,
         session: SessionDep
 ):
-    if not verify_password(current_password, current_user.hashed_password):
+    if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(401, "Wrong old password")
-    update_user_password(current_user, new_password, session)
+    update_user_password(current_user, body.new_password, session)
 
     return {
         "message": "password updated successfully."
