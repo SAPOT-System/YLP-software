@@ -167,8 +167,8 @@ def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
         database.reset_session(sender_phone)
         return MSG_WELCOME, None, None
 
-    # Notify SAPOT app (replace stub with real HTTP call)
-    database.notify_app(sender_phone, target_phone, body)
+    ok = database.notify_app(sender_phone, target_phone, body)
+    logger.info("notify_app result: %s (sender=%s target=%s)", ok, sender_phone, target_phone)
 
     # Build clean forward body for the target's SMS
     fwd = _forward_body(sender_phone, body)

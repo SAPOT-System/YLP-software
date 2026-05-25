@@ -1,18 +1,43 @@
+import os
 from typing import Annotated
 from uuid import UUID, uuid4, uuid5
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query, Request
 from fastapi.routing import APIRouter
 import time
 
+from pydantic import BaseModel
 from sqlmodel import select
 
 from app.db_operations.auth import SessionDep
+from app.db_operations.connection_manager import manager
 from app.db_operations.token import get_current_user, get_current_user_admin, get_current_user_rescuer
 from app.models.conversation import Conversation, ConversationParticipant, ConversationType
 from app.models.guest import Guest
+from app.models.message import Message, MessageType
+from app.models.message_receipt import MessageReceipt, StatusType
 from app.models.phone_verification import PhoneVerification, PhoneVerified, RequestPhoneVerification, VerifyPhoneCode, generate_otp, now_ms
 from app.models.users import PhoneStr, User
 import httpx
+
+
+class InboundSMSPayload(BaseModel):
+    sender_phone: str
+    target_phone: str
+    body: str
+
+
+def _gsm_secret_ok(request: Request) -> bool:
+    secret = os.getenv("GSM_SECRET", "")
+    return secret and request.headers.get("X-GSM-Secret") == secret
+
+
+def _create_sms_conversation(session, convo_id: UUID, user_a_id: UUID, user_b_id: UUID) -> Conversation:
+    convo = Conversation(id=convo_id, title=str(convo_id), conversation_type=ConversationType.sms)
+    p1 = ConversationParticipant(user_id=user_a_id, conversation_id=convo_id)
+    p2 = ConversationParticipant(user_id=user_b_id, conversation_id=convo_id)
+    session.add_all([convo, p1, p2])
+    session.commit()
+    return convo
 
 
 router = APIRouter(
@@ -22,6 +47,85 @@ router = APIRouter(
         404: {'description': 'Not Found'}
     }
 )
+
+@router.get("/users/by-phone/{phone}")
+def user_by_phone(
+    phone: str,
+    request: Request,
+    session: SessionDep,
+):
+    """Internal endpoint for GSM-API to look up a registered user by phone number."""
+    if not _gsm_secret_ok(request):
+        raise HTTPException(403)
+
+    user = session.exec(select(User).where(User.phone_number == phone)).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    return {"user_id": str(user.id), "username": user.username}
+
+
+@router.post("/inbound")
+async def inbound_sms(
+    payload: InboundSMSPayload,
+    request: Request,
+    session: SessionDep,
+):
+    """Internal endpoint: receives an inbound SMS from the GSM-API and delivers it to the target user via WebSocket."""
+    if not _gsm_secret_ok(request):
+        raise HTTPException(403)
+
+    sender = session.exec(select(User).where(User.phone_number == payload.sender_phone)).first()
+    target = session.exec(select(User).where(User.phone_number == payload.target_phone)).first()
+
+    if not sender or not target:
+        raise HTTPException(404, "User not found")
+
+    convo_id = UUID(sms_conversation_id(str(sender.id), str(target.id)))
+    conversation = session.get(Conversation, convo_id)
+    if not conversation:
+        conversation = _create_sms_conversation(session, convo_id, sender.id, target.id)
+
+    msg = Message(
+        conversation_id=convo_id,
+        sender_id=sender.id,
+        content=payload.body,
+        message_type=MessageType.sms,
+    )
+    session.add(msg)
+    session.flush()  # get msg.id before commit
+
+    receipt = MessageReceipt(
+        message_id=msg.id,
+        user_id=target.id,
+        status=StatusType.delivered,
+    )
+    session.add(receipt)
+    session.commit()
+    session.refresh(msg)
+
+    is_connected = target.id in manager.active_connections
+    print(f"[gsm/inbound] sender={sender.username} target={target.username} connected={is_connected} msg_id={msg.id}")
+
+    await manager.send_personal_message(target.id, {
+        "type": "chat",
+        "data": {
+            "from": str(sender.id),
+            "to": str(target.id),
+            "message": payload.body,
+            "conversationId": str(convo_id),
+            "messageId": str(msg.id),
+            "sentAt": msg.created_at,
+            "messageType": "sms",
+            "senderProfile": {
+                "username": sender.username,
+                "firstName": sender.first_name,
+                "lastName": sender.last_name,
+            },
+        }
+    })
+
+    return {"ok": True, "message_id": str(msg.id)}
+
 
 @router.get("/health")
 async def gsm_health(
@@ -286,6 +390,16 @@ def direct_conversation_id(user_id_a: str, user_id_b: str):
     return uuid5(NAMESPACE, name).hex
 
 
+def sms_conversation_id(user_id_a: str, user_id_b: str) -> str:
+    """
+    Generate a deterministic SMS conversation ID distinct from direct_conversation_id
+    for the same peer pair. Mirrors the mobile client's smsConversationId():
+        uuid.v5("sms:" + sorted([userIdA, userIdB]).join(":"), uuid.URL)
+    """
+    name = "sms:" + ":".join(sorted([user_id_a, user_id_b]))
+    return uuid5(NAMESPACE, name).hex
+
+
 
 @router.post("/contact-unknown-user")
 async def contact_unknown_user(
@@ -295,65 +409,71 @@ async def contact_unknown_user(
 
     ):
     """
-    this is an endpoint for contacting unknown users. Use this to create 
-    the conversation between an authenticated user and a user without an account. 
+    this is an endpoint for contacting unknown users. Use this to create
+    the conversation between an authenticated user and a user without an account.
     This does not send any message to the target user.
     """
-    unknown_user_id = direct_conversation_id(target_phone_number, str(NAMESPACE.hex))
+    registered_user = session.exec(select(User).where(User.phone_number == target_phone_number)).first()
 
-    unknown_user_exists = session.get(User, UUID(unknown_user_id))
+    if registered_user:
+        target_user_id = str(registered_user.id)
+        convo_type = ConversationType.direct
+    else:
+        target_user_id = direct_conversation_id(target_phone_number, str(NAMESPACE.hex))
+        convo_type = ConversationType.sms
 
-    if not unknown_user_exists:
-        createUser = User(
-                id=UUID(unknown_user_id),
-                username=target_phone_number,
-                phone_number=target_phone_number,
-                first_name="Unknown",
-                last_name="Unknown",
-                hashed_password=""
-                )
-        guest = Guest(user_id=UUID(unknown_user_id))
-        verify_phone = PhoneVerified(user_id=UUID(unknown_user_id))
-        session.add_all([createUser, guest, verify_phone])
+        unknown_user_exists = session.get(User, UUID(target_user_id))
+        if not unknown_user_exists:
+            createUser = User(
+                    id=UUID(target_user_id),
+                    username=target_phone_number,
+                    phone_number=target_phone_number,
+                    first_name="Unknown",
+                    last_name="Unknown",
+                    hashed_password=""
+                    )
+            guest = Guest(user_id=UUID(target_user_id))
+            verify_phone = PhoneVerified(user_id=UUID(target_user_id))
+            session.add_all([createUser, guest, verify_phone])
 
-    conversation_id = direct_conversation_id(unknown_user_id, str(current_user.id))
+    conversation_id = direct_conversation_id(target_user_id, str(current_user.id))
     conversation = session.get(Conversation, UUID(conversation_id))
 
     if not conversation:
         convo = Conversation(
                 id=UUID(conversation_id),
                 title=conversation_id,
-                conversation_type=ConversationType.direct,
-
+                conversation_type=convo_type,
                 )
         session.add(convo)
 
     participant_1 = session.exec(
             select(ConversationParticipant)
-                .where(ConversationParticipant.user_id==UUID(unknown_user_id))
+                .where(ConversationParticipant.user_id==UUID(target_user_id))
                 .where(ConversationParticipant.conversation_id == UUID(conversation_id))
                 ).first()
     participant_2 = session.exec(
-            select(ConversationParticipant) .where(ConversationParticipant.user_id==current_user.id)
+            select(ConversationParticipant).where(ConversationParticipant.user_id==current_user.id)
                 .where(ConversationParticipant.conversation_id == UUID(conversation_id))
                 ).first()
 
     if not participant_1:
-        ConversationParticipant(
-                user_id=UUID(unknown_user_id),
+        session.add(ConversationParticipant(
+                user_id=UUID(target_user_id),
                 conversation_id=UUID(conversation_id)
-                )
+                ))
     if not participant_2:
-        ConversationParticipant(
+        session.add(ConversationParticipant(
                 user_id=current_user.id,
                 conversation_id=UUID(conversation_id)
-                )
+                ))
 
     session.commit()
 
-    await sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
+    if not registered_user:
+        await sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
 
-    return { "status": "ok", "detail": "Sync from the database", "user_id": unknown_user_id}
+    return { "status": "ok", "detail": "Sync from the database", "user_id": target_user_id}
 
 
 # MOCK ###############################################
@@ -615,61 +735,68 @@ async def MOCK_contact_unknown_user(
 
     ):
     """
-    this is an endpoint for contacting unknown users. Use this to create 
-    the conversation between an authenticated user and a user without an account. 
+    this is an endpoint for contacting unknown users. Use this to create
+    the conversation between an authenticated user and a user without an account.
     This does not send any message to the target user.
     """
-    unknown_user_id = direct_conversation_id(target_phone_number, str(NAMESPACE.hex))
+    registered_user = session.exec(select(User).where(User.phone_number == target_phone_number)).first()
 
-    unknown_user_exists = session.get(User, UUID(unknown_user_id))
+    if registered_user:
+        target_user_id = str(registered_user.id)
+        convo_type = ConversationType.direct
+    else:
+        target_user_id = direct_conversation_id(target_phone_number, str(NAMESPACE.hex))
+        convo_type = ConversationType.sms
 
-    if not unknown_user_exists:
-        createUser = User(
-                id=UUID(unknown_user_id),
-                username=target_phone_number,
-                phone_number=target_phone_number,
-                first_name="Unknown",
-                last_name="Unknown",
-                hashed_password=""
-                )
-        guest = Guest(user_id=UUID(unknown_user_id))
-        verify_phone = PhoneVerified(user_id=UUID(unknown_user_id))
-        session.add_all([createUser, guest, verify_phone])
+        unknown_user_exists = session.get(User, UUID(target_user_id))
+        if not unknown_user_exists:
+            createUser = User(
+                    id=UUID(target_user_id),
+                    username=target_phone_number,
+                    phone_number=target_phone_number,
+                    first_name="Unknown",
+                    last_name="Unknown",
+                    hashed_password=""
+                    )
+            guest = Guest(user_id=UUID(target_user_id))
+            verify_phone = PhoneVerified(user_id=UUID(target_user_id))
+            session.add_all([createUser, guest, verify_phone])
 
-    conversation_id = direct_conversation_id(unknown_user_id, str(current_user.id))
+    conversation_id = direct_conversation_id(target_user_id, str(current_user.id))
     conversation = session.get(Conversation, UUID(conversation_id))
 
     if not conversation:
         convo = Conversation(
                 id=UUID(conversation_id),
                 title=conversation_id,
-                conversation_type=ConversationType.sms,
+                conversation_type=convo_type,
                 )
         session.add(convo)
 
     participant_1 = session.exec(
             select(ConversationParticipant)
-                .where(ConversationParticipant.user_id==UUID(unknown_user_id))
+                .where(ConversationParticipant.user_id==UUID(target_user_id))
                 .where(ConversationParticipant.conversation_id == UUID(conversation_id))
                 ).first()
     participant_2 = session.exec(
-            select(ConversationParticipant) .where(ConversationParticipant.user_id==current_user.id)
+            select(ConversationParticipant).where(ConversationParticipant.user_id==current_user.id)
                 .where(ConversationParticipant.conversation_id == UUID(conversation_id))
                 ).first()
 
     if not participant_1:
-        ConversationParticipant(
-                user_id=UUID(unknown_user_id),
+        session.add(ConversationParticipant(
+                user_id=UUID(target_user_id),
                 conversation_id=UUID(conversation_id)
-                )
+                ))
     if not participant_2:
-        ConversationParticipant(
+        session.add(ConversationParticipant(
                 user_id=current_user.id,
                 conversation_id=UUID(conversation_id)
-                )
+                ))
 
     session.commit()
 
-    await MOCK_sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
+    if not registered_user:
+        await MOCK_sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
 
-    return { "status": "ok", "detail": "Sync from the database", "user_id": unknown_user_id}
+    return { "status": "ok", "detail": "Sync from the database", "user_id": target_user_id}

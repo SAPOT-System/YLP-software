@@ -1,5 +1,11 @@
 import os
 from contextlib import asynccontextmanager
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # env vars must be set via shell/systemd if python-dotenv is not installed
 from fastapi.staticfiles import StaticFiles
 from typing import Union
 from fastapi.middleware.cors import CORSMiddleware

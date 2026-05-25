@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from typing import Union
