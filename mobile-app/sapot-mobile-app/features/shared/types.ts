@@ -49,7 +49,8 @@ export type SignalingMessage =
         sender: string;
         wsAllowed?: boolean;
       };
-    };
+    }
+  ;
 
 export type ChatMessage = { type: "chat"; data: DataChatMessageI };
 export type DataAckMessage = { messageId: string; from: string; to: string };
@@ -190,10 +191,20 @@ export type WebrtcDataMessage =
   | CallMessage
   | CallControlMessage;
 
+export type ProfileInfoMessage = {
+  type: "profile-info";
+  data: {
+    from: string;
+    username: string;
+    firstName: string;
+    lastName?: string;
+  };
+};
+
 /**
  * For sent and received message via tcp and web socket
  */
-export type Message = SignalingMessage | CallMessage;
+export type Message = SignalingMessage | CallMessage | ProfileInfoMessage;
 
 export type CallMessage =
   | AudioCallMessage

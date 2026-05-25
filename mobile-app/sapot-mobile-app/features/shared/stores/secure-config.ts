@@ -18,6 +18,7 @@ const KEYS = {
   SYNC_LAST_PULLED_AT: "syncLastPulledAt",
   SERVER_HOST_OVERRIDE: "serverHostOverride",
   APP_MODE: "appMode",
+  DEVICE_ENCRYPTION_KEY: "deviceEncryptionKey",
 } as const;
 
 // ── Writers ────────────────────────────────────────────────────────────────────
@@ -254,6 +255,24 @@ export const getSyncLastPulledAt = async (): Promise<number> => {
   } catch (error) {
     backgroundLog.error("secure-config › sync timestamp read failed", { error });
     return 0;
+  }
+};
+
+export const getDeviceEncryptionKey = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.DEVICE_ENCRYPTION_KEY)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › device key read failed", { error });
+    return undefined;
+  }
+};
+
+export const saveDeviceEncryptionKey = async (key: string): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.DEVICE_ENCRYPTION_KEY, key);
+  } catch (error) {
+    backgroundLog.error("secure-config › device key write failed", { error });
+    throw error;
   }
 };
 

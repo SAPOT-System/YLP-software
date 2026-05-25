@@ -19,7 +19,7 @@ import { Avatar, Badge, Text, useTheme } from "react-native-paper";
 import { catchError, map, of, switchMap } from "rxjs";
 
 import { ChatRoomSource } from "@/features/chat/types";
-import { useProfilePhoto } from "@/features/shared/hooks";
+import { useMainContainer, useProfilePhoto } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
 uiLog.debug("[chat-list] module loaded");
@@ -128,12 +128,22 @@ const enhanceChatPeer = withObservables(
   })
 );
 
-const getMessagePreview = (msg: Message | null): string => {
+const getMessagePreview = (msg: Message | null, decryptedContent: string): string => {
   if (!msg) return "No messages yet";
   if (msg.messageType === MessageType.CALL_LOG) return "📞 Call";
   if (msg.messageType === MessageType.FILE) return "📎 File";
-  const c = msg.content ?? "";
+  const c = decryptedContent ?? "";
   return c.length > 40 ? c.slice(0, 40) + "…" : c;
+};
+
+const useDecryptedContent = (msg: Message | null): string => {
+  const { localEncryptionService } = useMainContainer();
+  if (!msg || !msg.isEncrypted) return msg?.content ?? "";
+  try {
+    return localEncryptionService.decrypt(msg.content);
+  } catch {
+    return msg.content;
+  }
 };
 
 type ChatListItemInnerProps = {
@@ -182,6 +192,7 @@ const ChatListItemInner = enhanceChatPeer(
     const theme = useTheme();
     const peerId = peer?.id ?? null;
     const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
+    const decryptedContent = useDecryptedContent(latestMessage);
 
     const peerName = peer
       ? `${peer.firstName ?? ""} ${peer.lastName ?? ""}`.trim() ||
@@ -240,7 +251,7 @@ const ChatListItemInner = enhanceChatPeer(
                 color: theme.dark ? "#6E7891" : "#6B7280",
               }}
             >
-              {getMessagePreview(latestMessage)}
+              {getMessagePreview(latestMessage, decryptedContent)}
             </Text>
           </View>
           <View style={{ alignItems: "flex-end", alignSelf: "flex-end" }}>

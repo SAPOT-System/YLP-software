@@ -16,6 +16,7 @@ import {
   SignalingService,
   WebrtcSessionManager,
 } from "./services";
+import { LocalEncryptionService } from "./services/local-encryption-service";
 import { AppModeStore, NetworkConfig } from "./stores";
 
 import { CallService } from "@/features/call/services/call-service";
@@ -68,6 +69,7 @@ export class MainContainer {
   readonly wsSignalingAdapter: WsSignalingAdapter;
   readonly publicChatService: PublicChatService;
   readonly activeUsersService: ActiveUsersService;
+  readonly localEncryptionService: LocalEncryptionService;
 
   private initPromise?: Promise<void>;
   private unsubscribeNetInfo?: () => void;
@@ -87,7 +89,8 @@ export class MainContainer {
 
     this.networkConfig = new NetworkConfig();
 
-    this.messageRepository = new MessageRepository(database);
+    this.localEncryptionService = new LocalEncryptionService();
+    this.messageRepository = new MessageRepository(database, this.localEncryptionService);
     this.messageStatusRepository = new MessageStatusRepository(database);
     this.zeroconfAdapter = new ZeroconfAdapter();
     this.discoveryService = new DiscoveryService(
@@ -135,7 +138,7 @@ export class MainContainer {
       this.callMediaService
     );
 
-    this.messageRepository = new MessageRepository(database);
+    this.messageRepository = new MessageRepository(database, this.localEncryptionService);
     this.conversationRepository = new ConversationRepository(database);
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(database);
@@ -183,6 +186,7 @@ export class MainContainer {
     );
 
     this.connectionService.setChatService(this.chatService);
+    this.connectionService.setPeerService(this.userContainer.peerService);
     this.discoveryService.setChatService(this.chatService);
     this.discoveryService.setConnectionService(this.connectionService);
 
@@ -213,6 +217,7 @@ export class MainContainer {
 
       this.initPromise = (async () => {
         appLog.info("app › init start");
+        await this.localEncryptionService.initialize();
         await this.networkConfig.initialize();
         this.networkConfig.startWatching();
 

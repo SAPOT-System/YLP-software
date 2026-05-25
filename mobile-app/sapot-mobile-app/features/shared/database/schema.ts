@@ -74,6 +74,7 @@ export default appSchema({
         { name: "updated_at", type: "number" },
         { name: "is_deleted", type: "boolean" },
         { name: "linked_message_id", type: "string", isOptional: true },
+        { name: "is_encrypted", type: "boolean", isOptional: true },
       ],
     }),
     tableSchema({
