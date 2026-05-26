@@ -121,7 +121,7 @@ export default function Analytics() {
 
 	const fetchTrafficHistory2 = async (iface = "ether4") => {
 		try {
-			const res = await fetch("/api/router/traffic/ether5?limit=100");
+			const res = await fetch("/api/router/traffic/ether4?limit=100");
 
 			if (!res.ok) throw new Error("Failed traffic fetch");
 
@@ -147,7 +147,7 @@ export default function Analytics() {
 
 	const fetchTrafficHistory3 = async (iface = "ether1") => {
 		try {
-			const res = await fetch("/api/router/traffic/ether5?limit=100");
+			const res = await fetch("/api/router/traffic/ether1?limit=100");
 
 			if (!res.ok) throw new Error("Failed traffic fetch");
 
