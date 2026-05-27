@@ -83,6 +83,7 @@ export class LocalEncryptionService {
     pinEnabled: boolean
   ): Promise<void> {
     const kek = await deriveKey(password + pin, userId, 200_000);
+    let blobExists = false;
 
     try {
       const res = await apiClient.get<{ wrapped_blob: string }>(
@@ -90,15 +91,21 @@ export class LocalEncryptionService {
       );
 
       if (res.status === 200) {
+        blobExists = true;
         const bundle = this.unwrapBundle(res.data.wrapped_blob, kek);
         if (bundle) {
           this.applyBundle(bundle);
           await this.cacheKeys(pinEnabled, bundle, pin, userId);
           return;
         }
-        // Wrong password/PIN — fall through to generate new
+        // Decryption failed - wrong password or password changed without re-wrapping
+        throw new Error("MASTER_KEY_UNWRAP_FAILED");
       }
     } catch (err: unknown) {
+      if (err instanceof Error && err.message === "MASTER_KEY_UNWRAP_FAILED") {
+        throw err;
+      }
+
       const is404 =
         err !== null &&
         typeof err === "object" &&
@@ -106,15 +113,18 @@ export class LocalEncryptionService {
         (err as { response?: { status?: number } }).response?.status === 404;
 
       if (!is404) {
-        // Network or unexpected error — fall through to generate new
+        // Network error or other API failure - do not generate fresh bundle
+        throw err;
       }
     }
 
-    // No existing blob or decryption failed — generate fresh bundle
-    const bundle = this.generateBundle();
-    this.applyBundle(bundle);
-    await this.uploadBundle(bundle, kek);
-    await this.cacheKeys(pinEnabled, bundle, pin, userId);
+    // No existing blob found (404) - only then generate a fresh bundle
+    if (!blobExists) {
+      const bundle = this.generateBundle();
+      this.applyBundle(bundle);
+      await this.uploadBundle(bundle, kek);
+      await this.cacheKeys(pinEnabled, bundle, pin, userId);
+    }
   }
 
   private async initDeviceKey(): Promise<void> {
@@ -316,5 +326,29 @@ export class LocalEncryptionService {
     await this.uploadBundle(bundle, newKek);
     await this.saveLocalPinCache(bundle, newPin, userId);
     return true;
+  }
+
+  /**
+   * Re-wraps the in-memory master key with a new password and updates the
+   * server-side primary wrapped key. Called after a successful password change.
+   */
+  async updateMasterKeyPassword(newPassword: string): Promise<void> {
+    const userId = this.ctx?.userId;
+    if (!userId) throw new Error("updateMasterKeyPassword requires a userId");
+    if (!this.key || !this.signalingKey) {
+      throw new Error("Master key not initialized in memory");
+    }
+
+    const pinEnabled = await getPinEnabled();
+    const pin = this.ctx?.getPIN() ?? "";
+
+    const bundle: KeyBundle = {
+      chat_master_key: encodeBase64(this.key),
+      signaling_secret_key: encodeBase64(this.signalingKey),
+    };
+
+    const newKek = await deriveKey(newPassword + pin, userId, 200_000);
+    await this.uploadBundle(bundle, newKek);
+    await this.cacheKeys(pinEnabled, bundle, pin, userId);
   }
 }
