@@ -182,6 +182,12 @@ export class MainContainer {
       new ConversationParticipantRepository(database);
     this.messageStatusRepository = new MessageStatusRepository(database);
 
+    // Give GuestMigrationService access to MessageRepository so it can decrypt
+    // message history before the auth ECDH keypair overwrites the conversation keys.
+    this.userContainer.guestMigrationService.setMessageRepository(
+      this.messageRepository
+    );
+
     this.syncService = new SyncService({
       db: database,
       currentUserId: this.userContainer.userStore.user.id,
@@ -206,6 +212,7 @@ export class MainContainer {
     this.syncService.setMessageReceiptManager(
       this.chatService.getMessageReceiptManager()
     );
+    this.syncService.setMessageRepository(this.messageRepository);
 
     this.publicChatService = new PublicChatService(
       this.userContainer.userStore,
@@ -261,42 +268,8 @@ export class MainContainer {
         _pendingRawPassword = null;
         _pendingRawPIN = null;
 
-        if (
-          this.appModeStore.getEffectiveMode(
-            this.userContainer.userStore.isGuest
-          ) !== "lan"
-        ) {
-          await this.syncService.syncNow();
-
-          this.unsubscribeNetInfo = NetInfo.addEventListener(
-            (state: NetInfoState) => {
-              // isInternetReachable can be null on Android during transitions; treat null as online
-              const isOnline =
-                state.isConnected === true &&
-                state.isInternetReachable !== false;
-              void this.syncService.handleConnectivityChange(isOnline);
-            }
-          );
-
-          this.periodicSyncTimer = setInterval(() => {
-            void this.syncService.syncNow();
-          }, 5 * 60 * 1_000);
-        }
-
-        if (this.userContainer.userStore.isGuest) {
-          // Guest users cannot reach the server for key registration, so we
-          // generate (or load) a local Curve25519 keypair. The public key is
-          // exchanged with peers directly during the TCP handshake, enabling
-          // application-layer message encryption without any server round-trip.
-          await this.peerKeyService.initGuestKey();
-
-          // Guest peers also need conversation keys re-derived when a remote
-          // peer's appPub arrives via TCP handshake.
-          this.peerKeyStore.onKeySet((peerId) => {
-            void this.chatService.rederiveKeyForPeer(peerId);
-          });
-        }
-
+        // ── Auth ECDH key initialisation (moved before sync so re-encrypted
+        //    content is what gets pushed in the first post-migration sync) ──
         if (!this.userContainer.userStore.isGuest) {
           const token = await getStoredAccessToken();
           if (token) {
@@ -322,9 +295,6 @@ export class MainContainer {
               const ctx: WsEncryptionContext = {
                 mySecretKey,
                 getPeerPublicKey: (peerId) => this.peerKeyStore.get(peerId),
-                // Called by the WS adapter when a plaintext credential arrives
-                // alongside an encrypted message — stores the sender's key so
-                // decryption can proceed immediately on the same message.
                 storePeerKey: (peerId, ecdhPublicKeyB64) => {
                   this.peerKeyStore.set(peerId, decodeBase64(ecdhPublicKeyB64));
                 },
@@ -333,10 +303,6 @@ export class MainContainer {
 
               const masterKey = this.localEncryptionService.getMasterKeyBytes();
 
-              // Wire the uploader: whenever peerKeyStore receives a new appPub from
-              // a TCP handshake (including from guest peers who are not server-registered),
-              // encrypt it under the auth user's master key and back it up to the server.
-              // This is the only way conversation keys survive a new-device login.
               this.peerKeyStore.setContactKeyUploader(
                 async (peerId, publicKey) => {
                   const currentToken = this._cachedAccessToken;
@@ -351,39 +317,69 @@ export class MainContainer {
                 }
               );
 
-              // Restore any contact keys backed up from previous sessions (including
-              // guest peer keys not available via /keys/{peerId}). Must run before
-              // preloadAllConversationKeys so conversation keys are derived correctly.
               const contactKeys = await this.peerKeyService.fetchAndDecryptContactKeys(
                 masterKey,
                 token,
                 getApiUrl()
               );
               for (const [peerId, publicKey] of contactKeys) {
-                // restore() writes to SecureStore and fires onKeySet listeners
-                // but deliberately skips the contactKeyUploader to prevent
-                // re-uploading keys we just downloaded.
                 if (!this.peerKeyStore.get(peerId)) {
                   await this.peerKeyStore.restore(peerId, publicKey);
                 }
               }
 
-              // Pre-load all peer ECDH keys from SecureStore, then pre-derive
-              // conversation keys so the chat list shows decrypted previews immediately.
               const peerIds =
                 (await this.userContainer.peerRepository.getAllPeerIds?.()) ??
                 [];
               await this.peerKeyStore.loadAll(peerIds);
-              void this.chatService.preloadAllConversationKeys();
+              await this.chatService.preloadAllConversationKeys();
 
-              // When a TCP handshake delivers a guest peer's appPub (guests cannot
-              // register with the server), re-derive their conversation key immediately
-              // so any already-loaded messages are decrypted without a screen reload.
+              // Re-encrypt all messages with the new auth conversation keys if
+              // we just completed a guest→auth migration. This ensures the first
+              // sync push sends K_AB′ ciphertext instead of plaintext or stale
+              // K_AB ciphertext to the server.
+              if (this.messageRepository.hasMigrationKeys()) {
+                appLog.info("app › running post-migration re-encryption pass");
+                await this.messageRepository.reEncryptAfterMigration();
+                appLog.info("app › post-migration re-encryption complete");
+              }
+
               this.peerKeyStore.onKeySet((peerId) => {
                 void this.chatService.rederiveKeyForPeer(peerId);
               });
             }
           }
+        }
+
+        if (this.userContainer.userStore.isGuest) {
+          await this.peerKeyService.initGuestKey();
+
+          this.peerKeyStore.onKeySet((peerId) => {
+            void this.chatService.rederiveKeyForPeer(peerId);
+          });
+        }
+
+        // ── Sync (runs after auth keys are loaded so re-encrypted messages
+        //    are pushed on the first sync cycle) ──
+        if (
+          this.appModeStore.getEffectiveMode(
+            this.userContainer.userStore.isGuest
+          ) !== "lan"
+        ) {
+          await this.syncService.syncNow();
+
+          this.unsubscribeNetInfo = NetInfo.addEventListener(
+            (state: NetInfoState) => {
+              const isOnline =
+                state.isConnected === true &&
+                state.isInternetReachable !== false;
+              void this.syncService.handleConnectivityChange(isOnline);
+            }
+          );
+
+          this.periodicSyncTimer = setInterval(() => {
+            void this.syncService.syncNow();
+          }, 5 * 60 * 1_000);
         }
 
         // Restore peer keys from SecureStore when app comes back to foreground
@@ -411,7 +407,6 @@ export class MainContainer {
         await this.networkConfig.initialize();
         this.networkConfig.startWatching();
 
-        // Persist peerId and wsUrl for background task
         await saveConnectionConfig({
           peerId: this.userContainer.userStore.user.id ?? "unknown",
           wsUrl: getWsUrl(),
@@ -430,6 +425,23 @@ export class MainContainer {
       appLog.error("app › init failed", { error });
       throw error;
     }
+  }
+
+  /**
+   * Resets the initialisation gate so the next `initialize()` call runs fully
+   * for the newly authenticated user. Must be called during guest→auth migration
+   * AFTER message history has been decrypted to plaintext, so the incoming auth
+   * ECDH keypair doesn't corrupt the conversation keys.
+   */
+  resetForMigration(): void {
+    appLog.info("app › resetForMigration: clearing initPromise for auth re-init");
+    this.initPromise = undefined;
+    // Clear in-memory conversation keys — they were derived from the guest ECDH
+    // keypair. After resetForMigration the next initialize() derives new keys from
+    // the auth ECDH keypair. Messages were already decrypted to plaintext before
+    // this call, so clearing the keys cannot make anything unreadable.
+    this.messageRepository.clearConversationKeys();
+    this.peerKeyStore.clear();
   }
 
   // Call on logout or app destroy
