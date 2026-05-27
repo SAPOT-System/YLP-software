@@ -34,6 +34,13 @@ export function MainContainerProvider({
         const c = new MainContainer(userContainer, appModeStore);
         containerRef.current = c;
 
+        // Register the migration completion callback so GuestMigrationService can
+        // reset MainContainer without needing a direct reference to it.
+        userContainer.guestMigrationService.setOnMigrationComplete(() => {
+          c.resetForMigration();
+          appLog.info("app › container reset for auth migration");
+        });
+
         const pinEnabled = await getPinEnabled();
         if (pinEnabled && !userContainer.userStore.isGuest) {
           pendingContainerRef.current = c;
