@@ -73,6 +73,10 @@ export const useMasterKeyRecovery = () => {
   }) => {
     try {
       const masterKey = localEncryptionService.getMasterKeyBytes();
+
+      // Update primary password-wrapped key used by LocalEncryptionService
+      await localEncryptionService.updateMasterKeyPassword(params.newPassword);
+
       const blobs: Array<{ method: RecoveryMethod; wrapped_blob: string; metadata?: string }> = [];
 
       const passwordBlob = await keyRecoveryService.wrapWithMethod(
