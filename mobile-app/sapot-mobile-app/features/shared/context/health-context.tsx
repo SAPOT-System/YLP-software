@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
 import { checkBackEndHealth } from "../api/connection.api";
 import { usePing } from "../hooks/use-ping";
 import { healthLog } from "../utils/logger";
@@ -18,26 +19,31 @@ const ServerStatusContext = createContext<ServerStatus>({
 });
 
 export const HealthProvider = ({ children }: { children: React.ReactNode }) => {
-  const { mode } = useAppMode();
+  const { store } = useAppMode();
+  const { userStore } = useAuthContainer();
+  const effectiveMode = store.getEffectiveMode(userStore.isGuest);
+  const isLan = effectiveMode === "lan";
+
   const [initialOnline, setInitialOnline] = useState(true);
   const [initialChecked, setInitialChecked] = useState(false);
 
   useEffect(() => {
+    if (isLan) return;
     healthLog.debug("health › immediate check start");
     checkBackEndHealth().then((ok) => {
       healthLog.info("health › immediate check result", { ok });
       setInitialOnline(ok);
       setInitialChecked(true);
     });
-  }, []);
+  }, [isLan]);
 
-  const { online: pingOnline, latency } = usePing();
+  const { online: pingOnline, latency } = usePing({ enabled: !isLan });
 
-  const online = initialChecked ? pingOnline : initialOnline;
-  const isServerMode = mode === "server" || mode === "auto";
+  const online = isLan ? false : initialChecked ? pingOnline : initialOnline;
+  const isServerMode = effectiveMode === "server" || effectiveMode === "auto";
   const shouldWarn = isServerMode && !online;
 
-  healthLog.debug("health › status", { online, latency, shouldWarn, mode });
+  healthLog.debug("health › status", { online, latency, shouldWarn, effectiveMode });
 
   const value: ServerStatus = { online, latency: latency ?? null, shouldWarn };
 

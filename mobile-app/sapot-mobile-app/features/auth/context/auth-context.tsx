@@ -30,6 +30,7 @@ import {
   isRefreshTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
+import { clearConnectionConfig } from "@/features/shared/stores/secure-config";
 
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
@@ -206,6 +207,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const userInfo = await getUserApi(access_token);
 
+      // Store raw password briefly for LocalEncryptionService.initialize()
+      const { setPendingPassword } = await import("@/features/shared/main-container");
+      setPendingPassword(credentials.password);
+
       await userService.syncAuthenticatedUser(userInfo);
 
       setAccessToken(access_token);
@@ -317,6 +322,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       await guestMigrationService.cleanUp();
 
+      const { setPendingPassword } = await import("@/features/shared/main-container");
+      setPendingPassword(data.password);
+
       await userService.syncAuthenticatedUser(res.data);
       setIsRescuer(userService.getIsRescuer());
       setIsAdmin(userService.getIsAdmin());
@@ -359,6 +367,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteItemAsync("userUUID");
 
     await userService.logout();
+    await clearConnectionConfig();
     setAccessToken(null);
     setIsAuthenticated(false);
     setIsRescuer(false);

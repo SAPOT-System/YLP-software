@@ -1,5 +1,6 @@
 import EventEmitter from "events";
 import TcpSocket from "react-native-tcp-socket";
+import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 import { Message } from "../types";
 import { tcpLog } from "../utils/logger";
 import {
@@ -7,9 +8,10 @@ import {
   computeSharedKey,
   encryptMessage,
   decryptMessage,
-  buildHandshakeInit,
   parsePublicKey,
 } from "../services/tcp-encryption";
+import { PeerKeyService } from "../services/peer-key-service";
+import { PeerKeyStore } from "../services/peer-key-store";
 
 export class TcpClientAdapter extends EventEmitter {
   private socket?: TcpSocket.Socket;
@@ -17,11 +19,27 @@ export class TcpClientAdapter extends EventEmitter {
     "disconnected";
   private sharedKey?: Uint8Array;
   private receiveBuffer = "";
+  private _sessionVerified = false;
   readonly peerId: string;
+  private readonly myUserId?: string;
+  private peerKeyService?: PeerKeyService;
+  private peerKeyStore?: PeerKeyStore;
 
-  constructor(peerId: string) {
+  constructor(
+    peerId: string,
+    peerKeyService?: PeerKeyService,
+    peerKeyStore?: PeerKeyStore,
+    myUserId?: string
+  ) {
     super();
     this.peerId = peerId;
+    this.peerKeyService = peerKeyService;
+    this.peerKeyStore = peerKeyStore;
+    this.myUserId = myUserId;
+  }
+
+  get sessionVerified(): boolean {
+    return this._sessionVerified;
   }
 
   connect(host: string, port: number) {
@@ -30,14 +48,26 @@ export class TcpClientAdapter extends EventEmitter {
         this.connectionState = "connecting";
         this.sharedKey = undefined;
         this.receiveBuffer = "";
+        this._sessionVerified = false;
 
         const keyPair = generateKeyPair();
         let handshakeDone = false;
 
         const socket = TcpSocket.createConnection({ host, port }, () => {
           this.socket = socket;
-          const initMsg =
-            JSON.stringify(buildHandshakeInit(keyPair.publicKey)) + "\n";
+          const initFrame: Record<string, unknown> = {
+            type: "handshake-init",
+            pub: encodeBase64(keyPair.publicKey),
+          };
+          // Credential (non-guest identity verification)
+          const cred = this.peerKeyService?.getCredential();
+          if (cred) initFrame.credential = cred;
+          // Stable app-level ECDH public key for message encryption.
+          // Present for both guest and non-guest users once peerKeyService is initialized.
+          const appPub = this.peerKeyService?.getMyPublicKey();
+          if (appPub) initFrame.appPub = encodeBase64(appPub);
+          if (this.myUserId) initFrame.userId = this.myUserId;
+          const initMsg = JSON.stringify(initFrame) + "\n";
           socket.write(initMsg);
         });
 
@@ -61,6 +91,31 @@ export class TcpClientAdapter extends EventEmitter {
                   );
                   socket.destroy();
                   return;
+                }
+                if (frame.credential && this.peerKeyService) {
+                  const valid = this.peerKeyService.verifyPeerCredential(frame.credential);
+                  if (!valid) {
+                    reject(new Error("TCP handshake: peer credential verification failed"));
+                    socket.destroy();
+                    return;
+                  }
+                  this._sessionVerified = true;
+                  if (this.peerKeyStore && frame.credential.ecdhPublicKey) {
+                    this.peerKeyStore.set(frame.credential.peerId, decodeBase64(frame.credential.ecdhPublicKey));
+                  }
+                } else {
+                  // Peer sent no credential. Credential exchange is opportunistic:
+                  // a guest peer or an uninitialized peer legitimately has none.
+                  // The session is still ECDH-encrypted, so allow it regardless of
+                  // whether we sent one. Only an explicit verification failure (handled
+                  // above with socket.destroy) should block a session.
+                  this._sessionVerified = true;
+                }
+                // Store the peer's stable app-level ECDH public key so ChatService
+                // can derive conversation keys without a server round-trip.
+                if (frame.appPub && this.peerKeyStore) {
+                  this.peerKeyStore.set(this.peerId, decodeBase64(frame.appPub));
+                  tcpLog.debug("tcp › peer app key stored from handshake-ack", { peerId: this.peerId });
                 }
                 const theirPublicKey = parsePublicKey(frame.pub);
                 this.sharedKey = computeSharedKey(
@@ -121,6 +176,10 @@ export class TcpClientAdapter extends EventEmitter {
           continue;
         }
         const message = decryptMessage(this.sharedKey!, frame);
+        if (this.peerKeyService && !this._sessionVerified) {
+          tcpLog.warn("tcp › data emission blocked: session not verified");
+          return;
+        }
         this.emit("data", message);
       } catch (error) {
         tcpLog.error("tcp › decrypt failed", { error });
@@ -131,6 +190,10 @@ export class TcpClientAdapter extends EventEmitter {
   sendMessage(message: Message) {
     if (!this.socket) throw new Error("TCP not connected");
     if (!this.sharedKey) throw new Error("TCP handshake not complete");
+    if (this.peerKeyService && !this._sessionVerified) {
+      tcpLog.warn("tcp › sendMessage blocked: session not verified", { type: (message as { type?: string }).type });
+      throw new Error("TCP session not verified — cannot send message");
+    }
     try {
       const envelope = encryptMessage(this.sharedKey, message);
       this.socket.write(JSON.stringify(envelope) + "\n");

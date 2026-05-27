@@ -352,3 +352,80 @@ export const resendVerificationCodePhone = async () => {
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res.data;
 };
+
+export const setupRecoveryKeysApi = async (
+  blobs: Array<{ method: string; wrapped_blob: string; metadata?: string }>
+) => {
+  apiLog.info("[AuthApi] Calling POST /users/recovery-setup");
+  const res = await apiClient.post("/users/recovery-setup", { blobs });
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};
+
+export const fetchRecoveryBlobApi = async (
+  recoveryToken: string,
+  method: string
+) => {
+  apiLog.info("[AuthApi] Calling GET /users/recovery-key");
+  const res = await apiClient.get<{
+    wrapped_blob: string;
+    metadata: string | null;
+    user_id: string;
+  }>("/users/recovery-key", {
+    params: { recovery_token: recoveryToken, method },
+  });
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};
+
+export const updateRecoveryKeysApi = async (
+  blobs: Array<{ method: string; wrapped_blob: string; metadata?: string }>
+) => {
+  apiLog.info("[AuthApi] Calling PUT /users/recovery-keys");
+  const res = await apiClient.put("/users/recovery-keys", { blobs });
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};
+
+export const sendRecoveryOtpApi = async (phoneNumber: string) => {
+  apiLog.info("[AuthApi] Calling POST /auth/forgot-password/otp/send");
+  const res = await apiClient.post("/auth/forgot-password/otp/send", {
+    phone_number: phoneNumber,
+  });
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};
+
+export const verifyRecoveryOtpApi = async (
+  phoneNumber: string,
+  code: string
+) => {
+  apiLog.info("[AuthApi] Calling POST /auth/forgot-password/otp/verify");
+  const res = await apiClient.post<{ recovery_token: string; user_id: string }>(
+    "/auth/forgot-password/otp/verify",
+    { phone_number: phoneNumber, code }
+  );
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};
+
+export const sendEmailRecoveryApi = async (email: string) => {
+  apiLog.info("[AuthApi] Calling POST /auth/forgot-password/email-recovery/send");
+  const res = await apiClient.post(
+    "/auth/forgot-password/email-recovery/send",
+    null,
+    { params: { email } }
+  );
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};
+
+export const verifyEmailRecoveryTokenApi = async (token: string) => {
+  apiLog.info("[AuthApi] Calling GET /auth/forgot-password/email-recovery/verify");
+  const res = await apiClient.get<{ recovery_token: string; user_id: string }>(
+    "/auth/forgot-password/email-recovery/verify",
+    { params: { t: token } }
+  );
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
+};

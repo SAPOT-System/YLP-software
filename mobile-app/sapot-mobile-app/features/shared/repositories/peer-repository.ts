@@ -345,6 +345,11 @@ export class PeerRepository {
     }
   }
 
+  async getAllPeerIds(): Promise<string[]> {
+    const peers = await this.peersCollection.query().fetch();
+    return peers.map(p => p.id);
+  }
+
   async getPeerDestroyOps() {
     peerLog.debug("peer › destroy ops requested");
     const records = await this.peersCollection.query().fetch();
