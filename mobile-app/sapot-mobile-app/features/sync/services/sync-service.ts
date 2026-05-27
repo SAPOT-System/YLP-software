@@ -21,6 +21,7 @@ import type { MessageReceiptManager } from "@/features/chat/services/message-rec
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import type { PeerService } from "@/features/shared/services/peer-service";
 import type { PeerRepository } from "@/features/shared/repositories/peer-repository";
+import type { MessageRepository } from "@/features/chat/repositories/message-repository";
 
 syncLog.debug("[sync-service] module loaded");
 
@@ -170,6 +171,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private syncLogger: SyncLogger;
   private retryAttempts = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
+  private messageRepository?: MessageRepository;
 
   constructor({ db, messageReceiptManager, currentUserId, peerService, peerRepository }: SyncServiceParams) {
     super();
@@ -199,6 +201,13 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   setPeerService(peerService: PeerService): void {
     this.peerService = peerService;
     syncLog.info("sync › peer service set");
+  }
+
+  /** Wired by MainContainer so normalizePullChanges can decrypt server messages
+   *  that were encrypted with the guest conversation key during migration. */
+  setMessageRepository(repo: MessageRepository): void {
+    this.messageRepository = repo;
+    syncLog.info("sync › message repository set");
   }
 
   get syncLogs() {
@@ -317,6 +326,19 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         },
       });
       syncLog.info("sync › complete");
+
+      // Post-migration: re-encrypt any messages that were pulled from the server
+      // as plaintext (server-only messages that arrived as ecdh:K_AB in the pull
+      // phase and were decrypted by normalizePullChanges). Running this AFTER the
+      // full synchronize() call — not inside the pull callback — ensures the
+      // snapshot survives 409/retry scenarios and is only cleared on success.
+      if (this.messageRepository?.hasMigrationKeys()) {
+        syncLog.info("sync › post-migration re-encryption: re-encrypting server-pulled messages");
+        await this.messageRepository.reEncryptAfterMigration();
+        this.messageRepository.clearMigrationKeys();
+        syncLog.info("sync › post-migration re-encryption: complete, migration keys cleared");
+      }
+
       this.emit("sync-status", { status: "complete" });
       this.retryAttempts = 0;
       this.clearRetryTimer();
@@ -1165,15 +1187,30 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       messages: {
         created: changes.messages.created
           .filter((item) => !existingIds.messages.has(item.id ?? ""))
-          .map((item) => ({
-            ...item,
-            conversation: item.conversation_id,
-            sender: item.sender_id,
-            message_type: item.message_type,
-            is_deleted: item.is_deleted ?? false,
-            created_at: this.toTimestamp(item.created_at),
-            updated_at: this.toTimestamp(item.updated_at),
-          })),
+          .map((item) => {
+            // During a guest→auth migration the server may have messages encrypted
+            // with the old guest conversation key (ecdh:K_AB). Decrypt them to
+            // plaintext here so reEncryptAfterMigration() can re-encrypt with the
+            // auth key before the push phase.
+            let content = (item.content ?? "") as string;
+            if (content.startsWith("ecdh:") && this.messageRepository?.hasMigrationKeys()) {
+              const convId = item.conversation_id ?? "";
+              const decrypted = this.messageRepository.tryDecryptWithMigrationKeys(content, convId);
+              if (decrypted !== null) {
+                content = decrypted;
+              }
+            }
+            return {
+              ...item,
+              content,
+              conversation: item.conversation_id,
+              sender: item.sender_id,
+              message_type: item.message_type,
+              is_deleted: item.is_deleted ?? false,
+              created_at: this.toTimestamp(item.created_at),
+              updated_at: this.toTimestamp(item.updated_at),
+            };
+          }),
         updated: changes.messages.updated.map((item) => ({
           ...item,
           conversation: item.conversation_id,
