@@ -13,7 +13,6 @@ import { View } from "react-native";
 import {
     Button,
     HelperText,
-    Text,
     useTheme,
 } from "react-native-paper";
 
@@ -161,17 +160,6 @@ export default function ChangePassword() {
             {errors.confirmPassword}
           </HelperText>
         </View>
-        <Text
-          variant="bodyMedium"
-          style={{
-            textDecorationLine: "underline",
-            textAlign: "left",
-            textDecorationColor: theme.colors.inverseOnSurface,
-            color: theme.colors.inverseOnSurface,
-          }}
-        >
-          Forgot password?
-        </Text>
         <Button
           mode="contained"
           style={{ width: 164 }}

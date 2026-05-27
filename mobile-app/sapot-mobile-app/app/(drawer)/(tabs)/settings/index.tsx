@@ -7,12 +7,7 @@ import { uiLog } from "@/features/shared/utils/logger";
 import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import {
-  Avatar,
-  Icon,
-  Text,
-  useTheme,
-} from "react-native-paper";
+import { Avatar, Icon, Text, useTheme } from "react-native-paper";
 
 export default function Settings() {
   const theme = useTheme();
@@ -127,15 +122,17 @@ export default function Settings() {
               <Icon source="arrow-right" size={24} color={itemColor} />
             </View>
           </Link>
-          <Link href={SETTINGS_ROUTES.SWITCH_MODE}>
-            <View style={styles.item}>
-              <View style={styles.itemContainer}>
-                <Icon source="nintendo-switch" size={24} color={itemColor} />
-                <Text style={{ color: itemColor }}>Switch Mode</Text>
+          {!isGuest && (
+            <Link href={SETTINGS_ROUTES.SWITCH_MODE}>
+              <View style={styles.item}>
+                <View style={styles.itemContainer}>
+                  <Icon source="nintendo-switch" size={24} color={itemColor} />
+                  <Text style={{ color: itemColor }}>Switch Mode</Text>
+                </View>
+                <Icon source="arrow-right" size={24} color={itemColor} />
               </View>
-              <Icon source="arrow-right" size={24} color={itemColor} />
-            </View>
-          </Link>
+            </Link>
+          )}
           {isGuest ? (
             <Link href={SETTINGS_ROUTES.AUTHENTICATE}>
               <View style={styles.item}>
@@ -155,15 +152,6 @@ export default function Settings() {
                     <Text style={{ color: itemColor }}>
                       Password & Security
                     </Text>
-                  </View>
-                  <Icon source="arrow-right" size={24} color={itemColor} />
-                </View>
-              </Link>
-              <Link href={SETTINGS_ROUTES.CONTACTS}>
-                <View style={styles.item}>
-                  <View style={styles.itemContainer}>
-                    <Icon source="contacts" size={24} color={itemColor} />
-                    <Text style={{ color: itemColor }}>Contacts</Text>
                   </View>
                   <Icon source="arrow-right" size={24} color={itemColor} />
                 </View>
@@ -213,15 +201,6 @@ export default function Settings() {
               </View>
             </Link>
           )}
-          <Link href={SETTINGS_ROUTES.NOTIFICATIONS}>
-            <View style={styles.item}>
-              <View style={styles.itemContainer}>
-                <Icon source="bell" size={24} color={itemColor} />
-                <Text style={{ color: itemColor }}>Notifications</Text>
-              </View>
-              <Icon source="arrow-right" size={24} color={itemColor} />
-            </View>
-          </Link>
         </View>
         <Text style={{ color: "#696969" }}>Support</Text>
         <View
@@ -231,24 +210,6 @@ export default function Settings() {
             marginBottom: 16,
           }}
         >
-          <Link href={SETTINGS_ROUTES.HELP_CENTER}>
-            <View style={styles.item}>
-              <View style={styles.itemContainer}>
-                <Icon source="comment-question" size={24} color={itemColor} />
-                <Text style={{ color: itemColor }}>Help Center</Text>
-              </View>
-              <Icon source="arrow-right" size={24} color={itemColor} />
-            </View>
-          </Link>
-          <Link href={SETTINGS_ROUTES.ABOUT_US}>
-            <View style={styles.item}>
-              <View style={styles.itemContainer}>
-                <Icon source="account-details" size={24} color={itemColor} />
-                <Text style={{ color: itemColor }}>About Us</Text>
-              </View>
-              <Icon source="arrow-right" size={24} color={itemColor} />
-            </View>
-          </Link>
           <Pressable onPress={handleLogout}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>

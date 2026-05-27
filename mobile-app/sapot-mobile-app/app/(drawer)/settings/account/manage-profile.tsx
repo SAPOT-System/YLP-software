@@ -195,7 +195,7 @@ export default function ManageProfile() {
           contentContainerStyle={{ padding: 16, gap: 28, paddingBottom: 32 }}
         >
           <View style={{ alignItems: "center", gap: 28 }}>
-            {isProfilePicLoading ? (
+            {isProfilePicLoading && !isGuest ? (
               <ActivityIndicator />
             ) : (
               <View style={{ alignItems: "center" }}>

@@ -51,7 +51,11 @@ export default function Chat() {
   const [refreshing, setRefreshing] = useState(false);
   const { gsmReady } = useGsmHealth();
   const userStore = useUserStore();
-  const { visible: fabDialogVisible, show: showFabDialog, hide: hideFabDialog } = useDialogVisibility();
+  const {
+    visible: fabDialogVisible,
+    show: showFabDialog,
+    hide: hideFabDialog,
+  } = useDialogVisibility();
   const [targetPhone, setTargetPhone] = useState("");
   const [contacting, setContacting] = useState(false);
   const {
@@ -192,19 +196,23 @@ export default function Chat() {
         <ChatList chats={chats} refreshing={refreshing} onRefresh={onRefresh} />
       </View>
 
-      <FAB
-        icon="cellphone-message"
-        style={[styles.fab, !isFabEnabled && { opacity: 0.5 }]}
-        onPress={() => {
-          if (!isFabEnabled) {
-            if (!gsmReady) showToast("SMS service is not available right now.");
-            else if (userStore.isGuest) showToast("Sign in to use this feature.");
-            else showToast("Verify your phone number to use this feature.");
-            return;
-          }
-          showFabDialog();
-        }}
-      />
+      {!auth.isGuest && (
+        <FAB
+          icon="cellphone-message"
+          style={[styles.fab, !isFabEnabled && { opacity: 0.5 }]}
+          onPress={() => {
+            if (!isFabEnabled) {
+              if (!gsmReady)
+                showToast("SMS service is not available right now.");
+              else if (userStore.isGuest)
+                showToast("Sign in to use this feature.");
+              else showToast("Verify your phone number to use this feature.");
+              return;
+            }
+            showFabDialog();
+          }}
+        />
+      )}
 
       <Portal>
         <Dialog visible={fabDialogVisible} onDismiss={hideFabDialog}>
@@ -241,13 +249,21 @@ export default function Chat() {
                     phoneNumber: phone,
                     phoneNumberVerified: true,
                   });
-                  const conversation = await chatService.getOrCreateSmsConversationByPeer(res.user_id);
+                  const conversation =
+                    await chatService.getOrCreateSmsConversationByPeer(
+                      res.user_id
+                    );
                   hideFabDialog();
                   setTargetPhone("");
-                  showToast("SMS sent! They'll receive a message to connect with you.");
+                  showToast(
+                    "SMS sent! They'll receive a message to connect with you."
+                  );
                   router.push({
                     pathname: "/(drawer)/(tabs)/chat/[id]",
-                    params: { id: conversation.id, source: ChatRoomSource.CHAT },
+                    params: {
+                      id: conversation.id,
+                      source: ChatRoomSource.CHAT,
+                    },
                   });
                 } catch {
                   showError(

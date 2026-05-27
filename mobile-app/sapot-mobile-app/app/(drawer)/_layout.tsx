@@ -269,7 +269,7 @@ export default function DrawerLayout() {
 
                     return {
                       drawerLabel: "Home",
-                      title: "SAPOT",
+                      title: "",
                       headerTitleAlign: "center",
                       headerTitleContainerStyle: {
                         justifyContent: "center",
