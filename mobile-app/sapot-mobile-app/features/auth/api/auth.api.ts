@@ -180,11 +180,9 @@ export const changePasswordApi = async (
     currentPassword: "[REDACTED]",
     newPassword: "[REDACTED]",
   });
-  const res = await apiClient.post("/auth/change-password", null, {
-    params: {
-      current_password: currentPassword,
-      new_password: newPassword,
-    },
+  const res = await apiClient.post("/auth/change-password", {
+    current_password: currentPassword,
+    new_password: newPassword,
   });
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
@@ -410,7 +408,9 @@ export const verifyRecoveryOtpApi = async (
 };
 
 export const sendEmailRecoveryApi = async (email: string) => {
-  apiLog.info("[AuthApi] Calling POST /auth/forgot-password/email-recovery/send");
+  apiLog.info(
+    "[AuthApi] Calling POST /auth/forgot-password/email-recovery/send"
+  );
   const res = await apiClient.post(
     "/auth/forgot-password/email-recovery/send",
     null,
@@ -421,7 +421,9 @@ export const sendEmailRecoveryApi = async (email: string) => {
 };
 
 export const verifyEmailRecoveryTokenApi = async (token: string) => {
-  apiLog.info("[AuthApi] Calling GET /auth/forgot-password/email-recovery/verify");
+  apiLog.info(
+    "[AuthApi] Calling GET /auth/forgot-password/email-recovery/verify"
+  );
   const res = await apiClient.get<{ recovery_token: string; user_id: string }>(
     "/auth/forgot-password/email-recovery/verify",
     { params: { t: token } }
