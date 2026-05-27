@@ -90,6 +90,8 @@ const Register = () => {
     if (serverSideResult.success) {
       authLog.info("auth › register success");
       showToast("Account created successfully!");
+      const { setPendingPassword } = await import("@/features/shared/main-container");
+      setPendingPassword(fullForm.password);
       await auth.loginAfterRegister(serverSideResult.info!);
       router.replace(APP_ROUTES.HOME)
     } else {

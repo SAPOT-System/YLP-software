@@ -12,6 +12,9 @@ import {
   Message,
   SignalingMessage,
 } from "../types";
+import { PeerKeyService } from "./peer-key-service";
+import { PeerKeyStore } from "./peer-key-store";
+import { decodeBase64 } from "tweetnacl-util";
 
 signalingLog.debug("[signaling-service] module loaded");
 
@@ -20,6 +23,9 @@ export class SignalingService {
   private getTcpAdapter?: (peerId: string) => TcpClientAdapter | undefined;
   private sendTcpMessage?: (peerId: string, message: Message) => void;
   private readonly peerForceTcp = new Set<string>();
+  private pendingIceByPeer: Map<string, SignalingMessage[]> = new Map();
+  private readonly apiBaseUrl?: string;
+  private readonly getAccessToken?: () => string | undefined;
 
   constructor(
     private readonly getWebrtcAdapter: (peerId: string) => WebrtcAdapter,
@@ -27,8 +33,14 @@ export class SignalingService {
     private readonly wsBaseUrl: string = getWsUrl(),
     private readonly userStore: UserStore,
     private readonly networkConfig: NetworkConfig,
-    private readonly appModeStore: AppModeStore
+    private readonly appModeStore: AppModeStore,
+    private readonly peerKeyService?: PeerKeyService,
+    private readonly peerKeyStore?: PeerKeyStore,
+    apiBaseUrl?: string,
+    getAccessToken?: () => string | undefined
   ) {
+    this.apiBaseUrl = apiBaseUrl;
+    this.getAccessToken = getAccessToken;
     signalingLog.info("signaling › service constructed", {
       hasWebrtcAdapter: Boolean(getWebrtcAdapter),
       hasWsSignalingAdapter: Boolean(wsSignalingAdapter),
@@ -107,6 +119,23 @@ export class SignalingService {
         throw new Error("Invalid signaling payload: missing sender");
       }
 
+      if (
+        (message.type === "offer" || message.type === "answer") &&
+        message.data.credential &&
+        this.peerKeyStore
+      ) {
+        const { peerId, ecdhPublicKey } = message.data.credential;
+        this.peerKeyStore.set(peerId, decodeBase64(ecdhPublicKey));
+        signalingLog.debug("signaling › peer key stored from credential", { peerId, ecdhPublicKey });
+        // Flush pending ICE candidates now that peer key is known
+        this.wsSignalingAdapter.notifyPeerKeyAvailable(senderId);
+        const pendingCandidates = this.pendingIceByPeer.get(senderId) ?? [];
+        for (const pending of pendingCandidates) {
+          void this.handleIncomingSignaling(pending);
+        }
+        this.pendingIceByPeer.delete(senderId);
+      }
+
       signalingLog.debug("signaling › message handling", {
         ...this.summarizeSignalingMessage(message),
         resolvedSenderId: senderId,
@@ -118,6 +147,14 @@ export class SignalingService {
         case "ice-candidate":
           if (webrtcAdapter.isConnected) {
             signalingLog.debug("signaling › ice ignored", { senderId });
+            return;
+          }
+          // If sender key is not yet known, buffer and wait
+          if (this.peerKeyStore && !this.peerKeyStore.get(senderId)) {
+            const existing = this.pendingIceByPeer.get(senderId) ?? [];
+            existing.push(message);
+            this.pendingIceByPeer.set(senderId, existing);
+            signalingLog.debug("signaling › ICE candidate buffered pending peer key", { senderId });
             return;
           }
           signalingLog.debug("signaling › ice apply", { senderId });
@@ -135,7 +172,7 @@ export class SignalingService {
           if (!answer) return;
           const { type, sdp } = answer;
 
-          this.sendSignalingMessage(senderId, {
+          void this.sendSignalingMessage(senderId, {
             type,
             data: {
               sdp: { type, sdp },
@@ -203,7 +240,26 @@ export class SignalingService {
     }
   }
 
-  sendSignalingMessage(peerId: string, message: SignalingMessage) {
+  private async withCredential(message: SignalingMessage): Promise<SignalingMessage> {
+    if (message.type !== "offer" && message.type !== "answer") return message;
+    if (!this.peerKeyService) return message;
+    if (this.peerKeyService.isCredentialExpiringSoon()) {
+      try {
+        const token = this.getAccessToken?.();
+        if (token && this.apiBaseUrl) {
+          await this.peerKeyService.refreshCredential(this.apiBaseUrl, token);
+        }
+      } catch (e) {
+        signalingLog.warn("signaling › credential refresh failed, using stale credential", { error: e });
+      }
+    }
+    const credential = this.peerKeyService.getCredential();
+    if (!credential) return message;
+    signalingLog.debug("signaling › attaching credential", { peerId: message.data.to });
+    return { ...message, data: { ...message.data, credential } };
+  }
+
+  async sendSignalingMessage(peerId: string, message: SignalingMessage): Promise<void> {
     try {
       const isWsConfigured = this.isWebSocketAllowed()
         ? this.ensureWsSignaling()
@@ -211,8 +267,10 @@ export class SignalingService {
       const isTcpAllowed = this.isTcpAllowed();
       const isTcpConnectedForPeer =
         this.getTcpAdapter?.(peerId)?.isConnected ?? false;
+      // Only prefer TCP when the mode actually permits it — prevents skipping WS
+      // when a stale TCP socket is open but the current mode is server (WS-only).
       const shouldUseTcp =
-        isTcpConnectedForPeer || this.peerForceTcp.has(peerId);
+        isTcpAllowed && (isTcpConnectedForPeer || this.peerForceTcp.has(peerId));
 
       signalingLog.debug("signaling › route", {
         peerId,
@@ -228,7 +286,7 @@ export class SignalingService {
       });
 
       if (isWsConfigured && !shouldUseTcp) {
-        this.wsSignalingAdapter.sendMessage(message);
+        this.wsSignalingAdapter.sendMessage(await this.withCredential(message));
         return;
       }
 
@@ -244,7 +302,7 @@ export class SignalingService {
       signalingLog.error("signaling › send failed", {
         peerId,
         messageType: message.type,
-        error,
+        error: error instanceof Error ? error.message : error,
       });
       throw error;
     }
@@ -308,7 +366,7 @@ export class SignalingService {
       const isTcpConnectedForPeer =
         this.getTcpAdapter?.(peerId)?.isConnected ?? false;
       const shouldUseTcp =
-        isTcpConnectedForPeer || this.peerForceTcp.has(peerId);
+        isTcpAllowed && (isTcpConnectedForPeer || this.peerForceTcp.has(peerId));
 
       signalingLog.debug("signaling › call route", {
         peerId,
@@ -341,7 +399,7 @@ export class SignalingService {
       signalingLog.error("signaling › call send failed", {
         peerId,
         messageType: message.type,
-        error,
+        error: error instanceof Error ? error.message : error,
       });
       throw error;
     }

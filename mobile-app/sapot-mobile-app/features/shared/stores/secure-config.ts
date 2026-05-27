@@ -19,6 +19,11 @@ const KEYS = {
   SERVER_HOST_OVERRIDE: "serverHostOverride",
   APP_MODE: "appMode",
   DEVICE_ENCRYPTION_KEY: "deviceEncryptionKey",
+  MASTER_KEY: "masterKey",
+  SIGNALING_SECRET_KEY: "signalingSecretKey",
+  PIN_ENABLED: "pinEnabled",
+  PIN_WRAPPED_BUNDLE: "pinWrappedBundle",
+  RECOVERY_TOKEN_HEX: "recoveryTokenHex",
 } as const;
 
 // ── Writers ────────────────────────────────────────────────────────────────────
@@ -276,15 +281,109 @@ export const saveDeviceEncryptionKey = async (key: string): Promise<void> => {
   }
 };
 
+export const saveSignalingSecretKey = async (key: string): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.SIGNALING_SECRET_KEY, key);
+  } catch (error) {
+    backgroundLog.error("secure-config › signaling secret key write failed", { error });
+    throw error;
+  }
+};
+
+export const getSignalingSecretKey = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.SIGNALING_SECRET_KEY)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › signaling secret key read failed", { error });
+    return undefined;
+  }
+};
+
+export const savePinEnabled = async (enabled: boolean): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.PIN_ENABLED, enabled ? "1" : "0");
+  } catch (error) {
+    backgroundLog.error("secure-config › pin enabled write failed", { error });
+    throw error;
+  }
+};
+
+export const getPinEnabled = async (): Promise<boolean> => {
+  try {
+    return (await getItemAsync(KEYS.PIN_ENABLED)) === "1";
+  } catch (error) {
+    backgroundLog.error("secure-config › pin enabled read failed", { error });
+    return false;
+  }
+};
+
+export const savePinWrappedBundle = async (blob: string): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.PIN_WRAPPED_BUNDLE, blob);
+  } catch (error) {
+    backgroundLog.error("secure-config › pin wrapped bundle write failed", { error });
+    throw error;
+  }
+};
+
+export const getPinWrappedBundle = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.PIN_WRAPPED_BUNDLE)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › pin wrapped bundle read failed", { error });
+    return undefined;
+  }
+};
+
+export const saveMasterKey = async (key: string): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.MASTER_KEY, key);
+  } catch (error) {
+    backgroundLog.error("secure-config › master key write failed", { error });
+    throw error;
+  }
+};
+
+export const getMasterKey = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.MASTER_KEY)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › master key read failed", { error });
+    return undefined;
+  }
+};
+
+export const saveRecoveryTokenHex = async (hex: string): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.RECOVERY_TOKEN_HEX, hex);
+  } catch (error) {
+    backgroundLog.error("secure-config › recovery token hex write failed", { error });
+    throw error;
+  }
+};
+
+export const getRecoveryTokenHex = async (): Promise<string | undefined> => {
+  try {
+    return (await getItemAsync(KEYS.RECOVERY_TOKEN_HEX)) ?? undefined;
+  } catch (error) {
+    backgroundLog.error("secure-config › recovery token hex read failed", { error });
+    return undefined;
+  }
+};
+
 // ── Cleanup (on logout) ────────────────────────────────────────────────────────
 
 export const clearConnectionConfig = async () => {
   try {
     await Promise.all(
       Object.values(KEYS).map((key) => {
-        if (key !== KEYS.ACCESS_TOKEN && key !== KEYS.APP_MODE && key !== KEYS.SERVER_HOST_OVERRIDE) {
-          deleteItemAsync(key);
+        if (
+          key !== KEYS.APP_MODE &&
+          key !== KEYS.SERVER_HOST_OVERRIDE
+        ) {
+          return deleteItemAsync(key);
         }
+        return Promise.resolve();
       })
     );
     backgroundLog.info("secure-config › cleared");

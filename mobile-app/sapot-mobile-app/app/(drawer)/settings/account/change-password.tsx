@@ -1,4 +1,5 @@
 import { changePasswordApi } from "@/features/auth/api/auth.api";
+import { useMasterKeyRecovery } from "@/features/auth/hooks/use-master-key-recovery";
 import {
     hasValidationErrors,
     validatePassword,
@@ -18,6 +19,7 @@ import {
 
 export default function ChangePassword() {
   const theme = useTheme();
+  const { rewrapAllBlobs } = useMasterKeyRecovery();
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
@@ -83,6 +85,11 @@ export default function ChangePassword() {
       setConfirmPass("");
       setErrors({});
       showToast("Change password successfully");
+
+      const rewrapResult = await rewrapAllBlobs({ userId: "", newPassword: newPass });
+      if (!rewrapResult.success) {
+        showError("Password changed but recovery keys could not be updated. Visit Settings → Recovery Methods to re-configure.");
+      }
 
       setTimeout(() => {
         uiLog.info("[Navigation] goBack triggered from ChangePasswordSettings");

@@ -26,6 +26,8 @@ import {
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
+import { PeerKeyService } from "./peer-key-service";
+import { PeerKeyStore } from "./peer-key-store";
 import { SignalingService } from "./signaling-service";
 import { WebrtcSessionManager } from "./webrtc-session-manager";
 
@@ -99,7 +101,9 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     private readonly wsSignalingAdapter: WsSignalingAdapter,
     private readonly webrtcSessionManager: WebrtcSessionManager,
     private readonly signalingService: SignalingService,
-    private readonly callMediaService: CallMediaService
+    private readonly callMediaService: CallMediaService,
+    private readonly peerKeyService?: PeerKeyService,
+    private readonly peerKeyStore?: PeerKeyStore
   ) {
     super();
 
@@ -121,7 +125,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       (peerId, msg) => this.sendMessage(peerId, msg)
     );
     this.webrtcSessionManager.setSignalingSender((peerId, msg) =>
-      this.signalingService.sendSignalingMessage(peerId, msg)
+      void this.signalingService.sendSignalingMessage(peerId, msg)
     );
 
     // Forward WebrtcSessionManager events onto ConnectionService.
@@ -606,7 +610,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     try {
       let adapter = this.tcpClientAdapters.get(peerId);
       if (!adapter) {
-        adapter = new TcpClientAdapter(peerId);
+        adapter = new TcpClientAdapter(peerId, this.peerKeyService, this.peerKeyStore, this.userStore.user.id);
         this.tcpClientAdapters.set(peerId, adapter);
         connectionLog.debug("connection › tcp client created", { peerId });
       }
@@ -870,7 +874,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               },
             });
           }
-          this.signalingService.sendSignalingMessage(peerId, {
+          void this.signalingService.sendSignalingMessage(peerId, {
             type,
             data: {
               sdp: { type, sdp },
@@ -920,7 +924,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         type,
         hasSdp: Boolean(sdp),
       });
-      this.signalingService.sendSignalingMessage(peerId, {
+      await this.signalingService.sendSignalingMessage(peerId, {
         type,
         data: {
           sdp: { type, sdp },

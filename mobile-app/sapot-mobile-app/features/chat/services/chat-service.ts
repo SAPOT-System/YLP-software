@@ -15,7 +15,10 @@ import {
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
 import { chatLog } from "@/features/shared/utils/logger";
+import { PeerKeyService } from "@/features/shared/services/peer-key-service";
+import { PeerKeyStore } from "@/features/shared/services/peer-key-store";
 import * as Notifications from "expo-notifications";
+import nacl from "tweetnacl";
 import {
   ConversationParticipantRepository,
   ConversationRepository,
@@ -59,7 +62,9 @@ export class ChatService {
     private messageStatusRepository: MessageStatusRepository,
     private peerService: PeerService,
     private userStore: UserStore,
-    private syncService: ChatSyncService
+    private syncService: ChatSyncService,
+    private peerKeyService?: PeerKeyService,
+    private peerKeyStore?: PeerKeyStore
   ) {
     chatLog.info("chat › service constructed", {
       hasConnectionService: Boolean(connectionService),
@@ -79,6 +84,122 @@ export class ChatService {
    */
   getMessageReceiptManager(): MessageReceiptManager {
     return this.messageReceiptManager;
+  }
+
+  private async deriveAndSetConversationKey(
+    peerId: string,
+    conversationId: string
+  ): Promise<void> {
+    if (!this.peerKeyService || !this.peerKeyStore) return;
+    let peerPubKey = this.peerKeyStore.get(peerId);
+    if (!peerPubKey) {
+      peerPubKey = await this.peerKeyStore.load(peerId);
+    }
+
+    if (!peerPubKey) {
+      if (this.userStore.isGuest) {
+        // Guest users cannot reach the server. The peer's key is delivered
+        // exclusively via the TCP handshake; PeerKeyStore.onKeySet will re-invoke
+        // this method once it arrives.
+        chatLog.debug("chat › guest: peer key not yet in store, deferring", {
+          peerId,
+          conversationId,
+        });
+        return;
+      }
+
+      // Auth user: attempt a server fetch (works for auth-to-auth).
+      // For guest peers the server will return 404 — treat that as "key will
+      // arrive via TCP handshake" rather than a hard failure, and defer.
+      chatLog.info("chat › peer key missing locally, fetching from server", {
+        peerId,
+        conversationId,
+      });
+      peerPubKey = await this.peerKeyService.fetchPeerPublicKey(peerId);
+      if (peerPubKey) {
+        this.peerKeyStore.set(peerId, peerPubKey);
+      } else {
+        // 404 or network error — peer is either a guest or not yet registered.
+        // PeerKeyStore.onKeySet will trigger re-derivation once the TCP handshake
+        // delivers the key. Nothing to do here.
+        chatLog.debug("chat › peer key unavailable from server, deferring until TCP handshake", {
+          peerId,
+          conversationId,
+        });
+        return;
+      }
+    }
+    const mySecretKey = this.peerKeyService.getMySecretKey();
+    if (!mySecretKey) {
+      chatLog.warn("chat › local ECDH secret key not initialized, deferring key derivation", {
+        peerId,
+        conversationId,
+      });
+      return;
+    }
+    const sharedKey = nacl.box.before(peerPubKey, mySecretKey);
+    this.messageRepository.setConversationKey(conversationId, sharedKey);
+    chatLog.debug("chat › conversation key derived", {
+      peerId,
+      conversationId,
+    });
+  }
+
+  /**
+   * Re-derives the conversation key for a specific peer.
+   * Called by MainContainer when PeerKeyStore receives a new appPub (e.g. after a
+   * TCP handshake with a guest peer that cannot register its key on the server).
+   * This ensures previously-loaded messages are decrypted without requiring a
+   * full screen reload.
+   */
+  async rederiveKeyForPeer(peerId: string): Promise<void> {
+    if (!this.peerKeyService || !this.peerKeyStore) return;
+    try {
+      const conversationId =
+        await this.conversationParticipantRepository.isDirectConversationExists([
+          peerId,
+          this.userStore.user.id,
+        ]);
+      if (!conversationId) return;
+      await this.deriveAndSetConversationKey(peerId, conversationId);
+      chatLog.debug("chat › conversation key re-derived after peer key arrival", {
+        peerId,
+        conversationId,
+      });
+    } catch (error) {
+      chatLog.warn("chat › rederiveKeyForPeer failed", { peerId, error });
+    }
+  }
+
+  /**
+   * Attempts to pre-derive ECDH conversation keys for all known conversations so
+   * the chat list can show decrypted message previews immediately after app startup.
+   * Skips conversations where the peer's public key is not yet available.
+   */
+  async preloadAllConversationKeys(): Promise<void> {
+    if (!this.peerKeyService || !this.peerKeyStore) return;
+    try {
+      const participants =
+        await this.conversationParticipantRepository.queryAllParticipants();
+      const myId = this.userStore.user.id;
+      const seen = new Set<string>();
+      for (const p of participants) {
+        const raw = p._raw as Record<string, string>;
+        const peerId = raw.user;
+        const conversationId = raw.conversation;
+        if (!peerId || !conversationId || peerId === myId) continue;
+        const key = `${peerId}:${conversationId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try {
+          await this.deriveAndSetConversationKey(peerId, conversationId);
+        } catch {
+          // Peer key not yet available — key will be derived on first interaction
+        }
+      }
+    } catch (error) {
+      chatLog.warn("chat › preload conversation keys failed", { error });
+    }
   }
 
   onConnectionState(
@@ -213,6 +334,7 @@ export class ChatService {
         sender,
         data.conversationId
       );
+      await this.deriveAndSetConversationKey(sender.id, conversation.id);
       await this.saveIncomingMessage(sender, conversation, data);
       void this.conversationRepository.touchConversation(conversation.id);
       this.acknowledgeIncomingMessage(sender.id, data.messageId);
@@ -320,6 +442,10 @@ export class ChatService {
       content: data.message,
       conversation: conversation,
       messageId: data.messageId,
+      // Incoming messages may arrive before the conversation key is derived
+      // (e.g. first contact with a guest peer). Persist as plaintext rather than
+      // discarding; the onKeySet observer re-derives the key for subsequent reads.
+      allowPlaintext: true,
     });
     const preparedStatus =
       this.messageStatusRepository.prepareMessageStatusCreate({
@@ -471,6 +597,10 @@ export class ChatService {
         messageLength: message.length,
       });
       await this.ensureConversationInitialized();
+      await this.deriveAndSetConversationKey(
+        this.peer!.id,
+        this.conversation!.id
+      );
       ({ newMessage, newMessageStatus } = await this.createMessage({
         sender: this.userStore.user,
         message: message,
@@ -490,29 +620,45 @@ export class ChatService {
           messageId: newMessage.id,
         });
         if (!this.userStore.isGuest) void this.syncService.syncNow();
-        return { conversationId: this.conversation!.id, messageId: newMessage.id };
+        return {
+          conversationId: this.conversation!.id,
+          messageId: newMessage.id,
+        };
       }
-      await this.sendAndTrackMessageStatus(newMessage, newMessageStatus, message);
+      await this.sendAndTrackMessageStatus(
+        newMessage,
+        newMessageStatus,
+        message
+      );
       if (!this.userStore.isGuest) void this.syncService.syncNow();
       chatLog.debug("chat › send complete", {
         peerId: this.peer.id,
         conversationId: this.conversation?.id,
         messageId: newMessage.id,
       });
-      return { conversationId: this.conversation!.id, messageId: newMessage.id };
+      return {
+        conversationId: this.conversation!.id,
+        messageId: newMessage.id,
+      };
     } catch (error) {
       chatLog.error("chat › send failed", {
         peerId: this.peer?.id,
         conversationId: this.conversation?.id,
-        error,
+        error: error instanceof Error ? error.message : error,
       });
       // Message was persisted before the send attempt failed — mark NOT_SENT
       // so the existing retry path picks it up when the peer reconnects.
       if (newMessage && newMessageStatus) {
         await this.messageStatusRepository
-          .updateMessageStatusById(newMessageStatus.id, MessageStatusType.NOT_SENT)
+          .updateMessageStatusById(
+            newMessageStatus.id,
+            MessageStatusType.NOT_SENT
+          )
           .catch(() => {});
-        return { conversationId: this.conversation!.id, messageId: newMessage.id };
+        return {
+          conversationId: this.conversation!.id,
+          messageId: newMessage.id,
+        };
       }
       throw error;
     }
@@ -530,8 +676,11 @@ export class ChatService {
         this.userStore.user.id,
       ]);
     const smsConversation = existingDirectId
-      ? await this.conversationRepository.queryConversationById(existingDirectId)
+      ? await this.conversationRepository.queryConversationById(
+          existingDirectId
+        )
       : await this.getOrCreateSmsConversationByPeer(this.peer.id);
+    await this.deriveAndSetConversationKey(this.peer.id, smsConversation.id);
     const { newMessage } = await this.createMessage({
       sender: this.userStore.user,
       message,
@@ -559,17 +708,27 @@ export class ChatService {
     let preparedP2pStatus: MessageStatus | undefined;
 
     try {
-      chatLog.debug("chat › send+sms start", { peerId: this.peer.id, messageLength: message.length });
+      chatLog.debug("chat › send+sms start", {
+        peerId: this.peer.id,
+        messageLength: message.length,
+      });
       await this.ensureConversationInitialized();
 
       const existingDirectId =
-        await this.conversationParticipantRepository.isDirectConversationExists([
-          this.peer.id,
-          this.userStore.user.id,
-        ]);
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [this.peer.id, this.userStore.user.id]
+        );
       const smsConversation = existingDirectId
-        ? await this.conversationRepository.queryConversationById(existingDirectId)
+        ? await this.conversationRepository.queryConversationById(
+            existingDirectId
+          )
         : await this.getOrCreateSmsConversationByPeer(this.peer.id);
+
+      await this.deriveAndSetConversationKey(
+        this.peer.id,
+        this.conversation!.id
+      );
+      await this.deriveAndSetConversationKey(this.peer.id, smsConversation.id);
 
       // Prepare SMS message first — read its auto-assigned id before committing.
       const preparedSmsMessage = this.messageRepository.prepareMessageCreate({
@@ -587,17 +746,19 @@ export class ChatService {
         linkedMessageId: preparedSmsMessage.id,
       });
 
-      preparedP2pStatus = this.messageStatusRepository.prepareMessageStatusCreate({
-        message: preparedP2pMessage,
-        user: this.userStore.user,
-        status: MessageStatusType.SENDING,
-      });
+      preparedP2pStatus =
+        this.messageStatusRepository.prepareMessageStatusCreate({
+          message: preparedP2pMessage,
+          user: this.userStore.user,
+          status: MessageStatusType.SENDING,
+        });
 
-      const preparedSmsStatus = this.messageStatusRepository.prepareMessageStatusCreate({
-        message: preparedSmsMessage,
-        user: this.userStore.user,
-        status: MessageStatusType.SENDING,
-      });
+      const preparedSmsStatus =
+        this.messageStatusRepository.prepareMessageStatusCreate({
+          message: preparedSmsMessage,
+          user: this.userStore.user,
+          status: MessageStatusType.SENDING,
+        });
 
       // Single atomic write — link is set from the very first render.
       await database.write(() =>
@@ -612,7 +773,11 @@ export class ChatService {
       void this.conversationRepository.touchConversation(this.conversation!.id);
       void this.conversationRepository.touchConversation(smsConversation.id);
 
-      await this.sendAndTrackMessageStatus(preparedP2pMessage, preparedP2pStatus, message);
+      await this.sendAndTrackMessageStatus(
+        preparedP2pMessage,
+        preparedP2pStatus,
+        message
+      );
 
       if (!this.userStore.isGuest) void this.syncService.syncNow();
 
@@ -636,7 +801,10 @@ export class ChatService {
       });
       if (preparedP2pMessage && preparedP2pStatus) {
         await this.messageStatusRepository
-          .updateMessageStatusById(preparedP2pStatus.id, MessageStatusType.NOT_SENT)
+          .updateMessageStatusById(
+            preparedP2pStatus.id,
+            MessageStatusType.NOT_SENT
+          )
           .catch(() => {});
         return {
           conversationId: this.conversation!.id,
@@ -766,13 +934,16 @@ export class ChatService {
         conversation,
         messageType,
       });
-      const preparedStatus = this.messageStatusRepository.prepareMessageStatusCreate({
-        message: preparedMessage,
-        user: sender,
-        status: MessageStatusType.SENDING,
-      });
+      const preparedStatus =
+        this.messageStatusRepository.prepareMessageStatusCreate({
+          message: preparedMessage,
+          user: sender,
+          status: MessageStatusType.SENDING,
+        });
 
-      await database.write(() => database.batch(preparedMessage, preparedStatus));
+      await database.write(() =>
+        database.batch(preparedMessage, preparedStatus)
+      );
 
       return { newMessage: preparedMessage, newMessageStatus: preparedStatus };
     } catch (error) {
@@ -809,9 +980,10 @@ export class ChatService {
           },
           true
         );
-        const participants = peer.id === this.userStore.user.id
-          ? [peer]
-          : [peer, this.userStore.user];
+        const participants =
+          peer.id === this.userStore.user.id
+            ? [peer]
+            : [peer, this.userStore.user];
         await this.conversationParticipantRepository.saveMultipleConversationParticipant(
           participants,
           conversation,
@@ -930,7 +1102,9 @@ export class ChatService {
     }
   }
 
-  async getOrCreateSmsConversationByPeer(peerId: string): Promise<Conversation> {
+  async getOrCreateSmsConversationByPeer(
+    peerId: string
+  ): Promise<Conversation> {
     try {
       const peer = await this.peerService.findPeerById(peerId);
       if (!peer) throw new Error("Peer not found");
@@ -1025,6 +1199,7 @@ export class ChatService {
         peerId,
         conversationId
       );
+      await this.deriveAndSetConversationKey(peerId, conversation.id);
 
       const sender: Peer | GuestUser =
         senderId === this.userStore.user.id ? this.userStore.user : peer;
@@ -1063,11 +1238,18 @@ export class ChatService {
     }
   }
 
-  async linkMessages(p2pMessageId: string, smsMessageId: string): Promise<void> {
+  async linkMessages(
+    p2pMessageId: string,
+    smsMessageId: string
+  ): Promise<void> {
     try {
-      const message = await this.messageRepository.queryMessageById(p2pMessageId);
+      const message = await this.messageRepository.queryMessageById(
+        p2pMessageId
+      );
       if (!message) {
-        chatLog.warn("chat › linkMessages: p2p message not found", { p2pMessageId });
+        chatLog.warn("chat › linkMessages: p2p message not found", {
+          p2pMessageId,
+        });
         return;
       }
       await database.write(async () => {
@@ -1075,9 +1257,16 @@ export class ChatService {
           m.linkedMessageId = smsMessageId;
         });
       });
-      chatLog.debug("chat › linkMessages complete", { p2pMessageId, smsMessageId });
+      chatLog.debug("chat › linkMessages complete", {
+        p2pMessageId,
+        smsMessageId,
+      });
     } catch (error) {
-      chatLog.error("chat › linkMessages failed", { p2pMessageId, smsMessageId, error });
+      chatLog.error("chat › linkMessages failed", {
+        p2pMessageId,
+        smsMessageId,
+        error,
+      });
       throw error;
     }
   }
@@ -1114,6 +1303,15 @@ export class ChatService {
     conversationId: string
   ): Promise<Message[]> {
     try {
+      const peerId =
+        this.peer?.id ??
+        (await this.conversationParticipantRepository
+          .queryPeerByChatId(conversationId, this.userStore.user.id)
+          .then((participants) => participants[0]?.user.id)
+          .catch(() => undefined));
+      if (peerId) {
+        await this.deriveAndSetConversationKey(peerId, conversationId);
+      }
       return await this.messageRepository.queryMessagesByConversation(
         conversationId
       );

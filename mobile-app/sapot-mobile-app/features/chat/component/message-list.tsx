@@ -299,13 +299,8 @@ type MessageListItemProps = {
 };
 
 const useDecryptedContent = (message: Message): string => {
-  const { localEncryptionService } = useMainContainer();
-  if (!message.isEncrypted) return message.content;
-  try {
-    return localEncryptionService.decrypt(message.content);
-  } catch {
-    return message.content;
-  }
+  const { messageRepository } = useMainContainer();
+  return messageRepository.decryptMessage(message);
 };
 
 const MessageListItemInner = memo(

@@ -7,14 +7,19 @@ from app.models.users import UserPublic
 class SDPData(BaseModel):
     sender: str
     to: str
-    ipAddress: str
-    port: int
+    # ipAddress and port are present on plaintext messages but omitted on
+    # encrypted wire messages (where the SDP lives inside the `enc` blob).
+    ipAddress: Optional[str] = None
+    port: Optional[int] = None
     sdp: Optional[dict] = None
     # candidate: Optional[str | dict]
     address: Optional[str] = None
     candidate: Optional[dict] = None
+    credential: Optional[dict] = None
     iceRestart: Optional[bool] = None
     reason: Optional[str] = None
+    # Encrypted payload — present instead of sdp/candidate on encrypted messages
+    enc: Optional[dict] = None
     
 
 

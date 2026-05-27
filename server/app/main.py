@@ -19,6 +19,12 @@ from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
 from app.db_operations.auth import SessionDep, create_db_and_tables
 from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, testing, public_chat, mikrotik, captive_portal
+from app.api import keys, wrapped_key, user_keys
+from app.models.peer_key import PeerKey
+from app.models.wrapped_key import WrappedKey
+from app.models.wrapped_key_recovery import WrappedKeyRecovery
+from app.models.recovery_session import RecoverySession
+from app.models.email_recovery_token import EmailRecoveryToken
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -156,6 +162,9 @@ async def log_activity(request: Request, call_next):
 
 app.include_router(auth.router)
 app.include_router(forgot_password.router)
+app.include_router(keys.router)
+app.include_router(wrapped_key.router)
+app.include_router(user_keys.router)
 app.include_router(verify_email.router)
 app.include_router(peer_connection.router)
 app.include_router(ping.router)
