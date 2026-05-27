@@ -8,6 +8,22 @@ import {
   SignalingMessage,
 } from "../types";
 import { wsLog } from "../utils/logger";
+import { encryptSignalingPayload, decryptSignalingPayload, WsEncryptionContext, WsEncryptedPayload } from "../services/ws-encryption";
+import { SignedCredential } from "../services/peer-key-service";
+
+interface EncryptedSignalingWireMessage {
+  type: 'offer' | 'answer' | 'ice-candidate';
+  data: {
+    to: string;
+    sender: string;
+    enc: WsEncryptedPayload;
+    /**
+     * Credential carried in plaintext alongside the encrypted envelope so the
+     * receiver can bootstrap its copy of the sender's ECDH key before decrypting.
+     */
+    credential?: SignedCredential;
+  };
+}
 
 wsLog.debug("[ws-signaling-adapter] module loaded");
 
@@ -72,6 +88,15 @@ export class WsSignalingAdapter extends EventEmitter {
   private lastConnectOptions?: ConnectOptions;
   private connectPromise?: Promise<void>;
   private pendingConnectReject?: (error: Error) => void;
+
+  private encryptionCtx?: WsEncryptionContext;
+  // Stores original SignalingMessage objects (not pre-serialized) so they can be
+  // re-encrypted with the correct peer key when it becomes available at flush time.
+  private pendingIce: Map<string, { message: SignalingMessage; createdAt: number }[]> = new Map();
+
+  setEncryptionContext(ctx: WsEncryptionContext): void {
+    this.encryptionCtx = ctx;
+  }
 
   /**
    * Opens a websocket connection using the provided options.
@@ -209,25 +234,108 @@ export class WsSignalingAdapter extends EventEmitter {
       | ChatMessage
       | AckMessage
   ) {
-    const payload = JSON.stringify(message);
-    // const summary = this.summarizeSignalingMessage(message);
-    // console.log(payload);
+    if (
+      this.encryptionCtx &&
+      this.isSignalingMessage(message) &&
+      (message.type === "offer" ||
+        message.type === "answer" ||
+        message.type === "ice-candidate")
+    ) {
+      const toPeerId = message.data.to;
+      const enc = encryptSignalingPayload(
+        message.data,
+        toPeerId,
+        this.encryptionCtx
+      );
+      if (!enc) {
+        if (message.type === "ice-candidate") {
+          // Queue the original message object — it will be re-encrypted at flush
+          // time once the peer's key has arrived via their answer credential.
+          const existing = this.pendingIce.get(toPeerId) ?? [];
+          existing.push({ message, createdAt: Date.now() });
+          this.pendingIce.set(toPeerId, existing);
+          wsLog.debug("ws-signaling › ICE candidate queued pending peer key", { peerId: toPeerId });
+          return;
+        }
+        // Peer key not yet known for offer/answer — expected on first contact.
+        // The credential embedded in the offer bootstraps the key exchange; the
+        // remote peer's key only arrives when their answer credential is processed.
+        // Fall through to the plaintext sender below so the credential is delivered.
+        wsLog.debug(
+          `ws-signaling › ${message.type} sent unencrypted (peer key not yet known, bootstrapping)`,
+          { peerId: toPeerId }
+        );
+      } else {
+        // Encryption succeeded — build encrypted wire message.
+        // The credential is also included in plaintext alongside enc so the receiver
+        // can bootstrap their copy of our ECDH key before attempting decryption.
+        const credential = (message.data as { credential?: SignedCredential }).credential;
+        const outgoing: EncryptedSignalingWireMessage = {
+          type: message.type as 'offer' | 'answer' | 'ice-candidate',
+          data: {
+            to: toPeerId,
+            sender: message.data.sender,
+            enc,
+            ...(credential ? { credential } : {}),
+          },
+        };
+        const serialized = JSON.stringify(outgoing);
+        if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
+          this.socket.send(serialized);
+        } else {
+          this.enqueueMessage({ payload: serialized, createdAt: Date.now(), type: message.type });
+        }
+        return;
+      }
+    }
 
+    // No encryption context — send as-is (legacy/guest mode)
+    const payload = JSON.stringify(message);
     if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
-      // wsLog.debug("ws › signaling send", summary);
       this.socket.send(payload);
       return;
     }
-
-    // wsLog.debug("ws › signaling queued", {
-    //   ...summary,
-    //   queueSizeBefore: this.outboundQueue.length,
-    // });
     this.enqueueMessage({
       payload,
       createdAt: Date.now(),
       type: message.type,
     });
+  }
+
+  private flushPendingIce(peerId: string): void {
+    const queue = this.pendingIce.get(peerId);
+    if (!queue || queue.length === 0) return;
+    const now = Date.now();
+    const valid = queue.filter(q => now - q.createdAt < this.queueTtlMs);
+    wsLog.debug(`ws-signaling › flushing ${valid.length} pending ICE candidates for ${peerId} (encrypted)`);
+    for (const item of valid) {
+      // Re-encrypt now that the peer key is available.
+      const enc = this.encryptionCtx
+        ? encryptSignalingPayload(item.message.data, peerId, this.encryptionCtx)
+        : null;
+      let payload: string;
+      if (enc) {
+        const outgoing: EncryptedSignalingWireMessage = {
+          type: 'ice-candidate',
+          data: { to: peerId, sender: item.message.data.sender, enc },
+        };
+        payload = JSON.stringify(outgoing);
+      } else {
+        // Fallback — should not happen since we only flush after key becomes known.
+        wsLog.warn('ws-signaling › ICE flush encryption failed, sending plaintext', { peerId });
+        payload = JSON.stringify(item.message);
+      }
+      if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
+        this.socket.send(payload);
+      } else {
+        this.outboundQueue.push({ payload, createdAt: item.createdAt, type: 'ice-candidate' });
+      }
+    }
+    this.pendingIce.delete(peerId);
+  }
+
+  notifyPeerKeyAvailable(peerId: string): void {
+    this.flushPendingIce(peerId);
   }
 
   sendGetActiveUsers() {
@@ -307,6 +415,51 @@ export class WsSignalingAdapter extends EventEmitter {
         return;
       }
 
+      // Decrypt signaling payload if encrypted
+      if (
+        this.encryptionCtx &&
+        parsed &&
+        typeof parsed === "object" &&
+        (parsed as { type?: unknown }).type !== undefined &&
+        ["offer", "answer", "ice-candidate"].includes(
+          (parsed as { type: string }).type
+        )
+      ) {
+        const msg = parsed as {
+          type: string;
+          data?: { to?: string; sender?: string; enc?: WsEncryptedPayload; credential?: SignedCredential };
+        };
+        if (msg.data?.enc && msg.data.sender) {
+          const sender = msg.data.sender;
+
+          // The credential is carried in plaintext alongside enc so the receiver can
+          // bootstrap the sender's ECDH key BEFORE attempting decryption.
+          if (msg.data.credential?.ecdhPublicKey && this.encryptionCtx.storePeerKey) {
+            this.encryptionCtx.storePeerKey(sender, msg.data.credential.ecdhPublicKey);
+            // Flush any ICE candidates we queued while waiting for this key.
+            this.flushPendingIce(sender);
+          }
+
+          const decrypted = decryptSignalingPayload(
+            msg.data.enc,
+            sender,
+            this.encryptionCtx
+          );
+          if (!decrypted) {
+            wsLog.warn("ws › signaling decryption failed, dropping message", { sender });
+            return;
+          }
+          const reconstructed = { ...msg, data: decrypted };
+          if (this.isSignalingMessage(reconstructed)) {
+            wsLog.debug("ws › signaling message (decrypted)", this.summarizeSignalingMessage(reconstructed));
+            this.emit("message", reconstructed);
+            return;
+          }
+          wsLog.warn("ws › decrypted message has unexpected shape", { type: msg.type });
+          return;
+        }
+      }
+
       if (this.isDirectChatMessage(parsed)) {
         wsLog.debug("ws › direct chat message", {
           messageId: (parsed as ChatMessage).data?.messageId,
@@ -352,6 +505,24 @@ export class WsSignalingAdapter extends EventEmitter {
         wsLog.warn("ws › payload not signaling");
         this.emit("raw-message", rawData);
         return;
+      }
+
+      // A plaintext signaling message (bootstrapping offer or legacy mode) may
+      // carry a credential. Extract it so we have the sender's key before the
+      // higher layer tries to send an encrypted answer.
+      const ptMsg = parsed as {
+        type: string;
+        data?: { sender?: string; credential?: SignedCredential };
+      };
+      if (
+        this.encryptionCtx?.storePeerKey &&
+        ptMsg.data?.sender &&
+        ptMsg.data?.credential?.ecdhPublicKey
+      ) {
+        const sender = ptMsg.data.sender;
+        this.encryptionCtx.storePeerKey(sender, ptMsg.data.credential.ecdhPublicKey);
+        wsLog.debug("ws › stored peer key from plaintext credential", { sender });
+        this.flushPendingIce(sender);
       }
 
       wsLog.debug(
@@ -624,10 +795,6 @@ export class WsSignalingAdapter extends EventEmitter {
       to: message.data.to,
       sender: message.data.sender,
     };
-  }
-
-  private redactUrl(url: string) {
-    return url.replace(/([?&]token=)[^&]*/i, "$1<redacted>");
   }
 
   private buildWsUrl(options: ConnectOptions) {

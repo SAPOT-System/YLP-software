@@ -7,6 +7,7 @@ import {
     StepDots,
     useChangePassword,
 } from "@/features/auth";
+import { useMasterKeyRecovery } from "@/features/auth/hooks/use-master-key-recovery";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -32,6 +33,7 @@ const ChangePasswordScreen = () => {
   const [tokenValue, setTokenValue] = useState("");
   const [identifierValue, setIdentifierValue] = useState("");
   const changePasswordResult = useChangePassword(tokenValue);
+  const { rewrapAllBlobs } = useMasterKeyRecovery();
   const {
     visible: toastVisible,
     message: toastMessage,
@@ -142,6 +144,9 @@ const ChangePasswordScreen = () => {
     if (res.success) {
       await deleteItemAsync("reset_password_token");
       await deleteItemAsync("reset_password_identifier");
+      try {
+        await rewrapAllBlobs({ userId: identifierValue, newPassword: password });
+      } catch { /* silent — password reset succeeded */ }
       authLog.info("[Navigation] Navigating to ResetSuccess", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS,
       });

@@ -2,6 +2,7 @@
 import type { DataChatMessageI } from "@/features/chat/types";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { typeLog } from "./utils/logger";
+import type { SignedCredential } from "./services/peer-key-service";
 typeLog.debug("[shared/types] module loaded");
 
 /**
@@ -28,6 +29,7 @@ export type SignalingMessage =
         sender: string;
         ipAddress: string;
         port: number;
+        credential?: SignedCredential;
       };
     }
   | {
@@ -38,6 +40,7 @@ export type SignalingMessage =
         sender: string;
         ipAddress: string;
         port: number;
+        credential?: SignedCredential;
       };
     }
   | {

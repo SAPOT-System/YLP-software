@@ -137,13 +137,9 @@ const getMessagePreview = (msg: Message | null, decryptedContent: string): strin
 };
 
 const useDecryptedContent = (msg: Message | null): string => {
-  const { localEncryptionService } = useMainContainer();
-  if (!msg || !msg.isEncrypted) return msg?.content ?? "";
-  try {
-    return localEncryptionService.decrypt(msg.content);
-  } catch {
-    return msg.content;
-  }
+  const { messageRepository } = useMainContainer();
+  if (!msg) return "";
+  return messageRepository.decryptMessage(msg);
 };
 
 type ChatListItemInnerProps = {

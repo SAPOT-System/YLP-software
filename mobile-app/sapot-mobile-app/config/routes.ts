@@ -25,6 +25,8 @@ export const SETTINGS_ROUTES = {
   CHANGE_PASSWORD: "/(drawer)/settings/account/change-password",
   SECURITY_QUESTION: "/(drawer)/settings/account/security-question",
   GENERATE_RECOVERY_KEY: "/(drawer)/settings/account/generate-recovery-key",
+  RECOVERY_SETUP: "/(drawer)/settings/account/recovery-setup",
+  ENCRYPTION_PIN: "/(drawer)/settings/account/encryption-pin",
   AUTHENTICATE: "/(drawer)/settings/account/authenticate",
   CONTACTS: "/(drawer)/settings/account/contacts",
   QR_CODE: "/(drawer)/settings/account/qr-code",
