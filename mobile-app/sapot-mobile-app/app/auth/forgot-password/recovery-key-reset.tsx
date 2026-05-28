@@ -8,6 +8,7 @@ import {
     useVerifyRecoveryKey,
 } from "@/features/auth";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
+import { extractResetToken } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -17,7 +18,7 @@ import { useDialogVisibility, useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { pick } from "@react-native-documents/picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { HelperText } from "react-native-paper";
@@ -119,14 +120,26 @@ const RecoveryKeyResetScreen = () => {
     const res = await verifyRecoveryKey(file);
 
     if (res.success && res.resetLink) {
-      const token = res.resetLink.split("token=")[1];
+      const token = extractResetToken(res.resetLink);
+
+      // Read the recovery key hex from the file so the recovery hook can unwrap the blob
+      let keyHex = "";
+      try {
+        const fileRes = await fetch(file.uri);
+        keyHex = (await fileRes.text()).trim();
+      } catch { /* non-fatal — recovery will be skipped */ }
+
+      await Promise.all([
+        setItemAsync("reset_recovery_token", res.recoveryToken ?? ""),
+        setItemAsync("reset_recovery_secret", keyHex),
+      ]);
 
       authLog.info("[Navigation] Navigating to ResetPassword", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
       });
       router.push({
         pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-        params: { token, identifier },
+        params: { token, identifier, method: "token" },
       });
     }
   };

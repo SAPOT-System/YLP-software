@@ -6,8 +6,8 @@ import {
     SecondaryButton,
     StepDots,
     useChangePassword,
+    usePasswordResetKeyRecovery,
 } from "@/features/auth";
-import { useMasterKeyRecovery } from "@/features/auth/hooks/use-master-key-recovery";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -26,14 +26,30 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { HelperText } from "react-native-paper";
 
 const ChangePasswordScreen = () => {
-  const { token, identifier } = useLocalSearchParams<{
+  const { token, identifier, method } = useLocalSearchParams<{
     token: string;
     identifier: string;
+    method: string;
   }>();
+
   const [tokenValue, setTokenValue] = useState("");
   const [identifierValue, setIdentifierValue] = useState("");
+  const [methodValue, setMethodValue] = useState("");
+  const [recoveryToken, setRecoveryToken] = useState("");
+  const [recoverySecret, setRecoverySecret] = useState("");
+  const [recoverySalt, setRecoverySalt] = useState("");
+
   const changePasswordResult = useChangePassword(tokenValue);
-  const { rewrapAllBlobs } = useMasterKeyRecovery();
+  const { userId } = changePasswordResult ?? {};
+  const { attemptBuildWrappedBlob } = usePasswordResetKeyRecovery({
+    identifier: identifierValue,
+    method: methodValue,
+    recoveryToken: recoveryToken || undefined,
+    secret: recoverySecret || undefined,
+    salt: recoverySalt || undefined,
+    userId: userId ?? null,
+  });
+
   const {
     visible: toastVisible,
     message: toastMessage,
@@ -59,33 +75,53 @@ const ChangePasswordScreen = () => {
     const hydrateFromStorage = async () => {
       const tokenParam = normalizeParam(token);
       const identifierParam = normalizeParam(identifier);
+      const methodParam = normalizeParam(method);
 
       if (tokenParam) {
         setTokenValue(tokenParam);
         await setItemAsync("reset_password_token", tokenParam);
       } else {
-        const storedToken = await getItemAsync("reset_password_token");
-        if (storedToken) setTokenValue(storedToken);
+        const stored = await getItemAsync("reset_password_token");
+        if (stored) setTokenValue(stored);
       }
 
       if (identifierParam) {
         setIdentifierValue(identifierParam);
         await setItemAsync("reset_password_identifier", identifierParam);
       } else {
-        const storedIdentifier = await getItemAsync("reset_password_identifier");
-        if (storedIdentifier) setIdentifierValue(storedIdentifier);
+        const stored = await getItemAsync("reset_password_identifier");
+        if (stored) setIdentifierValue(stored);
       }
+
+      if (methodParam) {
+        setMethodValue(methodParam);
+        await setItemAsync("reset_password_method", methodParam);
+      } else {
+        const stored = await getItemAsync("reset_password_method");
+        if (stored) setMethodValue(stored);
+      }
+
+      // Recovery fields are written by verification screens, only read here
+      const storedRecoveryToken = await getItemAsync("reset_recovery_token");
+      if (storedRecoveryToken) setRecoveryToken(storedRecoveryToken);
+
+      const storedSecret = await getItemAsync("reset_recovery_secret");
+      if (storedSecret) setRecoverySecret(storedSecret);
+
+      const storedSalt = await getItemAsync("reset_recovery_salt");
+      if (storedSalt) setRecoverySalt(storedSalt);
     };
 
     hydrateFromStorage();
-  }, [token, identifier]);
+  }, [token, identifier, method]);
 
   useEffect(() => {
-    authLog.debug("[ChangePasswordScreen] useEffect triggered, deps:", {
+    authLog.debug("[ChangePasswordScreen] state updated", {
       hasToken: Boolean(tokenValue),
-      identifierLength: identifierValue.length,
+      method: methodValue,
+      hasRecoveryToken: Boolean(recoveryToken),
     });
-  }, [tokenValue, identifierValue]);
+  }, [tokenValue, methodValue, recoveryToken]);
 
   if (!changePasswordResult) {
     return (
@@ -136,19 +172,30 @@ const ChangePasswordScreen = () => {
       showError("Cannot reach server. Please check your connection.");
       return;
     }
+
+    // Best-effort key recovery before password reset.
+    // Null if recovery unavailable (no token, wrong secret, legacy V1 blob).
+    const wrappedBlob = await attemptBuildWrappedBlob({ newPassword: password });
+
     const res = await changePassword({
       password,
       confirmPassword,
       identifier: identifierValue,
+      wrappedBlob: wrappedBlob ?? undefined,
     });
+
     if (res.success) {
-      await deleteItemAsync("reset_password_token");
-      await deleteItemAsync("reset_password_identifier");
-      try {
-        await rewrapAllBlobs({ userId: identifierValue, newPassword: password });
-      } catch { /* silent — password reset succeeded */ }
+      await Promise.all([
+        deleteItemAsync("reset_password_token"),
+        deleteItemAsync("reset_password_identifier"),
+        deleteItemAsync("reset_password_method"),
+        deleteItemAsync("reset_recovery_token"),
+        deleteItemAsync("reset_recovery_secret"),
+        deleteItemAsync("reset_recovery_salt"),
+      ]);
       authLog.info("[Navigation] Navigating to ResetSuccess", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS,
+        keyRecoveryPerformed: Boolean(wrappedBlob),
       });
       router.replace(AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS);
     } else {

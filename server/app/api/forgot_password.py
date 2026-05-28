@@ -56,6 +56,7 @@ from app.db_operations.auth import get_user_by_phone_number
 from app.db_operations.wrapped_key_recovery import create_recovery_session
 from app.models.recovery_session import RecoverySession
 from app.models.email_recovery_token import EmailRecoveryToken
+from app.models.wrapped_key import WrappedKey
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -139,9 +140,13 @@ def confirm_phone_code(body: PhoneCodeRequest, session: SessionDep, request: Req
         session=session
     )
 
+    recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    recovery_result = create_recovery_session(session, current_user.id, "phone", recovery_expires_at)
+
     return {
         'link': reset_link_template(raw_token, request),
-        'detail': 'Use POST request with the new password to reset the password'
+        'detail': 'Use POST request with the new password to reset the password',
+        'recovery_token': recovery_result['raw_token'],
     }
 
 
@@ -202,24 +207,36 @@ async def recover_with_recovery_key(
         session=session
     )
 
+    recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    recovery_result = create_recovery_session(session, current_user.id, "token", recovery_expires_at)
+
     return {
         'recovery-link': reset_link_template(raw_token, request),
         'method': 'POST',
-        'expire_in_seconds': LINK_TTL_SECONDS
+        'expire_in_seconds': LINK_TTL_SECONDS,
+        'recovery_token': recovery_result['raw_token'],
     }
 
 from fastapi.responses import HTMLResponse
 
 @router.get("/reset-password")
 def can_reset_password(token: str, session: SessionDep):
-    validate_reset_token(token, session)
-    return {"detail": "Valid token. Use POST request."}
+    reset_record = validate_reset_token(token, session)
+    user = session.exec(select(User).where(User.id == reset_record.user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"detail": "Valid token. Use POST request.", "user_id": str(user.id)}
+
+
+class PasswordResetRequest(SQLModel):
+    new_password: str = Field(min_length=8)
+    wrapped_blob: Optional[str] = None
 
 
 @router.post("/reset-password")
 def reset_password(
         token: str,
-        new_password_data: UserPasswordUpdateNoOldPassword,
+        new_password_data: PasswordResetRequest,
         session: SessionDep
 ):
     reset_record = validate_reset_token(token, session)
@@ -230,6 +247,15 @@ def reset_password(
         raise HTTPException(status_code=404, detail="Invalid user data")
 
     update_user_password(user, new_password_data.new_password, session)
+
+    if new_password_data.wrapped_blob:
+        existing_wk = session.exec(select(WrappedKey).where(WrappedKey.user_id == user.id)).first()
+        if existing_wk:
+            existing_wk.wrapped_blob = new_password_data.wrapped_blob
+            existing_wk.updated_at = datetime.utcnow()
+            session.add(existing_wk)
+        else:
+            session.add(WrappedKey(user_id=user.id, wrapped_blob=new_password_data.wrapped_blob))
 
     session.delete(reset_record)
     session.commit()
@@ -273,9 +299,13 @@ def confirm_code(email: str, code: str, session: SessionDep, request: Request):
 
         reset_link = reset_link_template(raw_token, request)
 
+        recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+        recovery_result = create_recovery_session(session, current_user.id, "email", recovery_expires_at)
+
         return {
             'link': reset_link,
-            'detail': 'Use POST request with the new password to reset the password'
+            'detail': 'Use POST request with the new password to reset the password',
+            'recovery_token': recovery_result['raw_token'],
         }
     raise HTTPException(401, "Invalid user.")
 
@@ -402,9 +432,13 @@ def verify_security_answer(
 
     reset_link = reset_link_template(raw_token, request)
 
+    recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    recovery_result = create_recovery_session(session, user_id, "qa", recovery_expires_at)
+
     return {
         "correct": True,
         "reset_link": reset_link,
+        "recovery_token": recovery_result['raw_token'],
     }
 
 @router.get("/generate-security-question")

@@ -4,6 +4,7 @@ import {
   resendVerificationCodeEmail,
   verifyCodeEmail,
 } from "@/features/auth/api/auth.api";
+import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
 import { VerificationCodeContent } from "@/features/settings";
 import { updateProfileApi } from "@/features/shared/api/user-profile.api";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
@@ -25,6 +26,7 @@ export default function VerifyEmail() {
     variant: "neutral" | "error";
   }>({ visible: false, message: "", variant: "neutral" });
   const userService = useUserService();
+  const { setupEmailBlob } = useRecoveryKeySetup();
 
   useEffect(() => {
     uiLog.info("[VerifyEmail] mounted");
@@ -65,6 +67,7 @@ export default function VerifyEmail() {
       await verifyCodeEmail(code);
       await updateProfileApi({ email });
       await userService.updateAuthenticatedUser({ emailVerified: true });
+      await setupEmailBlob(email);
       uiLog.info("[VerifyEmail] email verified, navigating to EmailVerified");
       router.replace(SETTINGS_ROUTES.EMAIL_VERIFIED);
     } catch (error) {

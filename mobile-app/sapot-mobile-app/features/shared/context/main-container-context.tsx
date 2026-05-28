@@ -1,7 +1,8 @@
 import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
 import { PinEntryGate } from "@/features/auth/components/pin-entry-gate";
 import React, { createContext, useEffect, useRef, useState } from "react";
-import { ActivityIndicator } from "react-native-paper";
+import { View } from "react-native";
+import { ActivityIndicator, Button, Text } from "react-native-paper";
 import { MainContainer, setPendingPIN } from "../main-container";
 import { getPinEnabled } from "../stores/secure-config";
 import { appLog } from "../utils/logger";
@@ -21,6 +22,7 @@ export function MainContainerProvider({
   const [container, setContainer] = useState<MainContainer | null>(null);
   const [initFailed, setInitFailed] = useState(false);
   const [needsPin, setNeedsPin] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const pendingContainerRef = useRef<MainContainer | null>(null);
   const containerRef = useRef<MainContainer | null>(null);
 
@@ -64,7 +66,7 @@ export function MainContainerProvider({
       containerRef.current = null;
       pendingContainerRef.current = null;
     };
-  }, [appModeStore, userContainer]);
+  }, [appModeStore, userContainer, retryCount]);
 
   const handlePinSubmit = async (pin: string): Promise<boolean> => {
     const c = pendingContainerRef.current;
@@ -84,8 +86,26 @@ export function MainContainerProvider({
   };
 
   if (initFailed) {
-    appLog.error("app › container failed to initialize — rendering children without container");
-    return null;
+    appLog.error("app › container failed to initialize");
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <Text variant="titleMedium" style={{ textAlign: "center", marginBottom: 8 }}>
+          Unable to load your account
+        </Text>
+        <Text variant="bodyMedium" style={{ textAlign: "center", marginBottom: 24, opacity: 0.7 }}>
+          Something went wrong loading your encryption keys. Please try again.
+        </Text>
+        <Button
+          mode="contained"
+          onPress={() => {
+            setInitFailed(false);
+            setRetryCount((c) => c + 1);
+          }}
+        >
+          Try Again
+        </Button>
+      </View>
+    );
   }
 
   if (needsPin) {
