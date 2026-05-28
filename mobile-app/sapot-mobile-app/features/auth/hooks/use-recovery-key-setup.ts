@@ -2,7 +2,7 @@ import { authLog } from "@/features/shared/utils/logger";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { KeyRecoveryService, RecoveryMethod } from "@/features/shared/services/key-recovery-service";
 import { saveRecoveryTokenHex } from "@/features/shared/stores/secure-config";
-import { setupRecoveryKeysApi } from "../api/auth.api";
+import { setupRecoveryKeysApi, updateRecoveryKeysApi } from "../api/auth.api";
 
 interface SetupParams {
   userId: string;
@@ -15,65 +15,54 @@ interface SetupParams {
 }
 
 export const useRecoveryKeySetup = () => {
-  const { localEncryptionService, keyRecoveryService } = useMainContainer();
+  const mainContainer = useMainContainer();
+  const { localEncryptionService, keyRecoveryService } = mainContainer;
+
+  const getUserId = (): string =>
+    mainContainer.userContainer.sessionStore.userId;
 
   const setup = async (params: SetupParams) => {
     authLog.info("[useRecoveryKeySetup] setup called");
     try {
       const masterKey = localEncryptionService.getMasterKeyBytes();
+      const signalingKey = localEncryptionService.getSignalingSecretKey();
       const blobs: Array<{ method: RecoveryMethod; wrapped_blob: string; metadata?: string }> = [];
 
-      // password method
       const passwordBlob = await keyRecoveryService.wrapWithMethod(
-        masterKey,
-        "password",
-        params.password,
-        params.userId
+        masterKey, "password", params.password, params.userId, undefined, signalingKey
       );
       blobs.push(passwordBlob);
 
       if (params.phone) {
-        const phoneBlob = await keyRecoveryService.wrapWithMethod(
-          masterKey,
-          "phone",
-          params.phone,
-          params.userId
-        );
-        blobs.push(phoneBlob);
+        blobs.push(await keyRecoveryService.wrapWithMethod(
+          masterKey, "phone", params.phone, params.userId, undefined, signalingKey
+        ));
       }
 
       if (params.email) {
-        const emailBlob = await keyRecoveryService.wrapWithMethod(
-          masterKey,
-          "email",
-          params.email,
-          params.userId
-        );
-        blobs.push(emailBlob);
+        blobs.push(await keyRecoveryService.wrapWithMethod(
+          masterKey, "email", params.email, params.userId, undefined, signalingKey
+        ));
       }
 
       if (params.questionText && params.answer) {
-        const qaBlob = await keyRecoveryService.wrapWithMethod(
+        blobs.push(await keyRecoveryService.wrapWithMethod(
           masterKey,
           "qa",
           KeyRecoveryService.normalizeAnswer(params.answer),
           params.questionText,
-          JSON.stringify({ question: params.questionText })
-        );
-        blobs.push(qaBlob);
+          JSON.stringify({ question: params.questionText }),
+          signalingKey
+        ));
       }
 
       let recoveryTokenHex: string | undefined;
       if (params.enableToken) {
         const { hex } = KeyRecoveryService.generateRecoveryToken();
         recoveryTokenHex = hex;
-        const tokenBlob = await keyRecoveryService.wrapWithMethod(
-          masterKey,
-          "token",
-          hex,
-          params.userId
-        );
-        blobs.push(tokenBlob);
+        blobs.push(await keyRecoveryService.wrapWithMethod(
+          masterKey, "token", hex, params.userId, undefined, signalingKey
+        ));
         await saveRecoveryTokenHex(hex);
       }
 
@@ -92,5 +81,93 @@ export const useRecoveryKeySetup = () => {
     }
   };
 
-  return { setup };
+  const setupQABlob = async (questionText: string, answer: string) => {
+    try {
+      const masterKey = localEncryptionService.getMasterKeyBytes();
+      const signalingKey = localEncryptionService.getSignalingSecretKey();
+      const qaBlob = await keyRecoveryService.wrapWithMethod(
+        masterKey,
+        "qa",
+        KeyRecoveryService.normalizeAnswer(answer),
+        questionText,
+        JSON.stringify({ question: questionText }),
+        signalingKey
+      );
+      await updateRecoveryKeysApi([{
+        method: qaBlob.method,
+        wrapped_blob: qaBlob.wrapped_blob,
+        metadata: qaBlob.metadata,
+      }]);
+      authLog.info("[useRecoveryKeySetup] QA blob upserted");
+      return { success: true };
+    } catch (error) {
+      authLog.error("[useRecoveryKeySetup] setupQABlob failed", { error });
+      return { success: false };
+    }
+  };
+
+  const setupPhoneBlob = async (phone: string) => {
+    try {
+      const userId = getUserId();
+      const masterKey = localEncryptionService.getMasterKeyBytes();
+      const signalingKey = localEncryptionService.getSignalingSecretKey();
+      const blob = await keyRecoveryService.wrapWithMethod(
+        masterKey, "phone", phone, userId, undefined, signalingKey
+      );
+      await updateRecoveryKeysApi([{
+        method: blob.method,
+        wrapped_blob: blob.wrapped_blob,
+        metadata: blob.metadata,
+      }]);
+      authLog.info("[useRecoveryKeySetup] phone blob upserted");
+      return { success: true };
+    } catch (error) {
+      authLog.error("[useRecoveryKeySetup] setupPhoneBlob failed", { error });
+      return { success: false };
+    }
+  };
+
+  const setupEmailBlob = async (email: string) => {
+    try {
+      const userId = getUserId();
+      const masterKey = localEncryptionService.getMasterKeyBytes();
+      const signalingKey = localEncryptionService.getSignalingSecretKey();
+      const blob = await keyRecoveryService.wrapWithMethod(
+        masterKey, "email", email, userId, undefined, signalingKey
+      );
+      await updateRecoveryKeysApi([{
+        method: blob.method,
+        wrapped_blob: blob.wrapped_blob,
+        metadata: blob.metadata,
+      }]);
+      authLog.info("[useRecoveryKeySetup] email blob upserted");
+      return { success: true };
+    } catch (error) {
+      authLog.error("[useRecoveryKeySetup] setupEmailBlob failed", { error });
+      return { success: false };
+    }
+  };
+
+  const setupTokenBlob = async (keyText: string) => {
+    try {
+      const userId = getUserId();
+      const masterKey = localEncryptionService.getMasterKeyBytes();
+      const signalingKey = localEncryptionService.getSignalingSecretKey();
+      const blob = await keyRecoveryService.wrapWithMethod(
+        masterKey, "token", keyText, userId, undefined, signalingKey
+      );
+      await updateRecoveryKeysApi([{
+        method: blob.method,
+        wrapped_blob: blob.wrapped_blob,
+        metadata: blob.metadata,
+      }]);
+      authLog.info("[useRecoveryKeySetup] token blob upserted");
+      return { success: true };
+    } catch (error) {
+      authLog.error("[useRecoveryKeySetup] setupTokenBlob failed", { error });
+      return { success: false };
+    }
+  };
+
+  return { setup, setupQABlob, setupPhoneBlob, setupEmailBlob, setupTokenBlob };
 };

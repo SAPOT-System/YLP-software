@@ -28,6 +28,7 @@ export const useVerifyRecoveryKey = (identifier: string) => {
         success: true,
         resetLink: res.data["recovery-link"],
         expiration: res.data.expire_in_seconds,
+        recoveryToken: res.data.recovery_token,
       };
     } catch (err) {
       authLog.error("[useVerifyRecoveryKey] Error in verifyRecoveryKey", {

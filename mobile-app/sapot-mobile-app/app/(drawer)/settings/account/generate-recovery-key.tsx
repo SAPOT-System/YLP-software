@@ -1,5 +1,6 @@
 import { RecoveryKeyDownloadModal } from "@/features/auth";
 import { generateNewRecoveryKeyApi } from "@/features/auth/api/auth.api";
+import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -10,6 +11,7 @@ import { Button, Text, useTheme } from "react-native-paper";
 
 export default function GenerateRecoveryKey() {
   const theme = useTheme();
+  const { setupTokenBlob } = useRecoveryKeySetup();
   const [isGenerating, setIsGenerating] = useState(false);
   const [recoveryKeyData, setRecoveryKeyData] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
@@ -40,6 +42,7 @@ export default function GenerateRecoveryKey() {
       }
       const res = await generateNewRecoveryKeyApi(token);
       setRecoveryKeyData(res.data);
+      await setupTokenBlob(res.data);
       setModalVisible(true);
     } catch (error) {
       uiLog.error("[GenerateRecoveryKey] Error generating recovery key", {

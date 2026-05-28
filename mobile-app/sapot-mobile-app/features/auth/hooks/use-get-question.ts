@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { AxiosError } from "axios";
+import { useCallback, useEffect, useState } from "react";
 import { authLog } from "../../shared/utils/logger";
 import { getSecurityQuestionApi } from "../api";
-import { AxiosError } from "axios";
 
 export const useGetQuestion = (identfier: string) => {
   const [loading, setLoading] = useState(false);
   const [question, setQuestion] = useState("");
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     const getQuestion = async () => {
@@ -30,8 +31,6 @@ export const useGetQuestion = (identfier: string) => {
           const status = axiosError.response.status;
           const data = axiosError.response.data;
 
-          console.log(status, data);
-
           if (status === 404) {
             setError(data.detail);
           } else {
@@ -46,7 +45,12 @@ export const useGetQuestion = (identfier: string) => {
     };
 
     getQuestion();
-  }, [identfier]);
+  }, [identfier, retryCount]);
 
-  return { loading, question, error };
+  const refetch = useCallback(() => {
+    setError("");
+    setRetryCount((c) => c + 1);
+  }, []);
+
+  return { loading, question, error, refetch };
 };

@@ -1,11 +1,13 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { SecondaryButton, StepDots, useEmailReset, useSmsReset } from "@/features/auth";
+import { extractResetToken } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
+import { setItemAsync } from "expo-secure-store";
 import { OTPInput } from "input-otp-native";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -73,16 +75,25 @@ const EnterRecoveryScreen = () => {
         const res = await verifyCode(identifier, newCode);
 
         if (res.success && res.recoveryLink) {
-          const token = res.recoveryLink.split("token=")[1];
+          const token = extractResetToken(res.recoveryLink);
+          const recoveryToken = (res as { recoveryToken?: string | null }).recoveryToken ?? "";
+
+          await setItemAsync("reset_recovery_token", recoveryToken);
 
           router.push({
             pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
             params: {
-              token: token,
-              identifier: identifier,
+              token,
+              identifier,
+              method: isSms ? "sms" : "email",
             },
           });
+        } else {
+          setCode("");
         }
+      } catch {
+        setCode("");
+        showError("Verification failed. Please try again.");
       } finally {
         setIsVerifying(false);
       }

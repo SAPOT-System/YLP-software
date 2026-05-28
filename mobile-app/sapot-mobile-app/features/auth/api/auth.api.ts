@@ -137,7 +137,7 @@ export const verifySecurityQuestionApi = async (
     "[AuthApi] Calling /auth/forgot-password/security-question/answer",
     { identifierLength: identifier.length }
   );
-  const res = await apiClient.post<{ correct: boolean; reset_link: string }>(
+  const res = await apiClient.post<{ correct: boolean; reset_link: string; recovery_token?: string }>(
     "/auth/forgot-password/security-question/answer",
     requestBody,
     { params: { identifier } }
@@ -146,25 +146,37 @@ export const verifySecurityQuestionApi = async (
   return res;
 };
 
-export const canResetPasswordApi = async (token: string) => {
+export const canResetPasswordApi = async (
+  token: string
+): Promise<{ valid: boolean; userId: string | null }> => {
   apiLog.info("[AuthApi] Calling /auth/forgot-password/reset-password", {
     hasToken: Boolean(token),
   });
-  const res = await apiClient.get("/auth/forgot-password/reset-password", {
-    params: { token },
-  });
-  apiLog.info("[AuthApi] Response received", { status: res.status });
-  return res.status === 200;
+  try {
+    const res = await apiClient.get<{ detail: string; user_id?: string }>(
+      "/auth/forgot-password/reset-password",
+      { params: { token } }
+    );
+    apiLog.info("[AuthApi] Response received", { status: res.status });
+    return { valid: res.status === 200, userId: res.data.user_id ?? null };
+  } catch {
+    return { valid: false, userId: null };
+  }
 };
 
-export const resetPasswordApi = async (token: string, newPassword: string) => {
+export const resetPasswordApi = async (
+  token: string,
+  newPassword: string,
+  wrappedBlob?: string
+) => {
   apiLog.info("[AuthApi] Calling /auth/forgot-password/reset-password", {
     hasToken: Boolean(token),
     password: "[REDACTED]",
+    hasWrappedBlob: Boolean(wrappedBlob),
   });
   const res = await apiClient.post<{ message: string }>(
     "/auth/forgot-password/reset-password",
-    { new_password: newPassword },
+    { new_password: newPassword, wrapped_blob: wrappedBlob ?? null },
     { params: { token } }
   );
 
@@ -213,6 +225,7 @@ export const verifyRecoveryKeyApi = async (
     "recovery-link": string;
     method: string;
     expire_in_seconds: number;
+    recovery_token: string;
   }>("/auth/forgot-password/recovery-with-recovery-key", formData, {
     params: { user_identifier: identifier },
     headers: {
@@ -245,7 +258,7 @@ export const verifyResetEmailCodeApi = async (email: string, code: string) => {
     emailLength: email.length,
     codeLength: code.length,
   });
-  const res = await apiClient.post<{ link: string; detail: string }>(
+  const res = await apiClient.post<{ link: string; detail: string; recovery_token: string }>(
     "/auth/forgot-password/email-code",
     null,
     {
@@ -328,7 +341,7 @@ export const verifyResetSmsCodeApi = async (phone: string, code: string) => {
     phoneLength: phone.length,
     codeLength: code.length,
   });
-  const res = await apiClient.post<{ link: string; detail: string }>(
+  const res = await apiClient.post<{ link: string; detail: string; recovery_token: string }>(
     "/auth/forgot-password/phone-code",
     { phone_number: phone, code }
   );

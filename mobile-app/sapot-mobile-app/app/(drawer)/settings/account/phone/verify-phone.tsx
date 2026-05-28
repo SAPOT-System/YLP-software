@@ -7,6 +7,7 @@ import {
   verifyCodePhone,
 } from "@/features/auth/api/auth.api";
 import { toInternationalPhone } from "@/features/auth/utils/validation";
+import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
 import { VerificationCodeContent } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -31,6 +32,7 @@ export default function VerifyPhone() {
     variant: "neutral",
   });
   const userService = useUserService();
+  const { setupPhoneBlob } = useRecoveryKeySetup();
 
   useEffect(() => {
     uiLog.info("[VerifyPhone] mounted");
@@ -83,6 +85,7 @@ export default function VerifyPhone() {
     try {
       await verifyCodePhone(code);
       await userService.updateAuthenticatedUser({ phoneNumberVerified: true });
+      await setupPhoneBlob(phone);
       uiLog.info("[VerifyPhone] phone verified, navigating to PhoneVerified");
       router.replace(SETTINGS_ROUTES.PHONE_VERIFIED);
     } catch (error) {

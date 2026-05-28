@@ -18,6 +18,12 @@ const ITERATIONS: Record<RecoveryMethod, number> = {
   token: 100_000,
 };
 
+// V2 payload layout: 1-byte version (0x02) | 32-byte masterKey | 32-byte signalingKey = 65 bytes
+// V1 payload layout: 32-byte masterKey (legacy, no version byte)
+const V2_VERSION = 0x02;
+const V2_PAYLOAD_LENGTH = 65;
+const KEY_LENGTH = 32;
+
 export class KeyRecoveryService {
   async deriveWrappingKey(
     secret: string,
@@ -33,6 +39,16 @@ export class KeyRecoveryService {
     return encodeBase64(new Uint8Array([...nonce, ...ct]));
   }
 
+  wrapKeyV2(masterKey: Uint8Array, signalingKey: Uint8Array, wrappingKey: Uint8Array): string {
+    const payload = new Uint8Array(V2_PAYLOAD_LENGTH);
+    payload[0] = V2_VERSION;
+    payload.set(masterKey, 1);
+    payload.set(signalingKey, 1 + KEY_LENGTH);
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    const ct = nacl.secretbox(payload, nonce, wrappingKey);
+    return encodeBase64(new Uint8Array([...nonce, ...ct]));
+  }
+
   unwrapKey(blob: string, wrappingKey: Uint8Array): Uint8Array | null {
     try {
       const raw = decodeBase64(blob);
@@ -44,19 +60,48 @@ export class KeyRecoveryService {
     }
   }
 
+  unwrapKeyBundle(
+    blob: string,
+    wrappingKey: Uint8Array
+  ): { masterKey: Uint8Array; signalingKey?: Uint8Array } | null {
+    try {
+      const raw = decodeBase64(blob);
+      const nonce = raw.slice(0, nacl.secretbox.nonceLength);
+      const ct = raw.slice(nacl.secretbox.nonceLength);
+      const plaintext = nacl.secretbox.open(ct, nonce, wrappingKey);
+      if (!plaintext) return null;
+      if (plaintext.length === V2_PAYLOAD_LENGTH && plaintext[0] === V2_VERSION) {
+        return {
+          masterKey: plaintext.slice(1, 1 + KEY_LENGTH),
+          signalingKey: plaintext.slice(1 + KEY_LENGTH, V2_PAYLOAD_LENGTH),
+        };
+      }
+      if (plaintext.length === KEY_LENGTH) {
+        // Legacy V1: raw master key only
+        return { masterKey: new Uint8Array(plaintext) };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async wrapWithMethod(
     masterKey: Uint8Array,
     method: RecoveryMethod,
     secret: string,
     salt: string,
-    metadata?: string
+    metadata?: string,
+    signalingKey?: Uint8Array
   ): Promise<WrappedBlob> {
     const wrappingKey = await this.deriveWrappingKey(
       secret,
       salt,
       ITERATIONS[method]
     );
-    const wrapped_blob = this.wrapKey(masterKey, wrappingKey);
+    const wrapped_blob = signalingKey
+      ? this.wrapKeyV2(masterKey, signalingKey, wrappingKey)
+      : this.wrapKey(masterKey, wrappingKey);
     return { method, wrapped_blob, metadata };
   }
 
