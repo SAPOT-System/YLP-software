@@ -201,15 +201,19 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
             if not raw_payload:
                 continue
 
-            try:
-                payload = PublicMessageData.model_validate(raw_payload)
-            except Exception as _:
-                payload = raw_payload
-                
-            try:
-                payload = MessageData.model_validate(raw_payload)
-            except Exception as e:
-                payload = payload
+            if raw_payload.get("type") == "public-chat":
+                try:
+                    payload = PublicMessageData.model_validate(raw_payload)
+                except Exception:
+                    payload = raw_payload
+            else:
+                try:
+                    payload = MessageData.model_validate(raw_payload)
+                except Exception:
+                    try:
+                        payload = SignalMessage(**raw_payload)
+                    except Exception:
+                        payload = raw_payload
             if isinstance(payload, dict) and payload.get("type") == "ping":
                 await manager.send_personal_message(UUID(user_id), {"type": "pong"})
             # get online users
@@ -217,6 +221,7 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                 await manager.send_personal_message(UUID(user_id), manager.get_active_connections())
             # relay public chat data
             elif isinstance(payload, PublicMessageData):                
+                print("public message", payload)
                 await relay_public_message(user_id, payload, session)
             # relay message data
             elif isinstance(payload, MessageData):

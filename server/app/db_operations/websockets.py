@@ -10,6 +10,7 @@ from app.models.queued import Queue
 from app.models.signalling import SignalMessage
 from app.db_operations.token import verify_token
 from app.db_operations.connection_manager import manager
+from app.models.users import User
 from app.models.websocketComms import MessageData, PublicMessageData
 
 async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
@@ -135,16 +136,31 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
 
 
 async def relay_public_message(sender_id: UUID, payload: PublicMessageData, session: SessionDep):
-    # save the public message to database
     try:
-        message = payload.model_dump(exclude_unset=True)
-        message["sender_id"] = str(message["sender_id"])
-        message_to_db = Message(**payload.model_dump(exclude_unset=True))
+        dump = payload.model_dump(exclude_unset=True)
+        dump["sender_id"] = str(dump["sender_id"])
+
+        message_to_db = Message(
+            content=payload.content,
+            is_deleted=payload.is_deleted,
+            sender_id=payload.sender_id,
+            conversation_id=None,
+        )
         session.add(message_to_db)
         session.commit()
-        await manager.broadcast(message)
+        session.refresh(message_to_db)
+
+        dump["id"] = str(message_to_db.id)
+
+        sender = session.get(User, sender_id if isinstance(sender_id, UUID) else UUID(str(sender_id)))
+        if sender:
+            dump["sender_first_name"] = sender.first_name
+            dump["sender_last_name"] = sender.last_name
+            dump["sender_username"] = sender.username
+
+        await manager.broadcast(dump)
     except Exception as e:
-        pass
+        print(f"[relay_public_message] failed: {e}")
     
 
 async def receive_signal_message(websocket: WebSocket) -> SignalMessage|dict:

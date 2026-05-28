@@ -119,7 +119,7 @@ export default function PublicChat() {
             }
             renderItem={({ item }) => {
               const isOutgoing = item.sender_id === myId;
-              const senderLabel = `${item.sender_id.slice(0, 8)}…`;
+              const senderLabel = item.sender_name ?? `${item.sender_id.slice(0, 8)}…`;
               const timeLabel = formatDate(item.received_at);
 
               if (isOutgoing) {

@@ -289,12 +289,14 @@ export class WsSignalingAdapter extends EventEmitter {
         wsLog.warn("ws › payload non-string", {
           payloadType: typeof rawData,
         });
+        console.log(rawData)
         this.emit("raw-message", rawData);
         return;
       }
 
       wsLog.debug("ws › payload received", { length: rawData.length });
       const parsed = JSON.parse(rawData);
+      console.log(parsed)
 
       if (this.isControlMessage(parsed, "pong")) {
         wsLog.debug("ws › pong received");
@@ -312,6 +314,7 @@ export class WsSignalingAdapter extends EventEmitter {
           messageId: (parsed as ChatMessage).data?.messageId,
         });
         this.emit("ws-chat", parsed as ChatMessage);
+        return;
       }
       if (Array.isArray(parsed)) {
         this.emit("active-users", parsed as string[]);
@@ -326,6 +329,7 @@ export class WsSignalingAdapter extends EventEmitter {
 
       if (this.isPublicChatMessage(parsed)) {
         wsLog.debug("ws › public chat message");
+        console.log("public chat message received")
         this.emit("public-message", parsed);
         return;
       }

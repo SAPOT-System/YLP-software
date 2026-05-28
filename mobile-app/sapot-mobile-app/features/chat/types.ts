@@ -33,6 +33,7 @@ export interface PublicChatMessage {
   content: string;
   is_deleted: boolean;
   sender_id: string;
+  sender_name?: string;
   received_at: Date;
 }
 
@@ -43,4 +44,7 @@ export interface SendPublicChatPayload {
   created_at: number;
   updated_at: number;
   is_deleted: boolean;
+  sender_first_name: string;
+  sender_last_name?: string;
+  sender_username: string;
 }

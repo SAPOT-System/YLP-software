@@ -37,3 +37,6 @@ class PublicMessageData(BaseModel):
     is_deleted: bool = Field(default=False)
     conversation_id: None = None
     sender_id : UUID = Field(alias="from")
+    sender_first_name: Optional[str] = None
+    sender_last_name: Optional[str] = None
+    sender_username: Optional[str] = None
