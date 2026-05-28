@@ -8,6 +8,8 @@ import {
     useGetQuestion,
     useVerifyAnswer,
 } from "@/features/auth";
+import { extractResetToken } from "@/features/auth/utils";
+import { KeyRecoveryService } from "@/features/shared/services/key-recovery-service";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -15,7 +17,7 @@ import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
-import { deleteItemAsync, getItemAsync } from "expo-secure-store";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
@@ -25,8 +27,7 @@ const QuestionResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
 
   const getQuestionResult = useGetQuestion(identifier);
-  const { loading: gettingQuestionLoading, question, error: questionError } = getQuestionResult;
-  console.log("qe",questionError)
+  const { loading: gettingQuestionLoading, question, error: questionError, refetch } = getQuestionResult;
 
   const {
     loading: verifyAnswerLoading,
@@ -101,7 +102,7 @@ const QuestionResetScreen = () => {
           </HelperText>
           <PrimaryButton
             style={{ marginBottom: 8 }}
-            onPress={() => router.back()}
+            onPress={refetch}
           >
             Try Again
           </PrimaryButton>
@@ -125,14 +126,20 @@ const QuestionResetScreen = () => {
     const res = await verifyAnswer({ question, answer });
 
     if (res.success && res.resetLink) {
-      const token = res.resetLink.split("token=")[1];
+      const token = extractResetToken(res.resetLink);
+
+      await Promise.all([
+        setItemAsync("reset_recovery_token", res.recoveryToken ?? ""),
+        setItemAsync("reset_recovery_secret", KeyRecoveryService.normalizeAnswer(answer)),
+        setItemAsync("reset_recovery_salt", question),
+      ]);
 
       authLog.info("[Navigation] Navigating to ResetPassword", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
       });
       router.push({
         pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-        params: { token, identifier },
+        params: { token, identifier, method: "qa" },
       });
     }
   };

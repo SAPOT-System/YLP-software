@@ -82,7 +82,7 @@ export class LocalEncryptionService {
     userId: string,
     pinEnabled: boolean
   ): Promise<void> {
-    const kek = await deriveKey(password + pin, userId, 200_000);
+    const kek = await deriveKey(password, userId, 200_000);
     let blobExists = false;
 
     try {
@@ -92,7 +92,17 @@ export class LocalEncryptionService {
 
       if (res.status === 200) {
         blobExists = true;
-        const bundle = this.unwrapBundle(res.data.wrapped_blob, kek);
+        let bundle = this.unwrapBundle(res.data.wrapped_blob, kek);
+
+        if (!bundle && pin) {
+          // Migration: blob may have been wrapped with old password+pin KEK
+          const legacyKek = await deriveKey(password + pin, userId, 200_000);
+          bundle = this.unwrapBundle(res.data.wrapped_blob, legacyKek);
+          if (bundle) {
+            await this.uploadBundle(bundle, kek);
+          }
+        }
+
         if (bundle) {
           this.applyBundle(bundle);
           await this.cacheKeys(pinEnabled, bundle, pin, userId);
@@ -270,24 +280,21 @@ export class LocalEncryptionService {
     return getPinEnabled();
   }
 
-  async setupPIN(password: string, newPin: string): Promise<void> {
+  async setupPIN(_password: string, newPin: string): Promise<void> {
     const userId = this.ctx?.userId;
     if (!userId) throw new Error("setupPIN requires an authenticated user");
     const bundle: KeyBundle = {
       chat_master_key: encodeBase64(this.key!),
       signaling_secret_key: encodeBase64(this.signalingKey!),
     };
-    const newKek = await deriveKey(password + newPin, userId, 200_000);
-    await this.uploadBundle(bundle, newKek);
+    // Server blob stays password-only KEK; PIN only protects local SecureStore cache
     await this.saveLocalPinCache(bundle, newPin, userId);
     await savePinEnabled(true);
     await deleteItemAsync("masterKey");
     await deleteItemAsync("signalingSecretKey");
   }
 
-  async removePIN(password: string, currentPin: string): Promise<boolean> {
-    const userId = this.ctx?.userId;
-    if (!userId) return false;
+  async removePIN(_password: string, currentPin: string): Promise<boolean> {
     const localBlob = await getPinWrappedBundle();
     if (localBlob) {
       const ok = await this.unlockFromPinBlob(localBlob, currentPin);
@@ -297,8 +304,7 @@ export class LocalEncryptionService {
       chat_master_key: encodeBase64(this.key!),
       signaling_secret_key: encodeBase64(this.signalingKey!),
     };
-    const noPin = await deriveKey(password, userId, 200_000);
-    await this.uploadBundle(bundle, noPin);
+    // Server blob is already password-only KEK; just persist plain keys locally
     await saveMasterKey(bundle.chat_master_key);
     await saveSignalingSecretKey(bundle.signaling_secret_key);
     await deleteItemAsync("pinWrappedBundle");
@@ -307,7 +313,7 @@ export class LocalEncryptionService {
   }
 
   async changePIN(
-    password: string,
+    _password: string,
     oldPin: string,
     newPin: string
   ): Promise<boolean> {
@@ -322,8 +328,7 @@ export class LocalEncryptionService {
       chat_master_key: encodeBase64(this.key!),
       signaling_secret_key: encodeBase64(this.signalingKey!),
     };
-    const newKek = await deriveKey(password + newPin, userId, 200_000);
-    await this.uploadBundle(bundle, newKek);
+    // Server blob stays password-only KEK; only update local PIN-wrapped cache
     await this.saveLocalPinCache(bundle, newPin, userId);
     return true;
   }
@@ -347,7 +352,7 @@ export class LocalEncryptionService {
       signaling_secret_key: encodeBase64(this.signalingKey),
     };
 
-    const newKek = await deriveKey(newPassword + pin, userId, 200_000);
+    const newKek = await deriveKey(newPassword, userId, 200_000);
     await this.uploadBundle(bundle, newKek);
     await this.cacheKeys(pinEnabled, bundle, pin, userId);
   }

@@ -48,13 +48,13 @@ export const useMasterKeyRecovery = () => {
         params.salt,
         params.iterations
       );
-      const masterKey = keyRecoveryService.unwrapKey(wrapped_blob, wrappingKey);
-      if (!masterKey) {
+      const bundle = keyRecoveryService.unwrapKeyBundle(wrapped_blob, wrappingKey);
+      if (!bundle) {
         authLog.warn("[useMasterKeyRecovery] unwrap failed — wrong key");
         return { success: false };
       }
 
-      await localEncryptionService.setMasterKey(masterKey);
+      await localEncryptionService.setMasterKey(bundle.masterKey);
       return { success: true };
     } catch (error) {
       authLog.error("[useMasterKeyRecovery] fetchAndUnwrapMasterKey failed", { error });
@@ -73,33 +73,40 @@ export const useMasterKeyRecovery = () => {
   }) => {
     try {
       const masterKey = localEncryptionService.getMasterKeyBytes();
+      const signalingKey = localEncryptionService.getSignalingSecretKey();
 
       // Update primary password-wrapped key used by LocalEncryptionService
       await localEncryptionService.updateMasterKeyPassword(params.newPassword);
 
       const blobs: Array<{ method: RecoveryMethod; wrapped_blob: string; metadata?: string }> = [];
 
-      const passwordBlob = await keyRecoveryService.wrapWithMethod(
-        masterKey, "password", params.newPassword, params.userId
-      );
-      blobs.push(passwordBlob);
+      blobs.push(await keyRecoveryService.wrapWithMethod(
+        masterKey, "password", params.newPassword, params.userId, undefined, signalingKey
+      ));
 
       if (params.phone) {
-        blobs.push(await keyRecoveryService.wrapWithMethod(masterKey, "phone", params.phone, params.userId));
+        blobs.push(await keyRecoveryService.wrapWithMethod(
+          masterKey, "phone", params.phone, params.userId, undefined, signalingKey
+        ));
       }
       if (params.email) {
-        blobs.push(await keyRecoveryService.wrapWithMethod(masterKey, "email", params.email, params.userId));
+        blobs.push(await keyRecoveryService.wrapWithMethod(
+          masterKey, "email", params.email, params.userId, undefined, signalingKey
+        ));
       }
       if (params.questionText && params.answer) {
         blobs.push(await keyRecoveryService.wrapWithMethod(
           masterKey, "qa",
           KeyRecoveryService.normalizeAnswer(params.answer),
           params.questionText,
-          JSON.stringify({ question: params.questionText })
+          JSON.stringify({ question: params.questionText }),
+          signalingKey
         ));
       }
       if (params.tokenHex) {
-        blobs.push(await keyRecoveryService.wrapWithMethod(masterKey, "token", params.tokenHex, params.userId));
+        blobs.push(await keyRecoveryService.wrapWithMethod(
+          masterKey, "token", params.tokenHex, params.userId, undefined, signalingKey
+        ));
       }
 
       await updateRecoveryKeysApi(

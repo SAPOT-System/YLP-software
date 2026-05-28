@@ -7,6 +7,7 @@ import { hasValidationErrors, validatePassword } from "../utils";
 export const useChangePassword = (token: string) => {
   const [loading, setLoading] = useState(false);
   const [isTokenValid, setIsTokenValid] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<{
     password?: string;
@@ -24,8 +25,9 @@ export const useChangePassword = (token: string) => {
         return;
       }
       try {
-        const canChangePassword = await canResetPasswordApi(token);
-        setIsTokenValid(canChangePassword);
+        const result = await canResetPasswordApi(token);
+        setIsTokenValid(result.valid);
+        setUserId(result.userId);
       } catch (error) {
         authLog.error("[useChangePassword] Error in validateToken", { error });
         setIsTokenValid(false);
@@ -38,11 +40,13 @@ export const useChangePassword = (token: string) => {
     password: string;
     confirmPassword: string;
     identifier: string;
+    wrappedBlob?: string;
   }) => {
     authLog.debug("[useChangePassword] changePassword called", {
       password: "[REDACTED]",
       confirmPassword: "[REDACTED]",
       identifierLength: form.identifier.length,
+      hasWrappedBlob: Boolean(form.wrappedBlob),
     });
     if (!token) {
       setErrors({ general: "Reset token is missing. Please start again." });
@@ -61,7 +65,7 @@ export const useChangePassword = (token: string) => {
     }
 
     try {
-      const res = await resetPasswordApi(token, form.password);
+      const res = await resetPasswordApi(token, form.password, form.wrappedBlob);
 
       return { success: res.status === 200 };
     } catch (err) {
@@ -105,5 +109,5 @@ export const useChangePassword = (token: string) => {
     }
   };
 
-  return { changePassword, loading, errors, isTokenValid };
+  return { changePassword, loading, errors, isTokenValid, userId };
 };

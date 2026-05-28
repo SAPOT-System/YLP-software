@@ -1,7 +1,7 @@
 import { authLog } from "@/features/shared/utils/logger";
 import axios from "axios";
 import { useState } from "react";
-import { sendResetSmsCodeApi, verifyResetSmsCodeApi, verifyRecoveryOtpApi } from "../api/auth.api";
+import { sendResetSmsCodeApi, verifyResetSmsCodeApi } from "../api/auth.api";
 
 export const useSmsReset = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -9,7 +9,6 @@ export const useSmsReset = () => {
   const [isCodeSent, setIsCodeSent] = useState(false);
   const [phone, setPhone] = useState<string>("");
   const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
-  const [recoveryUserId, setRecoveryUserId] = useState<string | null>(null);
 
   const sendCode = async (phoneNumber: string) => {
     authLog.debug("[useSmsReset] sendCode called", {
@@ -46,16 +45,12 @@ export const useSmsReset = () => {
 
     try {
       const response = await verifyResetSmsCodeApi(phoneNumber, code);
-      try {
-        const recoveryRes = await verifyRecoveryOtpApi(phoneNumber, code);
-        setRecoveryToken(recoveryRes.data.recovery_token);
-        setRecoveryUserId(recoveryRes.data.user_id);
-      } catch {
-        // Recovery token fetch is best-effort; don't fail the reset flow
-      }
+      const rt = response.data.recovery_token ?? null;
+      setRecoveryToken(rt);
       return {
         success: response.status === 200,
         recoveryLink: response.data.link,
+        recoveryToken: rt,
       };
     } catch (err) {
       authLog.error("[useSmsReset] Error in verifyCode", { error: err });
@@ -83,7 +78,6 @@ export const useSmsReset = () => {
     isCodeSent,
     phone,
     recoveryToken,
-    recoveryUserId,
     sendCode,
     verifyCode,
     reset,

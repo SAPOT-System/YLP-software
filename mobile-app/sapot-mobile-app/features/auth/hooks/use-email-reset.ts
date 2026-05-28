@@ -46,6 +46,7 @@ export const useEmailReset = () => {
       return {
         success: response.status === 200,
         recoveryLink: response.data.link,
+        recoveryToken: response.data.recovery_token,
       };
     } catch (error) {
       authLog.error("[useEmailReset] Error in verifyCode", { error });
