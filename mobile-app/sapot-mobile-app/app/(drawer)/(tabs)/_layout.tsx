@@ -109,7 +109,7 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
-  const { isRescuer } = useAuth();
+  const { isRescuer, isGuest } = useAuth();
 
   useEffect(() => {
     navLog.info("[TabLayout] mounted");
@@ -195,6 +195,7 @@ export default function TabLayout() {
             headerTransparent: true,
             headerShadowVisible: false,
             headerStyle: { backgroundColor: "transparent" },
+            href: isGuest ? null : undefined,
             tabBarIcon: ({ color }) => (
               <SimpleLineIcons size={24} name="globe" color={color} />
             ),
@@ -225,6 +226,7 @@ export default function TabLayout() {
             ),
             headerShown: false,
             tabBarLabel: "Server",
+            href: null,
           }}
         />
         <Tabs.Screen

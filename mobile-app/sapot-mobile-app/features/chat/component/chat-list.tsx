@@ -26,10 +26,7 @@ uiLog.debug("[chat-list] module loaded");
 const enhanceChats = withObservables([], () => ({
   chats: database
     .get<Conversation>("conversations")
-    .query(
-      Q.where("is_deleted", false),
-      Q.sortBy("updated_at", Q.desc)
-    )
+    .query(Q.where("is_deleted", false), Q.sortBy("updated_at", Q.desc))
     .observe(),
 }));
 
@@ -43,33 +40,14 @@ const ChatList = enhanceChats(
     refreshing?: boolean;
     onRefresh?: () => void;
   }) => {
-    const theme = useTheme();
     const userStore = useUserStore();
     const currentUserId = userStore.user?.id ?? "";
     return (
       <View style={{ flex: 1 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            paddingHorizontal: 16,
-            marginBottom: 20,
-          }}
-        >
-          <Text
-            variant="titleLarge"
-            style={{
-              fontWeight: 700,
-              color: theme.dark ? "#9AA7C1" : "#103462",
-            }}
-          >
-            Chats
-          </Text>
-        </View>
         <FlatList
           data={chats}
           style={{ flex: 1 }}
-          ListHeaderComponent={AnnouncementListRow}
+          ListHeaderComponent={userStore.isGuest ? null : AnnouncementListRow}
           renderItem={({ item }) => (
             <ChatListItem chat={item} currentUserId={currentUserId} />
           )}
@@ -138,7 +116,11 @@ const enhanceChat = withObservables(
 
 const enhanceChatPeer = withObservables(
   ["peerParticipant"],
-  ({ peerParticipant }: { peerParticipant: ConversationParticipant | null }) => ({
+  ({
+    peerParticipant,
+  }: {
+    peerParticipant: ConversationParticipant | null;
+  }) => ({
     peer: peerParticipant
       ? peerParticipant.user.observe().pipe(catchError(() => of(null)))
       : of(null),
@@ -155,7 +137,12 @@ const getMessagePreview = (msg: Message | null): string => {
 
 type ChatListItemInnerProps = {
   peerParticipant: ConversationParticipant | null;
-  peer: { id: string; firstName?: string; lastName?: string; username?: string } | null;
+  peer: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+  } | null;
   chat: Conversation;
   latestMessage: Message | null;
   unreadCount: number;
@@ -169,11 +156,9 @@ const ChatListItemInner = enhanceChatPeer(
     const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
 
     const peerName = peer
-      ? (
-          `${peer.firstName ?? ""} ${peer.lastName ?? ""}`.trim() ||
-          peer.username ||
-          "Unknown peer"
-        )
+      ? `${peer.firstName ?? ""} ${peer.lastName ?? ""}`.trim() ||
+        peer.username ||
+        "Unknown peer"
       : "Unknown peer";
 
     return (
@@ -205,19 +190,22 @@ const ChatListItemInner = enhanceChatPeer(
           {peerProfilePicUrl ? (
             <Avatar.Image size={60} source={{ uri: peerProfilePicUrl }} />
           ) : (
-            <Avatar.Text
-              size={60}
-              label={(peerName[0] ?? "?").toUpperCase()}
-            />
+            <Avatar.Text size={60} label={(peerName[0] ?? "?").toUpperCase()} />
           )}
           <View style={{ flexGrow: 1, marginLeft: 16 }}>
             <Text
-              style={{ fontSize: 17, color: theme.dark ? "#E6ECF5" : "#1E1E1E" }}
+              style={{
+                fontSize: 17,
+                color: theme.dark ? "#E6ECF5" : "#1E1E1E",
+              }}
             >
               {peerName}
             </Text>
             <Text
-              style={{ fontSize: 17, color: theme.dark ? "#6E7891" : "#6B7280" }}
+              style={{
+                fontSize: 17,
+                color: theme.dark ? "#6E7891" : "#6B7280",
+              }}
             >
               {getMessagePreview(latestMessage)}
             </Text>
@@ -249,21 +237,29 @@ type ChatListItemProps = {
 };
 
 const ChatListItem = enhanceChat(
-  memo(({ chat, currentUserId, latestMessage, participants, unreadCount }: ChatListItemProps) => {
-    const filtered = participants.filter(
-      (p) => (p._raw as Record<string, unknown>).user !== currentUserId
-    );
-    const peerParticipant = filtered[0] ?? participants[0] ?? null;
+  memo(
+    ({
+      chat,
+      currentUserId,
+      latestMessage,
+      participants,
+      unreadCount,
+    }: ChatListItemProps) => {
+      const filtered = participants.filter(
+        (p) => (p._raw as Record<string, unknown>).user !== currentUserId
+      );
+      const peerParticipant = filtered[0] ?? participants[0] ?? null;
 
-    return (
-      <ChatListItemInner
-        peerParticipant={peerParticipant}
-        chat={chat}
-        latestMessage={latestMessage}
-        unreadCount={unreadCount}
-      />
-    );
-  })
+      return (
+        <ChatListItemInner
+          peerParticipant={peerParticipant}
+          chat={chat}
+          latestMessage={latestMessage}
+          unreadCount={unreadCount}
+        />
+      );
+    }
+  )
 );
 
 export default ChatList;

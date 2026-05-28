@@ -96,17 +96,6 @@ jest.mock("@/features/shared/hooks/use-user-store", () => ({
 }));
 
 describe("ChatList", () => {
-  it("renders chats heading", () => {
-    const queryClient = new QueryClient();
-    const { getByText } = render(
-      <QueryClientProvider client={queryClient}>
-        <AnnouncementSeenProvider>
-          <ChatList />
-        </AnnouncementSeenProvider>
-      </QueryClientProvider>
-    );
-    expect(getByText("Chats")).toBeTruthy();
-  });
 
   it("renders peer name from reactive observation", async () => {
     const queryClient = new QueryClient();

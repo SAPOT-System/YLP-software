@@ -15,20 +15,8 @@ const ONLINE_DOT_SIZE = 14;
 
 const PeerList = () => {
   const entries = usePeerListData();
-  const theme = useTheme();
   return (
     <View style={{ gap: 12, marginTop: 12 }}>
-      <Text
-        variant="bodyLarge"
-        style={{
-          fontSize: 20,
-          fontWeight: 700,
-          color: theme.dark ? "#9AA7C1" : "#103462",
-        }}
-      >
-        Peers
-      </Text>
-
       <FlatList
         horizontal
         contentContainerStyle={{ gap: 24 }}
