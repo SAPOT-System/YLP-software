@@ -221,7 +221,6 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
                 await manager.send_personal_message(UUID(user_id), manager.get_active_connections())
             # relay public chat data
             elif isinstance(payload, PublicMessageData):                
-                print("public message", payload)
                 await relay_public_message(user_id, payload, session)
             # relay message data
             elif isinstance(payload, MessageData):
