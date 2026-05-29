@@ -7,8 +7,16 @@ export type ContactKeyUploader = (
   publicKey: Uint8Array
 ) => Promise<void>;
 
+const PUB_PREFIX = "peer_ecdh_pub_";
+const HIST_PREFIX = "peer_ecdh_hist_";
+const MAX_PEER_KEY_HISTORY = 5;
+
 export class PeerKeyStore {
   private store = new Map<string, Uint8Array>();
+  /** Previously-seen public keys per peer (newest first), excluding the current
+   *  one in `store`. Retained so conversation keys derived from an older peer key
+   *  can still decrypt messages stored before the peer rotated its key. */
+  private history = new Map<string, Uint8Array[]>();
   private keySetListeners: Array<(peerId: string) => void> = [];
   /** Optional hook: called after every set() to back up the key server-side. */
   private contactKeyUploader?: ContactKeyUploader;
@@ -33,10 +41,15 @@ export class PeerKeyStore {
     const existing = this.store.get(peerId);
     if (existing && !keysEqual(existing, publicKey)) {
       // TOFU: key changed for a known peer — could be a reinstall or a MITM attempt.
-      appLog.warn("peer-key-store › public key changed for known peer", { peerId });
+      // Retain the previous key so conversation keys derived from it can still
+      // decrypt messages stored before the rotation (otherwise the history would
+      // render as un-decryptable blanks).
+      appLog.warn("peer-key-store › public key changed for known peer; retaining previous key", { peerId });
+      this.pushHistory(peerId, existing);
+      void this.persistHistory(peerId);
     }
     this.store.set(peerId, publicKey);
-    void SecureStore.setItemAsync("peer_ecdh_pub_" + peerId, encodeBase64(publicKey));
+    void SecureStore.setItemAsync(PUB_PREFIX + peerId, encodeBase64(publicKey));
     this.keySetListeners.forEach((l) => l(peerId));
     if (this.contactKeyUploader) {
       void this.contactKeyUploader(peerId, publicKey).catch((err) =>
@@ -49,8 +62,46 @@ export class PeerKeyStore {
     return this.store.get(peerId) ?? null;
   }
 
+  /** Returns previously-seen keys for a peer (newest first), excluding the
+   *  current key. Used to derive fallback conversation keys for decryption. */
+  getHistory(peerId: string): Uint8Array[] {
+    return this.history.get(peerId) ?? [];
+  }
+
+  private pushHistory(peerId: string, key: Uint8Array): void {
+    const h = this.history.get(peerId) ?? [];
+    if (h.some((k) => keysEqual(k, key))) return;
+    h.unshift(key);
+    if (h.length > MAX_PEER_KEY_HISTORY) h.length = MAX_PEER_KEY_HISTORY;
+    this.history.set(peerId, h);
+  }
+
+  private async persistHistory(peerId: string): Promise<void> {
+    const h = this.history.get(peerId) ?? [];
+    try {
+      await SecureStore.setItemAsync(
+        HIST_PREFIX + peerId,
+        JSON.stringify(h.map((k) => encodeBase64(k)))
+      );
+    } catch (err) {
+      appLog.warn("peer-key-store › history persist failed", { peerId, err });
+    }
+  }
+
+  private async loadHistory(peerId: string): Promise<void> {
+    const raw = await SecureStore.getItemAsync(HIST_PREFIX + peerId);
+    if (!raw) return;
+    try {
+      const arr = (JSON.parse(raw) as string[]).map((b) => decodeBase64(b));
+      this.history.set(peerId, arr);
+    } catch {
+      // Corrupt history entry — ignore; current key still works for new messages.
+    }
+  }
+
   async load(peerId: string): Promise<Uint8Array | null> {
-    const stored = await SecureStore.getItemAsync("peer_ecdh_pub_" + peerId);
+    await this.loadHistory(peerId);
+    const stored = await SecureStore.getItemAsync(PUB_PREFIX + peerId);
     if (!stored) return null;
     const key = decodeBase64(stored);
     this.store.set(peerId, key);
@@ -67,18 +118,26 @@ export class PeerKeyStore {
    * Also writes to SecureStore so subsequent loads work offline.
    */
   async restore(peerId: string, publicKey: Uint8Array): Promise<void> {
+    const existing = this.store.get(peerId);
+    if (existing && !keysEqual(existing, publicKey)) {
+      this.pushHistory(peerId, existing);
+      void this.persistHistory(peerId);
+    }
     this.store.set(peerId, publicKey);
-    await SecureStore.setItemAsync("peer_ecdh_pub_" + peerId, encodeBase64(publicKey));
+    await SecureStore.setItemAsync(PUB_PREFIX + peerId, encodeBase64(publicKey));
     this.keySetListeners.forEach((l) => l(peerId));
   }
 
   delete(peerId: string): void {
     this.store.delete(peerId);
-    void SecureStore.deleteItemAsync("peer_ecdh_pub_" + peerId);
+    this.history.delete(peerId);
+    void SecureStore.deleteItemAsync(PUB_PREFIX + peerId);
+    void SecureStore.deleteItemAsync(HIST_PREFIX + peerId);
   }
 
   clear(): void {
     this.store.clear();
+    this.history.clear();
   }
 }
 
