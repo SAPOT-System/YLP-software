@@ -138,11 +138,23 @@ export class ChatService {
       });
       return;
     }
+    // Register conversation keys derived from any previously-seen peer keys
+    // first, so messages stored before the peer's ECDH key rotated remain
+    // decryptable. The current key is set last so it becomes the primary key
+    // used to encrypt new messages.
+    const historicalPubKeys = this.peerKeyStore.getHistory(peerId);
+    for (const histPub of historicalPubKeys) {
+      this.messageRepository.setConversationKey(
+        conversationId,
+        nacl.box.before(histPub, mySecretKey)
+      );
+    }
     const sharedKey = nacl.box.before(peerPubKey, mySecretKey);
     this.messageRepository.setConversationKey(conversationId, sharedKey);
     chatLog.debug("chat › conversation key derived", {
       peerId,
       conversationId,
+      historicalKeys: historicalPubKeys.length,
     });
   }
 

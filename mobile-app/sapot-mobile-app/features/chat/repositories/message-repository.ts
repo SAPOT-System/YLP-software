@@ -14,9 +14,23 @@ chatLog.debug("[message-repository] module loaded");
 
 export const ECDH_PREFIX = "ecdh:";
 
+/** Max number of historical conversation keys retained per conversation so that
+ *  ciphertext encrypted under a previous peer key (e.g. before the peer's ECDH
+ *  key rotated) remains decryptable after the key is re-derived. */
+const MAX_KEY_HISTORY = 5;
+
+function keysEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((byte, i) => byte === b[i]);
+}
+
 export class MessageRepository {
   private messagesCollection: Collection<Message>;
+  /** The current (primary) key per conversation — used to encrypt new messages. */
   private conversationKeys = new Map<string, Uint8Array>();
+  /** All keys ever derived per conversation (newest first) — tried in order when
+   *  decrypting so that history survives a peer key rotation. */
+  private conversationKeyHistory = new Map<string, Uint8Array[]>();
   private migrationGuestKeys = new Map<string, Uint8Array>();
   private keySetListeners = new Set<(conversationId: string) => void>();
 
@@ -26,8 +40,39 @@ export class MessageRepository {
   }
 
   setConversationKey(conversationId: string, sharedKey: Uint8Array): void {
+    const previous = this.conversationKeys.get(conversationId);
     this.conversationKeys.set(conversationId, sharedKey);
+
+    // Maintain a bounded, de-duplicated history of keys (newest first). Without
+    // this, re-deriving the key on a TCP handshake (e.g. after the peer's app
+    // ECDH key changed) would overwrite the only key and turn previously stored
+    // ciphertext into un-decryptable blanks. Keeping past keys lets decryptContent
+    // still open older messages while new ones use the current key.
+    const history = this.conversationKeyHistory.get(conversationId) ?? [];
+    const deduped = history.filter((k) => !keysEqual(k, sharedKey));
+    deduped.unshift(sharedKey);
+    if (deduped.length > MAX_KEY_HISTORY) deduped.length = MAX_KEY_HISTORY;
+    this.conversationKeyHistory.set(conversationId, deduped);
+
+    if (previous && !keysEqual(previous, sharedKey)) {
+      chatLog.info("chat › conversation key changed; retaining previous key for decryption", {
+        conversationId,
+        candidateKeys: deduped.length,
+      });
+    }
     this.keySetListeners.forEach((l) => l(conversationId));
+  }
+
+  /**
+   * Returns all candidate keys for a conversation (current first, then history),
+   * used to attempt decryption. Falls back to the single current key if no
+   * history has been recorded.
+   */
+  private getCandidateKeys(conversationId: string): Uint8Array[] {
+    const history = this.conversationKeyHistory.get(conversationId);
+    if (history && history.length > 0) return history;
+    const current = this.conversationKeys.get(conversationId);
+    return current ? [current] : [];
   }
 
   /** Subscribe to conversation key updates. Returns an unsubscribe function. */
@@ -40,6 +85,7 @@ export class MessageRepository {
    *  stale guest-derived keys are not used once the auth ECDH keypair is active. */
   clearConversationKeys(): void {
     this.conversationKeys.clear();
+    this.conversationKeyHistory.clear();
   }
 
   /**
@@ -283,8 +329,8 @@ export class MessageRepository {
     const content = message.content;
     if (!content.startsWith(ECDH_PREFIX)) return content;
     const convId = conversationId ?? (message._raw as Record<string, string>).conversation;
-    const key = this.conversationKeys.get(convId);
-    if (!key) {
+    const candidates = this.getCandidateKeys(convId);
+    if (candidates.length === 0) {
       chatLog.warn("chat › no shared key for decryption", { conversationId: convId, messageId: message.id });
       return content;
     }
@@ -292,12 +338,17 @@ export class MessageRepository {
     if (inner.length !== 2) return content;
     const nonce = decodeBase64(inner[0]);
     const ciphertext = decodeBase64(inner[1]);
-    const plaintext = nacl.secretbox.open(ciphertext, nonce, key);
-    if (!plaintext) {
-      chatLog.warn("chat › message decryption failed", { messageId: message.id });
-      return content;
+    // Try the current key first, then any retained historical keys so that
+    // messages encrypted before a peer key rotation remain readable.
+    for (const key of candidates) {
+      const plaintext = nacl.secretbox.open(ciphertext, nonce, key);
+      if (plaintext) return new TextDecoder().decode(plaintext);
     }
-    return new TextDecoder().decode(plaintext);
+    chatLog.warn("chat › message decryption failed with all candidate keys", {
+      messageId: message.id,
+      candidateKeys: candidates.length,
+    });
+    return content;
   }
 
   prepareMessageCreate(newMessage: {
@@ -459,8 +510,8 @@ export class MessageRepository {
       const updates: Array<{ message: Message; plaintextStr: string }> = [];
       for (const message of toUpdate) {
         const convId = (message._raw as Record<string, string>).conversation;
-        const key = this.conversationKeys.get(convId);
-        if (!key) {
+        const candidates = this.getCandidateKeys(convId);
+        if (candidates.length === 0) {
           chatLog.warn("chat › decryptAllMessagesToPlaintext: no key for conversation, skipping message", {
             messageId: message.id,
             conversationId: convId,
@@ -471,7 +522,11 @@ export class MessageRepository {
         if (inner.length !== 2) continue;
         const nonce = decodeBase64(inner[0]);
         const ciphertext = decodeBase64(inner[1]);
-        const plaintext = nacl.secretbox.open(ciphertext, nonce, key);
+        let plaintext: Uint8Array | null = null;
+        for (const key of candidates) {
+          plaintext = nacl.secretbox.open(ciphertext, nonce, key);
+          if (plaintext) break;
+        }
         if (!plaintext) {
           chatLog.warn("chat › decryptAllMessagesToPlaintext: decryption failed for message", {
             messageId: message.id,
