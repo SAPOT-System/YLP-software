@@ -17,6 +17,7 @@ import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
 import { chatLog } from "@/features/shared/utils/logger";
 import { PeerKeyService } from "@/features/shared/services/peer-key-service";
 import { PeerKeyStore } from "@/features/shared/services/peer-key-store";
+import { ECDH_PREFIX } from "../repositories/message-repository";
 import * as Notifications from "expo-notifications";
 import nacl from "tweetnacl";
 import {
@@ -1443,6 +1444,20 @@ export class ChatService {
         );
         await this.connectionService.waitForDataChannel(peerId);
       }
+      // The wire protocol carries plaintext (transport + at-rest encryption are
+      // separate layers). The Message handed in here comes straight from the DB
+      // observation, so message.content is the at-rest ciphertext. Derive the
+      // conversation key and decrypt before sending, otherwise the receiver
+      // double-encrypts the ciphertext and the message renders blank.
+      await this.deriveAndSetConversationKey(peerId, message.conversation.id);
+      const plaintext = this.messageRepository.decryptMessage(message);
+      if (plaintext.startsWith(ECDH_PREFIX)) {
+        // Key not available yet — cannot recover plaintext. Leave NOT_SENT so the
+        // user can retry once the key arrives (e.g. after TCP handshake).
+        throw new Error(
+          `Cannot resend ${message.id}: conversation key not yet derived`
+        );
+      }
       // Signal retry in progress.
       await this.messageStatusRepository.updateMessageStatusByMessage(
         message.id,
@@ -1451,7 +1466,7 @@ export class ChatService {
       // auto/server mode: sendChatMessage tries WebRTC first, falls back to WS internally.
       // LAN mode: WebRTC is now connected from the block above.
       const transport = this.connectionService.sendChatMessage(peerId, {
-        message: message.content,
+        message: plaintext,
         conversationId: message.conversation.id,
         messageId: message.id,
         from: message.sender.id,

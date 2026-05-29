@@ -5,12 +5,14 @@ import { isAxiosError } from "axios";
 
 import { CallStatus } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { Message } from "@/features/shared/database/model/Message";
 import {
   getSyncLastPulledAt,
   saveSyncLastPulledAt,
 } from "@/features/shared/stores/secure-config";
 import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
 import { syncLog } from "@/features/shared/utils/logger";
+import { clearMigrationState } from "@/features/shared/stores/secure-config";
 import {
   pushLocalDataApi,
   sync as syncApi,
@@ -172,6 +174,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private retryAttempts = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private messageRepository?: MessageRepository;
+  private _skipEncryptedMessageUpdates = false;
 
   constructor({ db, messageReceiptManager, currentUserId, peerService, peerRepository }: SyncServiceParams) {
     super();
@@ -208,6 +211,17 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   setMessageRepository(repo: MessageRepository): void {
     this.messageRepository = repo;
     syncLog.info("sync › message repository set");
+  }
+
+  /**
+   * Instructs the next sync pull phase to skip overwriting locally-encrypted
+   * messages with server-side ecdh: ciphertext. Called in the migration recovery
+   * path to prevent the pull from restoring old guest-key ciphertext over messages
+   * that were just re-encrypted with the auth conversation key.
+   * The flag is consumed and cleared on the next normalizePullChanges() call.
+   */
+  skipEncryptedMessageUpdatesOnNextSync(): void {
+    this._skipEncryptedMessageUpdates = true;
   }
 
   get syncLogs() {
@@ -336,6 +350,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         syncLog.info("sync › post-migration re-encryption: re-encrypting server-pulled messages");
         await this.messageRepository.reEncryptAfterMigration();
         this.messageRepository.clearMigrationKeys();
+        await clearMigrationState();
         syncLog.info("sync › post-migration re-encryption: complete, migration keys cleared");
       }
 
@@ -1110,6 +1125,36 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     const toIds = (arr: { id?: string }[]): string[] =>
       arr.flatMap((c) => (c.id ? [c.id] : []));
 
+    // Migration recovery: collect message IDs that are already ecdh:-encrypted
+    // locally and whose server version is also ecdh:-prefixed (but a different
+    // ciphertext — typically the old guest-key version). Filtering these out
+    // prevents the pull from overwriting locally re-encrypted messages with stale
+    // server ciphertext before the push phase can send the correct content.
+    const localEncryptedUpdatesToSkip = new Set<string>();
+    if (this._skipEncryptedMessageUpdates) {
+      this._skipEncryptedMessageUpdates = false;
+      const encryptedServerUpdates = changes.messages.updated
+        .filter((item) => ((item.content ?? "") as string).startsWith("ecdh:"))
+        .map((item) => item.id ?? "")
+        .filter(Boolean);
+      if (encryptedServerUpdates.length > 0) {
+        const localMsgs = await this.db
+          .get<Message>(Message.table)
+          .query(Q.where("id", Q.oneOf(encryptedServerUpdates)))
+          .fetch();
+        for (const m of localMsgs) {
+          if (m.content.startsWith("ecdh:")) {
+            localEncryptedUpdatesToSkip.add(m.id);
+          }
+        }
+        if (localEncryptedUpdatesToSkip.size > 0) {
+          syncLog.info("sync › recovery: skipping server ecdh: overwrites for locally re-encrypted messages", {
+            count: localEncryptedUpdatesToSkip.size,
+          });
+        }
+      }
+    }
+
     const existingIds = {
       conversations: await this.checkEntitiesExist(
         "conversations",
@@ -1211,15 +1256,17 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
               updated_at: this.toTimestamp(item.updated_at),
             };
           }),
-        updated: changes.messages.updated.map((item) => ({
-          ...item,
-          conversation: item.conversation_id,
-          sender: item.sender_id,
-          message_type: item.message_type,
-          is_deleted: item.is_deleted ?? false,
-          created_at: this.toTimestamp(item.created_at),
-          updated_at: this.toTimestamp(item.updated_at),
-        })),
+        updated: changes.messages.updated
+          .filter((item) => !localEncryptedUpdatesToSkip.has(item.id ?? ""))
+          .map((item) => ({
+            ...item,
+            conversation: item.conversation_id,
+            sender: item.sender_id,
+            message_type: item.message_type,
+            is_deleted: item.is_deleted ?? false,
+            created_at: this.toTimestamp(item.created_at),
+            updated_at: this.toTimestamp(item.updated_at),
+          })),
         deleted: changes.messages.deleted,
       },
       calls: {

@@ -105,7 +105,7 @@ export class MessageRepository {
    * they will remain as plaintext or legacy ciphertext until the peer reconnects
    * and `rederiveKeyForPeer` supplies the missing key.
    */
-  async reEncryptAfterMigration(): Promise<void> {
+  async reEncryptAfterMigration(): Promise<{ reEncrypted: number; skipped: number; skippedConvIds: string[] }> {
     chatLog.info("chat › reEncryptAfterMigration start");
     try {
       const allMessages = await this.messagesCollection.query().fetch();
@@ -117,6 +117,7 @@ export class MessageRepository {
       // By pre-computing ciphertext here we can use a plain (non-async) write()
       // callback below where prepareUpdate → batch is truly synchronous.
       const updates: Array<{ message: Message; newContent: string }> = [];
+      const skippedConvIds = new Set<string>();
 
       for (const message of allMessages) {
         const raw = message._raw as Record<string, string>;
@@ -135,6 +136,7 @@ export class MessageRepository {
               messageId: message.id,
               conversationId,
             });
+            skippedConvIds.add(conversationId);
             continue;
           }
         }
@@ -142,11 +144,8 @@ export class MessageRepository {
         // Step 2: encrypt with the current auth conversation key
         const authKey = this.conversationKeys.get(conversationId);
         if (!authKey) {
-          chatLog.warn("chat › reEncryptAfterMigration: no auth key for conversation, leaving unchanged", {
-            messageId: message.id,
-            conversationId,
-          });
-          // Leave as-is — retried when peer key arrives via rederiveKeyForPeer
+          // Leave as-is — retried when peer key arrives via onConversationKeySet
+          skippedConvIds.add(conversationId);
           continue;
         }
 
@@ -158,34 +157,100 @@ export class MessageRepository {
         });
       }
 
-      if (updates.length === 0) {
+      if (updates.length === 0 && skippedConvIds.size === 0) {
         chatLog.info("chat › reEncryptAfterMigration: nothing to re-encrypt");
-        return;
+        return { reEncrypted: 0, skipped: 0, skippedConvIds: [] };
       }
 
-      // Import database before the write so there is no await inside the callback.
-      const { database } = await import("@/features/shared");
+      if (updates.length > 0) {
+        // Import database before the write so there is no await inside the callback.
+        const { database } = await import("@/features/shared");
 
-      // Synchronous write callback: prepareUpdate() and batch() are in the same
-      // execution frame with no await between them.
-      await database.write(() => {
-        const ops = updates.map(({ message, newContent }) =>
-          message.prepareUpdate((m: Message) => {
-            m.content = newContent;
-            m.isEncrypted = true;
-          })
-        );
-        return database.batch(...ops);
+        // Synchronous write callback: prepareUpdate() and batch() are in the same
+        // execution frame with no await between them.
+        await database.write(() => {
+          const ops = updates.map(({ message, newContent }) =>
+            message.prepareUpdate((m: Message) => {
+              m.content = newContent;
+              m.isEncrypted = true;
+            })
+          );
+          return database.batch(...ops);
+        });
+      }
+
+      chatLog.info("chat › reEncryptAfterMigration: summary", {
+        reEncrypted: updates.length,
+        skipped: skippedConvIds.size,
+        skippedConvIds: [...skippedConvIds],
       });
-
-      chatLog.info("chat › reEncryptAfterMigration: complete", { count: updates.length });
       // NOTE: does NOT call clearMigrationKeys() — the caller is responsible.
       // Keys must remain alive until after the first sync pull so that
       // normalizePullChanges can decrypt server-only ecdh:K_AB messages.
+      return { reEncrypted: updates.length, skipped: skippedConvIds.size, skippedConvIds: [...skippedConvIds] };
     } catch (error) {
       chatLog.error("chat › reEncryptAfterMigration failed", { error });
       throw error;
     }
+  }
+
+  /**
+   * Re-encrypts the messages of a single conversation using the current auth
+   * conversation key. Called when a key arrives late (peer connects after the
+   * initial reEncryptAfterMigration pass).
+   *
+   * Mirrors reEncryptAfterMigration's per-message logic so that no message is
+   * stranded as guest-key ciphertext:
+   *   - plaintext messages → encrypted with the auth key.
+   *   - guest-key `ecdh:` ciphertext (e.g. pulled from the server) → decrypted
+   *     with the captured migration keys, then re-encrypted with the auth key.
+   *   - messages the guest keys cannot open (already auth-encrypted, or no key)
+   *     are left unchanged.
+   */
+  async reEncryptConversation(conversationId: string): Promise<void> {
+    const authKey = this.conversationKeys.get(conversationId);
+    if (!authKey) return;
+
+    const messages = await this.messagesCollection
+      .query(Q.where("conversation", conversationId))
+      .fetch();
+
+    const updates: Array<{ message: Message; newContent: string }> = [];
+    for (const message of messages) {
+      // Determine plaintext for this message.
+      let plaintext: string | null;
+      if (!message.content.startsWith(ECDH_PREFIX)) {
+        plaintext = message.content;
+      } else {
+        // ecdh:-prefixed — try the captured guest keys. Returns null when the
+        // content is already auth-encrypted or no guest key is available, in
+        // which case we leave the message unchanged.
+        plaintext = this.tryDecryptWithMigrationKeys(message.content, conversationId);
+        if (plaintext === null) continue;
+      }
+
+      const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+      const ciphertext = nacl.secretbox(new TextEncoder().encode(plaintext), nonce, authKey);
+      updates.push({
+        message,
+        newContent: ECDH_PREFIX + encodeBase64(nonce) + ":" + encodeBase64(ciphertext),
+      });
+    }
+
+    if (updates.length === 0) return;
+
+    const { database } = await import("@/features/shared");
+    await database.write(() => {
+      const ops = updates.map(({ message, newContent }) =>
+        message.prepareUpdate((m: Message) => {
+          m.content = newContent;
+          m.isEncrypted = true;
+        })
+      );
+      return database.batch(...ops);
+    });
+
+    chatLog.info("chat › reEncryptConversation: complete", { conversationId, count: updates.length });
   }
 
   private encryptContent(

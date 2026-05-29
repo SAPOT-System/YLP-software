@@ -270,6 +270,9 @@ export function createChatServiceDependencyMocks() {
 		queryMessagesByConversation: jest.fn(),
 		queryMessageById: jest.fn(),
 		getAllMessageDestroyOps: jest.fn(),
+		decryptMessage: jest.fn((message: { content: string }) => message.content),
+		setConversationKey: jest.fn(),
+		onConversationKeySet: jest.fn(() => () => {}),
 	};
 
 	const messageStatusRepository = {

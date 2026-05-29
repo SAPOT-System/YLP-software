@@ -1,5 +1,6 @@
 import { MessageRepository } from "@/features/chat/repositories";
 import { GuestUserRepository } from "@/features/shared/repositories";
+import { setMigrationState } from "@/features/shared/stores/secure-config";
 import { authLog } from "@/features/shared/utils/logger";
 
 authLog.debug("[guest-migration-service] module loaded");
@@ -55,6 +56,15 @@ export class GuestMigrationService {
         authLog.info("guest-migration › decrypting messages to plaintext");
         await this.messageRepository.decryptAllMessagesToPlaintext();
         authLog.info("guest-migration › message decryption complete");
+
+        // Mark migration in progress ONLY after local history is plaintext. The
+        // crash-recovery path holds the auth keypair (the guest keys are gone after
+        // restart) and re-encrypts whatever plaintext it finds — so the persisted
+        // flag must imply "messages are already plaintext, awaiting auth re-encrypt".
+        // Setting it earlier would let a crash before this point strand still-guest-
+        // encrypted messages that recovery cannot decrypt.
+        await setMigrationState("in_progress");
+        authLog.info("guest-migration › state: in_progress");
 
         // Step 1b — capture the guest conversation keys before they are cleared
         // by resetForMigration(). These keys will be used in SyncService to decrypt
