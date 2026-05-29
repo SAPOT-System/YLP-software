@@ -40,6 +40,8 @@ import {
   getStoredAccessToken,
   saveConnectionConfig,
   saveUserProfile,
+  getMigrationState,
+  clearMigrationState,
 } from "./stores/secure-config";
 import { appLog } from "./utils/logger";
 
@@ -268,6 +270,10 @@ export class MainContainer {
         _pendingRawPassword = null;
         _pendingRawPIN = null;
 
+        // Tracks whether the migration recovery re-encrypt ran so the
+        // subsequent sync can protect locally re-encrypted messages.
+        let recoveryReEncryptDone = false;
+
         // ── Auth ECDH key initialisation (moved before sync so re-encrypted
         //    content is what gets pushed in the first post-migration sync) ──
         if (!this.userContainer.userStore.isGuest) {
@@ -334,6 +340,19 @@ export class MainContainer {
               await this.peerKeyStore.loadAll(peerIds);
               await this.chatService.preloadAllConversationKeys();
 
+              // Crash recovery: if a previous migration was interrupted (tokens saved
+              // but re-encryption never completed), re-run the re-encryption pass now.
+              // hasMigrationKeys() is always false on a fresh startup (in-memory only),
+              // so we detect the incomplete state via the persisted SecureStore flag.
+              const migrationState = await getMigrationState();
+              if (migrationState === "in_progress" && !this.messageRepository.hasMigrationKeys()) {
+                appLog.info("app › migrate-recovery: incomplete migration detected, re-running re-encrypt");
+                await this.messageRepository.reEncryptAfterMigration();
+                await clearMigrationState();
+                appLog.info("app › migrate-recovery: complete");
+                recoveryReEncryptDone = true;
+              }
+
               // Re-encrypt all messages with the new auth conversation keys if
               // we just completed a guest→auth migration. This ensures the first
               // sync push sends K_AB′ ciphertext instead of plaintext or stale
@@ -342,10 +361,23 @@ export class MainContainer {
                 appLog.info("app › running post-migration re-encryption pass");
                 await this.messageRepository.reEncryptAfterMigration();
                 appLog.info("app › post-migration re-encryption complete");
+                // NOTE: migration keys are NOT cleared here. They are cleared by
+                // syncService.syncNow() only after the first post-migration push —
+                // including the LAN-mode one-time forced push below — so the auth-key
+                // ciphertext is durably stored server-side before the keys (and the
+                // ability to decrypt the old guest ciphertext) are discarded.
               }
 
               this.peerKeyStore.onKeySet((peerId) => {
                 void this.chatService.rederiveKeyForPeer(peerId);
+              });
+
+              // During the migration window: when a new auth conversation key becomes
+              // available for a peer that connected late, retry re-encryption for any
+              // plaintext messages in that conversation that were skipped earlier.
+              this.messageRepository.onConversationKeySet(async (conversationId) => {
+                if (!this.messageRepository.hasMigrationKeys()) return;
+                await this.messageRepository.reEncryptConversation(conversationId);
               });
             }
           }
@@ -354,6 +386,14 @@ export class MainContainer {
         if (this.userContainer.userStore.isGuest) {
           await this.peerKeyService.initGuestKey();
 
+          // Pre-load peer keys from SecureStore and derive conversation keys so
+          // that messages are decryptable immediately on startup without waiting
+          // for a new TCP handshake.
+          const guestPeerIds =
+            (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
+          await this.peerKeyStore.loadAll(guestPeerIds);
+          await this.chatService.preloadAllConversationKeys();
+
           this.peerKeyStore.onKeySet((peerId) => {
             void this.chatService.rederiveKeyForPeer(peerId);
           });
@@ -361,11 +401,49 @@ export class MainContainer {
 
         // ── Sync (runs after auth keys are loaded so re-encrypted messages
         //    are pushed on the first sync cycle) ──
-        if (
-          this.appModeStore.getEffectiveMode(
-            this.userContainer.userStore.isGuest
-          ) !== "lan"
-        ) {
+        const effectiveMode = this.appModeStore.getEffectiveMode(
+          this.userContainer.userStore.isGuest
+        );
+        // True when a guest→auth migration (or its crash recovery) just ran and the
+        // auth-key ciphertext has not yet been pushed to the server.
+        const migrationPushPending =
+          recoveryReEncryptDone || this.messageRepository.hasMigrationKeys();
+
+        if (effectiveMode === "lan") {
+          // LAN mode normally never contacts the server. But logout wipes the local
+          // DB and re-login restores history ONLY from the server, so a migration
+          // performed purely in LAN mode would leave migrated messages unrecoverable
+          // (or unreadable as stale guest ciphertext) after a logout/login round-trip.
+          // Force a ONE-TIME server push here so the auth-key ciphertext is durably
+          // stored server-side. We do NOT install the periodic/NetInfo sync below,
+          // so LAN mode returns to offline-only operation after this single push.
+          // (Reachable only for non-guest users — this whole branch is inside the
+          //  `!isGuest` block above; guests have no server account to push to.)
+          if (migrationPushPending && !this.userContainer.userStore.isGuest) {
+            try {
+              appLog.info("app › LAN migration: forcing one-time server push");
+              // Protect the locally re-encrypted messages from being overwritten by
+              // the pull phase's stale guest-key ciphertext before the push lands.
+              this.syncService.skipEncryptedMessageUpdatesOnNextSync();
+              await this.syncService.syncNow();
+              await this.chatService.preloadAllConversationKeys();
+              appLog.info("app › LAN migration: one-time server push complete");
+            } catch (error) {
+              // Non-fatal: keys/state stay set so the crash-recovery path retries
+              // the push on the next startup once the server is reachable.
+              appLog.warn("app › LAN migration: one-time server push failed", { error });
+            }
+          }
+        } else {
+          // Normal and recovery migration paths: the pull phase must not overwrite
+          // locally re-encrypted messages with the server's older guest-key
+          // ciphertext before the push sends the auth-key version. The pull
+          // clearing the dirty flag prevents the push from ever reaching the
+          // server, so subsequent syncs keep restoring the old ciphertext and
+          // decryption fails permanently once migration keys are cleared.
+          if (migrationPushPending) {
+            this.syncService.skipEncryptedMessageUpdatesOnNextSync();
+          }
           await this.syncService.syncNow();
           // Re-derive conversation keys after sync so that conversations pulled
           // from the server on first login have their keys ready before rendering.

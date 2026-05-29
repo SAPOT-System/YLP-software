@@ -24,6 +24,7 @@ const KEYS = {
   PIN_ENABLED: "pinEnabled",
   PIN_WRAPPED_BUNDLE: "pinWrappedBundle",
   RECOVERY_TOKEN_HEX: "recoveryTokenHex",
+  MIGRATION_STATE: "guestMigrationState",
 } as const;
 
 // ── Writers ────────────────────────────────────────────────────────────────────
@@ -371,6 +372,34 @@ export const getRecoveryTokenHex = async (): Promise<string | undefined> => {
   }
 };
 
+export const setMigrationState = async (state: "in_progress"): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.MIGRATION_STATE, state);
+  } catch (error) {
+    backgroundLog.error("secure-config › migration state write failed", { error });
+    throw error;
+  }
+};
+
+export const getMigrationState = async (): Promise<"in_progress" | null> => {
+  try {
+    const val = await getItemAsync(KEYS.MIGRATION_STATE);
+    if (val === "in_progress") return val;
+    return null;
+  } catch (error) {
+    backgroundLog.error("secure-config › migration state read failed", { error });
+    return null;
+  }
+};
+
+export const clearMigrationState = async (): Promise<void> => {
+  try {
+    await deleteItemAsync(KEYS.MIGRATION_STATE);
+  } catch (error) {
+    backgroundLog.error("secure-config › migration state clear failed", { error });
+  }
+};
+
 // ── Cleanup (on logout) ────────────────────────────────────────────────────────
 
 export const clearConnectionConfig = async () => {
@@ -379,7 +408,8 @@ export const clearConnectionConfig = async () => {
       Object.values(KEYS).map((key) => {
         if (
           key !== KEYS.APP_MODE &&
-          key !== KEYS.SERVER_HOST_OVERRIDE
+          key !== KEYS.SERVER_HOST_OVERRIDE &&
+          key !== KEYS.MIGRATION_STATE
         ) {
           return deleteItemAsync(key);
         }
