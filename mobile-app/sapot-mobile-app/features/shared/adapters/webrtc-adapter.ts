@@ -195,9 +195,10 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       this.peerConnection.onconnectionstatechange = (_event) => {
-        this.trace("connection-state-change");
+        const connState = this.peerConnection?.connectionState;
+        webrtcLog.info("webrtc › connection state", { state: connState, peerId: this.peerId });
 
-        switch (this.peerConnection?.connectionState) {
+        switch (connState) {
           case "closed":
             this.trace("connection-closed");
             this.emit("connection-closed");
@@ -209,7 +210,8 @@ export class WebrtcAdapter extends EventEmitter {
             }
             break;
           case "failed":
-            this.trace("connection-failed"); // fixed typo
+            // NOTE: no event emitted here — eviction only comes from ICE max retries or data channel error
+            webrtcLog.warn("webrtc › connection state failed — no eviction triggered from here", { peerId: this.peerId });
             break;
         }
       };
@@ -220,12 +222,29 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       this.peerConnection.oniceconnectionstatechange = (_event) => {
-        this.trace("ice-state-change");
+        const iceState = this.peerConnection?.iceConnectionState;
+        webrtcLog.info("webrtc › ice state", { state: iceState, peerId: this.peerId, restartAttempts: this.iceRestartAttempts });
 
-        switch (this.peerConnection?.iceConnectionState) {
+        switch (iceState) {
           case "connected":
-          case "completed":
+          case "completed": {
+            const wasReconnecting = this.iceRestartAttempts > 0;
             this.resetIceRestartState();
+            if (wasReconnecting) {
+              webrtcLog.info("webrtc › ice reconnected after restart");
+              this.emit("ice-reconnected");
+              // Re-push the existing remote stream so the UI can refresh its RTCView.
+              // ontrack does not re-fire on a pure ICE restart, so without this the
+              // video pane stays blank after reconnect.
+              if (this.remoteStream && this.remoteStream.getTracks().length > 0) {
+                webrtcLog.info("webrtc › re-emitting remote stream after reconnect", {
+                  trackCount: this.remoteStream.getTracks().length,
+                });
+                this.emit("remoteStream", this.remoteStream);
+              } else {
+                webrtcLog.warn("webrtc › no remote stream to re-emit after reconnect");
+              }
+            }
             if (this.peerConnection?.iceConnectionState === "connected") {
               webrtcLog.info("webrtc › ice connected");
             }
@@ -233,6 +252,7 @@ export class WebrtcAdapter extends EventEmitter {
               webrtcLog.info("webrtc › ice completed");
             }
             break;
+          }
           case "disconnected":
             this.scheduleIceRestart("disconnected");
             break;
@@ -355,8 +375,19 @@ export class WebrtcAdapter extends EventEmitter {
 
     return this.enqueueNegotiation(async () => {
       try {
-        if (this.peerConnection!.signalingState !== "stable") {
-          webrtcLog.warn("webrtc › skip ice restart (not stable)");
+        const sigState = this.peerConnection!.signalingState;
+
+        if (sigState === "have-local-offer") {
+          // A previous ICE restart offer was sent but the peer never answered
+          // (likely also experiencing connectivity loss). Roll it back so we
+          // can create a fresh offer with new ICE credentials.
+          webrtcLog.info("webrtc › rolling back unanswered offer before ice restart");
+          await this.peerConnection!.setLocalDescription(
+            new RTCSessionDescription({ type: "rollback", sdp: "" })
+          );
+          this.isMakingOffer = false;
+        } else if (sigState !== "stable") {
+          webrtcLog.warn("webrtc › skip ice restart (not stable)", { signalingState: sigState });
           return;
         }
 
@@ -391,6 +422,9 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   private resetIceRestartState() {
+    if (this.iceRestartAttempts > 0) {
+      webrtcLog.info("webrtc › ice restart state cleared", { attemptsUsed: this.iceRestartAttempts, peerId: this.peerId });
+    }
     this.iceRestartAttempts = 0;
     if (this.iceRestartTimer) {
       clearTimeout(this.iceRestartTimer);
@@ -402,9 +436,16 @@ export class WebrtcAdapter extends EventEmitter {
     reason: "disconnected" | "failed",
     immediate = false
   ) {
+    webrtcLog.info("webrtc › schedule ice restart", {
+      reason,
+      attempt: this.iceRestartAttempts + 1,
+      max: this.maxIceRestartAttempts,
+      isIceRestarting: this.isIceRestarting, // always false — guard is dead code
+      signalingState: this.peerConnection?.signalingState,
+    });
     if (this.isIceRestarting) return;
     if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
-      webrtcLog.warn("webrtc › ice restart attempts exceeded", { reason });
+      webrtcLog.warn("webrtc › ice restart attempts exceeded — emitting connection-failed", { reason, attempts: this.iceRestartAttempts });
       this.emit(
         "connection-failed",
         new Error("ICE restart attempts exceeded")
@@ -417,10 +458,35 @@ export class WebrtcAdapter extends EventEmitter {
       this.iceRestartTimer = undefined;
     }
 
+    // Notify upstream that a reconnect attempt is starting so the UI can
+    // transition to a "reconnecting" state immediately.
+    this.emit("ice-restarting");
+
     const delayMs = immediate ? 0 : this.iceRestartDelayMs;
     this.iceRestartTimer = setTimeout(() => {
       this.iceRestartAttempts += 1;
-      this.restartIce();
+      this.restartIce()
+        .catch((err) => {
+          webrtcLog.warn("webrtc › ice restart attempt threw", { err, attempt: this.iceRestartAttempts });
+        })
+        .finally(() => {
+          // ICE only transitions from "failed" → "checking" when the remote peer
+          // applies our offer and sends an answer. If the peer is unreachable the
+          // iceConnectionState stays "failed" and oniceconnectionstatechange never
+          // re-fires, so the normal event-driven retry chain breaks here.
+          // Arm a fallback timer: if ICE hasn't recovered after the peer answer
+          // window, force the next attempt directly.
+          this.iceRestartTimer = setTimeout(() => {
+            const iceState = this.peerConnection?.iceConnectionState;
+            if (iceState === "failed" || iceState === "disconnected") {
+              webrtcLog.info("webrtc › offer unanswered — forcing next restart attempt", {
+                iceState,
+                attempts: this.iceRestartAttempts,
+              });
+              this.scheduleIceRestart("failed", true);
+            }
+          }, 5000);
+        });
     }, delayMs);
   }
 

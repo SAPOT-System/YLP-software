@@ -29,6 +29,7 @@ export type CallState =
   | "calling"
   | "answering"
   | "connected"
+  | "reconnecting"
   | "ended"
   | "no-answer"
   | "busy";
@@ -387,6 +388,56 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       connectionService.off("call-ended", handler);
     };
   }, [connectionService, peerId, terminate, callService]);
+
+  // ─────────────────────────────────────────────
+  // Connection loss / reconnection detection
+  // ─────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!peerId) return;
+
+    const onReconnecting = (incomingPeerId: string) => {
+      if (incomingPeerId !== peerId) return;
+      callLog.info("[CallContext] call › reconnecting", { peerId });
+      // Allow both sides to re-sync mic/cam state when the connection restores.
+      hasSyncedMediaState.current = false;
+      setCallState("reconnecting");
+    };
+
+    const onPeerReconnected = (incomingPeerId: string) => {
+      if (incomingPeerId !== peerId) return;
+      // ice-reconnected and datachannel-open both emit peer-reconnected in quick
+      // succession. Only act on the first one to avoid a double RTCView remount.
+      setCallState((prev) => {
+        if (prev !== "reconnecting") return prev;
+        callLog.info("[CallContext] call › peer reconnected", { peerId });
+        return "connected";
+      });
+    };
+
+    const onPeerDisconnected = (incomingPeerId: string) => {
+      if (incomingPeerId !== peerId) return;
+      if (hasTerminated.current) return;
+      callLog.warn("[CallContext] call › peer disconnected — all retries failed", { peerId });
+      hasTerminated.current = true;
+      callService
+        .terminateCallConnection(peerId, "missed")
+        .catch((err) =>
+          uiLog.error("[CallContext] terminate on disconnect failed", { err })
+        );
+      setCallState("ended");
+    };
+
+    connectionService.on("call-reconnecting", onReconnecting);
+    connectionService.on("peer-reconnected", onPeerReconnected);
+    connectionService.on("peer-disconnected", onPeerDisconnected);
+
+    return () => {
+      connectionService.off("call-reconnecting", onReconnecting);
+      connectionService.off("peer-reconnected", onPeerReconnected);
+      connectionService.off("peer-disconnected", onPeerDisconnected);
+    };
+  }, [connectionService, peerId, callService]);
 
   // ─────────────────────────────────────────────
   // Ready flag for remote stream (small delay to let RTCView settle)

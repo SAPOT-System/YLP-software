@@ -75,6 +75,8 @@ export type ConnectionServiceEvents = {
   "mic-on": [peerId: string];
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
+  "peer-disconnected": [peerId: string];
+  "call-reconnecting": [peerId: string];
   "connection-state": [payload: ConnectionStatePayload];
 };
 
@@ -137,6 +139,15 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         transport: "none",
         mode: this.appModeStore.getEffectiveMode(this.userStore.isGuest),
       });
+      // If this peer was the active call partner, notify so the call UI can
+      // transition to "ended" rather than staying stuck in "connected".
+      if (this.activeCallPeerId === peerId) {
+        connectionLog.warn("connection › peer evicted during active call", { peerId });
+        this.emit("peer-disconnected", peerId);
+      }
+    });
+    this.webrtcSessionManager.on("call-reconnecting", (peerId) => {
+      this.emit("call-reconnecting", peerId);
     });
     this.webrtcSessionManager.on("camera-on", (peerId) => {
       this.emit("camera-on", peerId);

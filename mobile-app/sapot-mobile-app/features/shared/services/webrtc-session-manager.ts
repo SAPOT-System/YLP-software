@@ -18,6 +18,7 @@ webrtcLog.debug("[webrtc-session-manager] module loaded");
 type WebrtcSessionManagerEvents = {
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
+  "call-reconnecting": [peerId: string];
   "camera-off": [peerId: string];
   "camera-on": [peerId: string];
   "switch-cam": [stream: MediaStream];
@@ -159,14 +160,27 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     });
 
     webrtcAdapter.on("datachannel-open", () => {
+      webrtcLog.info("webrtc › datachannel-open → peer-reconnected", { peerId });
       this.emit("peer-reconnected", peerId);
     });
 
+    webrtcAdapter.on("ice-reconnected", () => {
+      webrtcLog.info("webrtc › ice-reconnected → peer-reconnected", { peerId });
+      this.emit("peer-reconnected", peerId);
+    });
+
+    webrtcAdapter.on("ice-restarting", () => {
+      webrtcLog.info("webrtc › ice-restarting → call-reconnecting", { peerId });
+      this.emit("call-reconnecting", peerId);
+    });
+
     webrtcAdapter.on("connection-closed", () => {
+      webrtcLog.warn("webrtc › connection-closed → evicting adapter", { peerId });
       this.evictWebrtcAdapter(peerId);
     });
 
     webrtcAdapter.on("connection-failed", () => {
+      webrtcLog.warn("webrtc › connection-failed → evicting adapter", { peerId });
       this.evictWebrtcAdapter(peerId);
     });
 

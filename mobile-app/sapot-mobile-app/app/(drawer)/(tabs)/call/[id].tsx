@@ -147,7 +147,7 @@ export default function CallRoom() {
   }, [hideControls, controlsAnim]);
 
   useEffect(() => {
-    if (callState === "connected") {
+    if (callState === "connected" || callState === "reconnecting") {
       showControls();
     }
 
@@ -160,8 +160,11 @@ export default function CallRoom() {
   // Derived UI flags
   // ─────────────────────────────────────────────
 
-  const isActive = callState === "calling" || callState === "connected";
-  const showVideoStreams = callState === "connected";
+  const isActive =
+    callState === "calling" ||
+    callState === "connected" ||
+    callState === "reconnecting";
+  const showVideoStreams = callState === "connected" || callState === "reconnecting";
 
   // ─────────────────────────────────────────────
   // Render
@@ -171,7 +174,7 @@ export default function CallRoom() {
     <Pressable
       style={{ flex: 1 }}
       onPress={() => {
-        if (callState === "connected") {
+        if (callState === "connected" || callState === "reconnecting") {
           showControls();
         }
       }}
@@ -182,8 +185,8 @@ export default function CallRoom() {
         end={{ x: 0, y: 0 }}
         style={styles.container}
       >
-        {/* Back / minimize button (shown when connected) */}
-        {callState === "connected" && (
+        {/* Back / minimize button (shown when connected or reconnecting) */}
+        {(callState === "connected" || callState === "reconnecting") && (
           <TouchableOpacity style={styles.backButton} onPress={minimize}>
             <Feather name="chevron-down" size={28} color={COLORS.primary} />
           </TouchableOpacity>
@@ -209,16 +212,17 @@ export default function CallRoom() {
         <Text style={styles.statusText}>
           {callState === "calling" && "Calling..."}
           {callState === "connected" && formatDuration(elapsed)}
+          {callState === "reconnecting" && "Reconnecting…"}
           {callState === "ended" && "Call ended"}
           {callState === "no-answer" && "Did not answer"}
           {callState === "busy" && `${peerDisplayName} is in another call`}
         </Text>
 
-        {/* Video streams (video call, connected state) */}
+        {/* Video streams (video call, connected or reconnecting state) */}
         {showVideoStreams && (
           <View style={styles.videoContainer}>
             <View style={styles.remoteVideoWrap}>
-              {remoteStreamUrl && remoteCam ? (
+              {remoteStreamUrl && remoteCam && callState === "connected" ? (
                 <RTCView
                   key={remoteStreamVersion}
                   streamURL={remoteStreamUrl}
@@ -254,6 +258,12 @@ export default function CallRoom() {
               />
             ) : (
               <View style={styles.localVideo} />
+            )}
+
+            {callState === "reconnecting" && (
+              <View style={styles.reconnectingOverlay}>
+                <Text style={styles.reconnectingOverlayText}>Reconnecting…</Text>
+              </View>
             )}
           </View>
         )}
@@ -591,5 +601,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  reconnectingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
+  },
+  reconnectingOverlayText: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "500",
   },
 });

@@ -201,7 +201,8 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
             if not raw_payload:
                 continue
 
-            if raw_payload.get("type") == "public-chat":
+            raw_type = raw_payload.type if hasattr(raw_payload, "type") else raw_payload.get("type")
+            if raw_type == "public-chat":
                 try:
                     payload = PublicMessageData.model_validate(raw_payload)
                 except Exception:
