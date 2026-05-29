@@ -74,10 +74,14 @@ export default function GpsScreen() {
   );
   const isInitialLoading = isLoading && rawLocations.length === 0;
   const showEmptyState =
-    locationGranted === true && !isLoading && !isError && userLocations.length === 0;
+    locationGranted === true &&
+    !isLoading &&
+    !isError &&
+    userLocations.length === 0;
   const errorMessage =
     error instanceof Error ? error.message : "Unable to load live locations.";
   const overlayBottom = insets.bottom + 16;
+
 
   const pathGeoJSON = useMemo(() => {
     if (!historyData || historyData.length < 2) return null;
@@ -159,16 +163,16 @@ export default function GpsScreen() {
 
   if (locationGranted === null) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
         <View style={styles.stateContainer}>
           <ActivityIndicator
             animating
             size="large"
             color={theme.colors.primary}
           />
-          <Text variant="bodyMedium">
-            Requesting location permission...
-          </Text>
+          <Text variant="bodyMedium">Requesting location permission...</Text>
         </View>
       </View>
     );
@@ -176,7 +180,9 @@ export default function GpsScreen() {
 
   if (locationGranted === false) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
         <View style={styles.stateContainer}>
           <Icon source="map-marker-off" size={48} color={theme.colors.error} />
           <Text
@@ -187,10 +193,7 @@ export default function GpsScreen() {
           </Text>
           <Text
             variant="bodySmall"
-            style={[
-              styles.stateBody,
-              { color: theme.colors.onSurfaceVariant },
-            ]}
+            style={[styles.stateBody, { color: theme.colors.onSurfaceVariant }]}
           >
             Enable location in your device settings to use the map.
           </Text>
@@ -203,10 +206,15 @@ export default function GpsScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <View style={styles.mapContainer}>
         <Map style={styles.map} mapStyle={EMPTY_STYLE} androidView="texture">
-          <Camera trackUserLocation={followUser ? "default" : undefined} zoom={14} />
+          <Camera
+            trackUserLocation={followUser ? "default" : undefined}
+            zoom={14}
+          />
           <RasterSource
             id="tileserver"
             tiles={[TILE_URL]}
@@ -272,15 +280,19 @@ export default function GpsScreen() {
                     "interpolate",
                     ["linear"],
                     ["line-progress"],
-                    0, `${theme.colors.error}1A`,
-                    1, theme.colors.error,
+                    0,
+                    `${theme.colors.error}1A`,
+                    1,
+                    theme.colors.error,
                   ],
                   "line-width": [
                     "interpolate",
                     ["linear"],
                     ["line-progress"],
-                    0, 1.5,
-                    1, 4,
+                    0,
+                    1.5,
+                    1,
+                    4,
                   ],
                 }}
                 layout={{
@@ -361,17 +373,31 @@ export default function GpsScreen() {
               ]}
             >
               <Icon
-                source={showNoHistoryBanner ? "map-marker-off" : "map-marker-path"}
+                source={
+                  showNoHistoryBanner ? "map-marker-off" : "map-marker-path"
+                }
                 size={16}
-                color={showNoHistoryBanner ? theme.colors.onSurfaceVariant : theme.colors.primary}
+                color={
+                  showNoHistoryBanner
+                    ? theme.colors.onSurfaceVariant
+                    : theme.colors.primary
+                }
               />
-              <Text variant="bodySmall" style={styles.pathBannerText} numberOfLines={1}>
+              <Text
+                variant="bodySmall"
+                style={styles.pathBannerText}
+                numberOfLines={1}
+              >
                 {showNoHistoryBanner
                   ? `No history for ${selectedUser?.username ?? "User"}`
                   : `${selectedUser?.username ?? "User"}'s path`}
               </Text>
               <Pressable onPress={clearPath} hitSlop={8}>
-                <Icon source="close-circle" size={20} color={theme.colors.onSurfaceVariant} />
+                <Icon
+                  source="close-circle"
+                  size={20}
+                  color={theme.colors.onSurfaceVariant}
+                />
               </Pressable>
             </View>
           </View>
@@ -398,7 +424,11 @@ export default function GpsScreen() {
               <Icon
                 source="map-marker-path"
                 size={22}
-                color={pathMode ? theme.colors.onPrimaryContainer : theme.colors.primary}
+                color={
+                  pathMode
+                    ? theme.colors.onPrimaryContainer
+                    : theme.colors.primary
+                }
               />
             </Pressable>
           </View>
@@ -415,7 +445,11 @@ export default function GpsScreen() {
               ]}
             >
               <Pressable onPress={handleRecenter} hitSlop={8}>
-                <Icon source="crosshairs-gps" size={22} color={theme.colors.primary} />
+                <Icon
+                  source="crosshairs-gps"
+                  size={22}
+                  color={theme.colors.primary}
+                />
               </Pressable>
             </View>
           </View>
@@ -441,7 +475,10 @@ export default function GpsScreen() {
           </View>
         )}
         {isError && (
-          <View pointerEvents="box-none" style={[styles.overlay, { bottom: overlayBottom }]}>
+          <View
+            pointerEvents="box-none"
+            style={[styles.overlay, { bottom: overlayBottom }]}
+          >
             <View
               style={[
                 styles.overlayCard,
@@ -451,7 +488,11 @@ export default function GpsScreen() {
                 },
               ]}
             >
-              <Icon source="alert-circle-outline" size={20} color={theme.colors.error} />
+              <Icon
+                source="alert-circle-outline"
+                size={20}
+                color={theme.colors.error}
+              />
               <Text variant="bodySmall" style={{ textAlign: "center" }}>
                 {errorMessage}
               </Text>
@@ -475,9 +516,13 @@ export default function GpsScreen() {
                 },
               ]}
             >
-              <Icon source="account-group-outline" size={20} color={theme.colors.primary} />
+              <Icon
+                source="account-group-outline"
+                size={20}
+                color={theme.colors.primary}
+              />
               <Text variant="bodySmall" style={{ textAlign: "center" }}>
-                No other rescuers are sharing their location right now.
+                No other users are sharing their location right now.
               </Text>
             </View>
           </View>

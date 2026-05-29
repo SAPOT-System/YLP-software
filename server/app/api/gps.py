@@ -14,6 +14,7 @@ import uuid
 
 
 from app.db_operations.token import get_current_user, get_current_user_rescuer
+from app.db_operations.websockets import authenticate_websocket
 from app.models.users import User
 from app.models.location import UserLocation
 from app.db_operations.GPS_manager import gps_manager
@@ -32,16 +33,21 @@ router = APIRouter(
 async def stream_gps_location(
     websocket: WebSocket,
     user_id: str,
-    session: SessionDep # Use your Session dependency
+    token: str,
+    session: SessionDep
 ):
+    authed_id = await authenticate_websocket(websocket, token)
+    if str(authed_id) != user_id:
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
 
     try:
         user_uuid = uuid.UUID(user_id)
-        user = get_user_by_ID(session, user_uuid)
-
+        user = session.exec(select(User).where(User.id == user_uuid)).first()
         if not user:
-            raise Exception("No user found.")
+            await websocket.close(code=4004, reason="user_not_found")
+            return
         
         while True:
             # 1. Receive data from React Native
