@@ -367,6 +367,9 @@ export class MainContainer {
           ) !== "lan"
         ) {
           await this.syncService.syncNow();
+          // Re-derive conversation keys after sync so that conversations pulled
+          // from the server on first login have their keys ready before rendering.
+          await this.chatService.preloadAllConversationKeys();
 
           this.unsubscribeNetInfo = NetInfo.addEventListener(
             (state: NetInfoState) => {

@@ -1,7 +1,7 @@
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Feather } from "@expo/vector-icons";
-import React, { memo, useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useReducer, useRef, useState } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
 import { catchError, map, of } from "rxjs";
 
@@ -16,6 +16,7 @@ import {
 import { MessageType } from "@/features/shared/database/model/Message";
 import { CallType } from "@/features/shared/database/model/Call";
 import { useMainContainer } from "@/features/shared/hooks";
+import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { usePeerService } from "@/features/shared/hooks";
@@ -300,7 +301,18 @@ type MessageListItemProps = {
 
 const useDecryptedContent = (message: Message): string => {
   const { messageRepository } = useMainContainer();
-  return messageRepository.decryptMessage(message);
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+
+  useEffect(() => {
+    const convId = (message._raw as Record<string, string>).conversation;
+    return messageRepository.onConversationKeySet((updatedConvId) => {
+      if (updatedConvId === convId) forceUpdate();
+    });
+  }, [message, messageRepository]);
+
+  const content = messageRepository.decryptMessage(message);
+  // While the conversation key is not yet derived, avoid rendering raw ciphertext.
+  return content.startsWith(ECDH_PREFIX) ? "" : content;
 };
 
 const MessageListItemInner = memo(
