@@ -699,6 +699,7 @@ export class ChatService {
       });
       // Start 12s ACK timeout — if no DELIVERED (WebRTC) or server-ack (WS) arrives,
       // flip back to NOT_SENT so the message is eligible for the retry queue.
+      // Only downgrades SENDING/SENT — never overrides DELIVERED or READ.
       const timeout = setTimeout(async () => {
         this.ackTimeouts.delete(newMessage.id);
         chatLog.warn(
@@ -706,9 +707,8 @@ export class ChatService {
           newMessage.id,
           newMessageStatus.id
         );
-        await this.messageStatusRepository.updateMessageStatusById(
-          newMessageStatus.id,
-          MessageStatusType.NOT_SENT
+        await this.messageStatusRepository.updateToNotSentIfStillPendingById(
+          newMessageStatus.id
         );
       }, 12000);
       chatLog.info("chat › acktimeout sets");
@@ -1274,11 +1274,11 @@ export class ChatService {
       } else {
         // WS path: start 12s timeout — if no server-ack arrives, flip to NOT_SENT
         // so the message re-enters the retry queue on the next reconnect.
+        // Only downgrades SENDING/SENT — never overrides DELIVERED or READ.
         const timeout = setTimeout(async () => {
           this.ackTimeouts.delete(message.id);
-          await this.messageStatusRepository.updateMessageStatusByMessage(
-            message.id,
-            MessageStatusType.NOT_SENT
+          await this.messageStatusRepository.updateToNotSentIfStillPendingByMessage(
+            message.id
           );
         }, 12000);
         this.ackTimeouts.set(message.id, timeout);

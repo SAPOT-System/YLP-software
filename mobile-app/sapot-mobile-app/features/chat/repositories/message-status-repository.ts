@@ -261,6 +261,52 @@ export class MessageStatusRepository {
     }
   }
 
+  async updateToNotSentIfStillPendingById(statusId: string): Promise<void> {
+    try {
+      await this.db.write(async () => {
+        const records = await this.messageStatusCollection
+          .query(Q.where("id", statusId))
+          .fetch();
+        if (records.length === 0) return;
+        const record = records[0];
+        if (
+          record.status === MessageStatusType.SENDING ||
+          record.status === MessageStatusType.SENT
+        ) {
+          await record.update((r) => {
+            r.status = MessageStatusType.NOT_SENT;
+            r.updatedAt = new Date();
+          });
+        }
+      });
+    } catch (error) {
+      chatLog.error("chat › conditional not-sent update by id failed", { statusId, error });
+    }
+  }
+
+  async updateToNotSentIfStillPendingByMessage(messageId: string): Promise<void> {
+    try {
+      await this.db.write(async () => {
+        const records = await this.messageStatusCollection
+          .query(Q.where("message", messageId))
+          .fetch();
+        if (records.length === 0) return;
+        const record = records[0];
+        if (
+          record.status === MessageStatusType.SENDING ||
+          record.status === MessageStatusType.SENT
+        ) {
+          await record.update((r) => {
+            r.status = MessageStatusType.NOT_SENT;
+            r.updatedAt = new Date();
+          });
+        }
+      });
+    } catch (error) {
+      chatLog.error("chat › conditional not-sent update by message failed", { messageId, error });
+    }
+  }
+
   /**
    * Gets destroy operations for all message statuses (for debugging/testing purposes).
    * @returns Promise<any[]> Array of destroy operations
