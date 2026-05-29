@@ -248,6 +248,7 @@ class UserCreate(UserBase):
 class UserCreateThroughAdmin(UserCreate):
     is_admin: bool = False
     is_rescuer: bool = False
+    terms_accepted: bool = True
 
 
 class UserUpdate(SQLModel):

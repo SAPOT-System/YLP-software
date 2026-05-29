@@ -7,6 +7,7 @@ import { directConversationId } from "@/lib/directConversationId";
 import { pull, push, sync } from "@/lib/sync/syncEngine";
 import { connectWebSocket } from "@/lib/ws/Websocketmanager";
 import { onMessage, sendChatMessage, sendSeen } from "@/lib/ws/Websocketmanager";
+import { fetchAndCachePeerKey, decryptFromPeer, ensureAdminKeysLoaded } from "@/lib/adminEncryption";
 import { markConversationMessagesAsRead } from "@/lib/records/Createmessagereceipt";
 import { useEffect, useRef, useState } from "react";
 import { Loader } from "lucide-react";
@@ -59,6 +60,9 @@ export default function Messages() {
 
 	useEffect(() => {
 		initSessionCleanup();
+		// Load ECDH keypair from localStorage immediately so decryption
+		// is available before the WebSocket connects and sync runs.
+		ensureAdminKeysLoaded();
 
 		let unsubscribe: (() => void) | null = null;
 
@@ -399,8 +403,24 @@ export default function Messages() {
 
 					}, null);
 
+					// Decrypt messages that were stored encrypted.
+					// Own messages are encrypted for the peer → use peer's shared key.
+					// Received messages are encrypted by the sender → use sender's shared key.
+					let content = msg.content;
+					if (content?.startsWith("ecdh:") && msg.sender_id) {
+						const isMine = msg.sender_id === userIdRef.current;
+						const peerId = isMine
+							? activeConversationRef.current?.peer?.id
+							: msg.sender_id;
+						if (peerId) {
+							await fetchAndCachePeerKey(peerId);
+							content = decryptFromPeer(peerId, content);
+						}
+					}
+
 					return {
 						...msg,
+						content,
 						receiptStatus: best,
 					};
 				})
@@ -470,11 +490,21 @@ export default function Messages() {
           })
         );
 
-        const latestMsg = await db.messages
+        const latestMsgRaw = await db.messages
           .where("conversation_id")
           .equals(conv.id)
           .sortBy("created_at")
           .then((msgs) => msgs[msgs.length - 1] ?? null);
+
+        // Decrypt the preview if the latest message is encrypted
+        let latestMsg = latestMsgRaw;
+        if (latestMsgRaw?.content?.startsWith("ecdh:") && latestMsgRaw.sender_id) {
+          await fetchAndCachePeerKey(latestMsgRaw.sender_id);
+          latestMsg = {
+            ...latestMsgRaw,
+            content: decryptFromPeer(latestMsgRaw.sender_id, latestMsgRaw.content),
+          };
+        }
 
         const validPeers = peers.filter(Boolean);
         // For normal convos: show the other person. For self-convos: show yourself.
@@ -513,12 +543,31 @@ export default function Messages() {
       });
     }
 
+    // Preload ECDH key so the first message can be encrypted immediately
+    await fetchAndCachePeerKey(userIDB);
+
     const currentUser = await ensureCurrentUser();
     const currentUserId = currentUser.id;
     const conversationId = directConversationId(currentUserId, userIDB);
     const record = await db.conversations.get(conversationId);
 
     if (!record) {
+      // Fallback: check for an existing conversation by participant pair to avoid duplicates
+      const myParticipations = await db.conversation_participants
+        .where("user_id").equals(currentUserId).toArray();
+      const myConvIds = new Set(myParticipations.map((p) => p.conversation_id));
+      const theirParticipations = await db.conversation_participants
+        .where("user_id").equals(userIDB).toArray();
+      const sharedConvId = theirParticipations.find((p) => myConvIds.has(p.conversation_id))?.conversation_id;
+
+      if (sharedConvId) {
+        const convos = await getConversations();
+        setConversations(convos);
+        const target = convos.find((c) => c.id === sharedConvId);
+        if (target) await openConversation(target);
+        return;
+      }
+
       await createConversation({ id: conversationId, conversation_type: "solo" });
       await createConversationParticipant({ id: uuidv4(), conversation_id: conversationId, user_id: currentUserId });
       await createConversationParticipant({ id: uuidv4(), conversation_id: conversationId, user_id: userIDB });
