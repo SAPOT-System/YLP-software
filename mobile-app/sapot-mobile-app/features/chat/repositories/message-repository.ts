@@ -12,12 +12,13 @@ import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 
 chatLog.debug("[message-repository] module loaded");
 
-const ECDH_PREFIX = "ecdh:";
+export const ECDH_PREFIX = "ecdh:";
 
 export class MessageRepository {
   private messagesCollection: Collection<Message>;
   private conversationKeys = new Map<string, Uint8Array>();
   private migrationGuestKeys = new Map<string, Uint8Array>();
+  private keySetListeners = new Set<(conversationId: string) => void>();
 
   constructor(private db: Database) {
     this.messagesCollection = db.get<Message>(Message.table);
@@ -26,6 +27,13 @@ export class MessageRepository {
 
   setConversationKey(conversationId: string, sharedKey: Uint8Array): void {
     this.conversationKeys.set(conversationId, sharedKey);
+    this.keySetListeners.forEach((l) => l(conversationId));
+  }
+
+  /** Subscribe to conversation key updates. Returns an unsubscribe function. */
+  onConversationKeySet(listener: (conversationId: string) => void): () => void {
+    this.keySetListeners.add(listener);
+    return () => this.keySetListeners.delete(listener);
   }
 
   /** Clears all in-memory conversation keys. Called on guest→auth migration so
