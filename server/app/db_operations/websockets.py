@@ -101,7 +101,7 @@ def delete_from_queue(queue: Queue, session: SessionDep):
 async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, session: SessionDep):
     message = {
         "type": payload.type,
-        "data": payload.data.model_dump(exclude_none=True)
+        "data": payload.data.model_dump(exclude_none=True, by_alias=True)
     }
     if not isinstance(target_id, UUID):
         target_id = UUID(target_id)
