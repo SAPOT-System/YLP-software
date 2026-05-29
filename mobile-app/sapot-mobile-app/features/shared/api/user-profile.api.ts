@@ -14,6 +14,7 @@ export const getUserApi = async (accessToken?: string) => {
     id: string;
     email_verified: boolean;
     phone_verified: boolean;
+    role: string;
   }>("/user-utils/current-user-info/", {
     headers: accessToken
       ? {
@@ -115,5 +116,11 @@ export const getUserProfilePicApi = async (userId: string) => {
 export const isRescuerApi = async () => {
   apiLog.debug("api › is rescuer");
   const res = await apiClient.get<boolean>("/user-utils/is-rescuer");
+  return res.data;
+};
+
+export const isAdminApi = async () => {
+  apiLog.debug("api › is admin");
+  const res = await apiClient.get<boolean>("/user-utils/is-admin");
   return res.data;
 };

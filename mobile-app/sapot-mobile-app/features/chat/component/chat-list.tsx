@@ -5,6 +5,7 @@ import {
   MessageStatus,
   MessageStatusType,
   MessageType,
+  Peer,
   database,
   formatDate,
 } from "@/features/shared";
@@ -148,6 +149,33 @@ type ChatListItemInnerProps = {
   unreadCount: number;
 };
 
+const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  admin: { bg: "#7C3AED", text: "#FFFFFF" },
+  rescuer: { bg: "#059669", text: "#FFFFFF" },
+};
+
+const RoleBadge = ({ role }: { role?: string }) => {
+  if (!role || role === "user") return null;
+  const colors = ROLE_COLORS[role];
+  if (!colors) return null;
+  return (
+    <View
+      style={{
+        backgroundColor: colors.bg,
+        borderRadius: 4,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        marginLeft: 6,
+        alignSelf: "center",
+      }}
+    >
+      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
+        {role.charAt(0).toUpperCase() + role.slice(1)}
+      </Text>
+    </View>
+  );
+};
+
 const ChatListItemInner = enhanceChatPeer(
   memo(({ peer, chat, latestMessage, unreadCount }: ChatListItemInnerProps) => {
     const router = useRouter();
@@ -160,6 +188,8 @@ const ChatListItemInner = enhanceChatPeer(
         peer.username ||
         "Unknown peer"
       : "Unknown peer";
+
+    const peerRole = peer instanceof Peer ? peer.role : undefined;
 
     return (
       <Pressable
@@ -193,14 +223,17 @@ const ChatListItemInner = enhanceChatPeer(
             <Avatar.Text size={60} label={(peerName[0] ?? "?").toUpperCase()} />
           )}
           <View style={{ flexGrow: 1, marginLeft: 16 }}>
-            <Text
-              style={{
-                fontSize: 17,
-                color: theme.dark ? "#E6ECF5" : "#1E1E1E",
-              }}
-            >
-              {peerName}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text
+                style={{
+                  fontSize: 17,
+                  color: theme.dark ? "#E6ECF5" : "#1E1E1E",
+                }}
+              >
+                {peerName}
+              </Text>
+              <RoleBadge role={peerRole} />
+            </View>
             <Text
               style={{
                 fontSize: 17,

@@ -29,6 +29,33 @@ import {
 } from "react-native";
 import { Appbar, Avatar, Chip, IconButton, useTheme } from "react-native-paper";
 
+const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  admin: { bg: "#7C3AED", text: "#FFFFFF" },
+  rescuer: { bg: "#059669", text: "#FFFFFF" },
+};
+
+const RoleBadge = ({ role }: { role?: string }) => {
+  if (!role || role === "user") return null;
+  const colors = ROLE_COLORS[role];
+  if (!colors) return null;
+  return (
+    <View
+      style={{
+        backgroundColor: colors.bg,
+        borderRadius: 4,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        marginLeft: 6,
+        alignSelf: "center",
+      }}
+    >
+      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
+        {role.charAt(0).toUpperCase() + role.slice(1)}
+      </Text>
+    </View>
+  );
+};
+
 const MAX_RECONNECT_RETRIES = 5;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
@@ -428,15 +455,18 @@ const ChatRoom = () => {
             />
           )}
           <View style={styles.identityGroup}>
-            <Text
-              style={[
-                styles.nameText,
-                { color: theme.dark ? "#E6ECF5" : "#000000" },
-              ]}
-              numberOfLines={1}
-            >
-              {peerDisplayName}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text
+                style={[
+                  styles.nameText,
+                  { color: theme.dark ? "#E6ECF5" : "#000000" },
+                ]}
+                numberOfLines={1}
+              >
+                {peerDisplayName}
+              </Text>
+              <RoleBadge role={peer?.role} />
+            </View>
             <Text
               style={[
                 styles.statusText,

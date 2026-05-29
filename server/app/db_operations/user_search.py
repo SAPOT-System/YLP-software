@@ -47,7 +47,8 @@ def search_case_insensitive(
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "phone_is_verified": len(user.phone_is_verified) > 0
+            "phone_is_verified": len(user.phone_is_verified) > 0,
+            "role": _resolve_role(user),
         }
         for user in users
     ]
@@ -62,5 +63,13 @@ def search_by_id(value: UUID, session: SessionDep):
             mode="json",
             include={"id", "username", "first_name", "last_name"}
         ),
-        "phone_is_verified": len(results.phone_is_verified) > 0
+        "phone_is_verified": len(results.phone_is_verified) > 0,
+        "role": _resolve_role(results),
     }
+
+def _resolve_role(user: User) -> str:
+    if user.admin is not None:
+        return "admin"
+    if user.rescuer is not None:
+        return "rescuer"
+    return "user"

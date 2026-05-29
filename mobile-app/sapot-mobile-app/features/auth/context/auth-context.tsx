@@ -51,6 +51,7 @@ interface AuthContextI {
   accessToken: string | null;
   isGuest: boolean;
   isRescuer: boolean;
+  isAdmin: boolean;
 }
 const AuthContext = createContext<AuthContextI | null>(null);
 
@@ -72,6 +73,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
   const [isRescuer, setIsRescuer] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const userService = useUserService();
   const { guestUserRepository, guestMigrationService, peerService } =
     useAuthContainer();
@@ -98,6 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const userInfo = await getUserApi(access_token);
       await userService.syncAuthenticatedUser(userInfo);
       setIsRescuer(userService.getIsRescuer());
+      setIsAdmin(userService.getIsAdmin());
 
       setAccessToken(access_token);
       setIsAuthenticated(await isAccessTokenValid(access_token));
@@ -143,6 +146,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             try {
               userService.getUser();
               setIsRescuer(userService.getIsRescuer());
+              setIsAdmin(userService.getIsAdmin());
               setAccessToken(token);
               setIsAuthenticated(true);
             } catch {
@@ -207,6 +211,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setAccessToken(access_token);
       setIsAuthenticated(true);
       setIsRescuer(userService.getIsRescuer());
+      setIsAdmin(userService.getIsAdmin());
       return {
         success: true,
       };
@@ -255,6 +260,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setAccessToken(access_token);
     setIsAuthenticated(true);
     setIsRescuer(userService.getIsRescuer());
+    setIsAdmin(userService.getIsAdmin());
   };
 
   const loginAsGuest = async (credentials: {
@@ -313,6 +319,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       await userService.syncAuthenticatedUser(res.data);
       setIsRescuer(userService.getIsRescuer());
+      setIsAdmin(userService.getIsAdmin());
       setAccessToken(access_token);
       setIsAuthenticated(true);
       setIsGuest(false);
@@ -334,6 +341,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     authLog.info("[AuthProvider] logoutAsGuest called");
     setIsGuest(false);
     setIsRescuer(false);
+    setIsAdmin(false);
     await deleteItemAsync("userUUID");
 
     await userService.logout();
@@ -354,6 +362,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setAccessToken(null);
     setIsAuthenticated(false);
     setIsRescuer(false);
+    setIsAdmin(false);
   };
 
   return (
@@ -369,6 +378,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logoutAsGuest,
         isGuest,
         isRescuer,
+        isAdmin,
         loginAfterRegister,
         registerAndMigrate,
       }}

@@ -248,9 +248,24 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
   "last_name":      "string",
   "email":          "string",
   "phone_number":   "string",
-  "email_verified": "boolean"
+  "email_verified": "boolean",
+  "role":           "\"admin\" | \"rescuer\" | \"user\""
 }
 ```
+
+---
+
+### `GET /user-utils/is-rescuer` — Check Rescuer Role
+**Auth:** Required
+
+**Response `200`:** `true` or `false`
+
+---
+
+### `GET /user-utils/is-admin` — Check Admin Role
+**Auth:** Required
+
+**Response `200`:** `true` or `false`
 
 ---
 
@@ -263,10 +278,12 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 {
   "res": [
     {
-      "id":         "string",
-      "username":   "string",
-      "first_name": "string",
-      "last_name":  "string"
+      "id":              "string",
+      "username":        "string",
+      "first_name":      "string",
+      "last_name":       "string",
+      "phone_is_verified": "boolean",
+      "role":            "\"admin\" | \"rescuer\" | \"user\""
     }
   ]
 }

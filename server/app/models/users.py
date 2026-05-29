@@ -319,3 +319,4 @@ class UserInfo(UserBase):
     id: uuid.UUID
     email_verified: bool
     phone_verified: bool
+    role: str  # "admin" | "rescuer" | "user"

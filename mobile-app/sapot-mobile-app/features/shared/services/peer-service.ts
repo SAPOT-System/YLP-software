@@ -216,7 +216,8 @@ export class PeerService {
     email?: string,
     phoneNumber?: string,
     emailVerified?: boolean,
-    phoneNumberVerified?: boolean
+    phoneNumberVerified?: boolean,
+    role?: string
   ) {
     try {
       return await this.peerRepository.savePeer({
@@ -228,6 +229,7 @@ export class PeerService {
         phoneNumber,
         emailVerified,
         phoneNumberVerified,
+        role,
       });
     } catch (error) {
       peerLog.error("peer › create failed", { peerId: id, error });
@@ -242,6 +244,7 @@ export class PeerService {
     lastName?: string;
     phoneNumber?: string;
     phoneNumberVerified?: boolean;
+    role?: string;
   }) {
     try {
       return await this.peerRepository.createOrUpdatePeer(peerInfo);
@@ -273,6 +276,7 @@ export class PeerService {
         firstName: user.first_name,
         lastName: user.last_name,
         phoneNumberVerified: user.phone_is_verified,
+        role: user.role,
       });
     } catch (error) {
       peerLog.error("peer › get or create failed", { peerId: id, error });

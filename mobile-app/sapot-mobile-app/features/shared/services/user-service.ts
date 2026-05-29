@@ -1,5 +1,5 @@
 import { toLocalPhone } from "@/features/auth/utils/validation";
-import { isRescuerApi } from "@/features/shared/api/user-profile.api";
+import { isAdminApi, isRescuerApi } from "@/features/shared/api/user-profile.api";
 import { authLog } from "@/features/shared/utils/logger";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import uuid from "react-native-uuid";
@@ -81,14 +81,20 @@ export class UserService {
 
       if (!isGuest) {
         try {
-          const rescuer = await isRescuerApi();
+          const [rescuer, admin] = await Promise.all([
+            isRescuerApi(),
+            isAdminApi(),
+          ]);
           this.userStore.setIsRescuer(rescuer);
+          this.userStore.setIsAdmin(admin);
         } catch (error) {
-          this.warn("rescuer check failed, defaulting false", { error });
+          this.warn("role check failed, defaulting false", { error });
           this.userStore.setIsRescuer(false);
+          this.userStore.setIsAdmin(false);
         }
       } else {
         this.userStore.setIsRescuer(false);
+        this.userStore.setIsAdmin(false);
       }
 
       this.log("initialize complete", {
@@ -104,6 +110,10 @@ export class UserService {
 
   getIsRescuer(): boolean {
     return this.userStore.isRescuer;
+  }
+
+  getIsAdmin(): boolean {
+    return this.userStore.isAdmin;
   }
 
   async logout() {
@@ -148,6 +158,7 @@ export class UserService {
     phone_number?: string;
     email_verified?: boolean;
     phone_number_verified?: boolean;
+    role?: string;
   }) {
     try {
       this.log("sync auth start", userInfo);
@@ -162,7 +173,8 @@ export class UserService {
           userInfo.email,
           userInfo.phone_number ? toLocalPhone(userInfo.phone_number) : userInfo.phone_number,
           userInfo.email_verified,
-          userInfo.phone_number_verified
+          userInfo.phone_number_verified,
+          userInfo.role
         );
         this.log("sync auth user created");
       } else {

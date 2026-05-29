@@ -8,6 +8,7 @@ type SearchUserResult = {
   last_name: string;
   username: string;
   phone_is_verified: boolean;
+  role: string;
 };
 
 export const searchUsers = async ({
@@ -42,6 +43,7 @@ export const getUserById = async (
   username: string;
   last_name: string;
   phone_is_verified: boolean;
+  role: string;
 }> => {
   const res = await apiClient.get<{
     id: string;
@@ -49,6 +51,7 @@ export const getUserById = async (
     username: string;
     last_name: string;
     phone_is_verified: boolean;
+    role: string;
   }>("/user-utils/search-user/{id}", {
     params: { user_id },
   });

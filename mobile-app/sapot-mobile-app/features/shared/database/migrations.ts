@@ -132,5 +132,16 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 9,
+      steps: [
+        addColumns({
+          table: "peers",
+          columns: [
+            { name: "role", type: "string", isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

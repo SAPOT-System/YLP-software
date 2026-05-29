@@ -21,6 +21,8 @@ Stores both the current authenticated user and their peers/contacts.
 | `email` | string | Yes | Current user only |
 | `phone_number` | string | Yes | Current user only |
 | `email_verified` | boolean | Yes | Current user only |
+| `phone_number_verified` | boolean | Yes | Current user only |
+| `role` | string | Yes | `"admin"` \| `"rescuer"` \| `"user"` — sourced from server on upsert |
 
 ---
 

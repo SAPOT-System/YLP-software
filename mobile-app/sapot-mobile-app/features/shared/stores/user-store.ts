@@ -9,6 +9,7 @@ export class UserStore {
   private _user?: Peer | GuestUser;
   private _isGuest: boolean = false;
   private _isRescuer: boolean = false;
+  private _isAdmin: boolean = false;
 
   /**
    * Gets the current user as a Peer object.
@@ -27,8 +28,16 @@ export class UserStore {
     return this._isRescuer;
   }
 
+  get isAdmin(): boolean {
+    return this._isAdmin;
+  }
+
   setIsRescuer(value: boolean) {
     this._isRescuer = value;
+  }
+
+  setIsAdmin(value: boolean) {
+    this._isAdmin = value;
   }
 
   setUser(user: Peer | GuestUser, isGuest: boolean) {

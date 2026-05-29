@@ -35,6 +35,7 @@ export class PeerRepository {
     phoneNumber?: string;
     emailVerified?: boolean;
     phoneNumberVerified?: boolean;
+    role?: string;
   }) {
     try {
       return await this.db.write(async () => {
@@ -51,6 +52,9 @@ export class PeerRepository {
           }
           if (newPeer.phoneNumberVerified !== undefined) {
             peer.phoneNumberVerified = newPeer.phoneNumberVerified;
+          }
+          if (newPeer.role !== undefined) {
+            peer.role = newPeer.role;
           }
         });
         return peer;
@@ -85,6 +89,7 @@ export class PeerRepository {
       phoneNumber?: string;
       emailVerified?: boolean;
       phoneNumberVerified?: boolean;
+      role?: string;
     },
     options?: { markOnline?: boolean }
   ) {
@@ -117,6 +122,9 @@ export class PeerRepository {
             if (peerInfo.phoneNumberVerified !== undefined) {
               peer.phoneNumberVerified = peerInfo.phoneNumberVerified;
             }
+            if (peerInfo.role !== undefined) {
+              peer.role = peerInfo.role;
+            }
             if (options?.markOnline) {
               peer.isOnline = true;
             }
@@ -137,6 +145,9 @@ export class PeerRepository {
           }
           if (peerInfo.phoneNumberVerified !== undefined) {
             peer.phoneNumberVerified = peerInfo.phoneNumberVerified;
+          }
+          if (peerInfo.role !== undefined) {
+            peer.role = peerInfo.role;
           }
         });
         return peer;
@@ -217,6 +228,7 @@ export class PeerRepository {
       phoneNumber?: string;
       emailVerified?: boolean;
       phoneNumberVerified?: boolean;
+      role?: string;
     }
   ) {
     try {
@@ -245,6 +257,9 @@ export class PeerRepository {
             }
             if (peerInfo.phoneNumberVerified !== undefined) {
               peer.phoneNumberVerified = peerInfo.phoneNumberVerified;
+            }
+            if (peerInfo.role !== undefined) {
+              peer.role = peerInfo.role;
             }
           });
         }
