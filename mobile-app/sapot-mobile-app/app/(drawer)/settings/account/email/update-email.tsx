@@ -1,7 +1,6 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { validateEmail } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
-import { updateProfileApi } from "@/features/shared/api/user-profile.api";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -56,7 +55,6 @@ export default function UpdateEmail() {
 
     setIsSubmitting(true);
     try {
-      await updateProfileApi({ email: newEmail.trim() });
       uiLog.info("[Navigation] Navigating to VerifyEmail", {
         screen: SETTINGS_ROUTES.VERIFY_EMAIL,
         newEmail: newEmail,
@@ -66,8 +64,8 @@ export default function UpdateEmail() {
         params: { email: newEmail.trim() },
       });
     } catch (error) {
-      uiLog.error("[UpdateEmail] updateProfileApi failed", { error });
-      setErrors({ newEmail: "Failed to update email. Please try again." });
+      uiLog.error("[UpdateEmail] Navigation failed", { error });
+      setErrors({ newEmail: "Failed to proceed. Please try again." });
     } finally {
       setIsSubmitting(false);
     }

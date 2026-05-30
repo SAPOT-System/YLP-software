@@ -296,9 +296,11 @@ export const checkGsmHealth = async (): Promise<boolean> => {
   }
 };
 
-export const requestPhoneVerification = async () => {
-  apiLog.info("[AuthApi] Calling /gsm/request");
-  const res = await apiClient.post<{ message: string }>("/gsm/request");
+export const requestPhoneVerification = async (phoneNumber?: string) => {
+  apiLog.info("[AuthApi] Calling /gsm/request", { hasPhoneNumber: Boolean(phoneNumber) });
+  const res = await apiClient.post<{ message: string }>("/gsm/request", {
+    phone_number: phoneNumber,
+  });
 
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res.data;

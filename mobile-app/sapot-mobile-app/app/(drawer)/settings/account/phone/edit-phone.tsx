@@ -47,20 +47,14 @@ export default function EditPhone() {
 
     setIsSubmitting(true);
     try {
-      await updateProfileApi({ phoneNumber: toInternationalPhone(normalized) });
-      const fresh = await getUserApi();
-      await userService.updateAuthenticatedUser({
-        phoneNumber: fresh.phone_number || undefined,
-        phoneNumberVerified: fresh.phone_number_verified,
-      });
-      uiLog.info("[EditPhone] phone saved, navigating to verify");
+      uiLog.info("[EditPhone] navigating to verify", { phone: normalized });
       router.push({
         pathname: SETTINGS_ROUTES.VERIFY_PHONE,
         params: { phone: normalized },
       });
     } catch (error) {
-      uiLog.error("[EditPhone] failed to save phone", { error });
-      setSnackbar({ visible: true, message: "Failed to save phone number. Please try again.", variant: "error" });
+      uiLog.error("[EditPhone] failed to navigate", { error });
+      setSnackbar({ visible: true, message: "Failed to proceed. Please try again.", variant: "error" });
     } finally {
       setIsSubmitting(false);
     }

@@ -6,6 +6,7 @@ import {
   resendVerificationCodePhone,
   verifyCodePhone,
 } from "@/features/auth/api/auth.api";
+import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { VerificationCodeContent } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -54,7 +55,9 @@ export default function VerifyPhone() {
       return;
     }
     try {
-      await requestPhoneVerification();
+      await requestPhoneVerification(
+        phone ? toInternationalPhone(phone) : undefined
+      );
       setCodeError(undefined);
     } catch (error) {
       uiLog.error("[VerifyPhone] Error requesting phone verification", { error });

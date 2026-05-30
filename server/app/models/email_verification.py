@@ -19,6 +19,7 @@ from app.db_operations.auth import get_domain
 class EmailVerificationBase(SQLModel):
     user_id: uuid.UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     token: str = Field(index=True, nullable=False, unique=True)
+    email: Optional[str] = Field(default=None, nullable=True)
     expires_at: datetime
 
 
@@ -38,6 +39,7 @@ class EmailVerificationCreate(EmailVerificationBase):
 class EmailVerificationPublic(SQLModel):
     id: int
     user_id: uuid.UUID
+    email: Optional[str] = None
     expires_at: datetime
 
 
@@ -56,6 +58,7 @@ def send_verification_email(user_id:uuid.UUID, session: SessionDep, background_t
     verification = EmailVerification(
         user_id=user_id,
         token=token,
+        email=email,
         expires_at=datetime.utcnow() + timedelta(minutes=10)
     )
 

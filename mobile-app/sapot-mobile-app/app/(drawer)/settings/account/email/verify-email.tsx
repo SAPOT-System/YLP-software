@@ -5,7 +5,6 @@ import {
   verifyCodeEmail,
 } from "@/features/auth/api/auth.api";
 import { VerificationCodeContent } from "@/features/settings";
-import { updateProfileApi } from "@/features/shared/api/user-profile.api";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
@@ -38,7 +37,7 @@ export default function VerifyEmail() {
     setIsSending(true);
     setSendFailed(false);
     try {
-      await resendVerificationCodeEmail();
+      await resendVerificationCodeEmail(email);
       setCodeError(undefined);
     } catch (error) {
       uiLog.error("[VerifyEmail] Error sending verification code", { error });
@@ -63,7 +62,6 @@ export default function VerifyEmail() {
 
     try {
       await verifyCodeEmail(code);
-      await updateProfileApi({ email });
       await userService.updateAuthenticatedUser({ emailVerified: true });
       uiLog.info("[VerifyEmail] email verified, navigating to EmailVerified");
       router.replace(SETTINGS_ROUTES.EMAIL_VERIFIED);
@@ -82,7 +80,7 @@ export default function VerifyEmail() {
     setCodeError(undefined);
 
     try {
-      await resendVerificationCodeEmail();
+      await resendVerificationCodeEmail(email);
     } catch (error) {
       uiLog.error("[VerifyEmail] Error resending code", { error });
       setCodeError("Failed to resend code. Please try again.");
