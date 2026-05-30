@@ -595,13 +595,13 @@ export class WsSignalingAdapter extends EventEmitter {
     if (!call.data || typeof call.data !== "object") return false;
 
     const data = call.data as {
-      from_user?: unknown;
+      from?: unknown;
       to?: unknown;
     };
 
     if (typeof data.to !== "string") return false;
 
-    if (typeof data.from_user === "string") return true;
+    if (typeof data.from === "string") return true;
 
     return false;
   }
