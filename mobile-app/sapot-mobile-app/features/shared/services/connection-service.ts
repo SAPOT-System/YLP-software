@@ -90,7 +90,7 @@ export type ConnectionServiceEvents = {
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
-  private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string }) => Promise<void> };
+  private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> };
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
   private incomingCallNotifId: string | null = null;
@@ -375,6 +375,15 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       });
     });
 
+    tcpServerAdapter.on("peer-identity", async ({ peerId, isGuest }: { peerId?: string; isGuest: boolean }) => {
+      if (!peerId) return;
+      try {
+        await this.peerService?.updatePeerInfo(peerId, { isGuest });
+      } catch (error) {
+        connectionLog.error("connection › peer-identity update failed", { peerId, error });
+      }
+    });
+
     tcpServerAdapter.on("data", async (message: Message) => {
       try {
         if (!this.isTcpAllowed()) {
@@ -609,7 +618,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.setChatService(chatService);
   }
 
-  setPeerService(peerService: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string }) => Promise<void> }) {
+  setPeerService(peerService: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> }) {
     this.peerService = peerService;
   }
 

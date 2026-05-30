@@ -193,6 +193,11 @@ export interface PushLocalDataRequestBody {
       deleted: string[];
     };
   };
+  guest_users?: Record<string, {
+    first_name: string;
+    last_name: string;
+    username: string;
+  }>;
 }
 
 interface PushLocalDataResponse {

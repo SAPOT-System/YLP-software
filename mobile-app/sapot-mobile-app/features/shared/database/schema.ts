@@ -3,7 +3,7 @@ import { schemaLog } from "../utils/logger";
 schemaLog.debug("[database-schema] module loaded");
 
 export default appSchema({
-  version: 9,
+  version: 10,
   tables: [
     tableSchema(
       // For current guest user data:
@@ -59,6 +59,11 @@ export default appSchema({
         {
           name: "role",
           type: "string",
+          isOptional: true,
+        },
+        {
+          name: "is_guest",
+          type: "boolean",
           isOptional: true,
         },
       ],

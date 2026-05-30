@@ -149,5 +149,14 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 10,
+      steps: [
+        addColumns({
+          table: "peers",
+          columns: [{ name: "is_guest", type: "boolean", isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

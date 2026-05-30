@@ -514,7 +514,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     changes: SyncChanges,
     lastPulledAt?: number | null
   ) {
-    const payload = await this.buildPushPayload(changes);
+    const { changes: payload, guest_users } = await this.buildPushPayload(changes);
     syncLog.debug("sync › push payload", {
       hasChanges: this.hasPayload(payload),
     });
@@ -522,12 +522,13 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     await pushLocalDataApi({
       last_pulled_at: lastPulledAt ?? 0,
       changes: payload,
+      guest_users,
     });
   }
 
   private async buildPushPayload(
     changes: SyncChanges
-  ): Promise<PushLocalDataRequestBody["changes"]> {
+  ): Promise<{ changes: PushLocalDataRequestBody["changes"]; guest_users: Record<string, { first_name: string; last_name: string; username: string }> }> {
     type C = PushLocalDataRequestBody["changes"];
 
     // Build a map of message receipts grouped by message for filtering logic
@@ -582,7 +583,30 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       }
     }
 
-    return {
+    const conversationParticipantsCreated = changes.conversation_participants.created.map(
+      (r) => this.toServerPayload("conversation_participants", r)
+    ) as C["conversation_participants"]["created"];
+
+    const guest_users: Record<string, { first_name: string; last_name: string; username: string }> = {};
+    if (this.peerRepository) {
+      const participantUserIds = conversationParticipantsCreated
+        .map((p) => p.user_id)
+        .filter((id): id is string => Boolean(id));
+      if (participantUserIds.length > 0) {
+        const peers = await this.peerRepository.getByIds(participantUserIds);
+        for (const peer of peers) {
+          if (peer.isGuest && peer.firstName) {
+            guest_users[peer.id] = {
+              first_name: peer.firstName,
+              last_name: peer.lastName ?? "",
+              username: peer.username,
+            };
+          }
+        }
+      }
+    }
+
+    return { changes: {
       conversations: {
         created: changes.conversations.created.map((r) =>
           this.toServerPayload("conversations", r)
@@ -593,9 +617,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         deleted: changes.conversations.deleted,
       },
       conversation_participants: {
-        created: changes.conversation_participants.created.map((r) =>
-          this.toServerPayload("conversation_participants", r)
-        ) as C["conversation_participants"]["created"],
+        created: conversationParticipantsCreated,
         updated: changes.conversation_participants.updated.map((r) =>
           this.toServerPayload("conversation_participants", r)
         ) as C["conversation_participants"]["updated"],
@@ -694,7 +716,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           ) as C["message_receipts"]["updated"],
         deleted: changes.message_receipts.deleted,
       },
-    };
+    }, guest_users };
   }
 
   private hasPayload(payload: PushLocalDataRequestBody["changes"]) {
