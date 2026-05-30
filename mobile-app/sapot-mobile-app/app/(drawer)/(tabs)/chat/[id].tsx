@@ -345,8 +345,8 @@ const ChatRoom = () => {
     });
     if (!textToSend) return;
     try {
-      if (isSmsConversation && peerId) {
-        // SMS-only conversation — bypass P2P entirely
+      if ((isSmsMode || isSmsConversation) && peerId) {
+        // SMS-only path — bypass P2P entirely
         let smsMessageId: string;
         try {
           const { messageId } = await chatService.sendSmsChannelMessage(
@@ -380,29 +380,8 @@ const ChatRoom = () => {
           });
 
         setMessage("");
-        return;
-      }
-
-      if (isSmsMode && peerId) {
-        const { conversationId: chatId, smsMessageId } =
-          await chatService.sendChatMessageWithSms(textToSend);
-        if (!conversationId && chatId) setConversationId(chatId);
-        setMessage("");
-        sendSmsToUser(peerId, textToSend)
-          .then((res) => {
-            const status = res.ok
-              ? MessageStatusType.DELIVERED
-              : MessageStatusType.NOT_SENT;
-            chatService.updateMessageStatus(smsMessageId, status).catch(() => {});
-            if (!res.ok) showError("SMS could not be delivered");
-          })
-          .catch(() => {
-            chatService
-              .updateMessageStatus(smsMessageId, MessageStatusType.NOT_SENT)
-              .catch(() => {});
-            showError("Message sent, but SMS delivery failed.");
-          });
       } else {
+        // App Chat path — P2P only
         const { conversationId: chatId } = await chatService.sendChatMessage(textToSend);
         if (!conversationId && chatId) setConversationId(chatId);
         setMessage("");
@@ -552,20 +531,39 @@ const ChatRoom = () => {
 
       {(isSmsEnabled || isSmsConversation) && !gsmLoading && !isSelfChat && (
         <View style={styles.smsToggleRow}>
-          {isSmsConversation ? (
-            <Chip icon="message-text" selected compact>
-              SMS only
-            </Chip>
-          ) : (
-            <Chip
-              icon={isSmsMode ? "message-text" : "message-text-outline"}
-              onPress={() => setIsSmsMode((v) => !v)}
-              selected={isSmsMode}
-              compact
-            >
-              {isSmsMode ? "Sending via P2P + SMS" : "Also send via SMS"}
-            </Chip>
-          )}
+          <Chip
+            icon="message-processing-outline"
+            selected={!isSmsMode}
+            onPress={() => !isSmsConversation && setIsSmsMode(false)}
+            disabled={isSmsConversation}
+            compact
+            style={styles.modeChip}
+          >
+            App Chat
+          </Chip>
+          <Chip
+            icon="message-text"
+            selected={isSmsMode}
+            onPress={() => setIsSmsMode(true)}
+            compact
+            style={styles.modeChip}
+          >
+            SMS
+          </Chip>
+        </View>
+      )}
+
+      {isSmsMode && !isSelfChat && (
+        <View style={styles.smsWarningRow}>
+          <IconButton
+            icon="lock-open-variant"
+            size={16}
+            iconColor="#B45309"
+            style={styles.warningIcon}
+          />
+          <Text style={styles.smsWarningText}>
+            SMS messages are not end-to-end encrypted
+          </Text>
         </View>
       )}
 
@@ -576,10 +574,6 @@ const ChatRoom = () => {
             {
               backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
               color: theme.dark ? "#FFF" : "#000",
-            },
-            isSmsMode && {
-              borderWidth: 1.5,
-              borderColor: theme.colors.primary,
             },
           ]}
           onChangeText={setMessage}
@@ -686,6 +680,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 4,
+  },
+  modeChip: {
+    marginRight: 8,
+  },
+  smsWarningRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+  },
+  warningIcon: {
+    margin: 0,
+    marginRight: 2,
+  },
+  smsWarningText: {
+    fontSize: 12,
+    color: "#B45309",
   },
   composerContainer: {
     flexDirection: "row",
