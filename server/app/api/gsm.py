@@ -101,34 +101,17 @@ async def sendToModule(phone_number: str, message: str):
 
 @router.post("/request")
 async def request_phone_verification(
+    data: RequestPhoneVerification,
     current_user : Annotated[User, Depends(get_current_user)],
     session: SessionDep
 ):
     """
     Send a 6-digit verification code to user phone.
     """
+    target_phone = data.phone_number or current_user.phone_number
 
-    if not current_user.phone_number:
+    if not target_phone:
         raise HTTPException(404, "phone number does not exist")
-
-    user = session.exec(
-        select(User).where(
-            User.phone_number == current_user.phone_number
-        )
-    ).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="Phone number not found."
-        )
-
-    # already verified
-    if getattr(user, "phone_verified", False):
-        raise HTTPException(
-            status_code=400,
-            detail="Phone already verified."
-        )
 
     # generate code
     code = generate_otp()
@@ -137,8 +120,8 @@ async def request_phone_verification(
     expires_at = now_ms() + (5 * 60 * 1000)
 
     verification = PhoneVerification(
-        user_id=user.id,
-        phone_number=current_user.phone_number,
+        user_id=current_user.id,
+        phone_number=target_phone,
         verification_code=code,
         expires_at=expires_at,
     )
@@ -148,7 +131,7 @@ async def request_phone_verification(
 
     # send SMS
     await sendToModule(
-        current_user.phone_number,
+        target_phone,
         f"SAPOT verification code: {code}"
     )
 
@@ -170,28 +153,10 @@ def verify_phone_code(
     """
     Verify submitted OTP code.
     """
-    if not current_user.phone_number:
-        raise HTTPException(404, "phone number does not exist")
-
-    user = session.exec(
-        select(User).where(
-            User.phone_number == current_user.phone_number
-        )
-    ).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found."
-        )
-
     verification = session.exec(
         select(PhoneVerification)
         .where(
-            PhoneVerification.user_id == user.id
-        )
-        .where(
-            PhoneVerification.phone_number == current_user.phone_number
+            PhoneVerification.user_id == current_user.id
         )
         .where(
             PhoneVerification.verification_code == data.code
@@ -220,12 +185,23 @@ def verify_phone_code(
     # mark used
     verification.is_used = True
 
-    if not current_user.id:
+    user = session.get(User, current_user.id)
+    if not user:
         raise HTTPException(404, "User not found")
 
+    # Update phone number if it's different
+    if verification.phone_number:
+        user.phone_number = verification.phone_number
+
     # verify phone
+    # Delete old verified records for this user
+    stmt = select(PhoneVerified).where(PhoneVerified.user_id == user.id)
+    old_verified = session.exec(stmt)
+    for record in old_verified:
+        session.delete(record)
+
     is_verified = PhoneVerified(
-            user_id=current_user.id
+            user_id=user.id
             )
 
     session.add(verification)
@@ -251,37 +227,23 @@ async def resend_phone_code(
     """
     Resend verification code.
     """
-
-    if not current_user.phone_number:
-        raise HTTPException(404, "phone number does not exist")
-
-    user = session.exec(
-        select(User).where(
-            User.phone_number == current_user.phone_number
-        )
+    # Find the latest verification attempt to get the phone number
+    latest_verification = session.exec(
+        select(PhoneVerification)
+        .where(PhoneVerification.user_id == current_user.id)
+        .order_by(PhoneVerification.created_at.desc())
     ).first()
 
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found."
-        )
+    target_phone = latest_verification.phone_number if latest_verification else current_user.phone_number
 
-    if getattr(user, "phone_verified", False):
-        raise HTTPException(
-            status_code=400,
-            detail="Phone already verified."
-        )
+    if not target_phone:
+        raise HTTPException(404, "phone number does not exist")
 
     code = generate_otp()
 
-    if not current_user.id:
-        raise HTTPException(404, "User not found")
-
-
     verification = PhoneVerification(
         user_id=current_user.id,
-        phone_number=current_user.phone_number,
+        phone_number=target_phone,
         verification_code=code,
         expires_at=now_ms() + (5 * 60 * 1000),
     )
@@ -290,13 +252,14 @@ async def resend_phone_code(
     session.commit()
 
     await sendToModule(
-        current_user.phone_number,
+        target_phone,
         f"SAPOT verification code: {code}"
     )
 
     return {
         "detail": "Verification code resent."
     }
+
 
 @router.get("/phone-is-verified")
 def check_if_verified(
@@ -459,34 +422,17 @@ async def MOCK_sendToModule(phone_number: str, message: str):
 
 @router.post("/mock/request")
 async def MOCK_request_phone_verification(
+    data: RequestPhoneVerification,
     current_user : Annotated[User, Depends(get_current_user)],
     session: SessionDep
 ):
     """
     Send a 6-digit verification code to user phone.
     """
+    target_phone = data.phone_number or current_user.phone_number
 
-    if not current_user.phone_number:
+    if not target_phone:
         raise HTTPException(404, "phone number does not exist")
-
-    user = session.exec(
-        select(User).where(
-            User.phone_number == current_user.phone_number
-        )
-    ).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="Phone number not found."
-        )
-
-    # already verified
-    if getattr(user, "phone_verified", False):
-        raise HTTPException(
-            status_code=400,
-            detail="Phone already verified."
-        )
 
     # generate code
     code = generate_otp()
@@ -495,8 +441,8 @@ async def MOCK_request_phone_verification(
     expires_at = now_ms() + (5 * 60 * 1000)
 
     verification = PhoneVerification(
-        user_id=user.id,
-        phone_number=current_user.phone_number,
+        user_id=current_user.id,
+        phone_number=target_phone,
         verification_code=code,
         expires_at=expires_at,
     )
@@ -506,7 +452,7 @@ async def MOCK_request_phone_verification(
 
     # send SMS
     await MOCK_sendToModule(
-        current_user.phone_number,
+        target_phone,
         f"SAPOT verification code: {code}"
     )
 
@@ -528,28 +474,10 @@ def MOCK_verify_phone_code(
     """
     Verify submitted OTP code.
     """
-    if not current_user.phone_number:
-        raise HTTPException(404, "phone number does not exist")
-
-    user = session.exec(
-        select(User).where(
-            User.phone_number == current_user.phone_number
-        )
-    ).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found."
-        )
-
     verification = session.exec(
         select(PhoneVerification)
         .where(
-            PhoneVerification.user_id == user.id
-        )
-        .where(
-            PhoneVerification.phone_number == current_user.phone_number
+            PhoneVerification.user_id == current_user.id
         )
         .where(
             PhoneVerification.verification_code == data.code
@@ -578,12 +506,23 @@ def MOCK_verify_phone_code(
     # mark used
     verification.is_used = True
 
-    if not current_user.id:
+    user = session.get(User, current_user.id)
+    if not user:
         raise HTTPException(404, "User not found")
 
+    # Update phone number if it's different
+    if verification.phone_number:
+        user.phone_number = verification.phone_number
+
     # verify phone
+    # Delete old verified records for this user
+    stmt = select(PhoneVerified).where(PhoneVerified.user_id == user.id)
+    old_verified = session.exec(stmt)
+    for record in old_verified:
+        session.delete(record)
+
     is_verified = PhoneVerified(
-            user_id=current_user.id
+            user_id=user.id
             )
 
     session.add(verification)
@@ -609,37 +548,23 @@ async def MOCK_resend_phone_code(
     """
     Resend verification code.
     """
-
-    if not current_user.phone_number:
-        raise HTTPException(404, "phone number does not exist")
-
-    user = session.exec(
-        select(User).where(
-            User.phone_number == current_user.phone_number
-        )
+    # Find the latest verification attempt to get the phone number
+    latest_verification = session.exec(
+        select(PhoneVerification)
+        .where(PhoneVerification.user_id == current_user.id)
+        .order_by(PhoneVerification.created_at.desc())
     ).first()
 
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found."
-        )
+    target_phone = latest_verification.phone_number if latest_verification else current_user.phone_number
 
-    if getattr(user, "phone_verified", False):
-        raise HTTPException(
-            status_code=400,
-            detail="Phone already verified."
-        )
+    if not target_phone:
+        raise HTTPException(404, "phone number does not exist")
 
     code = generate_otp()
 
-    if not current_user.id:
-        raise HTTPException(404, "User not found")
-
-
     verification = PhoneVerification(
         user_id=current_user.id,
-        phone_number=current_user.phone_number,
+        phone_number=target_phone,
         verification_code=code,
         expires_at=now_ms() + (5 * 60 * 1000),
     )
@@ -648,7 +573,7 @@ async def MOCK_resend_phone_code(
     session.commit()
 
     await MOCK_sendToModule(
-        current_user.phone_number,
+        target_phone,
         f"SAPOT verification code: {code}"
     )
 
