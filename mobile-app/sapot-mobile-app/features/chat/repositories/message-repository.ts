@@ -362,10 +362,11 @@ export class MessageRepository {
      *  when the conversation key is not yet derived so the message is not lost. */
     allowPlaintext?: boolean;
   }): Message {
+    const isSms = newMessage.messageType === MessageType.SMS;
     const { content, isEncrypted } = this.encryptContent(
       newMessage.content,
       newMessage.conversation.id,
-      { allowPlaintext: newMessage.allowPlaintext ?? false }
+      { allowPlaintext: (newMessage.allowPlaintext ?? false) || isSms }
     );
     return this.messagesCollection.prepareCreate((message: Message) => {
       if (newMessage.messageId) {

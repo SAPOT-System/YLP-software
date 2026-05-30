@@ -25,6 +25,7 @@ import { useChatService } from "@/features/chat/hooks/use-chat-service";
 import { useTheme } from "react-native-paper";
 import { useInformCall } from "@/features/call";
 import { sendSmsToUser } from "@/features/shared/api/gsm.api";
+import { toLocalPhone } from "@/features/auth/utils/validation";
 uiLog.debug("[message-list] module loaded");
 
 const enhanceMessages = withObservables(
@@ -401,6 +402,12 @@ const MessageListItemInner = memo(
     // For the peer message (incoming)
     if (!isCurrentUserMessage) {
       if (message.messageType === "text" || message.messageType === MessageType.SMS) {
+        const displayName =
+          message.messageType === MessageType.SMS &&
+          sender instanceof Peer &&
+          sender.phoneNumber
+            ? toLocalPhone(sender.phoneNumber)
+            : senderName;
         return (
           <View
             style={{
@@ -415,7 +422,7 @@ const MessageListItemInner = memo(
                 fontSize: 14,
               }}
             >
-              {senderName}, {formatDate(message.createdAt)}
+              {displayName}, {formatDate(message.createdAt)}
               {message.messageType === MessageType.SMS
                 ? " · SMS"
                 : message.linkedMessageId != null

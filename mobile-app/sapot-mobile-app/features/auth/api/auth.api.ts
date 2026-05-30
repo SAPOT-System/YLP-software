@@ -364,6 +364,21 @@ export const resendVerificationCodePhone = async () => {
   return res.data;
 };
 
+export const migratePhoneUserApi = async (): Promise<{
+  migrated: boolean;
+  ghost_user_id?: string;
+  detail?: string;
+}> => {
+  apiLog.info("[AuthApi] Calling /gsm/migrate-phone-user");
+  const res = await apiClient.post<{
+    migrated: boolean;
+    ghost_user_id?: string;
+    detail?: string;
+  }>("/gsm/migrate-phone-user");
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res.data;
+};
+
 export const setupRecoveryKeysApi = async (
   blobs: Array<{ method: string; wrapped_blob: string; metadata?: string }>
 ) => {

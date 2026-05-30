@@ -72,8 +72,16 @@ export default function Chat() {
     !userStore.isGuest &&
     !!(userStore.user as Peer).phoneNumberVerified;
 
+  const currentUserPhone = toInternationalPhone(
+    (userStore.user as Peer)?.phoneNumber ?? ""
+  );
+
+  const isSelfPhone = (phone: string) =>
+    toInternationalPhone(phone.trim()) === currentUserPhone;
+
   const isValidPhone = (phone: string) =>
-    /^\+639\d{9}$/.test(toInternationalPhone(phone.trim()));
+    /^\+639\d{9}$/.test(toInternationalPhone(phone.trim())) &&
+    !isSelfPhone(phone);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -230,7 +238,9 @@ export default function Chat() {
               type="error"
               visible={targetPhone.length > 0 && !isValidPhone(targetPhone)}
             >
-              Use format: +639XXXXXXXXX or 09XXXXXXXXX
+              {isSelfPhone(targetPhone)
+                ? "You cannot contact yourself."
+                : "Use format: +639XXXXXXXXX or 09XXXXXXXXX"}
             </HelperText>
           </Dialog.Content>
           <Dialog.Actions>
@@ -249,20 +259,29 @@ export default function Chat() {
                     phoneNumber: phone,
                     phoneNumberVerified: true,
                   });
-                  const conversation =
+                  if (res.is_sapot_user) {
+                    await chatService.getOrCreateDirectConversationByPeer(
+                      res.user_id
+                    );
+                  } else {
                     await chatService.getOrCreateSmsConversationByPeer(
                       res.user_id
                     );
+                  }
                   hideFabDialog();
                   setTargetPhone("");
-                  showToast(
-                    "SMS sent! They'll receive a message to connect with you."
-                  );
+                  if (res.is_sapot_user) {
+                    showToast("Opening conversation with this Sapot user.");
+                  } else {
+                    showToast(
+                      "SMS sent! They'll receive a message to connect with you."
+                    );
+                  }
                   router.push({
                     pathname: "/(drawer)/(tabs)/chat/[id]",
                     params: {
-                      id: conversation.id,
-                      source: ChatRoomSource.CHAT,
+                      id: res.user_id,
+                      source: ChatRoomSource.PEER,
                     },
                   });
                 } catch {

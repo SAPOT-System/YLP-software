@@ -2,6 +2,7 @@ import { SETTINGS_ROUTES } from "@/config/routes";
 import { useUserService } from "@/features/auth";
 import {
   checkGsmHealth,
+  migratePhoneUserApi,
   requestPhoneVerification,
   resendVerificationCodePhone,
   verifyCodePhone,
@@ -10,6 +11,7 @@ import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
 import { VerificationCodeContent } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
+import { useSyncService } from "@/features/shared/hooks/use-sync-service";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
@@ -33,6 +35,7 @@ export default function VerifyPhone() {
   });
   const userService = useUserService();
   const { setupPhoneBlob } = useRecoveryKeySetup();
+  const syncService = useSyncService();
 
   useEffect(() => {
     uiLog.info("[VerifyPhone] mounted");
@@ -49,7 +52,8 @@ export default function VerifyPhone() {
     if (!gsmOnline) {
       setSnackbar({
         visible: true,
-        message: "SMS service is currently unavailable. Please try again later.",
+        message:
+          "SMS service is currently unavailable. Please try again later.",
         variant: "error",
       });
       setSendFailed(true);
@@ -57,21 +61,22 @@ export default function VerifyPhone() {
       return;
     }
     try {
+      setIsSending(false);
       await requestPhoneVerification(
         phone ? toInternationalPhone(phone) : undefined
       );
       setCodeError(undefined);
     } catch (error) {
-      uiLog.error("[VerifyPhone] Error requesting phone verification", { error });
+      uiLog.error("[VerifyPhone] Error requesting phone verification", {
+        error,
+      });
       setSendFailed(true);
       setSnackbar({
         visible: true,
         message: "Failed to send verification code. Please try again.",
         variant: "error",
       });
-    } finally {
-      setIsSending(false);
-    }
+    } 
   };
 
   const handleVerifyCode = async (code: string) => {
@@ -86,6 +91,19 @@ export default function VerifyPhone() {
       await verifyCodePhone(code);
       await userService.updateAuthenticatedUser({ phoneNumberVerified: true });
       await setupPhoneBlob(phone);
+      try {
+        const migration = await migratePhoneUserApi();
+        if (migration.migrated) {
+          uiLog.info("[VerifyPhone] ghost user migrated", {
+            ghostUserId: migration.ghost_user_id,
+          });
+          await syncService.syncNow();
+        }
+      } catch (migrationError) {
+        uiLog.warn("[VerifyPhone] migration failed (non-fatal)", {
+          error: migrationError,
+        });
+      }
       uiLog.info("[VerifyPhone] phone verified, navigating to PhoneVerified");
       router.replace(SETTINGS_ROUTES.PHONE_VERIFIED);
     } catch (error) {

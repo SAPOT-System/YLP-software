@@ -82,10 +82,27 @@ async def inbound_sms(
     if not sender or not target:
         raise HTTPException(404, "User not found")
 
-    convo_id = UUID(sms_conversation_id(str(sender.id), str(target.id)))
-    conversation = session.get(Conversation, convo_id)
+    # Look up the existing conversation where both users are participants
+    conversation = session.exec(
+        select(Conversation)
+        .join(ConversationParticipant, Conversation.id == ConversationParticipant.conversation_id)
+        .where(ConversationParticipant.user_id == sender.id)
+        .where(
+            Conversation.id.in_(
+                select(ConversationParticipant.conversation_id)
+                .where(ConversationParticipant.user_id == target.id)
+            )
+        )
+    ).first()
+    print("senderid", sender.id)
+    print("targetId", target.id)
+
     if not conversation:
+        convo_id = UUID(sms_conversation_id(str(sender.id), str(target.id)))
         conversation = _create_sms_conversation(session, convo_id, sender.id, target.id)
+
+    convo_id = conversation.id
+    print("convoid", convo_id)
 
     msg = Message(
         conversation_id=convo_id,
@@ -308,8 +325,20 @@ def verify_phone_code(
     if not user:
         raise HTTPException(404, "User not found")
 
-    # Update phone number if it's different
+    # Update phone number if it's different.
+    # If a ghost user was created for this number via contactUnknownUser, clear
+    # their phone_number first to avoid hitting the unique-key constraint.
     if verification.phone_number:
+        ghost = session.exec(
+            select(User)
+            .join(Guest, Guest.user_id == User.id)
+            .where(User.phone_number == verification.phone_number)
+            .where(User.id != user.id)
+        ).first()
+        if ghost:
+            ghost.phone_number = None
+            session.add(ghost)
+            session.flush()
         user.phone_number = verification.phone_number
 
     # verify phone
@@ -387,6 +416,100 @@ def check_if_verified(
     return { 'is_verified': bool(current_user.phone_is_verified) }
 
 
+@router.post("/migrate-phone-user")
+def migrate_phone_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: SessionDep,
+):
+    """
+    After a user verifies their phone number, call this endpoint to migrate any
+    ghost/unknown user that was previously created for that phone number into the
+    real account. Reassigns conversation participants and messages, upgrades or
+    merges SMS conversations, then deletes the ghost user.
+    """
+    phone = current_user.phone_number
+    if not phone:
+        raise HTTPException(400, "No phone number on account")
+
+    # Derive the ghost ID deterministically — verify_phone_code already cleared
+    # ghost.phone_number, so a phone-number lookup would miss. The ghost ID is
+    # always direct_conversation_id(phone, NAMESPACE.hex), matching contact_unknown_user.
+    ghost_id_hex = direct_conversation_id(phone, str(NAMESPACE.hex))
+    ghost_id = UUID(ghost_id_hex)
+    ghost = session.get(User, ghost_id)
+    guest_record = session.exec(select(Guest).where(Guest.user_id == ghost_id)).first()
+
+    if not ghost or not guest_record:
+        return {"migrated": False, "detail": "No ghost user found for this phone number"}
+
+    # --- Step 1: snapshot SMS conversations BEFORE mutating participant rows ---
+    # The participant loop below reassigns user_id in-place, so we must collect
+    # SMS conversations while ghost_id is still on the rows.
+    ghost_participants_all = session.exec(
+        select(ConversationParticipant).where(ConversationParticipant.user_id == ghost_id)
+    ).all()
+
+    sms_targets = []  # list of (sms_conversation, other_user_id)
+    for gp in ghost_participants_all:
+        convo = session.get(Conversation, gp.conversation_id)
+        if convo and convo.conversation_type == ConversationType.sms:
+            other = session.exec(
+                select(ConversationParticipant)
+                .where(ConversationParticipant.conversation_id == gp.conversation_id)
+                .where(ConversationParticipant.user_id != ghost_id)
+            ).first()
+            if other:
+                sms_targets.append((convo, other.user_id))
+
+    # --- Step 2: reassign conversation participants ghost → current user ---
+    for gp in ghost_participants_all:
+        already_participant = session.exec(
+            select(ConversationParticipant)
+            .where(ConversationParticipant.conversation_id == gp.conversation_id)
+            .where(ConversationParticipant.user_id == current_user.id)
+        ).first()
+        if already_participant:
+            session.delete(gp)
+        else:
+            gp.user_id = current_user.id
+            session.add(gp)
+
+    # --- Step 3: reassign messages sent by the ghost user ---
+    ghost_messages = session.exec(
+        select(Message).where(Message.sender_id == ghost_id)
+    ).all()
+    for msg in ghost_messages:
+        msg.sender_id = current_user.id
+        session.add(msg)
+
+    # --- Step 4: upgrade or merge each SMS conversation ---
+    for sms_convo, other_user_id in sms_targets:
+        direct_id = UUID(direct_conversation_id(str(current_user.id), str(other_user_id)))
+        existing_direct = session.get(Conversation, direct_id)
+
+        if existing_direct is None:
+            # Case A: no direct conversation yet — upgrade in-place.
+            sms_convo.conversation_type = ConversationType.direct
+            session.add(sms_convo)
+        else:
+            # Case B: direct conversation exists — move messages there, soft-delete SMS thread.
+            sms_messages = session.exec(
+                select(Message).where(Message.conversation_id == sms_convo.id)
+            ).all()
+            for msg in sms_messages:
+                msg.conversation_id = existing_direct.id
+                session.add(msg)
+            session.add(existing_direct)   # bump updated_at so mobile sync picks it up
+            sms_convo.is_deleted = True
+            session.add(sms_convo)
+
+    # --- Step 5: delete ghost (cascades Guest, PhoneVerified, etc.) and commit ---
+    session.delete(ghost)
+    session.commit()
+
+    return {"migrated": True, "ghost_user_id": str(ghost_id)}
+
+
 # Same namespace as uuid.URL
 NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
@@ -451,7 +574,14 @@ async def contact_unknown_user(
             verify_phone = PhoneVerified(user_id=UUID(target_user_id))
             session.add_all([createUser, guest, verify_phone])
 
-    conversation_id = direct_conversation_id(target_user_id, str(current_user.id))
+    # For registered peers use the shared direct_conversation_id; for unknown
+    # (SMS-only) peers use sms_conversation_id so the ID matches what the mobile
+    # client computes in getOrCreateSmsConversationByPeer.
+    if registered_user:
+        conversation_id = direct_conversation_id(target_user_id, str(current_user.id))
+    else:
+        conversation_id = sms_conversation_id(target_user_id, str(current_user.id))
+
     conversation = session.get(Conversation, UUID(conversation_id))
 
     if not conversation:
@@ -488,7 +618,17 @@ async def contact_unknown_user(
     if not registered_user:
         await sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
 
-    return { "status": "ok", "detail": "Sync from the database", "user_id": target_user_id}
+    # Normalize to hyphenated UUID string so it matches str(user.id) everywhere
+    # else (inbound WS payload, sms_conversation_id calls). Without this, the
+    # mobile receives a 32-char hex string (no hyphens) while every other server
+    # path uses 36-char hyphenated UUIDs, causing uuid5 to compute a different
+    # conversation ID for the same peer pair.
+    return {
+        "status": "ok",
+        "detail": "Sync from the database",
+        "user_id": str(UUID(target_user_id)),
+        "is_sapot_user": bool(registered_user),
+    }
 
 
 # MOCK ###############################################
@@ -645,8 +785,19 @@ def MOCK_verify_phone_code(
     if not user:
         raise HTTPException(404, "User not found")
 
-    # Update phone number if it's different
+    # Update phone number if it's different.
+    # Clear the number from any ghost user first to avoid a unique-key conflict.
     if verification.phone_number:
+        ghost = session.exec(
+            select(User)
+            .join(Guest, Guest.user_id == User.id)
+            .where(User.phone_number == verification.phone_number)
+            .where(User.id != user.id)
+        ).first()
+        if ghost:
+            ghost.phone_number = None
+            session.add(ghost)
+            session.flush()
         user.phone_number = verification.phone_number
 
     # verify phone
@@ -723,6 +874,82 @@ def MOCK_check_if_verified(
     return { 'is_verified': bool(current_user.phone_is_verified) }
 
 
+@router.post("/mock/migrate-phone-user")
+def MOCK_migrate_phone_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: SessionDep,
+):
+    phone = current_user.phone_number
+    if not phone:
+        raise HTTPException(400, "No phone number on account")
+
+    ghost_id_hex = direct_conversation_id(phone, str(NAMESPACE.hex))
+    ghost_id = UUID(ghost_id_hex)
+    ghost = session.get(User, ghost_id)
+    guest_record = session.exec(select(Guest).where(Guest.user_id == ghost_id)).first()
+
+    if not ghost or not guest_record:
+        return {"migrated": False, "detail": "No ghost user found for this phone number"}
+
+    ghost_participants_all = session.exec(
+        select(ConversationParticipant).where(ConversationParticipant.user_id == ghost_id)
+    ).all()
+
+    sms_targets = []
+    for gp in ghost_participants_all:
+        convo = session.get(Conversation, gp.conversation_id)
+        if convo and convo.conversation_type == ConversationType.sms:
+            other = session.exec(
+                select(ConversationParticipant)
+                .where(ConversationParticipant.conversation_id == gp.conversation_id)
+                .where(ConversationParticipant.user_id != ghost_id)
+            ).first()
+            if other:
+                sms_targets.append((convo, other.user_id))
+
+    for gp in ghost_participants_all:
+        already_participant = session.exec(
+            select(ConversationParticipant)
+            .where(ConversationParticipant.conversation_id == gp.conversation_id)
+            .where(ConversationParticipant.user_id == current_user.id)
+        ).first()
+        if already_participant:
+            session.delete(gp)
+        else:
+            gp.user_id = current_user.id
+            session.add(gp)
+
+    ghost_messages = session.exec(
+        select(Message).where(Message.sender_id == ghost_id)
+    ).all()
+    for msg in ghost_messages:
+        msg.sender_id = current_user.id
+        session.add(msg)
+
+    for sms_convo, other_user_id in sms_targets:
+        direct_id = UUID(direct_conversation_id(str(current_user.id), str(other_user_id)))
+        existing_direct = session.get(Conversation, direct_id)
+
+        if existing_direct is None:
+            sms_convo.conversation_type = ConversationType.direct
+            session.add(sms_convo)
+        else:
+            sms_messages = session.exec(
+                select(Message).where(Message.conversation_id == sms_convo.id)
+            ).all()
+            for msg in sms_messages:
+                msg.conversation_id = existing_direct.id
+                session.add(msg)
+            session.add(existing_direct)
+            sms_convo.is_deleted = True
+            session.add(sms_convo)
+
+    session.delete(ghost)
+    session.commit()
+
+    return {"migrated": True, "ghost_user_id": str(ghost_id)}
+
+
 # Same namespace as uuid.URL
 NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
@@ -777,7 +1004,11 @@ async def MOCK_contact_unknown_user(
             verify_phone = PhoneVerified(user_id=UUID(target_user_id))
             session.add_all([createUser, guest, verify_phone])
 
-    conversation_id = direct_conversation_id(target_user_id, str(current_user.id))
+    if registered_user:
+        conversation_id = direct_conversation_id(target_user_id, str(current_user.id))
+    else:
+        conversation_id = sms_conversation_id(target_user_id, str(current_user.id))
+
     conversation = session.get(Conversation, UUID(conversation_id))
 
     if not conversation:
@@ -814,4 +1045,9 @@ async def MOCK_contact_unknown_user(
     if not registered_user:
         await MOCK_sendToModule(target_phone_number, f"Hello {target_phone_number}. This is from SAPOT. User {current_user.username} enabled you to message to this SMS relay!")
 
-    return { "status": "ok", "detail": "Sync from the database", "user_id": target_user_id}
+    return {
+        "status": "ok",
+        "detail": "Sync from the database",
+        "user_id": str(UUID(target_user_id)),
+        "is_sapot_user": bool(registered_user),
+    }

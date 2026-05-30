@@ -692,13 +692,15 @@ export class ChatService {
     message: string
   ): Promise<{ conversationId: string; messageId: string }> {
     if (!this.peer) throw new Error("No peer state stored");
-    // Prefer an existing direct conversation over creating a new SMS conversation —
-    // if the peers already have a P2P chat, SMS messages belong in the same thread.
     const existingDirectId =
-      await this.conversationParticipantRepository.isDirectConversationExists([
+      (await this.conversationParticipantRepository.isDirectConversationExists([
         this.peer.id,
         this.userStore.user.id,
-      ]);
+      ])) ??
+      (await this.conversationParticipantRepository.isDirectConversationExists(
+        [this.peer.id, this.userStore.user.id],
+        ConversationType.SMS
+      ));
     const smsConversation = existingDirectId
       ? await this.conversationRepository.queryConversationById(
           existingDirectId
@@ -1059,9 +1061,18 @@ export class ChatService {
    */
   async findChatByPeer(peerId: string): Promise<string | undefined> {
     try {
-      return await this.conversationParticipantRepository.isDirectConversationExists(
-        [peerId, this.userStore.user.id]
-      );
+      const directId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [peerId, this.userStore.user.id]
+        );
+      if (directId) return directId;
+
+      // Fall back to SMS conversation using the deterministic ID so the lookup
+      // doesn't depend on participant records being present.
+      const smsId = smsConversationId(this.userStore.user.id, peerId);
+      const smsExists =
+        await this.conversationRepository.isConversationExist(smsId);
+      return smsExists ? smsId : undefined;
     } catch (error) {
       chatLog.error("chat › chat by peer failed", { peerId, error });
       throw error;

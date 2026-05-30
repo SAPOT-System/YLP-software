@@ -122,6 +122,8 @@ const ChatRoom = () => {
     // Reset immediately so stale data is not shown while async resolution runs
     setIsRendered(false);
     setConversationId(undefined);
+    setConversationType(undefined);
+    setIsSmsMode(false);
     setPeerId(undefined);
     setIsSelfChat(false);
     setPeer(undefined);
@@ -473,15 +475,17 @@ const ChatRoom = () => {
                 </Chip>
               )}
             </View>
-            <Text
-              style={[
-                styles.statusText,
-                { color: theme.dark ? "#E6ECF5" : "#6B7280" },
-              ]}
-              numberOfLines={1}
-            >
-              {isConnected ? "Connected" : connectionStatusLabel}
-            </Text>
+            {!isSmsConversation && (
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: theme.dark ? "#E6ECF5" : "#6B7280" },
+                ]}
+                numberOfLines={1}
+              >
+                {isConnected ? "Connected" : connectionStatusLabel}
+              </Text>
+            )}
           </View>
         </View>
 
