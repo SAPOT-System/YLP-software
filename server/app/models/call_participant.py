@@ -22,19 +22,20 @@ class CallParticipant(SyncableModel, table=True):
         nullable=False,
     )
 
-    left_at : int | None = None
+    left_at : int | None = Field(
+        default=None,
+        sa_type=BigInteger(),
+    )
+
 
     # foreign keys
-    call_id : UUID | None = Field(foreign_key='conversation.id', ondelete="CASCADE")
+    call_id : UUID | None = Field(foreign_key='call.id', ondelete="CASCADE")
     user_id : UUID | None = Field(foreign_key='user.id', ondelete="CASCADE")
 
     user: List["User"] = Relationship(
         back_populates="callparticipants"
     )
 
-    conversation: List["Conversation"] = Relationship(
-        back_populates="callparticipants"
-    )
 
 
 # class MessageReceiptBase(SQLModel):

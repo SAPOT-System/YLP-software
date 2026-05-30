@@ -234,6 +234,7 @@ async def push_local_data(
             row = session.get(Conversation, conversation_id)
             if row:
                 existing_conversation_ids.add(conversation_id)
+                session.flush()
                 return True
             return False
 
@@ -252,6 +253,7 @@ async def push_local_data(
             row = session.get(Call, call_id)
             if row:
                 existing_call_ids.add(call_id)
+                session.flush()
                 return True
             return False
 
@@ -277,6 +279,7 @@ async def push_local_data(
             row = session.get(Message, message_id)
             if row:
                 existing_message_ids.add(message_id)
+                session.flush()
                 return True
             return False
 
@@ -299,8 +302,10 @@ async def push_local_data(
         
             if user:
                 existing_user_ids.add(user_id)
+                session.flush()
             else:
                 missing_user_ids.add(user_id)
+                session.flush()
                 # --- PLACEHOLDER: CREATE GUEST USER ---
                 hint = hints.get(str(user_id))
                 user = User(
@@ -316,8 +321,11 @@ async def push_local_data(
                 )
                 
                 session.add(user)
+                session.flush()
                 session.add(guest_role)
+                session.flush()
                 existing_user_ids.add(user_id)
+                session.flush()
                 # --------------------------------------
 
         for model, table_changes in data_table.items():
@@ -372,6 +380,7 @@ async def push_local_data(
                     if record.updated_at > last_pulled_at:
                         record.updated_at = int(time.time() * 1000)
                         session.add(record)
+                        session.flush()
                         continue
 
                     # Record already deleted on server — skip. Bump updated_at so the deletion is
@@ -379,6 +388,7 @@ async def push_local_data(
                     if record.is_deleted:
                         record.updated_at = int(time.time() * 1000)
                         session.add(record)
+                        session.flush()
                         continue
 
                     # UPDATE existing record
@@ -387,26 +397,31 @@ async def push_local_data(
                         if key not in ["id", "_status", "_changed"] and hasattr(record, key):
                             setattr(record, key, value)
                     session.add(record)
+                    session.flush()
 
                 else:
                     # CREATE new record (if not found in 'updated' or 'created')
                     # Protocol: Sanitize data (handled by model validation/SQLModel)
                     new_record = model(**datum)
                     session.add(new_record)
+                    session.flush()
                     # Cache newly inserted IDs so same-batch children resolve without a DB hit
                     if datum.get("id"):
                         try:
                             inserted_id = UUID(str(datum["id"]))
                             if model is Call:
                                 existing_call_ids.add(inserted_id)
+                                session.flush()
                             elif model is Message:
                                 existing_message_ids.add(inserted_id)
+                                session.flush()
                         except ValueError:
                             pass
                     # Cache newly inserted messages so same-batch receipts resolve without a DB hit
                     if model is Message and datum.get("id"):
                         try:
                             existing_message_ids.add(UUID(str(datum["id"])))
+                            session.flush()
                         except ValueError:
                             pass
 
@@ -420,6 +435,7 @@ async def push_local_data(
                         record.is_deleted = True
                         record.updated_at = int(time.time() * 1000)
                         session.add(record)
+                        session.flush()
                         
                         # TODO: (Optional) Delete descendants here if needed 
                         # e.g., if record is Conversation, delete Messages.

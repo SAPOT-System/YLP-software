@@ -41,12 +41,6 @@ class Conversation(SyncableModel, table=True):
             }
     )
 
-    callparticipants: List['CallParticipant'] = Relationship(
-        back_populates='conversation',
-        sa_relationship_kwargs={
-            "cascade": "all, delete-orphan", # The magic string
-            }
-    )
 
     conversationparticipants: List['ConversationParticipant'] = Relationship(
         back_populates='conversation',

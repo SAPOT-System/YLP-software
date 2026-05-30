@@ -56,3 +56,4 @@ class Call(SyncableModel, table=True):
     )
 
 
+Call.model_rebuild()
