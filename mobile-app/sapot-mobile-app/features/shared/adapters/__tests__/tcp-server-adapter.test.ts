@@ -2,6 +2,8 @@ import {
     createMockServerSocket,
     createMockTcpServer,
 } from "@/test/mocks/adapter.mock-builders";
+import nacl from "tweetnacl";
+import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 import { TcpServerAdapter } from "../tcp-server-adapter";
 
 jest.mock("react-native-tcp-socket", () => ({
@@ -60,9 +62,33 @@ describe("TcpServerAdapter", () => {
     )?.[1];
 
     if (dataCallback) {
-      const message = { type: "test", data: "hello" };
-      dataCallback(JSON.stringify(message) + "\n");
-      expect(dataSpy).toHaveBeenCalledWith(message);
+      // Complete ECDH handshake: client sends handshake-init
+      const clientKeyPair = nacl.box.keyPair();
+      const handshakeInit = JSON.stringify({
+        type: "handshake-init",
+        pub: encodeBase64(clientKeyPair.publicKey),
+      }) + "\n";
+      dataCallback(handshakeInit);
+
+      // Extract server's public key from the handshake-ack written back
+      const ackRaw = mockSocket.write.mock.calls[0][0] as string;
+      const ack = JSON.parse(ackRaw.trim()) as { pub: string };
+      const serverPublicKey = decodeBase64(ack.pub);
+
+      // Compute shared key (client side) and encrypt a test message
+      const sharedKey = nacl.box.before(serverPublicKey, clientKeyPair.secretKey);
+      const message = { type: "test", data: "hello" } as unknown as Parameters<typeof nacl.secretbox>[0];
+      const nonce = nacl.randomBytes(nacl.box.nonceLength);
+      const plaintext = new TextEncoder().encode(JSON.stringify(message));
+      const ciphertext = nacl.secretbox(plaintext, nonce, sharedKey);
+      const encrypted = JSON.stringify({
+        type: "encrypted",
+        nonce: encodeBase64(nonce),
+        box: encodeBase64(ciphertext),
+      }) + "\n";
+
+      dataCallback(encrypted);
+      expect(dataSpy).toHaveBeenCalledWith({ type: "test", data: "hello" });
     }
   });
 

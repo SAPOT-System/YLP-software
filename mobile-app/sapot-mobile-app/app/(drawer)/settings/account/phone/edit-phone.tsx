@@ -1,8 +1,5 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
-import { useUserService } from "@/features/auth";
-import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
-import { updateProfileApi, getUserApi } from "@/features/shared/api/user-profile.api";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { useServerAction } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -13,7 +10,6 @@ import { Button, HelperText, useTheme } from "react-native-paper";
 
 export default function EditPhone() {
   const theme = useTheme();
-  const userService = useUserService();
   const { isServerOffline } = useServerAction();
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState<string | undefined>(undefined);

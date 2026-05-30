@@ -29,6 +29,8 @@ describe("MessageRepository", () => {
       Promise.resolve(fn()).then((_result: any) => mockMessage)
     );
 
+    repository.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
+
     await repository.saveMessage({
       sender: {
         ...createTestPeer({ id: "user-1", username: "Alice" }),
@@ -48,6 +50,8 @@ describe("MessageRepository", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (fn: any) => Promise.resolve(fn())
     );
+
+    repository.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
 
     await repository.saveMessage({
       sender: {

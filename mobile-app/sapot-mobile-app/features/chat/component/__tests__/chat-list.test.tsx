@@ -75,6 +75,7 @@ jest.mock("@/features/shared", () => {
     MessageStatus: class {
       static table = "message_receipts";
     },
+    Peer: class {},
     MessageStatusType: { READ: "read" },
     MessageType: { CALL_LOG: "call_log", FILE: "file" },
     formatDate: () => "Jan 1, 2024",
@@ -86,6 +87,12 @@ jest.mock("@/features/shared/hooks", () => ({
     url: null,
     loading: false,
     setUrl: jest.fn(),
+  }),
+  useMainContainer: () => ({
+    messageRepository: {
+      onConversationKeySet: jest.fn().mockReturnValue(() => {}),
+      decryptMessage: jest.fn().mockReturnValue(""),
+    },
   }),
 }));
 

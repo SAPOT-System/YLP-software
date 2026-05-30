@@ -463,9 +463,8 @@ describe("ChatService", () => {
       jest.advanceTimersByTime(12001);
       await Promise.resolve(); // flush microtasks
 
-      expect(mockMessageStatusRepository.updateMessageStatusById).toHaveBeenCalledWith(
-        "status-1",
-        MessageStatusType.NOT_SENT
+      expect(mockMessageStatusRepository.updateToNotSentIfStillPendingById).toHaveBeenCalledWith(
+        "status-1"
       );
     });
 

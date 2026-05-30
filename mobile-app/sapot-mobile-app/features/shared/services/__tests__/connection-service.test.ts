@@ -348,7 +348,7 @@ describe("ConnectionService", () => {
 
       // First call creates adapter
       const adapter1 = connectionService.getTcpClientAdapter(peerId);
-      expect(TcpClientAdapter).toHaveBeenCalledWith(peerId);
+      expect(TcpClientAdapter).toHaveBeenCalledWith(peerId, undefined, undefined, "test-user-id");
 
       // Second call returns same adapter
       const adapter2 = connectionService.getTcpClientAdapter(peerId);
@@ -364,8 +364,8 @@ describe("ConnectionService", () => {
       connectionService.getTcpClientAdapter(peerId2);
 
       expect(TcpClientAdapter).toHaveBeenCalledTimes(2);
-      expect(TcpClientAdapter).toHaveBeenNthCalledWith(1, peerId1);
-      expect(TcpClientAdapter).toHaveBeenNthCalledWith(2, peerId2);
+      expect(TcpClientAdapter).toHaveBeenNthCalledWith(1, peerId1, undefined, undefined, "test-user-id");
+      expect(TcpClientAdapter).toHaveBeenNthCalledWith(2, peerId2, undefined, undefined, "test-user-id");
     });
 
     it("should throw error if adapter creation fails", () => {
@@ -681,7 +681,7 @@ describe("ConnectionService", () => {
         ipAddress,
         port
       );
-      expect(sendMessageSpy).toHaveBeenCalledTimes(2); // handshake and offer
+      expect(sendMessageSpy).toHaveBeenCalledTimes(3); // profile-info, handshake, and offer
     });
 
     it("should resolve immediately if already connected", async () => {
@@ -1043,7 +1043,7 @@ describe("ConnectionService", () => {
         },
       });
 
-      signalingService.sendSignalingMessage(peerId, testMessage);
+      await signalingService.sendSignalingMessage(peerId, testMessage);
 
       expect(mockWsSignalingAdapter.sendMessage).toHaveBeenCalledWith(testMessage);
     });

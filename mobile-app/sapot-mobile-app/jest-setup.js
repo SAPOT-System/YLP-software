@@ -161,6 +161,33 @@ jest.mock('expo-notifications', () => ({
   },
 }));
 
+// Mock react-native-quick-base64 (TurboModule not available in Jest)
+jest.mock('react-native-quick-base64', () => ({
+  btoa: (data) => Buffer.from(data, 'binary').toString('base64'),
+  atob: (data) => Buffer.from(data, 'base64').toString('binary'),
+  fromByteArray: (data) => Buffer.from(data).toString('base64'),
+  toByteArray: (data) => new Uint8Array(Buffer.from(data, 'base64')),
+}));
+
+// Mock react-native-quick-crypto (TurboModule not available in Jest)
+jest.mock('react-native-quick-crypto', () => {
+  const crypto = require('crypto');
+  return {
+    __esModule: true,
+    default: {
+      pbkdf2: (secret, salt, iterations, keylen, digest, callback) => {
+        crypto.pbkdf2(secret, salt, iterations, keylen, digest, (err, key) => {
+          callback(err, key ? new Uint8Array(key) : null);
+        });
+      },
+      pbkdf2Sync: (secret, salt, iterations, keylen, digest) => {
+        const key = crypto.pbkdf2Sync(secret, salt, iterations, keylen, digest);
+        return new Uint8Array(key);
+      },
+    },
+  };
+});
+
 // Mock document picker (native module)
 jest.mock('@react-native-documents/picker', () => ({
   saveDocuments: jest.fn(),

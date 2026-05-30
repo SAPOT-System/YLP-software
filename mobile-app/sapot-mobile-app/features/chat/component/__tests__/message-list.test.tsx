@@ -39,6 +39,10 @@ jest.mock("@/features/shared/hooks", () => ({
     findDiscoveredPeerById: jest.fn(),
   }),
   useMainContainer: () => ({
+    messageRepository: {
+      onConversationKeySet: jest.fn().mockReturnValue(() => {}),
+      decryptMessage: jest.fn((msg: { content?: string }) => msg?.content ?? ""),
+    },
     callRepository: {
       queryByConversation: jest.fn().mockResolvedValue([]),
     },

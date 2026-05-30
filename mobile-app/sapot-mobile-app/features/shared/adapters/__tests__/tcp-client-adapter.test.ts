@@ -1,4 +1,6 @@
 import { createMockTcpClientSocket } from "@/test/mocks/adapter.mock-builders";
+import nacl from "tweetnacl";
+import { encodeBase64 } from "tweetnacl-util";
 import { TcpClientAdapter } from "../tcp-client-adapter";
 
 jest.mock("react-native-tcp-socket", () => ({
@@ -23,11 +25,26 @@ describe("TcpClientAdapter", () => {
     jest.clearAllMocks();
     mockSocket = createMockTcpClientSocket();
 
+    // Capture the data handler so we can simulate the server handshake-ack
+    let dataHandler: ((data: string) => void) | null = null;
+    mockSocket.on.mockImplementation((event: string, handler: (data: string) => void) => {
+      if (event === "data") dataHandler = handler;
+    });
+
     const TcpSocket = require("react-native-tcp-socket");
     TcpSocket.createConnection.mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (options: any, callback: any) => {
-        setTimeout(callback, 0);
+        setTimeout(() => {
+          callback();
+          // Simulate the server responding with a handshake-ack
+          const serverKeyPair = nacl.box.keyPair();
+          const ack = JSON.stringify({
+            type: "handshake-ack",
+            pub: encodeBase64(serverKeyPair.publicKey),
+          }) + "\n";
+          if (dataHandler) dataHandler(ack);
+        }, 0);
         return mockSocket;
       }
     );
@@ -51,9 +68,9 @@ describe("TcpClientAdapter", () => {
 
     adapter.sendMessage(message);
 
-    expect(mockSocket.write).toHaveBeenCalledWith(
-      JSON.stringify(message) + "\n"
-    );
+    // After handshake, messages are encrypted; check the last write is an encrypted frame
+    const lastWrite = mockSocket.write.mock.calls.at(-1)?.[0] as string;
+    expect(JSON.parse(lastWrite)).toMatchObject({ type: "encrypted" });
   });
 
   it("throws error when sending message while disconnected", async () => {
