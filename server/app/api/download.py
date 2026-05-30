@@ -10,7 +10,7 @@ router = APIRouter(
     }
 )
 
-APK_PATH = Path("../apks/sapot.apk")
+APK_PATH = Path("apks/sapot.apk")
 
 @router.get("/download-apk")
 async def download_apk():
