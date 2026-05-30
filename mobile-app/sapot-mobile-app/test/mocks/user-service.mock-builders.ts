@@ -4,9 +4,10 @@ import type { PeerService } from "@/features/shared/services/peer-service";
 import type { SessionStore, UserStore } from "@/features/shared/stores";
 
 export type UserStoreMock = jest.Mocked<
-  Pick<UserStore, "setUser" | "setIsRescuer"> & {
+  Pick<UserStore, "setUser" | "setIsRescuer" | "setIsAdmin"> & {
     user?: unknown;
     isRescuer?: boolean;
+    isAdmin?: boolean;
   }
 >;
 
@@ -46,8 +47,10 @@ export function createUserStoreMock(
   return {
     user: undefined,
     isRescuer: false,
+    isAdmin: false,
     setUser: jest.fn(),
     setIsRescuer: jest.fn(),
+    setIsAdmin: jest.fn(),
     ...overrides,
   };
 }

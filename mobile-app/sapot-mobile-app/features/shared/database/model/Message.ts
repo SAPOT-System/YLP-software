@@ -22,6 +22,7 @@ export class Message extends Model {
   @date("updated_at") updatedAt!: Date;
   @field("is_deleted") isDeleted!: boolean;
   @field("linked_message_id") linkedMessageId!: string | null;
+  @field("is_encrypted") isEncrypted!: boolean;
 
   @relation("conversations", "conversation")
   conversation!: Relation<Conversation>;

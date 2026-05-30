@@ -8,6 +8,7 @@ export const useSmsReset = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCodeSent, setIsCodeSent] = useState(false);
   const [phone, setPhone] = useState<string>("");
+  const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
 
   const sendCode = async (phoneNumber: string) => {
     authLog.debug("[useSmsReset] sendCode called", {
@@ -44,9 +45,12 @@ export const useSmsReset = () => {
 
     try {
       const response = await verifyResetSmsCodeApi(phoneNumber, code);
+      const rt = response.data.recovery_token ?? null;
+      setRecoveryToken(rt);
       return {
         success: response.status === 200,
         recoveryLink: response.data.link,
+        recoveryToken: rt,
       };
     } catch (err) {
       authLog.error("[useSmsReset] Error in verifyCode", { error: err });
@@ -73,6 +77,7 @@ export const useSmsReset = () => {
     error,
     isCodeSent,
     phone,
+    recoveryToken,
     sendCode,
     verifyCode,
     reset,

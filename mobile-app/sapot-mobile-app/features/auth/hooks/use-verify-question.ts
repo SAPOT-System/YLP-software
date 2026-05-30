@@ -31,7 +31,7 @@ export const useVerifyAnswer = (identifier: string) => {
       });
 
       if (res.data.correct) {
-        return { success: res.data.correct, resetLink: res.data.reset_link };
+        return { success: true, resetLink: res.data.reset_link, recoveryToken: res.data.recovery_token };
       } else {
         setError({ answer: "Wrong answer" });
         return { success: false };

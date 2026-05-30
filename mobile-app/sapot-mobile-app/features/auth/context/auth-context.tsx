@@ -30,6 +30,7 @@ import {
   isRefreshTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
+import { clearConnectionConfig } from "@/features/shared/stores/secure-config";
 
 interface AuthContextI {
   login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
@@ -206,6 +207,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const userInfo = await getUserApi(access_token);
 
+      // Store raw password briefly for LocalEncryptionService.initialize()
+      const { setPendingPassword } = await import("@/features/shared/main-container");
+      setPendingPassword(credentials.password);
+
       await userService.syncAuthenticatedUser(userInfo);
 
       setAccessToken(access_token);
@@ -315,7 +320,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
-      await guestMigrationService.cleanUp();
+      // migrateAndCleanUp() decrypts all ecdh:-prefixed messages to plaintext
+      // while the guest conversation keys are still live in memory, then deletes
+      // the guest_user record and signals MainContainer to reset so the auth
+      // ECDH keypair is properly initialised in the same session.
+      await guestMigrationService.migrateAndCleanUp();
+
+      const { setPendingPassword } = await import("@/features/shared/main-container");
+      setPendingPassword(data.password);
 
       await userService.syncAuthenticatedUser(res.data);
       setIsRescuer(userService.getIsRescuer());
@@ -359,6 +371,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteItemAsync("userUUID");
 
     await userService.logout();
+    await clearConnectionConfig();
     setAccessToken(null);
     setIsAuthenticated(false);
     setIsRescuer(false);

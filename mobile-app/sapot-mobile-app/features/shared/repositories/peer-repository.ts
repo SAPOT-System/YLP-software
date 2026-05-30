@@ -36,6 +36,7 @@ export class PeerRepository {
     emailVerified?: boolean;
     phoneNumberVerified?: boolean;
     role?: string;
+    isGuest?: boolean;
   }) {
     try {
       return await this.db.write(async () => {
@@ -55,6 +56,9 @@ export class PeerRepository {
           }
           if (newPeer.role !== undefined) {
             peer.role = newPeer.role;
+          }
+          if (newPeer.isGuest !== undefined) {
+            peer.isGuest = newPeer.isGuest;
           }
         });
         return peer;
@@ -90,6 +94,7 @@ export class PeerRepository {
       emailVerified?: boolean;
       phoneNumberVerified?: boolean;
       role?: string;
+      isGuest?: boolean;
     },
     options?: { markOnline?: boolean }
   ) {
@@ -125,6 +130,9 @@ export class PeerRepository {
             if (peerInfo.role !== undefined) {
               peer.role = peerInfo.role;
             }
+            if (peerInfo.isGuest !== undefined) {
+              peer.isGuest = peerInfo.isGuest;
+            }
             if (options?.markOnline) {
               peer.isOnline = true;
             }
@@ -148,6 +156,9 @@ export class PeerRepository {
           }
           if (peerInfo.role !== undefined) {
             peer.role = peerInfo.role;
+          }
+          if (peerInfo.isGuest !== undefined) {
+            peer.isGuest = peerInfo.isGuest;
           }
         });
         return peer;
@@ -229,6 +240,7 @@ export class PeerRepository {
       emailVerified?: boolean;
       phoneNumberVerified?: boolean;
       role?: string;
+      isGuest?: boolean;
     }
   ) {
     try {
@@ -260,6 +272,9 @@ export class PeerRepository {
             }
             if (peerInfo.role !== undefined) {
               peer.role = peerInfo.role;
+            }
+            if (peerInfo.isGuest !== undefined) {
+              peer.isGuest = peerInfo.isGuest;
             }
           });
         }
@@ -343,6 +358,21 @@ export class PeerRepository {
       peerLog.error("peer › delete all failed", { error });
       throw error;
     }
+  }
+
+  async getByIds(ids: string[]): Promise<Peer[]> {
+    if (ids.length === 0) return [];
+    try {
+      return this.peersCollection.query(Q.where("id", Q.oneOf(ids))).fetch();
+    } catch (error) {
+      peerLog.error("peer › get by ids failed", { count: ids.length, error });
+      throw error;
+    }
+  }
+
+  async getAllPeerIds(): Promise<string[]> {
+    const peers = await this.peersCollection.query().fetch();
+    return peers.map(p => p.id);
   }
 
   async getPeerDestroyOps() {

@@ -213,6 +213,7 @@ export default ({ config }: ConfigContext) => ({
           packagingOptions: {
             pickFirst: ["**/libc++_shared.so"],
           },
+          networkSecurityConfig: "./android-network-security-config.xml",
         },
       },
     ],

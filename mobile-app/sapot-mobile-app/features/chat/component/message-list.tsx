@@ -1,7 +1,7 @@
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Feather } from "@expo/vector-icons";
-import React, { memo, useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useReducer, useRef, useState } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
 import { catchError, map, of } from "rxjs";
 
@@ -16,6 +16,7 @@ import {
 import { MessageType } from "@/features/shared/database/model/Message";
 import { CallType } from "@/features/shared/database/model/Call";
 import { useMainContainer } from "@/features/shared/hooks";
+import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { usePeerService } from "@/features/shared/hooks";
@@ -217,8 +218,9 @@ const CallLogMessageCard = ({
   callType: CallType | null;
 }) => {
   const handleCall = useInformCall();
+  const content = useDecryptedContent(message);
   const { isMissed, isBusy, isAudio, title, subtitle } = parseCallLog(
-    message.content,
+    content,
     message.createdAt
   );
 
@@ -297,6 +299,22 @@ type MessageListItemProps = {
   peerId: string;
 };
 
+const useDecryptedContent = (message: Message): string => {
+  const { messageRepository } = useMainContainer();
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+
+  useEffect(() => {
+    const convId = (message._raw as Record<string, string>).conversation;
+    return messageRepository.onConversationKeySet((updatedConvId) => {
+      if (updatedConvId === convId) forceUpdate();
+    });
+  }, [message, messageRepository]);
+
+  const content = messageRepository.decryptMessage(message);
+  // While the conversation key is not yet derived, avoid rendering raw ciphertext.
+  return content.startsWith(ECDH_PREFIX) ? "" : content;
+};
+
 const MessageListItemInner = memo(
   ({
     message,
@@ -309,6 +327,7 @@ const MessageListItemInner = memo(
   }: MessageListItemProps) => {
     const statusObj = status?.[0];
     const senderName = getSenderName(sender ?? guestSender);
+    const content = useDecryptedContent(message);
     const userStore = useUserStore();
     const theme = useTheme();
     const isCurrentUserMessage = message.sender?.id === userStore.user?.id;
@@ -338,7 +357,7 @@ const MessageListItemInner = memo(
       try {
         if (message.messageType === MessageType.SMS) {
           await chatService.updateMessageStatus(message.id, MessageStatusType.SENDING);
-          const res = await sendSmsToUser(peerId, message.content);
+          const res = await sendSmsToUser(peerId, content);
           const status = res.ok
             ? MessageStatusType.DELIVERED
             : MessageStatusType.NOT_SENT;
@@ -404,7 +423,7 @@ const MessageListItemInner = memo(
                 fontSize: 17,
               }}
             >
-              {message.content}
+              {content}
             </Text>
           </View>
         );
@@ -422,7 +441,7 @@ const MessageListItemInner = memo(
         setIsResending(true);
         try {
           await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.SENDING);
-          const res = await sendSmsToUser(peerId, message.content);
+          const res = await sendSmsToUser(peerId, content);
           const newStatus = res.ok ? MessageStatusType.DELIVERED : MessageStatusType.NOT_SENT;
           await chatService.updateMessageStatus(message.linkedMessageId, newStatus);
         } catch {
@@ -445,7 +464,7 @@ const MessageListItemInner = memo(
               You, {formatDate(message.createdAt)}
             </Text>
             <Text style={{ color: "#FFFFFF", fontSize: 17 }}>
-              {message.content}
+              {content}
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

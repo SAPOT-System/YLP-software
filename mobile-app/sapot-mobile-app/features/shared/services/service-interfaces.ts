@@ -13,7 +13,7 @@ export interface IWebrtcSessionManager {
   sendChatMessage(peerId: string, messageData: DataChatMessageI): void;
   sendAckMessage(peerId: string, ackData: DataAckMessage): void;
   setChatService(chatService: ChatService): void;
-  setSignalingSender(fn: (peerId: string, msg: SignalingMessage) => void): void;
+  setSignalingSender(fn: (peerId: string, msg: SignalingMessage) => void | Promise<void>): void;
   cleanupAll(): void;
   on(event: "remoteStream", listener: (stream: MediaStream) => void): this;
   on(event: "peer-reconnected", listener: (peerId: string) => void): this;
@@ -21,7 +21,7 @@ export interface IWebrtcSessionManager {
 
 export interface ISignalingService {
   handleIncomingSignaling(message: SignalingMessage): Promise<void>;
-  sendSignalingMessage(peerId: string, message: SignalingMessage): void;
+  sendSignalingMessage(peerId: string, message: SignalingMessage): Promise<void>;
   sendCallMessage(peerId: string, message: CallMessage): void;
   setSignalingToken(token?: string): void;
   ensureWsSignaling(): boolean;

@@ -1,5 +1,6 @@
 import { addSecurityQuestionApi } from "@/features/auth/api/auth.api";
 import { SECURITY_QUESTIONS } from "@/features/auth/components/register-step-2";
+import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
 import { SettingsTextInput } from "@/features/settings";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
@@ -17,6 +18,7 @@ import { Dropdown } from "react-native-paper-dropdown";
 
 export default function SecurityQuestion() {
   const theme = useTheme();
+  const { setupQABlob } = useRecoveryKeySetup();
 
   const [selectedQuestion, setSelectedQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -67,6 +69,7 @@ export default function SecurityQuestion() {
         [{ question: selectedQuestion, answer: answer.trim() }],
         token
       );
+      await setupQABlob(selectedQuestion, answer.trim());
       setSelectedQuestion("");
       setAnswer("");
       setErrors({});

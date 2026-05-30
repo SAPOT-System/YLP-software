@@ -26,6 +26,8 @@ import {
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
+import { PeerKeyService } from "./peer-key-service";
+import { PeerKeyStore } from "./peer-key-store";
 import { SignalingService } from "./signaling-service";
 import { WebrtcSessionManager } from "./webrtc-session-manager";
 
@@ -88,6 +90,7 @@ export type ConnectionServiceEvents = {
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
+  private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> };
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
   private incomingCallNotifId: string | null = null;
@@ -100,7 +103,9 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     private readonly wsSignalingAdapter: WsSignalingAdapter,
     private readonly webrtcSessionManager: WebrtcSessionManager,
     private readonly signalingService: SignalingService,
-    private readonly callMediaService: CallMediaService
+    private readonly callMediaService: CallMediaService,
+    private readonly peerKeyService?: PeerKeyService,
+    private readonly peerKeyStore?: PeerKeyStore
   ) {
     super();
 
@@ -122,7 +127,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       (peerId, msg) => this.sendMessage(peerId, msg)
     );
     this.webrtcSessionManager.setSignalingSender((peerId, msg) =>
-      this.signalingService.sendSignalingMessage(peerId, msg)
+      void this.signalingService.sendSignalingMessage(peerId, msg)
     );
 
     // Forward WebrtcSessionManager events onto ConnectionService.
@@ -370,6 +375,15 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       });
     });
 
+    tcpServerAdapter.on("peer-identity", async ({ peerId, isGuest }: { peerId?: string; isGuest: boolean }) => {
+      if (!peerId) return;
+      try {
+        await this.peerService?.updatePeerInfo(peerId, { isGuest });
+      } catch (error) {
+        connectionLog.error("connection › peer-identity update failed", { peerId, error });
+      }
+    });
+
     tcpServerAdapter.on("data", async (message: Message) => {
       try {
         if (!this.isTcpAllowed()) {
@@ -388,6 +402,13 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           message.type === "handshake"
         ) {
           await this.signalingService.handleIncomingSignaling(message);
+        }
+        if (message.type === "profile-info") {
+          await this.peerService?.updatePeerInfo(message.data.from, {
+            username: message.data.username,
+            firstName: message.data.firstName,
+            lastName: message.data.lastName,
+          });
         }
         if (message.type === "audio-call" && "from" in message.data) {
           const callerPeerId = message.data.from;
@@ -597,6 +618,18 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.setChatService(chatService);
   }
 
+  setPeerService(peerService: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> }) {
+    this.peerService = peerService;
+  }
+
+  /**
+   * Returns whether the peer is a guest based on the TCP handshake result.
+   * Defaults to true (conservative) if no adapter exists or handshake not done.
+   */
+  getPeerIsGuest(peerId: string): boolean {
+    return this.tcpClientAdapters.get(peerId)?.peerIsGuest ?? true;
+  }
+
   /**
    * Retrieves or creates a TcpClientAdapter for the given peer.
    * Stays in ConnectionService per design constraint.
@@ -605,7 +638,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     try {
       let adapter = this.tcpClientAdapters.get(peerId);
       if (!adapter) {
-        adapter = new TcpClientAdapter(peerId);
+        adapter = new TcpClientAdapter(peerId, this.peerKeyService, this.peerKeyStore, this.userStore.user.id);
         this.tcpClientAdapters.set(peerId, adapter);
         connectionLog.debug("connection › tcp client created", { peerId });
       }
@@ -703,6 +736,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         }
         await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
         isTcpConnected = true;
+        this.sendProfileInfo(peerId);
       }
     } else {
       if (canUseTcp && !isTcpConnected) {
@@ -710,6 +744,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           try {
             await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
             isTcpConnected = true;
+            this.sendProfileInfo(peerId);
           } catch (error) {
             connectionLog.warn("connection › tcp connect failed after retries", {
               peerId,
@@ -867,7 +902,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               },
             });
           }
-          this.signalingService.sendSignalingMessage(peerId, {
+          void this.signalingService.sendSignalingMessage(peerId, {
             type,
             data: {
               sdp: { type, sdp },
@@ -917,7 +952,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         type,
         hasSdp: Boolean(sdp),
       });
-      this.signalingService.sendSignalingMessage(peerId, {
+      await this.signalingService.sendSignalingMessage(peerId, {
         type,
         data: {
           sdp: { type, sdp },
@@ -1191,6 +1226,23 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private sendProfileInfo(peerId: string) {
+    try {
+      const user = this.userStore.user;
+      this.sendMessage(peerId, {
+        type: "profile-info",
+        data: {
+          from: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      });
+    } catch (error) {
+      connectionLog.warn("connection › profile-info send failed", { peerId, error });
+    }
   }
 
   private async connectTcpWithRetry(

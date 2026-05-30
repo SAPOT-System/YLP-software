@@ -5,12 +5,14 @@ import { isAxiosError } from "axios";
 
 import { CallStatus } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { Message } from "@/features/shared/database/model/Message";
 import {
   getSyncLastPulledAt,
   saveSyncLastPulledAt,
 } from "@/features/shared/stores/secure-config";
 import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
 import { syncLog } from "@/features/shared/utils/logger";
+import { clearMigrationState } from "@/features/shared/stores/secure-config";
 import {
   pushLocalDataApi,
   sync as syncApi,
@@ -21,6 +23,7 @@ import type { MessageReceiptManager } from "@/features/chat/services/message-rec
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import type { PeerService } from "@/features/shared/services/peer-service";
 import type { PeerRepository } from "@/features/shared/repositories/peer-repository";
+import type { MessageRepository } from "@/features/chat/repositories/message-repository";
 
 syncLog.debug("[sync-service] module loaded");
 
@@ -170,6 +173,8 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private syncLogger: SyncLogger;
   private retryAttempts = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
+  private messageRepository?: MessageRepository;
+  private _skipEncryptedMessageUpdates = false;
 
   constructor({ db, messageReceiptManager, currentUserId, peerService, peerRepository }: SyncServiceParams) {
     super();
@@ -199,6 +204,24 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   setPeerService(peerService: PeerService): void {
     this.peerService = peerService;
     syncLog.info("sync › peer service set");
+  }
+
+  /** Wired by MainContainer so normalizePullChanges can decrypt server messages
+   *  that were encrypted with the guest conversation key during migration. */
+  setMessageRepository(repo: MessageRepository): void {
+    this.messageRepository = repo;
+    syncLog.info("sync › message repository set");
+  }
+
+  /**
+   * Instructs the next sync pull phase to skip overwriting locally-encrypted
+   * messages with server-side ecdh: ciphertext. Called in the migration recovery
+   * path to prevent the pull from restoring old guest-key ciphertext over messages
+   * that were just re-encrypted with the auth conversation key.
+   * The flag is consumed and cleared on the next normalizePullChanges() call.
+   */
+  skipEncryptedMessageUpdatesOnNextSync(): void {
+    this._skipEncryptedMessageUpdates = true;
   }
 
   get syncLogs() {
@@ -317,6 +340,20 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         },
       });
       syncLog.info("sync › complete");
+
+      // Post-migration: re-encrypt any messages that were pulled from the server
+      // as plaintext (server-only messages that arrived as ecdh:K_AB in the pull
+      // phase and were decrypted by normalizePullChanges). Running this AFTER the
+      // full synchronize() call — not inside the pull callback — ensures the
+      // snapshot survives 409/retry scenarios and is only cleared on success.
+      if (this.messageRepository?.hasMigrationKeys()) {
+        syncLog.info("sync › post-migration re-encryption: re-encrypting server-pulled messages");
+        await this.messageRepository.reEncryptAfterMigration();
+        this.messageRepository.clearMigrationKeys();
+        await clearMigrationState();
+        syncLog.info("sync › post-migration re-encryption: complete, migration keys cleared");
+      }
+
       this.emit("sync-status", { status: "complete" });
       this.retryAttempts = 0;
       this.clearRetryTimer();
@@ -477,7 +514,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     changes: SyncChanges,
     lastPulledAt?: number | null
   ) {
-    const payload = await this.buildPushPayload(changes);
+    const { changes: payload, guest_users } = await this.buildPushPayload(changes);
     syncLog.debug("sync › push payload", {
       hasChanges: this.hasPayload(payload),
     });
@@ -485,12 +522,13 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     await pushLocalDataApi({
       last_pulled_at: lastPulledAt ?? 0,
       changes: payload,
+      guest_users,
     });
   }
 
   private async buildPushPayload(
     changes: SyncChanges
-  ): Promise<PushLocalDataRequestBody["changes"]> {
+  ): Promise<{ changes: PushLocalDataRequestBody["changes"]; guest_users: Record<string, { first_name: string; last_name: string; username: string }> }> {
     type C = PushLocalDataRequestBody["changes"];
 
     // Build a map of message receipts grouped by message for filtering logic
@@ -545,7 +583,30 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       }
     }
 
-    return {
+    const conversationParticipantsCreated = changes.conversation_participants.created.map(
+      (r) => this.toServerPayload("conversation_participants", r)
+    ) as C["conversation_participants"]["created"];
+
+    const guest_users: Record<string, { first_name: string; last_name: string; username: string }> = {};
+    if (this.peerRepository) {
+      const participantUserIds = conversationParticipantsCreated
+        .map((p) => p.user_id)
+        .filter((id): id is string => Boolean(id));
+      if (participantUserIds.length > 0) {
+        const peers = await this.peerRepository.getByIds(participantUserIds);
+        for (const peer of peers) {
+          if (peer.isGuest && peer.firstName) {
+            guest_users[peer.id] = {
+              first_name: peer.firstName,
+              last_name: peer.lastName ?? "",
+              username: peer.username,
+            };
+          }
+        }
+      }
+    }
+
+    return { changes: {
       conversations: {
         created: changes.conversations.created.map((r) =>
           this.toServerPayload("conversations", r)
@@ -556,9 +617,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         deleted: changes.conversations.deleted,
       },
       conversation_participants: {
-        created: changes.conversation_participants.created.map((r) =>
-          this.toServerPayload("conversation_participants", r)
-        ) as C["conversation_participants"]["created"],
+        created: conversationParticipantsCreated,
         updated: changes.conversation_participants.updated.map((r) =>
           this.toServerPayload("conversation_participants", r)
         ) as C["conversation_participants"]["updated"],
@@ -657,7 +716,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           ) as C["message_receipts"]["updated"],
         deleted: changes.message_receipts.deleted,
       },
-    };
+    }, guest_users };
   }
 
   private hasPayload(payload: PushLocalDataRequestBody["changes"]) {
@@ -1088,6 +1147,36 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     const toIds = (arr: { id?: string }[]): string[] =>
       arr.flatMap((c) => (c.id ? [c.id] : []));
 
+    // Migration recovery: collect message IDs that are already ecdh:-encrypted
+    // locally and whose server version is also ecdh:-prefixed (but a different
+    // ciphertext — typically the old guest-key version). Filtering these out
+    // prevents the pull from overwriting locally re-encrypted messages with stale
+    // server ciphertext before the push phase can send the correct content.
+    const localEncryptedUpdatesToSkip = new Set<string>();
+    if (this._skipEncryptedMessageUpdates) {
+      this._skipEncryptedMessageUpdates = false;
+      const encryptedServerUpdates = changes.messages.updated
+        .filter((item) => ((item.content ?? "") as string).startsWith("ecdh:"))
+        .map((item) => item.id ?? "")
+        .filter(Boolean);
+      if (encryptedServerUpdates.length > 0) {
+        const localMsgs = await this.db
+          .get<Message>(Message.table)
+          .query(Q.where("id", Q.oneOf(encryptedServerUpdates)))
+          .fetch();
+        for (const m of localMsgs) {
+          if (m.content.startsWith("ecdh:")) {
+            localEncryptedUpdatesToSkip.add(m.id);
+          }
+        }
+        if (localEncryptedUpdatesToSkip.size > 0) {
+          syncLog.info("sync › recovery: skipping server ecdh: overwrites for locally re-encrypted messages", {
+            count: localEncryptedUpdatesToSkip.size,
+          });
+        }
+      }
+    }
+
     const existingIds = {
       conversations: await this.checkEntitiesExist(
         "conversations",
@@ -1165,6 +1254,32 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       messages: {
         created: changes.messages.created
           .filter((item) => !existingIds.messages.has(item.id ?? ""))
+          .map((item) => {
+            // During a guest→auth migration the server may have messages encrypted
+            // with the old guest conversation key (ecdh:K_AB). Decrypt them to
+            // plaintext here so reEncryptAfterMigration() can re-encrypt with the
+            // auth key before the push phase.
+            let content = (item.content ?? "") as string;
+            if (content.startsWith("ecdh:") && this.messageRepository?.hasMigrationKeys()) {
+              const convId = item.conversation_id ?? "";
+              const decrypted = this.messageRepository.tryDecryptWithMigrationKeys(content, convId);
+              if (decrypted !== null) {
+                content = decrypted;
+              }
+            }
+            return {
+              ...item,
+              content,
+              conversation: item.conversation_id,
+              sender: item.sender_id,
+              message_type: item.message_type,
+              is_deleted: item.is_deleted ?? false,
+              created_at: this.toTimestamp(item.created_at),
+              updated_at: this.toTimestamp(item.updated_at),
+            };
+          }),
+        updated: changes.messages.updated
+          .filter((item) => !localEncryptedUpdatesToSkip.has(item.id ?? ""))
           .map((item) => ({
             ...item,
             conversation: item.conversation_id,
@@ -1174,15 +1289,6 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
             created_at: this.toTimestamp(item.created_at),
             updated_at: this.toTimestamp(item.updated_at),
           })),
-        updated: changes.messages.updated.map((item) => ({
-          ...item,
-          conversation: item.conversation_id,
-          sender: item.sender_id,
-          message_type: item.message_type,
-          is_deleted: item.is_deleted ?? false,
-          created_at: this.toTimestamp(item.created_at),
-          updated_at: this.toTimestamp(item.updated_at),
-        })),
         deleted: changes.messages.deleted,
       },
       calls: {

@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, col
-from app.models.sync import SyncResponse, SyncRequest, SyncCheckResponse, PushSyncRequest, TableChanges
+from app.models.sync import SyncResponse, SyncRequest, SyncCheckResponse, PushSyncRequest, TableChanges, GuestUserHint
 
 from app.db_operations.token import get_current_user
 from app.models.users import User
@@ -168,7 +168,7 @@ def cast_to_uuids(model, datum: dict):
     if "id" in datum and isinstance(datum["id"], str):
         datum["id"] = UUID(datum["id"])
 
-    # 2. Use .get() or "in" checks for foreign keys
+    # 3. Use .get() or "in" checks for foreign keys
     # This prevents KeyErrors during partial updates
     
     if model is ConversationParticipant:
@@ -204,6 +204,7 @@ async def push_local_data(
 ):
     changes = data.changes
     last_pulled_at = data.last_pulled_at or 0
+    hints: dict[str, GuestUserHint] = data.guest_users or {}
     
     # Tables in order to respect Foreign Key constraints
     data_table = {
@@ -254,6 +255,31 @@ async def push_local_data(
                 return True
             return False
 
+        existing_message_ids: set[UUID] = set()
+        def ensure_message_exists(message_id: UUID | str | None) -> bool:
+            """Returns False if the message doesn't exist — caller should skip the record.
+
+            MessageReceipt has a hard FK on message.id (ON DELETE CASCADE). If the
+            parent message was never pushed to the server (e.g. a P2P-only message
+            delivered via TCP/WebRTC), inserting a receipt for it causes an
+            IntegrityError. Skipping is safe: the receipt will be re-tried on the
+            next sync once/if the parent message is pushed.
+            """
+            if not message_id:
+                return False
+            if not isinstance(message_id, UUID):
+                try:
+                    message_id = UUID(str(message_id))
+                except ValueError:
+                    return False
+            if message_id in existing_message_ids:
+                return True
+            row = session.get(Message, message_id)
+            if row:
+                existing_message_ids.add(message_id)
+                return True
+            return False
+
         existing_user_ids: set[UUID] = set()
         missing_user_ids: set[UUID] = set()
         def ensure_user_exists(user_id: UUID | None):
@@ -275,13 +301,13 @@ async def push_local_data(
                 existing_user_ids.add(user_id)
             else:
                 missing_user_ids.add(user_id)
-                # TODO
                 # --- PLACEHOLDER: CREATE GUEST USER ---
+                hint = hints.get(str(user_id))
                 user = User(
                     id=user_id,
-                    username=f"guest_{user_id}",
-                    first_name="Guest",
-                    last_name="User",
+                    username=hint.username if hint else f"guest_{user_id}",
+                    first_name=hint.first_name if hint else "Guest",
+                    last_name=hint.last_name if hint else "User",
                     hashed_password="",
                 )
 
@@ -318,14 +344,20 @@ async def push_local_data(
                     ensure_user_exists(datum.get("user_id"))
                 elif model is MessageReceipt:
                     ensure_user_exists(datum.get("user_id"))
-                    # --- END USER FK VALIDATION ---
+                    # Guard: skip receipts whose parent message doesn't exist on the
+                    # server. P2P-only messages (TCP/WebRTC) may never be pushed here,
+                    # so their receipts would violate the FK constraint.  The receipt
+                    # will be retried on the next sync once the message is pushed.
+                    if not ensure_message_exists(datum.get("message_id")):
+                        continue
+                # --- END FK VALIDATION ---
 
                 cast_to_uuids(model, datum)
-                
+
                 record = session.get(model, datum["id"])
 
                 if record:
-                    # CONFLICT DETECTION: 
+                    # CONFLICT DETECTION:
                     # If record was modified on server after user's last pull, abort.
                     if record.updated_at > last_pulled_at:
                         raise HTTPException(status_code=409, detail="Conflict: Record updated remotely.")
@@ -341,16 +373,20 @@ async def push_local_data(
                         if key not in ["id", "_status", "_changed"] and hasattr(record, key):
                             setattr(record, key, value)
                     session.add(record)
-                
+
                 else:
                     # CREATE new record (if not found in 'updated' or 'created')
                     # Protocol: Sanitize data (handled by model validation/SQLModel)
                     new_record = model(**datum)
                     session.add(new_record)
-                    # Cache newly inserted calls so same-batch call_participants resolve without a DB hit
-                    if model is Call and datum.get("id"):
+                    # Cache newly inserted IDs so same-batch children resolve without a DB hit
+                    if datum.get("id"):
                         try:
-                            existing_call_ids.add(UUID(str(datum["id"])))
+                            inserted_id = UUID(str(datum["id"]))
+                            if model is Call:
+                                existing_call_ids.add(inserted_id)
+                            elif model is Message:
+                                existing_message_ids.add(inserted_id)
                         except ValueError:
                             pass
 

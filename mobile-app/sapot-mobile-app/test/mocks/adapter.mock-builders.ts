@@ -2,6 +2,7 @@ import type { MediaStream } from "react-native-webrtc";
 
 export type TcpClientSocketMock = {
   on: jest.Mock;
+  off: jest.Mock;
   write: jest.Mock;
   destroy: jest.Mock;
 };
@@ -14,6 +15,7 @@ export type TcpServerMock = {
 
 export type ServerSocketMock = {
   on: jest.Mock;
+  write: jest.Mock;
 };
 
 export function createMockTcpClientSocket(
@@ -21,6 +23,7 @@ export function createMockTcpClientSocket(
 ): TcpClientSocketMock {
   return {
     on: jest.fn(),
+    off: jest.fn(),
     write: jest.fn(),
     destroy: jest.fn(),
     ...overrides,
@@ -43,6 +46,7 @@ export function createMockServerSocket(
 ): ServerSocketMock {
   return {
     on: jest.fn(),
+    write: jest.fn(),
     ...overrides,
   };
 }

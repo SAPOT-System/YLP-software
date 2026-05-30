@@ -62,6 +62,10 @@ export const getTileServerUrl = () => {
   }
 };
 
+export function getServerVerifyKey(): string | undefined {
+  return process.env.EXPO_PUBLIC_SERVER_VERIFY_KEY;
+}
+
 export const getWsUrl = () => {
   if (_hostOverride) return `ws://${_hostOverride}:${DEV_PORT}`;
 

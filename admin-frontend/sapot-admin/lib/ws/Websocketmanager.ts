@@ -7,6 +7,7 @@ import {
   updateMessageReceiptStatus,
   markConversationMessagesAsRead,
 } from "../records/Createmessagereceipt";
+import { initAdminKeyPair } from "../adminEncryption";
 
 /* =========================
    TYPES
@@ -14,7 +15,7 @@ import {
 type ChatPayload = {
   messageId: string;
   conversationId: string;
-  from_user: string;
+  from: string;
   to: string;
   message: string;
   sentAt: string;
@@ -125,10 +126,10 @@ export function sendSeen({
 ========================= */
 async function handleChat(data: ChatPayload) {
   // 1. Save peer profile if not already stored
-  const existingPeer = await db.peers.get(data.from || data.from_user);
+  const existingPeer = await db.peers.get(data.from);
   if (!existingPeer || !existingPeer.username) {
     await db.peers.put({
-      id: data.from_user,
+      id: data.from,
       username: data.senderProfile.username,
       first_name: data.senderProfile.firstName,
       last_name: data.senderProfile.lastName ?? null,
@@ -139,11 +140,11 @@ async function handleChat(data: ChatPayload) {
     });
   }
 
-  // 2. Save message locally
+  // 2. Save message locally (mobile sends plaintext over the relay)
   await createMessage({
     id: data.messageId,
     conversation_id: data.conversationId,
-    sender_id: data.from_user,
+    sender_id: data.from,
     content: data.message,
     message_type: data.messageType,
   });
@@ -157,7 +158,7 @@ async function handleChat(data: ChatPayload) {
   });
 
   // 4. Auto-send ack back to sender
-  sendAck({ messageId: data.messageId, to: data.from_user });
+  sendAck({ messageId: data.messageId, to: data.from });
 
   // 5. Push to server immediately
   await pull(); // to avoid conflicts
@@ -235,6 +236,8 @@ export async function connectWebSocket(userId: string) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
+      // Initialize ECDH keypair and register public key with server
+      void initAdminKeyPair(token);
     };
 
     socket.onmessage = async (event: MessageEvent) => {
@@ -323,7 +326,7 @@ export async function sendChatMessage({
   const messageId = uuidv4();
   const sentAt = new Date().toISOString();
 
-  // 1. Save locally
+  // 1. Save plaintext locally
   await createMessage({
     id: messageId,
     conversation_id: conversationId,
@@ -340,7 +343,7 @@ export async function sendChatMessage({
     status: "sent",
   });
 
-  // 3. Send over WebSocket
+  // 3. Send plaintext over WebSocket (TLS handles transport security)
   sendRaw({
     type: "chat",
     data: {

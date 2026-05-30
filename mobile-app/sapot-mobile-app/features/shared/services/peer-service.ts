@@ -164,6 +164,7 @@ export class PeerService {
       phoneNumber?: string;
       emailVerified?: boolean;
       phoneNumberVerified?: boolean;
+      isGuest?: boolean;
     }
   ) {
     try {
@@ -277,6 +278,7 @@ export class PeerService {
         lastName: user.last_name,
         phoneNumberVerified: user.phone_is_verified,
         role: user.role,
+        isGuest: false,
       });
     } catch (error) {
       peerLog.error("peer › get or create failed", { peerId: id, error });

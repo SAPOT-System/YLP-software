@@ -258,7 +258,7 @@ export function createChatServiceDependencyMocks() {
 	const conversationParticipantRepository = {
 		isDirectConversationExists: jest.fn(),
 		saveMultipleConversationParticipant: jest.fn(),
-		queryPeerByChatId: jest.fn(),
+		queryPeerByChatId: jest.fn().mockResolvedValue([]),
 		queryConversationByPeer: jest.fn(),
 		queryAllParticipants: jest.fn(),
 		getParticipantDestroyOps: jest.fn(),
@@ -270,6 +270,9 @@ export function createChatServiceDependencyMocks() {
 		queryMessagesByConversation: jest.fn(),
 		queryMessageById: jest.fn(),
 		getAllMessageDestroyOps: jest.fn(),
+		decryptMessage: jest.fn((message: { content: string }) => message.content),
+		setConversationKey: jest.fn(),
+		onConversationKeySet: jest.fn(() => () => {}),
 	};
 
 	const messageStatusRepository = {
@@ -277,6 +280,7 @@ export function createChatServiceDependencyMocks() {
 		saveMessageStatus: jest.fn(),
 		updateMessageStatusById: jest.fn(),
 		updateMessageStatusByMessage: jest.fn(),
+		updateToNotSentIfStillPendingById: jest.fn().mockResolvedValue(undefined),
 		queryMessageStatusByMessage: jest.fn(),
 		queryAllStatuses: jest.fn(),
 		queryNotSentByMessages: jest.fn(),

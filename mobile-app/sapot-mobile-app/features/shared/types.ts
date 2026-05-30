@@ -2,6 +2,7 @@
 import type { DataChatMessageI } from "@/features/chat/types";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { typeLog } from "./utils/logger";
+import type { SignedCredential } from "./services/peer-key-service";
 typeLog.debug("[shared/types] module loaded");
 
 /**
@@ -28,6 +29,7 @@ export type SignalingMessage =
         sender: string;
         ipAddress: string;
         port: number;
+        credential?: SignedCredential;
       };
     }
   | {
@@ -38,6 +40,7 @@ export type SignalingMessage =
         sender: string;
         ipAddress: string;
         port: number;
+        credential?: SignedCredential;
       };
     }
   | {
@@ -49,7 +52,8 @@ export type SignalingMessage =
         sender: string;
         wsAllowed?: boolean;
       };
-    };
+    }
+  ;
 
 export type ChatMessage = { type: "chat"; data: DataChatMessageI };
 export type DataAckMessage = { messageId: string; from: string; to: string };
@@ -190,10 +194,20 @@ export type WebrtcDataMessage =
   | CallMessage
   | CallControlMessage;
 
+export type ProfileInfoMessage = {
+  type: "profile-info";
+  data: {
+    from: string;
+    username: string;
+    firstName: string;
+    lastName?: string;
+  };
+};
+
 /**
  * For sent and received message via tcp and web socket
  */
-export type Message = SignalingMessage | CallMessage;
+export type Message = SignalingMessage | CallMessage | ProfileInfoMessage;
 
 export type CallMessage =
   | AudioCallMessage

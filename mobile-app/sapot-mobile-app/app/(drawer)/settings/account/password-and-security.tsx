@@ -57,6 +57,17 @@ export default function PasswordAndSecurity() {
               <Icon source="arrow-right" size={24} />
             </View>
           </Pressable>
+          <Divider />
+          <Pressable
+            onPress={() =>
+              router.push(SETTINGS_ROUTES.ENCRYPTION_PIN as never)
+            }
+          >
+            <View style={styles.item}>
+              <Text>Encryption PIN</Text>
+              <Icon source="arrow-right" size={24} />
+            </View>
+          </Pressable>
         </View>
       </View>
     </View>

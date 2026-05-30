@@ -53,6 +53,14 @@ from app.models.PasswordResetCode import PasswordResetCode
 from app.models.PhonePasswordResetCode import PhonePasswordResetCode
 from app.api.gsm import sendToModule
 from app.db_operations.auth import get_user_by_phone_number
+from app.db_operations.wrapped_key_recovery import create_recovery_session
+from app.models.recovery_session import RecoverySession
+from app.models.email_recovery_token import EmailRecoveryToken
+from app.models.wrapped_key import WrappedKey
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
 
@@ -132,9 +140,13 @@ def confirm_phone_code(body: PhoneCodeRequest, session: SessionDep, request: Req
         session=session
     )
 
+    recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    recovery_result = create_recovery_session(session, current_user.id, "phone", recovery_expires_at)
+
     return {
         'link': reset_link_template(raw_token, request),
-        'detail': 'Use POST request with the new password to reset the password'
+        'detail': 'Use POST request with the new password to reset the password',
+        'recovery_token': recovery_result['raw_token'],
     }
 
 
@@ -195,24 +207,36 @@ async def recover_with_recovery_key(
         session=session
     )
 
+    recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    recovery_result = create_recovery_session(session, current_user.id, "token", recovery_expires_at)
+
     return {
         'recovery-link': reset_link_template(raw_token, request),
         'method': 'POST',
-        'expire_in_seconds': LINK_TTL_SECONDS
+        'expire_in_seconds': LINK_TTL_SECONDS,
+        'recovery_token': recovery_result['raw_token'],
     }
 
 from fastapi.responses import HTMLResponse
 
 @router.get("/reset-password")
 def can_reset_password(token: str, session: SessionDep):
-    validate_reset_token(token, session)
-    return {"detail": "Valid token. Use POST request."}
+    reset_record = validate_reset_token(token, session)
+    user = session.exec(select(User).where(User.id == reset_record.user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"detail": "Valid token. Use POST request.", "user_id": str(user.id)}
+
+
+class PasswordResetRequest(SQLModel):
+    new_password: str = Field(min_length=8)
+    wrapped_blob: Optional[str] = None
 
 
 @router.post("/reset-password")
 def reset_password(
         token: str,
-        new_password_data: UserPasswordUpdateNoOldPassword,
+        new_password_data: PasswordResetRequest,
         session: SessionDep
 ):
     reset_record = validate_reset_token(token, session)
@@ -223,6 +247,15 @@ def reset_password(
         raise HTTPException(status_code=404, detail="Invalid user data")
 
     update_user_password(user, new_password_data.new_password, session)
+
+    if new_password_data.wrapped_blob:
+        existing_wk = session.exec(select(WrappedKey).where(WrappedKey.user_id == user.id)).first()
+        if existing_wk:
+            existing_wk.wrapped_blob = new_password_data.wrapped_blob
+            existing_wk.updated_at = datetime.utcnow()
+            session.add(existing_wk)
+        else:
+            session.add(WrappedKey(user_id=user.id, wrapped_blob=new_password_data.wrapped_blob))
 
     session.delete(reset_record)
     session.commit()
@@ -266,9 +299,13 @@ def confirm_code(email: str, code: str, session: SessionDep, request: Request):
 
         reset_link = reset_link_template(raw_token, request)
 
+        recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+        recovery_result = create_recovery_session(session, current_user.id, "email", recovery_expires_at)
+
         return {
             'link': reset_link,
-            'detail': 'Use POST request with the new password to reset the password'
+            'detail': 'Use POST request with the new password to reset the password',
+            'recovery_token': recovery_result['raw_token'],
         }
     raise HTTPException(401, "Invalid user.")
 
@@ -395,9 +432,13 @@ def verify_security_answer(
 
     reset_link = reset_link_template(raw_token, request)
 
+    recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
+    recovery_result = create_recovery_session(session, user_id, "qa", recovery_expires_at)
+
     return {
         "correct": True,
         "reset_link": reset_link,
+        "recovery_token": recovery_result['raw_token'],
     }
 
 @router.get("/generate-security-question")
@@ -508,3 +549,150 @@ def generate_security_question(
         "What is the first name of your favorite poet?"
     ]
     return {"question": random.choice(questions)}
+
+
+@router.post("/otp/send")
+@limiter.limit("3/minute")
+def send_recovery_otp(
+    request: Request,
+    body: PhoneResetRequest,
+    background_tasks: BackgroundTasks,
+    session: SessionDep,
+):
+    user = get_user_by_phone_number(session, body.phone_number)
+    if not user:
+        return {"message": "OTP sent if account exists."}
+
+    code = generate_reset_code()
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+
+    existing = session.exec(
+        select(PhonePasswordResetCode).where(
+            PhonePasswordResetCode.phone_number == body.phone_number
+        )
+    ).all()
+    for row in existing:
+        session.delete(row)
+    session.commit()
+
+    record = PhonePasswordResetCode(
+        phone_number=body.phone_number,
+        code=code_hash,
+        expires_at=datetime.utcnow() + timedelta(minutes=10),
+    )
+    session.add(record)
+    session.commit()
+
+    background_tasks.add_task(
+        sendToModule,
+        body.phone_number,
+        f"Your Sapot recovery code is: {code}. Valid for 10 minutes.",
+    )
+    return {"message": "OTP sent if account exists."}
+
+
+@router.post("/otp/verify")
+@limiter.limit("5/minute")
+def verify_recovery_otp(
+    request: Request,
+    body: PhoneCodeRequest,
+    session: SessionDep,
+):
+    record = session.exec(
+        select(PhonePasswordResetCode).where(
+            PhonePasswordResetCode.phone_number == body.phone_number
+        )
+    ).first()
+    if not record:
+        raise HTTPException(status_code=400, detail="No OTP found for this number")
+
+    if record.attempts >= 3:
+        raise HTTPException(status_code=429, detail="Too many attempts")
+
+    if record.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="OTP expired")
+
+    code_hash = hashlib.sha256(body.code.encode()).hexdigest()
+    if not hmac.compare_digest(record.code, code_hash):
+        record.attempts += 1
+        session.add(record)
+        session.commit()
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    user = get_user_by_phone_number(session, body.phone_number)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    session.delete(record)
+    session.commit()
+
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    result = create_recovery_session(session, user.id, "phone", expires_at)
+    return {"recovery_token": result["raw_token"], "user_id": str(user.id)}
+
+
+@router.post("/email-recovery/send")
+@limiter.limit("3/minute")
+def send_email_recovery(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session: SessionDep,
+    email: str = Query(...),
+):
+    user = get_user(email, session)
+    if not user:
+        return {"message": "Recovery email sent if account exists."}
+
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    existing = session.exec(
+        select(EmailRecoveryToken).where(EmailRecoveryToken.user_id == user.id)
+    ).all()
+    for row in existing:
+        session.delete(row)
+    session.commit()
+
+    rec = EmailRecoveryToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime.utcnow() + timedelta(minutes=30),
+    )
+    session.add(rec)
+    session.commit()
+
+    recovery_link = f"sapot://auth/email-recovery?t={token}"
+    background_tasks.add_task(
+        send_email,
+        user.email,
+        "Sapot Account Recovery",
+        f"Click the link to recover your account: {recovery_link}\n\nThis link expires in 30 minutes.",
+    )
+    return {"message": "Recovery email sent if account exists."}
+
+
+@router.get("/email-recovery/verify")
+@limiter.limit("5/minute")
+def verify_email_recovery(
+    request: Request,
+    t: str,
+    session: SessionDep,
+):
+    token_hash = hashlib.sha256(t.encode()).hexdigest()
+    rec = session.exec(
+        select(EmailRecoveryToken).where(EmailRecoveryToken.token_hash == token_hash)
+    ).first()
+    if not rec:
+        raise HTTPException(status_code=403, detail="Invalid recovery token")
+    if rec.used:
+        raise HTTPException(status_code=403, detail="Token already used")
+    if rec.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=403, detail="Token expired")
+
+    rec.used = True
+    session.add(rec)
+    session.commit()
+
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    result = create_recovery_session(session, rec.user_id, "email", expires_at)
+    return {"recovery_token": result["raw_token"], "user_id": str(rec.user_id)}
