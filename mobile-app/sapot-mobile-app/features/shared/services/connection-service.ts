@@ -22,7 +22,6 @@ import {
   Message,
   ServerAckMessage,
   SignalingMessage,
-  WsCallMessage,
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
@@ -194,11 +193,11 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
     this.wsSignalingAdapter.on(
       "call-message",
-      async (message: WsCallMessage) => {
+      async (message: CallMessage) => {
         try {
           if (!this.isWebSocketAllowed()) return;
           if (message.type === "audio-call") {
-            const callerPeerId = message.data.from_user;
+            const callerPeerId = message.data.from;
             if (this.shouldBusyRejectIncomingCall(callerPeerId)) {
               connectionLog.info("connection › ws busy reject", {
                 callerPeerId,
@@ -216,20 +215,20 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             }
             // Fire local notification so user sees it with screen off
             await this.showIncomingCallNotification({
-              callerId: message.data.from_user,
+              callerId: message.data.from,
               callerName: message.data.callerName,
               callType: message.type,
               conversationId: message.data.conversationId,
             });
             this.emit("audio-call", {
-              peerId: message.data.from_user,
+              peerId: message.data.from,
               callerName: message.data.callerName,
               conversationId: message.data.conversationId,
               callId: message.data.callId,
             });
           }
           if (message.type === "video-call") {
-            const callerPeerId = message.data.from_user;
+            const callerPeerId = message.data.from;
             if (this.shouldBusyRejectIncomingCall(callerPeerId)) {
               connectionLog.info("connection › ws busy reject", {
                 callerPeerId,
@@ -246,13 +245,13 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               this.glareAcceptedPeers.add(callerPeerId);
             }
             await this.showIncomingCallNotification({
-              callerId: message.data.from_user,
+              callerId: message.data.from,
               callerName: message.data.callerName,
               callType: message.type,
               conversationId: message.data.conversationId,
             });
             this.emit("video-call", {
-              peerId: message.data.from_user,
+              peerId: message.data.from,
               callerName: message.data.callerName,
               conversationId: message.data.conversationId,
               callId: message.data.callId,
@@ -262,12 +261,12 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             // TODO: check if needed to reinitialize local stream
             // TODO: validate that the caller id is the sender
             connectionLog.info("connection › call ended", {
-              peerId: message.data.from_user,
+              peerId: message.data.from,
               status: message.data.status,
               initiatorId: message.data.initiatorId,
             });
             this.emit("call-ended", {
-              peerId: message.data.from_user,
+              peerId: message.data.from,
               status: message.data.status,
               endedAt: message.data.endedAt,
               durationSeconds: message.data.durationSeconds,
@@ -278,16 +277,16 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             });
           }
           if (message.type === "call-ready") {
-            this.emit("call-ready", message.data.from_user);
+            this.emit("call-ready", message.data.from);
           }
           if (
             message.type === "call-rejected" &&
             message.data.reason === "busy"
           ) {
             connectionLog.info("connection › ws peer busy", {
-              peerId: message.data.from_user,
+              peerId: message.data.from,
             });
-            this.emit("call-busy", message.data.from_user, {
+            this.emit("call-busy", message.data.from, {
               callId: message.data.callId ?? "",
               conversationId: message.data.conversationId ?? "",
               messageId: message.data.messageId,
