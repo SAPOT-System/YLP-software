@@ -8,6 +8,7 @@ import { Q } from "@nozbe/watermelondb";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
   useIsUserActive,
+  useMainContainer,
   useProfilePhoto,
   useThrottledPress,
   useToast,
@@ -84,6 +85,8 @@ const ChatRoom = () => {
   const { gsmReady, loading: gsmLoading } = useGsmHealth();
   const chatService = useChatService();
   const userStore = useUserStore();
+  const { connectionService, peerKeyService } = useMainContainer();
+  const [peerIsGuest, setPeerIsGuest] = useState<boolean | null>(null);
   const router = useRouter();
   const call = useInformCall();
   const {
@@ -307,6 +310,21 @@ const ChatRoom = () => {
     return () => subscription.unsubscribe();
   }, [peerId]);
 
+  // Resolve peer guest status once TCP connection is established.
+  // Offline result comes from the handshake credential; online confirmation
+  // via the server is attempted for authenticated users.
+  useEffect(() => {
+    if (!peerId || !isConnected) return;
+    const handshakeResult = connectionService.getPeerIsGuest(peerId);
+    setPeerIsGuest(handshakeResult);
+
+    if (!userStore.isGuest) {
+      void peerKeyService.fetchPeerType(peerId).then((result) => {
+        if (result !== null) setPeerIsGuest(result);
+      });
+    }
+  }, [peerId, isConnected, connectionService, peerKeyService, userStore.isGuest]);
+
   const isSmsEnabled =
     gsmReady &&
     !!peer?.phoneNumberVerified &&
@@ -455,7 +473,7 @@ const ChatRoom = () => {
             />
           )}
           <View style={styles.identityGroup}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View style={styles.nameRow}>
               <Text
                 style={[
                   styles.nameText,
@@ -466,6 +484,11 @@ const ChatRoom = () => {
                 {peerDisplayName}
               </Text>
               <RoleBadge role={peer?.role} />
+              {peerIsGuest === true && (
+                <Chip compact style={styles.guestChip} textStyle={styles.guestChipText}>
+                  Guest
+                </Chip>
+              )}
             </View>
             <Text
               style={[
@@ -609,9 +632,26 @@ const styles = StyleSheet.create({
     minWidth: 0,
     marginRight: 4,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 1,
+  },
   nameText: {
     fontSize: 16,
     fontWeight: "700",
+    flexShrink: 1,
+  },
+  guestChip: {
+    height: 20,
+    backgroundColor: "#6B728020",
+  },
+  guestChipText: {
+    fontSize: 10,
+    lineHeight: 12,
+    marginVertical: 0,
+    marginHorizontal: 4,
   },
   statusText: {
     fontSize: 12,

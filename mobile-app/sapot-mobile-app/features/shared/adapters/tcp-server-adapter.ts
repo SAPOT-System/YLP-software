@@ -15,6 +15,7 @@ interface SocketState {
   buffer: string;
   sharedKey?: Uint8Array;
   sessionVerified: boolean;
+  peerIsGuest: boolean; // false only when a valid server-signed credential is received
 }
 
 export class TcpServerAdapter extends EventEmitter {
@@ -46,7 +47,7 @@ export class TcpServerAdapter extends EventEmitter {
     return new Promise<void>((resolve, reject) => {
       try {
         this.server = TcpSocket.createServer((socket) => {
-          const state: SocketState = { buffer: "", sessionVerified: false };
+          const state: SocketState = { buffer: "", sessionVerified: false, peerIsGuest: true };
           const serverKeyPair = generateKeyPair();
 
           socket.on("data", (data) => {
@@ -73,14 +74,16 @@ export class TcpServerAdapter extends EventEmitter {
                       return;
                     }
                     state.sessionVerified = true;
+                    state.peerIsGuest = false; // valid server-signed credential = authenticated
                     if (this.peerKeyStore && frame.credential.ecdhPublicKey) {
                       this.peerKeyStore.set(frame.credential.peerId, decodeBase64(frame.credential.ecdhPublicKey));
                     }
                   } else {
-                    // Client sent no credential. Credential exchange is opportunistic:
-                    // a guest peer or an uninitialized peer legitimately has none.
-                    // The session is still ECDH-encrypted, so allow it.
+                    // Client sent no credential — treat as guest. Credential exchange is
+                    // opportunistic: guests legitimately have none. The session is still
+                    // ECDH-encrypted so allow it.
                     state.sessionVerified = true;
+                    state.peerIsGuest = true;
                   }
                   // Store the client's stable app-level ECDH public key so ChatService
                   // can derive conversation keys without a server round-trip.
@@ -102,6 +105,10 @@ export class TcpServerAdapter extends EventEmitter {
                   const appPub = this.peerKeyService?.getMyPublicKey();
                   if (appPub) ack.appPub = encodeBase64(appPub);
                   socket.write(JSON.stringify(ack) + "\n");
+                  this.emit("peer-identity", {
+                    peerId: frame.userId as string | undefined,
+                    isGuest: state.peerIsGuest,
+                  });
                   return;
                 }
 

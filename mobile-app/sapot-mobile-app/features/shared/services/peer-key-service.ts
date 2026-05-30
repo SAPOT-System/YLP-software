@@ -136,6 +136,15 @@ export class PeerKeyService {
     return null;
   }
 
+  async fetchPeerType(peerId: string): Promise<boolean | null> {
+    try {
+      const res = await apiClient.get<{ is_guest: boolean }>(`/keys/${peerId}/type`);
+      return res.data.is_guest;
+    } catch {
+      return null; // server unreachable — caller falls back to handshake result
+    }
+  }
+
   isCredentialExpiringSoon(thresholdMs = 60_000): boolean {
     if (!this.credential) return true;
     return (
@@ -154,6 +163,34 @@ export class PeerKeyService {
     this.serverVerifyKey = key;
   }
 
+  /**
+   * Loads the server's Ed25519 verify key using a cached-then-live strategy:
+   * 1. Load from SecureStore immediately (works offline for returning users).
+   * 2. Attempt a live fetch from GET /keys/server-public-key (no auth required)
+   *    to refresh the cache.
+   * Call this for both guest and authenticated users so peer credential
+   * verification works in both directions.
+   */
+  async loadServerVerifyKey(): Promise<void> {
+    const CACHE_KEY = "server_ed25519_pub";
+    try {
+      const cached = await SecureStore.getItemAsync(CACHE_KEY);
+      if (cached) {
+        this.serverVerifyKey = decodeBase64(cached);
+      }
+    } catch {
+      // SecureStore unavailable — proceed to live fetch
+    }
+    try {
+      const res = await apiClient.get<{ ed25519PublicKey: string }>("/keys/server-public-key");
+      const freshKey = res.data.ed25519PublicKey;
+      this.serverVerifyKey = decodeBase64(freshKey);
+      await SecureStore.setItemAsync(CACHE_KEY, freshKey);
+    } catch {
+      // Server unreachable — cached key (if any) is already set above
+    }
+  }
+
   verifyPeerCredential(cred: SignedCredential): boolean {
     // 1. Expiry check
     if (new Date(cred.expiresAt).getTime() <= Date.now()) return false;
@@ -161,12 +198,8 @@ export class PeerKeyService {
     // 2. Signature verification (if server key is available)
     if (this.serverVerifyKey) {
       try {
-        const payload = JSON.stringify({
-          peerId: cred.peerId,
-          ecdhPublicKey: cred.ecdhPublicKey,
-          issuedAt: cred.issuedAt,
-          expiresAt: cred.expiresAt,
-        });
+        // Must match the server's signing format: "{peerId}:{ecdhPublicKey}:{issuedAt}:{expiresAt}"
+        const payload = `${cred.peerId}:${cred.ecdhPublicKey}:${cred.issuedAt}:${cred.expiresAt}`;
         const messageBytes = new TextEncoder().encode(payload);
         const sigBytes = decodeBase64(cred.signature);
         const valid = nacl.sign.detached.verify(
