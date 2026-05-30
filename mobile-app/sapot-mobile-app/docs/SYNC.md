@@ -45,7 +45,7 @@ lastPulledAt = getSyncLastPulledAt()   // read from expo-secure-store (0 on firs
 → GET /sync/pull?last_pulled_at=<ts>&schema_version=<n>
 ← { changes, timestamp }
 → normalizePullChanges(changes)        // map server field names to WatermelonDB columns
-→ saveSyncLastPulledAt(timestamp)      // persist new timestamp to expo-secure-store
+→ pulledTimestamp = timestamp          // remember it; saved only after push also succeeds
 → return { changes, timestamp }        // WatermelonDB applies changes to local DB
 ```
 
@@ -54,14 +54,36 @@ Server returns all records created or updated after `last_pulled_at`. On the fir
 ### 2. Push (`POST /sync/push`)
 
 ```
-lastPulledAt = getSyncLastPulledAt()   // same stored timestamp
+lastPulledAt = <the pre-pull cursor passed in by synchronize()>  // same value the pull used
 changes = WatermelonDB dirty records   // records modified locally since last sync
 → buildPushPayload(changes)            // map WatermelonDB columns to server field names
 → POST /sync/push { last_pulled_at, changes }
 ← { status: "ok" }
+
+// After both pull and push resolve:
+→ saveSyncLastPulledAt(pulledTimestamp) // advance the cursor only on full success
 ```
 
 WatermelonDB tracks which local records are dirty. `buildPushPayload` converts them to the server's snake_case format using `toServerPayload()` per entity.
+
+The cursor sent on push is the **pre-pull** value supplied by `synchronize()`, not a freshly-saved "now" timestamp — this is what lets the server's conflict check (`updated_at > last_pulled_at`) actually fire for records changed since the client last synced.
+
+---
+
+## Conflict Resolution (server wins)
+
+When a pushed record collides with a server record that was modified after the client's
+`last_pulled_at` (`record.updated_at > last_pulled_at`), or that the server has already soft-deleted,
+the server **keeps its own version and skips the client's change** — the rest of the batch still
+commits and `/push` returns `200 { status: "ok" }`. It no longer returns `409`/`404`.
+
+To prevent silent divergence, on every skip the server **bumps the kept record's `updated_at` to
+now**. Because that timestamp now sorts past the client's pull cursor, the authoritative version (or
+the deletion) is re-delivered on the next `GET /sync/pull` and the client converges to the server's
+state. See `server/app/api/sync.py` → `push_local_data`.
+
+The client therefore has no conflict-specific handling: any error from `/push` is treated as a
+transport/server failure and retried with exponential backoff via `scheduleRetry()`.
 
 ---
 
@@ -76,7 +98,7 @@ WatermelonDB tracks `lastPulledAt` internally, but SAPOT overrides this with exp
 |-----|-------|---------|
 | `syncLastPulledAt` | expo-secure-store | `0` (full sync on first open) |
 
-The stored timestamp is updated only after a successful pull. A failed pull leaves the timestamp unchanged so the next sync retries from the same point.
+The stored timestamp is updated only after **both** the pull and the push succeed. If either fails, the timestamp is left unchanged so the next sync retries from the same point (the re-pull is idempotent — `normalizePullChanges` drops already-present records via `checkEntitiesExist`).
 
 ---
 

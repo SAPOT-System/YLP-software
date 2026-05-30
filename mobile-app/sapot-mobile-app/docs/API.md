@@ -388,6 +388,8 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 { "status": "ok" }
 ```
 
+Conflicts are resolved server-side (server wins): a pushed record whose server copy changed after `last_pulled_at`, or that was already deleted, is skipped while the rest of the batch commits. The skipped record's `updated_at` is bumped so it is re-delivered on the next `/sync/pull`. The endpoint does not return `409`/`404` for conflicts. See `docs/SYNC.md` → Conflict Resolution.
+
 ---
 
 ## Utility — `/` & `/ping`

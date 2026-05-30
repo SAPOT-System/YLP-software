@@ -331,8 +331,12 @@ async def push_local_data(
             for datum in all_upserts:
                 # --- FK VALIDATION ---
                 if model is Message:
+                    if not ensure_conversation_exists(datum.get("conversation_id")):
+                        continue
                     ensure_user_exists(datum.get("sender_id"))
                 elif model is ConversationParticipant:
+                    if not ensure_conversation_exists(datum.get("conversation_id")):
+                        continue
                     ensure_user_exists(datum.get("user_id"))
                 elif model is Call:
                     if not ensure_conversation_exists(datum.get("conversation_id")):
@@ -343,6 +347,8 @@ async def push_local_data(
                         continue
                     ensure_user_exists(datum.get("user_id"))
                 elif model is MessageReceipt:
+                    if not ensure_message_exists(datum.get("message_id")):
+                        continue
                     ensure_user_exists(datum.get("user_id"))
                     # Guard: skip receipts whose parent message doesn't exist on the
                     # server. P2P-only messages (TCP/WebRTC) may never be pushed here,
@@ -358,14 +364,22 @@ async def push_local_data(
 
                 if record:
                     # CONFLICT DETECTION:
-                    # If record was modified on server after user's last pull, abort.
-                    if record.updated_at > last_pulled_at:
-                        raise HTTPException(status_code=409, detail="Conflict: Record updated remotely.")
 
-                    # If record is already deleted on server, Protocol says throw error on 'updated' block
-                    # but usually, we just force a re-sync.
+                    # Server version was updated after the client's last pull — server wins, skip
+                    # this record. Bump updated_at so the authoritative version sorts past the
+                    # client's next pull cursor and gets re-delivered; otherwise the client keeps
+                    # its rejected local edit and the two versions diverge permanently.
+                    if record.updated_at > last_pulled_at:
+                        record.updated_at = int(time.time() * 1000)
+                        session.add(record)
+                        continue
+
+                    # Record already deleted on server — skip. Bump updated_at so the deletion is
+                    # re-pulled (categorized into `deleted`) and the client removes it locally.
                     if record.is_deleted:
-                        raise HTTPException(status_code=404, detail="Record deleted on server.")
+                        record.updated_at = int(time.time() * 1000)
+                        session.add(record)
+                        continue
 
                     # UPDATE existing record
                     for key, value in datum.items():
@@ -387,6 +401,12 @@ async def push_local_data(
                                 existing_call_ids.add(inserted_id)
                             elif model is Message:
                                 existing_message_ids.add(inserted_id)
+                        except ValueError:
+                            pass
+                    # Cache newly inserted messages so same-batch receipts resolve without a DB hit
+                    if model is Message and datum.get("id"):
+                        try:
+                            existing_message_ids.add(UUID(str(datum["id"])))
                         except ValueError:
                             pass
 

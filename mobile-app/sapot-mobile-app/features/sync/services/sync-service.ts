@@ -1,7 +1,6 @@
 import { Database, Q } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
-import { isAxiosError } from "axios";
 
 import { CallStatus } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
@@ -254,6 +253,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       syncLog.info("sync › start");
       this.emit("sync-status", { status: "started" });
       const log = this.syncLogger.newLog();
+      let pulledTimestamp = 0;
       await synchronize({
         database: this.db,
         log,
@@ -330,15 +330,17 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
 
           await this.hydrateMissingPeers(changes);
 
-          await saveSyncLastPulledAt(timestamp);
+          pulledTimestamp = timestamp;
           return { changes: normalizedChanges, timestamp };
         },
-        pushChanges: async ({ changes }) => {
-          const lastPulledAt = await getSyncLastPulledAt();
-          syncLog.debug("sync › push changes", { lastPulledAt });
-          await this.pushToServer(changes as SyncChanges, lastPulledAt);
+        pushChanges: async ({ changes, lastPulledAt: pulledAt }: { changes: SyncChanges; lastPulledAt?: number | null }) => {
+          syncLog.debug("sync › push changes", { lastPulledAt: pulledAt });
+          await this.pushToServer(changes, pulledAt ?? 0);
         },
       });
+      // Save only after both pull and push succeed — avoids advancing the cursor
+      // past changes that weren't yet written to the local DB.
+      await saveSyncLastPulledAt(pulledTimestamp);
       syncLog.info("sync › complete");
 
       // Post-migration: re-encrypt any messages that were pulled from the server
@@ -358,30 +360,10 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       this.retryAttempts = 0;
       this.clearRetryTimer();
     } catch (error) {
+      // The server resolves push conflicts server-side (server wins) and bumps the record's
+      // updated_at so the authoritative version is re-pulled next cycle — it no longer returns
+      // 409/404 on push. Any error here is transport/server failure; retry with backoff.
       syncLog.error("sync › failed", { error });
-
-      if (isAxiosError(error) && error.response?.status === 409) {
-        // Conflict: server state moved past our cursor. Reset to 0 so the next
-        // sync cycle does a full re-pull from the server.
-        syncLog.warn("sync › 409 conflict, resetting lastPulledAt");
-        await saveSyncLastPulledAt(0);
-        this.emit("sync-status", { status: "failed", error });
-
-        // Schedule immediate retry to minimize data gap
-        this.scheduleRetry();
-        return;
-      }
-
-      if (isAxiosError(error) && error.response?.status === 404) {
-        // Record already deleted on server — push is irrecoverable without re-pulling.
-        // Reset lastPulledAt so next sync does a full re-pull to get current server state.
-        syncLog.warn("sync › 404 on push (record deleted on server), resetting lastPulledAt");
-        await saveSyncLastPulledAt(0);
-        this.emit("sync-status", { status: "failed", error });
-        // No scheduleRetry — fresh pull state is needed before pushing again
-        return;
-      }
-
       this.emit("sync-status", { status: "failed", error });
       this.scheduleRetry();
     } finally {
@@ -1327,7 +1309,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
             user: item.user_id,
             joined_at: this.toTimestamp(item.joined_at),
             left_at:
-              item.left_at !== null ? this.toTimestamp(item.left_at) : null,
+              item.left_at != null ? this.toTimestamp(item.left_at) : null,
             is_deleted: item.is_deleted ?? false,
             created_at: this.toTimestamp(item.created_at),
             updated_at: this.toTimestamp(item.updated_at),
@@ -1338,7 +1320,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           user: item.user_id,
           joined_at: this.toTimestamp(item.joined_at),
           left_at:
-            item.left_at !== null ? this.toTimestamp(item.left_at) : null,
+            item.left_at != null ? this.toTimestamp(item.left_at) : null,
           is_deleted: item.is_deleted ?? false,
           created_at: this.toTimestamp(item.created_at),
           updated_at: this.toTimestamp(item.updated_at),

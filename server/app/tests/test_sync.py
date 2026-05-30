@@ -364,17 +364,19 @@ def test_sync_upsert_logic(client: TestClient, auth_header, test_user):
     assert record["title"] == "Now I am created"
 
 
-def test_sync_conflict_detection(client: TestClient, auth_header, test_user):
+def test_sync_conflict_detection(client: TestClient, auth_header, test_user, session: SessionDep):
     """
-    Requirement: If record modified on server AFTER last_pulled_at, MUST abort (409).
+    Requirement: If record modified on server AFTER last_pulled_at, the conflicting record
+    is skipped (server wins) and the rest of the batch succeeds with 200.
     """
     record_id = str(uuid4())
-    
-    # 1. Create a record on server
+
+    # 1. Create a record on server (updated_at will be set by server, but seed it at 5000)
     client.post("/sync/push", json={
         "changes": {
             "conversations": {"created": [{
-            "id": record_id, "title": "Server Version", "conversation_type": "solo", "updated_at": 5000
+                "id": record_id, "title": "Server Version", "conversation_type": "solo",
+                "updated_at": 5000, "created_at": 5000
             }], "updated": [], "deleted": []},
             "conversation_participants": {
                 "created": [{
@@ -391,8 +393,8 @@ def test_sync_conflict_detection(client: TestClient, auth_header, test_user):
         "last_pulled_at": 0
     }, headers=auth_header)
 
-    # 2. Try to update it using an OLD last_pulled_at (e.g., 2000)
-    # Since 5000 > 2000, this is a conflict.
+    # 2. Try to update it using an OLD last_pulled_at (2000).
+    # The server record has updated_at > 2000 — conflict — so the update is skipped.
     payload_conflict = {
         "changes": {
             "conversations": {
@@ -401,13 +403,88 @@ def test_sync_conflict_detection(client: TestClient, auth_header, test_user):
                 "deleted": []
             }
         },
-        "last_pulled_at": 2000 
+        "last_pulled_at": 2000
     }
-    
+
     response = client.post("/sync/push", json=payload_conflict, headers=auth_header)
-    
-    # Should fail with 409 (Conflict)
-    assert response.status_code == 409
+
+    # Batch succeeds — conflict is silently skipped, server version preserved.
+    assert response.status_code == 200
+
+    session.expire_all()
+    record = session.get(Conversation, UUID(record_id))
+    assert record is not None
+    assert record.title == "Server Version"  # server version unchanged
+
+    # Convergence: the skip must bump updated_at past the conflicting push's last_pulled_at so the
+    # client re-pulls the authoritative version on the next cycle (otherwise it diverges silently).
+    assert record.updated_at > 2000
+
+    res = client.get("/sync/pull?last_pulled_at=6000", headers=auth_header)
+    updated_list = res.json()["changes"]["conversations"]["updated"]
+    pulled = next((c for c in updated_list if c["id"] == record_id), None)
+    assert pulled is not None, "skipped record was not re-delivered on next pull"
+    assert pulled["title"] == "Server Version"
+
+
+def test_sync_delete_conflict_converges(client: TestClient, auth_header, test_user, session: SessionDep):
+    """
+    A client pushing an update to a record the server already deleted is skipped, but updated_at is
+    bumped so the deletion is re-pulled (in `deleted`) and the client removes it locally.
+    """
+    record_id = str(uuid4())
+
+    # 1. Create then soft-delete the record on the server.
+    client.post("/sync/push", json={
+        "changes": {
+            "conversations": {"created": [{
+                "id": record_id, "title": "Doomed", "conversation_type": "solo",
+                "updated_at": 5000, "created_at": 5000,
+            }], "updated": [], "deleted": []},
+            "conversation_participants": {
+                "created": [{
+                    "id": str(uuid4()),
+                    "conversation_id": record_id,
+                    "user_id": str(test_user["id"]),
+                    "joined_at": 1712234000000,
+                    "is_deleted": False,
+                }],
+                "updated": [],
+                "deleted": [],
+            },
+        },
+        "last_pulled_at": 0,
+    }, headers=auth_header)
+
+    client.post("/sync/push", json={
+        "changes": {
+            "conversations": {"created": [], "updated": [], "deleted": [record_id]},
+        },
+        "last_pulled_at": 0,
+    }, headers=auth_header)
+
+    # 2. A stale client (last_pulled_at=2000) pushes an update — server skips it.
+    response = client.post("/sync/push", json={
+        "changes": {
+            "conversations": {
+                "created": [],
+                "updated": [{"id": record_id, "title": "Revived?", "updated_at": 6000}],
+                "deleted": [],
+            }
+        },
+        "last_pulled_at": 2000,
+    }, headers=auth_header)
+    assert response.status_code == 200
+
+    session.expire_all()
+    record = session.get(Conversation, UUID(record_id))
+    assert record is not None
+    assert record.is_deleted is True
+    assert record.title == "Doomed"  # update did not take
+
+    # Convergence: deletion is re-pulled so the client removes the record.
+    res = client.get("/sync/pull?last_pulled_at=6000", headers=auth_header)
+    assert record_id in res.json()["changes"]["conversations"]["deleted"]
 
 
 def test_sync_transactional_integrity(client: TestClient, auth_header, test_user):
