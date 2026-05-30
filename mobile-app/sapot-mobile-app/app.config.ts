@@ -232,6 +232,6 @@ export default ({ config }: ConfigContext) => ({
       projectId: "ee940ed5-5653-43cb-8938-d5f54a830c59",
     },
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
-    displayVersion: "0.3.0",
+    displayVersion: "0.4.1",
   },
 });
