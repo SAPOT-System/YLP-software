@@ -1,0 +1,24 @@
+
+[Unit]
+Description=Service for running SAPOT admin frontend
+After=network.target
+
+[Service]
+User=sapot
+Group=sapot
+
+# Tell systemd to execute your bash script
+WorkingDirectory=/home/sapot/admin-frontend/sapot-admin
+ExecStart=npm run start
+
+
+# Automatic restart logic
+Restart=always
+RestartSec=3
+
+# Standardizes where logs go
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

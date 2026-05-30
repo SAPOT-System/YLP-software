@@ -206,7 +206,7 @@ ping_history = deque(maxlen=300)
 
 def perform_ping_probe():
     """Run a quick ping using the system binary to avoid permission issues."""
-    host = "192.168.254.124"
+    host = "192.168.0.1"
     # -c for Linux/macOS, -n for Windows
     flag = "-n" if platform.system().lower() == "windows" else "-c"
 
