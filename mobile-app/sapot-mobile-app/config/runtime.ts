@@ -1,9 +1,9 @@
 import { configLog } from "@/features/shared/utils/logger";
 import * as Updates from "expo-updates";
 
-const DEV_PORT = "8000";
+const PORT = "8000";
 const DEV_HOST = process.env.EXPO_PUBLIC_DEV_HOST;
-const STAGING_HOST = "sapot.online";
+const STAGING_HOST = "192.168.0.100";
 
 let _hostOverride: string | null = null;
 
@@ -16,15 +16,17 @@ export const initRuntimeOverrides = async () => {
     "@/features/shared/stores/secure-config"
   );
   _hostOverride = await getServerHostOverride();
-  configLog.info("config › host override loaded", { hasOverride: Boolean(_hostOverride) });
+  configLog.info("config › host override loaded", {
+    hasOverride: Boolean(_hostOverride),
+  });
 };
 
 export const getApiUrl = () => {
-  if (_hostOverride) return `http://${_hostOverride}:${DEV_PORT}`;
+  if (_hostOverride) return `http://${_hostOverride}:${PORT}`;
 
   if (__DEV__) {
     configLog.debug("config › env dev");
-    return `http://${DEV_HOST}:${DEV_PORT}`;
+    return `http://${DEV_HOST}:${PORT}`;
   }
 
   const channel = Updates.channel;
@@ -32,13 +34,13 @@ export const getApiUrl = () => {
   switch (channel) {
     case "preview":
       configLog.debug("config › env preview", { channel });
-      return `https://${STAGING_HOST}`;
+      return `http://${STAGING_HOST}:${PORT}`;
 
     case "production":
-      return `https://${STAGING_HOST}`;
+      return `http://${STAGING_HOST}:${PORT}`;
 
     default:
-      return `http://${DEV_HOST}:${DEV_PORT}`;
+      return `http://${DEV_HOST}:${PORT}`;
   }
 };
 
@@ -56,7 +58,7 @@ export const getTileServerUrl = () => {
   switch (channel) {
     case "preview":
     case "production":
-      return `https://${STAGING_HOST}`;
+      return `http://${STAGING_HOST}:${TILE_PORT}`;
     default:
       return `http://${DEV_HOST}:${TILE_PORT}`;
   }
@@ -67,22 +69,22 @@ export function getServerVerifyKey(): string | undefined {
 }
 
 export const getWsUrl = () => {
-  if (_hostOverride) return `ws://${_hostOverride}:${DEV_PORT}`;
+  if (_hostOverride) return `ws://${_hostOverride}:${PORT}`;
 
   if (__DEV__) {
-    return `ws://${DEV_HOST}:${DEV_PORT}`;
+    return `ws://${DEV_HOST}:${PORT}`;
   }
 
   const channel = Updates.channel;
 
   switch (channel) {
     case "preview":
-      return `wss://${STAGING_HOST}`;
+      return `ws://${STAGING_HOST}:${PORT}`;
 
     case "production":
-      return `wss://${STAGING_HOST}`;
+      return `ws://${STAGING_HOST}:${PORT}`;
 
     default:
-      return `ws://${DEV_HOST}:${DEV_PORT}`;
+      return `ws://${DEV_HOST}:${PORT}`;
   }
 };
