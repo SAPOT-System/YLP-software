@@ -386,6 +386,11 @@ export class MainContainer {
         if (this.userContainer.userStore.isGuest) {
           await this.peerKeyService.initGuestKey();
 
+          // Guests need the server verify key to check if a peer's credential is
+          // genuine — without it they fall back to "credential present" only.
+          // Use the compile-time env var if available; otherwise fetch & cache.
+          await this.peerKeyService.loadServerVerifyKey();
+
           // Pre-load peer keys from SecureStore and derive conversation keys so
           // that messages are decryptable immediately on startup without waiting
           // for a new TCP handshake.

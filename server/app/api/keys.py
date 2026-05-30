@@ -141,6 +141,19 @@ def list_contact_keys(
     ]
 
 
+# ── Peer type lookup (guest vs authenticated) ─────────────────────────────────
+
+@router.get("/{peer_id}/type")
+def get_peer_type(
+    peer_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: SessionDep,
+):
+    """Returns whether peer_id is a guest (no registered PeerKey) or authenticated."""
+    has_key = session.exec(select(PeerKey).where(PeerKey.user_id == peer_id)).first()
+    return {"is_guest": has_key is None}
+
+
 # ── Per-peer signed key lookup ─────────────────────────────────────────────────
 
 @router.get("/{peer_id}", response_model=SignedCredential)

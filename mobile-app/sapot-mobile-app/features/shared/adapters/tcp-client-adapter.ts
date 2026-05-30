@@ -20,6 +20,7 @@ export class TcpClientAdapter extends EventEmitter {
   private sharedKey?: Uint8Array;
   private receiveBuffer = "";
   private _sessionVerified = false;
+  private _peerIsGuest = true; // conservative default — proven false only by a valid server-signed credential
   readonly peerId: string;
   private readonly myUserId?: string;
   private peerKeyService?: PeerKeyService;
@@ -42,6 +43,10 @@ export class TcpClientAdapter extends EventEmitter {
     return this._sessionVerified;
   }
 
+  get peerIsGuest(): boolean {
+    return this._peerIsGuest;
+  }
+
   connect(host: string, port: number) {
     return new Promise<void>((resolve, reject) => {
       try {
@@ -49,6 +54,7 @@ export class TcpClientAdapter extends EventEmitter {
         this.sharedKey = undefined;
         this.receiveBuffer = "";
         this._sessionVerified = false;
+        this._peerIsGuest = true;
 
         const keyPair = generateKeyPair();
         let handshakeDone = false;
@@ -100,16 +106,17 @@ export class TcpClientAdapter extends EventEmitter {
                     return;
                   }
                   this._sessionVerified = true;
+                  this._peerIsGuest = false; // valid server-signed credential = authenticated
                   if (this.peerKeyStore && frame.credential.ecdhPublicKey) {
                     this.peerKeyStore.set(frame.credential.peerId, decodeBase64(frame.credential.ecdhPublicKey));
                   }
                 } else {
-                  // Peer sent no credential. Credential exchange is opportunistic:
-                  // a guest peer or an uninitialized peer legitimately has none.
-                  // The session is still ECDH-encrypted, so allow it regardless of
-                  // whether we sent one. Only an explicit verification failure (handled
-                  // above with socket.destroy) should block a session.
+                  // Peer sent no credential — treat as guest. Credential exchange is
+                  // opportunistic: guests legitimately have none. The session is still
+                  // ECDH-encrypted so allow it; only an explicit verification failure
+                  // (handled above with socket.destroy) should block the session.
                   this._sessionVerified = true;
+                  this._peerIsGuest = true;
                 }
                 // Store the peer's stable app-level ECDH public key so ChatService
                 // can derive conversation keys without a server round-trip.

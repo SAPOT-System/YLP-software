@@ -614,6 +614,14 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   }
 
   /**
+   * Returns whether the peer is a guest based on the TCP handshake result.
+   * Defaults to true (conservative) if no adapter exists or handshake not done.
+   */
+  getPeerIsGuest(peerId: string): boolean {
+    return this.tcpClientAdapters.get(peerId)?.peerIsGuest ?? true;
+  }
+
+  /**
    * Retrieves or creates a TcpClientAdapter for the given peer.
    * Stays in ConnectionService per design constraint.
    */
