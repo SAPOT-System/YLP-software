@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, col
-from app.models.sync import SyncResponse, SyncRequest, SyncCheckResponse, PushSyncRequest, TableChanges
+from app.models.sync import SyncResponse, SyncRequest, SyncCheckResponse, PushSyncRequest, TableChanges, GuestUserHint
 
 from app.db_operations.token import get_current_user
 from app.models.users import User
@@ -204,6 +204,7 @@ async def push_local_data(
 ):
     changes = data.changes
     last_pulled_at = data.last_pulled_at or 0
+    hints: dict[str, GuestUserHint] = data.guest_users or {}
     
     # Tables in order to respect Foreign Key constraints
     data_table = {
@@ -300,13 +301,13 @@ async def push_local_data(
                 existing_user_ids.add(user_id)
             else:
                 missing_user_ids.add(user_id)
-                # TODO
                 # --- PLACEHOLDER: CREATE GUEST USER ---
+                hint = hints.get(str(user_id))
                 user = User(
                     id=user_id,
-                    username=f"guest_{user_id}",
-                    first_name="Guest",
-                    last_name="User",
+                    username=hint.username if hint else f"guest_{user_id}",
+                    first_name=hint.first_name if hint else "Guest",
+                    last_name=hint.last_name if hint else "User",
                     hashed_password="",
                 )
 
