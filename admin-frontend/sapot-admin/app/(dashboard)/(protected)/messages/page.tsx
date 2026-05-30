@@ -496,19 +496,23 @@ export default function Messages() {
           .sortBy("created_at")
           .then((msgs) => msgs[msgs.length - 1] ?? null);
 
-        // Decrypt the preview if the latest message is encrypted
-        let latestMsg = latestMsgRaw;
-        if (latestMsgRaw?.content?.startsWith("ecdh:") && latestMsgRaw.sender_id) {
-          await fetchAndCachePeerKey(latestMsgRaw.sender_id);
-          latestMsg = {
-            ...latestMsgRaw,
-            content: decryptFromPeer(latestMsgRaw.sender_id, latestMsgRaw.content),
-          };
-        }
-
         const validPeers = peers.filter(Boolean);
         // For normal convos: show the other person. For self-convos: show yourself.
         const primaryPeer = validPeers.find((p) => p.id !== currentUserId) ?? validPeers[0] ?? null;
+
+        // Decrypt the preview using the correct peer ID (mirrors loadMessages logic)
+        let latestMsg = latestMsgRaw;
+        if (latestMsgRaw?.content?.startsWith("ecdh:") && latestMsgRaw.sender_id) {
+          const isMine = latestMsgRaw.sender_id === currentUserId;
+          const peerId = isMine ? primaryPeer?.id : latestMsgRaw.sender_id;
+          if (peerId) {
+            await fetchAndCachePeerKey(peerId);
+            latestMsg = {
+              ...latestMsgRaw,
+              content: decryptFromPeer(peerId, latestMsgRaw.content),
+            };
+          }
+        }
         const isSelfConversation = primaryPeer?.id === currentUserId;
 
         return {
