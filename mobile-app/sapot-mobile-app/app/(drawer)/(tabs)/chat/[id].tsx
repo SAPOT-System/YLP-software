@@ -13,6 +13,7 @@ import {
   useThrottledPress,
   useToast,
 } from "@/features/shared/hooks";
+import { toLocalPhone } from "@/features/auth/utils/validation";
 import { sendSmsToUser } from "@/features/shared/api/gsm.api";
 import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
@@ -415,7 +416,9 @@ const ChatRoom = () => {
 
   if (!isRendered) return <ActivityIndicator />;
 
-  const peerDisplayName = peer
+  const peerDisplayName = isSmsConversation && peer?.phoneNumber
+    ? toLocalPhone(peer.phoneNumber)
+    : peer
     ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
     : "Unknown user";
   const connectionStatusLabel = isConnected
