@@ -58,16 +58,21 @@ async def relay_message_fails(sender_id: UUID, target_id: UUID, payload: Message
     try:
         if payload.type not in ['chat', 'call-ended', 'ack', 'seen']:
             raise Exception()
-        q = Queue(
-                id=uuid4(),
-                to=target_id,
-                data=str(message),
-                payload_type=payload.type,
-                data_id=payload.data.messageId if payload.data.messageId else payload.data.conversationId
-                )
-        session.add(q)
-        session.commit()
-        session.refresh(q)
+        data_id = payload.data.messageId if payload.data.messageId else payload.data.conversationId
+        existing = session.exec(
+            select(Queue).where(Queue.data_id == data_id).where(Queue.to == target_id)
+        ).first()
+        if not existing:
+            q = Queue(
+                    id=uuid4(),
+                    to=target_id,
+                    data=str(message),
+                    payload_type=payload.type,
+                    data_id=data_id,
+                    )
+            session.add(q)
+            session.commit()
+            session.refresh(q)
         if payload.type in ['chat', 'call-ended', 'ack']:
             await manager.send_personal_message(sender_id, {
                 "type": "server-ack",
@@ -111,16 +116,11 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
             query = select(Queue).filter_by(data_id=payload.data.messageId)
             queued_data = session.exec(query).all()
             for data in queued_data:
-                try:
-                    if not queued_data:
-                        raise Exception()
-                    if not str(payload.data.from_user) == str(data.to):
-                        raise Exception()
-
-                    delete_from_queue(data, session)
-                    
-                except Exception as e:
-                    pass
+                if not data:
+                    continue
+                if str(payload.data.from_user) != str(data.to):
+                    continue
+                delete_from_queue(data, session)
         except Exception as e:
             pass
         

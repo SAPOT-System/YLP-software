@@ -178,21 +178,25 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
             for message in messages:
                 try:
                     parsed = deep_parse_dict(message.data)
-                    parsed["data"]["from"] = parsed["data"]["from_user"]
-                    # data = MessageData.model_validate(**deep_parse_dict(message.data))
                     data = MessageData(
                             type=parsed.get("type"),
                             data=parsed.get("data")
                             )
+                    # Acks are ephemeral confirmations — delete and skip rather than
+                    # re-queuing them, which would trap them permanently.
+                    if data.type == 'ack':
+                        session.delete(message)
+                        session.commit()
+                        continue
                     await relay_message(user_id, user_id, data, session)
                     # don't delete from queue just yet, wait for it to be acknowledged by the receiver
                     if message.payload_type == 'seen':
                         session.delete(message)
                         session.commit()
                 except Exception as e:
-                    pass
-    except:
-        pass
+                    print(f"[drain] failed to deliver queued message {message.id}: {e}")
+    except Exception as e:
+        print(f"[drain] failed to fetch queued messages for {user_id}: {e}")
 
     try:
         while True:
