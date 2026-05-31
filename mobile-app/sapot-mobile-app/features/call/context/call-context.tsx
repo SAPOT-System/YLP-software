@@ -419,13 +419,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (incomingPeerId !== peerId) return;
       if (hasTerminated.current) return;
       callLog.warn("[CallContext] call › peer disconnected — all retries failed", { peerId });
-      hasTerminated.current = true;
-      callService
-        .terminateCallConnection(peerId, "missed")
-        .catch((err) =>
-          uiLog.error("[CallContext] terminate on disconnect failed", { err })
-        );
-      setCallState("ended");
+      // Give the call-ended WS message ~1.5 s to arrive before treating this as
+      // a missed call. If it arrives first it will set hasTerminated.current=true
+      // and we bail without creating a spurious missed-call log.
+      setTimeout(() => {
+        if (hasTerminated.current) return;
+        hasTerminated.current = true;
+        callService
+          .terminateCallConnection(peerId, "missed")
+          .catch((err) =>
+            uiLog.error("[CallContext] terminate on disconnect failed", { err })
+          );
+        setCallState("ended");
+      }, 1500);
     };
 
     connectionService.on("call-reconnecting", onReconnecting);
