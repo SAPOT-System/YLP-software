@@ -76,7 +76,7 @@ def handle_sms(number: str, body: str,
         return MSG_UNAUTHORIZED
 
     # ── Verify sender exists in SAPOT ─────────────────────────────────────────
-    sender_record = app.gsm.database._FAKE_USERS.get(number)
+    sender_record = app.gsm.database.lookup_number(number)
     if sender_record is None:
         return MSG_TARGET_NO_ACCOUNT
 
@@ -123,7 +123,7 @@ def _handle_set_target(body: str, session) -> str:
             "[target] +639XXXXXXXXX"
         )
 
-    target_record = app.gsm.database._FAKE_USERS.get(target_number)
+    target_record = app.gsm.database.lookup_number(target_number)
 
     if target_record is None:
         return MSG_TARGET_NOT_FOUND
@@ -140,21 +140,14 @@ def _handle_set_target(body: str, session) -> str:
 
 
 def _handle_forward(sender: str, body: str, session) -> str:
-    """Forward the message to the current target."""
-    # success = database.forward_message(
-    #     sender_number=sender,
-    #     target_number=session.target,
-    #     message=body,
-    # )
-    success = True
-    print("session", session)
-    print(sender)
-    print(body)
-    # target_record = app.gsm.database._FAKE_USERS.get(target_number)
+    """Forward the message to the current target via the SAPOT server."""
+    success = app.gsm.database.forward_message(
+        sender_number=sender,
+        target_number=session.target,
+        message=body,
+    )
 
     if success:
         return _forwarded_reply(session.target_username)
     else:
-        return (
-            "Failed to forward your message. Please try again later."
-        )
+        return "Failed to forward your message. Please try again later."

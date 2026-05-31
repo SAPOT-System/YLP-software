@@ -133,6 +133,7 @@ class MessageType(str, Enum):
     text = "text"
     file = "file"
     call_log = "call_log"
+    sms = "sms"
 
 
 class ConversationType(str, Enum):
@@ -565,121 +566,45 @@ def get_messages(limit: int = 50, offset: int = 0, direction: Optional[str] = No
 # Create this user once in your main API and paste the UUID here,
 # or set the SMS_BOT_USER_ID environment variable.
 import os
+import requests as _requests
+
+SAPOT_URL: str = os.environ.get("SAPOT_API_URL", "http://localhost:8000")
+GSM_SECRET: str = os.environ.get("GSM_SECRET", "")
 SMS_BOT_USER_ID: Optional[str] = os.environ.get("SMS_BOT_USER_ID")
 
 
 def notify_app(sender_phone: str, target_phone: str, body: str) -> bool:
     """
-    Write the forwarded message into the shared database so it appears
-    in the SAPOT app conversation for the target user.
+    Deliver the forwarded SMS to the target user via the SAPOT server.
 
-    Strategy
-    ─────────
-    1. Resolve both phone numbers to User rows.
-    2. Find or create a direct Conversation between them.
-       Title: "SMS from <sender_phone>" so it's clearly an SMS relay thread.
-    3. Add both users as ConversationParticipants if not already present.
-    4. Insert a Message row with the body, attributed to the bot user
-       (or to the sender user if the bot account isn't configured).
-    5. Return True on success, False on any error.
+    Calls POST /gsm/inbound on the SAPOT server, which persists the message
+    to the database and pushes it to the target user's active WebSocket
+    connection. Direct DB writes are intentionally avoided here to prevent
+    duplicate records and to ensure WebSocket delivery actually fires.
     """
     try:
-        with new_get_session() as s:
-            # 1. Resolve users
-            sender = s.execute(
-                select(User).where(User.phone_number == sender_phone)
-            ).scalar_one_or_none()
-
-            target = s.execute(
-                select(User).where(User.phone_number == target_phone)
-            ).scalar_one_or_none()
-
-            if target is None:
-                logger.error("notify_app: target %s not found", target_phone)
-                return False
-
-            sender_id = str(sender.id) if sender else SMS_BOT_USER_ID
-
-            # 2. Find existing SMS relay conversation between these two phones.
-            #    We identify it by title convention. A more robust approach would
-            #    be a dedicated relay_conversation table — add one if you need
-            #    multi-conversation support per pair.
-            conv_title = f"SMS {sender_phone}"
-
-            conversation_id = direct_conversation_id(str(target.id), str(sender_id))
-
-            existing_conv = s.execute(
-                select(Conversation)
-                .where(Conversation.id == conversation_id)
-                .where(Conversation.is_deleted == False)
-            ).scalar_one_or_none()
-
-            if existing_conv is None:
-                # Create conversation
-                conv = Conversation(
-                    id=conversation_id,
-                    title=conv_title,
-                    conversation_type=ConversationType.direct,
-                )
-                s.add(conv)
-                s.flush()   # get conv.id before adding participants
-
-                # Add participants
-                participants_to_add = []
-                if sender:
-                    participants_to_add.append(
-                        ConversationParticipant(
-                            id=str(uuid.uuid4().hex),
-                            conversation_id=conv.id,
-                            user_id=str(sender.id),
-                        )
-                    )
-                participants_to_add.append(
-                    ConversationParticipant(
-                        id=str(uuid.uuid4().hex),
-                        conversation_id=conv.id,
-                        user_id=str(target.id),
-                    )
-                )
-                s.add_all(participants_to_add)
-                conv_id = conv.id
-
-            else:
-                conv_id = existing_conv.id
-
-                # Ensure target is a participant (idempotent)
-                already_in = s.execute(
-                    select(ConversationParticipant)
-                    .where(ConversationParticipant.conversation_id == conv_id)
-                    .where(ConversationParticipant.user_id == str(target.id))
-                    .where(ConversationParticipant.is_deleted == False)
-                ).scalar_one_or_none()
-
-                if already_in is None:
-                    s.add(ConversationParticipant(
-                        id=str(uuid.uuid4().hex),
-                        conversation_id=conv_id,
-                        user_id=str(target.id),
-                    ))
-
-            # 3. Insert the message
-            msg = Message(
-                id=str(uuid.uuid4().hex),
-                message_type=MessageType.sms,
-                content=body[:255],         # enforce DB max_length
-                conversation_id=conv_id,
-                sender_id=sender_id,        # bot or real sender
-            )
-            s.add(msg)
-            s.commit()
-
+        r = _requests.post(
+            f"{SAPOT_URL}/gsm/inbound",
+            json={
+                "sender_phone": sender_phone,
+                "target_phone": target_phone,
+                "body": body,
+            },
+            headers={"X-GSM-Secret": GSM_SECRET},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            data = r.json()
             logger.info(
-                "notify_app: message written to conversation %s "
-                "(sender=%s target=%s)",
-                conv_id, sender_phone, target_phone,
+                "notify_app: message delivered (sender=%s target=%s message_id=%s)",
+                sender_phone, target_phone, data.get("message_id"),
             )
             return True
-
+        logger.error(
+            "notify_app: server returned %s (sender=%s target=%s body=%r)",
+            r.status_code, sender_phone, target_phone, r.text[:200],
+        )
+        return False
     except Exception as e:
         logger.error("notify_app failed: %s", e, exc_info=True)
         return False

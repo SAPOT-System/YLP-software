@@ -36,6 +36,7 @@ enum MessageType {
   TEXT = "text",
   FILE = "file",
   CALL_LOG = "call_log",
+  SMS = "sms",
 }
 
 // Mock shared dependencies
@@ -45,11 +46,13 @@ jest.mock("@/features/shared", () => ({
   ConversationType: {
     DIRECT: "direct",
     GROUP: "group",
+    SMS: "sms",
   },
   MessageType: {
     TEXT: "text",
     FILE: "file",
     CALL_LOG: "call_log",
+    SMS: "sms",
   },
   database: {
     write: jest.fn(),
@@ -373,6 +376,94 @@ describe("ChatService", () => {
       await expect(
         chatService.handleIncomingChatMessage(mockData)
       ).rejects.toThrow("Database error");
+    });
+
+    it("should reuse existing SMS conversation for incoming SMS message", async () => {
+      const mockData: DataChatMessageI = {
+        message: "Hello via SMS",
+        conversationId: "sms-conv-id-from-server",
+        messageId: "msg-sms-1",
+        from: "peer-1",
+        to: "test-user-id",
+        sentAt: new Date(),
+        messageType: MessageType.SMS,
+        senderProfile: { username: "sender", firstName: "Sender" },
+      };
+
+      const mockSender = createTestPeer({ id: "peer-1", username: "sender" }) as unknown as Peer;
+      const existingSmsConversation = createTestConversation({
+        id: "existing-sms-conv",
+        type: ConversationType.SMS,
+      }) as unknown as Conversation;
+
+      mockPeerService.findPeerById.mockResolvedValue(mockSender);
+      mockConversationRepository.isConversationExist.mockResolvedValue(false);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        "existing-sms-conv"
+      );
+      mockConversationRepository.queryConversationById.mockResolvedValue(
+        existingSmsConversation
+      );
+      mockMessageRepository.prepareMessageCreate.mockReturnValue(
+        createTestMessage({ id: "msg-sms-1" }) as unknown as Message
+      );
+      mockMessageStatusRepository.prepareMessageStatusCreate.mockReturnValue(
+        createTestMessageStatus({ id: "status-sms-1" }) as unknown as MessageStatus
+      );
+
+      await chatService.handleIncomingChatMessage(mockData);
+
+      expect(
+        mockConversationParticipantRepository.isDirectConversationExists
+      ).toHaveBeenCalledWith(["peer-1", "test-user-id"], ConversationType.SMS);
+      expect(mockConversationRepository.saveConversation).not.toHaveBeenCalled();
+      expect(mockConversationRepository.queryConversationById).toHaveBeenCalledWith(
+        "existing-sms-conv"
+      );
+    });
+
+    it("should create SMS-typed conversation when no existing SMS conversation found", async () => {
+      const mockData: DataChatMessageI = {
+        message: "Hello via SMS",
+        conversationId: "sms-conv-id-from-server",
+        messageId: "msg-sms-2",
+        from: "peer-1",
+        to: "test-user-id",
+        sentAt: new Date(),
+        messageType: MessageType.SMS,
+        senderProfile: { username: "sender", firstName: "Sender" },
+      };
+
+      const mockSender = createTestPeer({ id: "peer-1", username: "sender" }) as unknown as Peer;
+      const newSmsConversation = createTestConversation({
+        id: "sms-conv-id-from-server",
+        type: ConversationType.SMS,
+      }) as unknown as Conversation;
+
+      mockPeerService.findPeerById.mockResolvedValue(mockSender);
+      mockConversationRepository.isConversationExist.mockResolvedValue(false);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        undefined
+      );
+      mockDatabase.write.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async (fn: (writer: any) => Promise<any>) => await fn({} as any)
+      );
+      mockConversationRepository.saveConversation.mockResolvedValue(newSmsConversation);
+      mockConversationParticipantRepository.saveMultipleConversationParticipant.mockResolvedValue();
+      mockMessageRepository.prepareMessageCreate.mockReturnValue(
+        createTestMessage({ id: "msg-sms-2" }) as unknown as Message
+      );
+      mockMessageStatusRepository.prepareMessageStatusCreate.mockReturnValue(
+        createTestMessageStatus({ id: "status-sms-2" }) as unknown as MessageStatus
+      );
+
+      await chatService.handleIncomingChatMessage(mockData);
+
+      expect(mockConversationRepository.saveConversation).toHaveBeenCalledWith(
+        { type: ConversationType.SMS, id: "sms-conv-id-from-server" },
+        true
+      );
     });
   });
 

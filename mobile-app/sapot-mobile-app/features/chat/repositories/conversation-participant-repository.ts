@@ -139,7 +139,10 @@ export class ConversationParticipantRepository {
    * @param userIds Array of user ids
    * @returns Promise<string | undefined> The direct conversation id or undefined
    */
-  async isDirectConversationExists(userIds: string[]) {
+  async isDirectConversationExists(
+    userIds: string[],
+    type: ConversationType = ConversationType.DIRECT
+  ) {
     try {
       // Find live participant rows whose user is one of the given ids.
       // Filter is_deleted so a soft-deleted participant cannot resurrect or
@@ -172,7 +175,7 @@ export class ConversationParticipantRepository {
       const directConversations = await conversationsCollection
         .query(
           Q.where("id", Q.oneOf(candidateIds)),
-          Q.where("type", ConversationType.DIRECT),
+          Q.where("type", type),
           Q.where("is_deleted", false)
         )
         .fetch();

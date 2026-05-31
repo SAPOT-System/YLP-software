@@ -28,7 +28,7 @@
 
 // ── Buffers ───────────────────────────────────────────────────────────────────
 #define GSM_BUF  128
-#define PC_BUF   128
+#define PC_BUF   200
 #define NUM_BUF   20
 
 SoftwareSerial gsm(GSM_RX_PIN, GSM_TX_PIN);
@@ -38,8 +38,10 @@ static bool registered = false;
 static bool ready      = false;
 static bool regOnce    = false;
 static bool inBody     = false;
+static int8_t cmgrIdx = -1;
 
 static uint8_t resets = 0;
+static bool needsInit  = false;
 
 static unsigned long lastPoll = 0;
 static unsigned long lastHB   = 0;
@@ -152,6 +154,12 @@ void setup() {
 
 void loop() {
 
+  if (needsInit) {
+    needsInit = false;
+    initModem();
+    return;
+  }
+
   // ── Read GSM serial ──────────────────────────────────────────────────────
   while (gsm.available()) {
 
@@ -255,6 +263,9 @@ static void initModem() {
   sendAT(F("AT+CFUN=0"), 10000);
   sendAT(F("AT+CFUN=1"), 10000);
 
+  // Re-apply after CFUN soft reset (modem defaults echo back on)
+  sendAT(F("ATE0"));
+
   emitLog(F("INIT SIM"));
 
   if (!sendATExpect(F("AT+CPIN?"), "READY", 5000)) {
@@ -266,6 +277,8 @@ static void initModem() {
     return;
   }
 
+  // Apply text mode early so any SMS stored before registration uses text format
+  sendAT(F("AT+CMGF=1"));
   sendAT(F("AT+CSCS=\"GSM\""));
   sendAT(F("AT+CREG=1"));
 
@@ -311,11 +324,11 @@ static void onRegistered() {
 
 static void applySettings() {
 
+  sendAT(F("ATE0"));
   sendAT(F("AT+CMGF=1"));
   sendAT(F("AT+CNMI=2,2,0,0,0"));
 
-  // Optional:
-  // sendAT(F("AT+CMGDA=\"DEL ALL\""), 5000);
+  sendAT(F("AT+CMGDA=\"DEL ALL\""), 5000);
 }
 
 // =============================================================================
@@ -347,7 +360,7 @@ static void hardReset() {
   digitalWrite(GSM_RST_PIN, HIGH);
   delay(8000);
 
-  initModem();
+  needsInit = true;
 }
 
 // =============================================================================
@@ -405,6 +418,7 @@ static void processGSMLine() {
 
         registered = false;
         ready      = false;
+        regOnce    = false;
 
         emitLog(F("NET IDLE"));
 
@@ -417,6 +431,8 @@ static void processGSMLine() {
         break;
 
       case 3:
+
+        regOnce = false;
 
         emitLog(F("NET DENIED"));
 
@@ -437,7 +453,7 @@ static void processGSMLine() {
     return;
   }
 
-  // ── SMS HEADER ───────────────────────────────────────────────────────────
+  // ── SMS HEADER (direct delivery) ─────────────────────────────────────────
   if (strncmp(line, "+CMT:", 5) == 0) {
 
     const char* q1 = strchr(line, '"');
@@ -452,14 +468,49 @@ static void processGSMLine() {
       }
 
       memcpy(sender, q1 + 1, len);
+      sender[len] = '\0';
+      inBody = true;
+    }
+    // malformed +CMT: — do not set inBody to avoid treating next line as SMS body
 
+    return;
+  }
+
+  // ── SMS STORED IN SIM (+CMTI) ─────────────────────────────────────────────
+  if (strncmp(line, "+CMTI:", 6) == 0) {
+
+    const char* p = strrchr(line, ',');
+
+    if (p) {
+      cmgrIdx = (int8_t)atoi(p + 1);
+      gsm.print(F("AT+CMGR="));
+      gsm.println(cmgrIdx);
+    }
+
+    return;
+  }
+
+  // ── READ STORED SMS HEADER (+CMGR response) ───────────────────────────────
+  if (strncmp(line, "+CMGR:", 6) == 0) {
+
+    // Format: +CMGR: "REC UNREAD","+63917...",,...
+    // Sender is the 2nd quoted string (after status field)
+    const char* q1 = strchr(line, '"');
+    const char* q2 = q1 ? strchr(q1 + 1, '"') : nullptr;   // end of status
+    const char* q3 = q2 ? strchr(q2 + 1, '"') : nullptr;   // start of number
+    const char* q4 = q3 ? strchr(q3 + 1, '"') : nullptr;   // end of number
+
+    if (q3 && q4) {
+      uint8_t len = (uint8_t)(q4 - q3 - 1);
+      if (len >= NUM_BUF) len = NUM_BUF - 1;
+      memcpy(sender, q3 + 1, len);
       sender[len] = '\0';
     }
     else {
       sender[0] = '\0';
     }
 
-    inBody = true;
+    inBody = true;   // body follows on next line — reuse existing read path
 
     return;
   }
@@ -477,6 +528,12 @@ static void processGSMLine() {
     Serial.print(sender);
     Serial.print('|');
     Serial.println(gsmBuf);
+
+    if (cmgrIdx >= 0) {
+      gsm.print(F("AT+CMGD="));
+      gsm.println(cmgrIdx);
+      cmgrIdx = -1;
+    }
 
     return;
   }
@@ -637,10 +694,5 @@ static void doSendSMS(const char* num, const char* body) {
 static void heartbeat() {
 
   gsm.println(F("AT+CREG?"));
-
-  delay(300);
-
   gsm.println(F("AT+CSQ"));
-
-  delay(300);
 }

@@ -18,6 +18,7 @@ export type ContactUnknownUserResponse = {
   status: string;
   detail: string;
   user_id: string;
+  is_sapot_user: boolean;
 };
 
 export const getGsmHealth = async (): Promise<GsmHealthResponse> => {

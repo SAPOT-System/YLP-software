@@ -345,7 +345,8 @@ export class ChatService {
       }
       const conversation = await this.getOrCreateConversationForIncoming(
         sender,
-        data.conversationId
+        data.conversationId,
+        data.messageType
       );
       await this.deriveAndSetConversationKey(sender.id, conversation.id);
       await this.saveIncomingMessage(sender, conversation, data);
@@ -408,7 +409,8 @@ export class ChatService {
    */
   private async getOrCreateConversationForIncoming(
     sender: Peer,
-    conversationId: string
+    conversationId: string,
+    messageType: MessageType = MessageType.TEXT
   ): Promise<Conversation> {
     const isConversationExist =
       await this.conversationRepository.isConversationExist(conversationId);
@@ -417,20 +419,23 @@ export class ChatService {
       exists: isConversationExist,
     });
     if (!isConversationExist) {
+      const isSms = messageType === MessageType.SMS;
       const existingConversationId =
         await this.conversationParticipantRepository.isDirectConversationExists(
-          [sender.id, this.userStore.user.id]
+          [sender.id, this.userStore.user.id],
+          isSms ? ConversationType.SMS : ConversationType.DIRECT
         );
       if (existingConversationId) {
-        chatLog.debug("chat › reusing existing direct conversation", {
+        chatLog.debug("chat › reusing existing conversation", {
           conversationId: existingConversationId,
+          type: isSms ? "sms" : "direct",
           senderId: sender.id,
         });
         return await this.conversationRepository.queryConversationById(
           existingConversationId
         );
       }
-      return await this.createChatRoom(sender, conversationId);
+      return await this.createChatRoom(sender, conversationId, messageType);
     } else {
       return await this.conversationRepository.queryConversationById(
         conversationId
@@ -459,6 +464,8 @@ export class ChatService {
       // (e.g. first contact with a guest peer). Persist as plaintext rather than
       // discarding; the onKeySet observer re-derives the key for subsequent reads.
       allowPlaintext: true,
+      messageType: data.messageType,
+      linkedMessageId: data.linkedMessageId,
     });
     const preparedStatus =
       this.messageStatusRepository.prepareMessageStatusCreate({
@@ -529,7 +536,11 @@ export class ChatService {
         conversationId,
         peerId: this.peer.id,
       });
-      this.connectionService.sendSeenMessage(this.peer.id, conversationId);
+      const conversation =
+        await this.conversationRepository.queryConversationById(conversationId);
+      if (conversation?.type !== ConversationType.SMS) {
+        this.connectionService.sendSeenMessage(this.peer.id, conversationId);
+      }
       const peerMessages =
         await this.messageRepository.queryMessagesByConversationAndSender(
           conversationId,
@@ -681,13 +692,15 @@ export class ChatService {
     message: string
   ): Promise<{ conversationId: string; messageId: string }> {
     if (!this.peer) throw new Error("No peer state stored");
-    // Prefer an existing direct conversation over creating a new SMS conversation —
-    // if the peers already have a P2P chat, SMS messages belong in the same thread.
     const existingDirectId =
-      await this.conversationParticipantRepository.isDirectConversationExists([
+      (await this.conversationParticipantRepository.isDirectConversationExists([
         this.peer.id,
         this.userStore.user.id,
-      ]);
+      ])) ??
+      (await this.conversationParticipantRepository.isDirectConversationExists(
+        [this.peer.id, this.userStore.user.id],
+        ConversationType.SMS
+      ));
     const smsConversation = existingDirectId
       ? await this.conversationRepository.queryConversationById(
           existingDirectId
@@ -907,6 +920,7 @@ export class ChatService {
           firstName: this.userStore.user.firstName,
           lastName: this.userStore.user.lastName || undefined,
         },
+        linkedMessageId: newMessage.linkedMessageId ?? undefined,
       });
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusById(
@@ -977,7 +991,8 @@ export class ChatService {
    */
   private async createChatRoom(
     peer: Peer,
-    conversationId?: string
+    conversationId?: string,
+    messageType: MessageType = MessageType.TEXT
   ): Promise<Conversation> {
     // Wrap into write method to ensure ACID for safety transaction
     try {
@@ -986,9 +1001,11 @@ export class ChatService {
         hasConversationId: Boolean(conversationId),
       });
       return await database.write(async () => {
+        const conversationType =
+          messageType === MessageType.SMS ? ConversationType.SMS : ConversationType.DIRECT;
         const conversation = await this.conversationRepository.saveConversation(
           {
-            type: ConversationType.DIRECT,
+            type: conversationType,
             id: conversationId,
           },
           true
@@ -1044,9 +1061,18 @@ export class ChatService {
    */
   async findChatByPeer(peerId: string): Promise<string | undefined> {
     try {
-      return await this.conversationParticipantRepository.isDirectConversationExists(
-        [peerId, this.userStore.user.id]
-      );
+      const directId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [peerId, this.userStore.user.id]
+        );
+      if (directId) return directId;
+
+      // Fall back to SMS conversation using the deterministic ID so the lookup
+      // doesn't depend on participant records being present.
+      const smsId = smsConversationId(this.userStore.user.id, peerId);
+      const smsExists =
+        await this.conversationRepository.isConversationExist(smsId);
+      return smsExists ? smsId : undefined;
     } catch (error) {
       chatLog.error("chat › chat by peer failed", { peerId, error });
       throw error;
@@ -1490,6 +1516,7 @@ export class ChatService {
           firstName: this.userStore.user.firstName,
           lastName: this.userStore.user.lastName || undefined,
         },
+        linkedMessageId: message.linkedMessageId ?? undefined,
       });
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusByMessage(

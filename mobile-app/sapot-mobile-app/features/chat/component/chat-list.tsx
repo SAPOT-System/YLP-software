@@ -1,6 +1,7 @@
 import {
   Conversation,
   ConversationParticipant,
+  ConversationType,
   Message,
   MessageStatus,
   MessageStatusType,
@@ -22,6 +23,7 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { useMainContainer, useProfilePhoto } from "@/features/shared/hooks";
 import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
+import { toLocalPhone } from "@/features/auth/utils/validation";
 import { uiLog } from "@/features/shared/utils/logger";
 uiLog.debug("[chat-list] module loaded");
 
@@ -161,6 +163,7 @@ type ChatListItemInnerProps = {
     firstName?: string;
     lastName?: string;
     username?: string;
+    phoneNumber?: string;
   } | null;
   chat: Conversation;
   latestMessage: Message | null;
@@ -202,7 +205,10 @@ const ChatListItemInner = enhanceChatPeer(
     const { url: peerProfilePicUrl } = useProfilePhoto(peerId);
     const decryptedContent = useDecryptedContent(latestMessage);
 
-    const peerName = peer
+    const isSmsConversation = chat.type === ConversationType.SMS;
+    const peerName = isSmsConversation && peer?.phoneNumber
+      ? toLocalPhone(peer.phoneNumber)
+      : peer
       ? `${peer.firstName ?? ""} ${peer.lastName ?? ""}`.trim() ||
         peer.username ||
         "Unknown peer"
