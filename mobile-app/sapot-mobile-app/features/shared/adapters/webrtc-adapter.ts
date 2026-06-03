@@ -40,6 +40,20 @@ export class WebrtcAdapter extends EventEmitter {
   private readonly maxIceRestartAttempts = 3;
   private readonly iceRestartDelayMs = 1500;
 
+  // Application-level liveness probe. `connectionState === "connected"` can lie
+  // (half-open links after a Wi-Fi flap), so we round-trip a ping/pong over the
+  // data channel. Missed pongs force an ICE restart; a pong received while
+  // degraded is the authoritative "peer is reachable again" signal.
+  private livenessPingTimer?: ReturnType<typeof setTimeout>;
+  private livenessPongDeadline?: ReturnType<typeof setTimeout>;
+  private livenessNonce = 0;
+  private livenessMissedPongs = 0;
+  private isAwaitingPong = false;
+  private isLivenessDegraded = false;
+  private readonly livenessPingIntervalMs = 4000;
+  private readonly livenessPongTimeoutMs = 3000;
+  private readonly maxMissedPongs = 2;
+
   private remoteDescriptionSet: boolean = false;
   private audioTrack?: MediaStreamTrack;
   private videoTrack?: MediaStreamTrack;
@@ -342,6 +356,18 @@ export class WebrtcAdapter extends EventEmitter {
       this.setupDataChannel(channel);
     }
 
+    // A stale, unanswered local offer (e.g. left over from before a network
+    // blip) leaves the PC in "have-local-offer"; calling createOffer() on it
+    // throws E_OPERATION_ERROR. Roll it back so we can produce a fresh offer —
+    // mirrors the guard in restartIce().
+    if (this.peerConnection!.signalingState === "have-local-offer") {
+      this.trace("rollback-stale-offer");
+      await this.peerConnection!.setLocalDescription(
+        new RTCSessionDescription({ type: "rollback", sdp: "" })
+      );
+      this.isMakingOffer = false;
+    }
+
     try {
       this.isMakingOffer = true;
 
@@ -430,6 +456,160 @@ export class WebrtcAdapter extends EventEmitter {
       clearTimeout(this.iceRestartTimer);
       this.iceRestartTimer = undefined;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Liveness (data-channel ping/pong)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Begins periodic ping/pong probing once the data channel is open. Safe to call
+   * repeatedly — any in-flight monitor is cleared first.
+   */
+  private startLivenessMonitor() {
+    this.stopLivenessMonitor();
+    webrtcLog.debug("webrtc › liveness monitor start", { peerId: this.peerId });
+    this.scheduleNextLivenessPing(this.livenessPingIntervalMs);
+  }
+
+  /** Stops probing and resets liveness state. Called on close/error/cleanup. */
+  private stopLivenessMonitor() {
+    if (this.livenessPingTimer || this.livenessPongDeadline) {
+      webrtcLog.debug("webrtc › liveness monitor stop", {
+        peerId: this.peerId,
+        wasDegraded: this.isLivenessDegraded,
+      });
+    }
+    if (this.livenessPingTimer) {
+      clearTimeout(this.livenessPingTimer);
+      this.livenessPingTimer = undefined;
+    }
+    if (this.livenessPongDeadline) {
+      clearTimeout(this.livenessPongDeadline);
+      this.livenessPongDeadline = undefined;
+    }
+    this.isAwaitingPong = false;
+    this.livenessMissedPongs = 0;
+    this.isLivenessDegraded = false;
+  }
+
+  private scheduleNextLivenessPing(delayMs: number) {
+    if (this.livenessPingTimer) {
+      clearTimeout(this.livenessPingTimer);
+    }
+    this.livenessPingTimer = setTimeout(
+      () => this.sendLivenessPing(),
+      delayMs
+    );
+  }
+
+  private sendLivenessPing() {
+    // Probe directly via the data channel rather than `sendDataMessage`, which
+    // is gated on `isConnected`. During an ICE blip the SCTP channel can still
+    // be open and we specifically want to test whether data still flows.
+    if (this.dataChannel?.readyState !== "open") {
+      this.scheduleNextLivenessPing(this.livenessPingIntervalMs);
+      return;
+    }
+    this.livenessNonce += 1;
+    const nonce = this.livenessNonce;
+    this.isAwaitingPong = true;
+    try {
+      this.dataChannel.send(JSON.stringify({ type: "ping", data: { nonce } }));
+      webrtcLog.debug("webrtc › liveness ping sent", {
+        peerId: this.peerId,
+        nonce,
+      });
+    } catch (error) {
+      webrtcLog.debug("webrtc › liveness ping send failed", {
+        peerId: this.peerId,
+        error,
+      });
+    }
+    this.livenessPongDeadline = setTimeout(
+      () => this.onPongTimeout(),
+      this.livenessPongTimeoutMs
+    );
+  }
+
+  private onPongTimeout() {
+    if (!this.isAwaitingPong) return;
+    this.isAwaitingPong = false;
+    this.livenessMissedPongs += 1;
+    webrtcLog.warn("webrtc › liveness pong timeout", {
+      peerId: this.peerId,
+      missed: this.livenessMissedPongs,
+    });
+    if (this.livenessMissedPongs >= this.maxMissedPongs) {
+      this.onLivenessLost();
+    }
+    // Keep probing — at the steady cadence normally, immediately while degraded
+    // so recovery is detected as soon as the peer is reachable again.
+    this.scheduleNextLivenessPing(
+      this.isLivenessDegraded ? 0 : this.livenessPingIntervalMs
+    );
+  }
+
+  private handleLivenessPing(nonce: number) {
+    if (this.dataChannel?.readyState !== "open") return;
+    try {
+      this.dataChannel.send(JSON.stringify({ type: "pong", data: { nonce } }));
+      webrtcLog.debug("webrtc › liveness ping received → pong", {
+        peerId: this.peerId,
+        nonce,
+      });
+    } catch (error) {
+      webrtcLog.debug("webrtc › liveness pong send failed", {
+        peerId: this.peerId,
+        error,
+      });
+    }
+  }
+
+  private handleLivenessPong() {
+    // Ignore unsolicited pongs once a cycle has already settled.
+    if (
+      !this.isAwaitingPong &&
+      !this.isLivenessDegraded &&
+      this.iceRestartAttempts === 0
+    ) {
+      return;
+    }
+    this.isAwaitingPong = false;
+    if (this.livenessPongDeadline) {
+      clearTimeout(this.livenessPongDeadline);
+      this.livenessPongDeadline = undefined;
+    }
+    webrtcLog.debug("webrtc › liveness pong received", {
+      peerId: this.peerId,
+      missedBefore: this.livenessMissedPongs,
+      degraded: this.isLivenessDegraded,
+    });
+    this.livenessMissedPongs = 0;
+
+    // A completed round-trip is authoritative proof the peer is reachable. If we
+    // had signalled "reconnecting" (degraded liveness or an in-flight ICE
+    // restart), clear that state and tell upstream the link is healthy again so
+    // a stale "Reconnecting…" header resolves even when the ICE state machine
+    // never re-fired "connected".
+    if (this.isLivenessDegraded || this.iceRestartAttempts > 0) {
+      webrtcLog.info("webrtc › liveness restored via pong", {
+        peerId: this.peerId,
+      });
+      this.isLivenessDegraded = false;
+      this.resetIceRestartState();
+      this.emit("liveness-restored");
+    }
+    this.scheduleNextLivenessPing(this.livenessPingIntervalMs);
+  }
+
+  private onLivenessLost() {
+    if (this.isLivenessDegraded) return;
+    this.isLivenessDegraded = true;
+    webrtcLog.warn("webrtc › liveness lost — forcing ice restart", {
+      peerId: this.peerId,
+    });
+    this.scheduleIceRestart("failed", true);
   }
 
   private scheduleIceRestart(
@@ -637,6 +817,7 @@ export class WebrtcAdapter extends EventEmitter {
       channel.onopen = () => {
         webrtcLog.info("webrtc › data channel open");
         this.emit("datachannel-open");
+        this.startLivenessMonitor();
 
         if (this.peerConnection?.connectionState === "connected")
           this.emit("connection-established");
@@ -645,6 +826,15 @@ export class WebrtcAdapter extends EventEmitter {
       channel.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          // Liveness frames are handled internally and never propagate to chat.
+          if (message?.type === "ping") {
+            this.handleLivenessPing(message?.data?.nonce);
+            return;
+          }
+          if (message?.type === "pong") {
+            this.handleLivenessPong();
+            return;
+          }
           this.emit("receivedMessage", message);
         } catch (error) {
           webrtcLog.error("webrtc › data channel parse failed", { error });
@@ -652,11 +842,13 @@ export class WebrtcAdapter extends EventEmitter {
       };
 
       channel.onerror = (error) => {
+        this.stopLivenessMonitor();
         this.emit("connection-failed", error);
       };
 
       channel.onclose = () => {
         webrtcLog.info("webrtc › data channel closed");
+        this.stopLivenessMonitor();
         this.emit("connection-closed");
       };
     } catch (error) {
@@ -882,6 +1074,7 @@ export class WebrtcAdapter extends EventEmitter {
       this.videoTrack = undefined;
       this.audioTrack = undefined;
       this.resetIceRestartState();
+      this.stopLivenessMonitor();
       webrtcLog.info("webrtc › cleanup");
     } catch (error) {
       webrtcLog.error("webrtc › cleanup failed", { error });

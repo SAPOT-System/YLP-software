@@ -195,12 +195,38 @@ export class PeerRepository {
         if (offlinePeer.length > 0) {
           await offlinePeer[0].update((peer) => {
             peer.isOnline = false;
+            // Stamp last-seen so an offline peer can show "Last seen …" (LAN/mDNS source).
+            peer.lastSeenAt = Date.now();
           });
         }
       });
     } catch (error) {
       peerLog.error("peer › mark offline failed", { peerId: id, error });
       throw error;
+    }
+  }
+
+  /**
+   * Updates a peer's last-seen timestamp, keeping the most recent value so a
+   * stale server reading never overwrites a fresher local stamp (or vice versa).
+   * @param id The peer id
+   * @param ms Epoch milliseconds of the observed activity
+   */
+  async setPeerLastSeen(id: string, ms: number) {
+    if (!id || !Number.isFinite(ms)) return;
+    try {
+      await this.db.write(async () => {
+        const peers = await this.peersCollection.query(Q.where("id", id));
+        if (peers.length > 0) {
+          await peers[0].update((peer) => {
+            if (!peer.lastSeenAt || ms > peer.lastSeenAt) {
+              peer.lastSeenAt = ms;
+            }
+          });
+        }
+      });
+    } catch (error) {
+      peerLog.error("peer › set last seen failed", { peerId: id, error });
     }
   }
 
@@ -220,6 +246,7 @@ export class PeerRepository {
         if (onlinePeer.length > 0) {
           await onlinePeer[0].update((peer) => {
             peer.isOnline = true;
+            peer.lastSeenAt = Date.now();
           });
         }
       });

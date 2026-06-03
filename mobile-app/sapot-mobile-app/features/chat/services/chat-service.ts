@@ -245,6 +245,28 @@ export class ChatService {
     };
   }
 
+  onCallReconnecting(listener: (peerId: string) => void): () => void {
+    this.connectionService.on("call-reconnecting", listener);
+    return () => {
+      if (typeof this.connectionService.off === "function") {
+        this.connectionService.off("call-reconnecting", listener);
+        return;
+      }
+      this.connectionService.removeListener("call-reconnecting", listener);
+    };
+  }
+
+  onPeerRediscovered(listener: (peerId: string) => void): () => void {
+    this.connectionService.on("peer-rediscovered", listener);
+    return () => {
+      if (typeof this.connectionService.off === "function") {
+        this.connectionService.off("peer-rediscovered", listener);
+        return;
+      }
+      this.connectionService.removeListener("peer-rediscovered", listener);
+    };
+  }
+
   /**
    * Connects to a peer by id, establishing a network connection for chat.
    * @param id The peer id to connect to
@@ -265,7 +287,8 @@ export class ChatService {
         await this.connectionService.connectToPeer(
           discoveredPeer.id,
           discoveredPeer.ipAddress,
-          discoveredPeer.port
+          discoveredPeer.port,
+          discoveredPeer.addresses
         );
       } catch {
         await this.connectionService.connectToPeer(id);

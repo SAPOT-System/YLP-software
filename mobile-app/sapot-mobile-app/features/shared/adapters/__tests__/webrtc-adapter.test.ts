@@ -150,5 +150,129 @@ describe("WebrtcAdapter", () => {
 
       expect(mockPc.addIceCandidate).not.toHaveBeenCalled();
     });
+
+    it("rolls back a stale have-local-offer before creating a fresh offer", async () => {
+      const { adapter: a, mockPc } = mountAdapter("have-local-offer");
+      mockPc.createOffer.mockResolvedValue({ type: "offer", sdp: "v=0\r\n" });
+
+      const result = await a.createOffer();
+
+      const { RTCSessionDescription } = require("react-native-webrtc");
+      expect(RTCSessionDescription).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "rollback" })
+      );
+      expect(result).toEqual({ type: "offer", sdp: "v=0\r\n" });
+    });
+
+    it("does not roll back when the PC is already stable", async () => {
+      const { adapter: a, mockPc } = mountAdapter("stable");
+      mockPc.createOffer.mockResolvedValue({ type: "offer", sdp: "v=0\r\n" });
+
+      await a.createOffer();
+
+      const { RTCSessionDescription } = require("react-native-webrtc");
+      const rollbackCall = (RTCSessionDescription as jest.Mock).mock.calls.find(
+        ([arg]) => arg?.type === "rollback"
+      );
+      expect(rollbackCall).toBeUndefined();
+    });
+  });
+
+  describe("liveness (ping/pong)", () => {
+    type MockChannel = {
+      onopen: (() => void) | null;
+      onmessage: ((e: { data: string }) => void) | null;
+      onerror: ((e: unknown) => void) | null;
+      onclose: (() => void) | null;
+      readyState: string;
+      send: jest.Mock;
+      close: jest.Mock;
+    };
+    let mockChannel: MockChannel;
+    let a: WebrtcAdapter;
+
+    const sent = () =>
+      mockChannel.send.mock.calls.map(([raw]: [string]) => JSON.parse(raw));
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockChannel = {
+        onopen: null,
+        onmessage: null,
+        onerror: null,
+        onclose: null,
+        readyState: "open",
+        send: jest.fn(),
+        close: jest.fn(),
+      };
+      a = new WebrtcAdapter("peer-live");
+      a.setDataChannel(mockChannel as unknown as Parameters<typeof a.setDataChannel>[0]);
+      // Data channel open starts the monitor.
+      mockChannel.onopen?.();
+    });
+
+    afterEach(() => {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    });
+
+    it("sends a ping on the configured interval", () => {
+      jest.advanceTimersByTime(4000);
+      expect(sent().some((m) => m.type === "ping")).toBe(true);
+    });
+
+    it("replies to an incoming ping with a pong echoing the nonce", () => {
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "ping", data: { nonce: 99 } }),
+      });
+      expect(sent()).toContainEqual({ type: "pong", data: { nonce: 99 } });
+    });
+
+    it("does not propagate liveness frames to chat handling", () => {
+      const received = jest.fn();
+      a.on("receivedMessage", received);
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "ping", data: { nonce: 1 } }),
+      });
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "pong", data: { nonce: 1 } }),
+      });
+      expect(received).not.toHaveBeenCalled();
+    });
+
+    it("forces an ICE restart after consecutive missed pongs", () => {
+      const iceRestarting = jest.fn();
+      a.on("ice-restarting", iceRestarting);
+
+      jest.advanceTimersByTime(4000); // ping #1
+      jest.advanceTimersByTime(3000); // miss #1
+      jest.advanceTimersByTime(4000); // ping #2
+      jest.advanceTimersByTime(3000); // miss #2 → liveness lost
+
+      expect(iceRestarting).toHaveBeenCalled();
+    });
+
+    it("emits liveness-restored when a pong arrives after degradation", () => {
+      const restored = jest.fn();
+      a.on("liveness-restored", restored);
+
+      jest.advanceTimersByTime(4000); // ping #1
+      jest.advanceTimersByTime(3000); // miss #1
+      jest.advanceTimersByTime(4000); // ping #2
+      jest.advanceTimersByTime(3000); // miss #2 → degraded
+
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "pong", data: { nonce: 2 } }),
+      });
+
+      expect(restored).toHaveBeenCalled();
+    });
+
+    it("stops probing once the data channel closes", () => {
+      mockChannel.onclose?.();
+      mockChannel.send.mockClear();
+      jest.advanceTimersByTime(20000);
+      expect(mockChannel.send).not.toHaveBeenCalled();
+    });
   });
 });

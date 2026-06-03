@@ -728,6 +728,29 @@ describe("ConnectionService", () => {
 
       await expect(connectPromise).rejects.toThrow("Connection failed");
     });
+
+    it("evicts the wedged adapter when createOffer fails so the next dial rebuilds it", async () => {
+      const evictSpy = jest.spyOn(webrtcSessionManager, "evictWebrtcAdapter");
+      // Simulate the wedged/dead peer connection from the bug report: a stale
+      // PC whose createOffer throws E_OPERATION_ERROR.
+      mockWebrtcAdapter.createOffer.mockRejectedValue(
+        Object.assign(new Error("createOffer failed"), {
+          code: "E_OPERATION_ERROR",
+        })
+      );
+      mockWebrtcAdapter.once.mockReturnValue(mockWebrtcAdapter);
+
+      const connectPromise = connectionService.connectToPeer(
+        "peer-1",
+        "192.168.1.101",
+        8081
+      );
+
+      await expect(connectPromise).rejects.toThrow("createOffer failed");
+      // Must evict (not silently reuse) the dead adapter — this is what breaks
+      // the permanent LAN failure loop.
+      expect(evictSpy).toHaveBeenCalledWith("peer-1");
+    });
   });
 
   describe("sendMessage", () => {

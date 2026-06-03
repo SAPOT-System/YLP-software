@@ -20,6 +20,8 @@ export class PeerService {
     //   port: 8085,
     // },
   ];
+  /** Consecutive failed liveness probes per peer id (used by the discovery sweep). */
+  private missedProbes = new Map<string, number>();
   /**
    * Constructs a PeerService instance.
    * @param peerRepository Repository for peer data
@@ -31,12 +33,59 @@ export class PeerService {
   }
 
   /**
+   * Selects the preferred address to dial from a peer's advertised set. Prefers
+   * an address on the same /24 subnet as the local device (most likely reachable
+   * for a dual-homed peer with both Wi-Fi and Ethernet), falling back to the
+   * first advertised address.
+   */
+  static selectPreferredAddress(addresses: string[], localIp?: string): string {
+    if (!addresses || addresses.length === 0) return "";
+    if (localIp) {
+      const localPrefix = localIp.split(".").slice(0, 3).join(".");
+      const sameSubnet = addresses.find(
+        (addr) => addr.split(".").slice(0, 3).join(".") === localPrefix
+      );
+      if (sameSubnet) return sameSubnet;
+    }
+    return addresses[0];
+  }
+
+  /** Returns the in-memory discovered peer list (used by the liveness sweep). */
+  getDiscoveredPeers(): DiscoveredService[] {
+    return this.discoveredPeerServices;
+  }
+
+  /**
+   * Records a failed liveness probe for a peer and returns the new consecutive
+   * failure count.
+   */
+  recordProbeFailure(peerId: string): number {
+    const next = (this.missedProbes.get(peerId) ?? 0) + 1;
+    this.missedProbes.set(peerId, next);
+    return next;
+  }
+
+  /** Clears the failed-probe counter for a peer (e.g. after a successful probe). */
+  resetProbeFailures(peerId: string): void {
+    this.missedProbes.delete(peerId);
+  }
+
+  /** Refreshes the last-seen timestamp for a discovered peer. */
+  touchDiscoveredPeer(peerId: string): void {
+    const existing = this.discoveredPeerServices.find((p) => p.id === peerId);
+    if (existing) existing.lastSeenAt = Date.now();
+  }
+
+  /**
    * Registers a discovered peer service. If the peer exists, marks it online; otherwise, saves it.
    * Also adds the peer to the discoveredPeerServices list if not already present.
    * @param peerService The discovered network service
    * @returns Promise<void>
    */
-  async register(peerService: Service) {
+  async register(
+    peerService: Service,
+    localIp?: string
+  ): Promise<{ addressChanged: boolean }> {
     try {
       const peerId = peerService.txt?.id;
       if (!peerId) {
@@ -44,7 +93,7 @@ export class PeerService {
           reason: "missing id",
           serviceName: peerService.name,
         });
-        return;
+        return { addressChanged: false };
       }
 
       await this.peerRepository.createOrUpdatePeer(
@@ -57,17 +106,48 @@ export class PeerService {
         { markOnline: true }
       );
 
-      const isServiceExist = this.discoveredPeerServices.find(
+      const addresses = peerService.addresses ?? [];
+      const ipAddress = PeerService.selectPreferredAddress(addresses, localIp);
+      const port = peerService.port;
+      const existing = this.discoveredPeerServices.find(
         (peer) => peer.id === peerId
       );
-      if (!isServiceExist) {
+
+      // The peer was provably present this instant — refresh liveness markers.
+      this.missedProbes.delete(peerId);
+
+      if (!existing) {
         this.discoveredPeerServices.push({
           serviceName: peerService.name,
           id: peerId,
-          port: peerService.port,
-          ipAddress: peerService.addresses[0],
+          port,
+          ipAddress,
+          addresses,
+          lastSeenAt: Date.now(),
+        });
+        return { addressChanged: false };
+      }
+
+      // Always refresh the cached address — a peer may have restarted its TCP
+      // server on a new port/IP and re-advertised under the same id. Without this
+      // the cache keeps dialing the dead old address forever.
+      const addressChanged =
+        existing.port !== port || existing.ipAddress !== ipAddress;
+      existing.serviceName = peerService.name;
+      existing.port = port;
+      existing.ipAddress = ipAddress;
+      existing.addresses = addresses;
+      existing.lastSeenAt = Date.now();
+
+      if (addressChanged) {
+        peerLog.info("peer › discovered address changed", {
+          peerId,
+          port,
+          ipAddress,
         });
       }
+
+      return { addressChanged };
     } catch (error) {
       peerLog.error("peer › register failed", {
         peerId: peerService.txt?.id,
@@ -108,6 +188,7 @@ export class PeerService {
       this.discoveredPeerServices = this.discoveredPeerServices.filter(
         (service) => service.serviceName !== serviceName
       );
+      this.missedProbes.delete(removedService.id);
 
       await this.peerRepository.markPeerOffline(removedService.id);
     } catch (error) {
@@ -271,7 +352,7 @@ export class PeerService {
       }
 
       const user = await getUserById(id);
-      return await this.peerRepository.savePeer({
+      const created = await this.peerRepository.savePeer({
         id: user.id,
         username: user.username,
         firstName: user.first_name,
@@ -280,6 +361,11 @@ export class PeerService {
         role: user.role,
         isGuest: false,
       });
+      const lastActiveMs = this.parseLastActive(user.last_active);
+      if (lastActiveMs !== null) {
+        await this.peerRepository.setPeerLastSeen(user.id, lastActiveMs);
+      }
+      return created;
     } catch (error) {
       peerLog.error("peer › get or create failed", { peerId: id, error });
       throw error;
@@ -287,9 +373,35 @@ export class PeerService {
   }
 
   /**
+   * Best-effort refresh of a peer's last-seen timestamp from the server
+   * (`UserActivity.last_active`). Used by the chat screen when a peer is offline.
+   * Errors are swallowed — this is a non-critical UI enrichment.
+   * @param peerId The peer id
+   */
+  async refreshLastSeen(peerId: string): Promise<void> {
+    try {
+      const user = await getUserById(peerId);
+      const lastActiveMs = this.parseLastActive(user.last_active);
+      if (lastActiveMs !== null) {
+        await this.peerRepository.setPeerLastSeen(peerId, lastActiveMs);
+      }
+    } catch (error) {
+      peerLog.warn("peer › refresh last seen failed", { peerId, error });
+    }
+  }
+
+  /** Parses an ISO timestamp into epoch ms, returning null when absent/invalid. */
+  private parseLastActive(isoString?: string | null): number | null {
+    if (!isoString) return null;
+    const ms = new Date(isoString).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  /**
    * Cleans up the in-memory discoveredPeerServices list.
    */
   cleanUp() {
     this.discoveredPeerServices = [];
+    this.missedProbes.clear();
   }
 }

@@ -491,6 +491,27 @@ export class MainContainer {
         this.unsubscribeAppState = () => appStateSub.remove();
 
         await this.networkConfig.initialize();
+        // On a local IP change, rebind the TCP server to the new interface and
+        // re-advertise over mDNS so peers stop dialing the dead old address.
+        this.networkConfig.setOnIpChange(() => {
+          void (async () => {
+            try {
+              if (this.appModeStore.isTcpAllowed(this.userContainer.userStore.isGuest)) {
+                this.connectionService.stopTcpTransport();
+                this.connectionService.start();
+              }
+              if (
+                this.appModeStore.isZeroconfAllowed(
+                  this.userContainer.userStore.isGuest
+                )
+              ) {
+                await this.discoveryService.republish();
+              }
+            } catch (error) {
+              appLog.error("app › ip change rebind failed", { error });
+            }
+          })();
+        });
         this.networkConfig.startWatching();
 
         await saveConnectionConfig({

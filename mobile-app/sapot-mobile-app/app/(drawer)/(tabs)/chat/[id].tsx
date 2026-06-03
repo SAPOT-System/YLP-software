@@ -9,15 +9,18 @@ import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
   useIsUserActive,
   useMainContainer,
+  usePeerService,
   useProfilePhoto,
   useThrottledPress,
   useToast,
 } from "@/features/shared/hooks";
+import { resolvePeerStatus } from "@/features/chat/utils/resolve-peer-status";
 import { toLocalPhone } from "@/features/auth/utils/validation";
 import { sendSmsToUser } from "@/features/shared/api/gsm.api";
 import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
+import NetInfo from "@react-native-community/netinfo";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -66,8 +69,9 @@ const ChatRoom = () => {
   const { id, source } = useLocalSearchParams();
   const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<
-    "connecting" | "connected" | "failed" | "timeout" | "idle"
+    "connecting" | "connected" | "reconnecting" | "failed" | "timeout" | "idle"
   >("idle");
+  const [retriesExhausted, setRetriesExhausted] = useState(false);
   const [isRendered, setIsRendered] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
@@ -85,8 +89,11 @@ const ChatRoom = () => {
   const isSmsConversation = conversationType === ConversationType.SMS;
   const { gsmReady, loading: gsmLoading } = useGsmHealth();
   const chatService = useChatService();
+  const peerService = usePeerService();
   const userStore = useUserStore();
   const { connectionService, peerKeyService } = useMainContainer();
+  // Bumped on a timer so the relative "Last seen …" label advances while offline.
+  const [, forceLastSeenTick] = useState(0);
   const [peerIsGuest, setPeerIsGuest] = useState<boolean | null>(null);
   const router = useRouter();
   const call = useInformCall();
@@ -127,6 +134,11 @@ const ChatRoom = () => {
     setPeerId(undefined);
     setIsSelfChat(false);
     setPeer(undefined);
+    // Reset connection status so a new peer never flashes the previous peer's state
+    setIsConnected(false);
+    setConnectionState("idle");
+    setRetriesExhausted(false);
+    retryCountRef.current = 0;
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -176,6 +188,27 @@ const ChatRoom = () => {
     };
   }, [chatService, id, source, userStore]);
 
+  // Fresh reconnect attempt: resets the retry budget and re-dials the peer.
+  // Used by the network-regained and peer-rediscovered triggers and the manual
+  // "Tap to retry" control.
+  const reconnectNow = useCallback(() => {
+    if (!peerId || isSelfChat) return;
+    retryCountRef.current = 0;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+    setRetriesExhausted(false);
+    setConnectionState("connecting");
+    chatService
+      .connect(peerId)
+      .then(() => setIsConnected(true))
+      .catch((error) => {
+        uiLog.warn("chat › manual reconnect failed", { peerId, error });
+        setConnectionState("failed");
+      });
+  }, [peerId, isSelfChat, chatService]);
+
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
     if (!peerId) return;
@@ -187,8 +220,9 @@ const ChatRoom = () => {
         setIsConnected(true);
       } catch (error) {
         uiLog.warn("chat › connect failed", { peerId, error });
-        showError("Connection failed");
-        // TODO: try reconnect
+        // Reflect the failure in the header so the reconnect loop and the
+        // manual retry affordance engage instead of leaving a stale label.
+        setConnectionState("failed");
       }
     };
 
@@ -200,9 +234,14 @@ const ChatRoom = () => {
       setIsConnected(payload.state === "connected");
       if (payload.state === "connected") {
         retryCountRef.current = 0;
+        setRetriesExhausted(false);
       }
       if (payload.state === "failed" || payload.state === "timeout") {
-        if (retryCountRef.current >= MAX_RECONNECT_RETRIES) return;
+        if (retryCountRef.current >= MAX_RECONNECT_RETRIES) {
+          // Out of automatic retries — surface the manual retry control.
+          setRetriesExhausted(true);
+          return;
+        }
         const raw = Math.min(
           RECONNECT_MAX_MS,
           RECONNECT_BASE_MS * Math.pow(1.8, retryCountRef.current)
@@ -214,6 +253,12 @@ const ChatRoom = () => {
           attempt: retryCountRef.current,
           delayMs: delay,
         });
+        // Clear any prior pending timer before scheduling a new one so
+        // overlapping failure events don't leak timers or double-connect.
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
         retryTimerRef.current = setTimeout(() => {
           chatService.connect(peerId).catch(() => {});
         }, delay);
@@ -224,8 +269,19 @@ const ChatRoom = () => {
       (reconnectedPeerId) => {
         if (reconnectedPeerId !== peerId) return;
         retryCountRef.current = 0;
+        setRetriesExhausted(false);
         setIsConnected(true);
         setConnectionState("connected");
+      }
+    );
+
+    // Mid-session link disruption (e.g. weak WiFi triggering an ICE restart).
+    // Surface "Reconnecting…" instead of leaving a stale "Connected".
+    const unsubscribeCallReconnecting = chatService.onCallReconnecting(
+      (reconnectingPeerId) => {
+        if (reconnectingPeerId !== peerId) return;
+        setIsConnected(false);
+        setConnectionState("reconnecting");
       }
     );
 
@@ -236,9 +292,69 @@ const ChatRoom = () => {
       }
       unsubscribe();
       unsubscribeReconnected();
+      unsubscribeCallReconnecting();
       chatService.disconnect();
     };
   }, [peerId, isSelfChat, chatService, showToast, showError]);
+
+  // Auto-reconnect when the device regains network or the peer is re-discovered
+  // on the LAN (e.g. after it restarted its TCP server on a new port).
+  useEffect(() => {
+    if (!peerId || isSelfChat) return;
+
+    let wasOffline = false;
+    const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+      const online =
+        state.isConnected === true && state.isInternetReachable !== false;
+      if (online && wasOffline) {
+        uiLog.info("chat › network regained — reconnecting", { peerId });
+        reconnectNow();
+      }
+      wasOffline = !online;
+    });
+
+    const unsubscribeRediscovered = chatService.onPeerRediscovered(
+      (rediscoveredPeerId) => {
+        if (rediscoveredPeerId !== peerId) return;
+        uiLog.info("chat › peer rediscovered — reconnecting", { peerId });
+        reconnectNow();
+      }
+    );
+
+    return () => {
+      unsubscribeNetInfo();
+      unsubscribeRediscovered();
+    };
+  }, [peerId, isSelfChat, chatService, reconnectNow]);
+
+  // A peer is "offline" when we have no live connection and no presence signal.
+  const isPeerOffline =
+    !isConnected && !isServerActive && !peer?.isOnline && !isSelfChat;
+
+  // Refresh the peer's last-seen timestamp from the server whenever they are
+  // offline (fires on the online→offline transition via the isPeerOffline dep).
+  // Best-effort; guests and LAN-unreachable servers simply fall back to the
+  // local mDNS stamp recorded in the peers table.
+  useEffect(() => {
+    if (!peerId || isSelfChat || userStore.isGuest) return;
+    if (!isPeerOffline) return;
+    void peerService.refreshLastSeen(peerId);
+  }, [peerId, isSelfChat, isPeerOffline, peerService, userStore.isGuest]);
+
+  // Re-fetch on screen focus so re-entering an offline chat shows a fresh value.
+  useFocusEffect(
+    useCallback(() => {
+      if (!peerId || isSelfChat || userStore.isGuest || !isPeerOffline) return;
+      void peerService.refreshLastSeen(peerId);
+    }, [peerId, isSelfChat, isPeerOffline, peerService, userStore.isGuest])
+  );
+
+  // Tick the relative label forward while offline (every 60s).
+  useEffect(() => {
+    if (!isPeerOffline) return;
+    const interval = setInterval(() => forceLastSeenTick((n) => n + 1), 60_000);
+    return () => clearInterval(interval);
+  }, [isPeerOffline]);
 
   useEffect(() => {
     uiLog.debug("[ChatRoom] useEffect triggered, deps:", { isSelfChat });
@@ -423,17 +539,28 @@ const ChatRoom = () => {
     : peer
     ? `${peer.firstName} ${peer.lastName}`.trim() || peer.username
     : "Unknown user";
-  const connectionStatusLabel = isConnected
-    ? "Connected"
-    : connectionState === "connecting"
-    ? "Connecting..."
-    : connectionState === "timeout"
-    ? "Connection timeout"
-    : connectionState === "failed"
-    ? "Connection failed"
-    : isServerActive || peer?.isOnline
-    ? "Active now"
-    : "Offline";
+  // Presence-derived status: a dropped P2P link never surfaces as the peer's
+  // status while a shared presence signal (server/mDNS) still proves them
+  // reachable, so both ends agree instead of showing private link verdicts.
+  const peerStatus = resolvePeerStatus({
+    isLinkHealthy: isConnected && connectionState === "connected",
+    connectionPhase:
+      connectionState === "connecting"
+        ? "connecting"
+        : connectionState === "reconnecting"
+        ? "reconnecting"
+        : "idle",
+    isServerActive,
+    isPeerOnline: peer?.isOnline ?? false,
+    lastSeenAt: peer?.lastSeenAt,
+  });
+  const connectionStatusLabel = peerStatus.label;
+  // Offer manual retry only when the peer genuinely looks unreachable — never
+  // alongside an "Active now" derived from server/mDNS presence.
+  const showRetry =
+    retriesExhausted &&
+    peerStatus.kind !== "active" &&
+    (connectionState === "failed" || connectionState === "timeout");
 
   return (
     <KeyboardAvoidingView
@@ -476,15 +603,26 @@ const ChatRoom = () => {
               )}
             </View>
             {!isSmsConversation && (
-              <Text
-                style={[
-                  styles.statusText,
-                  { color: theme.dark ? "#E6ECF5" : "#6B7280" },
-                ]}
-                numberOfLines={1}
-              >
-                {isConnected ? "Connected" : connectionStatusLabel}
-              </Text>
+              <View style={styles.statusRow}>
+                <Text
+                  style={[
+                    styles.statusText,
+                    { color: theme.dark ? "#E6ECF5" : "#6B7280" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {connectionStatusLabel}
+                </Text>
+                {showRetry && (
+                  <Text
+                    onPress={reconnectNow}
+                    style={styles.retryText}
+                    numberOfLines={1}
+                  >
+                    Tap to retry
+                  </Text>
+                )}
+              </View>
             )}
           </View>
         </View>
@@ -655,8 +793,21 @@ const styles = StyleSheet.create({
     marginVertical: 0,
     marginHorizontal: 4,
   },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+  },
   statusText: {
     fontSize: 12,
+    flexShrink: 1,
+  },
+  retryText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#2563EB",
+    flexShrink: 0,
   },
   headerActions: {
     flexDirection: "row",

@@ -89,4 +89,55 @@ describe("TcpClientAdapter", () => {
   it("is not connected before connecting", () => {
     expect(adapter.isConnected).toBe(false);
   });
+
+  describe("probe", () => {
+    it("resolves true when the connection callback fires", async () => {
+      const probeSocket = createMockTcpClientSocket();
+      const TcpSocket = require("react-native-tcp-socket");
+      TcpSocket.createConnection.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (_options: any, callback: any) => {
+          setTimeout(() => callback(), 0);
+          return probeSocket;
+        }
+      );
+
+      await expect(
+        TcpClientAdapter.probe("127.0.0.1", 3000, 1000)
+      ).resolves.toBe(true);
+      expect(probeSocket.destroy).toHaveBeenCalled();
+    });
+
+    it("resolves false on socket error", async () => {
+      const probeSocket = createMockTcpClientSocket();
+      let errorHandler: (() => void) | null = null;
+      probeSocket.on.mockImplementation(
+        (event: string, handler: () => void) => {
+          if (event === "error") errorHandler = handler;
+        }
+      );
+      const TcpSocket = require("react-native-tcp-socket");
+      TcpSocket.createConnection.mockImplementation(() => {
+        setTimeout(() => errorHandler?.(), 0);
+        return probeSocket;
+      });
+
+      await expect(
+        TcpClientAdapter.probe("127.0.0.1", 3000, 1000)
+      ).resolves.toBe(false);
+    });
+
+    it("resolves false on timeout when neither connect nor error fires", async () => {
+      jest.useFakeTimers();
+      const probeSocket = createMockTcpClientSocket();
+      const TcpSocket = require("react-native-tcp-socket");
+      TcpSocket.createConnection.mockImplementation(() => probeSocket);
+
+      const result = TcpClientAdapter.probe("127.0.0.1", 3000, 1000);
+      jest.advanceTimersByTime(1000);
+
+      await expect(result).resolves.toBe(false);
+      jest.useRealTimers();
+    });
+  });
 });

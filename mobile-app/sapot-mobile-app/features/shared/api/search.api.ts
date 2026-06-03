@@ -44,6 +44,8 @@ export const getUserById = async (
   last_name: string;
   phone_is_verified: boolean;
   role: string;
+  last_active?: string | null;
+  status?: string;
 }> => {
   const res = await apiClient.get<{
     id: string;
@@ -52,6 +54,8 @@ export const getUserById = async (
     last_name: string;
     phone_is_verified: boolean;
     role: string;
+    last_active?: string | null;
+    status?: string;
   }>("/user-utils/search-user/{id}", {
     params: { user_id },
   });

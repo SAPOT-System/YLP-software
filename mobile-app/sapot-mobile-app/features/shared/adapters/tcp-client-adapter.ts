@@ -39,6 +39,39 @@ export class TcpClientAdapter extends EventEmitter {
     this.myUserId = myUserId;
   }
 
+  /**
+   * Lightweight reachability probe: opens a bare TCP connection (no handshake)
+   * and resolves true once connected, false on error or timeout. The socket is
+   * always destroyed before resolving. Used by the discovery liveness sweep.
+   */
+  static probe(host: string, port: number, timeoutMs = 3000): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      let socket: TcpSocket.Socket | undefined;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      const finish = (reachable: boolean) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        try {
+          socket?.destroy();
+        } catch {
+          // best-effort
+        }
+        resolve(reachable);
+      };
+
+      try {
+        socket = TcpSocket.createConnection({ host, port }, () => finish(true));
+        socket.on("error", () => finish(false));
+        timer = setTimeout(() => finish(false), timeoutMs);
+      } catch {
+        finish(false);
+      }
+    });
+  }
+
   get sessionVerified(): boolean {
     return this._sessionVerified;
   }

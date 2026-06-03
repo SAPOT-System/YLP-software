@@ -12,11 +12,28 @@ discoveryLog.debug("[discovery-service] module loaded");
  * DiscoveryService is responsible for discovering devices on the local network and making this device discoverable to others.
  * It manages peer registration, handles service resolution/removal, and coordinates message resending for peers that come online.
  */
+/** A discovered peer is considered stale once it hasn't been re-resolved within this window. */
+const STALE_TTL_MS = 60_000;
+/** How often the liveness sweep runs to probe stale peers. */
+const LIVENESS_SWEEP_INTERVAL_MS = 30_000;
+/** Consecutive failed probes before a peer is evicted as offline. */
+const MAX_MISSED_PROBES = 2;
+/** Bare TCP connect timeout used by the liveness probe. */
+const PROBE_TIMEOUT_MS = 3_000;
+/** How often to force a fresh mDNS browse to recover from packet loss. */
+const RESCAN_INTERVAL_MS = 150_000;
+/** Minimum spacing between unsent-message resend attempts for the same peer. */
+const RESEND_DEBOUNCE_MS = 10_000;
+
 export class DiscoveryService {
   private chatService?: ChatService;
+  private connectionService?: ConnectionService;
   private publishDeviceName: string = "";
   private publishDevicePromise?: Promise<void>;
   private intervalId: number = 0;
+  private sweepIntervalId?: ReturnType<typeof setInterval>;
+  private rescanIntervalId?: ReturnType<typeof setInterval>;
+  private lastResendAt = new Map<string, number>();
   private published: boolean = false;
   private publishedListeners = new Set<() => void>();
 
@@ -63,14 +80,33 @@ export class DiscoveryService {
 
         if (!this.chatService) throw new Error("Chat service not initialized");
         discoveryLog.info("discovery › service resolved", { peerId });
-        await this.peerService.register(peerService);
-
-        // Attempt to resend unsent messages to this peer if necessary
-        await this.performResendMessagesForPeer(
-          peerId,
-          peerService.addresses[0],
-          peerService.port
+        const { addressChanged } = await this.peerService.register(
+          peerService,
+          this.networkConfig.ipAddress
         );
+
+        // The peer re-advertised at a new address (e.g. restarted its TCP server
+        // on a different port). Evict the stale TCP adapter and notify so an open
+        // chat can re-dial the new address instead of the dead one.
+        if (addressChanged) {
+          this.connectionService?.handlePeerRediscovered(peerId);
+        }
+
+        // Resend unsent messages, but debounce per peer so a flapping or
+        // rapidly-rebroadcasting peer on a busy LAN doesn't trigger a resend storm.
+        const now = Date.now();
+        const lastResend = this.lastResendAt.get(peerId) ?? 0;
+        if (now - lastResend >= RESEND_DEBOUNCE_MS) {
+          this.lastResendAt.set(peerId, now);
+          await this.performResendMessagesForPeer(
+            peerId,
+            this.peerService.findDiscoveredPeerById(peerId)?.ipAddress ??
+              peerService.addresses?.[0],
+            peerService.port
+          );
+        } else {
+          discoveryLog.debug("discovery › resend debounced", { peerId });
+        }
       } catch (error) {
         discoveryLog.error("discovery › service resolve failed", {
           peerId: peerService.txt?.id,
@@ -153,6 +189,7 @@ export class DiscoveryService {
    * Call this once after both services are constructed (e.g. in MainContainer).
    */
   setConnectionService(connectionService: ConnectionService): void {
+    this.connectionService = connectionService;
     connectionService.on("peer-reconnected", async (peerId: string) => {
       try {
         const discoveredPeer = this.peerService.findDiscoveredPeerById(peerId);
@@ -184,6 +221,8 @@ export class DiscoveryService {
         return;
       }
       this.adapter.startScan();
+      this.startLivenessSweep();
+      this.startPeriodicRescan();
     } catch (error) {
       discoveryLog.error("discovery › start failed", { error });
       throw error;
@@ -195,10 +234,95 @@ export class DiscoveryService {
    */
   stopDiscovery() {
     try {
+      this.stopLivenessSweep();
+      this.stopPeriodicRescan();
       this.adapter.stopScan();
     } catch (error) {
       discoveryLog.error("discovery › stop failed", { error });
       throw error;
+    }
+  }
+
+  private startLivenessSweep(): void {
+    if (this.sweepIntervalId) return;
+    this.sweepIntervalId = setInterval(() => {
+      void this.sweepLiveness();
+    }, LIVENESS_SWEEP_INTERVAL_MS);
+  }
+
+  private stopLivenessSweep(): void {
+    if (!this.sweepIntervalId) return;
+    clearInterval(this.sweepIntervalId);
+    this.sweepIntervalId = undefined;
+  }
+
+  private startPeriodicRescan(): void {
+    if (this.rescanIntervalId) return;
+    this.rescanIntervalId = setInterval(() => {
+      try {
+        this.adapter.restartScan();
+      } catch (error) {
+        discoveryLog.warn("discovery › periodic rescan failed", { error });
+      }
+    }, RESCAN_INTERVAL_MS);
+  }
+
+  private stopPeriodicRescan(): void {
+    if (!this.rescanIntervalId) return;
+    clearInterval(this.rescanIntervalId);
+    this.rescanIntervalId = undefined;
+  }
+
+  /**
+   * Probes discovered peers that haven't been re-resolved recently and evicts
+   * those that fail repeatedly. This is the fallback for peers that drop off the
+   * LAN without emitting an mDNS "goodbye" (e.g. airplane mode, dead battery),
+   * which would otherwise linger as "online" forever.
+   */
+  async sweepLiveness(): Promise<void> {
+    const connectionService = this.connectionService;
+    if (!connectionService) return;
+
+    const now = Date.now();
+    // Snapshot — markOffline mutates the underlying list.
+    const peers = [...this.peerService.getDiscoveredPeers()];
+
+    for (const peer of peers) {
+      if (now - peer.lastSeenAt < STALE_TTL_MS) continue;
+      if (!peer.ipAddress || !peer.port) continue;
+
+      try {
+        const reachable = await connectionService.probePeerReachable(
+          peer.ipAddress,
+          peer.port,
+          PROBE_TIMEOUT_MS
+        );
+
+        if (reachable) {
+          this.peerService.resetProbeFailures(peer.id);
+          this.peerService.touchDiscoveredPeer(peer.id);
+          continue;
+        }
+
+        const misses = this.peerService.recordProbeFailure(peer.id);
+        discoveryLog.info("discovery › liveness probe failed", {
+          peerId: peer.id,
+          misses,
+        });
+
+        if (misses >= MAX_MISSED_PROBES) {
+          discoveryLog.warn("discovery › evicting stale peer", {
+            peerId: peer.id,
+          });
+          await this.peerService.markOffline(peer.serviceName);
+          connectionService.handlePeerRediscovered(peer.id);
+        }
+      } catch (error) {
+        discoveryLog.warn("discovery › liveness probe errored", {
+          peerId: peer.id,
+          error,
+        });
+      }
     }
   }
 
@@ -268,6 +392,53 @@ export class DiscoveryService {
   }
 
   /**
+   * Re-advertises this device after a local network change (e.g. the device's
+   * Wi-Fi IP changed). The old mDNS record still points at the dead address, so
+   * we unpublish it and publish a fresh record carrying the new address, then
+   * restart the browse (adapter cleanup severs the scan bridge).
+   */
+  async republish(): Promise<void> {
+    try {
+      if (!this.isZeroconfAllowed()) {
+        discoveryLog.info("discovery › republish skipped", { reason: "mode" });
+        return;
+      }
+
+      discoveryLog.info("discovery › republish start");
+      const oldName = this.publishDeviceName;
+
+      // Reset publish state so publishDevice() runs again with the new address.
+      if (this.publishDevicePromise) {
+        try {
+          await this.publishDevicePromise;
+        } catch {
+          // ignore — we're tearing this advertisement down anyway
+        }
+      }
+      this.publishDevicePromise = undefined;
+      this.publishDeviceName = "";
+      this.setPublished(false);
+
+      if (oldName) {
+        try {
+          await this.adapter.cleanUp(oldName);
+        } catch (error) {
+          discoveryLog.warn("discovery › republish unpublish failed", { error });
+        }
+      }
+
+      await this.publishDevice();
+      // adapter.cleanUp() reinitializes the native bridge and stops the scan —
+      // restart discovery so we keep resolving peers on the new interface.
+      this.startDiscovery();
+      discoveryLog.info("discovery › republish complete");
+    } catch (error) {
+      discoveryLog.error("discovery › republish failed", { error });
+      throw error;
+    }
+  }
+
+  /**
    * Cleans up resources, stops discovery, and resets peer state. Should be called when the service is no longer needed.
    */
   async destroy(): Promise<void> {
@@ -284,6 +455,9 @@ export class DiscoveryService {
         await this.adapter.cleanUp(this.publishDeviceName);
       }
       if (this.intervalId) clearInterval(this.intervalId);
+      this.stopLivenessSweep();
+      this.stopPeriodicRescan();
+      this.lastResendAt.clear();
       this.peerService.cleanUp();
       this.setPublished(false);
     } catch (error) {

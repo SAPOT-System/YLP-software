@@ -130,6 +130,8 @@ export default function QRScannerScreen() {
           id: payload.id,
           ipAddress: payload.ip,
           port: payload.port,
+          addresses: [payload.ip],
+          lastSeenAt: Date.now(),
         });
       }
     }

@@ -158,5 +158,14 @@ export default schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 11,
+      steps: [
+        addColumns({
+          table: "peers",
+          columns: [{ name: "last_seen_at", type: "number", isOptional: true }],
+        }),
+      ],
+    },
   ],
 });

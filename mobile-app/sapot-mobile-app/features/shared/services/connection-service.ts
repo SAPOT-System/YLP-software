@@ -79,6 +79,7 @@ export type ConnectionServiceEvents = {
   remoteStream: [stream: MediaStream];
   "peer-reconnected": [peerId: string];
   "peer-disconnected": [peerId: string];
+  "peer-rediscovered": [peerId: string];
   "call-reconnecting": [peerId: string];
   "connection-state": [payload: ConnectionStatePayload];
 };
@@ -673,6 +674,37 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   }
 
   /**
+   * Tears down and removes the cached TCP client adapter for a peer so the next
+   * connect attempt builds a fresh one. Used when a peer's discovered address
+   * changes (e.g. it restarted its TCP server on a new port) — the stale socket
+   * may still report `isConnected` against the dead address otherwise.
+   */
+  evictTcpClientAdapter(peerId: string): void {
+    const adapter = this.tcpClientAdapters.get(peerId);
+    if (!adapter) return;
+    try {
+      adapter.disconnect();
+    } catch (error) {
+      connectionLog.warn("connection › tcp client evict disconnect failed", {
+        peerId,
+        error,
+      });
+    }
+    this.tcpClientAdapters.delete(peerId);
+    connectionLog.info("connection › tcp client evicted", { peerId });
+  }
+
+  /**
+   * Called when a peer is re-discovered on the network with a new address.
+   * Evicts the stale TCP adapter and notifies listeners so an open chat can
+   * re-dial the peer at its new port/IP.
+   */
+  handlePeerRediscovered(peerId: string): void {
+    this.evictTcpClientAdapter(peerId);
+    this.emit("peer-rediscovered", peerId);
+  }
+
+  /**
    * Delegates to WebrtcSessionManager.
    */
   getWebrtcAdapter(peerId: string): WebrtcAdapter {
@@ -699,12 +731,23 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   /**
    * Initiates connection to a peer using TCP and WebRTC.
    */
-  async connectToPeer(peerId: string, ipAddress?: string, port?: number, _retryCount = 0) {
+  async connectToPeer(
+    peerId: string,
+    ipAddress?: string,
+    port?: number,
+    addresses?: string[],
+    _retryCount = 0
+  ) {
     connectionLog.info("connection › connect start", {
       peerId,
       hasIpAddress: Boolean(ipAddress),
       hasPort: Boolean(port),
     });
+    // Candidate dial list for a dual-homed peer (Wi-Fi + Ethernet): preferred
+    // address first, then any other advertised addresses, de-duplicated.
+    const candidateAddresses = Array.from(
+      new Set([ipAddress, ...(addresses ?? [])].filter((a): a is string => Boolean(a)))
+    );
     const tcpAdapter = this.getTcpClientAdapter(peerId);
     const webrtcAdapter = this.webrtcSessionManager.getWebrtcAdapter(peerId);
     webrtcAdapter.setIsPolite(this.userStore.user.id < peerId);
@@ -751,18 +794,18 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         throw new Error("TCP transport is required in lan mode");
       }
       if (!isTcpConnected) {
-        if (!ipAddress || !port) {
+        if (candidateAddresses.length === 0 || !port) {
           throw new Error("TCP connection requires ipAddress and port");
         }
-        await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
+        await this.connectTcpWithRetry(tcpAdapter, candidateAddresses, port, 2);
         isTcpConnected = true;
         this.sendProfileInfo(peerId);
       }
     } else {
       if (canUseTcp && !isTcpConnected) {
-        if (ipAddress && port) {
+        if (candidateAddresses.length > 0 && port) {
           try {
-            await this.connectTcpWithRetry(tcpAdapter, ipAddress, port, 2);
+            await this.connectTcpWithRetry(tcpAdapter, candidateAddresses, port, 2);
             isTcpConnected = true;
             this.sendProfileInfo(peerId);
           } catch (error) {
@@ -849,13 +892,14 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           peerId,
           error,
         });
-        if (_retryCount < 1 && signalingTransport === "ws") {
-          connectionLog.info("connection › webrtc retry via ws", {
+        if (_retryCount < 1 && signalingTransport !== "none") {
+          connectionLog.info("connection › webrtc retry after failure", {
             peerId,
+            transport: signalingTransport,
             _retryCount,
           });
           this.webrtcSessionManager.evictWebrtcAdapter(peerId);
-          this.connectToPeer(peerId, ipAddress, port, _retryCount + 1)
+          this.connectToPeer(peerId, ipAddress, port, addresses, _retryCount + 1)
             .then(resolve)
             .catch(reject);
           return;
@@ -881,13 +925,14 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           peerId,
           timeoutMs,
         });
-        if (_retryCount < 1 && signalingTransport === "ws") {
-          connectionLog.info("connection › webrtc timeout retry via ws", {
+        if (_retryCount < 1 && signalingTransport !== "none") {
+          connectionLog.info("connection › webrtc timeout retry", {
             peerId,
+            transport: signalingTransport,
             _retryCount,
           });
           this.webrtcSessionManager.evictWebrtcAdapter(peerId);
-          this.connectToPeer(peerId, ipAddress, port, _retryCount + 1)
+          this.connectToPeer(peerId, ipAddress, port, addresses, _retryCount + 1)
             .then(resolve)
             .catch(reject);
           return;
@@ -931,12 +976,38 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           });
         })
         .catch((error) => {
+          if (isSettled) return;
+          isSettled = true;
+          cleanup();
           connectionLog.warn("connection › connect failed", {
             peerId,
             hasIpAddress: Boolean(ipAddress),
             hasPort: Boolean(port),
             error,
           });
+          // The createOffer failure typically means the peer connection is
+          // wedged or dead (e.g. a stale "have-local-offer" PC left over from a
+          // network blip on the other end). Discard it so the retry — and any
+          // later reconnect — rebuilds a fresh PC instead of reusing the dead
+          // one in a permanent failure loop.
+          this.webrtcSessionManager.evictWebrtcAdapter(peerId);
+          if (_retryCount < 1 && signalingTransport !== "none") {
+            connectionLog.info("connection › retry after createOffer failure", {
+              peerId,
+              transport: signalingTransport,
+              _retryCount,
+            });
+            this.connectToPeer(
+              peerId,
+              ipAddress,
+              port,
+              addresses,
+              _retryCount + 1
+            )
+              .then(resolve)
+              .catch(reject);
+            return;
+          }
           this.emit("connection-state", {
             peerId,
             state: "failed",
@@ -1267,36 +1338,55 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   private async connectTcpWithRetry(
     adapter: TcpClientAdapter,
-    ip: string,
+    ips: string | string[],
     port: number,
     maxRetries: number
   ): Promise<void> {
+    const candidates = (Array.isArray(ips) ? ips : [ips]).filter(Boolean);
+    if (candidates.length === 0) {
+      throw new Error("No candidate addresses to connect");
+    }
     let lastError: unknown;
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (attempt > 0) {
-        const delayMs = 500 * attempt;
-        connectionLog.info("connection › tcp retry", {
-          attempt,
-          maxRetries,
-          delayMs,
-          ip,
-          port,
-        });
-        await this.sleep(delayMs);
-      }
-      try {
-        await adapter.connect(ip, port);
-        return;
-      } catch (error) {
-        connectionLog.warn("connection › tcp attempt failed", {
-          attempt,
-          maxRetries,
-          error,
-        });
-        lastError = error;
+    // Iterate addresses (e.g. a dual-homed peer's Wi-Fi + Ethernet IPs); each
+    // address gets its own retry budget before falling through to the next.
+    for (const ip of candidates) {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (attempt > 0) {
+          const delayMs = 500 * attempt;
+          connectionLog.info("connection › tcp retry", {
+            attempt,
+            maxRetries,
+            delayMs,
+            ip,
+            port,
+          });
+          await this.sleep(delayMs);
+        }
+        try {
+          await adapter.connect(ip, port);
+          return;
+        } catch (error) {
+          connectionLog.warn("connection › tcp attempt failed", {
+            attempt,
+            maxRetries,
+            ip,
+            error,
+          });
+          lastError = error;
+        }
       }
     }
     throw lastError;
+  }
+
+  /**
+   * Lightweight liveness probe: opens a bare TCP connection to ip:port (no
+   * handshake) and resolves true on connect, false on error/timeout. Used by the
+   * discovery liveness sweep to detect peers that vanished without an mDNS
+   * "goodbye" packet.
+   */
+  probePeerReachable(ip: string, port: number, timeoutMs = 3000): Promise<boolean> {
+    return TcpClientAdapter.probe(ip, port, timeoutMs);
   }
 
   private isTcpAllowed(): boolean {

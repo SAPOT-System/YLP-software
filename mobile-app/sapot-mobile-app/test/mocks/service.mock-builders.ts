@@ -87,6 +87,7 @@ export function createDiscoveryServiceDependencyMocks() {
 		on: jest.fn(),
 		startScan: jest.fn(),
 		stopScan: jest.fn(),
+		restartScan: jest.fn(),
 		publishService: jest.fn(),
 		cleanUp: jest.fn(),
 	};
@@ -112,12 +113,16 @@ export function createDiscoveryServiceDependencyMocks() {
 	};
 
 	const peerService = {
-		register: jest.fn(),
+		register: jest.fn().mockResolvedValue({ addressChanged: false }),
 		markOffline: jest.fn(),
 		markOnline: jest.fn(),
 		getAllPeers: jest.fn(),
 		findPeerById: jest.fn(),
 		findDiscoveredPeerById: jest.fn(),
+		getDiscoveredPeers: jest.fn(() => []),
+		recordProbeFailure: jest.fn(() => 1),
+		resetProbeFailures: jest.fn(),
+		touchDiscoveredPeer: jest.fn(),
 		createUser: jest.fn(),
 		cleanUp: jest.fn(),
 	};

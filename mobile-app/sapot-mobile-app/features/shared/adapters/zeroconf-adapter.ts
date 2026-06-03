@@ -101,6 +101,27 @@ export class ZeroconfAdapter extends EventEmitter {
   }
 
   /**
+   * Forces a fresh browse by stopping the current scan and restarting it,
+   * bypassing the `scanning` guard in startScan. Used to recover the resolved
+   * peer set after mDNS packet loss (which can leave the set partial/stale).
+   * @throws Error if restarting the scan fails
+   */
+  restartScan(): void {
+    try {
+      this.scanning = false;
+      this.zeroconf.stop();
+      this.attachScanListeners();
+      this.scanning = true;
+      this.zeroconf.scan("lanchat", "tcp", "local.");
+      zeroconfLog.info("zeroconf › scan restarted");
+    } catch (error) {
+      this.scanning = false;
+      zeroconfLog.error("zeroconf › scan restart failed", { error });
+      throw error;
+    }
+  }
+
+  /**
    * Stops scanning for network services.
    * @throws Error if stopping scan fails
    */

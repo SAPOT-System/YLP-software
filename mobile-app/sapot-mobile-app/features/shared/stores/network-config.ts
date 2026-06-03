@@ -8,10 +8,15 @@ networkLog.debug("[network-config] module loaded");
 /**
  * NetworkConfig manages network-related configuration such as port and IP address.
  */
+/** Debounce window for coalescing rapid NetInfo IP-change events. */
+const IP_CHANGE_DEBOUNCE_MS = 3_000;
+
 export class NetworkConfig {
   readonly port: number;
   ipAddress: string;
   private unsubscribeNetInfo?: () => void;
+  private onIpChange?: (newIp: string) => void;
+  private ipChangeDebounceTimer?: ReturnType<typeof setTimeout>;
 
   /**
    * Constructs a NetworkConfig instance and generates a random port.
@@ -20,6 +25,14 @@ export class NetworkConfig {
     this.port = this.generatePort();
     this.ipAddress = "";
     networkLog.info("network › config constructed", { port: this.port });
+  }
+
+  /**
+   * Registers a callback fired (debounced) when the device's Wi-Fi IP changes.
+   * Used to re-advertise mDNS and rebind the TCP server on the new interface.
+   */
+  setOnIpChange(callback: (newIp: string) => void): void {
+    this.onIpChange = callback;
   }
 
   /**
@@ -65,6 +78,19 @@ export class NetworkConfig {
           this.ipAddress = newIp;
           // Persist immediately so background task picks it up on next wake
           await saveLocalIp(newIp);
+
+          // Notify (debounced) so listeners can re-advertise mDNS / rebind TCP.
+          if (this.ipChangeDebounceTimer) {
+            clearTimeout(this.ipChangeDebounceTimer);
+          }
+          this.ipChangeDebounceTimer = setTimeout(() => {
+            this.ipChangeDebounceTimer = undefined;
+            try {
+              this.onIpChange?.(newIp);
+            } catch (error) {
+              networkLog.error("network › ip change callback failed", { error });
+            }
+          }, IP_CHANGE_DEBOUNCE_MS);
         }
       }
     });
@@ -77,6 +103,10 @@ export class NetworkConfig {
     networkLog.info("network › watch stop");
     this.unsubscribeNetInfo?.();
     this.unsubscribeNetInfo = undefined;
+    if (this.ipChangeDebounceTimer) {
+      clearTimeout(this.ipChangeDebounceTimer);
+      this.ipChangeDebounceTimer = undefined;
+    }
   }
 
   /**

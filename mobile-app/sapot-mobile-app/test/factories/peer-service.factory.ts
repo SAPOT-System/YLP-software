@@ -21,6 +21,8 @@ export interface TestDiscoveredService {
   id: string;
   port: number;
   ipAddress: string;
+  addresses: string[];
+  lastSeenAt: number;
 }
 
 export const createTestZeroconfService = createFactory<TestZeroconfService>(
@@ -43,6 +45,8 @@ export const createTestDiscoveredService =
     id: "peer-1",
     port: 8080,
     ipAddress: "192.168.1.101",
+    addresses: ["192.168.1.101"],
+    lastSeenAt: Date.now(),
   }));
 
 export const createTestDiscoveredServices = (

@@ -192,7 +192,19 @@ export type WebrtcDataMessage =
   | AckMessage
   | SeenMessage
   | CallMessage
-  | CallControlMessage;
+  | CallControlMessage
+  | LivenessMessage;
+
+/**
+ * Application-level liveness probe over the WebRTC data channel. Used to confirm
+ * the link can actually round-trip data both ways — `connectionState === "connected"`
+ * alone can lie (half-open / stale connections), so each peer pings and the other
+ * replies with a matching `pong`. Intercepted inside `WebrtcAdapter` and never
+ * surfaced to chat handling.
+ */
+export type LivenessMessage =
+  | { type: "ping"; data: { nonce: number } }
+  | { type: "pong"; data: { nonce: number } };
 
 export type ProfileInfoMessage = {
   type: "profile-info";
@@ -268,7 +280,12 @@ export interface DiscoveredService {
   serviceName: string;
   id: string;
   port: number;
+  /** Primary (preferred) address used for dialing. */
   ipAddress: string;
+  /** All addresses advertised by the peer (e.g. Wi-Fi + Ethernet). */
+  addresses: string[];
+  /** Epoch ms of the most recent mDNS resolve for this peer. */
+  lastSeenAt: number;
 }
 
 export type QRPayload = {

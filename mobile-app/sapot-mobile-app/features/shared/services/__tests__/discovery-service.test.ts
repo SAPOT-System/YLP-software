@@ -121,7 +121,10 @@ describe("DiscoveryService", () => {
 
       await serviceResolvedHandler?.(mockService);
 
-      expect(mockPeerService.register).toHaveBeenCalledWith(mockService);
+      expect(mockPeerService.register).toHaveBeenCalledWith(
+        mockService,
+        mockNetworkConfig.ipAddress
+      );
       expect(performResendSpy).toHaveBeenCalledWith(
         "peer-1",
         "192.168.1.101",
@@ -280,7 +283,7 @@ describe("DiscoveryService", () => {
 
     it("calls performResendMessagesForPeer when peer is in discovered cache", async () => {
       const peerId = "peer-1";
-      const discoveredPeer = { id: peerId, ipAddress: "192.168.1.101", port: 8080, serviceName: "dev" };
+      const discoveredPeer = { id: peerId, ipAddress: "192.168.1.101", port: 8080, serviceName: "dev", addresses: ["192.168.1.101"], lastSeenAt: Date.now() };
       mockPeerService.findDiscoveredPeerById.mockReturnValue(discoveredPeer);
       discoveryService.setChatService(mockChatService);
       mockChatService.getAllNotSentMessageForPeer.mockResolvedValue([]);
@@ -588,6 +591,109 @@ describe("DiscoveryService", () => {
       await discoveryService.publishDevice();
 
       expect(listener).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("liveness sweep", () => {
+    const makePeer = (overrides: Record<string, unknown> = {}) => ({
+      serviceName: "dev",
+      id: "peer-1",
+      port: 8080,
+      ipAddress: "192.168.1.101",
+      addresses: ["192.168.1.101"],
+      lastSeenAt: 0, // far in the past → stale
+      ...overrides,
+    });
+
+    let mockConnectionService: {
+      on: jest.Mock;
+      probePeerReachable: jest.Mock;
+      handlePeerRediscovered: jest.Mock;
+    };
+
+    beforeEach(() => {
+      mockConnectionService = {
+        on: jest.fn(),
+        probePeerReachable: jest.fn(),
+        handlePeerRediscovered: jest.fn(),
+      };
+      discoveryService.setConnectionService(
+        mockConnectionService as unknown as import("../connection-service").ConnectionService
+      );
+    });
+
+    it("evicts a stale peer after MAX_MISSED_PROBES failed probes", async () => {
+      mockPeerService.getDiscoveredPeers.mockReturnValue([makePeer()]);
+      mockConnectionService.probePeerReachable.mockResolvedValue(false);
+      // First failure → 1, second failure → 2 (eviction threshold)
+      mockPeerService.recordProbeFailure
+        .mockReturnValueOnce(1)
+        .mockReturnValueOnce(2);
+
+      await discoveryService.sweepLiveness();
+      expect(mockPeerService.markOffline).not.toHaveBeenCalled();
+
+      await discoveryService.sweepLiveness();
+      expect(mockPeerService.markOffline).toHaveBeenCalledWith("dev");
+      expect(mockConnectionService.handlePeerRediscovered).toHaveBeenCalledWith(
+        "peer-1"
+      );
+    });
+
+    it("resets the failure counter when a stale peer is reachable", async () => {
+      mockPeerService.getDiscoveredPeers.mockReturnValue([makePeer()]);
+      mockConnectionService.probePeerReachable.mockResolvedValue(true);
+
+      await discoveryService.sweepLiveness();
+
+      expect(mockPeerService.resetProbeFailures).toHaveBeenCalledWith("peer-1");
+      expect(mockPeerService.touchDiscoveredPeer).toHaveBeenCalledWith("peer-1");
+      expect(mockPeerService.markOffline).not.toHaveBeenCalled();
+    });
+
+    it("skips peers that were recently seen", async () => {
+      mockPeerService.getDiscoveredPeers.mockReturnValue([
+        makePeer({ lastSeenAt: Date.now() }),
+      ]);
+
+      await discoveryService.sweepLiveness();
+
+      expect(mockConnectionService.probePeerReachable).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("periodic rescan", () => {
+    it("forces a fresh browse on the rescan interval", () => {
+      jest.useFakeTimers();
+      discoveryService.startDiscovery();
+
+      // 150s rescan interval — advance past it once.
+      jest.advanceTimersByTime(150_000);
+
+      expect(mockZeroconfAdapter.restartScan).toHaveBeenCalled();
+      discoveryService.stopDiscovery();
+    });
+  });
+
+  describe("resend debounce", () => {
+    it("skips a second resend within the debounce window", async () => {
+      discoveryService.setChatService(mockChatService);
+      discoveryService.setConnectionService(
+        { on: jest.fn() } as unknown as import("../connection-service").ConnectionService
+      );
+      const performResendSpy = jest
+        .spyOn(discoveryService, "performResendMessagesForPeer")
+        .mockResolvedValue();
+
+      const serviceResolvedHandler = mockZeroconfAdapter.on.mock.calls.find(
+        (call) => call[0] === "serviceResolved"
+      )?.[1];
+      const mockService = createTestZeroconfService() as unknown as Service;
+
+      await serviceResolvedHandler?.(mockService);
+      await serviceResolvedHandler?.(mockService);
+
+      expect(performResendSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -309,7 +309,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         await this.connectionService.connectToPeer(
           discoveredPeer.id,
           discoveredPeer.ipAddress,
-          discoveredPeer.port
+          discoveredPeer.port,
+          discoveredPeer.addresses
         );
       } catch {
         callLog.info("call › connect with no ip and port", { peerId: id });

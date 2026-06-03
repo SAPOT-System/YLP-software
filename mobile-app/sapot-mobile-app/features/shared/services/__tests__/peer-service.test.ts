@@ -56,12 +56,15 @@ describe("PeerService", () => {
         }),
         { markOnline: true }
       );
-      expect(peerService.discoveredPeerServices).toContainEqual({
-        serviceName: "test-device",
-        id: "peer-1",
-        port: 8080,
-        ipAddress: "192.168.1.101",
-      });
+      expect(peerService.discoveredPeerServices).toContainEqual(
+        expect.objectContaining({
+          serviceName: "test-device",
+          id: "peer-1",
+          port: 8080,
+          ipAddress: "192.168.1.101",
+          addresses: ["192.168.1.101"],
+        })
+      );
     });
 
     it("should save new peer and add to discovered services", async () => {
@@ -81,12 +84,15 @@ describe("PeerService", () => {
         }),
         { markOnline: true }
       );
-      expect(peerService.discoveredPeerServices).toContainEqual({
-        serviceName: "new-device",
-        id: "peer-2",
-        port: 8081,
-        ipAddress: "192.168.1.102",
-      });
+      expect(peerService.discoveredPeerServices).toContainEqual(
+        expect.objectContaining({
+          serviceName: "new-device",
+          id: "peer-2",
+          port: 8081,
+          ipAddress: "192.168.1.102",
+          addresses: ["192.168.1.102"],
+        })
+      );
     });
 
     it("should not add duplicate service to discovered services", async () => {
@@ -158,14 +164,15 @@ describe("PeerService", () => {
       await peerService.markOffline(serviceName);
 
       expect(mockPeerRepository.markPeerOffline).toHaveBeenCalledWith("peer-1");
-      expect(peerService.discoveredPeerServices).toEqual([
-        createTestDiscoveredService({
+      expect(peerService.discoveredPeerServices).toHaveLength(1);
+      expect(peerService.discoveredPeerServices[0]).toEqual(
+        expect.objectContaining({
           serviceName: "other-device",
           id: "peer-2",
           port: 8081,
           ipAddress: "192.168.1.102",
-        }),
-      ]);
+        })
+      );
     });
 
     it("should return early if service not found in discovered services", async () => {
@@ -339,6 +346,62 @@ describe("PeerService", () => {
       peerService.cleanUp();
 
       expect(peerService.discoveredPeerServices).toEqual([]);
+    });
+  });
+
+  describe("selectPreferredAddress", () => {
+    it("returns empty string for no addresses", () => {
+      expect(PeerService.selectPreferredAddress([])).toBe("");
+    });
+
+    it("prefers an address on the same /24 subnet as the local IP", () => {
+      const result = PeerService.selectPreferredAddress(
+        ["10.0.0.5", "192.168.1.50"],
+        "192.168.1.100"
+      );
+      expect(result).toBe("192.168.1.50");
+    });
+
+    it("falls back to the first address when none share the subnet", () => {
+      const result = PeerService.selectPreferredAddress(
+        ["10.0.0.5", "172.16.0.9"],
+        "192.168.1.100"
+      );
+      expect(result).toBe("10.0.0.5");
+    });
+
+    it("falls back to the first address when no local IP is given", () => {
+      expect(
+        PeerService.selectPreferredAddress(["10.0.0.5", "10.0.0.6"])
+      ).toBe("10.0.0.5");
+    });
+  });
+
+  describe("liveness helpers", () => {
+    it("increments and resets the probe failure counter", () => {
+      expect(peerService.recordProbeFailure("peer-1")).toBe(1);
+      expect(peerService.recordProbeFailure("peer-1")).toBe(2);
+      peerService.resetProbeFailures("peer-1");
+      expect(peerService.recordProbeFailure("peer-1")).toBe(1);
+    });
+
+    it("refreshes lastSeenAt for a discovered peer", () => {
+      const peer = createTestDiscoveredService({ lastSeenAt: 0 });
+      peerService.discoveredPeerServices = [peer];
+
+      peerService.touchDiscoveredPeer(peer.id);
+
+      expect(peerService.getDiscoveredPeers()[0].lastSeenAt).toBeGreaterThan(0);
+    });
+
+    it("register refreshes lastSeenAt and clears prior probe failures", async () => {
+      peerService.recordProbeFailure("peer-1");
+      const mockService = createTestZeroconfService() as unknown as Service;
+
+      await peerService.register(mockService);
+
+      // counter was cleared, so the next failure starts back at 1
+      expect(peerService.recordProbeFailure("peer-1")).toBe(1);
     });
   });
 });

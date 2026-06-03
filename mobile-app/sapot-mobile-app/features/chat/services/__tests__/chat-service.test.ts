@@ -186,7 +186,8 @@ describe("ChatService", () => {
       expect(mockConnectionService.connectToPeer).toHaveBeenCalledWith(
         peerId,
         "192.168.1.101",
-        8080
+        8080,
+        ["192.168.1.101"]
       );
     });
 

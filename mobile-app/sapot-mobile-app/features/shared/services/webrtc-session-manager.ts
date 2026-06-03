@@ -169,6 +169,14 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
       this.emit("peer-reconnected", peerId);
     });
 
+    // A successful data-channel ping round-trip proves the peer is reachable even
+    // if the ICE state machine never re-reported "connected" — resolves the
+    // one-sided "Reconnecting…" desync after a Wi-Fi flap.
+    webrtcAdapter.on("liveness-restored", () => {
+      webrtcLog.info("webrtc › liveness-restored → peer-reconnected", { peerId });
+      this.emit("peer-reconnected", peerId);
+    });
+
     webrtcAdapter.on("ice-restarting", () => {
       webrtcLog.info("webrtc › ice-restarting → call-reconnecting", { peerId });
       this.emit("call-reconnecting", peerId);

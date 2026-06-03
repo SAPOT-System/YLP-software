@@ -18,4 +18,5 @@ export class Peer extends Model {
   @field("phone_number_verified") phoneNumberVerified?: boolean;
   @field("role") role?: string;
   @field("is_guest") isGuest?: boolean;
+  @field("last_seen_at") lastSeenAt?: number;
 }
