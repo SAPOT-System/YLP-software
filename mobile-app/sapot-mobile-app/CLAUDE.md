@@ -15,6 +15,8 @@ The FastAPI server code in `server/` may be edited when the user explicitly requ
 - `docs/ENV_CONFIG.md` — new env vars, build variants, or secure storage keys
 - `docs/TESTING.md` — new test utilities, mock patterns, or testing conventions
 - `docs/CONNECTION_MESSAGES.md` — new WebSocket, TCP, or WebRTC data channel messages
+- `docs/LAN_MESSENGER.md` — LAN-only messaging behavior and constraints
+- `docs/diagrams/` — sequence/architecture diagrams
 
 ---
 
@@ -54,6 +56,9 @@ npm run lint
 # Run all tests
 npm test
 
+# Full check: tests + typecheck + lint + expo-doctor
+npm run testAll
+
 # Run a single test file
 npx jest path/to/test.ts
 
@@ -88,7 +93,7 @@ features/<name>/
   index.ts        # Public API
 ```
 
-Features: `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`
+Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`
 
 ### Core Services (`features/shared/services/`)
 
@@ -101,6 +106,20 @@ Features: `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`
 - **`CallService`** — audio/video call lifecycle. Manages audio routes (earpiece/speaker/Bluetooth) via `react-native-incall-manager`.
 - **`SyncService`** — periodic sync of local data with the server REST API.
 - **`CleanUpService`** — purges stale peers, messages, and conversations. Wired into `UserService` so cleanup runs on logout.
+- **`ActiveUsersService`** — tracks which peers are currently online via the WS signaling adapter and notifies listeners of presence changes.
+
+### Encryption / Key Management (`features/shared/services/`)
+
+The app does end-to-end encryption (NaCl box / `tweetnacl`) over both transports plus encryption at rest:
+
+- **`tcp-encryption.ts`** — wraps/unwraps `EncryptedEnvelope` messages over the direct TCP channel.
+- **`ws-encryption.ts`** — encrypts signaling/credential payloads relayed through the server WebSocket so the relay cannot read them.
+- **`local-encryption-service.ts`** — at-rest encryption of local data; owns the master key and signaling secret key (persisted via secure storage helpers in `key-derivation.ts`).
+- **`peer-key-service.ts` / `peer-key-store.ts`** — fetches, signs, verifies, and caches peer public keys (`SignedCredential`).
+- **`key-recovery-service.ts`** — wraps the master key under multiple recovery methods (`password`, `phone`, `email`, `qa`, `token`) producing a `WrappedBlob`.
+- **`key-derivation.ts`** — KDF + secure-store accessors for master/signaling keys.
+
+Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`.
 
 ### Adapters (`features/shared/adapters/`)
 
@@ -137,7 +156,7 @@ The background task wakes every 15 minutes (Android minimum) and uses the stored
 
 ### Local Database
 
-WatermelonDB with SQLite. Schema (`features/shared/database/schema.ts`, version 6) tables: `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Migrations in `features/shared/database/migrations.ts`.
+WatermelonDB with SQLite. Schema (`features/shared/database/schema.ts`, version 10) tables: `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Notable columns: `peers.role`, `peers.is_guest`, `messages.is_encrypted`. Migrations in `features/shared/database/migrations.ts`.
 
 ### Logging
 
