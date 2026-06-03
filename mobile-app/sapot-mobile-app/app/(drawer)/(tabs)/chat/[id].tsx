@@ -1,6 +1,6 @@
 import { APP_ROUTES } from "@/config/routes";
 import { useInformCall } from "@/features/call";
-import { MessageList, useChatService } from "@/features/chat";
+import { MessageList, useChatService, useObservedPeer } from "@/features/chat";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Conversation, ConversationType, Message, Peer, database } from "@/features/shared";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
@@ -76,7 +76,10 @@ const ChatRoom = () => {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [peerId, setPeerId] = useState<string | undefined>();
   const [isSelfChat, setIsSelfChat] = useState(false);
-  const [peer, setPeer] = useState<Peer | undefined>();
+  // Self-healing peer observation: emits the record as soon as it lands, so a
+  // PEER-source chat opened before the peer row is persisted stops showing
+  // "Unknown user" once the row is created.
+  const peer = useObservedPeer(peerId);
   const { url: peerProfilePicUrl } = useProfilePhoto(peerId ?? null);
   const isServerActive = useIsUserActive(peerId);
   const [message, setMessage] = useState("");
@@ -133,7 +136,6 @@ const ChatRoom = () => {
     setIsSmsMode(false);
     setPeerId(undefined);
     setIsSelfChat(false);
-    setPeer(undefined);
     // Reset connection status so a new peer never flashes the previous peer's state
     setIsConnected(false);
     setConnectionState("idle");
@@ -155,6 +157,27 @@ const ChatRoom = () => {
           isSelf,
         });
         setIsSelfChat(isSelf);
+
+        // PEER-source entry points (search results, QR scans) often pass an id
+        // that isn't in the peers table yet. Persist it first so the header
+        // resolves the name and chatService.connect() doesn't throw
+        // "Peer not found". Best-effort: a failure still lets the chat open and
+        // the self-healing observation fill in the name once the row arrives.
+        if (!isSelf) {
+          try {
+            await peerService.getOrCreatePeerById(
+              resolvedPeerId,
+              connectionService
+            );
+          } catch (error) {
+            uiLog.warn("[ChatRoom] ensure peer row failed", {
+              resolvedPeerId,
+              error,
+            });
+          }
+          if (signal.aborted) return;
+        }
+
         setPeerId(resolvedPeerId);
 
         if (signal.aborted) return;
@@ -186,7 +209,7 @@ const ChatRoom = () => {
     return () => {
       abortControllerRef.current = null;
     };
-  }, [chatService, id, source, userStore]);
+  }, [chatService, id, source, userStore, peerService, connectionService]);
 
   // Fresh reconnect attempt: resets the retry budget and re-dials the peer.
   // Used by the network-regained and peer-rediscovered triggers and the manual
@@ -413,22 +436,6 @@ const ChatRoom = () => {
       incomingMessageCount,
     ])
   );
-
-  useEffect(() => {
-    uiLog.debug("[ChatRoom] useEffect triggered, deps:", { peerId });
-    if (!peerId) return;
-
-    const subscription = database
-      .get<Peer>(Peer.table)
-      .findAndObserve(peerId)
-      .subscribe({
-        next: setPeer,
-        error: (err) =>
-          uiLog.error("chat › peer observe failed", { peerId, error: err }),
-      });
-
-    return () => subscription.unsubscribe();
-  }, [peerId]);
 
   // Resolve peer guest status once TCP connection is established.
   // Offline result comes from the handshake credential; online confirmation
