@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# dev log collector output (scripts/dev-log-server.mjs)
+dev-logs/
+
 # Expo
 .expo/
 .expo

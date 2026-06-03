@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "start": "expo start",
     "dev": "APP_VARIANT=development npx expo start",
+    "log-server": "node scripts/dev-log-server.js",
     "prebuild": "APP_VARIANT=development npx expo prebuild -p android --clean",
     "android": "npx expo run:android --app-id com.devamt.sapotmobileapp.dev",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

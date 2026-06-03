@@ -168,6 +168,10 @@ EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background
 
 Leave unset to enable all scopes.
 
+Logs are also written to a daily file (`sapot-{date-today}.log` in the app document directory) — always on in production, opt-in during development via `EXPO_PUBLIC_LOG_TO_FILE=1`. Use the exported `getLogFilePath()` / `clearLogFile()` helpers to retrieve or clear it.
+
+In **development**, logs are additionally shipped to a laptop collector (`scripts/dev-log-server.mjs`, run via `npm run log-server`) which writes them to `dev-logs/dev-<metroPort>.log`, separated per dev-client (Metro) port. On by default in dev; disable with `EXPO_PUBLIC_LOG_TO_LAPTOP=0`. See `docs/ENV_CONFIG.md`.
+
 ### Environment / Config
 
 `config/runtime.ts` resolves API and WebSocket base URLs:

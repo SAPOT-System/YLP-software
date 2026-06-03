@@ -150,6 +150,27 @@ jest.mock('expo-background-task', () => ({
   },
 }));
 
+// Mock expo-file-system (new API: File / Directory / Paths) used by the logger's
+// file transport. Keeps file writes as no-ops in the Node test environment.
+jest.mock('expo-file-system', () => {
+  class File {
+    constructor(uri) {
+      this.uri = uri;
+      this.exists = false;
+    }
+    create() {}
+    delete() {}
+    open() {
+      return { writeBytes() {}, close() {}, size: 0, offset: 0 };
+    }
+  }
+  return {
+    File,
+    Directory: class Directory {},
+    Paths: { document: { uri: 'file:///mock/documents/' } },
+  };
+});
+
 jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notification-id'),
   dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
