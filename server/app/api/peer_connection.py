@@ -19,6 +19,7 @@ from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
 from app.db_operations.websockets import authenticate_websocket, relay_message, relay_public_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message
 from app.db_operations.connection_manager import manager
+from app.db_operations.activity import set_user_status
 from app.models.websocketComms import MessageData, PublicMessageData
 
 router = APIRouter(
@@ -168,6 +169,10 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
     user_id = await authenticate_websocket(websocket, token)
     await manager.connect(UUID(user_id), websocket)
     try:
+        set_user_status(session, UUID(user_id), "Active")
+    except Exception as e:
+        print(f"[activity] failed to mark active for {user_id}: {e}")
+    try:
         await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
     except:
         pass
@@ -242,4 +247,8 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
             await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
         except:
             pass
+        try:
+            set_user_status(session, UUID(user_id), "Inactive")
+        except Exception as e:
+            print(f"[activity] failed to mark inactive for {user_id}: {e}")
         manager.disconnect(user_id)

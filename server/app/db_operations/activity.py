@@ -7,6 +7,24 @@ from app.db_operations.token import ALGORITHM, SECRET_KEY
 from app.models.activity import UserActivity
 from app.db_operations.auth import SessionDep, engine
 
+
+def set_user_status(session: Session, user_id: UUID, status: str) -> None:
+    """Upsert the user's activity record, stamping last_active=now and status.
+
+    Used on WebSocket connect ("Active") and disconnect ("Inactive") so
+    last_active precisely reflects when a peer was last online.
+    """
+    activity = session.exec(
+        select(UserActivity).where(UserActivity.user_id == user_id)
+    ).first()
+    if not activity:
+        activity = UserActivity(user_id=user_id)
+        session.add(activity)
+    activity.last_active = datetime.now(timezone.utc)
+    activity.status = status
+    session.add(activity)
+    session.commit()
+
 async def activity_tracking_middleware(request: Request, call_next):
     # 1. Let the request finish (so we don't slow down the user)
     response = await call_next(request)

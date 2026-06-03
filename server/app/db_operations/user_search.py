@@ -2,6 +2,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from app.db_operations.auth import SessionDep
 from app.models.users import User
+from app.models.activity import UserActivity
 from sqlmodel import select, Session, func, or_
 from fastapi.responses import JSONResponse
 
@@ -58,6 +59,14 @@ def search_by_id(value: UUID, session: SessionDep):
     results = session.exec(statement).first()
     if not results:
         raise HTTPException(404, "user not found")
+
+    activity = session.exec(
+        select(UserActivity).where(UserActivity.user_id == value)
+    ).first()
+    last_active = (
+        activity.last_active.isoformat() + "Z" if activity and activity.last_active else None
+    )
+
     return {
         **results.model_dump(
             mode="json",
@@ -65,6 +74,8 @@ def search_by_id(value: UUID, session: SessionDep):
         ),
         "phone_is_verified": len(results.phone_is_verified) > 0,
         "role": _resolve_role(results),
+        "last_active": last_active,
+        "status": activity.status if activity else "Inactive",
     }
 
 def _resolve_role(user: User) -> str:
