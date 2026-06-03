@@ -277,6 +277,26 @@ Sent and received directly between peers after WebRTC connection is established.
 }
 ```
 
+### `ping` / `pong` — liveness probe
+**Transport:** WebRTC Data Channel &nbsp;|&nbsp; **Direction:** Sent & Received
+
+```json
+{
+  "type": "ping" | "pong",
+  "data": { "nonce": "number" }
+}
+```
+
+Application-level liveness check owned by `WebrtcAdapter`. Because
+`RTCPeerConnection.connectionState === "connected"` can lie after a Wi-Fi flap
+(the link is half-open / stale), each peer pings every 4 s and expects a `pong`
+with the same `nonce` within 3 s. Two consecutive missed pongs force an ICE
+restart; a pong received while the adapter is in a degraded / ICE-restarting
+state is treated as authoritative proof the peer is reachable again and emits
+`peer-reconnected` upstream — this is what resolves a one-sided "Reconnecting…"
+status where the ICE state machine never re-reported "connected". These frames
+are intercepted inside the adapter and never propagate to chat handling.
+
 ---
 
 ## Field Reference
@@ -320,5 +340,7 @@ Sent and received directly between peers after WebRTC connection is established.
 | `seen` | | | ✓ |
 | `camera_toggle` | | | ✓ |
 | `mic_toggle` | | | ✓ |
+| `ping` | | | ✓ |
+| `pong` | | | ✓ |
 
 > **WebSocket** messages are server-relayed. **TCP** messages are direct peer-to-peer. WebSocket uses `from_user`; TCP uses `from`.

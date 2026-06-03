@@ -71,6 +71,43 @@ Guards in `ConnectionService`:
 
 ---
 
+## Presence & Last-Seen
+
+Live presence is a list of currently-connected user IDs from the WS signaling server
+(`ActiveUsersService` ↔ `get-active-users`), surfaced via `useIsUserActive`.
+
+For **"Last seen …"** when a peer is offline, the server stamps `UserActivity.last_active`
+(+`status`) on WS connect/disconnect (`app/api/peer_connection.py` → `set_user_status`) and exposes
+`last_active` through `GET /user-utils/search-user/{id}`. The chat screen calls
+`PeerService.refreshLastSeen(peerId)` while a peer is offline, persisting the value to
+`peers.last_seen_at`; LAN/mDNS online/offline transitions also stamp `last_seen_at` as a fallback.
+`setPeerLastSeen` keeps the newest of the two sources. The header renders
+`Last seen <formatRelativeTime(lastSeenAt)>`.
+
+---
+
+## Peer Re-discovery & Dynamic Addressing
+
+`PeerService.register()` keeps the in-memory `discoveredPeerServices` cache (port/IP per
+peer) in sync on **every** mDNS `serviceResolved`, not just first sight. If a peer restarts its
+TCP server on a new port and re-advertises under the same id, the cached address is overwritten
+and `register()` returns `{ addressChanged: true }`.
+
+When the address changes, `DiscoveryService` calls
+`ConnectionService.handlePeerRediscovered(peerId)`, which:
+1. Evicts the stale `TcpClientAdapter` (`evictTcpClientAdapter` — disconnects the dead socket and
+   removes it from the map so the next connect builds a fresh one at the new address), and
+2. Emits the `"peer-rediscovered"` event.
+
+`ChatService` exposes this via `onPeerRediscovered()`. The chat screen
+(`app/(drawer)/(tabs)/chat/[id].tsx`) subscribes and re-dials the peer, so a port change is
+honored without leaving the conversation. The chat screen also re-dials on `NetInfo`
+network-regained and exposes a manual "Tap to retry" once the bounded reconnect budget
+(`MAX_RECONNECT_RETRIES`) is exhausted. Mid-session ICE disruption (weak WiFi) surfaces as
+"Reconnecting…" via the existing `"call-reconnecting"` event (`onCallReconnecting()`).
+
+---
+
 ## Server Status
 
 **Single source of truth:** `HealthProvider` (`features/shared/context/health-context.tsx`) mounts inside `app/(drawer)/_layout.tsx` and continuously tracks server reachability.

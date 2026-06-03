@@ -1,6 +1,6 @@
 # Local Database Schema
 
-The app uses **WatermelonDB** with a SQLite adapter for local-first storage. Schema version: **6**.
+The app uses **WatermelonDB** with a SQLite adapter for local-first storage. Schema version: **11**.
 
 All timestamps are stored as **Unix milliseconds** (`number`). All tables include an implicit `id` column (string UUID) managed by WatermelonDB.
 
@@ -23,6 +23,8 @@ Stores both the current authenticated user and their peers/contacts.
 | `email_verified` | boolean | Yes | Current user only |
 | `phone_number_verified` | boolean | Yes | Current user only |
 | `role` | string | Yes | `"admin"` \| `"rescuer"` \| `"user"` — sourced from server on upsert |
+| `is_guest` | boolean | Yes | Whether the peer is a guest account |
+| `last_seen_at` | number | Yes | Unix ms of last observed activity. Server source: `UserActivity.last_active` (via `GET /user-utils/search-user/{id}`, refreshed when the peer is offline); LAN fallback: stamped on mDNS online/offline. Drives the "Last seen …" header label. |
 
 ---
 

@@ -291,6 +291,27 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 
 ---
 
+### `GET /user-utils/search-user/{id}` — Get User by ID
+**Auth:** Required
+
+**Response `200`:**
+```json
+{
+  "id":              "string",
+  "username":        "string",
+  "first_name":      "string",
+  "last_name":       "string",
+  "phone_is_verified": "boolean",
+  "role":            "\"admin\" | \"rescuer\" | \"user\"",
+  "last_active":     "ISO-8601 string | null",
+  "status":          "\"Active\" | \"Inactive\""
+}
+```
+`last_active` / `status` come from `UserActivity`, stamped on WS connect/disconnect (and REST
+activity). The client uses `last_active` to render the "Last seen …" label for offline peers.
+
+---
+
 ## Profile — `/update` & `/profile-picture`
 
 ### `POST /update/profile` — Update Profile
