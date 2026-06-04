@@ -13,6 +13,18 @@ apiLog.info("api › client created", {
   hasBaseUrl: Boolean(apiClient.defaults.baseURL),
 });
 
+// Callbacks registered by AuthProvider to keep React state in sync
+let onTokenRefreshed: ((token: string) => void) | null = null;
+let onAuthFailure: (() => void) | null = null;
+
+export const setTokenRefreshCallback = (cb: (token: string) => void) => {
+  onTokenRefreshed = cb;
+};
+
+export const setAuthFailureCallback = (cb: () => void) => {
+  onAuthFailure = cb;
+};
+
 apiClient.interceptors.request.use(async (config) => {
   const accessToken = await getItemAsync("access_token");
 
@@ -48,6 +60,7 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Not a 401, or no server response (network error on original request), or already retried
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
@@ -76,17 +89,28 @@ apiClient.interceptors.response.use(
       await setItemAsync("access_token", data.access_token);
       await setItemAsync("refresh_token", data.refresh_token);
 
+      onTokenRefreshed?.(data.access_token);
+
       apiLog.info("api › token refreshed mid-session");
       processQueue(null, data.access_token);
       originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
       return apiClient(originalRequest);
     } catch (refreshError) {
-      apiLog.warn("api › mid-session token refresh failed, clearing tokens", {
-        error: refreshError,
-      });
       processQueue(refreshError, null);
-      await deleteItemAsync("access_token");
-      await deleteItemAsync("refresh_token");
+
+      const isServerRejection =
+        (refreshError as { response?: { status: number } })?.response
+          ?.status === 401;
+
+      if (isServerRejection) {
+        apiLog.warn("api › server explicitly rejected refresh token, clearing tokens");
+        await deleteItemAsync("access_token");
+        await deleteItemAsync("refresh_token");
+        onAuthFailure?.();
+      } else {
+        apiLog.warn("api › refresh failed (network error), keeping tokens for offline use");
+      }
+
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
