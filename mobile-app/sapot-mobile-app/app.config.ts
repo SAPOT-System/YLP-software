@@ -1,8 +1,27 @@
-import { ConfigPlugin, withAndroidManifest } from "@expo/config-plugins";
+import { ConfigPlugin, withAndroidManifest, withDangerousMod } from "@expo/config-plugins";
 import { ConfigContext } from "expo/config";
+import * as fs from "fs";
+import * as path from "path";
 
 const BACKGROUND_ACTIONS_SERVICE =
   "com.asterinet.react.bgactions.RNBackgroundActionsTask";
+
+const withServerCert: ConfigPlugin = (config) =>
+  withDangerousMod(config, [
+    "android",
+    (mod) => {
+      const rawDir = path.join(
+        mod.modRequest.platformProjectRoot,
+        "app/src/main/res/raw"
+      );
+      fs.mkdirSync(rawDir, { recursive: true });
+      fs.copyFileSync(
+        path.join(mod.modRequest.projectRoot, "server_cert.pem"),
+        path.join(rawDir, "server_cert.pem")
+      );
+      return mod;
+    },
+  ]);
 
 const withCleartextTraffic: ConfigPlugin = (config) =>
   withAndroidManifest(config, (mod) => {
@@ -172,6 +191,7 @@ export default ({ config }: ConfigContext) => ({
     ],
     withBackgroundActionsForegroundService,
     withCleartextTraffic,
+    withServerCert,
     "expo-router",
     "expo-secure-store",
     [
