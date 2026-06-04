@@ -47,6 +47,7 @@ import { appLog } from "./utils/logger";
 
 let _pendingRawPassword: string | null = null;
 let _pendingRawPIN: string | null = null;
+let _onResetRequested: (() => void) | null = null;
 
 export function setPendingPassword(password: string): void {
   _pendingRawPassword = password;
@@ -54,6 +55,14 @@ export function setPendingPassword(password: string): void {
 
 export function setPendingPIN(pin: string): void {
   _pendingRawPIN = pin;
+}
+
+export function setResetRequestedCallback(cb: () => void): void {
+  _onResetRequested = cb;
+}
+
+export function requestMainContainerReset(): void {
+  _onResetRequested?.();
 }
 
 appLog.debug("[main-container] module loaded");

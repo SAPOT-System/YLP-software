@@ -3,6 +3,7 @@ import {
   setAuthFailureCallback,
   setTokenRefreshCallback,
 } from "@/features/shared/api/client";
+import { requestMainContainerReset } from "@/features/shared/main-container";
 import { authLog } from "@/features/shared/utils/logger";
 import { isTokenExpiredLocally } from "@/features/auth/utils/token-utils";
 import { AxiosError } from "axios";
@@ -199,7 +200,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return { success: false };
     }
 
+    const isRelogin = needsReloginForServer;
+
     try {
+      if (isRelogin) {
+        authLog.info("[AuthProvider] relogin detected — wiping local DB before fresh session");
+        await userService.logout();
+      }
+
       const res = await loginApi(credentials);
       setLoading(false);
 
@@ -217,6 +225,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setNeedsReloginForServer(false);
       setIsRescuer(userService.getIsRescuer());
       setIsAdmin(userService.getIsAdmin());
+
+      if (isRelogin) {
+        requestMainContainerReset();
+      }
+
       return { success: true };
     } catch (err) {
       authLog.error("auth › login failed", { error: err });

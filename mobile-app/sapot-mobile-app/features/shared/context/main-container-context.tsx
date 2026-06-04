@@ -3,7 +3,7 @@ import { PinEntryGate } from "@/features/auth/components/pin-entry-gate";
 import React, { createContext, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { ActivityIndicator, Button, Text } from "react-native-paper";
-import { MainContainer, setPendingPIN } from "../main-container";
+import { MainContainer, setPendingPIN, setResetRequestedCallback } from "../main-container";
 import { getPinEnabled } from "../stores/secure-config";
 import { appLog } from "../utils/logger";
 import { useAppModeStore } from "./app-mode-context";
@@ -41,6 +41,11 @@ export function MainContainerProvider({
         userContainer.guestMigrationService.setOnMigrationComplete(() => {
           c.resetForMigration();
           appLog.info("app › container reset for auth migration");
+        });
+
+        setResetRequestedCallback(() => {
+          setRetryCount((n) => n + 1);
+          appLog.info("app › container reset requested for relogin");
         });
 
         const pinEnabled = await getPinEnabled();
