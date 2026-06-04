@@ -40,8 +40,8 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://sapot.online");
-    
+    expect(result).toBe("https://192.168.0.100:8000");
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
   });
@@ -59,8 +59,8 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://sapot.online");
-    
+    expect(result).toBe("https://192.168.0.100:8000");
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
   });
@@ -110,7 +110,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://sapot.online");
+    expect(result).toBe("wss://192.168.0.100:8000");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -129,7 +129,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://sapot.online");
+    expect(result).toBe("wss://192.168.0.100:8000");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
