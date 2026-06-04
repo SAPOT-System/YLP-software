@@ -15,6 +15,16 @@ jest.mock('reactotron-react-native', () => ({
   display: jest.fn(),
 }));
 
+jest.mock("@sentry/react-native", () => ({
+  captureException: jest.fn(),
+  captureMessage: jest.fn(),
+  wrap: (Component) => Component,
+  init: jest.fn(),
+  mobileReplayIntegration: jest.fn(() => ({})),
+  feedbackIntegration: jest.fn(() => ({})),
+  getGlobalScope: jest.fn(() => ({ setTag: jest.fn() })),
+}));
+
 // Mock axios to avoid fetch adapter issues in Jest
 // Preserve AxiosError and isAxiosError from the real module so error-handling
 // utilities that depend on them work correctly in tests.
