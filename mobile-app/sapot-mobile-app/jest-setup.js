@@ -16,7 +16,11 @@ jest.mock('reactotron-react-native', () => ({
 }));
 
 // Mock axios to avoid fetch adapter issues in Jest
+// Preserve AxiosError and isAxiosError from the real module so error-handling
+// utilities that depend on them work correctly in tests.
 jest.mock('axios', () => {
+  const actualAxios = jest.requireActual('axios');
+
   const create = jest.fn(() => ({
     defaults: {},
     interceptors: {
@@ -27,8 +31,10 @@ jest.mock('axios', () => {
 
   return {
     __esModule: true,
-    default: { create },
+    default: { ...actualAxios.default, create },
     create,
+    isAxiosError: actualAxios.isAxiosError,
+    AxiosError: actualAxios.AxiosError,
   };
 });
 
