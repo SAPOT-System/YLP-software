@@ -33,9 +33,8 @@ jest.mock("@/config/runtime", () => ({
 const setup = () => {
   const clientModule = require("../client");
   // calls[0] = request interceptor registration, calls[1] = response interceptor registration
-  const errorHandler = mockInterceptorUse.mock.calls[1][1] as (
-    err: unknown
-  ) => Promise<unknown>;
+  const calls = mockInterceptorUse.mock.calls as unknown[][];
+  const errorHandler = calls[1][1] as (err: unknown) => Promise<unknown>;
   return { ...clientModule, errorHandler };
 };
 
