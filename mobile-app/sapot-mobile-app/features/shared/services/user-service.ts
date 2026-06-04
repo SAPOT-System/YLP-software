@@ -137,6 +137,29 @@ export class UserService {
   }
 
   /**
+   * Wipes all local database tables and resets auth state without stopping
+   * running services. Used before relogin so the MainContainer teardown
+   * (triggered immediately after) handles service cleanup exactly once.
+   */
+  async wipeDatabase() {
+    try {
+      this.log("wipeDatabase start");
+      this.userStore.setIsRescuer(false);
+      await deleteItemAsync("userUUID");
+      this.sessionStore.setUserId(undefined);
+      if (this.cleanUpService) {
+        await this.cleanUpService.wipeDataOnly();
+        this.log("wipeDatabase complete");
+      } else {
+        this.warn("wipeDatabase skipped", { reason: "cleanUpService not set" });
+      }
+    } catch (error) {
+      this.error("wipeDatabase failed", error);
+      throw error;
+    }
+  }
+
+  /**
    * Generates a random username for the user. Will be replaced by authentication in the future.
    * @returns string The generated username
    */

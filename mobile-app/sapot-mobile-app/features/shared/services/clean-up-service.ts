@@ -37,35 +37,52 @@ export class CleanUpService {
     });
   }
 
+  private async wipeAllTables() {
+    await database.write(async () => {
+      const convOps =
+        await this.conversationRepository.getConversationDestroyOps();
+      const msgOps = await this.messageRepository.getAllMessageDestroyOps();
+      const statusOps =
+        await this.messageStatusRepository.getStatusDestroyOps();
+      const partOps =
+        await this.conversationParticipantRepository.getParticipantDestroyOps();
+      const peerOps = await this.peerRepository.getPeerDestroyOps();
+      const guestUserOps =
+        await this.guestUserRepository.getGuestUserDestroyOps();
+      await database.batch(
+        ...convOps,
+        ...msgOps,
+        ...statusOps,
+        ...partOps,
+        ...peerOps,
+        ...guestUserOps
+      );
+    });
+  }
+
   async cleanUp() {
     try {
       cleanUpLog.info("cleanup › start");
-      await database.write(async () => {
-        const convOps =
-          await this.conversationRepository.getConversationDestroyOps();
-        const msgOps = await this.messageRepository.getAllMessageDestroyOps();
-        const statusOps =
-          await this.messageStatusRepository.getStatusDestroyOps();
-        const partOps =
-          await this.conversationParticipantRepository.getParticipantDestroyOps();
-        const peerOps = await this.peerRepository.getPeerDestroyOps();
-        const guestUserOps =
-          await this.guestUserRepository.getGuestUserDestroyOps();
-        await database.batch(
-          ...convOps,
-          ...msgOps,
-          ...statusOps,
-          ...partOps,
-          ...peerOps,
-          ...guestUserOps
-        );
-      });
-
+      await this.wipeAllTables();
       this.discoveryService.destroy();
       this.connectionService.stop();
       cleanUpLog.info("cleanup › complete");
     } catch (error) {
       cleanUpLog.error("cleanup › failed", { error });
+      throw error;
+    }
+  }
+
+  /** Wipes all database tables without stopping services. Used before relogin
+   *  so MainContainer.cleanup() (triggered immediately after) stops services
+   *  exactly once. */
+  async wipeDataOnly() {
+    try {
+      cleanUpLog.info("cleanup › wipeDataOnly start");
+      await this.wipeAllTables();
+      cleanUpLog.info("cleanup › wipeDataOnly complete");
+    } catch (error) {
+      cleanUpLog.error("cleanup › wipeDataOnly failed", { error });
       throw error;
     }
   }

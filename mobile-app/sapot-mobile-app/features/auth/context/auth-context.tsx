@@ -205,7 +205,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       if (isRelogin) {
         authLog.info("[AuthProvider] relogin detected — wiping local DB before fresh session");
-        await userService.logout();
+        await userService.wipeDatabase();
       }
 
       const res = await loginApi(credentials);

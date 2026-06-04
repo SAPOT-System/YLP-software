@@ -32,6 +32,7 @@ export function MainContainerProvider({
 
     const init = async () => {
       try {
+        setContainer(null);
         appLog.info("app › container init start");
         const c = new MainContainer(userContainer, appModeStore);
         containerRef.current = c;
