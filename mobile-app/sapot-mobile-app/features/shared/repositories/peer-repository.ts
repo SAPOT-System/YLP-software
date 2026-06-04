@@ -1,6 +1,7 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { Peer } from "../database";
 import { peerLog } from "../utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 
 peerLog.debug("[peer-repository] module loaded");
 
@@ -64,6 +65,7 @@ export class PeerRepository {
         return peer;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       peerLog.error("peer › create failed", {
         peerId: newPeer.id,
         hasEmail: Boolean(newPeer.email),
@@ -71,9 +73,10 @@ export class PeerRepository {
         hasLastName: Boolean(newPeer.lastName),
         emailVerified: newPeer.emailVerified,
         phoneNumberVerified: newPeer.phoneNumberVerified,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -164,6 +167,7 @@ export class PeerRepository {
         return peer;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       peerLog.error("peer › upsert failed", {
         peerId: peerInfo.id,
         hasUsername: peerInfo.username !== undefined,
@@ -173,9 +177,10 @@ export class PeerRepository {
         hasPhoneNumber: peerInfo.phoneNumber !== undefined,
         emailVerified: peerInfo.emailVerified,
         phoneNumberVerified: peerInfo.phoneNumberVerified,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -201,8 +206,10 @@ export class PeerRepository {
         }
       });
     } catch (error) {
-      peerLog.error("peer › mark offline failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › mark offline failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -226,7 +233,8 @@ export class PeerRepository {
         }
       });
     } catch (error) {
-      peerLog.error("peer › set last seen failed", { peerId: id, error });
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › set last seen failed", { peerId: id, ...appErr });
     }
   }
 
@@ -251,8 +259,10 @@ export class PeerRepository {
         }
       });
     } catch (error) {
-      peerLog.error("peer › mark online failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › mark online failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -307,6 +317,7 @@ export class PeerRepository {
         }
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       peerLog.error("peer › update info failed", {
         peerId,
         hasEmail: peerInfo.email !== undefined,
@@ -314,9 +325,10 @@ export class PeerRepository {
         hasLastName: peerInfo.lastName !== undefined,
         emailVerified: peerInfo.emailVerified,
         phoneNumberVerified: peerInfo.phoneNumberVerified,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -332,8 +344,10 @@ export class PeerRepository {
         .fetch();
       return existing.length > 0;
     } catch (error) {
-      peerLog.error("peer › check exists failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › check exists failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -347,8 +361,10 @@ export class PeerRepository {
       const peer = await this.peersCollection.query(Q.where("id", id)).fetch();
       return peer[0];
     } catch (error) {
-      peerLog.error("peer › query by id failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › query by id failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -362,8 +378,10 @@ export class PeerRepository {
       //   peerLog.debug("peer › list", { count: allPeers.length });
       return allPeers;
     } catch (error) {
-      peerLog.error("peer › list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -382,8 +400,10 @@ export class PeerRepository {
         await this.db.batch(...ops);
       });
     } catch (error) {
-      peerLog.error("peer › delete all failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › delete all failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -392,8 +412,10 @@ export class PeerRepository {
     try {
       return this.peersCollection.query(Q.where("id", Q.oneOf(ids))).fetch();
     } catch (error) {
-      peerLog.error("peer › get by ids failed", { count: ids.length, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      peerLog.error("peer › get by ids failed", { count: ids.length, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

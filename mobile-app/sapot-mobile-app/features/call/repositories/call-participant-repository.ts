@@ -1,5 +1,6 @@
 import { Call, CallParticipant, GuestUser, Peer } from "@/features/shared";
 import { callLog } from "@/features/shared/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { callParticipantId } from "@/features/call/utils/call-participant-id";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 callLog.debug("[call-participant-repository] module loaded");
@@ -51,12 +52,14 @@ export class CallParticipantRepository {
 
       return this.db.write(action);
     } catch (error) {
+      const appErr = toAppError(error, "database");
       callLog.error("call › participant save failed", {
         callId: newParticipant.call.id,
         isInTransaction,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -66,8 +69,10 @@ export class CallParticipantRepository {
         .query(Q.where("call", callId))
         .fetch();
     } catch (error) {
-      callLog.error("call › participants query failed", { callId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      callLog.error("call › participants query failed", { callId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -75,8 +80,10 @@ export class CallParticipantRepository {
     try {
       return await this.callParticipantsCollection.query().fetch();
     } catch (error) {
-      callLog.error("call › participants list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      callLog.error("call › participants list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -105,12 +112,14 @@ export class CallParticipantRepository {
         });
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       callLog.error("call › participant leftAt update failed", {
         callId,
         userId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

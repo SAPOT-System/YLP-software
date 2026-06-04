@@ -1,6 +1,7 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import { GuestUser } from "../database";
 import { guestUserLog } from "../utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 
 guestUserLog.debug("[guest-user-repository] module loaded");
 
@@ -35,11 +36,13 @@ export class GuestUserRepository {
         return guestUser;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       guestUserLog.error("guest-user › create failed", {
         guestUserId: newGuestUser.id,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -50,11 +53,13 @@ export class GuestUserRepository {
         .fetch();
       return existing.length > 0;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       guestUserLog.error("guest-user › check exists failed", {
         guestUserId: id,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -63,8 +68,10 @@ export class GuestUserRepository {
       const users = await this.guestUserCollection.query().fetch();
       return users[0] || null;
     } catch (error) {
-      guestUserLog.error("guest-user › fetch current failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      guestUserLog.error("guest-user › fetch current failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -78,8 +85,10 @@ export class GuestUserRepository {
         await this.db.batch(...ops);
       });
     } catch (error) {
-      guestUserLog.error("guest-user › delete all failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      guestUserLog.error("guest-user › delete all failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

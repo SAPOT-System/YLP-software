@@ -6,6 +6,7 @@ import {
   Peer,
 } from "@/features/shared";
 import { chatLog } from "@/features/shared/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { messageStatusId } from "@/features/chat/utils/message-status-id";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
@@ -80,12 +81,14 @@ export class MessageStatusRepository {
         );
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › message status save failed", {
         messageId: message.id,
         status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -118,12 +121,14 @@ export class MessageStatusRepository {
         }
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › message status update failed", {
         messageId,
         status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -152,12 +157,14 @@ export class MessageStatusRepository {
         }
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › status update by id failed", {
         messageStatusId,
         status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -176,11 +183,13 @@ export class MessageStatusRepository {
         return messageStatus[0];
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › status query by message failed", {
         messageId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -203,11 +212,13 @@ export class MessageStatusRepository {
         return messageStatus;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › not sent status query failed", {
         messageCount: messageIds.length,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -219,8 +230,10 @@ export class MessageStatusRepository {
     try {
       return await this.messageStatusCollection.query().fetch();
     } catch (error) {
-      chatLog.error("chat › status list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › status list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -254,11 +267,13 @@ export class MessageStatusRepository {
         );
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › delivered-to-read update failed", {
         messageCount: messageIds.length,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -281,7 +296,8 @@ export class MessageStatusRepository {
         }
       });
     } catch (error) {
-      chatLog.error("chat › conditional not-sent update by id failed", { statusId, error });
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › conditional not-sent update by id failed", { statusId, ...appErr });
     }
   }
 
@@ -304,7 +320,8 @@ export class MessageStatusRepository {
         }
       });
     } catch (error) {
-      chatLog.error("chat › conditional not-sent update by message failed", { messageId, error });
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › conditional not-sent update by message failed", { messageId, ...appErr });
     }
   }
 

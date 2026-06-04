@@ -5,6 +5,7 @@ import { ConversationParticipant } from "@/features/shared/database/model/Conver
 import { GuestUser } from "@/features/shared/database/model/guest-user";
 import { Peer } from "@/features/shared/database/model/Peer";
 import { chatLog } from "@/features/shared/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { conversationParticipantId } from "@/features/chat/utils/conversation-participant-id";
 
 chatLog.debug("[conversation-participant-repository] module loaded");
@@ -63,12 +64,14 @@ export class ConversationParticipantRepository {
         return this.conversationParticipantsCollection.database.write(action);
       }
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › participant save failed", {
         conversationId: newParticipant.conversation.id,
         isInTransaction,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -94,12 +97,14 @@ export class ConversationParticipantRepository {
         )
       );
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › participants bulk save failed", {
         participantCount: users.length,
         isInTransaction,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -126,11 +131,13 @@ export class ConversationParticipantRepository {
         undefined
       );
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › self conversation check failed", {
         userId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -182,11 +189,13 @@ export class ConversationParticipantRepository {
 
       return directConversations[0]?.id ?? undefined;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › direct conversation check failed", {
         participantCount: userIds.length,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -198,8 +207,10 @@ export class ConversationParticipantRepository {
     try {
       return await this.conversationParticipantsCollection.query().fetch();
     } catch (error) {
-      chatLog.error("chat › participants list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › participants list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -222,12 +233,14 @@ export class ConversationParticipantRepository {
 
       return conversation;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › conversation query by peer failed", {
         peerId,
         currentUserId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -255,12 +268,14 @@ export class ConversationParticipantRepository {
       }
       return others;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › peer query by conversation failed", {
         conversationId,
         currentUserId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
