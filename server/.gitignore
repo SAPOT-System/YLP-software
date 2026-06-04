@@ -78,4 +78,5 @@ apks/*
 # TLS certificates and private keys — never commit
 *.key
 *.pem
+*.crt
 certs/
