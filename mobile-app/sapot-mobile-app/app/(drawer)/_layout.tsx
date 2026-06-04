@@ -8,6 +8,7 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { GpsPreferenceProvider } from "@/features/gps/context/gps-preference-context";
 import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
+import { ReloginBanner } from "@/features/shared/components/relogin-banner";
 import { ServerStatusBanner } from "@/features/shared/components/server-status-banner";
 import { ZeroconfStatusIndicator } from "@/features/shared/components/zeroconf-status-indicator";
 import { HealthProvider, MainContainerProvider, useAppMode } from "@/features/shared/context";
@@ -223,6 +224,7 @@ export default function DrawerLayout() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <HealthProvider>
         <ServerStatusBanner />
+        <ReloginBanner />
         <GpsPreferenceProvider>
         <GpsStreamingEffect />
         <MainContainerProvider>
