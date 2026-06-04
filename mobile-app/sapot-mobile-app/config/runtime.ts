@@ -22,7 +22,7 @@ export const initRuntimeOverrides = async () => {
 };
 
 export const getApiUrl = () => {
-  if (_hostOverride) return `http://${_hostOverride}:${PORT}`;
+  if (_hostOverride) return `https://${_hostOverride}:${PORT}`;
 
   if (__DEV__) {
     configLog.debug("config › env dev");
@@ -34,10 +34,10 @@ export const getApiUrl = () => {
   switch (channel) {
     case "preview":
       configLog.debug("config › env preview", { channel });
-      return `http://${STAGING_HOST}:${PORT}`;
+      return `https://${STAGING_HOST}:${PORT}`;
 
     case "production":
-      return `http://${STAGING_HOST}:${PORT}`;
+      return `https://${STAGING_HOST}:${PORT}`;
 
     default:
       return `http://${DEV_HOST}:${PORT}`;
@@ -47,7 +47,7 @@ export const getApiUrl = () => {
 const TILE_PORT = "8080";
 
 export const getTileServerUrl = () => {
-  if (_hostOverride) return `http://${_hostOverride}:${TILE_PORT}`;
+  if (_hostOverride) return `https://${_hostOverride}:${TILE_PORT}`;
 
   if (__DEV__) {
     return `http://${DEV_HOST}:${TILE_PORT}`;
@@ -58,7 +58,7 @@ export const getTileServerUrl = () => {
   switch (channel) {
     case "preview":
     case "production":
-      return `http://${STAGING_HOST}:${TILE_PORT}`;
+      return `https://${STAGING_HOST}:${TILE_PORT}`;
     default:
       return `http://${DEV_HOST}:${TILE_PORT}`;
   }
@@ -69,7 +69,7 @@ export function getServerVerifyKey(): string | undefined {
 }
 
 export const getWsUrl = () => {
-  if (_hostOverride) return `ws://${_hostOverride}:${PORT}`;
+  if (_hostOverride) return `wss://${_hostOverride}:${PORT}`;
 
   if (__DEV__) {
     return `ws://${DEV_HOST}:${PORT}`;
@@ -79,10 +79,10 @@ export const getWsUrl = () => {
 
   switch (channel) {
     case "preview":
-      return `ws://${STAGING_HOST}:${PORT}`;
+      return `wss://${STAGING_HOST}:${PORT}`;
 
     case "production":
-      return `ws://${STAGING_HOST}:${PORT}`;
+      return `wss://${STAGING_HOST}:${PORT}`;
 
     default:
       return `ws://${DEV_HOST}:${PORT}`;
