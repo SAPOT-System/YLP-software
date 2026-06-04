@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+  <!-- Trust only the bundled self-signed cert for the LAN server.
+       Any other cert for 192.168.0.100 is rejected, even if CA-signed. -->
   <domain-config cleartextTrafficPermitted="false">
-    <domain includeSubdomains="true">sapot.online</domain>
-    <pin-set expiration="2027-01-01">
-      <!-- Primary: current sapot.online public key (SHA-256 SPKI) -->
-      <pin digest="SHA-256">NvLkb+bdGgg0Q2uwhUgVHayWL8a9l42OFdV2y5W8tn0=</pin>
-      <!-- Backup: replace this with a pre-generated backup key before primary rotation -->
-      <pin digest="SHA-256">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin>
-    </pin-set>
+    <domain includeSubdomains="false">192.168.0.100</domain>
+    <trust-anchors>
+      <certificates src="@raw/server_cert"/>
+    </trust-anchors>
   </domain-config>
+
+  <!-- Dev builds only: trust user-installed CAs for proxy tools (Charles, Proxyman).
+       Android ignores debug-overrides in release builds. -->
+  <debug-overrides>
+    <trust-anchors>
+      <certificates src="user"/>
+    </trust-anchors>
+  </debug-overrides>
 </network-security-config>
