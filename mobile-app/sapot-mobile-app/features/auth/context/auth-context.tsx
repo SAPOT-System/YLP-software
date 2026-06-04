@@ -1,5 +1,10 @@
 import { getUserApi } from "@/features/shared";
+import {
+  setAuthFailureCallback,
+  setTokenRefreshCallback,
+} from "@/features/shared/api/client";
 import { authLog } from "@/features/shared/utils/logger";
+import { isTokenExpiredLocally } from "@/features/auth/utils/token-utils";
 import { AxiosError } from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, {
@@ -26,8 +31,6 @@ import {
 import {
   generateGuestUsername,
   hasValidationErrors,
-  isAccessTokenValid,
-  isRefreshTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
 import { clearConnectionConfig } from "@/features/shared/stores/secure-config";
@@ -37,9 +40,7 @@ interface AuthContextI {
   loginAsGuest: (credentials: {
     firstName: string;
     lastName: string;
-  }) => Promise<{
-    success: boolean;
-  }>;
+  }) => Promise<{ success: boolean }>;
   loginAfterRegister: (data: RegisterApiResponse) => Promise<void>;
   registerAndMigrate: (
     data: RegisterApiRequest
@@ -53,7 +54,9 @@ interface AuthContextI {
   isGuest: boolean;
   isRescuer: boolean;
   isAdmin: boolean;
+  needsReloginForServer: boolean;
 }
+
 const AuthContext = createContext<AuthContextI | null>(null);
 
 interface LoginFormErrors extends GuestLoginFormErrors {
@@ -75,9 +78,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isGuest, setIsGuest] = useState(false);
   const [isRescuer, setIsRescuer] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [needsReloginForServer, setNeedsReloginForServer] = useState(false);
   const userService = useUserService();
   const { guestUserRepository, guestMigrationService, peerService } =
     useAuthContainer();
+
+  useEffect(() => {
+    setTokenRefreshCallback((token) => setAccessToken(token));
+    setAuthFailureCallback(() => setNeedsReloginForServer(true));
+  }, []);
 
   const refreshSession = useCallback(async () => {
     try {
@@ -87,14 +96,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         authLog.warn("[AuthProvider] missing refresh token");
         return false;
       }
-      const isRefreshValid = await isRefreshTokenValid(refreshToken);
-      if (!isRefreshValid) {
-        return false;
-      }
 
-      const { access_token, refresh_token } = await refreshTokenApi(
-        refreshToken
-      );
+      const { access_token, refresh_token } = await refreshTokenApi(refreshToken);
       await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
@@ -102,9 +105,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await userService.syncAuthenticatedUser(userInfo);
       setIsRescuer(userService.getIsRescuer());
       setIsAdmin(userService.getIsAdmin());
-
       setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
+      setIsAuthenticated(true);
       return true;
     } catch (err) {
       authLog.warn("auth › refresh session failed", { error: err });
@@ -123,11 +125,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           email_verified: userInfo.emailVerified,
         });
         setIsAuthenticated(true);
-
         return true;
-      } else {
-        return false;
       }
+      return false;
     }
   }, [userService, peerService]);
 
@@ -136,27 +136,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       authLog.debug("auth › bootstrap start");
       setLoading(true);
       try {
-        const token = await getItemAsync("access_token");
         const uuid = await getItemAsync("userUUID");
-        if (token && uuid) {
-          authLog.info("[AuthProvider] restoring authenticated session");
 
-          const isValid = await isAccessTokenValid(token);
-          if (isValid) {
+        if (uuid) {
+          let hasLocalRecord = false;
+          try {
             await userService.initialize({ isGuest: false });
-            try {
-              userService.getUser();
-              setIsRescuer(userService.getIsRescuer());
-              setIsAdmin(userService.getIsAdmin());
-              setAccessToken(token);
-              setIsAuthenticated(true);
-            } catch {
-              authLog.warn("auth › user missing from local DB, falling back to refresh");
-              await refreshSession();
-            }
-          } else {
-            await refreshSession();
+            userService.getUser();
+            hasLocalRecord = true;
+          } catch {
+            hasLocalRecord = false;
           }
+
+          if (hasLocalRecord) {
+            setIsRescuer(userService.getIsRescuer());
+            setIsAdmin(userService.getIsAdmin());
+            const storedToken = await getItemAsync("access_token");
+            if (storedToken) setAccessToken(storedToken);
+            setIsAuthenticated(true);
+            setLoading(false);
+
+            if (!storedToken || isTokenExpiredLocally(storedToken)) {
+              refreshSession().catch(() => {});
+            }
+            return;
+          }
+
+          authLog.warn("[AuthProvider] no local record, attempting server refresh");
+          await refreshSession();
         } else if (await userService.isCurrentUserGuest()) {
           authLog.info("[AuthProvider] restoring guest session");
           await userService.initialize({ isGuest: true });
@@ -178,17 +185,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(true);
     setErrors({});
 
-    // Basic client-side validation
     const validationErrors: LoginFormErrors = {};
-
     if (!credentials.username.trim()) {
       validationErrors.username = "Username is required";
     }
-
     if (!credentials.password.trim()) {
       validationErrors.password = "Password is required";
     }
-
     if (Object.keys(validationErrors).length > 0) {
       authLog.warn("[AuthProvider] login validation failed");
       setErrors(validationErrors);
@@ -201,42 +204,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(false);
 
       const { access_token, refresh_token } = res.data;
-
       await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
       const userInfo = await getUserApi(access_token);
-
-      // Store raw password briefly for LocalEncryptionService.initialize()
       const { setPendingPassword } = await import("@/features/shared/main-container");
       setPendingPassword(credentials.password);
 
       await userService.syncAuthenticatedUser(userInfo);
-
       setAccessToken(access_token);
       setIsAuthenticated(true);
+      setNeedsReloginForServer(false);
       setIsRescuer(userService.getIsRescuer());
       setIsAdmin(userService.getIsAdmin());
-      return {
-        success: true,
-      };
+      return { success: true };
     } catch (err) {
       authLog.error("auth › login failed", { error: err });
       setLoading(false);
 
       const axiosError = err as AxiosError<LoginApiErrorResponse>;
-
-      // Network error
-      if (!axiosError.response) {
-        return { success: false };
-      }
+      if (!axiosError.response) return { success: false };
 
       const status = axiosError.response.status;
       const data = axiosError.response.data;
-      authLog.warn("auth › login error response", {
-        status,
-        hasData: Boolean(data),
-      });
+      authLog.warn("auth › login error response", { status, hasData: Boolean(data) });
 
       if (status === 401) {
         setErrors({ general: data.detail });
@@ -244,14 +235,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       setErrors({ general: "An unexpected error occurred." });
-
       return { success: false };
     }
   };
 
   const loginAfterRegister = async (data: RegisterApiResponse) => {
     const { access_token, refresh_token } = data;
-
     authLog.debug("[AuthProvider] loginAfterRegister called", {
       hasAccessToken: Boolean(access_token),
     });
@@ -261,9 +250,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const userInfo = await getUserApi(access_token);
     await userService.syncAuthenticatedUser(userInfo);
-
     setAccessToken(access_token);
     setIsAuthenticated(true);
+    setNeedsReloginForServer(false);
     setIsRescuer(userService.getIsRescuer());
     setIsAdmin(userService.getIsAdmin());
   };
@@ -276,28 +265,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       hasFirstName: Boolean(credentials.firstName?.trim()),
       hasLastName: Boolean(credentials.lastName?.trim()),
     });
-    const errors = validateGuestLoginForm(
+    const validationErrors = validateGuestLoginForm(
       credentials.firstName,
       credentials.lastName
     );
 
-    if (hasValidationErrors(errors)) {
+    if (hasValidationErrors(validationErrors)) {
       authLog.warn("[AuthProvider] guest login validation failed");
-      setErrors(errors);
+      setErrors(validationErrors);
       return { success: false };
     }
 
-    const username = generateGuestUsername(
-      credentials.firstName,
-      credentials.lastName
-    );
-
+    const username = generateGuestUsername(credentials.firstName, credentials.lastName);
     await userService.syncGuestUser({ ...credentials, username });
-
     setIsGuest(true);
-
     authLog.info("[AuthProvider] guest login success");
-
     return { success: true };
   };
 
@@ -320,10 +302,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
-      // migrateAndCleanUp() decrypts all ecdh:-prefixed messages to plaintext
-      // while the guest conversation keys are still live in memory, then deletes
-      // the guest_user record and signals MainContainer to reset so the auth
-      // ECDH keypair is properly initialised in the same session.
       await guestMigrationService.migrateAndCleanUp();
 
       const { setPendingPassword } = await import("@/features/shared/main-container");
@@ -334,6 +312,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsAdmin(userService.getIsAdmin());
       setAccessToken(access_token);
       setIsAuthenticated(true);
+      setNeedsReloginForServer(false);
       setIsGuest(false);
 
       authLog.info("[AuthProvider] registerAndMigrate success");
@@ -342,10 +321,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (err) {
       authLog.error("[AuthProvider] registerAndMigrate failed", { error: err });
       setLoading(false);
-      return {
-        success: false,
-        error: "Registration failed. Please try again.",
-      };
+      return { success: false, error: "Registration failed. Please try again." };
     }
   };
 
@@ -355,7 +331,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsRescuer(false);
     setIsAdmin(false);
     await deleteItemAsync("userUUID");
-
     await userService.logout();
   };
 
@@ -369,13 +344,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteItemAsync("access_token");
     await deleteItemAsync("refresh_token");
     await deleteItemAsync("userUUID");
-
     await userService.logout();
     await clearConnectionConfig();
     setAccessToken(null);
     setIsAuthenticated(false);
     setIsRescuer(false);
     setIsAdmin(false);
+    setNeedsReloginForServer(false);
   };
 
   return (
@@ -394,6 +369,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isAdmin,
         loginAfterRegister,
         registerAndMigrate,
+        needsReloginForServer,
       }}
     >
       {children}
