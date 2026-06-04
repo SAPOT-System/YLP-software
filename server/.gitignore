@@ -74,3 +74,8 @@ site/
 /static/profile_pictures/*
 pyrightconfig.json
 apks/*
+
+# TLS certificates and private keys — never commit
+*.key
+*.pem
+certs/
