@@ -243,7 +243,6 @@ export class MessageStatusRepository {
    * @returns Promise<void>
    */
   async updateDeliveredMessagesToRead(messageIds: string[]): Promise<void> {
-    console.log("update to read");
     if (messageIds.length === 0) return;
     try {
       await this.db.write(async () => {
