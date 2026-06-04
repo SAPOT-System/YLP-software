@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+  <!--
+    IMPORTANT: This config is hardcoded to 192.168.0.100 (the fixed LAN server IP).
+    If the server IP changes:
+      1. Regenerate the TLS cert with the new IP in the SAN (see server/.env.example)
+      2. Replace android/app/src/main/res/raw/server_cert.pem with the new cert
+      3. Update this file's domain value
+      4. Ship a full app build (OTA updates cannot change res/xml/ or res/raw/)
+  -->
+
   <!-- Trust only the bundled self-signed cert for the LAN server.
        Any other cert for 192.168.0.100 is rejected, even if CA-signed. -->
   <domain-config cleartextTrafficPermitted="false">
