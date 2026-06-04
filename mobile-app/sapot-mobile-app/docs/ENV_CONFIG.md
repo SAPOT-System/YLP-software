@@ -103,10 +103,30 @@ Logic in `config/runtime.ts`:
 | Condition | API Base URL | WS Base URL |
 |---|---|---|
 | `__DEV__ === true` | `http://<DEV_HOST>:8000` | `ws://<DEV_HOST>:8000` |
-| EAS channel `preview` | `https://sapot.online` | `wss://sapot.online` |
-| EAS channel `production` | `https://sapot.online` | `wss://sapot.online` |
+| EAS channel `preview` | `https://192.168.0.100:8000` | `wss://192.168.0.100:8000` |
+| EAS channel `production` | `https://192.168.0.100:8000` | `wss://192.168.0.100:8000` |
 
 To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`.
+
+---
+
+## TLS Certificate
+
+Preview and production builds connect to the LAN server over TLS using a self-signed certificate pinned in the APK.
+
+| File | Location | Notes |
+|---|---|---|
+| Public cert | `android/app/src/main/res/raw/server_cert.pem` | Committed to repo — safe to share |
+| Private key | `/home/sapot/certs/server.key` on server only | Never committed |
+
+Check expiry: `openssl x509 -in android/app/src/main/res/raw/server_cert.pem -noout -enddate`
+
+**Renewing the cert:**
+1. Re-run the openssl command from `server/.env.example`
+2. Copy new `server.crt` to `android/app/src/main/res/raw/server_cert.pem`
+3. Update `android-network-security-config.xml` if the server IP changed
+4. Restart the server (`pkill -f gunicorn && bash runserver.sh &`)
+5. Ship a new app build — existing installs reject the new cert until updated (OTA cannot update `res/raw/`)
 
 ---
 
