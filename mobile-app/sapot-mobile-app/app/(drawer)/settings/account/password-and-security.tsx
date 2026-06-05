@@ -1,19 +1,27 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
+import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Divider, Icon, Text, useTheme } from "react-native-paper";
 
 export default function PasswordAndSecurity() {
   const theme = useTheme();
+  const { localEncryptionService } = useMainContainer();
+  const [pinEnabled, setPinEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     uiLog.info("[PasswordAndSecurity] mounted");
+
+    localEncryptionService.isPINEnabled().then((enabled) => {
+      setPinEnabled(enabled);
+    });
+
     return () => {
       uiLog.info("[PasswordAndSecurity] unmounted");
     };
-  }, []);
+  }, [localEncryptionService]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
@@ -68,7 +76,21 @@ export default function PasswordAndSecurity() {
             }
           >
             <View style={styles.item}>
-              <Text>Encryption PIN</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text>Encryption PIN</Text>
+                {pinEnabled !== null && (
+                  <Text
+                    variant="labelSmall"
+                    style={{
+                      color: pinEnabled
+                        ? theme.colors.primary
+                        : theme.colors.onSurfaceVariant,
+                    }}
+                  >
+                    {pinEnabled ? "On" : "Off"}
+                  </Text>
+                )}
+              </View>
               <Icon source="arrow-right" size={24} />
             </View>
           </Pressable>
