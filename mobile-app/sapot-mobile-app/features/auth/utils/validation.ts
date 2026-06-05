@@ -146,9 +146,9 @@ export const validateGuestLoginForm = (firstName: string, lastName: string) => {
   // First Name validation
   if (!firstName.trim()) {
     errors.firstName = "First name is required";
-  } else if (firstName.trim().length <= 2) {
+  } else if (firstName.trim().length < 2) {
     errors.firstName = "First name must be at least 2 characters";
-  } else if (!/^[\p{L}\s'-]+$/u.test(firstName)) {
+  } else if (!/^[\p{L}\s'-]+$/u.test(firstName.trim())) {
     errors.firstName = "First name must contain only letters";
   } else if (firstName.trim().length >= 50) {
     errors.firstName = "First name must be less than 50 characters";
