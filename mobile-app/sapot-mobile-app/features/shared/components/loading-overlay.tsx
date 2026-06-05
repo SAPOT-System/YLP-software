@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Icon, Portal, Text, useTheme } from "react-native-paper";
 import { uiLog } from "../utils/logger";
@@ -22,14 +22,18 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   onDismiss,
 }) => {
   const theme = useTheme();
+  const onDismissRef = useRef(onDismiss);
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  });
 
   useEffect(() => {
     if (!visible || status === "loading") return;
     const timer = setTimeout(() => {
-      onDismiss?.();
+      onDismissRef.current?.();
     }, displayDurationMs);
     return () => clearTimeout(timer);
-  }, [visible, status, displayDurationMs, onDismiss]);
+  }, [visible, status, displayDurationMs]);
 
   if (!visible) return null;
 

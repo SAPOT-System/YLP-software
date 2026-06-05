@@ -22,7 +22,7 @@ export const validateRegistrationForm = ({
 
   if (username !== undefined && !username.trim()) {
     errors.username = "Username is required";
-  } else if (username !== undefined && username.trim().length <= 2) {
+  } else if (username !== undefined && username.trim().length < 2) {
     errors.username = "Username must be at least 2 characters";
   } else if (username !== undefined && username.trim().length >= 50) {
     errors.username = "Username must be less than 50 characters";
@@ -36,7 +36,7 @@ export const validateRegistrationForm = ({
     !/^[\p{L}\s'-]+$/u.test(firstName)
   ) {
     errors.firstName = "First name must contain only letters";
-  } else if (firstName !== undefined && firstName.trim().length <= 2) {
+  } else if (firstName !== undefined && firstName.trim().length < 2) {
     errors.firstName = "First name must be at least 2 characters";
   } else if (firstName !== undefined && firstName.trim().length >= 50) {
     errors.firstName = "First name must be less than 50 characters";

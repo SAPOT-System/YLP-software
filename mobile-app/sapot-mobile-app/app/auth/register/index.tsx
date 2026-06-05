@@ -123,7 +123,7 @@ const Register = () => {
     } else {
       authLog.warn("auth › register failed");
       setOverlayPhase("error");
-      setOverlayMessage(errors.general ?? "Account creation failed. Please try again.");
+      setOverlayMessage("Account creation failed. Please try again.");
     }
   };
 
@@ -181,7 +181,7 @@ const Register = () => {
             <RegisterStep1
               values={form}
               errors={errors}
-              loading={loading}
+              loading={isSubmitting || loading}
               onChange={handleChange}
               onSubmit={handleSubmit}
               onBlur={handleBlur}

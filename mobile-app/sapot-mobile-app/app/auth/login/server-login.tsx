@@ -76,7 +76,7 @@ const ServerLoginScreen = () => {
       } else {
         authLog.warn("auth › login failed");
         setOverlayPhase("error");
-        setOverlayMessage(errors.general ?? "Login failed. Please check your credentials.");
+        setOverlayMessage("Login failed. Please check your credentials.");
       }
     } catch {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
