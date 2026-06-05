@@ -4,7 +4,7 @@ import { hookLog } from "../utils/logger";
 hookLog.debug("[use-health-poll] module loaded");
 
 export function useHealthPoll(intervalMs = 5000, enabled = true) {
-  const [online, setOnline] = useState(true);
+  const [online, setOnline] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;

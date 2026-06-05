@@ -1,6 +1,6 @@
 import { getUserApi } from "@/features/shared";
 import {
-  setAuthFailureCallback,
+  setNeedsReloginCallback,
   setTokenRefreshCallback,
 } from "@/features/shared/api/client";
 import { requestMainContainerReset } from "@/features/shared/main-container";
@@ -56,6 +56,9 @@ interface AuthContextI {
   isRescuer: boolean;
   isAdmin: boolean;
   needsReloginForServer: boolean;
+  isOfflineWithExpiredToken: boolean;
+  transitionReloginToOffline: () => void;
+  transitionOfflineToRelogin: () => void;
 }
 
 const AuthContext = createContext<AuthContextI | null>(null);
@@ -80,77 +83,106 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isRescuer, setIsRescuer] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [needsReloginForServer, setNeedsReloginForServer] = useState(false);
+  const [isOfflineWithExpiredToken, setIsOfflineWithExpiredToken] =
+    useState(false);
   const userService = useUserService();
   const { guestUserRepository, guestMigrationService, peerService } =
     useAuthContainer();
 
   useEffect(() => {
     setTokenRefreshCallback((token) => setAccessToken(token));
-    // All deps of logout (state setters, service refs) are stable — safe to capture at mount.
-    setAuthFailureCallback(() => { logout().catch(() => {}); });
+    setNeedsReloginCallback(() => setNeedsReloginForServer(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const refreshSession = useCallback(async () => {
-    try {
-      authLog.debug("[AuthProvider] refreshSession called");
-      const refreshToken = await getItemAsync("refresh_token");
-      if (!refreshToken) {
-        authLog.warn("[AuthProvider] missing refresh token");
-        return false;
-      }
+  const refreshSession = useCallback(
+    async (
+      opts: {
+        keepSessionOnRejection?: boolean;
+        tokenWasExpired?: boolean;
+      } = {}
+    ) => {
+      try {
+        authLog.debug("[AuthProvider] refreshSession called");
+        const refreshToken = await getItemAsync("refresh_token");
+        if (!refreshToken) {
+          authLog.warn("[AuthProvider] missing refresh token");
+          if (opts.keepSessionOnRejection) {
+            setNeedsReloginForServer(true);
+          }
+          return false;
+        }
 
-      const { access_token, refresh_token } = await refreshTokenApi(refreshToken);
-      await setItemAsync("access_token", access_token);
-      await setItemAsync("refresh_token", refresh_token);
+        const { access_token, refresh_token } = await refreshTokenApi(
+          refreshToken
+        );
+        await setItemAsync("access_token", access_token);
+        await setItemAsync("refresh_token", refresh_token);
 
-      const userInfo = await getUserApi(access_token);
-      await userService.syncAuthenticatedUser(userInfo);
-      setIsRescuer(userService.getIsRescuer());
-      setIsAdmin(userService.getIsAdmin());
-      setAccessToken(access_token);
-      setIsAuthenticated(true);
-      return true;
-    } catch (err) {
-      authLog.warn("auth › refresh session failed", { error: err });
-
-      const isServerRejection =
-        (err as { response?: { status: number } })?.response?.status === 401;
-
-      if (isServerRejection) {
-        authLog.warn("auth › server rejected refresh token, logging out");
-        await deleteItemAsync("access_token");
-        await deleteItemAsync("refresh_token");
-        await deleteItemAsync("userUUID");
-        await userService.logout();
-        await clearConnectionConfig();
-        setAccessToken(null);
-        setIsAuthenticated(false);
-        setIsRescuer(false);
-        setIsAdmin(false);
-        return false;
-      }
-
-      // Network error: restore from local data for offline use
-      const uuid = await getItemAsync("userUUID");
-      if (uuid) {
-        const userInfo = await peerService.findPeerById(uuid);
-        if (!userInfo) return false;
-
-        await userService.syncAuthenticatedUser({
-          id: userInfo.id,
-          username: userInfo.username,
-          first_name: userInfo.firstName,
-          last_name: userInfo.lastName,
-          email: userInfo.email,
-          phone_number: userInfo.phoneNumber,
-          email_verified: userInfo.emailVerified,
-        });
+        const userInfo = await getUserApi(access_token);
+        await userService.syncAuthenticatedUser(userInfo);
+        setIsRescuer(userService.getIsRescuer());
+        setIsAdmin(userService.getIsAdmin());
+        setAccessToken(access_token);
         setIsAuthenticated(true);
+        console.log("setIsOfflineWithExpiredToken false");
+        setIsOfflineWithExpiredToken(false);
         return true;
+      } catch (err) {
+        authLog.warn("auth › refresh session failed", { error: err });
+
+        const isServerRejection =
+          (err as { response?: { status: number } })?.response?.status === 401;
+
+        if (isServerRejection) {
+          if (opts.keepSessionOnRejection) {
+            authLog.warn(
+              "auth › server rejected refresh token, surfacing relogin banner"
+            );
+            setNeedsReloginForServer(true);
+            return false;
+          }
+          authLog.warn("auth › server rejected refresh token, logging out");
+          await deleteItemAsync("access_token");
+          await deleteItemAsync("refresh_token");
+          await deleteItemAsync("userUUID");
+          await userService.logout();
+          await clearConnectionConfig();
+          setAccessToken(null);
+          setIsAuthenticated(false);
+          setIsRescuer(false);
+          setIsAdmin(false);
+          return false;
+        }
+
+        // Network error: restore from local data for offline use
+        const uuid = await getItemAsync("userUUID");
+        if (uuid) {
+          const userInfo = await peerService.findPeerById(uuid);
+          if (!userInfo) return false;
+
+          await userService.syncAuthenticatedUser({
+            id: userInfo.id,
+            username: userInfo.username,
+            first_name: userInfo.firstName,
+            last_name: userInfo.lastName,
+            email: userInfo.email,
+            phone_number: userInfo.phoneNumber,
+            email_verified: userInfo.emailVerified,
+          });
+          if (opts.tokenWasExpired) {
+            authLog.warn(
+              "auth › server unreachable with expired token, warning user not to logout"
+            );
+            setIsOfflineWithExpiredToken(true);
+          }
+          setIsAuthenticated(true);
+          return true;
+        }
+        return false;
       }
-      return false;
-    }
-  }, [userService, peerService]);
+    },
+    [userService, peerService]
+  );
 
   useEffect(() => {
     (async () => {
@@ -177,13 +209,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setIsAuthenticated(true);
             setLoading(false);
 
-            if (!storedToken || isTokenExpiredLocally(storedToken)) {
-              refreshSession().catch(() => {});
+            const tokenWasExpired =
+              !storedToken || isTokenExpiredLocally(storedToken);
+            if (tokenWasExpired) {
+              refreshSession({
+                keepSessionOnRejection: true,
+                tokenWasExpired: true,
+              }).catch(() => {});
             }
             return;
           }
 
-          authLog.warn("[AuthProvider] no local record, attempting server refresh");
+          authLog.warn(
+            "[AuthProvider] no local record, attempting server refresh"
+          );
           await refreshSession();
         } else if (await userService.isCurrentUserGuest()) {
           authLog.info("[AuthProvider] restoring guest session");
@@ -223,26 +262,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const isRelogin = needsReloginForServer;
 
     try {
-      if (isRelogin) {
-        authLog.info("[AuthProvider] relogin detected — wiping local DB before fresh session");
-        await userService.wipeDatabase();
-      }
-
       const res = await loginApi(credentials);
       setLoading(false);
+
+      if (isRelogin) {
+        authLog.info(
+          "[AuthProvider] relogin succeeded — wiping local DB for fresh session"
+        );
+        await userService.wipeDatabase();
+      }
 
       const { access_token, refresh_token } = res.data;
       await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
       const userInfo = await getUserApi(access_token);
-      const { setPendingPassword } = await import("@/features/shared/main-container");
+      const { setPendingPassword } = await import(
+        "@/features/shared/main-container"
+      );
       setPendingPassword(credentials.password);
 
       await userService.syncAuthenticatedUser(userInfo);
       setAccessToken(access_token);
       setIsAuthenticated(true);
       setNeedsReloginForServer(false);
+      setIsOfflineWithExpiredToken(false);
       setIsRescuer(userService.getIsRescuer());
       setIsAdmin(userService.getIsAdmin());
 
@@ -260,7 +304,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const status = axiosError.response.status;
       const data = axiosError.response.data;
-      authLog.warn("auth › login error response", { status, hasData: Boolean(data) });
+      authLog.warn("auth › login error response", {
+        status,
+        hasData: Boolean(data),
+      });
 
       if (status === 401) {
         setErrors({ general: data.detail });
@@ -286,6 +333,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setAccessToken(access_token);
     setIsAuthenticated(true);
     setNeedsReloginForServer(false);
+    setIsOfflineWithExpiredToken(false);
     setIsRescuer(userService.getIsRescuer());
     setIsAdmin(userService.getIsAdmin());
   };
@@ -309,7 +357,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return { success: false };
     }
 
-    const username = generateGuestUsername(credentials.firstName, credentials.lastName);
+    const username = generateGuestUsername(
+      credentials.firstName,
+      credentials.lastName
+    );
     await userService.syncGuestUser({ ...credentials, username });
     setIsGuest(true);
     authLog.info("[AuthProvider] guest login success");
@@ -337,7 +388,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       await guestMigrationService.migrateAndCleanUp();
 
-      const { setPendingPassword } = await import("@/features/shared/main-container");
+      const { setPendingPassword } = await import(
+        "@/features/shared/main-container"
+      );
       setPendingPassword(data.password);
 
       await userService.syncAuthenticatedUser(res.data);
@@ -346,6 +399,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setAccessToken(access_token);
       setIsAuthenticated(true);
       setNeedsReloginForServer(false);
+      setIsOfflineWithExpiredToken(false);
       setIsGuest(false);
 
       authLog.info("[AuthProvider] registerAndMigrate success");
@@ -354,7 +408,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (err) {
       authLog.error("[AuthProvider] registerAndMigrate failed", { error: err });
       setLoading(false);
-      return { success: false, error: "Registration failed. Please try again." };
+      return {
+        success: false,
+        error: "Registration failed. Please try again.",
+      };
     }
   };
 
@@ -366,6 +423,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteItemAsync("userUUID");
     await userService.logout();
   };
+
+  const transitionReloginToOffline = useCallback(() => {
+    setNeedsReloginForServer(false);
+    setIsOfflineWithExpiredToken(true);
+  }, []);
+
+  const transitionOfflineToRelogin = useCallback(() => {
+    setIsOfflineWithExpiredToken(false);
+    setNeedsReloginForServer(true);
+  }, []);
 
   const logout = async () => {
     authLog.info("[AuthProvider] logout called");
@@ -384,6 +451,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsRescuer(false);
     setIsAdmin(false);
     setNeedsReloginForServer(false);
+    setIsOfflineWithExpiredToken(false);
   };
 
   return (
@@ -403,6 +471,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loginAfterRegister,
         registerAndMigrate,
         needsReloginForServer,
+        isOfflineWithExpiredToken,
+        transitionReloginToOffline,
+        transitionOfflineToRelogin,
       }}
     >
       {children}

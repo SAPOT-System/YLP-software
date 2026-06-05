@@ -8,10 +8,12 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { GpsPreferenceProvider } from "@/features/gps/context/gps-preference-context";
 import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
+import { OfflineExpiredBanner } from "@/features/shared/components/offline-expired-banner";
 import { ReloginBanner } from "@/features/shared/components/relogin-banner";
+import { ServerDownReloginTransition } from "@/features/shared/components/server-down-relogin-transition";
 import { ServerStatusBanner } from "@/features/shared/components/server-status-banner";
 import { ZeroconfStatusIndicator } from "@/features/shared/components/zeroconf-status-indicator";
-import { HealthProvider, MainContainerProvider, useAppMode } from "@/features/shared/context";
+import { HealthProvider, MainContainerProvider, ServerHealthProvider, useAppMode } from "@/features/shared/context";
 import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
 import { useForegroundSync } from "@/features/shared/hooks/use-foreground-sync";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
@@ -222,9 +224,12 @@ export default function DrawerLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
+      <ServerHealthProvider>
       <HealthProvider>
+        <ServerDownReloginTransition />
         <ServerStatusBanner />
         <ReloginBanner />
+        <OfflineExpiredBanner />
         <GpsPreferenceProvider>
         <GpsStreamingEffect />
         <MainContainerProvider>
@@ -372,6 +377,7 @@ export default function DrawerLayout() {
         </MainContainerProvider>
       </GpsPreferenceProvider>
       </HealthProvider>
+      </ServerHealthProvider>
     </SafeAreaView>
   );
 }

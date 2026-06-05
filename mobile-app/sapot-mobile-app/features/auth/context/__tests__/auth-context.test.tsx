@@ -1,6 +1,6 @@
 import React from "react";
-import { Text } from "react-native";
-import { render, waitFor } from "@testing-library/react-native";
+import { Pressable, Text } from "react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 // All jest.mock factories use inline jest.fn() to avoid TDZ issues with const
 // declarations (jest.mock is hoisted above const by babel-jest).
@@ -22,7 +22,7 @@ jest.mock("@/features/auth/hooks/use-auth-container", () => ({
 
 jest.mock("@/features/shared/api/client", () => ({
   setTokenRefreshCallback: jest.fn(),
-  setAuthFailureCallback: jest.fn(),
+  setNeedsReloginCallback: jest.fn(),
 }));
 
 jest.mock("@/features/shared", () => ({
@@ -52,7 +52,7 @@ const secureStore = () => jest.requireMock("expo-secure-store") as {
 };
 const clientMock = () => jest.requireMock("@/features/shared/api/client") as {
   setTokenRefreshCallback: jest.Mock;
-  setAuthFailureCallback: jest.Mock;
+  setNeedsReloginCallback: jest.Mock;
 };
 const useUserServiceMock = () =>
   (jest.requireMock("@/features/auth/hooks/use-user-service") as { useUserService: jest.Mock })
@@ -68,12 +68,21 @@ const renderProvider = () => {
     require("../auth-context") as typeof import("../auth-context");
 
   const TestConsumer = () => {
-    const { isAuthenticated, loading, needsReloginForServer } = useAuth();
+    const auth = useAuth();
+    const authRef = React.useRef(auth);
+    authRef.current = auth;
     return (
       <>
-        <Text testID="authenticated">{String(isAuthenticated)}</Text>
-        <Text testID="loading">{String(loading)}</Text>
-        <Text testID="needsRelogin">{String(needsReloginForServer)}</Text>
+        <Text testID="authenticated">{String(auth.isAuthenticated)}</Text>
+        <Text testID="loading">{String(auth.loading)}</Text>
+        <Text testID="needsRelogin">{String(auth.needsReloginForServer)}</Text>
+        <Text testID="offlineExpired">{String(auth.isOfflineWithExpiredToken)}</Text>
+        <Pressable
+          testID="login-btn"
+          onPress={() =>
+            authRef.current.login({ username: "test", password: "test" })
+          }
+        />
       </>
     );
   };
@@ -93,6 +102,7 @@ const makeUserService = (overrides: Record<string, unknown> = {}) => ({
   syncAuthenticatedUser: jest.fn().mockResolvedValue(undefined),
   isCurrentUserGuest: jest.fn().mockResolvedValue(false),
   logout: jest.fn(),
+  wipeDatabase: jest.fn().mockResolvedValue(undefined),
   ...overrides,
 });
 
@@ -144,32 +154,45 @@ describe("AuthProvider bootstrap — local-first identity", () => {
     expect(getUserApi).not.toHaveBeenCalled();
   });
 
-  it("registers setTokenRefreshCallback and setAuthFailureCallback on mount", async () => {
+  it("registers setTokenRefreshCallback and setNeedsReloginCallback on mount", async () => {
     renderProvider();
 
     await waitFor(() => {
       expect(clientMock().setTokenRefreshCallback).toHaveBeenCalledWith(
         expect.any(Function)
       );
-      expect(clientMock().setAuthFailureCallback).toHaveBeenCalledWith(
+      expect(clientMock().setNeedsReloginCallback).toHaveBeenCalledWith(
         expect.any(Function)
       );
     });
   });
 
-  it("sets needsReloginForServer=true when the onAuthFailure callback fires", async () => {
+  it("sets needsReloginForServer=true when the server explicitly rejects the session mid-flight", async () => {
+    const userService = makeUserService();
+    useUserServiceMock().mockReturnValue(userService);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "access_token") return Promise.resolve("some-token");
+      return Promise.resolve(null);
+    });
+
     const { getByTestId } = renderProvider();
 
     await waitFor(() => {
-      expect(clientMock().setAuthFailureCallback).toHaveBeenCalled();
+      expect(getByTestId("authenticated").props.children).toBe("true");
+      expect(clientMock().setNeedsReloginCallback).toHaveBeenCalled();
     });
 
-    const onAuthFailure = clientMock().setAuthFailureCallback.mock.calls[0][0] as () => void;
-    onAuthFailure();
+    const onNeedsRelogin = clientMock().setNeedsReloginCallback.mock.calls[0][0] as () => void;
+    onNeedsRelogin();
 
     await waitFor(() => {
       expect(getByTestId("needsRelogin").props.children).toBe("true");
     });
+
+    expect(getByTestId("authenticated").props.children).toBe("true");
+    expect(userService.logout).not.toHaveBeenCalled();
   });
 
   it("stays unauthenticated when no userUUID and no guest session", async () => {
@@ -179,5 +202,250 @@ describe("AuthProvider bootstrap — local-first identity", () => {
       expect(getByTestId("authenticated").props.children).toBe("false");
       expect(getByTestId("loading").props.children).toBe("false");
     });
+  });
+
+  it("does NOT logout when refreshSession fails due to a network error (server unavailable)", async () => {
+    const userService = makeUserService({
+      initialize: jest.fn().mockRejectedValue(new Error("no local record")),
+    });
+    useUserServiceMock().mockReturnValue(userService);
+
+    const container = makeAuthContainer();
+    (container.peerService.findPeerById as jest.Mock).mockResolvedValue({
+      id: "uuid-123",
+      username: "rescuer",
+      firstName: "Rescue",
+      lastName: "User",
+      email: "r@example.com",
+      phoneNumber: null,
+      emailVerified: true,
+    });
+    useAuthContainerMock().mockReturnValue(container);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "refresh_token") return Promise.resolve("some-refresh-token");
+      return Promise.resolve(null);
+    });
+
+    const { refreshTokenApi } = jest.requireMock("@/features/auth/api") as {
+      refreshTokenApi: jest.Mock;
+    };
+    // Simulate server unavailable — no .response on the error
+    refreshTokenApi.mockRejectedValue(new Error("Network Error"));
+
+    const { getByTestId } = renderProvider();
+
+    await waitFor(() => {
+      expect(getByTestId("authenticated").props.children).toBe("true");
+      expect(getByTestId("loading").props.children).toBe("false");
+    });
+
+    expect(secureStore().deleteItemAsync).not.toHaveBeenCalledWith("access_token");
+    expect(secureStore().deleteItemAsync).not.toHaveBeenCalledWith("refresh_token");
+    expect(userService.logout).not.toHaveBeenCalled();
+  });
+
+  it("logs out and clears tokens when no local record and server returns 401 during refresh", async () => {
+    const userService = makeUserService({
+      initialize: jest.fn().mockRejectedValue(new Error("no local record")),
+    });
+    useUserServiceMock().mockReturnValue(userService);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "refresh_token") return Promise.resolve("expired-refresh-token");
+      return Promise.resolve(null);
+    });
+
+    const { refreshTokenApi } = jest.requireMock("@/features/auth/api") as {
+      refreshTokenApi: jest.Mock;
+    };
+    refreshTokenApi.mockRejectedValue({ response: { status: 401 } });
+
+    const { getByTestId } = renderProvider();
+
+    await waitFor(() => {
+      expect(getByTestId("authenticated").props.children).toBe("false");
+      expect(getByTestId("loading").props.children).toBe("false");
+    });
+
+    expect(secureStore().deleteItemAsync).toHaveBeenCalledWith("access_token");
+    expect(secureStore().deleteItemAsync).toHaveBeenCalledWith("refresh_token");
+    expect(userService.logout).toHaveBeenCalled();
+  });
+
+  it("sets needsReloginForServer=true and keeps user authenticated when local record exists but server returns 401", async () => {
+    const { isTokenExpiredLocally } = jest.requireMock(
+      "@/features/auth/utils/token-utils"
+    ) as { isTokenExpiredLocally: jest.Mock };
+    isTokenExpiredLocally.mockReturnValue(true);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "access_token") return Promise.resolve("expired-access-token");
+      if (key === "refresh_token") return Promise.resolve("expired-refresh-token");
+      return Promise.resolve(null);
+    });
+
+    const { refreshTokenApi } = jest.requireMock("@/features/auth/api") as {
+      refreshTokenApi: jest.Mock;
+    };
+    refreshTokenApi.mockRejectedValue({ response: { status: 401 } });
+
+    const userService = makeUserService();
+    useUserServiceMock().mockReturnValue(userService);
+
+    const { getByTestId } = renderProvider();
+
+    await waitFor(() => {
+      expect(getByTestId("needsRelogin").props.children).toBe("true");
+    });
+
+    expect(getByTestId("authenticated").props.children).toBe("true");
+    expect(userService.logout).not.toHaveBeenCalled();
+    expect(secureStore().deleteItemAsync).not.toHaveBeenCalledWith("access_token");
+    expect(secureStore().deleteItemAsync).not.toHaveBeenCalledWith("refresh_token");
+  });
+
+  it("sets needsReloginForServer=true on restart when tokens were already deleted by the interceptor in the previous session", async () => {
+    const { isTokenExpiredLocally } = jest.requireMock(
+      "@/features/auth/utils/token-utils"
+    ) as { isTokenExpiredLocally: jest.Mock };
+    isTokenExpiredLocally.mockReturnValue(true);
+
+    // Simulate restart after interceptor cleared tokens: userUUID present but tokens gone
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "access_token") return Promise.resolve(null);
+      if (key === "refresh_token") return Promise.resolve(null);
+      return Promise.resolve(null);
+    });
+
+    const { getByTestId } = renderProvider();
+
+    await waitFor(() => {
+      expect(getByTestId("needsRelogin").props.children).toBe("true");
+    });
+
+    expect(getByTestId("authenticated").props.children).toBe("true");
+  });
+
+  it("sets isOfflineWithExpiredToken=true when server unreachable and token was locally expired", async () => {
+    const { isTokenExpiredLocally } = jest.requireMock(
+      "@/features/auth/utils/token-utils"
+    ) as { isTokenExpiredLocally: jest.Mock };
+    isTokenExpiredLocally.mockReturnValue(true);
+
+    const container = makeAuthContainer();
+    (container.peerService.findPeerById as jest.Mock).mockResolvedValue({
+      id: "uuid-123",
+      username: "rescuer",
+      firstName: "Rescue",
+      lastName: "User",
+      email: "r@example.com",
+      phoneNumber: null,
+      emailVerified: true,
+    });
+    useAuthContainerMock().mockReturnValue(container);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "access_token") return Promise.resolve("expired-access-token");
+      if (key === "refresh_token") return Promise.resolve("expired-refresh-token");
+      return Promise.resolve(null);
+    });
+
+    const { refreshTokenApi } = jest.requireMock("@/features/auth/api") as {
+      refreshTokenApi: jest.Mock;
+    };
+    refreshTokenApi.mockRejectedValue(new Error("Network Error"));
+
+    const { getByTestId } = renderProvider();
+
+    await waitFor(() => {
+      expect(getByTestId("offlineExpired").props.children).toBe("true");
+    });
+
+    expect(getByTestId("authenticated").props.children).toBe("true");
+    expect(getByTestId("needsRelogin").props.children).toBe("false");
+  });
+
+  it("leaves isOfflineWithExpiredToken=false when server unreachable but token is still valid", async () => {
+    const { isTokenExpiredLocally } = jest.requireMock(
+      "@/features/auth/utils/token-utils"
+    ) as { isTokenExpiredLocally: jest.Mock };
+    isTokenExpiredLocally.mockReturnValue(false);
+
+    const container = makeAuthContainer();
+    (container.peerService.findPeerById as jest.Mock).mockResolvedValue({
+      id: "uuid-123",
+      username: "rescuer",
+      firstName: "Rescue",
+      lastName: "User",
+      email: "r@example.com",
+      phoneNumber: null,
+      emailVerified: true,
+    });
+    useAuthContainerMock().mockReturnValue(container);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "access_token") return Promise.resolve("valid-token");
+      if (key === "refresh_token") return Promise.resolve("some-refresh-token");
+      return Promise.resolve(null);
+    });
+
+    const { refreshTokenApi } = jest.requireMock("@/features/auth/api") as {
+      refreshTokenApi: jest.Mock;
+    };
+    refreshTokenApi.mockRejectedValue(new Error("Network Error"));
+
+    const { getByTestId } = renderProvider();
+
+    await waitFor(() => {
+      expect(getByTestId("authenticated").props.children).toBe("true");
+      expect(getByTestId("loading").props.children).toBe("false");
+    });
+
+    expect(getByTestId("offlineExpired").props.children).toBe("false");
+  });
+
+  it("does not wipe database when relogin attempt fails with wrong credentials", async () => {
+    const { isTokenExpiredLocally } = jest.requireMock(
+      "@/features/auth/utils/token-utils"
+    ) as { isTokenExpiredLocally: jest.Mock };
+    isTokenExpiredLocally.mockReturnValue(true);
+
+    const userService = makeUserService();
+    useUserServiceMock().mockReturnValue(userService);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("uuid-123");
+      if (key === "access_token") return Promise.resolve("expired-access-token");
+      if (key === "refresh_token") return Promise.resolve("expired-refresh-token");
+      return Promise.resolve(null);
+    });
+
+    const { refreshTokenApi, loginApi } = jest.requireMock("@/features/auth/api") as {
+      refreshTokenApi: jest.Mock;
+      loginApi: jest.Mock;
+    };
+    refreshTokenApi.mockRejectedValue({ response: { status: 401 } });
+    loginApi.mockRejectedValue({ response: { status: 401, data: { detail: "Bad credentials" } } });
+
+    const { getByTestId } = renderProvider();
+
+    await waitFor(() => {
+      expect(getByTestId("needsRelogin").props.children).toBe("true");
+    });
+
+    fireEvent.press(getByTestId("login-btn"));
+
+    await waitFor(() => {
+      expect(loginApi).toHaveBeenCalled();
+    });
+
+    expect(userService.wipeDatabase).not.toHaveBeenCalled();
   });
 });

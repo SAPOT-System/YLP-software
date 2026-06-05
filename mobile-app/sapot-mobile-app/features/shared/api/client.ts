@@ -15,14 +15,14 @@ apiLog.info("api › client created", {
 
 // Callbacks registered by AuthProvider to keep React state in sync
 let onTokenRefreshed: ((token: string) => void) | null = null;
-let onAuthFailure: (() => void) | null = null;
+let onNeedsRelogin: (() => void) | null = null;
 
 export const setTokenRefreshCallback = (cb: (token: string) => void) => {
   onTokenRefreshed = cb;
 };
 
-export const setAuthFailureCallback = (cb: () => void) => {
-  onAuthFailure = cb;
+export const setNeedsReloginCallback = (cb: () => void) => {
+  onNeedsRelogin = cb;
 };
 
 apiClient.interceptors.request.use(async (config) => {
@@ -103,10 +103,10 @@ apiClient.interceptors.response.use(
           ?.status === 401;
 
       if (isServerRejection) {
-        apiLog.warn("api › server explicitly rejected refresh token, clearing tokens");
+        apiLog.warn("api › server explicitly rejected refresh token, signaling relogin");
         await deleteItemAsync("access_token");
         await deleteItemAsync("refresh_token");
-        onAuthFailure?.();
+        onNeedsRelogin?.();
       } else {
         apiLog.warn("api › refresh failed (network error), keeping tokens for offline use");
       }
