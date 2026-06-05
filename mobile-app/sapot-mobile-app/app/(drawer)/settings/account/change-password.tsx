@@ -16,6 +16,7 @@ import {
     HelperText,
     useTheme,
 } from "react-native-paper";
+import { isAxiosError } from "axios";
 
 export default function ChangePassword() {
   const theme = useTheme();
@@ -100,7 +101,14 @@ export default function ChangePassword() {
       uiLog.error("[ChangePasswordSettings] Error in change password", {
         error,
       });
-      setErrors({ currentPassword: "Invalid password" });
+      if (
+        isAxiosError(error) &&
+        (error.response?.status === 401 || error.response?.status === 403)
+      ) {
+        setErrors({ currentPassword: "Incorrect password." });
+      } else {
+        showError("Something went wrong. Please try again.");
+      }
     } finally {
       setIsSaving(false);
     }
