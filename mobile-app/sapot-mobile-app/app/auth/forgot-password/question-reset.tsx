@@ -12,13 +12,11 @@ import { extractResetToken } from "@/features/auth/utils";
 import { KeyRecoveryService } from "@/features/shared/services/key-recovery-service";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
-import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { HelperText } from "react-native-paper";
@@ -30,14 +28,23 @@ const QuestionResetScreen = () => {
   const { loading: gettingQuestionLoading, question, error: questionError, refetch } = getQuestionResult;
 
   const {
-    loading: verifyAnswerLoading,
     error,
     verifyAnswer,
   } = useVerifyAnswer(identifier);
 
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
+  const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const pendingNavRef = useRef<(() => void) | null>(null);
   const [answer, setAnswer] = useState("");
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success" && pendingNavRef.current) {
+      pendingNavRef.current();
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   useEffect(() => {
     authLog.info("[QuestionResetScreen] mounted");
@@ -117,12 +124,17 @@ const QuestionResetScreen = () => {
   const handleVerify = async () => {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showError("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
     authLog.debug("[QuestionResetScreen] handleVerify called", {
       hasAnswer: Boolean(answer.trim()),
     });
+
+    setOverlayPhase("loading");
+    setOverlayMessage("");
+
     const res = await verifyAnswer({ question, answer });
 
     if (res.success && res.resetLink) {
@@ -137,65 +149,78 @@ const QuestionResetScreen = () => {
       authLog.info("[Navigation] Navigating to ResetPassword", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
       });
-      router.push({
-        pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-        params: { token, identifier, method: "qa" },
-      });
+      pendingNavRef.current = () =>
+        router.push({
+          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+          params: { token, identifier, method: "qa" },
+        });
+      setOverlayPhase("success");
+      setOverlayMessage("Answer verified!");
+    } else {
+      setOverlayPhase("error");
+      setOverlayMessage(error.general || error.answer || "Verification failed. Please try again.");
     }
   };
 
+  const isSubmitting = overlayPhase !== "idle";
+
   return (
-    <KeyboardAwareScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
-      bounces={false}
-      enableOnAndroid
-      keyboardShouldPersistTaps="handled"
-    >
-      <View
-        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <View style={{ flex: 1 }}>
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Verifying…"
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
       >
-        <ScreenHeader headerName="Resetting Password" />
-        <StepDots total={3} current={2} />
-        <ScreenContent
-          title="Password Recovery"
-          description="Please enter the answer to your security question"
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
         >
-          <View
-            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+          <ScreenHeader headerName="Resetting Password" />
+          <StepDots total={3} current={2} />
+          <ScreenContent
+            title="Password Recovery"
+            description="Please enter the answer to your security question"
           >
-            <HelperText type="error" visible={!!error.general}>{error.general}</HelperText>
-            <AuthTextInput
-              label={question}
-              placeholder="Enter your answer"
-              value={answer}
-              onChangeText={setAnswer}
-              error={!!error.answer}
-            />
-            <HelperText type="error" visible={!!error.answer}>{error.answer}</HelperText>
-          </View>
-          <PrimaryButton
-            onPress={handleVerify}
-            loading={verifyAnswerLoading}
-            disabled={verifyAnswerLoading}
-          >
-            Verify
-          </PrimaryButton>
-          <SecondaryButton
-            style={{ marginTop: 16 }}
-            onPress={() => {
-              authLog.info("[Navigation] goBack triggered from QuestionReset");
-              router.back();
-            }}
-            disabled={verifyAnswerLoading}
-          >
-            Back
-          </SecondaryButton>
-        </ScreenContent>
-      </View>
-      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
-        {toastMessage}
-      </AppSnackbar>
-    </KeyboardAwareScrollView>
+            <View
+              style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+            >
+              <AuthTextInput
+                label={question}
+                placeholder="Enter your answer"
+                value={answer}
+                onChangeText={setAnswer}
+                error={!!error.answer}
+              />
+              <HelperText type="error" visible={!!error.answer}>{error.answer}</HelperText>
+            </View>
+            <PrimaryButton
+              onPress={handleVerify}
+              loading={overlayPhase === "loading"}
+              disabled={isSubmitting}
+            >
+              {overlayPhase === "loading" ? "Verifying…" : "Verify"}
+            </PrimaryButton>
+            <SecondaryButton
+              style={{ marginTop: 16 }}
+              onPress={() => {
+                authLog.info("[Navigation] goBack triggered from QuestionReset");
+                router.back();
+              }}
+              disabled={isSubmitting}
+            >
+              Back
+            </SecondaryButton>
+          </ScreenContent>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 

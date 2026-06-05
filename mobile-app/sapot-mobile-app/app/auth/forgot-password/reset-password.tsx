@@ -10,9 +10,7 @@ import {
 } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
-import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -20,7 +18,7 @@ import {
     getItemAsync,
     setItemAsync,
 } from "expo-secure-store";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { HelperText } from "react-native-paper";
@@ -50,13 +48,17 @@ const ChangePasswordScreen = () => {
     userId: userId ?? null,
   });
 
-  const {
-    visible: toastVisible,
-    message: toastMessage,
-    variant: toastVariant,
-    showError,
-    hideToast,
-  } = useToast();
+  const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const pendingNavRef = useRef<(() => void) | null>(null);
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success" && pendingNavRef.current) {
+      pendingNavRef.current();
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -131,7 +133,7 @@ const ChangePasswordScreen = () => {
     );
   }
 
-  const { changePassword, loading, errors, isTokenValid } = changePasswordResult;
+  const { changePassword, errors, isTokenValid } = changePasswordResult;
 
   if (isTokenValid === null) {
     return (
@@ -169,9 +171,13 @@ const ChangePasswordScreen = () => {
     });
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showError("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
+
+    setOverlayPhase("loading");
+    setOverlayMessage("");
 
     // Best-effort key recovery before password reset.
     // Null if recovery unavailable (no token, wrong secret, legacy V1 blob).
@@ -197,85 +203,96 @@ const ChangePasswordScreen = () => {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS,
         keyRecoveryPerformed: Boolean(wrappedBlob),
       });
-      router.replace(AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS);
+      pendingNavRef.current = () => router.replace(AUTH_ROUTES.FORGOT_PASSWORD.SUCCESS);
+      setOverlayPhase("success");
+      setOverlayMessage("Password changed!");
     } else {
-      showError(errors.general || errors.password || "Failed to change password. Please try again.");
       authLog.warn("[ChangePasswordScreen] change password failed");
+      setOverlayPhase("error");
+      setOverlayMessage(errors.general || errors.password || "Failed to change password. Please try again.");
     }
   };
 
+  const isSubmitting = overlayPhase !== "idle";
+
   return (
-    <KeyboardAwareScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
-      bounces={false}
-      enableOnAndroid
-      keyboardShouldPersistTaps="handled"
-    >
-      <View
-        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <View style={{ flex: 1 }}>
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Saving password…"
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
       >
-        <ScreenHeader headerName="Change Password" />
-        <StepDots total={3} current={3} />
-        <ScreenContent
-          title="Change your password"
-          description="Please enter your new password"
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
         >
-          <View
-            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+          <ScreenHeader headerName="Change Password" />
+          <StepDots total={3} current={3} />
+          <ScreenContent
+            title="Change your password"
+            description="Please enter your new password"
           >
-            <AuthTextInput
-              label="New password"
-              placeholder="Enter your new password"
-              value={password}
-              onChangeText={setPassword}
-              style={styles.textInput}
-              secureTextEntry
-              error={!!errors.password}
-            />
-            {errors.password && (
-              <HelperText type="error" style={styles.helperText}>
-                {errors.password}
-              </HelperText>
-            )}
-            <PasswordRequirements password={password} />
-            <AuthTextInput
-              label="Confirm password"
-              placeholder="Confirm your password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              style={styles.textInput}
-              secureTextEntry
-              error={!!errors.confirmPassword}
-            />
-            {errors.confirmPassword && (
-              <HelperText type="error" style={styles.helperText}>
-                {errors.confirmPassword}
-              </HelperText>
-            )}
-          </View>
-          <PrimaryButton
-            onPress={handleChangePassword}
-            loading={loading}
-            disabled={loading}
-          >
-            Set New Password
-          </PrimaryButton>
-          <SecondaryButton
-            style={{ marginTop: 8 }}
-            onPress={() => {
-              authLog.info("[Navigation] goBack triggered from ChangePassword");
-              router.back();
-            }}
-            disabled={loading}
-          >
-            Back
-          </SecondaryButton>
-        </ScreenContent>
-        <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
-          {toastMessage}
-        </AppSnackbar>
-      </View>
-    </KeyboardAwareScrollView>
+            <View
+              style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+            >
+              <AuthTextInput
+                label="New password"
+                placeholder="Enter your new password"
+                value={password}
+                onChangeText={setPassword}
+                style={styles.textInput}
+                secureTextEntry
+                error={!!errors.password}
+              />
+              {errors.password && (
+                <HelperText type="error" style={styles.helperText}>
+                  {errors.password}
+                </HelperText>
+              )}
+              <PasswordRequirements password={password} />
+              <AuthTextInput
+                label="Confirm password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                style={styles.textInput}
+                secureTextEntry
+                error={!!errors.confirmPassword}
+              />
+              {errors.confirmPassword && (
+                <HelperText type="error" style={styles.helperText}>
+                  {errors.confirmPassword}
+                </HelperText>
+              )}
+            </View>
+            <PrimaryButton
+              onPress={handleChangePassword}
+              loading={overlayPhase === "loading"}
+              disabled={isSubmitting}
+            >
+              {overlayPhase === "loading" ? "Saving…" : "Set New Password"}
+            </PrimaryButton>
+            <SecondaryButton
+              style={{ marginTop: 8 }}
+              onPress={() => {
+                authLog.info("[Navigation] goBack triggered from ChangePassword");
+                router.back();
+              }}
+              disabled={isSubmitting}
+            >
+              Back
+            </SecondaryButton>
+          </ScreenContent>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 

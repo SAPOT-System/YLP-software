@@ -11,17 +11,18 @@ import {
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useToast } from "@/features/shared/hooks";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { HelperText } from "react-native-paper";
 
 const PHONE_REGEX = /^\+639\d{9}$/;
+
+type OverlayPhase = "idle" | "loading" | "success" | "error";
 
 const inputConfig = {
   email: {
@@ -52,18 +53,18 @@ const EnterIdentifierScreen = () => {
   }: { resetOption: "email" | "sms" | "question" | "recoveryKey" } =
     useLocalSearchParams();
 
-  const { loading, error, validateIdentfier } = useValidateIdentifier();
+  const { error, validateIdentfier } = useValidateIdentifier();
   const {
     isLoading: emailResetLoading,
-    error: emailResetError,
     sendCode,
   } = useEmailReset();
   const {
     isLoading: smsResetLoading,
-    error: smsResetError,
     sendCode: sendSmsCode,
   } = useSmsReset();
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
+  const [overlayPhase, setOverlayPhase] = useState<OverlayPhase>("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const pendingNavRef = useRef<(() => void) | null>(null);
   const [identifier, setIdentfier] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [storedToken, setStoredToken] = useState<string | null>(null);
@@ -104,8 +105,16 @@ const EnterIdentifierScreen = () => {
   }, []);
 
   const isSending = emailResetLoading || smsResetLoading;
-  const isLoading = loading || isSending;
   const config = inputConfig[resetOption] ?? inputConfig.question;
+  const isSubmitting = overlayPhase !== "idle";
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success" && pendingNavRef.current) {
+      pendingNavRef.current();
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   const handleContinue = async () => {
     if (resetOption === "sms" && !PHONE_REGEX.test(identifier.trim())) {
@@ -116,9 +125,14 @@ const EnterIdentifierScreen = () => {
 
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showError("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
+
+    setOverlayPhase("loading");
+    setOverlayMessage("");
+
     authLog.debug("[EnterIdentifierScreen] handleContinue called", {
       identifierLength: identifier.length,
       resetOption,
@@ -141,10 +155,13 @@ const EnterIdentifierScreen = () => {
             authLog.info("[Navigation] Navigating to ResetPassword", {
               screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
             });
-            router.replace({
-              pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-              params: { token: storedToken, identifier: storedIdentifier },
-            });
+            pendingNavRef.current = () =>
+              router.replace({
+                pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+                params: { token: storedToken, identifier: storedIdentifier },
+              });
+            setOverlayPhase("success");
+            setOverlayMessage("Continuing your reset session...");
             return;
           }
 
@@ -152,8 +169,8 @@ const EnterIdentifierScreen = () => {
           await deleteItemAsync("reset_password_identifier");
           setStoredToken(null);
           setStoredIdentifier(null);
-        } catch (error) {
-          authLog.error("[EnterIdentifierScreen] Error in validate stored token", { error });
+        } catch (err) {
+          authLog.error("[EnterIdentifierScreen] Error in validate stored token", { err });
           await deleteItemAsync("reset_password_token");
           await deleteItemAsync("reset_password_identifier");
           setStoredToken(null);
@@ -165,20 +182,28 @@ const EnterIdentifierScreen = () => {
         authLog.info("[Navigation] Navigating to QuestionReset", {
           screen: AUTH_ROUTES.FORGOT_PASSWORD.QUESTION_RESET,
         });
-        router.push({
-          pathname: AUTH_ROUTES.FORGOT_PASSWORD.QUESTION_RESET,
-          params: { identifier },
-        });
+        pendingNavRef.current = () =>
+          router.push({
+            pathname: AUTH_ROUTES.FORGOT_PASSWORD.QUESTION_RESET,
+            params: { identifier },
+          });
+        setOverlayPhase("success");
+        setOverlayMessage("Identity verified!");
+        return;
       }
 
       if (resetOption === "recoveryKey") {
         authLog.info("[Navigation] Navigating to RecoveryKeyReset", {
           screen: AUTH_ROUTES.FORGOT_PASSWORD.RECOVERY_KEY_RESET,
         });
-        router.push({
-          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RECOVERY_KEY_RESET,
-          params: { identifier },
-        });
+        pendingNavRef.current = () =>
+          router.push({
+            pathname: AUTH_ROUTES.FORGOT_PASSWORD.RECOVERY_KEY_RESET,
+            params: { identifier },
+          });
+        setOverlayPhase("success");
+        setOverlayMessage("Identity verified!");
+        return;
       }
 
       if (resetOption === "email") {
@@ -187,11 +212,18 @@ const EnterIdentifierScreen = () => {
           authLog.info("[Navigation] Navigating to EnterRecovery", {
             screen: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
           });
-          router.replace({
-            pathname: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
-            params: { identifier },
-          });
+          pendingNavRef.current = () =>
+            router.replace({
+              pathname: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
+              params: { identifier },
+            });
+          setOverlayPhase("success");
+          setOverlayMessage("Code sent to your email!");
+          return;
         }
+        setOverlayPhase("error");
+        setOverlayMessage("Failed to send reset code. Please try again.");
+        return;
       }
 
       if (resetOption === "sms") {
@@ -200,77 +232,90 @@ const EnterIdentifierScreen = () => {
           authLog.info("[Navigation] Navigating to EnterRecovery (sms)", {
             screen: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
           });
-          router.replace({
-            pathname: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
-            params: { identifier, method: "sms" },
-          });
+          pendingNavRef.current = () =>
+            router.replace({
+              pathname: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_RECOVERY,
+              params: { identifier, method: "sms" },
+            });
+          setOverlayPhase("success");
+          setOverlayMessage("Code sent to your phone!");
+          return;
         }
+        setOverlayPhase("error");
+        setOverlayMessage("Failed to send reset code. Please try again.");
+        return;
       }
+    } else {
+      setOverlayPhase("error");
+      setOverlayMessage(
+        error.general || "Identifier not found. Please check your details."
+      );
     }
   };
 
   return (
-    <KeyboardAwareScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
-      bounces={false}
-      enableOnAndroid
-      keyboardShouldPersistTaps="handled"
-    >
-      <View
-        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <View style={{ flex: 1 }}>
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Please wait…"
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
       >
-        <ScreenHeader headerName="Resetting Password" />
-        <StepDots total={3} current={1} />
-        <ScreenContent
-          title="Forgot Password"
-          description="Enter your account details"
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
         >
-          <View style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}>
-            {(error.general || emailResetError || smsResetError) && (
-              <HelperText type="error" visible>
-                {error.general || emailResetError || smsResetError}
-              </HelperText>
-            )}
-            <AuthTextInput
-              label={config.label}
-              placeholder={config.placeholder}
-              value={identifier}
-              onChangeText={(text) => {
-                setIdentfier(text);
-                if (phoneError) setPhoneError(null);
+          <ScreenHeader headerName="Resetting Password" />
+          <StepDots total={3} current={1} />
+          <ScreenContent
+            title="Forgot Password"
+            description="Enter your account details"
+          >
+            <View style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}>
+              <AuthTextInput
+                label={config.label}
+                placeholder={config.placeholder}
+                value={identifier}
+                onChangeText={(text) => {
+                  setIdentfier(text);
+                  if (phoneError) setPhoneError(null);
+                }}
+                keyboardType={config.keyboardType}
+                error={!!error.identifier || !!phoneError}
+              />
+              {(error.identifier || phoneError) && (
+                <HelperText type="error" visible>
+                  {error.identifier || phoneError}
+                </HelperText>
+              )}
+            </View>
+            <PrimaryButton
+              style={{ marginBottom: 8 }}
+              onPress={handleContinue}
+              loading={overlayPhase === "loading"}
+              disabled={isSubmitting}
+            >
+              {overlayPhase === "loading" ? "Please wait…" : isSending ? "Sending…" : "Continue"}
+            </PrimaryButton>
+            <SecondaryButton
+              onPress={() => {
+                authLog.info("[Navigation] goBack triggered from EnterIdentifier");
+                router.back();
               }}
-              keyboardType={config.keyboardType}
-              error={!!error.identifier || !!phoneError}
-            />
-            {(error.identifier || phoneError) && (
-              <HelperText type="error" visible>
-                {error.identifier || phoneError}
-              </HelperText>
-            )}
-          </View>
-          <PrimaryButton
-            style={{ marginBottom: 8 }}
-            onPress={handleContinue}
-            loading={isLoading}
-            disabled={isLoading}
-          >
-            {isSending ? "Sending…" : "Continue"}
-          </PrimaryButton>
-          <SecondaryButton
-            onPress={() => {
-              authLog.info("[Navigation] goBack triggered from EnterIdentifier");
-              router.back();
-            }}
-            disabled={isLoading}
-          >
-            Back
-          </SecondaryButton>
-        </ScreenContent>
-      </View>
-      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
-        {toastMessage}
-      </AppSnackbar>
-    </KeyboardAwareScrollView>
+              disabled={isSubmitting}
+            >
+              Back
+            </SecondaryButton>
+          </ScreenContent>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 

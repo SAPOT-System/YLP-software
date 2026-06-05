@@ -9,7 +9,7 @@ import { authLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { setItemAsync } from "expo-secure-store";
 import { OTPInput } from "input-otp-native";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { HelperText, Text, useTheme } from "react-native-paper";
@@ -29,8 +29,18 @@ const EnterRecoveryScreen = () => {
   const theme = useTheme();
   const [code, setCode] = useState<string>("");
   const [secondsLeft, setSecondsLeft] = useState<number>(COUNTDOWN_SECONDS);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const pendingNavRef = useRef<(() => void) | null>(null);
   const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success" && pendingNavRef.current) {
+      pendingNavRef.current();
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   useEffect(() => {
     authLog.info("[EnterRecoveryScreen] mounted");
@@ -70,7 +80,8 @@ const EnterRecoveryScreen = () => {
     setCode(newCode);
 
     if (newCode.length === CODE_LENGTH) {
-      setIsVerifying(true);
+      setOverlayPhase("loading");
+      setOverlayMessage("");
       try {
         const res = await verifyCode(identifier, newCode);
 
@@ -80,22 +91,22 @@ const EnterRecoveryScreen = () => {
 
           await setItemAsync("reset_recovery_token", recoveryToken);
 
-          router.push({
-            pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-            params: {
-              token,
-              identifier,
-              method: isSms ? "sms" : "email",
-            },
-          });
+          pendingNavRef.current = () =>
+            router.push({
+              pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+              params: { token, identifier, method: isSms ? "sms" : "email" },
+            });
+          setOverlayPhase("success");
+          setOverlayMessage("Code verified!");
         } else {
           setCode("");
+          setOverlayPhase("error");
+          setOverlayMessage("Invalid code. Please try again.");
         }
       } catch {
         setCode("");
-        showError("Verification failed. Please try again.");
-      } finally {
-        setIsVerifying(false);
+        setOverlayPhase("error");
+        setOverlayMessage("Verification failed. Please try again.");
       }
     }
   };
@@ -207,7 +218,13 @@ const EnterRecoveryScreen = () => {
           Back
         </SecondaryButton>
       </ScreenContent>
-      <LoadingOverlay visible={isVerifying} text="Verifying…" />
+      <LoadingOverlay
+        visible={overlayPhase !== "idle"}
+        text="Verifying…"
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
       <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
         {toastMessage}
       </AppSnackbar>
