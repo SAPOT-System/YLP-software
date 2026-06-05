@@ -42,7 +42,14 @@ export default function GenerateRecoveryKey() {
       }
       const res = await generateNewRecoveryKeyApi(token);
       setRecoveryKeyData(res.data);
-      await setupTokenBlob(res.data);
+      try {
+        await setupTokenBlob(res.data);
+      } catch {
+        showError(
+          "Recovery key generated on server but could not be stored locally. Please try generating again."
+        );
+        return;
+      }
       setModalVisible(true);
     } catch (error) {
       uiLog.error("[GenerateRecoveryKey] Error generating recovery key", {

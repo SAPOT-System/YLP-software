@@ -69,7 +69,14 @@ export default function SecurityQuestion() {
         [{ question: selectedQuestion, answer: answer.trim() }],
         token
       );
-      await setupQABlob(selectedQuestion, answer.trim());
+      try {
+        await setupQABlob(selectedQuestion, answer.trim());
+      } catch {
+        showError(
+          "Security question saved to server but could not be stored locally. You may need to set it up again on this device."
+        );
+        return;
+      }
       setSelectedQuestion("");
       setAnswer("");
       setErrors({});
