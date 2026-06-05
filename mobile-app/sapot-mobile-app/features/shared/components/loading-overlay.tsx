@@ -69,7 +69,7 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
               }
             />
           ) : (
-            <ActivityIndicator animating size="large" color="#3A7AFE" />
+            <ActivityIndicator animating size="large" color={theme.colors.primary} />
           )}
           {(isResult ? statusMessage : text) ? (
             <View style={styles.textContainer}>
