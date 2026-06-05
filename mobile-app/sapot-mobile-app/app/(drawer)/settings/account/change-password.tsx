@@ -6,7 +6,7 @@ import {
 } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useServerAction, useToast } from "@/features/shared/hooks";
+import { useServerAction, useToast, useUserProfile } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -20,6 +20,7 @@ import {
 export default function ChangePassword() {
   const theme = useTheme();
   const { rewrapAllBlobs } = useMasterKeyRecovery();
+  const { user } = useUserProfile();
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
@@ -86,7 +87,7 @@ export default function ChangePassword() {
       setErrors({});
       showToast("Change password successfully");
 
-      const rewrapResult = await rewrapAllBlobs({ userId: "", newPassword: newPass });
+      const rewrapResult = await rewrapAllBlobs({ userId: user.id, newPassword: newPass });
       if (!rewrapResult.success) {
         showError("Password changed but recovery keys could not be updated. Visit Settings → Recovery Methods to re-configure.");
       }
