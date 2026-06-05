@@ -74,8 +74,11 @@ export default function EncryptionPinScreen() {
   useAuth(); // ensure auth context is loaded
 
   const [pinEnabled, setPinEnabled] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [enableLoading, setEnableLoading] = useState(false);
+  const [changeLoading, setChangeLoading] = useState(false);
+  const [disableLoading, setDisableLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Enable form
   const [newPin, setNewPin] = useState(blank());
@@ -95,9 +98,16 @@ export default function EncryptionPinScreen() {
     localEncryptionService.isPINEnabled().then(setPinEnabled);
   }, [localEncryptionService]);
 
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, []);
+
   const showStatus = (text: string, ok: boolean) => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     setStatusMsg({ text, ok });
-    setTimeout(() => setStatusMsg(null), 3000);
+    statusTimerRef.current = setTimeout(() => setStatusMsg(null), 3000);
   };
 
   const handleEnable = async () => {
@@ -107,7 +117,7 @@ export default function EncryptionPinScreen() {
     if (p !== c) return showStatus("PINs do not match.", false);
     if (!password) return showStatus("Enter your current password.", false);
 
-    setLoading(true);
+    setEnableLoading(true);
     try {
       await localEncryptionService.setupPIN(password, p);
       setPinEnabled(true);
@@ -118,7 +128,7 @@ export default function EncryptionPinScreen() {
     } catch {
       showStatus("Failed to enable PIN. Check your password.", false);
     } finally {
-      setLoading(false);
+      setEnableLoading(false);
     }
   };
 
@@ -128,7 +138,7 @@ export default function EncryptionPinScreen() {
     if (old.length < 6 || next.length < 6) return showStatus("Fill in all 6 digits.", false);
     if (!changePassword) return showStatus("Enter your current password.", false);
 
-    setLoading(true);
+    setChangeLoading(true);
     try {
       const ok = await localEncryptionService.changePIN(changePassword, old, next);
       if (ok) {
@@ -142,7 +152,7 @@ export default function EncryptionPinScreen() {
     } catch {
       showStatus("Failed to change PIN.", false);
     } finally {
-      setLoading(false);
+      setChangeLoading(false);
     }
   };
 
@@ -151,7 +161,7 @@ export default function EncryptionPinScreen() {
     if (p.length < 6) return showStatus("Fill in all 6 digits.", false);
     if (!disablePassword) return showStatus("Enter your current password.", false);
 
-    setLoading(true);
+    setDisableLoading(true);
     try {
       const ok = await localEncryptionService.removePIN(disablePassword, p);
       if (ok) {
@@ -165,7 +175,7 @@ export default function EncryptionPinScreen() {
     } catch {
       showStatus("Failed to remove PIN.", false);
     } finally {
-      setLoading(false);
+      setDisableLoading(false);
     }
   };
 
@@ -179,7 +189,7 @@ export default function EncryptionPinScreen() {
       contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={{ fontWeight: "semibold", marginBottom: 4 }}>Encryption PIN</Text>
+      <Text style={{ fontWeight: "600", marginBottom: 4 }}>Encryption PIN</Text>
       <Text variant="bodySmall" style={{ opacity: 0.7, marginBottom: 16 }}>
         An optional 6-digit PIN that acts as a second factor for your encryption keys.
         When enabled, you must enter it each time the app starts.
@@ -226,8 +236,8 @@ export default function EncryptionPinScreen() {
           <Button
             mode="contained"
             onPress={handleEnable}
-            loading={loading}
-            disabled={loading}
+            loading={enableLoading}
+            disabled={enableLoading}
             style={{ marginTop: 16 }}
           >
             Enable PIN
@@ -252,8 +262,8 @@ export default function EncryptionPinScreen() {
             <Button
               mode="contained"
               onPress={handleChange}
-              loading={loading}
-              disabled={loading}
+              loading={changeLoading}
+              disabled={changeLoading}
               style={{ marginTop: 16 }}
             >
               Change PIN
@@ -281,8 +291,8 @@ export default function EncryptionPinScreen() {
             <Button
               mode="outlined"
               onPress={handleDisable}
-              loading={loading}
-              disabled={loading}
+              loading={disableLoading}
+              disabled={disableLoading}
               textColor={theme.colors.error}
               style={{ marginTop: 16, borderColor: theme.colors.error }}
             >

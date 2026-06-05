@@ -18,7 +18,7 @@ export default function PasswordAndSecurity() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 16 }}>
-        <Text style={{ fontWeight: "semibold" }}>Login & Recovery</Text>
+        <Text style={{ fontWeight: "600" }}>Login & Recovery</Text>
         <Text variant="bodySmall">
           Manage your passwords, login preferences and recovery methods
         </Text>
