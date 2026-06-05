@@ -58,7 +58,7 @@ export default function ManageProfile() {
   const [isProfilePicUploading, setIsProfilePicUploading] = useState(false);
   const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
-  const actionColor = theme.dark ? "#ffffff" : "#000000";
+  const actionColor = theme.colors.onSurface;
 
   useEffect(() => {
     uiLog.info("[ManageProfile] mounted");
