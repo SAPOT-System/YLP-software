@@ -46,16 +46,6 @@ export default function ManageProfile() {
     showError,
     hideToast,
   } = useToast();
-  const currentPhoneNumber = isGuest
-    ? ""
-    : (user as { phoneNumber?: string }).phoneNumber ?? "";
-  const currentEmail = isGuest ? "" : (user as { email?: string }).email ?? "";
-  const currentEmailVerified = isGuest
-    ? false
-    : Boolean((user as { emailVerified?: boolean }).emailVerified);
-  const currentPhoneNumberVerified = isGuest
-    ? false
-    : Boolean((user as { phoneNumberVerified?: boolean }).phoneNumberVerified);
   const {
     url: profilePicUrl,
     loading: isProfilePicLoading,
@@ -101,6 +91,17 @@ export default function ManageProfile() {
   );
 
   if (!user) return <LoadingSpinner />;
+
+  const currentPhoneNumber = isGuest
+    ? ""
+    : (user as { phoneNumber?: string }).phoneNumber ?? "";
+  const currentEmail = isGuest ? "" : (user as { email?: string }).email ?? "";
+  const currentEmailVerified = isGuest
+    ? false
+    : Boolean((user as { emailVerified?: boolean }).emailVerified);
+  const currentPhoneNumberVerified = isGuest
+    ? false
+    : Boolean((user as { phoneNumberVerified?: boolean }).phoneNumberVerified);
 
   const uploadProfilePhotoAsset = async (
     asset: ImagePicker.ImagePickerAsset
