@@ -26,6 +26,7 @@ export default function QrCodeScreen() {
     mode === "server" || Boolean(container.networkConfig.ipAddress);
 
   const qrValue = useMemo(() => {
+    if (!user) return "";
     const payload: QRPayload = {
       id: user.id,
       firstName: user.firstName ?? "",
@@ -38,6 +39,8 @@ export default function QrCodeScreen() {
     };
     return JSON.stringify(payload);
   }, [user, mode, container.networkConfig.ipAddress, container.networkConfig.port]);
+
+  if (!user) return <LoadingSpinner />;
 
   const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ");
 

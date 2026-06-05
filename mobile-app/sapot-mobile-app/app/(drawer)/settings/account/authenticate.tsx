@@ -11,9 +11,9 @@ export default function Authenticate() {
   const { registerAndMigrate, loading } = useAuth();
   const { user } = useUserProfile();
 
-  const [firstName, setFirstName] = useState(user.firstName ?? "");
-  const [lastName, setLastName] = useState(user.lastName ?? "");
-  const [username, setUsername] = useState(user.username ?? "");
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
+  const [username, setUsername] = useState(user?.username ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<RegisterFormStateErrors>({});

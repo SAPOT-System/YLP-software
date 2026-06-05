@@ -33,6 +33,8 @@ export default function Settings() {
     });
   }, [isAuthenticated, isGuest, themeChoice]);
 
+  if (!user) return null;
+
   const handleLogout = async () => {
     uiLog.debug("[Settings] handleLogout called", { isAuthenticated, isGuest });
     if (isGuest) {

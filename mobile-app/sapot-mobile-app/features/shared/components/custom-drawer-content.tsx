@@ -100,7 +100,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { url: profilePicUrl } = useProfilePhoto();
   const [showLogoutWarning, setShowLogoutWarning] = useState(false);
 
-  if (!auth) {
+  if (!auth || !user) {
     return <PageLoader />;
   }
 
@@ -155,7 +155,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
             ) : (
               <Avatar.Text
                 size={60}
-                label={(user.username[0] ?? "?").toUpperCase()}
+                label={(user.username?.[0]?.toUpperCase()) ?? "?"}
                 style={{ backgroundColor: theme.colors.primary }}
               />
             )}
