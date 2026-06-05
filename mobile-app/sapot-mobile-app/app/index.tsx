@@ -9,7 +9,7 @@ import { Button, Text, useTheme } from "react-native-paper";
 const Index = () => {
   const theme = useTheme();
   const isDark = useColorScheme() === "dark";
-  const { isAuthenticated, isGuest } = useAuth();
+  const { isAuthenticated, isGuest, loading } = useAuth();
 
   useEffect(() => {
     navLog.info("[Index] mounted");
@@ -24,6 +24,8 @@ const Index = () => {
       isGuest,
     });
   }, [isAuthenticated, isGuest]);
+
+  if (loading) return null;
 
   if (isAuthenticated || isGuest) {
     navLog.info("[Navigation] Navigating to Home", {
