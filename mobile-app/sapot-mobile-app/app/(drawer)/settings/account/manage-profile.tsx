@@ -35,6 +35,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ManageProfile() {
   const theme = useTheme();
@@ -53,6 +54,7 @@ export default function ManageProfile() {
     setUrl: setProfilePicUrl,
   } = useProfilePhoto();
   const { isServerOffline } = useServerAction();
+  const insets = useSafeAreaInsets();
   const [isProfilePicUploading, setIsProfilePicUploading] = useState(false);
   const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
@@ -210,14 +212,14 @@ export default function ManageProfile() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={120}
       >
         <KeyboardAwareScrollView
-          contentContainerStyle={{ padding: 16, gap: 28, paddingBottom: 32 }}
+          contentContainerStyle={{ padding: 16, gap: 28, paddingBottom: Math.max(32, insets.bottom + 16) }}
         >
           <View style={{ alignItems: "center", gap: 28 }}>
             {isProfilePicLoading && !isGuest ? (
@@ -240,8 +242,10 @@ export default function ManageProfile() {
                       setIsPhotoOptionsVisible(true);
                     }}
                     disabled={isProfilePicUploading}
+                    accessibilityRole="button"
+                    accessibilityLabel="Change profile photo"
                   >
-                    <Text style={{ color: "#3A7AFE" }}>Change Photo</Text>
+                    <Text style={{ color: theme.colors.primary }}>Change Photo</Text>
                   </Pressable>
                 )}
               </View>
@@ -289,7 +293,7 @@ export default function ManageProfile() {
                           <Text
                             style={{
                               fontSize: 12,
-                              color: currentPhoneNumberVerified ? "#15803D" : "#854D0E",
+                              color: currentPhoneNumberVerified ? theme.colors.primary : theme.colors.error,
                             }}
                           >
                             {currentPhoneNumberVerified ? "✓ Verified" : "Not verified"}
@@ -303,12 +307,20 @@ export default function ManageProfile() {
                                 params: { phone: currentPhoneNumber },
                               })
                             }
+                            accessibilityRole="button"
+                            accessibilityLabel="Verify phone number"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Text style={{ color: "#3A7AFE", fontSize: 12 }}>Verify</Text>
+                            <Text style={{ color: theme.colors.primary, fontSize: 12 }}>Verify</Text>
                           </Pressable>
                         )}
-                        <Pressable onPress={() => router.push(SETTINGS_ROUTES.EDIT_PHONE)}>
-                          <Text style={{ color: "#3A7AFE", fontSize: 12 }}>
+                        <Pressable
+                          onPress={() => router.push(SETTINGS_ROUTES.EDIT_PHONE)}
+                          accessibilityRole="button"
+                          accessibilityLabel={currentPhoneNumber.length > 0 ? "Change phone number" : "Add phone number"}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={{ color: theme.colors.primary, fontSize: 12 }}>
                             {currentPhoneNumber.length > 0 ? "Change" : "Add"}
                           </Text>
                         </Pressable>
@@ -332,7 +344,7 @@ export default function ManageProfile() {
                           <Text
                             style={{
                               fontSize: 12,
-                              color: currentEmailVerified ? "#15803D" : "#854D0E",
+                              color: currentEmailVerified ? theme.colors.primary : theme.colors.error,
                             }}
                           >
                             {currentEmailVerified ? "✓ Verified" : "Not verified"}
@@ -346,12 +358,20 @@ export default function ManageProfile() {
                                 params: { email: currentEmail },
                               })
                             }
+                            accessibilityRole="button"
+                            accessibilityLabel="Verify email address"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Text style={{ color: "#3A7AFE", fontSize: 12 }}>Verify</Text>
+                            <Text style={{ color: theme.colors.primary, fontSize: 12 }}>Verify</Text>
                           </Pressable>
                         )}
-                        <Pressable onPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}>
-                          <Text style={{ color: "#3A7AFE", fontSize: 12 }}>
+                        <Pressable
+                          onPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}
+                          accessibilityRole="button"
+                          accessibilityLabel={currentEmail.length > 0 ? "Change email address" : "Add email address"}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={{ color: theme.colors.primary, fontSize: 12 }}>
                             {currentEmail.length > 0 ? "Change" : "Add"}
                           </Text>
                         </Pressable>
@@ -411,7 +431,7 @@ export default function ManageProfile() {
                 paddingVertical: 14,
                 borderTopWidth: 1,
                 borderBottomWidth: 1,
-                borderColor: "#D9D9D9",
+                borderColor: theme.colors.outlineVariant,
               }}
               labelStyle={{ fontSize: 17 }}
             >
@@ -458,6 +478,9 @@ export default function ManageProfile() {
                 alignSelf: "stretch",
               }}
               onPress={() => setIsPhotoViewerVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close photo viewer"
+              accessibilityHint="Tap to dismiss"
             >
               {profilePicUrl && (
                 <Image
