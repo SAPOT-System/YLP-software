@@ -86,8 +86,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     setTokenRefreshCallback((token) => setAccessToken(token));
-    setAuthFailureCallback(() => setNeedsReloginForServer(true));
-  }, []);
+    // All deps of logout (state setters, service refs) are stable — safe to capture at mount.
+    setAuthFailureCallback(() => { logout().catch(() => {}); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshSession = useCallback(async () => {
     try {
@@ -111,6 +112,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return true;
     } catch (err) {
       authLog.warn("auth › refresh session failed", { error: err });
+
+      const isServerRejection =
+        (err as { response?: { status: number } })?.response?.status === 401;
+
+      if (isServerRejection) {
+        authLog.warn("auth › server rejected refresh token, logging out");
+        await deleteItemAsync("access_token");
+        await deleteItemAsync("refresh_token");
+        await deleteItemAsync("userUUID");
+        await userService.logout();
+        await clearConnectionConfig();
+        setAccessToken(null);
+        setIsAuthenticated(false);
+        setIsRescuer(false);
+        setIsAdmin(false);
+        return false;
+      }
+
+      // Network error: restore from local data for offline use
       const uuid = await getItemAsync("userUUID");
       if (uuid) {
         const userInfo = await peerService.findPeerById(uuid);

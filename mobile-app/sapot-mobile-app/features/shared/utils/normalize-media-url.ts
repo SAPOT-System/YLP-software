@@ -1,3 +1,4 @@
+import { toAppError } from "@/features/shared/errors";
 import { getApiUrl } from "@/config/runtime";
 import { utilLog } from "./logger";
 utilLog.debug("[normalize-media-url] module loaded");
@@ -20,7 +21,8 @@ export const normalizeMediaUrl = (url?: string | null) => {
 
     return parsedUrl.toString();
   } catch (error) {
-    utilLog.warn("[normalizeMediaUrl] failed", { error });
+    const appErr = toAppError(error, "unknown");
+    utilLog.warn("[normalizeMediaUrl] failed", appErr);
     return url ?? null;
   }
 };

@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "../shared/errors";
 import { database } from "../shared/database/database";
 import { GuestUserRepository } from "../shared/repositories/guest-user-repository";
 import { PeerRepository } from "../shared/repositories/peer-repository";
@@ -52,8 +53,10 @@ export class AuthContainer {
 
       return this.initPromise;
     } catch (error) {
-      authLog.error("auth › container init failed", { error });
-      throw error;
+      const appErr = toAppError(error, "auth");
+      captureAppError(appErr);
+      authLog.error("auth › container init failed", appErr);
+      throw appErr;
     }
   }
 }

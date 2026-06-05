@@ -1,3 +1,4 @@
+import { toAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import React, { createContext, useEffect, useState } from "react";
 import { ActivityIndicator } from "react-native-paper";
@@ -24,7 +25,8 @@ export function AuthContainerProvider({
         await c.initialize();
         setContainer(c);
       } catch (error) {
-        authLog.error("[AuthContainerProvider] Error in initialize", { error });
+        const appErr = toAppError(error, "auth");
+        authLog.error("[AuthContainerProvider] Error in initialize", appErr);
       }
     };
     init();

@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import NetInfo from "@react-native-community/netinfo";
 import { NetworkInfo } from "react-native-network-info";
 import { networkLog } from "../utils/logger";
@@ -56,8 +57,10 @@ export class NetworkConfig {
         hasIp: Boolean(this.ipAddress),
       });
     } catch (error) {
-      networkLog.error("network › init failed", { error });
-      throw error;
+      const appErr = toAppError(error, "unknown");
+      captureAppError(appErr);
+      networkLog.error("network › init failed", appErr);
+      throw appErr;
     }
   }
 
@@ -88,7 +91,8 @@ export class NetworkConfig {
             try {
               this.onIpChange?.(newIp);
             } catch (error) {
-              networkLog.error("network › ip change callback failed", { error });
+              const appErr = toAppError(error, "unknown");
+              networkLog.error("network › ip change callback failed", appErr);
             }
           }, IP_CHANGE_DEBOUNCE_MS);
         }
@@ -118,8 +122,10 @@ export class NetworkConfig {
     try {
       return Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152;
     } catch (error) {
-      networkLog.error("network › port generation failed", { error });
-      throw error;
+      const appErr = toAppError(error, "unknown");
+      captureAppError(appErr);
+      networkLog.error("network › port generation failed", appErr);
+      throw appErr;
     }
   }
 }

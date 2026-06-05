@@ -1,3 +1,4 @@
+import { toAppError } from "@/features/shared/errors";
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { authLog } from "@/features/shared/utils/logger";
 import { useRouter } from "expo-router";
@@ -25,8 +26,9 @@ export const GuestLogoutWarningModal = ({
     setIsLoading(true);
     try {
       await onLogout();
-    } catch (err) {
-      authLog.error("[GuestLogoutWarningModal] logout failed", { error: err });
+    } catch (error) {
+      const appErr = toAppError(error, "auth");
+      authLog.error("[GuestLogoutWarningModal] logout failed", appErr);
     } finally {
       setIsLoading(false);
     }

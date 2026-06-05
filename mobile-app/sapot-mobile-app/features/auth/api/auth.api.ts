@@ -1,3 +1,4 @@
+import { toAppError } from "@/features/shared/errors";
 import { apiClient } from "@/features/shared";
 import { apiLog } from "@/features/shared/utils/logger";
 import { AxiosResponse } from "axios";
@@ -159,7 +160,9 @@ export const canResetPasswordApi = async (
     );
     apiLog.info("[AuthApi] Response received", { status: res.status });
     return { valid: res.status === 200, userId: res.data.user_id ?? null };
-  } catch {
+  } catch (error) {
+    const appErr = toAppError(error, "auth");
+    apiLog.warn("[AuthApi] canResetPassword check failed", appErr);
     return { valid: false, userId: null };
   }
 };
@@ -302,7 +305,8 @@ export const checkGsmHealth = async (): Promise<boolean> => {
     apiLog.info("[AuthApi] GSM health response", { status: res.status });
     return res.status === 200;
   } catch (error) {
-    apiLog.warn("[AuthApi] GSM health check failed", { error });
+    const appErr = toAppError(error, "auth");
+    apiLog.warn("[AuthApi] GSM health check failed", appErr);
     return false;
   }
 };
