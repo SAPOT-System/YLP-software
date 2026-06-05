@@ -4,6 +4,7 @@ import {
   MessageRepository,
   MessageStatusRepository,
 } from "@/features/chat";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { database } from "../database";
 import { GuestUserRepository, PeerRepository } from "../repositories";
 import { cleanUpLog } from "../utils/logger";
@@ -68,8 +69,10 @@ export class CleanUpService {
       this.connectionService.stop();
       cleanUpLog.info("cleanup › complete");
     } catch (error) {
-      cleanUpLog.error("cleanup › failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      cleanUpLog.error("cleanup › failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -82,8 +85,10 @@ export class CleanUpService {
       await this.wipeAllTables();
       cleanUpLog.info("cleanup › wipeDataOnly complete");
     } catch (error) {
-      cleanUpLog.error("cleanup › wipeDataOnly failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      cleanUpLog.error("cleanup › wipeDataOnly failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 }

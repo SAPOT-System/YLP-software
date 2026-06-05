@@ -1,3 +1,4 @@
+import { toAppError } from "@/features/shared/errors";
 import { WsSignalingAdapter } from "@/features/shared/adapters/ws-signaling-adapter";
 import { UserStore } from "@/features/shared";
 import { AppModeStore } from "@/features/shared/stores";
@@ -138,8 +139,9 @@ export class PublicChatService {
         count: mapped.length,
         hasMore: this.hasMoreHistory,
       });
-    } catch (err) {
-      chatLog.warn("public-chat › history load failed", { error: err });
+    } catch (error) {
+      const appErr = toAppError(error, "network");
+      chatLog.warn("public-chat › history load failed", appErr);
     } finally {
       this.isLoadingHistory = false;
       this.notify();
@@ -169,8 +171,9 @@ export class PublicChatService {
       });
       this.messages.push(msg);
       this.notify();
-    } catch {
-      chatLog.warn("public-chat › message parse failed");
+    } catch (error) {
+      const appErr = toAppError(error, "network");
+      chatLog.warn("public-chat › message parse failed", appErr);
     }
   }
 

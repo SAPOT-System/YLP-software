@@ -1,6 +1,7 @@
 import { MessageRepository } from "@/features/chat/repositories";
 import { GuestUserRepository } from "@/features/shared/repositories";
 import { setMigrationState } from "@/features/shared/stores/secure-config";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 
 authLog.debug("[guest-migration-service] module loaded");
@@ -89,8 +90,10 @@ export class GuestMigrationService {
 
       authLog.info("guest-migration › migrate complete");
     } catch (error) {
-      authLog.error("guest-migration › migrate failed", { error });
-      throw error;
+      const appErr = toAppError(error, "auth");
+      authLog.error("guest-migration › migrate failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

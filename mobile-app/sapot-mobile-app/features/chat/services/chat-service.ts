@@ -27,6 +27,7 @@ import {
   MessageStatusRepository,
 } from "../repositories";
 import { DataChatMessageI } from "../types";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { MessageReceiptManager } from "./message-receipt-manager";
 
 chatLog.debug("[chat-service] module loaded");
@@ -180,7 +181,8 @@ export class ChatService {
         conversationId,
       });
     } catch (error) {
-      chatLog.warn("chat › rederiveKeyForPeer failed", { peerId, error });
+      const appErr = toAppError(error, "database");
+      chatLog.warn("chat › rederiveKeyForPeer failed", { peerId, ...appErr });
     }
   }
 
@@ -211,7 +213,8 @@ export class ChatService {
         }
       }
     } catch (error) {
-      chatLog.warn("chat › preload conversation keys failed", { error });
+      const appErr = toAppError(error, "database");
+      chatLog.warn("chat › preload conversation keys failed", appErr);
     }
   }
 
@@ -295,8 +298,10 @@ export class ChatService {
       }
       chatLog.info("chat › connect complete", { peerId: id });
     } catch (error) {
-      chatLog.warn("chat › connect failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      chatLog.warn("chat › connect failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -312,8 +317,10 @@ export class ChatService {
       this.conversation = undefined;
       this.peer = undefined;
     } catch (error) {
-      chatLog.error("chat › disconnect failed", { error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      chatLog.error("chat › disconnect failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -385,13 +392,15 @@ export class ChatService {
         sender.id
       );
     } catch (error) {
+      const appErr = toAppError(error, "network");
       chatLog.error("chat › incoming message failed", {
         conversationId: data.conversationId,
         messageId: data.messageId,
         senderId: data.from,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -420,7 +429,8 @@ export class ChatService {
         trigger: { channelId: "chat-messages" },
       });
     } catch (error) {
-      chatLog.error("chat › show notification failed", { error });
+      const appErr = toAppError(error, "network");
+      chatLog.error("chat › show notification failed", appErr);
     }
   }
 
@@ -542,8 +552,10 @@ export class ChatService {
         updatedCount: messageIds.length,
       });
     } catch (error) {
-      chatLog.error("chat › seen handling failed", { conversationId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › seen handling failed", { conversationId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -574,7 +586,8 @@ export class ChatService {
         messageIds
       );
     } catch (error) {
-      chatLog.warn("chat › mark as read failed", { conversationId, error });
+      const appErr = toAppError(error, "database");
+      chatLog.warn("chat › mark as read failed", { conversationId, ...appErr });
     }
   }
 
@@ -597,8 +610,10 @@ export class ChatService {
       );
       chatLog.debug("chat › status set to SENT via server ack", { messageId });
     } catch (error) {
-      chatLog.error("chat › server ack handling failed", { messageId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › server ack handling failed", { messageId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -618,8 +633,10 @@ export class ChatService {
       );
       if (!this.userStore.isGuest) void this.syncService.syncNow();
     } catch (error) {
-      chatLog.error("chat › ack handling failed", { messageId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › ack handling failed", { messageId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -688,10 +705,11 @@ export class ChatService {
         messageId: newMessage.id,
       };
     } catch (error) {
+      const appErr = toAppError(error, "network");
       chatLog.error("chat › send failed", {
         peerId: this.peer?.id,
         conversationId: this.conversation?.id,
-        error: error instanceof Error ? error.message : error,
+        ...appErr,
       });
       // Message was persisted before the send attempt failed — mark NOT_SENT
       // so the existing retry path picks it up when the peer reconnects.
@@ -707,7 +725,8 @@ export class ChatService {
           messageId: newMessage.id,
         };
       }
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -843,10 +862,11 @@ export class ChatService {
         smsMessageId: preparedSmsMessage.id,
       };
     } catch (error) {
+      const appErr = toAppError(error, "network");
       chatLog.error("chat › send+sms failed", {
         peerId: this.peer?.id,
         conversationId: this.conversation?.id,
-        error,
+        ...appErr,
       });
       if (preparedP2pMessage && preparedP2pStatus) {
         await this.messageStatusRepository
@@ -861,7 +881,8 @@ export class ChatService {
           smsMessageId: "",
         };
       }
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -952,11 +973,12 @@ export class ChatService {
         );
       }
     } catch (error) {
+      const appErr = toAppError(error, "network");
       chatLog.warn("chat › send failed", {
         messageId: newMessage.id,
         conversationId: this.conversation?.id,
         peerId: this.peer?.id,
-        error,
+        ...appErr,
       });
       await this.messageStatusRepository.updateMessageStatusById(
         newMessageStatus.id,
@@ -997,12 +1019,14 @@ export class ChatService {
 
       return { newMessage: preparedMessage, newMessageStatus: preparedStatus };
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › create message failed", {
         conversationId: conversation.id,
         senderId: sender.id,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1045,12 +1069,14 @@ export class ChatService {
         return conversation;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › create room failed", {
         peerId: peer.id,
         conversationId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1072,8 +1098,10 @@ export class ChatService {
         );
       return participants[0].user.id;
     } catch (error) {
-      chatLog.error("chat › peer id by chat failed", { chatId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › peer id by chat failed", { chatId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1097,8 +1125,10 @@ export class ChatService {
         await this.conversationRepository.isConversationExist(smsId);
       return smsExists ? smsId : undefined;
     } catch (error) {
-      chatLog.error("chat › chat by peer failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › chat by peer failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1156,11 +1186,13 @@ export class ChatService {
         return conversation;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › direct conversation resolve/create failed", {
         peerId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1198,11 +1230,13 @@ export class ChatService {
         return conversation;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › sms conversation resolve/create failed", {
         peerId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1290,13 +1324,15 @@ export class ChatService {
       });
       return newMessage.id;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › call log save failed", {
         peerId,
         contentLength: content.length,
         status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1324,12 +1360,14 @@ export class ChatService {
         smsMessageId,
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › linkMessages failed", {
         p2pMessageId,
         smsMessageId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1351,8 +1389,10 @@ export class ChatService {
     try {
       return await this.conversationRepository.queryAllConversation();
     } catch (error) {
-      chatLog.error("chat › list conversations failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › list conversations failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1378,11 +1418,13 @@ export class ChatService {
         conversationId
       );
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › messages by conversation failed", {
         conversationId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1397,8 +1439,10 @@ export class ChatService {
         messageId
       );
     } catch (error) {
-      chatLog.error("chat › message status failed", { messageId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › message status failed", { messageId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1414,8 +1458,10 @@ export class ChatService {
         count: participants.length,
       });
     } catch (error) {
-      chatLog.error("chat › participants list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › participants list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1428,8 +1474,10 @@ export class ChatService {
       const statuses = await this.messageStatusRepository.queryAllStatuses();
       chatLog.debug("chat › statuses listed", { count: statuses.length });
     } catch (error) {
-      chatLog.error("chat › statuses list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › statuses list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1473,8 +1521,10 @@ export class ChatService {
 
       return messages.filter((m) => unsentStatusesIds.includes(m.id));
     } catch (error) {
-      chatLog.error("chat › unsent messages failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › unsent messages failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -1559,13 +1609,15 @@ export class ChatService {
         this.ackTimeouts.set(message.id, timeout);
       }
     } catch (error) {
+      const appErr = toAppError(error, "network");
       chatLog.error("chat › resend failed", {
         peerId,
         messageId: message.id,
         conversationId: message.conversation.id,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

@@ -1,4 +1,5 @@
 import { getWsUrl } from "@/config/runtime";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { signalingLog } from "@/features/shared/utils/logger";
 import { TcpClientAdapter, WsSignalingAdapter } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
@@ -98,7 +99,8 @@ export class SignalingService {
 
       return true;
     } catch (error) {
-      signalingLog.warn("signaling › ws init failed", { error });
+      const appErr = toAppError(error, "signaling");
+      signalingLog.warn("signaling › ws init failed", appErr);
       return false;
     }
   }
@@ -231,12 +233,14 @@ export class SignalingService {
           break;
       }
     } catch (error) {
+      const appErr = toAppError(error, "signaling");
       signalingLog.warn("signaling › message handling failed", {
         messageType: message.type,
         sender: message.data.sender,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -249,8 +253,9 @@ export class SignalingService {
         if (token && this.apiBaseUrl) {
           await this.peerKeyService.refreshCredential(this.apiBaseUrl, token);
         }
-      } catch (e) {
-        signalingLog.warn("signaling › credential refresh failed, using stale credential", { error: e });
+      } catch (error) {
+        const appErr = toAppError(error, "signaling");
+        signalingLog.warn("signaling › credential refresh failed, using stale credential", appErr);
       }
     }
     const credential = this.peerKeyService.getCredential();
@@ -299,12 +304,14 @@ export class SignalingService {
       }
       this.sendTcpMessage(peerId, message);
     } catch (error) {
+      const appErr = toAppError(error, "signaling");
       signalingLog.error("signaling › send failed", {
         peerId,
         messageType: message.type,
-        error: error instanceof Error ? error.message : error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -326,11 +333,13 @@ export class SignalingService {
       });
       this.wsSignalingAdapter.sendMessage(payload);
     } catch (error) {
+      const appErr = toAppError(error, "signaling");
       signalingLog.error("signaling › ws chat relay failed", {
         peerId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -352,8 +361,10 @@ export class SignalingService {
       });
       this.wsSignalingAdapter.sendMessage(payload);
     } catch (error) {
-      signalingLog.error("signaling › ws ack relay failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "signaling");
+      signalingLog.error("signaling › ws ack relay failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -396,12 +407,14 @@ export class SignalingService {
       this.sendTcpMessage(peerId, message);
       return "tcp";
     } catch (error) {
+      const appErr = toAppError(error, "signaling");
       signalingLog.error("signaling › call send failed", {
         peerId,
         messageType: message.type,
-        error: error instanceof Error ? error.message : error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

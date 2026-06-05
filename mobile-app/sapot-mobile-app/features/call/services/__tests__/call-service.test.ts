@@ -434,10 +434,10 @@ describe("CallService", () => {
         // Expected to throw
       }
 
-      expect(logSpy).toHaveBeenCalledWith("call › starting call failed", {
-        peerId,
-        error,
-      });
+      expect(logSpy).toHaveBeenCalledWith(
+        "call › starting call failed",
+        expect.objectContaining({ peerId, cause: error })
+      );
     });
 
     it("should maintain proper error context for all methods", () => {
@@ -454,10 +454,10 @@ describe("CallService", () => {
 
       expect(() => callService.toggleMic(peerId)).toThrow("Mic error");
 
-      expect(logSpy).toHaveBeenCalledWith("call › mic toggle failed", {
-        peerId,
-        error: micError,
-      });
+      expect(logSpy).toHaveBeenCalledWith(
+        "call › mic toggle failed",
+        expect.objectContaining({ peerId, cause: micError })
+      );
     });
   });
 

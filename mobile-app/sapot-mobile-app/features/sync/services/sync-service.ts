@@ -2,6 +2,7 @@ import { Database, Q } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 import { isAxiosError } from "axios";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 
 import { CallStatus } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
@@ -358,14 +359,15 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       this.retryAttempts = 0;
       this.clearRetryTimer();
     } catch (error) {
-      syncLog.error("sync › failed", { error });
+      const appErr = toAppError(error, "sync");
+      syncLog.error("sync › failed", appErr);
 
       if (isAxiosError(error) && error.response?.status === 409) {
         // Conflict: server state moved past our cursor. Reset to 0 so the next
         // sync cycle does a full re-pull from the server.
         syncLog.warn("sync › 409 conflict, resetting lastPulledAt");
         await saveSyncLastPulledAt(0);
-        this.emit("sync-status", { status: "failed", error });
+        this.emit("sync-status", { status: "failed", error: appErr });
 
         // Schedule immediate retry to minimize data gap
         this.scheduleRetry();
@@ -377,12 +379,12 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         // Reset lastPulledAt so next sync does a full re-pull to get current server state.
         syncLog.warn("sync › 404 on push (record deleted on server), resetting lastPulledAt");
         await saveSyncLastPulledAt(0);
-        this.emit("sync-status", { status: "failed", error });
+        this.emit("sync-status", { status: "failed", error: appErr });
         // No scheduleRetry — fresh pull state is needed before pushing again
         return;
       }
 
-      this.emit("sync-status", { status: "failed", error });
+      this.emit("sync-status", { status: "failed", error: appErr });
       this.scheduleRetry();
     } finally {
       this.isSyncing = false;
@@ -570,8 +572,9 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
             }
           }
         }
-      } catch (err) {
-        syncLog.warn("sync › self conversation detection failed", { err });
+      } catch (error) {
+        const appErr = toAppError(error, "sync");
+        syncLog.warn("sync › self conversation detection failed", appErr);
       }
     }
 
@@ -1062,7 +1065,8 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         .fetch();
       return new Set(records.map((r) => r.id as string));
     } catch (error) {
-      syncLog.warn("sync › existence check failed", { entity, error });
+      const appErr = toAppError(error, "sync");
+      syncLog.warn("sync › existence check failed", { entity, ...appErr });
       return new Set();
     }
   }
@@ -1090,8 +1094,9 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         .query(Q.where("id", Q.oneOf(allIds)))
         .fetch();
       existingPeerIds = new Set(existing.map((r) => r.id as string));
-    } catch (err) {
-      syncLog.warn("sync › peer hydration, existence check failed — skipping", { err });
+    } catch (error) {
+      const appErr = toAppError(error, "sync");
+      syncLog.warn("sync › peer hydration, existence check failed — skipping", appErr);
       return;
     }
 
@@ -1117,9 +1122,10 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       if (result.status === "fulfilled") {
         hydrated++;
       } else {
+        const hydrationErr = toAppError(result.reason, "sync");
         syncLog.warn("sync › peer hydration, fetch failed — creating fallback peer", {
           peerId: missingIds[i],
-          error: result.reason,
+          ...hydrationErr,
         });
         if (this.peerRepository) {
           try {
@@ -1131,9 +1137,10 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
             });
             fallbacks++;
           } catch (saveErr) {
+            const saveAppErr = toAppError(saveErr, "sync");
             syncLog.warn("sync › peer hydration, fallback peer creation failed", {
               peerId: missingIds[i],
-              error: saveErr,
+              ...saveAppErr,
             });
           }
         }

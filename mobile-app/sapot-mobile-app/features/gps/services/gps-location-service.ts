@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { toAppError } from "@/features/shared/errors";
 import { gpsLog } from "@/features/shared/utils/logger";
 import { haversineMeters } from "../utils/haversine";
 
@@ -51,7 +52,8 @@ export class GpsLocationService {
       gpsLog.info("gps › location watch started");
       this.startHeartbeat();
     } catch (error) {
-      gpsLog.error("gps › watchPositionAsync failed", { error });
+      const appErr = toAppError(error, "gps");
+      gpsLog.error("gps › watchPositionAsync failed", appErr);
       this.stop();
     }
   }

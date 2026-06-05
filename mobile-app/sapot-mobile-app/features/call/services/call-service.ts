@@ -6,6 +6,7 @@ import { Peer } from "@/features/shared/database/model/Peer";
 import { ConnectionService } from "@/features/shared/services/connection-service";
 import { PeerService } from "@/features/shared/services/peer-service";
 import { UserStore } from "@/features/shared/stores/user-store";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { callLog } from "@/features/shared/utils/logger";
 import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
 import { DeviceEventEmitter } from "react-native";
@@ -223,7 +224,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       this.connectedState = "connected";
     } catch (error) {
-      callLog.error("call › starting call failed", { peerId, error });
+      const appErr = toAppError(error, "media");
+      callLog.error("call › starting call failed", { peerId, ...appErr });
       if (this.connectedState !== "connected") {
         try {
           await this.terminateCallConnection(peerId, "missed");
@@ -231,7 +233,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
           // best-effort cleanup
         }
       }
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -292,8 +295,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       this.connectedState = "connected";
     } catch (error) {
-      callLog.error("call › answering call failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › answering call failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -318,8 +323,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       }
       callLog.info("call › connect complete", { peerId: id });
     } catch (error) {
-      callLog.warn("call › connect failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.warn("call › connect failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -673,8 +680,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         this.callReadyHandler = null;
       }
     } catch (error) {
-      callLog.error("call › terminate failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › terminate failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -702,9 +711,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
             });
             void this.syncService.syncNow();
           } catch (logError) {
+            const logAppErr = toAppError(logError, "media");
             callLog.warn("call › retroactive call log failed", {
               peerId,
-              logError,
+              ...logAppErr,
             });
           }
         }
@@ -738,13 +748,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       void this.syncService.syncNow();
       this.chatService.acknowledgeIncomingMessage(peerId, payload.messageId!);
     } catch (error) {
-      callLog.error("call › remote finalize failed", {
-        peerId,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        error,
-      });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › remote finalize failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     } finally {
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
@@ -759,8 +766,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       this.connectionService.toggleMic(peerId);
     } catch (error) {
-      callLog.error("call › mic toggle failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › mic toggle failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -772,8 +781,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       return await this.connectionService.toggleCamera(peerId);
     } catch (error) {
-      callLog.error("call › camera toggle failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › camera toggle failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -788,9 +799,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         enabled: camEnabled,
       });
     } catch (error) {
+      const appErr = toAppError(error, "media");
       callLog.warn("call › media state sync failed (non-fatal)", {
         peerId,
-        error,
+        ...appErr,
       });
     }
   }
@@ -814,8 +826,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       return this.connectionService.getLocalStream(peerId);
     } catch (error) {
-      callLog.error("call › get local stream failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › get local stream failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -849,9 +863,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         callId: session.callId,
       });
     } catch (error) {
+      const appErr = toAppError(error, "media");
       callLog.error("call › peer participant save failed on call-ready", {
         peerId,
-        error,
+        ...appErr,
       });
     }
   }

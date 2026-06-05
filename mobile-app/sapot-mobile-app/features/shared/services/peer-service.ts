@@ -1,5 +1,6 @@
 import { Service } from "react-native-zeroconf";
 import { getUserById } from "../api/search.api";
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { PeerRepository } from "../repositories";
 import { DiscoveredService } from "../types";
 import { peerLog } from "../utils/logger";
@@ -149,12 +150,14 @@ export class PeerService {
 
       return { addressChanged };
     } catch (error) {
+      const appErr = toAppError(error, "network");
       peerLog.error("peer › register failed", {
         peerId: peerService.txt?.id,
         serviceName: peerService.name,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -167,8 +170,10 @@ export class PeerService {
     try {
       await this.peerRepository.markPeerOnline(id);
     } catch (error) {
-      peerLog.error("peer › mark online failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      peerLog.error("peer › mark online failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -192,11 +197,13 @@ export class PeerService {
 
       await this.peerRepository.markPeerOffline(removedService.id);
     } catch (error) {
+      const appErr = toAppError(error, "network");
       peerLog.error("peer › mark offline failed", {
         serviceName,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -209,8 +216,10 @@ export class PeerService {
       const peers = await this.peerRepository.queryAllPeers();
       return peers;
     } catch (error) {
-      peerLog.error("peer › list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      peerLog.error("peer › list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -224,8 +233,10 @@ export class PeerService {
       const peer = await this.peerRepository.queryPeerById(id);
       return peer;
     } catch (error) {
-      peerLog.error("peer › find failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      peerLog.error("peer › find failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -251,6 +262,7 @@ export class PeerService {
     try {
       await this.peerRepository.updatePeerInfoById(id, peerInfo);
     } catch (error) {
+      const appErr = toAppError(error, "network");
       peerLog.error("peer › update failed", {
         peerId: id,
         hasEmail: peerInfo.email !== undefined,
@@ -258,9 +270,10 @@ export class PeerService {
         hasLastName: peerInfo.lastName !== undefined,
         emailVerified: peerInfo.emailVerified,
         phoneNumberVerified: peerInfo.phoneNumberVerified,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -277,8 +290,10 @@ export class PeerService {
       const peer = this.discoveredPeerServices.find((peer) => peer.id === id);
       return peer;
     } catch (error) {
-      peerLog.error("peer › discover find failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      peerLog.error("peer › discover find failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -314,8 +329,10 @@ export class PeerService {
         role,
       });
     } catch (error) {
-      peerLog.error("peer › create failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      peerLog.error("peer › create failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -331,8 +348,10 @@ export class PeerService {
     try {
       return await this.peerRepository.createOrUpdatePeer(peerInfo);
     } catch (error) {
-      peerLog.error("peer › upsert failed", { peerId: peerInfo.id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      peerLog.error("peer › upsert failed", { peerId: peerInfo.id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -367,8 +386,10 @@ export class PeerService {
       }
       return created;
     } catch (error) {
-      peerLog.error("peer › get or create failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      peerLog.error("peer › get or create failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -386,7 +407,8 @@ export class PeerService {
         await this.peerRepository.setPeerLastSeen(peerId, lastActiveMs);
       }
     } catch (error) {
-      peerLog.warn("peer › refresh last seen failed", { peerId, error });
+      const appErr = toAppError(error, "network");
+      peerLog.warn("peer › refresh last seen failed", { peerId, ...appErr });
     }
   }
 
