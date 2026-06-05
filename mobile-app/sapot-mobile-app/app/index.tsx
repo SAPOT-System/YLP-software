@@ -9,7 +9,7 @@ import { Button, Text, useTheme } from "react-native-paper";
 const Index = () => {
   const theme = useTheme();
   const isDark = useColorScheme() === "dark";
-  const { isAuthenticated, isGuest, loading } = useAuth();
+  const { isAuthenticated, isGuest, isBootstrapping } = useAuth();
 
   useEffect(() => {
     navLog.info("[Index] mounted");
@@ -25,9 +25,9 @@ const Index = () => {
     });
   }, [isAuthenticated, isGuest]);
 
-  // RootLayoutGate holds the splash until authLoading is false, so loading is
-  // always false by the time this screen renders. Belt-and-suspenders for slow devices.
-  if (loading) return null;
+  // RootLayoutGate holds the splash until isBootstrapping is false, so this
+  // guard should never trigger — belt-and-suspenders for slow devices.
+  if (isBootstrapping) return null;
 
   if (isAuthenticated || isGuest) {
     navLog.info("[Navigation] Navigating to Home", {

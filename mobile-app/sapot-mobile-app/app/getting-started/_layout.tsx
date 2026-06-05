@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Layout() {
-  const { isAuthenticated, isGuest, loading } = useAuth();
+  const { isAuthenticated, isGuest, isBootstrapping } = useAuth();
 
   useEffect(() => {
     navLog.info("[GettingStartedLayout] mounted");
@@ -24,7 +24,7 @@ export default function Layout() {
     });
   }, [isAuthenticated, isGuest]);
 
-  if (loading) return null;
+  if (isBootstrapping) return null;
 
   if (isAuthenticated || isGuest) {
     navLog.info("[Navigation] Navigating to Home", {

@@ -121,7 +121,7 @@ interface RootLayoutGateProps {
 }
 
 function RootLayoutGate({ loaded, showSplash, setShowSplash }: RootLayoutGateProps) {
-  const { loading: authLoading } = useAuth();
+  const { isBootstrapping: authLoading } = useAuth();
   const sentryInitialized = useRef(false);
 
   useEffect(() => {

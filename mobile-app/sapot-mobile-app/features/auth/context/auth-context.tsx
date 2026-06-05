@@ -49,6 +49,7 @@ interface AuthContextI {
   logout: () => Promise<void>;
   logoutAsGuest: () => Promise<void>;
   loading: boolean;
+  isBootstrapping: boolean;
   errors: LoginFormErrors;
   isAuthenticated: boolean;
   accessToken: string | null;
@@ -76,6 +77,7 @@ interface GuestLoginFormErrors {
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [errors, setErrors] = useState<LoginFormErrors>({});
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -233,6 +235,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         authLog.error("auth › bootstrap failed", { error: err });
       } finally {
         setLoading(false);
+        setIsBootstrapping(false);
       }
     })();
   }, [refreshSession, userService]);
@@ -460,6 +463,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         login,
         logout,
         loading,
+        isBootstrapping,
         errors,
         accessToken,
         isAuthenticated,
