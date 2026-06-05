@@ -144,7 +144,7 @@ export default function ManageProfile() {
       if (!permission.granted) {
         if (!permission.canAskAgain) {
           showError("Photo library access denied. Enable it in Settings.");
-          Linking.openSettings();
+          void Linking.openSettings().catch(() => {});
         } else {
           showError("Photo library permission is required to upload a photo.");
         }
@@ -184,7 +184,7 @@ export default function ManageProfile() {
       if (!permission.granted) {
         if (!permission.canAskAgain) {
           showError("Camera access denied. Enable it in Settings.");
-          Linking.openSettings();
+          void Linking.openSettings().catch(() => {});
         } else {
           showError("Camera permission is required to take a photo.");
         }
