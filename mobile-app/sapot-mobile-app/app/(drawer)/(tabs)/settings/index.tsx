@@ -73,7 +73,7 @@ export default function Settings() {
           ) : (
             <Avatar.Text
               size={60}
-              label={(user.username[0] ?? "?").toUpperCase()}
+              label={(user.username?.[0]?.toUpperCase()) ?? "?"}
               style={{ backgroundColor: theme.colors.primary }}
             />
           )}
