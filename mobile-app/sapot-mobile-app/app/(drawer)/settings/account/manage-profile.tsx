@@ -76,10 +76,12 @@ export default function ManageProfile() {
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       uiLog.debug("[ManageProfile] useFocusEffect triggered");
       (async () => {
         try {
           const fresh = await getUserApi();
+          if (!active) return;
           await userService.updateAuthenticatedUser({
             email: fresh.email || undefined,
             phoneNumber: fresh.phone_number || undefined,
@@ -91,11 +93,14 @@ export default function ManageProfile() {
         }
       })();
       return () => {
+        active = false;
         setIsPhotoOptionsVisible(false);
         setIsPhotoViewerVisible(false);
       };
     }, [userService])
   );
+
+  if (!user) return <LoadingSpinner />;
 
   const uploadProfilePhotoAsset = async (
     asset: ImagePicker.ImagePickerAsset
@@ -204,7 +209,7 @@ export default function ManageProfile() {
                 ) : (
                   <Avatar.Text
                     size={100}
-                    label={(user.username[0] ?? "?").toUpperCase()}
+                    label={(user.username?.[0]?.toUpperCase()) ?? "?"}
                     style={{ backgroundColor: theme.colors.primary }}
                   />
                 )}
