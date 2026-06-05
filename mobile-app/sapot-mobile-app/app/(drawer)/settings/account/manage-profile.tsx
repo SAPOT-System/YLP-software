@@ -13,6 +13,7 @@ import {
   useToast,
   useUserProfile,
 } from "@/features/shared/hooks";
+import { Peer } from "@/features/shared/database/model/Peer";
 import { uiLog } from "@/features/shared/utils/logger";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
@@ -29,6 +30,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import {
   Avatar,
   Button,
+  Icon,
   Modal,
   Portal,
   Text,
@@ -95,16 +97,11 @@ export default function ManageProfile() {
 
   if (!user) return <LoadingSpinner />;
 
-  const currentPhoneNumber = isGuest
-    ? ""
-    : (user as { phoneNumber?: string }).phoneNumber ?? "";
-  const currentEmail = isGuest ? "" : (user as { email?: string }).email ?? "";
-  const currentEmailVerified = isGuest
-    ? false
-    : Boolean((user as { emailVerified?: boolean }).emailVerified);
-  const currentPhoneNumberVerified = isGuest
-    ? false
-    : Boolean((user as { phoneNumberVerified?: boolean }).phoneNumberVerified);
+  const isPeer = user instanceof Peer;
+  const currentPhoneNumber = isPeer ? (user.phoneNumber ?? "") : "";
+  const currentEmail = isPeer ? (user.email ?? "") : "";
+  const currentEmailVerified = isPeer ? Boolean(user.emailVerified) : false;
+  const currentPhoneNumberVerified = isPeer ? Boolean(user.phoneNumberVerified) : false;
 
   const uploadProfilePhotoAsset = async (
     asset: ImagePicker.ImagePickerAsset
@@ -248,6 +245,25 @@ export default function ManageProfile() {
                     <Text style={{ color: theme.colors.primary }}>Change Photo</Text>
                   </Pressable>
                 )}
+              </View>
+            )}
+            {isServerOffline && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  backgroundColor: theme.colors.errorContainer,
+                  borderRadius: 8,
+                  width: "100%",
+                }}
+              >
+                <Icon source="wifi-off" size={16} color={theme.colors.onErrorContainer} />
+                <Text style={{ fontSize: 13, color: theme.colors.onErrorContainer, flex: 1 }}>
+                  You're offline. Showing last saved data.
+                </Text>
               </View>
             )}
             <View style={{ alignItems: "stretch", width: "100%", gap: 4 }}>
