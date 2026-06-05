@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { Conversation } from "@/features/shared";
 import { hookLog } from "@/features/shared/utils/logger";
 import { useEffect, useState } from "react";
@@ -15,7 +16,8 @@ const useChats = () => {
         hookLog.info("[useChats] loaded", { count: nextChats.length });
         setChats(nextChats);
       } catch (error) {
-        hookLog.error("[useChats] load failed", { error });
+        const appErr = toAppError(error, "network");
+        hookLog.error("[useChats] load failed", appErr);
       }
     };
     init();

@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import axios from "axios";
 import { useState } from "react";
@@ -22,10 +23,11 @@ export const useSmsReset = () => {
       setPhone(phoneNumber);
       setIsCodeSent(true);
       return { success: true };
-    } catch (err) {
-      authLog.error("[useSmsReset] Error in sendCode", { error: err });
-      const detail = axios.isAxiosError(err)
-        ? (err.response?.data as { detail?: string })?.detail
+    } catch (error) {
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useSmsReset] Error in sendCode", appErr);
+      const detail = axios.isAxiosError(error)
+        ? (error.response?.data as { detail?: string })?.detail
         : undefined;
       setError(detail ?? "Failed to send reset code. Please try again.");
       setIsCodeSent(false);
@@ -52,10 +54,11 @@ export const useSmsReset = () => {
         recoveryLink: response.data.link,
         recoveryToken: rt,
       };
-    } catch (err) {
-      authLog.error("[useSmsReset] Error in verifyCode", { error: err });
-      const detail = axios.isAxiosError(err)
-        ? (err.response?.data as { detail?: string })?.detail
+    } catch (error) {
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useSmsReset] Error in verifyCode", appErr);
+      const detail = axios.isAxiosError(error)
+        ? (error.response?.data as { detail?: string })?.detail
         : undefined;
       setError(detail ?? "Invalid code. Please try again.");
       return { success: false };

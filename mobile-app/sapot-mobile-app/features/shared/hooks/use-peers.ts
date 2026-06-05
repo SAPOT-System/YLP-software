@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { useEffect, useState } from "react";
 import { Peer } from "../database";
 import { hookLog } from "../utils/logger";
@@ -15,7 +16,8 @@ const usePeers = () => {
         hookLog.info("[usePeers] loaded", { count: nextPeers.length });
         setPeers(nextPeers);
       } catch (error) {
-        hookLog.error("[usePeers] load failed", { error });
+        const appErr = toAppError(error, "database");
+        hookLog.error("[usePeers] load failed", appErr);
       }
     };
     init();

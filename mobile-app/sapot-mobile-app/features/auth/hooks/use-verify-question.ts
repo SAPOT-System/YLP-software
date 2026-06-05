@@ -1,4 +1,5 @@
-import { AxiosError } from "axios";
+import { toAppError, captureAppError } from "@/features/shared/errors";
+import { isAxiosError } from "axios";
 import { useState } from "react";
 import { authLog } from "../../shared/utils/logger";
 import { verifySecurityQuestionApi } from "../api";
@@ -36,36 +37,38 @@ export const useVerifyAnswer = (identifier: string) => {
         setError({ answer: "Wrong answer" });
         return { success: false };
       }
-    } catch (err) {
-      authLog.error("[useVerifyAnswer] Error in verifyAnswer", { error: err });
-      const axiosError = err as AxiosError<{ detail: string }>;
+    } catch (error) {
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useVerifyAnswer] Error in verifyAnswer", appErr);
 
       // Network error
-      if (!axiosError.response) {
+      if (isAxiosError(error) && !error.response) {
         setError({
           general: "Network error. Please check your connection to the server.",
         });
         return { success: false };
       }
 
-      const status = axiosError.response.status;
-      const data = axiosError.response.data;
+      if (isAxiosError(error) && error.response) {
+        const status = error.response.status;
+        const data = error.response.data as { detail: string };
 
-      if (status === 404 && data.detail) {
-        setError({ answer: data.detail });
+        if (status === 404 && data.detail) {
+          setError({ answer: data.detail });
+          return { success: false };
+        }
 
-        return { success: false };
+        // 500 Server error
+        if (status === 500) {
+          setError({ general: "Invalid. Please try again later." });
+          return { success: false };
+        }
+
+        // Generic error
+        setError({ general: data?.detail ?? "Invalid. Please try again" });
+      } else {
+        setError({ general: appErr.message });
       }
-
-      // 500 Server error
-      if (status === 500) {
-        setError({ general: "Invalid. Please try again later." });
-
-        return { success: false };
-      }
-
-      // Generic error
-      setError({ general: data?.detail ?? "Invalid. Please try again" });
 
       return { success: false };
     } finally {

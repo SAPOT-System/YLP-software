@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { KeyRecoveryService, RecoveryMethod } from "@/features/shared/services/key-recovery-service";
@@ -16,7 +17,8 @@ export const useMasterKeyRecovery = () => {
       const res = await verifyRecoveryOtpApi(phone, otp);
       return { recovery_token: res.data.recovery_token, user_id: res.data.user_id };
     } catch (error) {
-      authLog.error("[useMasterKeyRecovery] proveIdentityByPhone failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useMasterKeyRecovery] proveIdentityByPhone failed", appErr);
       return null;
     }
   };
@@ -26,7 +28,8 @@ export const useMasterKeyRecovery = () => {
       const res = await verifyEmailRecoveryTokenApi(t);
       return { recovery_token: res.data.recovery_token, user_id: res.data.user_id };
     } catch (error) {
-      authLog.error("[useMasterKeyRecovery] proveIdentityByEmailToken failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useMasterKeyRecovery] proveIdentityByEmailToken failed", appErr);
       return null;
     }
   };
@@ -57,7 +60,8 @@ export const useMasterKeyRecovery = () => {
       await localEncryptionService.setMasterKey(bundle.masterKey);
       return { success: true };
     } catch (error) {
-      authLog.error("[useMasterKeyRecovery] fetchAndUnwrapMasterKey failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useMasterKeyRecovery] fetchAndUnwrapMasterKey failed", appErr);
       return { success: false };
     }
   };
@@ -114,7 +118,8 @@ export const useMasterKeyRecovery = () => {
       );
       return { success: true };
     } catch (error) {
-      authLog.error("[useMasterKeyRecovery] rewrapAllBlobs failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useMasterKeyRecovery] rewrapAllBlobs failed", appErr);
       return { success: false };
     }
   };

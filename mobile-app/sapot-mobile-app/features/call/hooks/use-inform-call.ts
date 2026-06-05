@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { useMediaPermissions } from "@/features/shared/hooks/use-media-permissions";
 import { hookLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
@@ -20,7 +21,8 @@ export const useInformCall = () => {
     try {
       await callService.informPeerForIncomingCall(type, peerId);
     } catch (error) {
-      hookLog.error("[useCall] informPeer failed", { peerId, type, error });
+      const appErr = toAppError(error, "media");
+      hookLog.error("[useCall] informPeer failed", { peerId, type, ...appErr });
     }
   };
 

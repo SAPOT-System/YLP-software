@@ -1,5 +1,6 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
-import { AxiosError } from "axios";
+import { isAxiosError } from "axios";
 import { setItemAsync } from "expo-secure-store";
 import { useState } from "react";
 import { existsApi, register } from "../api/auth.api";
@@ -77,59 +78,65 @@ export const useRegister = () => {
         success: res.status === 201,
         info: data,
       };
-    } catch (err) {
-      authLog.error("[useRegister] Error in registerUser", { error: err });
-      const axiosError = err as AxiosError<RegisterApiErrorResponse>;
+    } catch (error) {
+      const appErr = toAppError(error, "auth");
+      captureAppError(appErr);
+      authLog.error("[useRegister] Error in registerUser", appErr);
 
       // Network error
-      if (!axiosError.response) {
+      if (isAxiosError(error) && !error.response) {
         setErrors({
           general: "Network error. Please check your connection to the server.",
         });
         return { success: false };
       }
 
-      const status = axiosError.response.status;
-      const data = axiosError.response.data;
+      if (isAxiosError(error) && error.response) {
+        const status = error.response.status;
+        const data = error.response.data as RegisterApiErrorResponse;
 
-      // 422 Unprocessable Entity - validation errors
-      if (status === 422 && Array.isArray(data.detail)) {
-        authLog.warn("[useRegister] validation error response", { status });
-        const fieldErrors = {};
-        data.detail.forEach((detail) => {
-          const fieldName = String(detail.loc[1]); // Convert to string explicitly
-          const message = detail.msg;
-          const serverError = mapServerErrors({ [fieldName]: message });
-          Object.assign(fieldErrors, serverError);
+        // 422 Unprocessable Entity - validation errors
+        if (status === 422 && Array.isArray(data.detail)) {
+          authLog.warn("[useRegister] validation error response", { status });
+          const fieldErrors = {};
+          data.detail.forEach((detail) => {
+            const fieldName = String(detail.loc[1]); // Convert to string explicitly
+            const message = detail.msg;
+            const serverError = mapServerErrors({ [fieldName]: message });
+            Object.assign(fieldErrors, serverError);
+          });
+          setErrors(fieldErrors);
+
+          return { success: false };
+        }
+
+        if (status === 400 && !Array.isArray(data.detail)) {
+          authLog.warn("[useRegister] bad request response", { status });
+          const serverErrors = data.detail;
+
+          setErrors(mapServerErrors(serverErrors as Record<string, string>));
+
+          return { success: false };
+        }
+
+        // 500 Server error
+        if (status === 500) {
+          authLog.error("[useRegister] server error response", { status });
+          setErrors({ general: "Server error. Please try again later." });
+
+          return { success: false };
+        }
+
+        // Generic error
+        setErrors({
+          general:
+            (error.response?.data as { detail?: string })?.detail ??
+            "An error occurred. Please try again",
         });
-        setErrors(fieldErrors);
-
-        return { success: false };
+      } else {
+        // Generic error
+        setErrors({ general: appErr.message });
       }
-
-      if (status === 400 && !Array.isArray(data.detail)) {
-        authLog.warn("[useRegister] bad request response", { status });
-        const serverErrors = data.detail;
-
-        setErrors(mapServerErrors(serverErrors));
-
-        return { success: false };
-      }
-
-      // 500 Server error
-      if (status === 500) {
-        authLog.error("[useRegister] server error response", { status });
-        setErrors({ general: "Server error. Please try again later." });
-
-        return { success: false };
-      }
-
-      // Generic error
-      setErrors({
-        general:
-          (axiosError.response?.data as { detail?: string })?.detail ??
-          "An error occurred. Please try again",
-      });
 
       return { success: false };
     } finally {
@@ -145,9 +152,8 @@ export const useRegister = () => {
       const { exists } = await existsApi(identifier);
       return exists;
     } catch (error) {
-      authLog.error("[useRegister] Error in checkIfIdentifierExists", {
-        error,
-      });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useRegister] Error in checkIfIdentifierExists", appErr);
       return false;
     }
   };

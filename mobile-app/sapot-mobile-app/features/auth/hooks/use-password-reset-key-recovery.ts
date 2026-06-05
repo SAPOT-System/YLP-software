@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { deriveKey } from "@/features/shared/services/key-derivation";
 import { KeyRecoveryService } from "@/features/shared/services/key-recovery-service";
 import { authLog } from "@/features/shared/utils/logger";
@@ -147,7 +148,8 @@ export const usePasswordResetKeyRecovery = ({
       authLog.info("[usePasswordResetKeyRecovery] new wrapped blob built", { method });
       return newWrappedBlob;
     } catch (error) {
-      authLog.error("[usePasswordResetKeyRecovery] failed", { error, method });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[usePasswordResetKeyRecovery] failed", { ...appErr, method });
       return null;
     }
   };

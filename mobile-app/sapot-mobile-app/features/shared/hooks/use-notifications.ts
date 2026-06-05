@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useRef } from "react";
@@ -124,7 +125,8 @@ export const useNotifications = (
       });
       backgroundLog.info("notifications › incoming call channel ready");
     } catch (error) {
-      backgroundLog.error("notifications › channel setup failed", { error });
+      const appErr = toAppError(error, "network");
+      backgroundLog.error("notifications › channel setup failed", appErr);
     }
   };
 
@@ -137,9 +139,8 @@ export const useNotifications = (
       });
       backgroundLog.info("notifications › chat message channel ready");
     } catch (error) {
-      backgroundLog.error("notifications › chat channel setup failed", {
-        error,
-      });
+      const appErr = toAppError(error, "network");
+      backgroundLog.error("notifications › chat channel setup failed", appErr);
     }
   };
 
@@ -176,9 +177,8 @@ export const useNotifications = (
 
       backgroundLog.info("notifications › permission granted");
     } catch (error) {
-      backgroundLog.error("notifications › permission request failed", {
-        error,
-      });
+      const appErr = toAppError(error, "network");
+      backgroundLog.error("notifications › permission request failed", appErr);
     }
   };
 };

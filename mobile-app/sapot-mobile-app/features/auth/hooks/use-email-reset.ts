@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import { useState } from "react";
 import {
@@ -24,7 +25,8 @@ export const useEmailReset = () => {
       setIsCodeSent(true);
       return { success: true };
     } catch (error) {
-      authLog.error("[useEmailReset] Error in sendCode", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useEmailReset] Error in sendCode", appErr);
       setError("Failed to send reset code. Please try again.");
       setIsCodeSent(false);
       return { success: false };
@@ -49,7 +51,8 @@ export const useEmailReset = () => {
         recoveryToken: response.data.recovery_token,
       };
     } catch (error) {
-      authLog.error("[useEmailReset] Error in verifyCode", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useEmailReset] Error in verifyCode", appErr);
       setError("Invalid code. Please try again.");
       return { success: false };
     } finally {

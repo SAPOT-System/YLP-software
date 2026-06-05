@@ -1,5 +1,6 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
-import { AxiosError } from "axios";
+import { isAxiosError } from "axios";
 import { useState } from "react";
 import { existsApi } from "../api";
 
@@ -25,27 +26,24 @@ export const useValidateIdentifier = () => {
       }
 
       return { success: exists };
-    } catch (err) {
-      authLog.error("[useValidateIdentifier] Error in validateIdentfier", {
-        error: err,
-      });
-      const axiosError = err as AxiosError;
+    } catch (error) {
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useValidateIdentifier] Error in validateIdentfier", appErr);
 
       // Network error
-      if (!axiosError.response) {
+      if (isAxiosError(error) && !error.response) {
         setError({
           general: "Network error. Please check your connection to the server.",
         });
         return { success: false };
       }
 
-      const status = axiosError.response.status;
-
-      // 500 Server error
-      if (status === 500) {
-        setError({ general: "Something went wrong. Please try again later." });
-
-        return { success: false };
+      if (isAxiosError(error) && error.response) {
+        const status = error.response.status;
+        if (status === 500) {
+          setError({ general: "Something went wrong. Please try again later." });
+          return { success: false };
+        }
       }
 
       // Generic error

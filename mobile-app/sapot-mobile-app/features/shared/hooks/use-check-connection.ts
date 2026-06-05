@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { useState } from "react";
 import { checkBackEndHealth } from "../api";
 import { hookLog } from "../utils/logger";
@@ -11,7 +12,8 @@ export const useCheckConnection = () => {
       hookLog.debug("[useCheckConnection] check start");
       return await checkBackEndHealth();
     } catch (error) {
-      hookLog.warn("[useCheckConnection] check failed", { error });
+      const appErr = toAppError(error, "network");
+      hookLog.warn("[useCheckConnection] check failed", appErr);
       return false;
     } finally {
       setLoading(false);

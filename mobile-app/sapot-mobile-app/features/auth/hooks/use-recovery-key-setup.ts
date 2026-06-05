@@ -1,3 +1,4 @@
+import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { KeyRecoveryService, RecoveryMethod } from "@/features/shared/services/key-recovery-service";
@@ -76,7 +77,8 @@ export const useRecoveryKeySetup = () => {
 
       return { success: true, recoveryTokenHex };
     } catch (error) {
-      authLog.error("[useRecoveryKeySetup] setup failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useRecoveryKeySetup] setup failed", appErr);
       return { success: false };
     }
   };
@@ -101,7 +103,8 @@ export const useRecoveryKeySetup = () => {
       authLog.info("[useRecoveryKeySetup] QA blob upserted");
       return { success: true };
     } catch (error) {
-      authLog.error("[useRecoveryKeySetup] setupQABlob failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useRecoveryKeySetup] setupQABlob failed", appErr);
       return { success: false };
     }
   };
@@ -122,7 +125,8 @@ export const useRecoveryKeySetup = () => {
       authLog.info("[useRecoveryKeySetup] phone blob upserted");
       return { success: true };
     } catch (error) {
-      authLog.error("[useRecoveryKeySetup] setupPhoneBlob failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useRecoveryKeySetup] setupPhoneBlob failed", appErr);
       return { success: false };
     }
   };
@@ -143,7 +147,8 @@ export const useRecoveryKeySetup = () => {
       authLog.info("[useRecoveryKeySetup] email blob upserted");
       return { success: true };
     } catch (error) {
-      authLog.error("[useRecoveryKeySetup] setupEmailBlob failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useRecoveryKeySetup] setupEmailBlob failed", appErr);
       return { success: false };
     }
   };
@@ -164,7 +169,8 @@ export const useRecoveryKeySetup = () => {
       authLog.info("[useRecoveryKeySetup] token blob upserted");
       return { success: true };
     } catch (error) {
-      authLog.error("[useRecoveryKeySetup] setupTokenBlob failed", { error });
+      const appErr = toAppError(error, "auth");
+      authLog.error("[useRecoveryKeySetup] setupTokenBlob failed", appErr);
       return { success: false };
     }
   };
