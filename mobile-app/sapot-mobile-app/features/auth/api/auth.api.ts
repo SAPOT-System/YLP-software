@@ -76,39 +76,28 @@ export const existsApi = async (identifier: string) => {
 };
 
 export const addSecurityQuestionApi = async (
-  questions: { question: string; answer: string }[],
-  token: string
+  questions: { question: string; answer: string }[]
 ) => {
   apiLog.info("[AuthApi] Calling /auth/forgot-password/security-questions", {
     questionsCount: questions.length,
-    hasToken: Boolean(token),
   });
   const res = await apiClient.post<{ message: string }>(
     "/auth/forgot-password/security-questions",
-    { questions },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    } // Added headers because of the late response of the axios interceptors
+    { questions }
   );
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
 };
 
-export const generateNewRecoveryKeyApi = async (token: string) => {
+export const generateNewRecoveryKeyApi = async () => {
   apiLog.info(
-    "[AuthApi] Calling /auth/forgot-password/generate-new-recovery-key",
-    { hasToken: Boolean(token) }
+    "[AuthApi] Calling /auth/forgot-password/generate-new-recovery-key"
   );
   const res = await apiClient.post<string>(
     "/auth/forgot-password/generate-new-recovery-key",
     null,
     {
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "text/plain",
         Accept: "text/plain",
       },

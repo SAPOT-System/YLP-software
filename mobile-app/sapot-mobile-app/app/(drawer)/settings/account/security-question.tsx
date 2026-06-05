@@ -6,7 +6,6 @@ import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import { getItemAsync } from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import {
@@ -60,15 +59,9 @@ export default function SecurityQuestion() {
 
     try {
       setIsSaving(true);
-      const token = await getItemAsync("access_token");
-      if (!token) {
-        showError("Unable to authenticate. Please log in again.");
-        return;
-      }
-      await addSecurityQuestionApi(
-        [{ question: selectedQuestion, answer: answer.trim() }],
-        token
-      );
+      await addSecurityQuestionApi([
+        { question: selectedQuestion, answer: answer.trim() },
+      ]);
       try {
         await setupQABlob(selectedQuestion, answer.trim());
       } catch {

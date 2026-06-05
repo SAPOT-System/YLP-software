@@ -4,7 +4,6 @@ import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setu
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
-import { getItemAsync } from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Button, Text, useTheme } from "react-native-paper";
@@ -35,12 +34,7 @@ export default function GenerateRecoveryKey() {
     uiLog.debug("[GenerateRecoveryKey] handleGenerate called");
     try {
       setIsGenerating(true);
-      const token = await getItemAsync("access_token");
-      if (!token) {
-        showError("Unable to authenticate. Please log in again.");
-        return;
-      }
-      const res = await generateNewRecoveryKeyApi(token);
+      const res = await generateNewRecoveryKeyApi();
       setRecoveryKeyData(res.data);
       try {
         await setupTokenBlob(res.data);
