@@ -9,14 +9,16 @@ import { RegisterFormState } from "@/features/auth/types";
 import { validateRegistrationForm } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useToast } from "@/features/shared/hooks";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { authLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 
 type RegisterFormField = keyof RegisterFormState;
+type OverlayPhase = "idle" | "loading" | "success" | "error";
+
+const REGISTER_TIMEOUT_MS = 30_000;
 
 const Register = () => {
   const {
@@ -29,7 +31,10 @@ const Register = () => {
   } = useRegister();
   const auth = useAuth();
 
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
+  const [overlayPhase, setOverlayPhase] = useState<OverlayPhase>("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [form, setForm] = useState<RegisterFormState>({
     username: "",
@@ -44,8 +49,17 @@ const Register = () => {
     authLog.info("[Register] mounted");
     return () => {
       authLog.info("[Register] unmounted");
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success") {
+      router.replace(APP_ROUTES.HOME);
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   const handleBlur = async (name: RegisterFormField) => {
     const fields: Partial<RegisterFormState> =
@@ -66,7 +80,8 @@ const Register = () => {
   const handleSubmit = async (values: Partial<RegisterFormState>) => {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showToast("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
 
@@ -85,18 +100,30 @@ const Register = () => {
     setErrors({});
     const fullForm = { ...form, ...values };
     setForm(fullForm);
+
+    setOverlayPhase("loading");
+    setOverlayMessage("");
+
+    timeoutRef.current = setTimeout(() => {
+      authLog.warn("[Register] registration timed out");
+      setOverlayPhase("error");
+      setOverlayMessage("Registration timed out. Please try again.");
+    }, REGISTER_TIMEOUT_MS);
+
     const serverSideResult = await registerUser(fullForm);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     if (serverSideResult.success) {
       authLog.info("auth › register success");
-      showToast("Account created successfully!");
       const { setPendingPassword } = await import("@/features/shared/main-container");
       setPendingPassword(fullForm.password);
       await auth.loginAfterRegister(serverSideResult.info!);
-      router.replace(APP_ROUTES.HOME)
+      setOverlayPhase("success");
+      setOverlayMessage("Account created successfully!");
     } else {
       authLog.warn("auth › register failed");
-      showError("Account creation failed!");
+      setOverlayPhase("error");
+      setOverlayMessage(errors.general ?? "Account creation failed. Please try again.");
     }
   };
 
@@ -107,9 +134,7 @@ const Register = () => {
     }
   };
 
-  const handleTermsPress = () => {
-    setTermsModalVisible(true);
-  };
+  const handleTermsPress = () => setTermsModalVisible(true);
 
   const handleTermsAccept = () => {
     setForm((prev) => ({ ...prev, termsChecked: true }));
@@ -119,22 +144,28 @@ const Register = () => {
     setTermsModalVisible(false);
   };
 
-  const handleTermsDismiss = () => {
-    setTermsModalVisible(false);
-  };
+  const handleTermsDismiss = () => setTermsModalVisible(false);
 
   useEffect(() => {
     if (errors.general) {
       authLog.warn("[Register] general error", { message: errors.general });
-      showError(errors.general);
     }
-  }, [errors.general, showError]);
+  }, [errors.general]);
+
+  const isSubmitting = overlayPhase !== "idle";
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Creating account..."
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
       <View
         style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
@@ -158,17 +189,13 @@ const Register = () => {
             />
           </ScrollView>
         </ScreenContent>
-
-        <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
-          {toastMessage}
-        </AppSnackbar>
-
-        <TermsModal
-          visible={termsModalVisible}
-          onAccept={handleTermsAccept}
-          onDismiss={handleTermsDismiss}
-        />
       </View>
+
+      <TermsModal
+        visible={termsModalVisible}
+        onAccept={handleTermsAccept}
+        onDismiss={handleTermsDismiss}
+      />
     </KeyboardAvoidingView>
   );
 };

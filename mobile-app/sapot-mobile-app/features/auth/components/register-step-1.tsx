@@ -82,7 +82,7 @@ export const RegisterStep1 = ({
           label="Username"
           placeholder="e.g. juan_delacruz"
           value={values.username}
-          onChangeText={(value) => onChange("username", value)}
+          onChangeText={(value) => onChange("username", value.toLowerCase())}
           onBlur={() => onBlur?.("username")}
           style={styles.textInput}
           required={true}
