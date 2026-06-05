@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   View,
@@ -140,7 +141,16 @@ export default function ManageProfile() {
     try {
       const permission =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) return;
+      if (!permission.granted) {
+        if (!permission.canAskAgain) {
+          showError("Photo library access denied. Enable it in Settings.");
+          Linking.openSettings();
+        } else {
+          showError("Photo library permission is required to upload a photo.");
+        }
+        setIsPhotoOptionsVisible(false);
+        return;
+      }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: "images",
@@ -153,8 +163,8 @@ export default function ManageProfile() {
       await uploadProfilePhotoAsset(result.assets[0]);
     } catch (error) {
       uiLog.error("profile › upload from library failed", { error });
+      showError("Could not open photo library. Please try again.");
     } finally {
-      setIsProfilePicUploading(false);
       setIsPhotoOptionsVisible(false);
     }
   };
@@ -171,7 +181,16 @@ export default function ManageProfile() {
 
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) return;
+      if (!permission.granted) {
+        if (!permission.canAskAgain) {
+          showError("Camera access denied. Enable it in Settings.");
+          Linking.openSettings();
+        } else {
+          showError("Camera permission is required to take a photo.");
+        }
+        setIsPhotoOptionsVisible(false);
+        return;
+      }
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: "images",
@@ -184,8 +203,8 @@ export default function ManageProfile() {
       await uploadProfilePhotoAsset(result.assets[0]);
     } catch (error) {
       uiLog.error("profile › capture failed", { error });
+      showError("Could not open camera. Please try again.");
     } finally {
-      setIsProfilePicUploading(false);
       setIsPhotoOptionsVisible(false);
     }
   };
