@@ -6,7 +6,6 @@ import { uiLog } from "@/features/shared/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { IconButton, Text, useTheme } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 export default function PublicChat() {
   const theme = useTheme();
@@ -76,7 +76,7 @@ export default function PublicChat() {
           <>
             <View style={styles.dotConnecting} />
             <Text style={styles.statusTextConnecting}>Connecting…</Text>
-            <ActivityIndicator size="small" color="#F5A623" style={styles.statusSpinner} />
+            <LoadingSpinner style={styles.statusSpinner} />
           </>
         )}
       </View>
@@ -84,7 +84,7 @@ export default function PublicChat() {
       <View style={styles.body}>
         {messages.length === 0 && isLoadingHistory ? (
           <View style={styles.emptyStateContainer}>
-            <ActivityIndicator size="small" color="#758695" />
+            <LoadingSpinner />
             <Text style={[styles.emptyStateText, { marginTop: 8 }]}>
               Loading messages…
             </Text>
@@ -105,7 +105,7 @@ export default function PublicChat() {
               hasMoreHistory ? (
                 <View style={styles.loadEarlierContainer}>
                   {isLoadingHistory ? (
-                    <ActivityIndicator size="small" color="#758695" />
+                    <LoadingSpinner />
                   ) : (
                     <Text
                       style={styles.loadEarlierText}

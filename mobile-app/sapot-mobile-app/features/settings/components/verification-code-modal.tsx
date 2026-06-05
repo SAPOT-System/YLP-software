@@ -2,13 +2,13 @@ import { OTPInput } from "input-otp-native";
 import React, { useEffect, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import {
-  ActivityIndicator,
   HelperText,
   Modal,
   Portal,
   Text,
   useTheme,
 } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 const CODE_LENGTH = 6;
 const OTP_TTL_SECONDS = 300;
@@ -200,7 +200,7 @@ const VerificationCodeModal = ({
           )}
         />
         {isVerifying ? (
-          <ActivityIndicator size="small" style={{ marginBottom: 12 }} />
+          <LoadingSpinner style={{ marginBottom: 12 }} />
         ) : (
           <Text
             variant="bodySmall"

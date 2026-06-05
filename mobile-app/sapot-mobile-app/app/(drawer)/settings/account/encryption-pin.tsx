@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, TextInput as RNTextInput, View } from "react-native";
-import { ActivityIndicator, Button, Divider, Text, useTheme } from "react-native-paper";
+import { Button, Divider, Text, useTheme } from "react-native-paper";
+import { PageLoader } from "@/features/shared/components/page-loader";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { useAuth } from "@/features/auth/context/auth-context";
 
@@ -169,11 +170,7 @@ export default function EncryptionPinScreen() {
   };
 
   if (pinEnabled === null) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
-      </View>
-    );
+    return <PageLoader />;
   }
 
   return (

@@ -1,7 +1,7 @@
 import { toAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import React, { createContext, useEffect, useState } from "react";
-import { ActivityIndicator } from "react-native-paper";
+import { PageLoader } from "@/features/shared/components/page-loader";
 import { AuthContainer } from "../auth-container";
 import { getApiUrl, initRuntimeOverrides } from "@/config/runtime";
 import { apiClient } from "@/features/shared";
@@ -37,7 +37,7 @@ export function AuthContainerProvider({
 
   if (!container) {
     authLog.info("[AuthContainerProvider] container not ready");
-    return <ActivityIndicator />;
+    return <PageLoader />;
   }
 
   return (

@@ -4,7 +4,8 @@ import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { QRPayload } from "@/features/shared/types";
 import { uiLog } from "@/features/shared/utils/logger";
 import { useEffect, useMemo } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { Text, useTheme } from "react-native-paper";
 import QRCode from "react-native-qrcode-svg";
 
@@ -69,7 +70,7 @@ export default function QrCodeScreen() {
           </View>
         ) : (
           <View style={{ alignItems: "center", gap: 12 }}>
-            <ActivityIndicator />
+            <LoadingSpinner />
             <Text style={{ color: theme.colors.onSurface }}>
               Waiting for network...
             </Text>

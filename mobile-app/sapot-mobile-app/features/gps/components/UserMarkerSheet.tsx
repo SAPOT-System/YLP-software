@@ -7,7 +7,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { Pressable, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Button, Icon, IconButton, Text, useTheme } from "react-native-paper";
+import { Button, Icon, IconButton, Text, useTheme } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useRef, useState } from "react";
 
@@ -195,7 +196,7 @@ export function UserMarkerSheet({
           <View style={styles.actions}>
             {isPathLoading ? (
               <View style={[styles.actionButton, styles.pathLoading]}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <LoadingSpinner />
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
                   Loading path...
                 </Text>

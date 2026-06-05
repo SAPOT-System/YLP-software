@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { StyleSheet, TextInput as RNTextInput, View } from "react-native";
-import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
+import { Button, Text, useTheme } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 interface Props {
   onSubmit: (pin: string) => Promise<boolean>;
@@ -86,7 +87,7 @@ export function PinEntryGate({ onSubmit }: Props) {
       )}
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 24 }} />
+        <LoadingSpinner style={{ marginTop: 24 }} />
       ) : (
         <Button
           mode="contained"

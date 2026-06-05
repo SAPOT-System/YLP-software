@@ -26,12 +26,12 @@ import { Redirect, router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import {
-  ActivityIndicator,
   Button,
   Icon,
   Text,
   useTheme,
 } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TILE_URL = `${getTileServerUrl()}/styles/basic-preview/{z}/{x}/{y}.png`;
@@ -167,11 +167,7 @@ export default function GpsScreen() {
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
         <View style={styles.stateContainer}>
-          <ActivityIndicator
-            animating
-            size="large"
-            color={theme.colors.primary}
-          />
+          <LoadingSpinner size="large" />
           <Text variant="bodyMedium">Requesting location permission...</Text>
         </View>
       </View>
@@ -465,11 +461,7 @@ export default function GpsScreen() {
                 },
               ]}
             >
-              <ActivityIndicator
-                animating
-                size="small"
-                color={theme.colors.primary}
-              />
+              <LoadingSpinner />
               <Text variant="bodySmall">Fetching live locations...</Text>
             </View>
           </View>

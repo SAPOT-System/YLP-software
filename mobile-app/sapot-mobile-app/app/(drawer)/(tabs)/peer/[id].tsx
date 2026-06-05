@@ -3,7 +3,8 @@ import { uiLog } from "@/features/shared/utils/logger";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, Avatar, Text, useTheme } from "react-native-paper";
+import { Avatar, Text, useTheme } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 export default function PeerProfile() {
   const theme = useTheme();
@@ -62,7 +63,7 @@ export default function PeerProfile() {
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 34, alignItems: "center" }}>
         {isLoading ? (
-          <ActivityIndicator />
+          <LoadingSpinner />
         ) : (
           <>
             <View style={{ alignItems: "center", gap: 20 }}>

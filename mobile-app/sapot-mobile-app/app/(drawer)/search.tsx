@@ -10,7 +10,8 @@ import {
 import { uiLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { FlatList, Pressable, View } from "react-native";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import {
   Appbar,
   Avatar,
@@ -228,7 +229,7 @@ export default function SearchScreen() {
         onEndReachedThreshold={0.5}
         ListFooterComponent={
           isFetchingNextPage ? (
-            <ActivityIndicator style={{ padding: 16 }} />
+            <LoadingSpinner style={{ padding: 16 }} />
           ) : null
         }
         renderItem={({ item }) => (

@@ -560,7 +560,7 @@ export class MainContainer {
     this.peerKeyStore.clear();
   }
 
-  // Call on logout or app destroy
+  // Call on app destroy
   async cleanup() {
     try {
       appLog.info("app › cleanup start");

@@ -26,7 +26,8 @@ import { Redirect, router } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { useEffect, useRef } from "react";
 import { Platform, TouchableOpacity, View } from "react-native";
-import { ActivityIndicator, Icon, Text, useTheme } from "react-native-paper";
+import { Icon, Text, useTheme } from "react-native-paper";
+import { PageLoader } from "@/features/shared/components/page-loader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import "../../task/signaling-task";
 
@@ -212,7 +213,7 @@ export default function DrawerLayout() {
 
   if (loading) {
     navLog.info("[DrawerLayout] auth loading");
-    return <ActivityIndicator />;
+    return <PageLoader />;
   }
 
   if (!isAuthenticated && !isGuest) {

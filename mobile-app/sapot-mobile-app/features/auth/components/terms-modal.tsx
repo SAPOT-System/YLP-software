@@ -3,7 +3,6 @@ import { authLog } from "@/features/shared/utils/logger";
 import React, { useEffect, useState } from "react";
 import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, View } from "react-native";
 import {
-  ActivityIndicator,
   Button,
   Divider,
   Modal,
@@ -11,6 +10,7 @@ import {
   Text,
   useTheme,
 } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 interface TermsModalProps {
   visible: boolean;
@@ -131,11 +131,7 @@ export const TermsModal = ({ visible, onAccept, onDismiss }: TermsModalProps) =>
         <Divider style={{ marginBottom: 12 }} />
 
         {loading && (
-          <ActivityIndicator
-            size="large"
-            color={theme.colors.primary}
-            style={{ marginVertical: 32 }}
-          />
+          <LoadingSpinner size="large" style={{ marginVertical: 32 }} />
         )}
 
         {error && !loading && (

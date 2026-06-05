@@ -26,7 +26,6 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
-  ActivityIndicator,
   Avatar,
   Button,
   Modal,
@@ -34,6 +33,7 @@ import {
   Text,
   useTheme,
 } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 export default function ManageProfile() {
   const theme = useTheme();
@@ -196,7 +196,7 @@ export default function ManageProfile() {
         >
           <View style={{ alignItems: "center", gap: 28 }}>
             {isProfilePicLoading && !isGuest ? (
-              <ActivityIndicator />
+              <LoadingSpinner />
             ) : (
               <View style={{ alignItems: "center" }}>
                 {profilePicUrl ? (

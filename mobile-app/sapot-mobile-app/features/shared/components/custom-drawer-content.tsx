@@ -16,7 +16,6 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import {
-  ActivityIndicator,
   Avatar,
   Button,
   Icon,
@@ -24,6 +23,7 @@ import {
   TextInput,
   useTheme,
 } from "react-native-paper";
+import { PageLoader } from "./page-loader";
 import { useProfilePhoto, useToast, useUserProfile } from "../hooks";
 import { uiLog } from "../utils/logger";
 import { AppSnackbar } from "./app-snackbar";
@@ -101,7 +101,7 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   const [showLogoutWarning, setShowLogoutWarning] = useState(false);
 
   if (!auth) {
-    return <ActivityIndicator />;
+    return <PageLoader />;
   }
 
   const { isAuthenticated, logout, logoutAsGuest } = auth;

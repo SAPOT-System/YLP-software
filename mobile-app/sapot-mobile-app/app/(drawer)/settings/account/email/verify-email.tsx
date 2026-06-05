@@ -11,7 +11,8 @@ import { uiLog } from "@/features/shared/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, Button, Text, useTheme } from "react-native-paper";
+import { Button, Text, useTheme } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 export default function VerifyEmail() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -101,7 +102,7 @@ export default function VerifyEmail() {
             gap: 16,
           }}
         >
-          <ActivityIndicator size="large" />
+          <LoadingSpinner size="large" />
           <Text style={{ color: theme.dark ? "#9BA8C0" : "#6B7280" }}>
             Sending verification code…
           </Text>

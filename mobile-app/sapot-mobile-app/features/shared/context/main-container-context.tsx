@@ -2,7 +2,8 @@ import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
 import { PinEntryGate } from "@/features/auth/components/pin-entry-gate";
 import React, { createContext, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, Button, Text } from "react-native-paper";
+import { Button, Text } from "react-native-paper";
+import { PageLoader } from "@/features/shared/components/page-loader";
 import { MainContainer, setPendingPIN, setResetRequestedCallback } from "../main-container";
 import { getPinEnabled } from "../stores/secure-config";
 import { appLog } from "../utils/logger";
@@ -125,7 +126,7 @@ export function MainContainerProvider({
   }
 
   if (!container) {
-    return <ActivityIndicator />;
+    return <PageLoader />;
   }
 
   return (

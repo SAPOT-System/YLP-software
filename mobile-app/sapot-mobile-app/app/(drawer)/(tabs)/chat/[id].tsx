@@ -24,7 +24,6 @@ import NetInfo from "@react-native-community/netinfo";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -33,6 +32,7 @@ import {
   View,
 } from "react-native";
 import { Appbar, Avatar, Chip, IconButton, useTheme } from "react-native-paper";
+import { PageLoader } from "@/features/shared/components/page-loader";
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   admin: { bg: "#7C3AED", text: "#FFFFFF" },
@@ -539,7 +539,7 @@ const ChatRoom = () => {
   const { onPress: onVideoCall, busy: callingVideo } =
     useThrottledPress(handleVideoCall);
 
-  if (!isRendered) return <ActivityIndicator />;
+  if (!isRendered) return <PageLoader />;
 
   const peerDisplayName = isSmsConversation && peer?.phoneNumber
     ? toLocalPhone(peer.phoneNumber)
