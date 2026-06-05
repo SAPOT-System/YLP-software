@@ -7,7 +7,7 @@ import { useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
 import { isAxiosError } from "axios";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import {
   Button,
@@ -29,6 +29,7 @@ export default function SecurityQuestion() {
     answer?: string;
   }>({});
   const [isSaving, setIsSaving] = useState(false);
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     visible: toastVisible,
@@ -43,6 +44,7 @@ export default function SecurityQuestion() {
     uiLog.info("[SecurityQuestion] mounted");
     return () => {
       uiLog.info("[SecurityQuestion] unmounted");
+      if (backTimerRef.current) clearTimeout(backTimerRef.current);
     };
   }, []);
 
@@ -80,7 +82,7 @@ export default function SecurityQuestion() {
       setAnswer("");
       setErrors({});
       showToast("Security question updated successfully");
-      setTimeout(() => {
+      backTimerRef.current = setTimeout(() => {
         uiLog.info("[Navigation] goBack triggered from SecurityQuestion");
         router.back();
       }, 1000);
