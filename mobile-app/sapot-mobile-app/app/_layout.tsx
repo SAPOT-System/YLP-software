@@ -87,9 +87,8 @@ export default Sentry.wrap(function RootLayout() {
     if (loaded) {
       layoutLog.info("[RootLayout] fonts loaded");
       SplashScreen.hideAsync();
-      setTimeout(() => {
-        setShowSplash(false);
-      }, 800);
+      const timer = setTimeout(() => setShowSplash(false), 800);
+      return () => clearTimeout(timer);
     }
   }, [loaded]);
 
@@ -167,7 +166,7 @@ function RootLayoutGate({ loaded, showSplash, setShowSplash }: RootLayoutGatePro
           );
         }
       } catch (err) {
-        if (__DEV__) console.warn("[Sentry] deferred init failed", err);
+        layoutLog.warn("[Sentry] deferred init failed", { err });
       }
     }
   }, [loaded, showSplash, authLoading]);

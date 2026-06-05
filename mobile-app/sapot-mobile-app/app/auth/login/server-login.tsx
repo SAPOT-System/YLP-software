@@ -36,6 +36,9 @@ const ServerLoginScreen = () => {
 
   const handleOverlayDismiss = useCallback(() => {
     if (overlayPhase === "success") {
+      // Explicit navigation here (rather than relying on the isAuthenticated
+      // redirect in getting-started/_layout.tsx) ensures the success overlay
+      // finishes showing before the user is taken to HOME.
       router.replace("/(drawer)/(tabs)");
     }
     setOverlayPhase("idle");

@@ -25,6 +25,8 @@ const Index = () => {
     });
   }, [isAuthenticated, isGuest]);
 
+  // RootLayoutGate holds the splash until authLoading is false, so loading is
+  // always false by the time this screen renders. Belt-and-suspenders for slow devices.
   if (loading) return null;
 
   if (isAuthenticated || isGuest) {
