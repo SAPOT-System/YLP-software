@@ -25,34 +25,38 @@ describe("validateGuestLoginForm", () => {
     });
   });
 
-  describe("lastName validation — optional", () => {
-    it("accepts empty last name with no error", () => {
-      expect(validateGuestLoginForm("Juan", "").lastName).toBeUndefined();
+  describe("lastName validation — required", () => {
+    it("requires last name", () => {
+      expect(validateGuestLoginForm("Juan", "")).toMatchObject({
+        lastName: "Last name is required",
+      });
     });
 
-    it("accepts whitespace-only last name with no error", () => {
-      expect(validateGuestLoginForm("Juan", "   ").lastName).toBeUndefined();
+    it("requires last name when whitespace only", () => {
+      expect(validateGuestLoginForm("Juan", "   ")).toMatchObject({
+        lastName: "Last name is required",
+      });
     });
 
-    it("rejects last name shorter than 2 chars when provided", () => {
+    it("rejects last name shorter than 2 chars", () => {
       expect(validateGuestLoginForm("Juan", "D")).toMatchObject({
         lastName: "Last name must be at least 2 characters",
       });
     });
 
-    it("rejects last name with invalid characters when provided", () => {
+    it("rejects last name with invalid characters", () => {
       expect(validateGuestLoginForm("Juan", "D3la")).toMatchObject({
         lastName: "Last name must contain only letters",
       });
     });
 
-    it("rejects last name over 50 chars when provided", () => {
+    it("rejects last name over 50 chars", () => {
       expect(validateGuestLoginForm("Juan", "A".repeat(51))).toMatchObject({
         lastName: expect.stringContaining("50"),
       });
     });
 
-    it("accepts valid last name when provided", () => {
+    it("accepts valid last name", () => {
       expect(validateGuestLoginForm("Juan", "Dela Cruz").lastName).toBeUndefined();
     });
   });

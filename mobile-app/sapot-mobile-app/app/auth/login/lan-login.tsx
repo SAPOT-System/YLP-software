@@ -111,7 +111,7 @@ const LanLoginScreen = () => {
               {errors.firstName}
             </HelperText>
             <AuthTextInput
-              label="Last Name (Optional)"
+              label="Last Name"
               placeholder="Last Name"
               value={lastName}
               onChangeText={setLastName}
