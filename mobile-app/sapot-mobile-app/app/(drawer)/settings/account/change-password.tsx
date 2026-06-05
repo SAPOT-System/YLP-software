@@ -87,7 +87,7 @@ export default function ChangePassword() {
       setErrors({});
       showToast("Change password successfully");
 
-      const rewrapResult = await rewrapAllBlobs({ userId: user.id, newPassword: newPass });
+      const rewrapResult = await rewrapAllBlobs({ userId: user?.id ?? "", newPassword: newPass });
       if (!rewrapResult.success) {
         showError("Password changed but recovery keys could not be updated. Visit Settings → Recovery Methods to re-configure.");
       }
