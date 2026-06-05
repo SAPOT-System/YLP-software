@@ -72,7 +72,13 @@ export function MainContainerProvider({
       containerRef.current = null;
       pendingContainerRef.current = null;
     };
-  }, [appModeStore, userContainer, retryCount]);
+  // appModeStore intentionally omitted: services hold a direct reference and read mode
+  // reactively at call time, so no container rebuild is needed on mode changes. Including
+  // it races against post-login auth state updates and causes "Current user not initialized"
+  // crashes. Only retryCount (explicit reset) and userContainer (new AuthContainer) should
+  // trigger a rebuild.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userContainer, retryCount]);
 
   const handlePinSubmit = async (pin: string): Promise<boolean> => {
     const c = pendingContainerRef.current;
