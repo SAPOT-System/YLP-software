@@ -1,4 +1,8 @@
-import { ConfigPlugin, withAndroidManifest, withDangerousMod } from "@expo/config-plugins";
+import {
+  ConfigPlugin,
+  withAndroidManifest,
+  withDangerousMod,
+} from "@expo/config-plugins";
 import { ConfigContext } from "expo/config";
 import * as fs from "fs";
 import * as path from "path";
@@ -23,14 +27,57 @@ const withServerCert: ConfigPlugin = (config) =>
     },
   ]);
 
-const withCleartextTraffic: ConfigPlugin = (config) =>
-  withAndroidManifest(config, (mod) => {
-    const app = mod.modResults.manifest.application?.[0];
-    if (app?.$) {
-      app.$["android:usesCleartextTraffic"] = "true";
-    }
-    return mod;
-  });
+const withNetworkSecurityConfig: ConfigPlugin = (config) => {
+  // Dev builds allow cleartext so the Expo dev client can reach Metro (HTTP).
+  // Prod builds lock down to HTTPS-only with the bundled self-signed cert.
+  const xml = IS_DEV
+    ? `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <base-config cleartextTrafficPermitted="true">
+    <trust-anchors>
+      <certificates src="system"/>
+      <certificates src="user"/>
+      <certificates src="@raw/server_cert"/>
+    </trust-anchors>
+  </base-config>
+</network-security-config>`
+    : `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="false">192.168.1.23</domain>
+    <trust-anchors>
+      <certificates src="@raw/server_cert"/>
+    </trust-anchors>
+  </domain-config>
+</network-security-config>`;
+
+  // Step 1: write the XML into res/xml/
+  const withWrittenFile: ConfigPlugin = (cfg) =>
+    withDangerousMod(cfg, [
+      "android",
+      (mod) => {
+        const resDir = path.join(
+          mod.modRequest.platformProjectRoot,
+          "app/src/main/res/xml"
+        );
+        fs.mkdirSync(resDir, { recursive: true });
+        fs.writeFileSync(path.join(resDir, "network_security_config.xml"), xml);
+        return mod;
+      },
+    ]);
+
+  // Step 2: wire the attribute into AndroidManifest.xml
+  const withManifestAttr: ConfigPlugin = (cfg) =>
+    withAndroidManifest(cfg, (mod) => {
+      const app = mod.modResults.manifest.application?.[0];
+      if (app?.$) {
+        app.$["android:networkSecurityConfig"] = "@xml/network_security_config";
+      }
+      return mod;
+    });
+
+  return withManifestAttr(withWrittenFile(config));
+};
 
 const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
   withAndroidManifest(config, (mod) => {
@@ -190,8 +237,8 @@ export default ({ config }: ConfigContext) => ({
       },
     ],
     withBackgroundActionsForegroundService,
-    withCleartextTraffic,
     withServerCert,
+    withNetworkSecurityConfig,
     "expo-router",
     "expo-secure-store",
     [
@@ -206,10 +253,10 @@ export default ({ config }: ConfigContext) => ({
     [
       "@sentry/react-native/expo",
       {
-        "url": "https://sentry.io/",
-        "project": "sapot-mobile-app",
-        "organization": "adriele-matthew-tosino"
-      }
+        url: "https://sentry.io/",
+        project: "sapot-mobile-app",
+        organization: "adriele-matthew-tosino",
+      },
     ],
     [
       "expo-image-picker",
@@ -233,7 +280,6 @@ export default ({ config }: ConfigContext) => ({
           packagingOptions: {
             pickFirst: ["**/libc++_shared.so"],
           },
-          networkSecurityConfig: "./android-network-security-config.xml",
         },
       },
     ],

@@ -9,7 +9,7 @@
     "start": "expo start",
     "dev": "APP_VARIANT=development npx expo start",
     "log-server": "node scripts/dev-log-server.js",
-    "prebuild": "APP_VARIANT=development npx expo prebuild -p android --clean",
+    "prebuild": "APP_VARIANT=development npx expo prebuild -p android --clean && node scripts/setup-android-signing.js",
     "android": "npx expo run:android --app-id com.devamt.sapotmobileapp.dev",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "android:dev": "eas build --platform android --profile development",

@@ -26,7 +26,7 @@ export const getApiUrl = () => {
 
   if (__DEV__) {
     configLog.debug("config › env dev");
-    return `http://${DEV_HOST}:${PORT}`;
+    return `https://${DEV_HOST}:${PORT}`;
   }
 
   const channel = Updates.channel;
@@ -40,7 +40,7 @@ export const getApiUrl = () => {
       return `https://${STAGING_HOST}:${PORT}`;
 
     default:
-      return `http://${DEV_HOST}:${PORT}`;
+      return `https://${DEV_HOST}:${PORT}`;
   }
 };
 
@@ -50,7 +50,7 @@ export const getTileServerUrl = () => {
   if (_hostOverride) return `https://${_hostOverride}:${TILE_PORT}`;
 
   if (__DEV__) {
-    return `http://${DEV_HOST}:${TILE_PORT}`;
+    return `https://${DEV_HOST}:${TILE_PORT}`;
   }
 
   const channel = Updates.channel;
@@ -60,7 +60,7 @@ export const getTileServerUrl = () => {
     case "production":
       return `https://${STAGING_HOST}:${TILE_PORT}`;
     default:
-      return `http://${DEV_HOST}:${TILE_PORT}`;
+      return `https://${DEV_HOST}:${TILE_PORT}`;
   }
 };
 
@@ -72,7 +72,7 @@ export const getWsUrl = () => {
   if (_hostOverride) return `wss://${_hostOverride}:${PORT}`;
 
   if (__DEV__) {
-    return `ws://${DEV_HOST}:${PORT}`;
+    return `wss://${DEV_HOST}:${PORT}`;
   }
 
   const channel = Updates.channel;
@@ -85,6 +85,6 @@ export const getWsUrl = () => {
       return `wss://${STAGING_HOST}:${PORT}`;
 
     default:
-      return `ws://${DEV_HOST}:${PORT}`;
+      return `wss://${DEV_HOST}:${PORT}`;
   }
 };
