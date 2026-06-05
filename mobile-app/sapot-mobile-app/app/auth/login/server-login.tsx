@@ -2,86 +2,100 @@ import { AUTH_ROUTES } from "@/config/routes";
 import { AuthTextInput, PrimaryButton, SecondaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { useAppMode } from "@/features/shared/context";
-import { useToast } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/utils/logger";
 import { Link, router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import {
-  HelperText,
-  Text,
-  useTheme,
-} from "react-native-paper";
+import { HelperText, Text, useTheme } from "react-native-paper";
+
+const LOGIN_TIMEOUT_MS = 30_000;
+
+type OverlayPhase = "idle" | "loading" | "success" | "error";
 
 const ServerLoginScreen = () => {
   const theme = useTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
+  const [overlayPhase, setOverlayPhase] = useState<OverlayPhase>("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { login, loading, errors } = useAuth();
+  const { login, errors } = useAuth();
   const { mode, setMode } = useAppMode();
 
   useEffect(() => {
     authLog.info("[ServerLoginScreen] mounted");
     return () => {
       authLog.info("[ServerLoginScreen] unmounted");
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
-  // Handle general errors
-  useEffect(() => {
-    authLog.debug("[ServerLoginScreen] useEffect triggered, deps:", {
-      hasUsername: Boolean(username.trim()),
-      hasPassword: Boolean(password),
-      mode,
-    });
-  }, [username, password, mode]);
-
-  // Handle general errors
-  useEffect(() => {
-    if (errors.general) {
-      authLog.warn("[ServerLoginScreen] general error", {
-        message: errors.general,
-      });
-      showError(errors.general);
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success") {
+      router.replace("/(drawer)/(tabs)");
     }
-  }, [errors.general, showError]);
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   const handleLogin = async () => {
     authLog.debug("[ServerLoginScreen] handleLogin called", {
       hasUsername: Boolean(username.trim()),
       password: "[REDACTED]",
     });
+
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showError("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
-    const result = await login({ username, password });
 
-    if (result.success) {
-      authLog.info("auth › login success");
-      showToast("Login successful!");
-      if (mode !== "auto") {
-        setMode("server");
+    setOverlayPhase("loading");
+    setOverlayMessage("");
+
+    timeoutRef.current = setTimeout(() => {
+      authLog.warn("[ServerLoginScreen] login timed out");
+      setOverlayPhase("error");
+      setOverlayMessage("Login timed out. Please try again.");
+    }, LOGIN_TIMEOUT_MS);
+
+    try {
+      const result = await login({ username, password });
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+      if (result.success) {
+        authLog.info("auth › login success");
+        if (mode !== "auto") setMode("server");
+        setOverlayPhase("success");
+        setOverlayMessage("Login successful!");
+      } else {
+        authLog.warn("auth › login failed");
+        setOverlayPhase("error");
+        setOverlayMessage(errors.general ?? "Login failed. Please check your credentials.");
       }
-      setTimeout(() => {
-        authLog.info("[Navigation] Navigating to Home", {
-          screen: "/(drawer)/(tabs)",
-        });
-        router.replace("/(drawer)/(tabs)");
-      }, 1000);
-    } else {
-      authLog.warn("auth › login failed");
+    } catch {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      setOverlayPhase("error");
+      setOverlayMessage("An unexpected error occurred.");
     }
   };
 
+  const isSubmitting = overlayPhase !== "idle";
+
   return (
     <View style={{ flex: 1 }}>
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Logging in..."
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
       <ScreenHeader headerName="Login" />
       <KeyboardAwareScrollView
         contentContainerStyle={{ flexGrow: 1 }}
@@ -89,19 +103,16 @@ const ServerLoginScreen = () => {
         enableOnAndroid
         keyboardShouldPersistTaps="handled"
       >
-        <ScreenContent
-          title="Welcome back"
-          description="Please login to continue"
-        >
-          <View
-            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
-          >
+        <ScreenContent title="Welcome back" description="Please login to continue">
+          <View style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}>
             <AuthTextInput
               label="Username"
               placeholder="Username"
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(v) => setUsername(v.toLowerCase())}
               error={!!errors.username}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
             <HelperText type="error" visible={!!errors.username}>
               {errors.username}
@@ -141,18 +152,15 @@ const ServerLoginScreen = () => {
 
           <PrimaryButton
             onPress={handleLogin}
-            loading={loading}
-            disabled={loading}
+            loading={overlayPhase === "loading"}
+            disabled={isSubmitting}
           >
-            {loading ? "Logging in..." : "Login"}
+            {overlayPhase === "loading" ? "Logging in..." : "Login"}
           </PrimaryButton>
           <SecondaryButton
             onPress={() => {
               authLog.debug("[ServerLoginScreen] onPress triggered");
               setMode("lan");
-              authLog.info("[Navigation] Navigating to LanLogin", {
-                screen: AUTH_ROUTES.LOGIN.LAN_LOGIN,
-              });
               router.push(AUTH_ROUTES.LOGIN.LAN_LOGIN);
             }}
           >
@@ -162,22 +170,12 @@ const ServerLoginScreen = () => {
             Don't have an account?{" "}
             <Link
               href={AUTH_ROUTES.REGISTER}
-              style={{
-                textDecorationLine: "underline",
-                color: theme.colors.primary,
-              }}
+              style={{ textDecorationLine: "underline", color: theme.colors.primary }}
             >
               Register here
             </Link>
           </Text>
         </ScreenContent>
-        <AppSnackbar
-          visible={toastVisible}
-          onDismiss={hideToast}
-          variant={toastVariant}
-        >
-          {toastMessage}
-        </AppSnackbar>
       </KeyboardAwareScrollView>
     </View>
   );
