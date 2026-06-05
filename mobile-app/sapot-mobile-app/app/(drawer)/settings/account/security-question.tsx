@@ -5,6 +5,7 @@ import { SettingsTextInput } from "@/features/settings";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
+import { isAxiosError } from "axios";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -19,9 +20,11 @@ export default function SecurityQuestion() {
   const theme = useTheme();
   const { setupQABlob } = useRecoveryKeySetup();
 
+  const [password, setPassword] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [errors, setErrors] = useState<{
+    password?: string;
     question?: string;
     answer?: string;
   }>({});
@@ -46,6 +49,7 @@ export default function SecurityQuestion() {
   const handleSave = async () => {
     uiLog.debug("[SecurityQuestion] handleSave called");
     const nextErrors = {
+      password: password.trim() ? undefined : "Current password is required",
       question: selectedQuestion
         ? undefined
         : "Please select a security question",
@@ -53,15 +57,16 @@ export default function SecurityQuestion() {
     };
     setErrors(nextErrors);
 
-    if (nextErrors.question || nextErrors.answer) {
+    if (nextErrors.password || nextErrors.question || nextErrors.answer) {
       return;
     }
 
     try {
       setIsSaving(true);
-      await addSecurityQuestionApi([
-        { question: selectedQuestion, answer: answer.trim() },
-      ]);
+      await addSecurityQuestionApi(
+        [{ question: selectedQuestion, answer: answer.trim() }],
+        password
+      );
       try {
         await setupQABlob(selectedQuestion, answer.trim());
       } catch {
@@ -70,6 +75,7 @@ export default function SecurityQuestion() {
         );
         return;
       }
+      setPassword("");
       setSelectedQuestion("");
       setAnswer("");
       setErrors({});
@@ -82,7 +88,14 @@ export default function SecurityQuestion() {
       uiLog.error("[SecurityQuestion] Error updating security question", {
         error,
       });
-      showError("Failed to update security question. Please try again.");
+      if (
+        isAxiosError(error) &&
+        (error.response?.status === 401 || error.response?.status === 403)
+      ) {
+        setErrors({ password: "Incorrect password." });
+      } else {
+        showError("Failed to update security question. Please try again.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -92,6 +105,23 @@ export default function SecurityQuestion() {
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 16, alignItems: "center", gap: 24 }}>
         <View style={{ alignItems: "stretch", width: "100%", gap: 4 }}>
+          <View>
+            <SettingsTextInput
+              placeholder="Current Password"
+              label="Current Password"
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
+                if (errors.password) {
+                  setErrors((prev) => ({ ...prev, password: undefined }));
+                }
+              }}
+              secureTextEntry
+            />
+            <HelperText type="error" visible={Boolean(errors.password)}>
+              {errors.password}
+            </HelperText>
+          </View>
           <Dropdown
             label="New Security Question"
             options={SECURITY_QUESTIONS}

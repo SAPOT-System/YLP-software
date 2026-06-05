@@ -76,14 +76,19 @@ export const existsApi = async (identifier: string) => {
 };
 
 export const addSecurityQuestionApi = async (
-  questions: { question: string; answer: string }[]
+  questions: { question: string; answer: string }[],
+  currentPassword?: string
 ) => {
   apiLog.info("[AuthApi] Calling /auth/forgot-password/security-questions", {
     questionsCount: questions.length,
+    hasCurrentPassword: Boolean(currentPassword),
   });
   const res = await apiClient.post<{ message: string }>(
     "/auth/forgot-password/security-questions",
-    { questions }
+    { questions },
+    currentPassword
+      ? { headers: { "X-Current-Password": currentPassword } }
+      : undefined
   );
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
