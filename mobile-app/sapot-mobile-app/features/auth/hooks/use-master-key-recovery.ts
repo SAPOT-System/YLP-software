@@ -1,4 +1,4 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { KeyRecoveryService, RecoveryMethod } from "@/features/shared/services/key-recovery-service";

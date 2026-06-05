@@ -1,4 +1,4 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import { isAxiosError } from "axios";
 import { useState } from "react";

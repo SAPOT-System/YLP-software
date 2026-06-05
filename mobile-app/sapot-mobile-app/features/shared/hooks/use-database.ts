@@ -1,4 +1,4 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/errors";
 import { database, Peer } from "../database";
 import { dbLog } from "../utils/logger";
 

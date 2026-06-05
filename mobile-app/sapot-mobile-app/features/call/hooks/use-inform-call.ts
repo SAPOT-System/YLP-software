@@ -1,4 +1,4 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/errors";
 import { useMediaPermissions } from "@/features/shared/hooks/use-media-permissions";
 import { hookLog } from "@/features/shared/utils/logger";
 import { router } from "expo-router";

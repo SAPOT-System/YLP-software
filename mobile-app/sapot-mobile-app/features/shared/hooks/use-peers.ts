@@ -1,4 +1,4 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/errors";
 import { useEffect, useState } from "react";
 import { Peer } from "../database";
 import { hookLog } from "../utils/logger";

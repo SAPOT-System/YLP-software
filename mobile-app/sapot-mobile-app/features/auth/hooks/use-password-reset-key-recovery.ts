@@ -1,4 +1,4 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/errors";
 import { deriveKey } from "@/features/shared/services/key-derivation";
 import { KeyRecoveryService } from "@/features/shared/services/key-recovery-service";
 import { authLog } from "@/features/shared/utils/logger";

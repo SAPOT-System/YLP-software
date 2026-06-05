@@ -1,4 +1,4 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/errors";
 import { useState } from "react";
 import { checkBackEndHealth } from "../api";
 import { hookLog } from "../utils/logger";
