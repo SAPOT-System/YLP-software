@@ -1,6 +1,6 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { uiLog } from "@/features/shared/utils/logger";
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Divider, Icon, Text, useTheme } from "react-native-paper";
@@ -29,16 +29,20 @@ export default function PasswordAndSecurity() {
             marginTop: 12,
           }}
         >
-          <Link href={SETTINGS_ROUTES.CHANGE_PASSWORD}>
+          <Pressable
+            onPress={() =>
+              router.push(SETTINGS_ROUTES.CHANGE_PASSWORD)
+            }
+          >
             <View style={styles.item}>
               <Text>Change Password</Text>
               <Icon source="arrow-right" size={24} />
             </View>
-          </Link>
+          </Pressable>
           <Divider />
           <Pressable
             onPress={() =>
-              router.push(SETTINGS_ROUTES.SECURITY_QUESTION as never)
+              router.push(SETTINGS_ROUTES.SECURITY_QUESTION)
             }
           >
             <View style={styles.item}>
@@ -49,7 +53,7 @@ export default function PasswordAndSecurity() {
           <Divider />
           <Pressable
             onPress={() =>
-              router.push(SETTINGS_ROUTES.GENERATE_RECOVERY_KEY as never)
+              router.push(SETTINGS_ROUTES.GENERATE_RECOVERY_KEY)
             }
           >
             <View style={styles.item}>
@@ -60,7 +64,7 @@ export default function PasswordAndSecurity() {
           <Divider />
           <Pressable
             onPress={() =>
-              router.push(SETTINGS_ROUTES.ENCRYPTION_PIN as never)
+              router.push(SETTINGS_ROUTES.ENCRYPTION_PIN)
             }
           >
             <View style={styles.item}>
