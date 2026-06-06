@@ -15,7 +15,6 @@ from app.db_operations.wrapped_key_recovery import (
     create_recovery_session,
     get_recovery_blob,
     validate_recovery_session,
-    consume_recovery_session,
 )
 from app.models.users import User
 
@@ -66,7 +65,6 @@ def get_recovery_key(
     blob = get_recovery_blob(session, rec.user_id, method)
     if not blob:
         raise HTTPException(status_code=404, detail="No recovery blob found for this method")
-    consume_recovery_session(session, rec)
     return {
         "wrapped_blob": blob.wrapped_blob,
         "metadata": blob.recovery_metadata,
