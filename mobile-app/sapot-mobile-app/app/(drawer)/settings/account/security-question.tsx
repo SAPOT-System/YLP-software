@@ -42,7 +42,7 @@ export default function SecurityQuestion() {
     getAvailableSecurityQuestionsApi()
       .then((list) => {
         const options = list.map((q) => ({ label: q, value: q }));
-        options.push({ label: "Custom…", value: CUSTOM_VALUE });
+        options.unshift({ label: "Custom…", value: CUSTOM_VALUE });
         setQuestions(options);
       })
       .catch(() => {
