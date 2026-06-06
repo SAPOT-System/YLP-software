@@ -35,7 +35,7 @@ from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_t
 from app.models.users import User, UserCreate, UserPublic
 from app.db_operations.token import get_current_user
 from app.db_operations.forgot_password import generate_and_save_new_recovery_key, sign, send_email, EMAIL_API_KEY
-from app.models.recovery import RecoveryKeyCreate
+from app.models.recovery import RecoveryKey, RecoveryKeyCreate
 from app.db_operations.forgot_password import verify_recovery_key
 from app.db_operations.auth import get_user, verify_password
 from app.models.users import UserPasswordUpdateNoOldPassword
@@ -63,6 +63,30 @@ from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
+
+RECOVERY_KEY_COOLDOWN_DAYS = 30
+SECURITY_QUESTION_MIN_DAYS = 90
+SECURITY_QUESTION_MAX_DAYS = 180
+
+
+class RecoveryKeyConstraint(BaseModel):
+    has_key: bool
+    can_change: bool
+    days_since_generated: int | None
+    days_until_changeable: int | None
+
+class SecurityQuestionConstraint(BaseModel):
+    has_question: bool
+    can_change: bool
+    is_burned: bool
+    is_expired: bool
+    days_since_set: int | None
+    days_until_changeable: int | None
+    days_until_expiry: int | None
+
+class RecoveryConstraintsOut(BaseModel):
+    recovery_key: RecoveryKeyConstraint
+    security_question: SecurityQuestionConstraint
 
 
 def reset_link_template(token:str, request: Request):
@@ -159,6 +183,24 @@ def get_recovery_key(
     current_password = request.headers.get("X-Current-Password")
     if not current_password or not verify_password(current_password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect password.")
+
+    now = datetime.utcnow()
+    existing_key = session.exec(
+        select(RecoveryKey).where(RecoveryKey.user_id == current_user.id)
+    ).first()
+
+    if existing_key:
+        days_since = (now - existing_key.updated_at).days
+        if days_since < RECOVERY_KEY_COOLDOWN_DAYS:
+            days_remaining = RECOVERY_KEY_COOLDOWN_DAYS - days_since
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "RECOVERY_KEY_COOLDOWN",
+                    "message": f"Recovery key can only be regenerated after {RECOVERY_KEY_COOLDOWN_DAYS} days.",
+                    "days_remaining": days_remaining,
+                },
+            )
 
     key_data = RecoveryKeyCreate(user=current_user)
     new_key = generate_and_save_new_recovery_key(session, key_data)
@@ -350,20 +392,48 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
 def add_security_questions(
         request: Request,
         current_user : Annotated[User, Depends(get_current_user)],
-        questions: AddSecurityQuestion,  # [{"question": "...", "answer": "..."}]
+        questions: AddSecurityQuestion,
         session: SessionDep
 ):
     current_password = request.headers.get("X-Current-Password")
     if not current_password or not verify_password(current_password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect password.")
 
-    for q in questions.questions:
-        question_record = UserSecurityQuestion(
-            user_id=current_user.id,
-            question=q.question.strip(),
-            answer_hash=get_password_hash(q.answer)
-        )
-        session.add(question_record)
+    if not questions.questions:
+        raise HTTPException(status_code=422, detail="At least one question is required.")
+
+    now = datetime.utcnow()
+    existing = session.exec(
+        select(UserSecurityQuestion).where(UserSecurityQuestion.user_id == current_user.id)
+    ).first()
+
+    if existing:
+        days_since = (now - existing.created_at).days
+        is_expired = days_since >= SECURITY_QUESTION_MAX_DAYS
+        can_change = existing.is_burned or is_expired or days_since >= SECURITY_QUESTION_MIN_DAYS
+
+        if not can_change:
+            days_remaining = SECURITY_QUESTION_MIN_DAYS - days_since
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "SECURITY_QUESTION_COOLDOWN",
+                    "message": f"Security question can only be changed after {SECURITY_QUESTION_MIN_DAYS} days.",
+                    "days_remaining": days_remaining,
+                },
+            )
+        session.delete(existing)
+        session.flush()
+
+    q = questions.questions[0]
+    new_question = UserSecurityQuestion(
+        user_id=current_user.id,
+        question=q.question.strip(),
+        answer_hash=get_password_hash(q.answer),
+        created_at=now,
+        is_burned=False,
+    )
+    session.add(new_question)
     session.commit()
     return {"message": "Security questions saved successfully."}
 
@@ -428,6 +498,10 @@ def verify_security_answer(
 
     if not is_correct:
         return {"correct": False}
+
+    db_question.is_burned = True
+    session.add(db_question)
+    session.flush()
 
     raw_token, token_hash = generate_reset_token().values()
     expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
@@ -558,6 +632,62 @@ def generate_security_question(
         "What is the first name of your favorite poet?"
     ]
     return questions
+
+
+@router.get("/recovery-constraints", response_model=RecoveryConstraintsOut)
+def get_recovery_constraints(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: SessionDep,
+):
+    now = datetime.utcnow()
+
+    rk = session.exec(select(RecoveryKey).where(RecoveryKey.user_id == current_user.id)).first()
+    if rk is None:
+        rk_constraint = RecoveryKeyConstraint(
+            has_key=False,
+            can_change=True,
+            days_since_generated=None,
+            days_until_changeable=None,
+        )
+    else:
+        days_since = (now - rk.updated_at).days
+        days_remaining = max(0, RECOVERY_KEY_COOLDOWN_DAYS - days_since)
+        rk_constraint = RecoveryKeyConstraint(
+            has_key=True,
+            can_change=days_remaining == 0,
+            days_since_generated=days_since,
+            days_until_changeable=days_remaining if days_remaining > 0 else None,
+        )
+
+    sq = session.exec(
+        select(UserSecurityQuestion).where(UserSecurityQuestion.user_id == current_user.id)
+    ).first()
+    if sq is None:
+        sq_constraint = SecurityQuestionConstraint(
+            has_question=False,
+            can_change=True,
+            is_burned=False,
+            is_expired=False,
+            days_since_set=None,
+            days_until_changeable=None,
+            days_until_expiry=None,
+        )
+    else:
+        days_since = (now - sq.created_at).days
+        is_expired = days_since >= SECURITY_QUESTION_MAX_DAYS
+        days_remaining = max(0, SECURITY_QUESTION_MIN_DAYS - days_since)
+        can_change = sq.is_burned or is_expired or days_remaining == 0
+        sq_constraint = SecurityQuestionConstraint(
+            has_question=True,
+            can_change=can_change,
+            is_burned=sq.is_burned,
+            is_expired=is_expired,
+            days_since_set=days_since,
+            days_until_changeable=days_remaining if days_remaining > 0 else None,
+            days_until_expiry=max(0, SECURITY_QUESTION_MAX_DAYS - days_since) if not is_expired else None,
+        )
+
+    return RecoveryConstraintsOut(recovery_key=rk_constraint, security_question=sq_constraint)
 
 
 @router.post("/otp/send")
