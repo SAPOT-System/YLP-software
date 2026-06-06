@@ -53,7 +53,11 @@ from app.models.PasswordResetCode import PasswordResetCode
 from app.models.PhonePasswordResetCode import PhonePasswordResetCode
 from app.api.gsm import sendToModule
 from app.db_operations.auth import get_user_by_phone_number
-from app.db_operations.wrapped_key_recovery import create_recovery_session
+from app.db_operations.wrapped_key_recovery import (
+    create_recovery_session,
+    validate_recovery_session,
+    mark_recovery_session_used,
+)
 from app.models.recovery_session import RecoverySession
 from app.models.email_recovery_token import EmailRecoveryToken
 from app.models.wrapped_key import WrappedKey
@@ -278,6 +282,7 @@ def can_reset_password(token: str, session: SessionDep):
 class PasswordResetRequest(SQLModel):
     new_password: str = Field(min_length=8)
     wrapped_blob: Optional[str] = None
+    recovery_token: Optional[str] = None
 
 
 @router.post("/reset-password")
@@ -305,6 +310,16 @@ def reset_password(
             session.add(WrappedKey(user_id=user.id, wrapped_blob=new_password_data.wrapped_blob))
 
     session.delete(reset_record)
+
+    # Best-effort: burn recovery session atomically with the password update.
+    # Silently skip if missing, invalid, already used, or expired.
+    if new_password_data.recovery_token:
+        try:
+            rec = validate_recovery_session(session, new_password_data.recovery_token)
+            mark_recovery_session_used(session, rec)
+        except HTTPException:
+            pass
+
     session.commit()
 
     return {
