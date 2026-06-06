@@ -224,7 +224,7 @@ def create_token_pair(user_id: UUID) -> Token:
         "sub": str(user_id),
         "jti": str(refresh_jti),
         "type": "refresh",
-        "exp": now + timedelta(minutes=REFRESH_ACCESS_TOKEN_EXPIRE_DAYS)
+        "exp": now + timedelta(days=REFRESH_ACCESS_TOKEN_EXPIRE_DAYS)
     }
 
     res = Token(
