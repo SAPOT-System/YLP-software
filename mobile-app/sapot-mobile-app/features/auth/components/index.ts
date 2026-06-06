@@ -11,6 +11,7 @@ export * from "./register-step-2";
 export * from "./reset-option";
 export { default as SecondaryButton } from "./secondary-button";
 export * from "./guest-logout-warning-modal";
+export * from "./reauth-modal";
 export * from "./step-dots";
 export * from "./terms-modal";
 
