@@ -36,6 +36,7 @@ export default function SecurityQuestion() {
     staleTime: Infinity,
     gcTime: Infinity,
     select: (list) => [
+      { label: "Custom…", value: CUSTOM_VALUE },
       ...list.map((q) => ({ label: q, value: q })),
       { label: "Custom…", value: CUSTOM_VALUE },
     ],
