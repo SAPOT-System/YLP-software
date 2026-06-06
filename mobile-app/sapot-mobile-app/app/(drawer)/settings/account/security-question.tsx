@@ -1,5 +1,6 @@
 import { addSecurityQuestionApi, getAvailableSecurityQuestionsApi } from "@/features/auth/api/auth.api";
 import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
+import { useRecoveryConstraints } from "@/features/auth/hooks/use-recovery-constraints";
 import { SettingsTextInput } from "@/features/settings";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -8,7 +9,7 @@ import { isAxiosError } from "axios";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
-import { Button, HelperText, useTheme } from "react-native-paper";
+import { Button, HelperText, Text, useTheme } from "react-native-paper";
 import { Dropdown } from "react-native-paper-dropdown";
 
 const CUSTOM_VALUE = "__custom__";
@@ -16,6 +17,7 @@ const CUSTOM_VALUE = "__custom__";
 export default function SecurityQuestion() {
   const theme = useTheme();
   const { setupQABlob } = useRecoveryKeySetup();
+  const { data: constraints, isLoading: constraintsLoading } = useRecoveryConstraints();
 
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -38,7 +40,6 @@ export default function SecurityQuestion() {
     select: (list) => [
       { label: "Custom…", value: CUSTOM_VALUE },
       ...list.map((q) => ({ label: q, value: q })),
-      { label: "Custom…", value: CUSTOM_VALUE },
     ],
   });
 
@@ -57,6 +58,9 @@ export default function SecurityQuestion() {
       if (backTimerRef.current) clearTimeout(backTimerRef.current);
     };
   }, []);
+
+  const sqConstraint = constraints?.security_question;
+  const inCooldown = sqConstraint != null && !sqConstraint.can_change;
 
   const effectiveQuestion =
     selectedQuestion === CUSTOM_VALUE ? customQuestion.trim() : selectedQuestion;
@@ -97,12 +101,24 @@ export default function SecurityQuestion() {
     } catch (error) {
       uiLog.error("[SecurityQuestion] Error updating security question", { error });
       setOverlayVisible(false);
-      if (isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 403)) {
-        setErrors((prev) => ({ ...prev, password: "Incorrect password." }));
-      } else {
-        setOverlayStatus("error");
-        setOverlayMessage("Failed to update security question. Please try again.");
-        setOverlayVisible(true);
+      if (isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          setErrors((prev) => ({ ...prev, password: "Incorrect password." }));
+        } else if (status === 429) {
+          const detail = error.response?.data?.detail;
+          const days = typeof detail === "object" ? detail?.days_remaining : null;
+          setErrors((prev) => ({
+            ...prev,
+            question: days != null
+              ? `Cooldown active — try again in ${days} day${days === 1 ? "" : "s"}.`
+              : "Security question cannot be changed yet.",
+          }));
+        } else {
+          setOverlayStatus("error");
+          setOverlayMessage("Failed to update security question. Please try again.");
+          setOverlayVisible(true);
+        }
       }
     } finally {
       setIsSaving(false);
@@ -112,6 +128,37 @@ export default function SecurityQuestion() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 16, alignItems: "center", gap: 24 }}>
+        {inCooldown && sqConstraint?.days_until_changeable != null && (
+          <View
+            style={{
+              backgroundColor: theme.colors.errorContainer,
+              borderRadius: 4,
+              padding: 12,
+              width: "100%",
+            }}
+          >
+            <Text variant="bodySmall" style={{ color: theme.colors.onErrorContainer }}>
+              Security question is in a cooldown period. You can change it in{" "}
+              <Text variant="labelSmall" style={{ fontWeight: "700" }}>
+                {sqConstraint.days_until_changeable} day{sqConstraint.days_until_changeable === 1 ? "" : "s"}
+              </Text>.
+            </Text>
+          </View>
+        )}
+        {sqConstraint?.is_expired && (
+          <View
+            style={{
+              backgroundColor: theme.colors.tertiaryContainer,
+              borderRadius: 4,
+              padding: 12,
+              width: "100%",
+            }}
+          >
+            <Text variant="bodySmall" style={{ color: theme.colors.onTertiaryContainer }}>
+              Your security question has expired. Please set a new one.
+            </Text>
+          </View>
+        )}
         <View style={{ alignItems: "stretch", width: "100%", gap: 4 }}>
           <View>
             <SettingsTextInput
@@ -126,6 +173,7 @@ export default function SecurityQuestion() {
               icon={showPassword ? "eye-off" : "eye"}
               onIconPress={() => setShowPassword((prev) => !prev)}
               error={Boolean(errors.password)}
+              editable={!inCooldown}
             />
             <HelperText type="error" visible={Boolean(errors.password)}>
               {errors.password}
@@ -141,6 +189,7 @@ export default function SecurityQuestion() {
             }}
             placeholder={questionsLoading ? "Loading questions…" : "Select question"}
             error={!!errors.question}
+            disabled={inCooldown}
           />
           <HelperText type="error" visible={Boolean(errors.question)}>
             {errors.question}
@@ -157,6 +206,7 @@ export default function SecurityQuestion() {
                     setErrors((prev) => ({ ...prev, customQuestion: undefined }));
                 }}
                 error={Boolean(errors.customQuestion)}
+                editable={!inCooldown}
               />
               <HelperText type="error" visible={Boolean(errors.customQuestion)}>
                 {errors.customQuestion}
@@ -173,6 +223,7 @@ export default function SecurityQuestion() {
                 if (errors.answer) setErrors((prev) => ({ ...prev, answer: undefined }));
               }}
               error={Boolean(errors.answer)}
+              editable={!inCooldown}
             />
             <HelperText type="error" visible={Boolean(errors.answer)}>
               {errors.answer}
@@ -183,8 +234,8 @@ export default function SecurityQuestion() {
           mode="contained"
           style={{ width: 164 }}
           onPress={handleSave}
-          loading={isSaving}
-          disabled={isSaving || questionsLoading}
+          loading={isSaving || constraintsLoading}
+          disabled={isSaving || questionsLoading || constraintsLoading || inCooldown}
         >
           Save
         </Button>
