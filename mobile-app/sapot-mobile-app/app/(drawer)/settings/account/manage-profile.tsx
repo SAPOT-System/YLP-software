@@ -1,5 +1,5 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
-import { useUserService } from "@/features/auth";
+import { ReauthModal, useUserService } from "@/features/auth";
 import { SettingsTextInput } from "@/features/settings";
 import {
   ExpoFileUpload,
@@ -60,6 +60,7 @@ export default function ManageProfile() {
   const [isProfilePicUploading, setIsProfilePicUploading] = useState(false);
   const [isPhotoOptionsVisible, setIsPhotoOptionsVisible] = useState(false);
   const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
+  const [reauthPending, setReauthPending] = useState<"email" | "phone" | null>(null);
   const actionColor = theme.colors.onSurface;
 
   useEffect(() => {
@@ -331,7 +332,7 @@ export default function ManageProfile() {
                           </Pressable>
                         )}
                         <Pressable
-                          onPress={() => router.push(SETTINGS_ROUTES.EDIT_PHONE)}
+                          onPress={() => setReauthPending("phone")}
                           accessibilityRole="button"
                           accessibilityLabel={currentPhoneNumber.length > 0 ? "Change phone number" : "Add phone number"}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -382,7 +383,7 @@ export default function ManageProfile() {
                           </Pressable>
                         )}
                         <Pressable
-                          onPress={() => router.push(SETTINGS_ROUTES.UPDATE_EMAIL)}
+                          onPress={() => setReauthPending("email")}
                           accessibilityRole="button"
                           accessibilityLabel={currentEmail.length > 0 ? "Change email address" : "Add email address"}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -509,6 +510,24 @@ export default function ManageProfile() {
           </Modal>
         </Portal>
       )}
+      <ReauthModal
+        visible={reauthPending !== null}
+        onDismiss={() => setReauthPending(null)}
+        onSuccess={(reauthToken) => {
+          if (reauthPending === "phone") {
+            router.push({
+              pathname: SETTINGS_ROUTES.EDIT_PHONE,
+              params: { reauth_token: reauthToken },
+            });
+          } else if (reauthPending === "email") {
+            router.push({
+              pathname: SETTINGS_ROUTES.UPDATE_EMAIL,
+              params: { reauth_token: reauthToken },
+            });
+          }
+          setReauthPending(null);
+        }}
+      />
     </View>
   );
 }
