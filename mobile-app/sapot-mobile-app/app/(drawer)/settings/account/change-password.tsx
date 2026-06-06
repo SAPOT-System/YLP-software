@@ -30,6 +30,9 @@ export default function ChangePassword() {
     password?: string;
     confirmPassword?: string;
   }>({});
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -134,7 +137,9 @@ export default function ChangePassword() {
                   }));
                 }
               }}
-              secureTextEntry
+              secureTextEntry={!showCurrent}
+              icon={showCurrent ? "eye-off" : "eye"}
+              onIconPress={() => setShowCurrent((prev) => !prev)}
             />
             <HelperText type="error" visible={Boolean(errors.currentPassword)}>
               {errors.currentPassword}
@@ -151,7 +156,9 @@ export default function ChangePassword() {
                   setErrors((prev) => ({ ...prev, password: undefined }));
                 }
               }}
-              secureTextEntry
+              secureTextEntry={!showNew}
+              icon={showNew ? "eye-off" : "eye"}
+              onIconPress={() => setShowNew((prev) => !prev)}
             />
             <HelperText type="error" visible={Boolean(errors.password)}>
               {errors.password}
@@ -171,7 +178,9 @@ export default function ChangePassword() {
                   }));
                 }
               }}
-              secureTextEntry
+              secureTextEntry={!showConfirm}
+              icon={showConfirm ? "eye-off" : "eye"}
+              onIconPress={() => setShowConfirm((prev) => !prev)}
             />
           </View>
           <HelperText type="error" visible={Boolean(errors.confirmPassword)}>
