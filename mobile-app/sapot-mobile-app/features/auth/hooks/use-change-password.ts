@@ -41,6 +41,7 @@ export const useChangePassword = (token: string) => {
     confirmPassword: string;
     identifier: string;
     wrappedBlob?: string;
+    recoveryToken?: string;
   }) => {
     authLog.debug("[useChangePassword] changePassword called", {
       password: "[REDACTED]",
@@ -65,7 +66,7 @@ export const useChangePassword = (token: string) => {
     }
 
     try {
-      const res = await resetPasswordApi(token, form.password, form.wrappedBlob);
+      const res = await resetPasswordApi(token, form.password, form.wrappedBlob, form.recoveryToken);
 
       return { success: res.status === 200 };
     } catch (err) {
