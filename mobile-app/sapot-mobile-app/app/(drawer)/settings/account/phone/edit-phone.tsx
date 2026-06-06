@@ -3,13 +3,14 @@ import { SettingsTextInput } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { useServerAction } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/utils/logger";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Button, HelperText, useTheme } from "react-native-paper";
 
 export default function EditPhone() {
   const theme = useTheme();
+  const { reauth_token } = useLocalSearchParams<{ reauth_token?: string }>();
   const { isServerOffline } = useServerAction();
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState<string | undefined>(undefined);
@@ -46,7 +47,7 @@ export default function EditPhone() {
       uiLog.info("[EditPhone] navigating to verify", { phone: normalized });
       router.push({
         pathname: SETTINGS_ROUTES.VERIFY_PHONE,
-        params: { phone: normalized },
+        params: { phone: normalized, reauth_token: reauth_token ?? "" },
       });
     } catch (error) {
       uiLog.error("[EditPhone] failed to navigate", { error });

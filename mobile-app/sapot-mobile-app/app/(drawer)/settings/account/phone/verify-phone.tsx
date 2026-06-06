@@ -20,7 +20,7 @@ import { Button, Text, useTheme } from "react-native-paper";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 export default function VerifyPhone() {
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { phone, reauth_token } = useLocalSearchParams<{ phone: string; reauth_token?: string }>();
   const theme = useTheme();
   const [isSending, setIsSending] = useState(true);
   const [sendFailed, setSendFailed] = useState(false);
@@ -64,7 +64,8 @@ export default function VerifyPhone() {
     try {
       setIsSending(false);
       await requestPhoneVerification(
-        phone ? toInternationalPhone(phone) : undefined
+        phone ? toInternationalPhone(phone) : undefined,
+        reauth_token || undefined
       );
       setCodeError(undefined);
     } catch (error) {
