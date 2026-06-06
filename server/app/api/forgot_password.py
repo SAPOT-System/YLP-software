@@ -557,7 +557,7 @@ def generate_security_question(
         "What was the first brand of watch you owned?",
         "What is the first name of your favorite poet?"
     ]
-    return {"question": random.choice(questions)}
+    return questions
 
 
 @router.post("/otp/send")
