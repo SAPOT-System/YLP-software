@@ -188,6 +188,7 @@ const ChangePasswordScreen = () => {
       confirmPassword,
       identifier: identifierValue,
       wrappedBlob: wrappedBlob ?? undefined,
+      recoveryToken: recoveryToken || undefined,
     });
 
     if (res.success) {
