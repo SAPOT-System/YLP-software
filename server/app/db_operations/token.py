@@ -22,6 +22,35 @@ SECRET_KEY = "7a272aa19fd88943207a62115b64f67530731eafd3b79a228f42972a2a51df1e"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_ACCESS_TOKEN_EXPIRE_DAYS = 60
+REAUTH_TOKEN_EXPIRE_MINUTES = 10
+
+
+def create_reauth_token(user_id: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=REAUTH_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": user_id, "type": "reauth", "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_reauth_token(request: Request) -> None:
+    """Raise HTTP 401 if the X-Reauth-Token header is missing or invalid."""
+    token = request.headers.get("X-Reauth-Token")
+    if not token:
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Password confirmation required",
+        )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "reauth":
+            raise HTTPException(
+                status_code=HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
+    except PyJWTError:
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Reauth token is invalid or expired",
+        )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
@@ -195,14 +224,18 @@ def create_token_pair(user_id: UUID) -> Token:
         "sub": str(user_id),
         "jti": str(refresh_jti),
         "type": "refresh",
-        "exp": now + timedelta(days=REFRESH_ACCESS_TOKEN_EXPIRE_DAYS)
+        "exp": now + timedelta(minutes=REFRESH_ACCESS_TOKEN_EXPIRE_DAYS)
     }
 
-    return Token(
+    res = Token(
         access_token=jwt.encode(access_payload, SECRET_KEY, algorithm=ALGORITHM),
         refresh_token=jwt.encode(refresh_payload, SECRET_KEY, algorithm=ALGORITHM),
         token_type="bearer"
     )
+
+    print(res)
+
+    return res
 
 def is_token_blacklisted(session: SessionDep, jti_str: str) -> bool:
     try:

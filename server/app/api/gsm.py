@@ -10,7 +10,7 @@ from sqlmodel import select
 
 from app.db_operations.auth import SessionDep
 from app.db_operations.connection_manager import manager
-from app.db_operations.token import get_current_user, get_current_user_admin, get_current_user_rescuer
+from app.db_operations.token import get_current_user, get_current_user_admin, get_current_user_rescuer, verify_reauth_token
 from app.models.conversation import Conversation, ConversationParticipant, ConversationType
 from app.models.guest import Guest
 from app.models.message import Message, MessageType
@@ -238,12 +238,16 @@ async def sendToModule(phone_number: str, message: str):
 @router.post("/request")
 async def request_phone_verification(
     data: RequestPhoneVerification,
+    request: Request,
     current_user : Annotated[User, Depends(get_current_user)],
     session: SessionDep
 ):
     """
     Send a 6-digit verification code to user phone.
     """
+    if data.phone_number and data.phone_number != current_user.phone_number:
+        verify_reauth_token(request)
+
     target_phone = data.phone_number or current_user.phone_number
 
     if not target_phone:

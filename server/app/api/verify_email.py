@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from app.models.email_verification import EmailVerification
 from app.db_operations.auth import SessionDep
 from app.models.users import User
-from app.db_operations.token import get_current_user
+from app.db_operations.token import get_current_user, verify_reauth_token
 from app.models.email_verification import send_verification_email
 
 
@@ -70,6 +70,9 @@ def resend_verification_email(
 ):
     if current_user.email_verified and not email:
         return {"message": "Email already verified"}
+
+    if email:
+        verify_reauth_token(request)
 
     # Delete any existing code before issuing a new one
     existing_code = session.exec(

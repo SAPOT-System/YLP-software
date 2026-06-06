@@ -26,7 +26,7 @@ from app.models.token import Token
 from app.db_operations.token import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, oauth2_scheme
 from app.models.users import User, UserCreate, UserPublic
 from app.models.email_verification import send_verification_email
-from app.db_operations.token import generate_access_token, create_token_pair, logout, RefreshRequest, refresh_token
+from app.db_operations.token import generate_access_token, create_token_pair, logout, RefreshRequest, refresh_token, create_reauth_token
 from app.db_operations.auth import get_user, verify_password
 
 
@@ -345,6 +345,23 @@ def create_account(request: Request, user: UserCreate, session: SessionDep, back
 @router.get("/exists")
 def exists(identifier: str, session: SessionDep):
     return {"exists" : bool(get_user(identifier, session))}
+
+
+class ReauthenticateRequest(BaseModel):
+    current_password: str
+
+
+@router.post("/reauthenticate")
+@limiter.limit("5/minute")
+def reauthenticate(
+    request: Request,
+    body: ReauthenticateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Wrong password")
+    token = create_reauth_token(str(current_user.id))
+    return {"reauth_token": token}
 
 
 class ChangePasswordRequest(BaseModel):

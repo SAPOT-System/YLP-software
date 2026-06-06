@@ -94,7 +94,7 @@ export const addSecurityQuestionApi = async (
   return res;
 };
 
-export const generateNewRecoveryKeyApi = async () => {
+export const generateNewRecoveryKeyApi = async (password?: string) => {
   apiLog.info(
     "[AuthApi] Calling /auth/forgot-password/generate-new-recovery-key"
   );
@@ -105,11 +105,21 @@ export const generateNewRecoveryKeyApi = async () => {
       headers: {
         "Content-Type": "text/plain",
         Accept: "text/plain",
+        ...(password ? { "X-Current-Password": password } : {}),
       },
     }
   );
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
+};
+
+export const getAvailableSecurityQuestionsApi = async () => {
+  apiLog.info("[AuthApi] Calling /auth/forgot-password/generate-security-question");
+  const res = await apiClient.get<string[]>(
+    "/auth/forgot-password/generate-security-question"
+  );
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res.data;
 };
 
 export const getSecurityQuestionApi = async (identifier: string) => {
@@ -179,6 +189,20 @@ export const resetPasswordApi = async (
 
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
+};
+
+export const reauthenticateApi = async (
+  currentPassword: string
+): Promise<{ reauth_token: string }> => {
+  apiLog.info("[AuthApi] Calling /auth/reauthenticate", {
+    password: "[REDACTED]",
+  });
+  const res = await apiClient.post<{ reauth_token: string }>(
+    "/auth/reauthenticate",
+    { current_password: currentPassword }
+  );
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res.data;
 };
 
 export const changePasswordApi = async (
@@ -270,12 +294,24 @@ export const verifyResetEmailCodeApi = async (email: string, code: string) => {
   return res;
 };
 
-export const resendVerificationCodeEmail = async (email?: string) => {
+export const resendVerificationCodeEmail = async (
+  email?: string,
+  reauthToken?: string
+) => {
   apiLog.info("[AuthApi] Calling /auth/verify/resend-verification-code");
+  const headers = reauthToken ? { "X-Reauth-Token": reauthToken } : undefined;
+  const config =
+    email && headers
+      ? { params: { email }, headers }
+      : email
+      ? { params: { email } }
+      : headers
+      ? { headers }
+      : undefined;
   const res = await apiClient.post<{ message: string }>(
     "/auth/verify/resend-verification-code",
     null,
-    email ? { params: { email } } : undefined
+    config
   );
 
   apiLog.info("[AuthApi] Response received");
@@ -305,11 +341,16 @@ export const checkGsmHealth = async (): Promise<boolean> => {
   }
 };
 
-export const requestPhoneVerification = async (phoneNumber?: string) => {
+export const requestPhoneVerification = async (
+  phoneNumber?: string,
+  reauthToken?: string
+) => {
   apiLog.info("[AuthApi] Calling /gsm/request", { hasPhoneNumber: Boolean(phoneNumber) });
-  const res = await apiClient.post<{ message: string }>("/gsm/request", {
-    phone_number: phoneNumber,
-  });
+  const res = await apiClient.post<{ message: string }>(
+    "/gsm/request",
+    { phone_number: phoneNumber },
+    reauthToken ? { headers: { "X-Reauth-Token": reauthToken } } : undefined
+  );
 
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res.data;
