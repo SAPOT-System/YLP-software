@@ -91,7 +91,10 @@ export default function VerifyPhone() {
 
     try {
       await verifyCodePhone(code);
-      await userService.updateAuthenticatedUser({ phoneNumberVerified: true });
+      await userService.updateAuthenticatedUser({
+        phoneNumber: toInternationalPhone(phone),
+        phoneNumberVerified: true,
+      });
       await setupPhoneBlob(phone);
       try {
         const migration = await migratePhoneUserApi();

@@ -65,7 +65,7 @@ export default function VerifyEmail() {
 
     try {
       await verifyCodeEmail(code);
-      await userService.updateAuthenticatedUser({ emailVerified: true });
+      await userService.updateAuthenticatedUser({ email, emailVerified: true });
       await setupEmailBlob(email);
       uiLog.info("[VerifyEmail] email verified, navigating to EmailVerified");
       router.replace(SETTINGS_ROUTES.EMAIL_VERIFIED);
