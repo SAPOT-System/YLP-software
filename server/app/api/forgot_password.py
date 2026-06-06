@@ -152,9 +152,14 @@ def confirm_phone_code(body: PhoneCodeRequest, session: SessionDep, request: Req
 
 @router.post('/generate-new-recovery-key')
 def get_recovery_key(
+        request: Request,
         current_user : Annotated[User, Depends(get_current_user)],
         session : SessionDep,
 ):
+    current_password = request.headers.get("X-Current-Password")
+    if not current_password or not verify_password(current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password.")
+
     key_data = RecoveryKeyCreate(user=current_user)
     new_key = generate_and_save_new_recovery_key(session, key_data)
     return Response(
@@ -343,10 +348,14 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
 
 @router.post("/security-questions")
 def add_security_questions(
+        request: Request,
         current_user : Annotated[User, Depends(get_current_user)],
         questions: AddSecurityQuestion,  # [{"question": "...", "answer": "..."}]
         session: SessionDep
 ):
+    current_password = request.headers.get("X-Current-Password")
+    if not current_password or not verify_password(current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password.")
 
     for q in questions.questions:
         question_record = UserSecurityQuestion(
