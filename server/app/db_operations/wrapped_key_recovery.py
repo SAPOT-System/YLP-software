@@ -117,3 +117,9 @@ def consume_recovery_session(session, recovery_session: RecoverySession) -> None
     recovery_session.used = True
     session.add(recovery_session)
     session.commit()
+
+
+def mark_recovery_session_used(session, recovery_session: RecoverySession) -> None:
+    """Mark session used. Does NOT commit -- caller owns the transaction."""
+    recovery_session.used = True
+    session.add(recovery_session)
