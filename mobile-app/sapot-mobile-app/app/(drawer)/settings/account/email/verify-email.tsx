@@ -15,7 +15,7 @@ import { Button, Text, useTheme } from "react-native-paper";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 export default function VerifyEmail() {
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const { email, reauth_token } = useLocalSearchParams<{ email: string; reauth_token?: string }>();
   const theme = useTheme();
   const [isSending, setIsSending] = useState(true);
   const [sendFailed, setSendFailed] = useState(false);
@@ -40,7 +40,7 @@ export default function VerifyEmail() {
     setIsSending(true);
     setSendFailed(false);
     try {
-      await resendVerificationCodeEmail(email);
+      await resendVerificationCodeEmail(email, reauth_token || undefined);
       setCodeError(undefined);
     } catch (error) {
       uiLog.error("[VerifyEmail] Error sending verification code", { error });
@@ -84,7 +84,7 @@ export default function VerifyEmail() {
     setCodeError(undefined);
 
     try {
-      await resendVerificationCodeEmail(email);
+      await resendVerificationCodeEmail(email, reauth_token || undefined);
     } catch (error) {
       uiLog.error("[VerifyEmail] Error resending code", { error });
       setCodeError("Failed to resend code. Please try again.");
