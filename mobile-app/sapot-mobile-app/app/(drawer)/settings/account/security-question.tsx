@@ -3,6 +3,7 @@ import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setu
 import { SettingsTextInput } from "@/features/settings";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { uiLog } from "@/features/shared/utils/logger";
+import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -28,8 +29,19 @@ export default function SecurityQuestion() {
     answer?: string;
   }>({});
   const [isSaving, setIsSaving] = useState(false);
-  const [questions, setQuestions] = useState<{ label: string; value: string }[]>([]);
-  const [questionsLoading, setQuestionsLoading] = useState(true);
+
+  const { data: fetchedQuestions, isLoading: questionsLoading } = useQuery({
+    queryKey: ["security-questions"],
+    queryFn: getAvailableSecurityQuestionsApi,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    select: (list) => [
+      ...list.map((q) => ({ label: q, value: q })),
+      { label: "Custom…", value: CUSTOM_VALUE },
+    ],
+  });
+
+  const questions = fetchedQuestions ?? [{ label: "Custom…", value: CUSTOM_VALUE }];
 
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<"loading" | "success" | "error">("loading");
@@ -39,17 +51,6 @@ export default function SecurityQuestion() {
 
   useEffect(() => {
     uiLog.info("[SecurityQuestion] mounted");
-    getAvailableSecurityQuestionsApi()
-      .then((list) => {
-        const options = list.map((q) => ({ label: q, value: q }));
-        options.unshift({ label: "Custom…", value: CUSTOM_VALUE });
-        setQuestions(options);
-      })
-      .catch(() => {
-        setQuestions([{ label: "Custom…", value: CUSTOM_VALUE }]);
-      })
-      .finally(() => setQuestionsLoading(false));
-
     return () => {
       uiLog.info("[SecurityQuestion] unmounted");
       if (backTimerRef.current) clearTimeout(backTimerRef.current);
