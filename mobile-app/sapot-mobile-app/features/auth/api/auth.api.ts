@@ -498,3 +498,32 @@ export const verifyEmailRecoveryTokenApi = async (token: string) => {
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
 };
+
+export interface RecoveryKeyConstraint {
+  has_key: boolean;
+  can_change: boolean;
+  days_since_generated: number | null;
+  days_until_changeable: number | null;
+}
+
+export interface SecurityQuestionConstraint {
+  has_question: boolean;
+  can_change: boolean;
+  is_burned: boolean;
+  is_expired: boolean;
+  days_since_set: number | null;
+  days_until_changeable: number | null;
+  days_until_expiry: number | null;
+}
+
+export interface RecoveryConstraints {
+  recovery_key: RecoveryKeyConstraint;
+  security_question: SecurityQuestionConstraint;
+}
+
+export const getRecoveryConstraintsApi = async (): Promise<RecoveryConstraints> => {
+  const res = await apiClient.get<RecoveryConstraints>(
+    "/auth/forgot-password/recovery-constraints"
+  );
+  return res.data;
+};
