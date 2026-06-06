@@ -1,3 +1,4 @@
+import {  SETTINGS_ROUTES } from "@/config/routes";
 import { RecoveryKeyDownloadModal } from "@/features/auth";
 import { generateNewRecoveryKeyApi } from "@/features/auth/api/auth.api";
 import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
@@ -128,6 +129,7 @@ export default function GenerateRecoveryKey() {
         visible={modalVisible}
         fileData={recoveryKeyData}
         hideModal={() => setModalVisible(false)}
+        route={SETTINGS_ROUTES.PASSWORD_AND_SECURITY}
       />
     </View>
   );
