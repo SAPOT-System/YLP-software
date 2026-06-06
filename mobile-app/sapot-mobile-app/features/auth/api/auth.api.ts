@@ -174,16 +174,22 @@ export const canResetPasswordApi = async (
 export const resetPasswordApi = async (
   token: string,
   newPassword: string,
-  wrappedBlob?: string
+  wrappedBlob?: string,
+  recoveryToken?: string
 ) => {
   apiLog.info("[AuthApi] Calling /auth/forgot-password/reset-password", {
     hasToken: Boolean(token),
     password: "[REDACTED]",
     hasWrappedBlob: Boolean(wrappedBlob),
+    hasRecoveryToken: Boolean(recoveryToken),
   });
   const res = await apiClient.post<{ message: string }>(
     "/auth/forgot-password/reset-password",
-    { new_password: newPassword, wrapped_blob: wrappedBlob ?? null },
+    {
+      new_password: newPassword,
+      wrapped_blob: wrappedBlob ?? null,
+      recovery_token: recoveryToken ?? null,
+    },
     { params: { token } }
   );
 
