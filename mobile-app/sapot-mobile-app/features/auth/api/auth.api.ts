@@ -25,47 +25,17 @@ export const register = async (
   return res;
 };
 
-export interface DeviceLoginFields {
-  deviceFingerprint: string;
-  devicePublicKey: string;
-  deviceNonce: string;
-  deviceNonceMac: string;
-  deviceSignature: string;
-}
-
-export const fetchChallengeApi = async (
-  deviceFingerprint: string
-): Promise<{ nonce: string; mac: string }> => {
-  const res = await apiClient.get<{ nonce: string; mac: string }>("/auth/challenge", {
-    params: { device_fingerprint: deviceFingerprint },
-  });
-  return res.data;
-};
-
 export const loginApi = async (
-  credentials: LoginApiRequest,
-  deviceFields?: DeviceLoginFields
+  credentials: LoginApiRequest
 ): Promise<AxiosResponse<LoginApiResponse>> => {
   apiLog.info("[AuthApi] Calling /auth/token", {
     hasUsername: Boolean(credentials.username?.trim()),
-    hasDeviceFields: Boolean(deviceFields),
     password: "[REDACTED]",
   });
 
-  let formData = `grant_type=password&username=${encodeURIComponent(
-    credentials.username
-  )}&password=${encodeURIComponent(
-    credentials.password
-  )}&scope=&client_id=&client_secret=`;
-
-  if (deviceFields) {
-    formData +=
-      `&device_public_key=${encodeURIComponent(deviceFields.devicePublicKey)}` +
-      `&device_nonce=${encodeURIComponent(deviceFields.deviceNonce)}` +
-      `&device_nonce_mac=${encodeURIComponent(deviceFields.deviceNonceMac)}` +
-      `&device_signature=${encodeURIComponent(deviceFields.deviceSignature)}` +
-      `&device_fingerprint=${encodeURIComponent(deviceFields.deviceFingerprint)}`;
-  }
+  const formData =
+    `grant_type=password&username=${encodeURIComponent(credentials.username)}` +
+    `&password=${encodeURIComponent(credentials.password)}&scope=&client_id=&client_secret=`;
 
   const res = await apiClient.post("/auth/token", formData, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -165,13 +135,11 @@ export const getSecurityQuestionApi = async (identifier: string) => {
 
 export const verifySecurityQuestionApi = async (
   identifier: string,
-  requestBody: { question: string; answer: string },
-  deviceFields?: DeviceLoginFields
+  requestBody: { question: string; answer: string }
 ) => {
-  apiLog.info(
-    "[AuthApi] Calling /auth/forgot-password/security-question/answer",
-    { identifierLength: identifier.length, hasDeviceFields: Boolean(deviceFields) }
-  );
+  apiLog.info("[AuthApi] Calling /auth/forgot-password/security-question/answer", {
+    identifierLength: identifier.length,
+  });
   const res = await apiClient.post<{
     correct: boolean;
     reset_link: string;
@@ -180,13 +148,7 @@ export const verifySecurityQuestionApi = async (
   }>(
     "/auth/forgot-password/security-question/answer",
     requestBody,
-    { params: { identifier, ...deviceFields ? {
-      device_public_key: deviceFields.devicePublicKey,
-      device_nonce: deviceFields.deviceNonce,
-      device_nonce_mac: deviceFields.deviceNonceMac,
-      device_signature: deviceFields.deviceSignature,
-      device_fingerprint: deviceFields.deviceFingerprint,
-    } : {} } }
+    { params: { identifier } }
   );
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
@@ -276,14 +238,10 @@ export type ExpoFileUpload = {
 
 export const verifyRecoveryKeyApi = async (
   file: ExpoFileUpload,
-  identifier: string,
-  deviceFields?: DeviceLoginFields
+  identifier: string
 ) => {
   const formData = new FormData();
-  apiLog.debug("auth › verify recovery key", {
-    hasIdentifier: Boolean(identifier),
-    hasDeviceFields: Boolean(deviceFields),
-  });
+  apiLog.debug("auth › verify recovery key", { hasIdentifier: Boolean(identifier) });
   formData.append("key_file", {
     uri: file.uri,
     name: file.name,
@@ -297,17 +255,8 @@ export const verifyRecoveryKeyApi = async (
     expire_in_seconds: number;
     recovery_token: string;
   }>("/auth/forgot-password/recovery-with-recovery-key", formData, {
-    params: { user_identifier: identifier, ...deviceFields ? {
-      device_public_key: deviceFields.devicePublicKey,
-      device_nonce: deviceFields.deviceNonce,
-      device_nonce_mac: deviceFields.deviceNonceMac,
-      device_signature: deviceFields.deviceSignature,
-      device_fingerprint: deviceFields.deviceFingerprint,
-    } : {} },
-    headers: {
-      "Content-Type": "multipart/form-data",
-      Accept: "application/json",
-    },
+    params: { user_identifier: identifier },
+    headers: { "Content-Type": "multipart/form-data", Accept: "application/json" },
   });
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
@@ -329,30 +278,16 @@ export const sendResetEmailCodeApi = async (email: string) => {
   return res;
 };
 
-export const verifyResetEmailCodeApi = async (
-  email: string,
-  code: string,
-  deviceFields?: DeviceLoginFields
-) => {
+export const verifyResetEmailCodeApi = async (email: string, code: string) => {
   apiLog.info("[AuthApi] Calling /auth/forgot-password/email-code", {
     emailLength: email.length,
     codeLength: code.length,
-    hasDeviceFields: Boolean(deviceFields),
   });
   const res = await apiClient.post<{ link: string; detail: string; recovery_token: string }>(
     "/auth/forgot-password/email-code",
     null,
-    {
-      params: { email, code, ...deviceFields ? {
-        device_public_key: deviceFields.devicePublicKey,
-        device_nonce: deviceFields.deviceNonce,
-        device_nonce_mac: deviceFields.deviceNonceMac,
-        device_signature: deviceFields.deviceSignature,
-        device_fingerprint: deviceFields.deviceFingerprint,
-      } : {} },
-    }
+    { params: { email, code } }
   );
-
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;
 };
@@ -438,26 +373,14 @@ export const sendResetSmsCodeApi = async (phone: string) => {
   return res;
 };
 
-export const verifyResetSmsCodeApi = async (
-  phone: string,
-  code: string,
-  deviceFields?: DeviceLoginFields
-) => {
+export const verifyResetSmsCodeApi = async (phone: string, code: string) => {
   apiLog.info("[AuthApi] Calling /auth/forgot-password/phone-code", {
     phoneLength: phone.length,
     codeLength: code.length,
-    hasDeviceFields: Boolean(deviceFields),
   });
   const res = await apiClient.post<{ link: string; detail: string; recovery_token: string }>(
     "/auth/forgot-password/phone-code",
-    { phone_number: phone, code },
-    deviceFields ? { params: {
-      device_public_key: deviceFields.devicePublicKey,
-      device_nonce: deviceFields.deviceNonce,
-      device_nonce_mac: deviceFields.deviceNonceMac,
-      device_signature: deviceFields.deviceSignature,
-      device_fingerprint: deviceFields.deviceFingerprint,
-    } } : undefined
+    { phone_number: phone, code }
   );
   apiLog.info("[AuthApi] Response received", { status: res.status });
   return res;

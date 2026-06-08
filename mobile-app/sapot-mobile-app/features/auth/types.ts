@@ -92,3 +92,9 @@ export interface Login401Detail {
 export interface LoginApiErrorResponse {
   detail: Login401Detail | string;
 }
+
+export interface DeviceLockout429 {
+  locked_until: string;
+  device_type: string;
+  attempts_remaining: number;
+}

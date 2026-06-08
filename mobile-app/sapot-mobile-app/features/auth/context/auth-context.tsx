@@ -20,12 +20,7 @@ import {
   loginApi,
   logoutApi,
   refreshTokenApi,
-  fetchChallengeApi,
 } from "../api";
-import {
-  buildDeviceFields,
-  clearDeviceSigningKey,
-} from "@/features/shared/services/device-key-service";
 import { useAuthContainer } from "../hooks";
 import { useUserService } from "../hooks/use-user-service";
 import {
@@ -296,13 +291,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await clearLockoutInfo("lockout_login");
     }
 
-    const deviceFields = await buildDeviceFields(fetchChallengeApi);
-    authLog.debug("auth › device gate", { hasDeviceFields: Boolean(deviceFields) });
-
     const isRelogin = needsReloginForServer;
 
     try {
-      const res = await loginApi(credentials, deviceFields);
+      const res = await loginApi(credentials);
       setLoading(false);
 
       if (isRelogin) {
@@ -335,7 +327,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       await clearLockoutInfo("lockout_login");
-      clearDeviceSigningKey();
       return { success: true };
     } catch (err) {
       authLog.error("auth › login failed", { error: err });
@@ -514,7 +505,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteItemAsync("userUUID");
     await userService.logout();
     await clearConnectionConfig();
-    clearDeviceSigningKey();
     setAccessToken(null);
     setIsAuthenticated(false);
     setIsRescuer(false);
