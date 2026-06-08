@@ -19,7 +19,7 @@ export const AttemptsWarning = ({ attemptsRemaining }: AttemptsWarningProps) => 
       style={[styles.container, { backgroundColor: colors.secondaryContainer }]}
     >
       <Text style={[styles.text, { color: colors.onSecondaryContainer }]}>
-        Warning: {attemptsRemaining} {noun} remaining before your account is locked.
+        Warning: {attemptsRemaining} {noun} remaining before your device is locked.
       </Text>
     </View>
   );
