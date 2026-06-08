@@ -20,7 +20,12 @@ import {
   loginApi,
   logoutApi,
   refreshTokenApi,
+  fetchChallengeApi,
 } from "../api";
+import {
+  buildDeviceFields,
+  clearDeviceSigningKey,
+} from "@/features/shared/services/device-key-service";
 import { useAuthContainer } from "../hooks";
 import { useUserService } from "../hooks/use-user-service";
 import {
@@ -34,10 +39,21 @@ import {
   hasValidationErrors,
   validateGuestLoginForm,
 } from "../utils/";
-import { clearConnectionConfig } from "@/features/shared/stores/secure-config";
+import {
+  clearConnectionConfig,
+  saveLockoutInfo,
+  clearLockoutInfo,
+  getLockoutInfo,
+} from "@/features/shared/stores/secure-config";
+
+export interface LoginLockout {
+  lockedUntil: string;
+  deviceType: string;
+  attemptsRemaining: number;
+}
 
 interface AuthContextI {
-  login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
+  login: (credentials: LoginApiRequest) => Promise<{ success: boolean; lockout?: LoginLockout; attemptsRemaining?: number }>;
   loginAsGuest: (credentials: {
     firstName: string;
     lastName: string;
@@ -63,6 +79,12 @@ interface AuthContextI {
 }
 
 const AuthContext = createContext<AuthContextI | null>(null);
+
+interface DeviceLockoutResponse {
+  locked_until: string;
+  device_type: string;
+  attempts_remaining: number;
+}
 
 interface LoginFormErrors extends GuestLoginFormErrors {
   username?: string;
@@ -126,7 +148,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsAdmin(userService.getIsAdmin());
         setAccessToken(access_token);
         setIsAuthenticated(true);
-        console.log("setIsOfflineWithExpiredToken false");
+        authLog.debug("setIsOfflineWithExpiredToken false");
         setIsOfflineWithExpiredToken(false);
         return true;
       } catch (err) {
@@ -262,10 +284,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return { success: false };
     }
 
+    const existingLockout = await getLockoutInfo("lockout_login");
+    if (existingLockout) {
+      const until = new Date(existingLockout.lockedUntil);
+      if (until > new Date()) {
+        authLog.warn("auth › login blocked by active lockout", { lockedUntil: existingLockout.lockedUntil, deviceType: existingLockout.deviceType });
+        setErrors({ general: "Too many attempts. Please wait before trying again." });
+        setLoading(false);
+        return { success: false };
+      }
+      await clearLockoutInfo("lockout_login");
+    }
+
+    const deviceFields = await buildDeviceFields(fetchChallengeApi);
+    authLog.debug("auth › device gate", { hasDeviceFields: Boolean(deviceFields) });
+
     const isRelogin = needsReloginForServer;
 
     try {
-      const res = await loginApi(credentials);
+      const res = await loginApi(credentials, deviceFields);
       setLoading(false);
 
       if (isRelogin) {
@@ -297,6 +334,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         requestMainContainerReset();
       }
 
+      await clearLockoutInfo("lockout_login");
+      clearDeviceSigningKey();
       return { success: true };
     } catch (err) {
       authLog.error("auth › login failed", { error: err });
@@ -313,8 +352,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (status === 401) {
-        setErrors({ general: data.detail });
-        return { success: false };
+        const detail = data.detail;
+        const message = typeof detail === 'string' ? detail : detail.message;
+        const attemptsRemaining =
+          typeof detail === 'object' && detail.attempts_remaining != null
+            ? detail.attempts_remaining
+            : undefined;
+        setErrors({ general: message });
+        return { success: false, attemptsRemaining };
+      }
+
+      if (status === 429) {
+        const lockoutData = (data as unknown as { detail: DeviceLockoutResponse }).detail;
+        authLog.warn("auth › login device lockout", { deviceType: lockoutData.device_type, lockedUntil: lockoutData.locked_until });
+        await saveLockoutInfo(
+          "lockout_login",
+          lockoutData.locked_until,
+          lockoutData.device_type,
+          lockoutData.attempts_remaining
+        );
+        setErrors({ general: "Too many attempts. Your device is temporarily locked." });
+        return {
+          success: false,
+          lockout: {
+            lockedUntil: lockoutData.locked_until,
+            deviceType: lockoutData.device_type,
+            attemptsRemaining: lockoutData.attempts_remaining,
+          },
+        };
       }
 
       setErrors({ general: "An unexpected error occurred." });
@@ -449,6 +514,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteItemAsync("userUUID");
     await userService.logout();
     await clearConnectionConfig();
+    clearDeviceSigningKey();
     setAccessToken(null);
     setIsAuthenticated(false);
     setIsRescuer(false);

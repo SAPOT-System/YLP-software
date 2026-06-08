@@ -31,6 +31,14 @@ jest.mock("@/features/shared", () => ({
 
 jest.mock("@/features/shared/stores/secure-config", () => ({
   clearConnectionConfig: jest.fn(),
+  getLockoutInfo: jest.fn(),
+  saveLockoutInfo: jest.fn(),
+  clearLockoutInfo: jest.fn(),
+}));
+
+jest.mock("@/features/shared/services/device-key-service", () => ({
+  buildDeviceFields: jest.fn(),
+  clearDeviceSigningKey: jest.fn(),
 }));
 
 jest.mock("@/features/auth/api", () => ({
@@ -38,6 +46,7 @@ jest.mock("@/features/auth/api", () => ({
   loginApi: jest.fn(),
   logoutApi: jest.fn(),
   refreshTokenApi: jest.fn(),
+  fetchChallengeApi: jest.fn(),
 }));
 
 jest.mock("@/features/auth/utils/token-utils", () => ({
@@ -120,6 +129,22 @@ describe("AuthProvider bootstrap — local-first identity", () => {
     secureStore().getItemAsync.mockResolvedValue(null);
     secureStore().setItemAsync.mockResolvedValue(undefined);
     secureStore().deleteItemAsync.mockResolvedValue(undefined);
+
+    const secureConfig = jest.requireMock("@/features/shared/stores/secure-config") as {
+      getLockoutInfo: jest.Mock;
+      saveLockoutInfo: jest.Mock;
+      clearLockoutInfo: jest.Mock;
+    };
+    secureConfig.getLockoutInfo.mockResolvedValue(null);
+    secureConfig.saveLockoutInfo.mockResolvedValue(undefined);
+    secureConfig.clearLockoutInfo.mockResolvedValue(undefined);
+
+    const deviceKeyService = jest.requireMock("@/features/shared/services/device-key-service") as {
+      buildDeviceFields: jest.Mock;
+      clearDeviceSigningKey: jest.Mock;
+    };
+    deviceKeyService.buildDeviceFields.mockResolvedValue(null);
+    deviceKeyService.clearDeviceSigningKey.mockReturnValue(undefined);
   });
 
   it("sets isAuthenticated=true when userUUID and local DB record exist", async () => {
@@ -409,6 +434,90 @@ describe("AuthProvider bootstrap — local-first identity", () => {
     });
 
     expect(getByTestId("offlineExpired").props.children).toBe("false");
+  });
+
+  it("returns attemptsRemaining when server responds 401 with dict detail", async () => {
+    const { loginApi } = jest.requireMock("@/features/auth/api") as { loginApi: jest.Mock };
+    loginApi.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: { detail: { message: "Incorrect credentials", attempts_remaining: 6 } },
+      },
+    });
+
+    let loginResult: { success: boolean; attemptsRemaining?: number } | null = null;
+    const { AuthProvider, useAuth } = require("../auth-context") as typeof import("../auth-context");
+
+    const TestCapture = () => {
+      const auth = useAuth();
+      const authRef = React.useRef(auth);
+      authRef.current = auth;
+      return (
+        <Pressable
+          testID="capture-login-btn"
+          onPress={async () => {
+            loginResult = await authRef.current.login({ username: "user", password: "wrong" });
+          }}
+        />
+      );
+    };
+
+    const { getByTestId } = render(
+      <AuthProvider>
+        <TestCapture />
+      </AuthProvider>
+    );
+
+    fireEvent.press(getByTestId("capture-login-btn"));
+
+    await waitFor(() => {
+      expect(loginResult).not.toBeNull();
+    });
+
+    expect(loginResult!.success).toBe(false);
+    expect(loginResult!.attemptsRemaining).toBe(6);
+  });
+
+  it("does not include attemptsRemaining when server responds 401 with string detail", async () => {
+    const { loginApi } = jest.requireMock("@/features/auth/api") as { loginApi: jest.Mock };
+    loginApi.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: { detail: "Incorrect credentials" },
+      },
+    });
+
+    let loginResult: { success: boolean; attemptsRemaining?: number } | null = null;
+    const { AuthProvider, useAuth } = require("../auth-context") as typeof import("../auth-context");
+
+    const TestCapture = () => {
+      const auth = useAuth();
+      const authRef = React.useRef(auth);
+      authRef.current = auth;
+      return (
+        <Pressable
+          testID="capture-login-btn-str"
+          onPress={async () => {
+            loginResult = await authRef.current.login({ username: "user", password: "wrong" });
+          }}
+        />
+      );
+    };
+
+    const { getByTestId } = render(
+      <AuthProvider>
+        <TestCapture />
+      </AuthProvider>
+    );
+
+    fireEvent.press(getByTestId("capture-login-btn-str"));
+
+    await waitFor(() => {
+      expect(loginResult).not.toBeNull();
+    });
+
+    expect(loginResult!.success).toBe(false);
+    expect(loginResult!.attemptsRemaining).toBeUndefined();
   });
 
   it("does not wipe database when relogin attempt fails with wrong credentials", async () => {
