@@ -83,33 +83,60 @@ def _apply_device_gate(
     device_nonce_mac: Optional[str],
     device_signature: Optional[str],
     device_fingerprint: Optional[str],
-) -> Optional[int]:
-    """Returns attempts_remaining (int) if device fields were present and gate passed. Returns None if no device fields. Raises HTTPException on failure."""
+    request: Request = None,
+) -> tuple[Optional[int], Optional[str]]:
+    """
+    Returns (attempts_remaining, fingerprint_used).
+    fingerprint_used is device_fingerprint if device gate ran, client IP if IP gate ran, None if no gate.
+    Raises HTTPException on lockout or invalid device credentials.
+    """
     has_device_fields = all([
         device_public_key, device_nonce, device_nonce_mac,
         device_signature, device_fingerprint,
     ])
-    if not has_device_fields or not user:
-        return None
-    if not verify_challenge_nonce(device_nonce, device_nonce_mac):
-        raise HTTPException(status_code=400, detail="Invalid challenge")
-    if not verify_device_signature(device_public_key, device_nonce, device_signature):
-        raise HTTPException(status_code=401, detail="Invalid device signature")
-    device_type = get_device_type(session, user.id, device_fingerprint)
-    gate = check_and_increment_attempt(
-        session, user.id, device_fingerprint, device_type,
-        table="recovery", recovery_method=recovery_method,
-    )
-    if not gate["allowed"]:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "locked_until": gate["locked_until"].isoformat(),
-                "device_type": device_type,
-                "attempts_remaining": 0,
-            },
+
+    if has_device_fields and user:
+        if not verify_challenge_nonce(device_nonce, device_nonce_mac):
+            raise HTTPException(status_code=400, detail="Invalid challenge")
+        if not verify_device_signature(device_public_key, device_nonce, device_signature):
+            raise HTTPException(status_code=401, detail="Invalid device signature")
+        device_type = get_device_type(session, user.id, device_fingerprint)
+        gate = check_and_increment_attempt(
+            session, user.id, device_fingerprint, device_type,
+            table="recovery", recovery_method=recovery_method,
         )
-    return gate["attempts_remaining"]
+        if not gate["allowed"]:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "locked_until": gate["locked_until"].isoformat(),
+                    "device_type": device_type,
+                    "attempts_remaining": 0,
+                },
+            )
+        return gate["attempts_remaining"], device_fingerprint
+
+    if not has_device_fields and user and request is not None:
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (
+            request.client.host if request.client else "unknown"
+        )
+        gate = check_and_increment_attempt(
+            session, user.id, client_ip, "anonymous",
+            table="recovery", recovery_method=recovery_method,
+        )
+        if not gate["allowed"]:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "locked_until": gate["locked_until"].isoformat(),
+                    "device_type": "anonymous",
+                    "attempts_remaining": 0,
+                },
+            )
+        return gate["attempts_remaining"], client_ip
+
+    return None, None
 
 RECOVERY_KEY_COOLDOWN_DAYS = 30
 SECURITY_QUESTION_MIN_DAYS = 90
@@ -194,10 +221,10 @@ def confirm_phone_code(
 ):
     phone_number, code = body.phone_number, body.code
     current_user = get_user_by_phone_number(session, phone_number)
-    device_applied = _apply_device_gate(
+    device_applied, applied_fingerprint = _apply_device_gate(
         session, current_user, "phone_otp",
         device_public_key, device_nonce, device_nonce_mac,
-        device_signature, device_fingerprint,
+        device_signature, device_fingerprint, request,
     )
 
     record = session.exec(
@@ -229,10 +256,11 @@ def confirm_phone_code(
     recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
     recovery_result = create_recovery_session(session, current_user.id, "phone", recovery_expires_at)
 
-    if device_applied:
-        reset_attempts(session, current_user.id, device_fingerprint,
+    if applied_fingerprint:
+        reset_attempts(session, current_user.id, applied_fingerprint,
                        table="recovery", recovery_method="phone_otp")
-        bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
+        if device_fingerprint:
+            bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
 
     return {
         'link': reset_link_template(raw_token, request),
@@ -300,10 +328,10 @@ async def recover_with_recovery_key(
     if not current_user:
         raise HTTPException(status_code=400, detail="Invalid account identier.")
 
-    device_applied = _apply_device_gate(
+    device_applied, applied_fingerprint = _apply_device_gate(
         session, current_user, "recovery_key",
         device_public_key, device_nonce, device_nonce_mac,
-        device_signature, device_fingerprint,
+        device_signature, device_fingerprint, request,
     )
 
     if key_file.content_type not in ("text/plain", "application/octet-stream"):
@@ -336,10 +364,11 @@ async def recover_with_recovery_key(
     recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
     recovery_result = create_recovery_session(session, current_user.id, "token", recovery_expires_at)
 
-    if device_applied:
-        reset_attempts(session, current_user.id, device_fingerprint,
+    if applied_fingerprint:
+        reset_attempts(session, current_user.id, applied_fingerprint,
                        table="recovery", recovery_method="recovery_key")
-        bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
+        if device_fingerprint:
+            bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
 
     return {
         'recovery-link': reset_link_template(raw_token, request),
@@ -421,10 +450,10 @@ def confirm_code(
     device_fingerprint: Optional[str] = Query(default=None),
 ):
     current_user = get_user(email, session)
-    device_applied = _apply_device_gate(
+    device_applied, applied_fingerprint = _apply_device_gate(
         session, current_user, "email_otp",
         device_public_key, device_nonce, device_nonce_mac,
-        device_signature, device_fingerprint,
+        device_signature, device_fingerprint, request,
     )
     if current_user:
         statement=  select(PasswordResetCode).where(
@@ -459,10 +488,11 @@ def confirm_code(
         recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
         recovery_result = create_recovery_session(session, current_user.id, "email", recovery_expires_at)
 
-        if device_applied:
-            reset_attempts(session, current_user.id, device_fingerprint,
+        if applied_fingerprint:
+            reset_attempts(session, current_user.id, applied_fingerprint,
                            table="recovery", recovery_method="email_otp")
-            bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
+            if device_fingerprint:
+                bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
 
         return {
             'link': reset_link,
@@ -601,10 +631,10 @@ def verify_security_answer(
     if not user:
         raise HTTPException(404, 'Invalid token')
 
-    device_applied = _apply_device_gate(
+    device_applied, applied_fingerprint = _apply_device_gate(
         session, user, "security_question",
         device_public_key, device_nonce, device_nonce_mac,
-        device_signature, device_fingerprint,
+        device_signature, device_fingerprint, request,
     )
 
     user_id = user.id
@@ -624,6 +654,7 @@ def verify_security_answer(
     )
 
     if not is_correct:
+        print(device_applied)
         return {"correct": False, "attempts_remaining": device_applied}
 
     db_question.is_burned = True
@@ -645,10 +676,11 @@ def verify_security_answer(
     recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
     recovery_result = create_recovery_session(session, user_id, "qa", recovery_expires_at)
 
-    if device_applied:
-        reset_attempts(session, user.id, device_fingerprint,
+    if applied_fingerprint:
+        reset_attempts(session, user.id, applied_fingerprint,
                        table="recovery", recovery_method="security_question")
-        bind_device_key(session, user.id, device_fingerprint, device_public_key)
+        if device_fingerprint:
+            bind_device_key(session, user.id, device_fingerprint, device_public_key)
 
     return {
         "correct": True,
