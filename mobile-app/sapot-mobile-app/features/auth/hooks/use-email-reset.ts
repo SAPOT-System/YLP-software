@@ -1,10 +1,8 @@
-import { buildDeviceFields } from "@/features/shared/services/device-key-service";
 import { toAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import axios from "axios";
 import { useState } from "react";
 import {
-  fetchChallengeApi,
   sendResetEmailCodeApi,
   verifyResetEmailCodeApi,
 } from "../api/auth.api";
@@ -58,8 +56,7 @@ export const useEmailReset = () => {
     setError(null);
 
     try {
-      const deviceFields = await buildDeviceFields(fetchChallengeApi);
-      const response = await verifyResetEmailCodeApi(emailAddress, code, deviceFields);
+      const response = await verifyResetEmailCodeApi(emailAddress, code);
       setAttemptsRemaining(null);
       await lockout.clearLock();
       return {

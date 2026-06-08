@@ -152,8 +152,16 @@ const ChangePasswordScreen = () => {
           description="Your password reset link is invalid or has expired. Please start the process again."
         >
           <SecondaryButton
-            onPress={() => {
+            onPress={async () => {
               authLog.info("[Navigation] goBack from expired token");
+              await Promise.all([
+                deleteItemAsync("reset_password_token"),
+                deleteItemAsync("reset_password_identifier"),
+                deleteItemAsync("reset_password_method"),
+                deleteItemAsync("reset_recovery_token"),
+                deleteItemAsync("reset_recovery_secret"),
+                deleteItemAsync("reset_recovery_salt"),
+              ]);
               router.replace(AUTH_ROUTES.FORGOT_PASSWORD.INDEX);
             }}
           >

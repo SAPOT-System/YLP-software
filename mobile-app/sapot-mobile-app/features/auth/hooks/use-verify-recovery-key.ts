@@ -1,9 +1,8 @@
-import { buildDeviceFields } from "@/features/shared/services/device-key-service";
 import { toAppError } from "@/features/shared/errors";
 import { isAxiosError } from "axios";
 import { useState } from "react";
 import { authLog } from "../../shared/utils/logger";
-import { ExpoFileUpload, fetchChallengeApi, verifyRecoveryKeyApi } from "../api";
+import { ExpoFileUpload, verifyRecoveryKeyApi } from "../api";
 import { useLockoutTimer } from "./use-lockout-timer";
 import { DeviceLockout429 } from "../types";
 
@@ -30,8 +29,7 @@ export const useVerifyRecoveryKey = (identifier: string) => {
     setLoading(true);
 
     try {
-      const deviceFields = await buildDeviceFields(fetchChallengeApi);
-      const res = await verifyRecoveryKeyApi(file, identifier, deviceFields);
+      const res = await verifyRecoveryKeyApi(file, identifier);
       authLog.debug("auth › recovery key verified", { expiresInSeconds: res.data.expire_in_seconds });
 
       setAttemptsRemaining(null);

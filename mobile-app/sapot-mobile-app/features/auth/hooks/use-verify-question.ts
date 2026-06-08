@@ -1,9 +1,8 @@
-import { buildDeviceFields } from "@/features/shared/services/device-key-service";
 import { toAppError } from "@/features/shared/errors";
 import { isAxiosError } from "axios";
 import { useState } from "react";
 import { authLog } from "../../shared/utils/logger";
-import { fetchChallengeApi, verifySecurityQuestionApi } from "../api";
+import { verifySecurityQuestionApi } from "../api";
 import { useLockoutTimer } from "./use-lockout-timer";
 import { DeviceLockout429 } from "../types";
 
@@ -29,8 +28,7 @@ export const useVerifyAnswer = (identifier: string) => {
     setLoading(true);
 
     try {
-      const deviceFields = await buildDeviceFields(fetchChallengeApi);
-      const res = await verifySecurityQuestionApi(identifier, { question, answer }, deviceFields);
+      const res = await verifySecurityQuestionApi(identifier, { question, answer });
       authLog.debug("auth › security question verified", { correct: res.data.correct });
 
       if (res.data.correct) {

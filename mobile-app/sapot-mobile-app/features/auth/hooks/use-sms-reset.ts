@@ -1,9 +1,8 @@
-import { buildDeviceFields } from "@/features/shared/services/device-key-service";
 import { toAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import axios from "axios";
 import { useState } from "react";
-import { fetchChallengeApi, sendResetSmsCodeApi, verifyResetSmsCodeApi } from "../api/auth.api";
+import { sendResetSmsCodeApi, verifyResetSmsCodeApi } from "../api/auth.api";
 import { useLockoutTimer } from "./use-lockout-timer";
 import { DeviceLockout429 } from "../types";
 
@@ -58,8 +57,7 @@ export const useSmsReset = () => {
     setError(null);
 
     try {
-      const deviceFields = await buildDeviceFields(fetchChallengeApi);
-      const response = await verifyResetSmsCodeApi(phoneNumber, code, deviceFields);
+      const response = await verifyResetSmsCodeApi(phoneNumber, code);
       const rt = response.data.recovery_token ?? null;
       setAttemptsRemaining(null);
       await lockout.clearLock();
