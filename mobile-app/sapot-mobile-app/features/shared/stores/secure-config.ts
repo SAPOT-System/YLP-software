@@ -400,6 +400,65 @@ export const clearMigrationState = async (): Promise<void> => {
   }
 };
 
+// ── Lockout helpers ───────────────────────────────────────────────────────────
+
+export interface LockoutInfo {
+  lockedUntil: string;
+  deviceType: string;
+  attemptsRemaining: number;
+}
+
+const LOCKOUT_KEYS = [
+  "lockout_login",
+  "lockout_recovery_question",
+  "lockout_recovery_key",
+  "lockout_recovery_phone",
+  "lockout_recovery_email",
+] as const;
+
+export type LockoutKey = (typeof LOCKOUT_KEYS)[number];
+
+export const saveLockoutInfo = async (
+  key: LockoutKey,
+  lockedUntil: string,
+  deviceType: string,
+  attemptsRemaining: number
+): Promise<void> => {
+  try {
+    const info: LockoutInfo = { lockedUntil, deviceType, attemptsRemaining };
+    await setItemAsync(key, JSON.stringify(info));
+  } catch (error) {
+    backgroundLog.error("secure-config › lockout save failed", { error });
+  }
+};
+
+export const getLockoutInfo = async (key: LockoutKey): Promise<LockoutInfo | null> => {
+  try {
+    const raw = await getItemAsync(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as LockoutInfo;
+  } catch (error) {
+    backgroundLog.error("secure-config › lockout read failed", { error });
+    return null;
+  }
+};
+
+export const clearLockoutInfo = async (key: LockoutKey): Promise<void> => {
+  try {
+    await deleteItemAsync(key);
+  } catch (error) {
+    backgroundLog.error("secure-config › lockout clear failed", { error });
+  }
+};
+
+export const clearAllLockouts = async (): Promise<void> => {
+  try {
+    await Promise.all(LOCKOUT_KEYS.map((key) => deleteItemAsync(key)));
+  } catch (error) {
+    backgroundLog.error("secure-config › clear all lockouts failed", { error });
+  }
+};
+
 // ── Cleanup (on logout) ────────────────────────────────────────────────────────
 
 export const clearConnectionConfig = async () => {
