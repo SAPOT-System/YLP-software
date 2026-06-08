@@ -20,24 +20,29 @@ function deviceLabel(deviceType: string | null): string {
   return "this device";
 }
 
+const SHORT_COOLDOWN_THRESHOLD_SECONDS = 120;
+
 export function LockoutBanner({ secondsRemaining, deviceType, onExpire }: LockoutBannerProps) {
   const { colors } = useTheme();
-  const wasLockedRef = React.useRef(false);
+  const prevSecondsRef = React.useRef(secondsRemaining);
+  const initialSecondsRef = React.useRef(secondsRemaining);
 
   React.useEffect(() => {
-    if (secondsRemaining > 0) {
-      wasLockedRef.current = true;
-    } else if (wasLockedRef.current && onExpire) {
-      wasLockedRef.current = false;
+    if (prevSecondsRef.current > 0 && secondsRemaining === 0 && onExpire) {
       onExpire();
     }
+    prevSecondsRef.current = secondsRemaining;
   }, [secondsRemaining, onExpire]);
+
+  const isCooldown = initialSecondsRef.current <= SHORT_COOLDOWN_THRESHOLD_SECONDS;
+  const label = isCooldown
+    ? `Too many attempts. Please wait ${formatCountdown(secondsRemaining)} before trying again.`
+    : `Too many failed attempts for ${deviceLabel(deviceType)}.\nTry again in ${formatCountdown(secondsRemaining)}.`;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.errorContainer }]}>
       <Text style={[styles.text, { color: colors.onErrorContainer }]}>
-        Too many failed attempts for {deviceLabel(deviceType)}.{"\n"}
-        Try again in {formatCountdown(secondsRemaining)}.
+        {label}
       </Text>
     </View>
   );

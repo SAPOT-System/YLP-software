@@ -19,6 +19,7 @@ export const useVerifyAnswer = (identifier: string) => {
     question: string;
     answer: string;
   }) => {
+    if (lockout.isLocked) return { success: false };
     authLog.debug("[useVerifyAnswer] verifyAnswer called", {
       hasIdentifier: Boolean(identifier),
       hasQuestion: Boolean(question),

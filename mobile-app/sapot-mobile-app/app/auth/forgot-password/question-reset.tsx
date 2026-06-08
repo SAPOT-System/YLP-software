@@ -39,6 +39,7 @@ const QuestionResetScreen = () => {
   const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [overlayMessage, setOverlayMessage] = useState("");
   const pendingNavRef = useRef<(() => void) | null>(null);
+  const submittingRef = useRef(false);
   const [answer, setAnswer] = useState("");
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
@@ -125,7 +126,10 @@ const QuestionResetScreen = () => {
     );
   }
 
-  const handleVerify = async () => {
+  const handleVerify = async (): Promise<void> => {
+    if (submittingRef.current || lockout.isLocked) return;
+    submittingRef.current = true;
+    try {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
       setOverlayPhase("error");
@@ -163,6 +167,9 @@ const QuestionResetScreen = () => {
     } else {
       setOverlayPhase("error");
       setOverlayMessage(error.general || error.answer || "Verification failed. Please try again.");
+    }
+    } finally {
+      submittingRef.current = false;
     }
   };
 

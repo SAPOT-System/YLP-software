@@ -49,6 +49,7 @@ export const useSmsReset = () => {
   };
 
   const verifyCode = async (phoneNumber: string, code: string) => {
+    if (lockout.isLocked) return { success: false };
     authLog.debug("[useSmsReset] verifyCode called", {
       phoneLength: phoneNumber.length,
       codeLength: code.length,

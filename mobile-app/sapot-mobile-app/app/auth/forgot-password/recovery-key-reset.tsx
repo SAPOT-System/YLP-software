@@ -35,6 +35,7 @@ const RecoveryKeyResetScreen = () => {
   const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [overlayMessage, setOverlayMessage] = useState("");
   const pendingNavRef = useRef<(() => void) | null>(null);
+  const submittingRef = useRef(false);
 
   const handleOverlayDismiss = useCallback(() => {
     if (overlayPhase === "success" && pendingNavRef.current) {
@@ -116,7 +117,10 @@ const RecoveryKeyResetScreen = () => {
     }
   };
 
-  const handleVerify = async () => {
+  const handleVerify = async (): Promise<void> => {
+    if (submittingRef.current || lockout.isLocked) return;
+    submittingRef.current = true;
+    try {
     authLog.debug("[RecoveryKeyResetScreen] handleVerify called", {
       hasFile: Boolean(file),
     });
@@ -161,6 +165,9 @@ const RecoveryKeyResetScreen = () => {
     } else {
       setOverlayPhase("error");
       setOverlayMessage(error.general || error.recoveryKey || "Verification failed. Please try again.");
+    }
+    } finally {
+      submittingRef.current = false;
     }
   };
 

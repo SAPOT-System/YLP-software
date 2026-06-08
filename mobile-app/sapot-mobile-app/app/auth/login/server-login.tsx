@@ -25,6 +25,7 @@ const ServerLoginScreen = () => {
   const [overlayPhase, setOverlayPhase] = useState<OverlayPhase>("idle");
   const [overlayMessage, setOverlayMessage] = useState("");
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const submittingRef = useRef(false);
 
   const { login, errors } = useAuth();
   const { mode, setMode } = useAppMode();
@@ -50,7 +51,10 @@ const ServerLoginScreen = () => {
     setOverlayMessage("");
   }, [overlayPhase]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (): Promise<void> => {
+    if (submittingRef.current || lockoutTimer.isLocked) return;
+    submittingRef.current = true;
+    try {
     authLog.debug("[ServerLoginScreen] handleLogin called", {
       hasUsername: Boolean(username.trim()),
       password: "[REDACTED]",
@@ -100,6 +104,9 @@ const ServerLoginScreen = () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setOverlayPhase("error");
       setOverlayMessage("An unexpected error occurred.");
+    }
+    } finally {
+      submittingRef.current = false;
     }
   };
 

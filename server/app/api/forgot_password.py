@@ -443,6 +443,12 @@ def send_reset(email: str, background_tasks: BackgroundTasks, session: SessionDe
     current_user = get_user(email, session)
 
     if current_user:
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (
+            request.client.host if request.client else "unknown"
+        )
+        reset_attempts(session, current_user.id, client_ip, table="recovery", recovery_method="email_otp")
+
         code = generate_reset_code()
 
         reset_code = PasswordResetCode(
@@ -790,6 +796,12 @@ def send_recovery_otp(
     user = get_user_by_phone_number(session, body.phone_number)
     if not user:
         return {"message": "OTP sent if account exists."}
+
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (
+        request.client.host if request.client else "unknown"
+    )
+    reset_attempts(session, user.id, client_ip, table="recovery", recovery_method="phone_otp")
 
     code = generate_reset_code()
     code_hash = hashlib.sha256(code.encode()).hexdigest()

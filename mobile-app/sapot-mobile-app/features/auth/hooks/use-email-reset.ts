@@ -48,6 +48,7 @@ export const useEmailReset = () => {
   };
 
   const verifyCode = async (emailAddress: string, code: string) => {
+    if (lockout.isLocked) return { success: false };
     authLog.debug("[useEmailReset] verifyCode called", {
       emailLength: emailAddress.length,
       codeLength: code.length,

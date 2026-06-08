@@ -21,6 +21,7 @@ export const useVerifyRecoveryKey = (identifier: string) => {
   const lockout = useLockoutTimer("lockout_recovery_key");
 
   const verifyRecoveryKey = async (file: ExpoFileUpload) => {
+    if (lockout.isLocked) return { success: false };
     authLog.debug("[useVerifyRecoveryKey] verifyRecoveryKey called", {
       hasIdentifier: Boolean(identifier),
       hasFile: Boolean(file),

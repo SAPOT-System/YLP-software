@@ -9,8 +9,9 @@ interface AttemptsWarningProps {
 export const AttemptsWarning = ({ attemptsRemaining }: AttemptsWarningProps) => {
   const { colors } = useTheme();
 
-  if (attemptsRemaining <= 0) return null;
+  if (attemptsRemaining < 0) return null;
 
+  const isLastChance = attemptsRemaining === 0;
   const noun = attemptsRemaining === 1 ? 'attempt' : 'attempts';
 
   return (
@@ -19,7 +20,9 @@ export const AttemptsWarning = ({ attemptsRemaining }: AttemptsWarningProps) => 
       style={[styles.container, { backgroundColor: colors.secondaryContainer }]}
     >
       <Text style={[styles.text, { color: colors.onSecondaryContainer }]}>
-        Warning: {attemptsRemaining} {noun} remaining before your device is locked.
+        {isLastChance
+          ? 'Warning: This is your last chance. Your device will be locked on your next failed attempt.'
+          : `Warning: ${attemptsRemaining} ${noun} remaining before your device is locked.`}
       </Text>
     </View>
   );
