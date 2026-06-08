@@ -12,7 +12,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from sqlmodel import Session, select
 
-from app.db_operations.token import DEVICE_CHALLENGE_SECRET
+from app.config import DEVICE_CHALLENGE_SECRET
 from app.models.device_key import DeviceKey
 from app.models.login_attempt import LoginAttempt, RecoveryAttempt
 
@@ -113,7 +113,7 @@ def _get_or_create_login_attempt(
         select(LoginAttempt).where(
             LoginAttempt.user_id == user_id,
             LoginAttempt.device_fingerprint == device_fingerprint,
-        )
+        ).with_for_update()
     ).first()
     if not row:
         row = LoginAttempt(
@@ -138,7 +138,7 @@ def _get_or_create_recovery_attempt(
             RecoveryAttempt.user_id == user_id,
             RecoveryAttempt.device_fingerprint == device_fingerprint,
             RecoveryAttempt.recovery_method == recovery_method,
-        )
+        ).with_for_update()
     ).first()
     if not row:
         row = RecoveryAttempt(
@@ -256,7 +256,7 @@ def bind_device_key(
         )
     ).first()
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if existing:
         existing.last_seen = now
         session.add(existing)
