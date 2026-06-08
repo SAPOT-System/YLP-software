@@ -84,6 +84,11 @@ export interface LoginApiResponse {
   token_type: string;
 }
 
+export interface Login401Detail {
+  message: string;
+  attempts_remaining?: number;
+}
+
 export interface LoginApiErrorResponse {
-  detail: string;
+  detail: Login401Detail | string;
 }
