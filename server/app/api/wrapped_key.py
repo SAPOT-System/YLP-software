@@ -4,16 +4,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlmodel import select
 
 from app.db_operations.auth import SessionDep
 from app.db_operations.token import get_current_user
+from app.limiter import limiter
 from app.models.users import User
 from app.models.wrapped_key import WrappedKey
-
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/users",

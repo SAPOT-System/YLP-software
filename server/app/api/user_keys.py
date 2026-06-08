@@ -4,8 +4,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlmodel import select
 
 from app.db_operations.auth import SessionDep
@@ -16,9 +14,8 @@ from app.db_operations.wrapped_key_recovery import (
     get_recovery_blob,
     validate_recovery_session,
 )
+from app.limiter import limiter
 from app.models.users import User
-
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/users",

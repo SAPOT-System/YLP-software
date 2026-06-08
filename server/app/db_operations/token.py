@@ -18,7 +18,11 @@ from app.models.users import UserCreate
 from app.models.jti import BlacklistedToken
 from app.db_operations.auth import get_user, get_user_by_ID
 
-SECRET_KEY = "7a272aa19fd88943207a62115b64f67530731eafd3b79a228f42972a2a51df1e"
+import os
+
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "7a272aa19fd88943207a62115b64f67530731eafd3b79a228f42972a2a51df1e")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_ACCESS_TOKEN_EXPIRE_DAYS = 60
@@ -232,8 +236,6 @@ def create_token_pair(user_id: UUID) -> Token:
         refresh_token=jwt.encode(refresh_payload, SECRET_KEY, algorithm=ALGORITHM),
         token_type="bearer"
     )
-
-    print(res)
 
     return res
 

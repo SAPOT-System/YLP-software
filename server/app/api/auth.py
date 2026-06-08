@@ -9,13 +9,8 @@ from app.limiter import limiter
 from fastapi import Depends, FastAPI, Form, HTTPException, Query
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from app.db_operations.device_attempts import (
-    bind_device_key,
     check_and_increment_attempt,
-    generate_challenge_nonce,
-    get_device_type,
     reset_attempts,
-    verify_challenge_nonce,
-    verify_device_signature,
 )
 
 from datetime import datetime, timedelta, timezone
@@ -278,22 +273,12 @@ def get_terms_and_conditions():
 
 
 
-@router.get("/challenge")
-def get_challenge(device_fingerprint: str):
-    return generate_challenge_nonce(device_fingerprint)
-
-
 @router.post("/token", response_model=Token)
 @limiter.limit("5/minute")
 async def login_for_access_token(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
-    device_public_key: Optional[str] = Form(default=None),
-    device_nonce: Optional[str] = Form(default=None),
-    device_nonce_mac: Optional[str] = Form(default=None),
-    device_signature: Optional[str] = Form(default=None),
-    device_fingerprint: Optional[str] = Form(default=None),
 ):
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
@@ -303,72 +288,31 @@ async def login_for_access_token(
     else:
         raise HTTPException(status_code=400, detail="Unable to determine client address")
 
-    if device_fingerprint and len(device_fingerprint) > 64:
-        raise HTTPException(status_code=400, detail="Invalid device fingerprint")
-    if device_public_key and len(device_public_key) > 128:
-        raise HTTPException(status_code=400, detail="Invalid device public key")
-
-    has_device_fields = all([
-        device_public_key, device_nonce, device_nonce_mac,
-        device_signature, device_fingerprint,
-    ])
-
-    # Resolve user first (without password check) for device/IP gate
+    # Resolve user first (without password check) for IP gate
     pre_auth_user = get_user(form_data.username, session)
 
-    if has_device_fields and pre_auth_user:
-        if not verify_challenge_nonce(device_nonce, device_nonce_mac):
-            raise HTTPException(status_code=400, detail="Invalid challenge")
-        if not verify_device_signature(device_public_key, device_nonce, device_signature):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid device signature",
-            )
-        device_type = get_device_type(session, pre_auth_user.id, device_fingerprint)
-        gate = check_and_increment_attempt(
-            session, pre_auth_user.id, device_fingerprint, device_type
-        )
+    if pre_auth_user:
+        gate = check_and_increment_attempt(session, pre_auth_user.id, client_ip)
         if not gate["allowed"]:
             retry_after = max(0, int((gate["locked_until"] - datetime.now(timezone.utc)).total_seconds()))
             raise HTTPException(
                 status_code=429,
                 detail={
                     "locked_until": gate["locked_until"].isoformat(),
-                    "device_type": device_type,
                     "attempts_remaining": 0,
                 },
                 headers={"Retry-After": str(retry_after)},
             )
-
-    elif pre_auth_user:
-        # No device fields — use the client IP as the device identifier.
-        gate = check_and_increment_attempt(
-            session, pre_auth_user.id, client_ip, "anonymous"
-        )
-        if not gate["allowed"]:
-            retry_after = max(0, int((gate["locked_until"] - datetime.now(timezone.utc)).total_seconds()))
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "locked_until": gate["locked_until"].isoformat(),
-                    "device_type": "anonymous",
-                    "attempts_remaining": 0,
-                },
-                headers={"Retry-After": str(retry_after)},
-            )
-
     else:
-        # Unknown username — still consume budget to prevent enumeration via 429 vs 401 differential.
-        # Deterministic phantom UUID per username keeps buckets isolated without a real user lookup.
+        # Unknown username — consume budget to prevent enumeration via lockout differential.
         phantom_id = uuid.uuid5(uuid.NAMESPACE_URL, f"phantom:{form_data.username}")
-        gate = check_and_increment_attempt(session, phantom_id, client_ip, "anonymous")
+        gate = check_and_increment_attempt(session, phantom_id, client_ip)
         if not gate["allowed"]:
             retry_after = max(0, int((gate["locked_until"] - datetime.now(timezone.utc)).total_seconds()))
             raise HTTPException(
                 status_code=429,
                 detail={
                     "locked_until": gate["locked_until"].isoformat(),
-                    "device_type": "anonymous",
                     "attempts_remaining": 0,
                 },
                 headers={"Retry-After": str(retry_after)},
@@ -396,12 +340,7 @@ async def login_for_access_token(
                 detail=f"Account banned until: {expiry_str}",
             )
 
-    if has_device_fields and authenticated:
-        reset_attempts(session, authenticated.id, device_fingerprint)
-        bind_device_key(session, authenticated.id, device_fingerprint, device_public_key)
-    else:
-        reset_attempts(session, authenticated.id, client_ip)
-
+    reset_attempts(session, authenticated.id, client_ip)
     return create_token_pair(authenticated.id)
 
 
