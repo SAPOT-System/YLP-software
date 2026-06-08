@@ -4,7 +4,6 @@ jest.mock("@/features/shared", () => ({
   apiClient: { post: jest.fn(), get: jest.fn() },
 }));
 
-// eslint-disable-next-line import/first
 import { apiClient } from "@/features/shared";
 
 const mockPost = apiClient.post as jest.Mock;

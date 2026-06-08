@@ -164,7 +164,7 @@ describe("ConnectionService", () => {
 
       const audioCallMessage = {
         type: "audio-call" as const,
-        data: { from_user: "peer-1", to: "peer-2" },
+        data: { from: "peer-1", to: "peer-2" },
       };
 
       const emitSpy = jest.spyOn(connectionService, "emit");
@@ -276,7 +276,7 @@ describe("ConnectionService", () => {
 
       await callMessageHandler?.({
         type: "audio-call" as const,
-        data: { from_user: "peer-1", to: "test-user-id" },
+        data: { from: "peer-1", to: "test-user-id" },
       });
 
       expect(sendCallMessageSpy).toHaveBeenCalledWith(
@@ -305,7 +305,7 @@ describe("ConnectionService", () => {
 
       await callMessageHandler?.({
         type: "audio-call" as const,
-        data: { from_user: "peer-1", to: "aaa-user", callId: "call-abc" },
+        data: { from: "peer-1", to: "aaa-user", callId: "call-abc" },
       });
 
       expect(sendCallMessageSpy).not.toHaveBeenCalledWith(
@@ -330,7 +330,7 @@ describe("ConnectionService", () => {
 
       await callMessageHandler?.({
         type: "audio-call" as const,
-        data: { from_user: "peer-1", to: "test-user-id", callId: "call-abc" },
+        data: { from: "peer-1", to: "test-user-id", callId: "call-abc" },
       });
 
       expect(sendCallMessageSpy).toHaveBeenCalledWith(

@@ -38,31 +38,29 @@ describe("logger file logging", () => {
   });
 
   test("getDevServerInfo returns null when no dev bundle URL is available", () => {
-    const { NativeModules } = require("react-native");
-    delete NativeModules.SourceCode;
+    jest.resetModules();
+    jest.doMock("expo-constants", () => ({ __esModule: true, default: { expoConfig: {} } }));
     const { getDevServerInfo } = require("../logger");
 
     expect(getDevServerInfo()).toBeNull();
   });
 
   test("getDevServerInfo parses laptop host and Metro port from the bundle URL", () => {
-    const { NativeModules } = require("react-native");
-    NativeModules.SourceCode = {
-      scriptURL: "http://192.168.1.16:8082/index.bundle?platform=android&dev=true",
-    };
+    jest.resetModules();
+    jest.doMock("expo-constants", () => ({ __esModule: true, default: { expoConfig: { hostUri: "192.168.1.16:8082" } } }));
     const { getDevServerInfo } = require("../logger");
 
     expect(getDevServerInfo()).toEqual({ host: "192.168.1.16", port: "8082" });
-    delete NativeModules.SourceCode;
+    jest.resetModules();
   });
 
   test("getDevServerInfo defaults to Metro port 8081 when the URL omits a port", () => {
-    const { NativeModules } = require("react-native");
-    NativeModules.SourceCode = { scriptURL: "http://192.168.1.16/index.bundle" };
+    jest.resetModules();
+    jest.doMock("expo-constants", () => ({ __esModule: true, default: { expoConfig: { hostUri: "192.168.1.16" } } }));
     const { getDevServerInfo } = require("../logger");
 
     expect(getDevServerInfo()).toEqual({ host: "192.168.1.16", port: "8081" });
-    delete NativeModules.SourceCode;
+    jest.resetModules();
   });
 
   test("module loads with file logging enabled via EXPO_PUBLIC_LOG_TO_FILE=1", () => {

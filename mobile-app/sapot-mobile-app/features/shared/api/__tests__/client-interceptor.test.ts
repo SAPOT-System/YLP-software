@@ -81,9 +81,9 @@ describe("apiClient response interceptor — refresh outcomes", () => {
     mockGetItemAsync.mockResolvedValue("stored-refresh-token");
     mockAxiosPost.mockRejectedValue({ response: { status: 401 } });
 
-    const { setAuthFailureCallback, errorHandler } = setup();
+    const { setNeedsReloginCallback, errorHandler } = setup();
     const onFailure = jest.fn();
-    setAuthFailureCallback(onFailure);
+    setNeedsReloginCallback(onFailure);
 
     await errorHandler(make401Error()).catch(() => {});
 
@@ -96,9 +96,9 @@ describe("apiClient response interceptor — refresh outcomes", () => {
     mockGetItemAsync.mockResolvedValue("stored-refresh-token");
     mockAxiosPost.mockRejectedValue(new Error("Network Error")); // no .response
 
-    const { setAuthFailureCallback, errorHandler } = setup();
+    const { setNeedsReloginCallback, errorHandler } = setup();
     const onFailure = jest.fn();
-    setAuthFailureCallback(onFailure);
+    setNeedsReloginCallback(onFailure);
 
     await errorHandler(make401Error()).catch(() => {});
 

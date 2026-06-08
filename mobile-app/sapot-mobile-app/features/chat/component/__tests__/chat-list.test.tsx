@@ -78,6 +78,7 @@ jest.mock("@/features/shared", () => {
     Peer: class {},
     MessageStatusType: { READ: "read" },
     MessageType: { CALL_LOG: "call_log", FILE: "file" },
+    ConversationType: { SMS: "sms" },
     formatDate: () => "Jan 1, 2024",
   };
 });
