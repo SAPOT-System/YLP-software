@@ -2,8 +2,7 @@ import { Database, Q } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 import { isAxiosError } from "axios";
-import { toAppError, captureAppError } from "@/features/shared/errors";
-
+import { toAppError } from "@/features/shared/errors";
 import { CallStatus } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { Message } from "@/features/shared/database/model/Message";
