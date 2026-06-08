@@ -1,5 +1,8 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { AuthTextInput, PrimaryButton, SecondaryButton, useAuth } from "@/features/auth";
+import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { LockoutBanner } from "@/features/auth/components/lockout-banner";
+import { useLockoutTimer } from "@/features/auth/hooks/use-lockout-timer";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
@@ -25,6 +28,8 @@ const ServerLoginScreen = () => {
 
   const { login, errors } = useAuth();
   const { mode, setMode } = useAppMode();
+  const lockoutTimer = useLockoutTimer("lockout_login");
+  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
 
   useEffect(() => {
     authLog.info("[ServerLoginScreen] mounted");
@@ -74,10 +79,20 @@ const ServerLoginScreen = () => {
       if (result.success) {
         authLog.info("auth › login success");
         if (mode !== "auto") setMode("server");
+        setAttemptsRemaining(null);
         setOverlayPhase("success");
         setOverlayMessage("Login successful!");
+      } else if (result.lockout) {
+        await lockoutTimer.setLock(
+          result.lockout.lockedUntil,
+          result.lockout.deviceType,
+          result.lockout.attemptsRemaining
+        );
+        setAttemptsRemaining(null);
+        setOverlayPhase("idle");
       } else {
         authLog.warn("auth › login failed");
+        setAttemptsRemaining(result.attemptsRemaining ?? null);
         setOverlayPhase("error");
         setOverlayMessage("Login failed. Please check your credentials.");
       }
@@ -89,6 +104,7 @@ const ServerLoginScreen = () => {
   };
 
   const isSubmitting = overlayPhase !== "idle";
+  const isDisabled = isSubmitting || lockoutTimer.isLocked;
 
   return (
     <View style={{ flex: 1 }}>
@@ -107,6 +123,16 @@ const ServerLoginScreen = () => {
         keyboardShouldPersistTaps="handled"
       >
         <ScreenContent title="Welcome back" description="Please login to continue">
+          {lockoutTimer.isLocked && (
+            <LockoutBanner
+              secondsRemaining={lockoutTimer.secondsRemaining}
+              deviceType={lockoutTimer.deviceType}
+              onExpire={lockoutTimer.clearLock}
+            />
+          )}
+          {!lockoutTimer.isLocked && attemptsRemaining !== null && (
+            <AttemptsWarning attemptsRemaining={attemptsRemaining} />
+          )}
           <View style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}>
             <AuthTextInput
               label="Username"
@@ -156,7 +182,7 @@ const ServerLoginScreen = () => {
           <PrimaryButton
             onPress={handleLogin}
             loading={overlayPhase === "loading"}
-            disabled={isSubmitting}
+            disabled={isDisabled}
           >
             {overlayPhase === "loading" ? "Logging in..." : "Login"}
           </PrimaryButton>
