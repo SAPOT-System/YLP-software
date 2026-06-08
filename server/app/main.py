@@ -6,8 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from typing import Union
 from fastapi.middleware.cors import CORSMiddleware
 
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -15,7 +14,7 @@ from fastapi import FastAPI
 from fastapi import Request
 from starlette.responses import JSONResponse
 
-limiter = Limiter(key_func=get_remote_address)
+from app.limiter import limiter
 
 from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
@@ -27,6 +26,7 @@ from app.models.wrapped_key import WrappedKey
 from app.models.wrapped_key_recovery import WrappedKeyRecovery
 from app.models.recovery_session import RecoverySession
 from app.models.email_recovery_token import EmailRecoveryToken
+from app.models.login_attempt import LoginAttempt, RecoveryAttempt  # noqa: F401
 
 import logging
 from logging.handlers import RotatingFileHandler
