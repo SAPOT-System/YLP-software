@@ -8,6 +8,8 @@ import {
     useGetQuestion,
     useVerifyAnswer,
 } from "@/features/auth";
+import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { LockoutBanner } from "@/features/auth/components/lockout-banner";
 import { extractResetToken } from "@/features/auth/utils";
 import { KeyRecoveryService } from "@/features/shared/services/key-recovery-service";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
@@ -30,6 +32,8 @@ const QuestionResetScreen = () => {
   const {
     error,
     verifyAnswer,
+    lockout,
+    attemptsRemaining,
   } = useVerifyAnswer(identifier);
 
   const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -64,7 +68,7 @@ const QuestionResetScreen = () => {
 
         const isValid = await canResetPasswordApi(storedToken);
 
-        if (isValid) {
+        if (isValid.valid) {
           authLog.info("[Navigation] Navigating to ResetPassword", {
             screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
           });
@@ -188,6 +192,16 @@ const QuestionResetScreen = () => {
             title="Password Recovery"
             description="Please enter the answer to your security question"
           >
+            {lockout.isLocked && (
+              <LockoutBanner
+                secondsRemaining={lockout.secondsRemaining}
+                deviceType={lockout.deviceType}
+                onExpire={lockout.clearLock}
+              />
+            )}
+            {!lockout.isLocked && attemptsRemaining !== null && (
+              <AttemptsWarning attemptsRemaining={attemptsRemaining} />
+            )}
             <View
               style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
             >
@@ -203,7 +217,7 @@ const QuestionResetScreen = () => {
             <PrimaryButton
               onPress={handleVerify}
               loading={overlayPhase === "loading"}
-              disabled={isSubmitting}
+              disabled={isSubmitting || lockout.isLocked}
             >
               {overlayPhase === "loading" ? "Verifying…" : "Verify"}
             </PrimaryButton>

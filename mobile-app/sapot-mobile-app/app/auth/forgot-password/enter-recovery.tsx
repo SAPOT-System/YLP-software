@@ -1,5 +1,7 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { SecondaryButton, StepDots, useEmailReset, useSmsReset } from "@/features/auth";
+import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { LockoutBanner } from "@/features/auth/components/lockout-banner";
 import { extractResetToken } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -25,7 +27,8 @@ const EnterRecoveryScreen = () => {
   const isSms = method === "sms";
   const emailReset = useEmailReset();
   const smsReset = useSmsReset();
-  const { verifyCode, sendCode, error } = isSms ? smsReset : emailReset;
+  const { verifyCode, sendCode, error, attemptsRemaining } = isSms ? smsReset : emailReset;
+  const lockout = isSms ? smsReset.lockout : emailReset.lockout;
   const theme = useTheme();
   const [code, setCode] = useState<string>("");
   const [secondsLeft, setSecondsLeft] = useState<number>(COUNTDOWN_SECONDS);
@@ -79,6 +82,8 @@ const EnterRecoveryScreen = () => {
   const handleOnChange = async (newCode: string) => {
     setCode(newCode);
 
+    if (lockout.isLocked) return;
+
     if (newCode.length === CODE_LENGTH) {
       setOverlayPhase("loading");
       setOverlayMessage("");
@@ -101,7 +106,7 @@ const EnterRecoveryScreen = () => {
         } else {
           setCode("");
           setOverlayPhase("error");
-          setOverlayMessage("Invalid code. Please try again.");
+          setOverlayMessage(error ?? "Invalid code. Please try again.");
         }
       } catch {
         setCode("");
@@ -128,6 +133,16 @@ const EnterRecoveryScreen = () => {
       <ScreenHeader headerName="Resetting Password" />
       <StepDots total={3} current={2} />
       <ScreenContent title="Enter Recovery Code" description={description}>
+        {lockout.isLocked && (
+          <LockoutBanner
+            secondsRemaining={lockout.secondsRemaining}
+            deviceType={lockout.deviceType}
+            onExpire={lockout.clearLock}
+          />
+        )}
+        {!lockout.isLocked && attemptsRemaining !== null && (
+          <AttemptsWarning attemptsRemaining={attemptsRemaining} />
+        )}
         <HelperText type="error" visible={!!error}>{error}</HelperText>
         <OTPInput
           value={code}

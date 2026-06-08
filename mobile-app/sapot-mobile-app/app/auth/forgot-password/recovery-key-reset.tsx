@@ -7,6 +7,8 @@ import {
     StepDots,
     useVerifyRecoveryKey,
 } from "@/features/auth";
+import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { LockoutBanner } from "@/features/auth/components/lockout-banner";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
 import { extractResetToken } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
@@ -29,7 +31,7 @@ const RecoveryKeyResetScreen = () => {
   const [file, setFile] = useState<ExpoFileUpload>();
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
-  const { error, verifyRecoveryKey } = useVerifyRecoveryKey(identifier);
+  const { error, verifyRecoveryKey, lockout, attemptsRemaining } = useVerifyRecoveryKey(identifier);
   const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [overlayMessage, setOverlayMessage] = useState("");
   const pendingNavRef = useRef<(() => void) | null>(null);
@@ -60,7 +62,7 @@ const RecoveryKeyResetScreen = () => {
 
         const isValid = await canResetPasswordApi(storedToken);
 
-        if (isValid) {
+        if (isValid.valid) {
           authLog.info("[Navigation] Navigating to ResetPassword", {
             screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
           });
@@ -184,6 +186,16 @@ const RecoveryKeyResetScreen = () => {
         title="Upload Recovery Key"
         description="Recovery key was provided when you first created your account. Check your Downloads folder or saved files from when you registered."
       >
+        {lockout.isLocked && (
+          <LockoutBanner
+            secondsRemaining={lockout.secondsRemaining}
+            deviceType={lockout.deviceType}
+            onExpire={lockout.clearLock}
+          />
+        )}
+        {!lockout.isLocked && attemptsRemaining !== null && (
+          <AttemptsWarning attemptsRemaining={attemptsRemaining} />
+        )}
         <View
           style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
         >
@@ -200,7 +212,7 @@ const RecoveryKeyResetScreen = () => {
         <PrimaryButton
           onPress={handleVerify}
           loading={overlayPhase === "loading"}
-          disabled={!file || isSubmitting}
+          disabled={!file || isSubmitting || lockout.isLocked}
         >
           {overlayPhase === "loading" ? "Verifying…" : "Verify"}
         </PrimaryButton>
