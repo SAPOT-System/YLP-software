@@ -61,12 +61,55 @@ from app.db_operations.wrapped_key_recovery import (
 from app.models.recovery_session import RecoverySession
 from app.models.email_recovery_token import EmailRecoveryToken
 from app.models.wrapped_key import WrappedKey
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
-limiter = Limiter(key_func=get_remote_address)
+from app.db_operations.device_attempts import (
+    bind_device_key,
+    check_and_increment_attempt,
+    get_device_type,
+    reset_attempts,
+    verify_challenge_nonce,
+    verify_device_signature,
+)
+from app.limiter import limiter
 
 LINK_TTL_SECONDS = 30 * 60  # 30 minutes
+
+
+def _apply_device_gate(
+    session,
+    user,
+    recovery_method: str,
+    device_public_key: Optional[str],
+    device_nonce: Optional[str],
+    device_nonce_mac: Optional[str],
+    device_signature: Optional[str],
+    device_fingerprint: Optional[str],
+) -> Optional[int]:
+    """Returns attempts_remaining (int) if device fields were present and gate passed. Returns None if no device fields. Raises HTTPException on failure."""
+    has_device_fields = all([
+        device_public_key, device_nonce, device_nonce_mac,
+        device_signature, device_fingerprint,
+    ])
+    if not has_device_fields or not user:
+        return None
+    if not verify_challenge_nonce(device_nonce, device_nonce_mac):
+        raise HTTPException(status_code=400, detail="Invalid challenge")
+    if not verify_device_signature(device_public_key, device_nonce, device_signature):
+        raise HTTPException(status_code=401, detail="Invalid device signature")
+    device_type = get_device_type(session, user.id, device_fingerprint)
+    gate = check_and_increment_attempt(
+        session, user.id, device_fingerprint, device_type,
+        table="recovery", recovery_method=recovery_method,
+    )
+    if not gate["allowed"]:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "locked_until": gate["locked_until"].isoformat(),
+                "device_type": device_type,
+                "attempts_remaining": 0,
+            },
+        )
+    return gate["attempts_remaining"]
 
 RECOVERY_KEY_COOLDOWN_DAYS = 30
 SECURITY_QUESTION_MIN_DAYS = 90
@@ -138,9 +181,24 @@ async def send_phone_reset(body: PhoneResetRequest, background_tasks: Background
 
 
 @router.post('/phone-code')
-def confirm_phone_code(body: PhoneCodeRequest, session: SessionDep, request: Request):
+@limiter.limit("10/minute")
+def confirm_phone_code(
+    body: PhoneCodeRequest,
+    session: SessionDep,
+    request: Request,
+    device_public_key: Optional[str] = Query(default=None),
+    device_nonce: Optional[str] = Query(default=None),
+    device_nonce_mac: Optional[str] = Query(default=None),
+    device_signature: Optional[str] = Query(default=None),
+    device_fingerprint: Optional[str] = Query(default=None),
+):
     phone_number, code = body.phone_number, body.code
     current_user = get_user_by_phone_number(session, phone_number)
+    device_applied = _apply_device_gate(
+        session, current_user, "phone_otp",
+        device_public_key, device_nonce, device_nonce_mac,
+        device_signature, device_fingerprint,
+    )
 
     record = session.exec(
         select(PhonePasswordResetCode).where(
@@ -150,10 +208,10 @@ def confirm_phone_code(body: PhoneCodeRequest, session: SessionDep, request: Req
     ).first()
 
     if not record:
-        raise HTTPException(status_code=400, detail="Invalid code.")
+        raise HTTPException(status_code=400, detail={"message": "Invalid code.", "attempts_remaining": device_applied})
 
     if record.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Code expired.")
+        raise HTTPException(status_code=400, detail={"message": "Code expired.", "attempts_remaining": device_applied})
 
     session.delete(record)
     session.commit()
@@ -170,6 +228,11 @@ def confirm_phone_code(body: PhoneCodeRequest, session: SessionDep, request: Req
 
     recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
     recovery_result = create_recovery_session(session, current_user.id, "phone", recovery_expires_at)
+
+    if device_applied:
+        reset_attempts(session, current_user.id, device_fingerprint,
+                       table="recovery", recovery_method="phone_otp")
+        bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
 
     return {
         'link': reset_link_template(raw_token, request),
@@ -220,16 +283,28 @@ def get_recovery_key(
 
 
 @router.post('/recovery-with-recovery-key')
+@limiter.limit("10/minute")
 async def recover_with_recovery_key(
         user_identifier: str,
         request: Request,
-        session : SessionDep,
-        key_file: UploadFile = File(...)
+        session: SessionDep,
+        key_file: UploadFile = File(...),
+        device_public_key: Optional[str] = Query(default=None),
+        device_nonce: Optional[str] = Query(default=None),
+        device_nonce_mac: Optional[str] = Query(default=None),
+        device_signature: Optional[str] = Query(default=None),
+        device_fingerprint: Optional[str] = Query(default=None),
 ):
     current_user = get_user(user_identifier, session)
 
     if not current_user:
         raise HTTPException(status_code=400, detail="Invalid account identier.")
+
+    device_applied = _apply_device_gate(
+        session, current_user, "recovery_key",
+        device_public_key, device_nonce, device_nonce_mac,
+        device_signature, device_fingerprint,
+    )
 
     if key_file.content_type not in ("text/plain", "application/octet-stream"):
         raise HTTPException(status_code=400, detail="Invalid file type")
@@ -243,7 +318,7 @@ async def recover_with_recovery_key(
 
 
     if not verify_recovery_key(session, current_user, key_text):
-        raise HTTPException(status_code=400, detail="Invalid key.")
+        raise HTTPException(status_code=400, detail={"message": "Invalid key.", "attempts_remaining": device_applied})
 
     # give a signed link for password reset
     expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
@@ -260,6 +335,11 @@ async def recover_with_recovery_key(
 
     recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
     recovery_result = create_recovery_session(session, current_user.id, "token", recovery_expires_at)
+
+    if device_applied:
+        reset_attempts(session, current_user.id, device_fingerprint,
+                       table="recovery", recovery_method="recovery_key")
+        bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
 
     return {
         'recovery-link': reset_link_template(raw_token, request),
@@ -328,8 +408,24 @@ def reset_password(
 
 
 @router.post("/email-code")
-def confirm_code(email: str, code: str, session: SessionDep, request: Request):
+@limiter.limit("10/minute")
+def confirm_code(
+    email: str,
+    code: str,
+    session: SessionDep,
+    request: Request,
+    device_public_key: Optional[str] = Query(default=None),
+    device_nonce: Optional[str] = Query(default=None),
+    device_nonce_mac: Optional[str] = Query(default=None),
+    device_signature: Optional[str] = Query(default=None),
+    device_fingerprint: Optional[str] = Query(default=None),
+):
     current_user = get_user(email, session)
+    device_applied = _apply_device_gate(
+        session, current_user, "email_otp",
+        device_public_key, device_nonce, device_nonce_mac,
+        device_signature, device_fingerprint,
+    )
     if current_user:
         statement=  select(PasswordResetCode).where(
             PasswordResetCode.email == email,
@@ -339,17 +435,16 @@ def confirm_code(email: str, code: str, session: SessionDep, request: Request):
         record = session.exec(statement).first()
 
         if not record:
-            raise HTTPException(400, "Invalid code")
+            raise HTTPException(400, {"message": "Invalid code", "attempts_remaining": device_applied})
 
 
         if record.expires_at < datetime.utcnow():
-            raise HTTPException(400, "Code expired")
+            raise HTTPException(400, {"message": "Code expired", "attempts_remaining": device_applied})
 
         session.delete(record)
         session.commit()
 
         raw_token, token_hash = generate_reset_token().values()
-        print("TOKEN", raw_token, token_hash)
         expires_at = datetime.utcnow() + timedelta(seconds=LINK_TTL_SECONDS)
 
         store_reset_token_in_db(
@@ -363,6 +458,11 @@ def confirm_code(email: str, code: str, session: SessionDep, request: Request):
 
         recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
         recovery_result = create_recovery_session(session, current_user.id, "email", recovery_expires_at)
+
+        if device_applied:
+            reset_attempts(session, current_user.id, device_fingerprint,
+                           table="recovery", recovery_method="email_otp")
+            bind_device_key(session, current_user.id, device_fingerprint, device_public_key)
 
         return {
             'link': reset_link,
@@ -483,17 +583,29 @@ def get_security_question(
 
 
 @router.post("/security-question/answer")
+@limiter.limit("10/minute")
 def verify_security_answer(
         identifier: str,
         payload: SecurityAnswerIn,
         session: SessionDep,
-        request: Request
+        request: Request,
+        device_public_key: Optional[str] = Query(default=None),
+        device_nonce: Optional[str] = Query(default=None),
+        device_nonce_mac: Optional[str] = Query(default=None),
+        device_signature: Optional[str] = Query(default=None),
+        device_fingerprint: Optional[str] = Query(default=None),
 ):
 
     user = get_user(identifier, session)
 
     if not user:
         raise HTTPException(404, 'Invalid token')
+
+    device_applied = _apply_device_gate(
+        session, user, "security_question",
+        device_public_key, device_nonce, device_nonce_mac,
+        device_signature, device_fingerprint,
+    )
 
     user_id = user.id
 
@@ -512,7 +624,7 @@ def verify_security_answer(
     )
 
     if not is_correct:
-        return {"correct": False}
+        return {"correct": False, "attempts_remaining": device_applied}
 
     db_question.is_burned = True
     session.add(db_question)
@@ -532,6 +644,11 @@ def verify_security_answer(
 
     recovery_expires_at = datetime.utcnow() + timedelta(minutes=15)
     recovery_result = create_recovery_session(session, user_id, "qa", recovery_expires_at)
+
+    if device_applied:
+        reset_attempts(session, user.id, device_fingerprint,
+                       table="recovery", recovery_method="security_question")
+        bind_device_key(session, user.id, device_fingerprint, device_public_key)
 
     return {
         "correct": True,
@@ -761,7 +878,15 @@ def verify_recovery_otp(
         raise HTTPException(status_code=400, detail="No OTP found for this number")
 
     if record.attempts >= 3:
-        raise HTTPException(status_code=429, detail="Too many attempts")
+        locked_until = datetime.now(timezone.utc) + timedelta(minutes=10)
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "locked_until": locked_until.isoformat(),
+                "device_type": "anonymous",
+                "attempts_remaining": 0,
+            },
+        )
 
     if record.expires_at < datetime.utcnow():
         raise HTTPException(status_code=400, detail="OTP expired")
