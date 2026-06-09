@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   loginData.append('username', formData.get('username') as string);
   loginData.append('password', formData.get('password') as string);
 
-	const baseUrl = process.env.API_DOMAIN || 'http://127.0.0.1:8000';
+	const baseUrl = process.env.API_DOMAIN || 'https://127.0.0.1:8000';
   const response = await fetch(baseUrl + '/admin/login', {
     method: 'POST',
     headers: {

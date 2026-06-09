@@ -7,7 +7,7 @@ export async function secureFetch(endpoint: string, options: RequestInit = {}) {
 	const cookieStore = await cookies();
 	const token = cookieStore.get('access_token')?.value;
 
-	const baseUrl = process.env.API_DOMAIN || 'http://127.0.0.1:8000';
+	const baseUrl = process.env.API_DOMAIN || 'https://127.0.0.1:8000';
 
 	const headers = {
 		...options.headers,

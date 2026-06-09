@@ -17,8 +17,10 @@ export async function loginAction(formData: FormData) {
   loginData.append('username', username as string);
   loginData.append('password', password as string);
 
+  const baseUrl = process.env.API_DOMAIN || 'https://localhost:8000';
+
   try {
-    const response = await fetch('http://localhost:8000/admin/login', {
+    const response = await fetch(`${baseUrl}/admin/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
