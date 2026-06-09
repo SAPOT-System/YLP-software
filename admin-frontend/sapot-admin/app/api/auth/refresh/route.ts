@@ -33,16 +33,18 @@ export async function POST(request: NextRequest) {
     // 3. Create the response and set the NEW cookies
     const nextResponse = NextResponse.json({ success: true });
 
+    const isSecure = process.env.NODE_ENV === 'production';
+
     nextResponse.cookies.set('access_token', data.access_token, {
       httpOnly: true,
-      secure: false,
+      secure: isSecure,
       sameSite: 'lax',
       path: '/',
     });
 
     nextResponse.cookies.set('refresh_token', data.refresh_token, {
       httpOnly: true,
-      secure: false,
+      secure: isSecure,
       sameSite: 'lax',
       path: '/',
     });

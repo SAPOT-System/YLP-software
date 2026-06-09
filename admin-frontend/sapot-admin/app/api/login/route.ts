@@ -26,19 +26,21 @@ export async function POST(req: Request) {
 
 	const cookieStore = await cookies();
 
+	const isSecure = process.env.NODE_ENV === 'production';
+
 	cookieStore.set('access_token', data.access_token, {
 		httpOnly: true,
-		secure: false,
+		secure: isSecure,
 		sameSite: 'lax',
-		maxAge: 60 * 15, // 15 minutes
+		maxAge: 60 * 15,
 	});
 
 	if (data.refresh_token) {
 		cookieStore.set('refresh_token', data.refresh_token, {
 			httpOnly: true,
-			secure: false,
+			secure: isSecure,
 			sameSite: 'lax',
-			maxAge: 60 * 60 * 24 * 7, // 7 days
+			maxAge: 60 * 60 * 24 * 7,
 		});
 	}
 
