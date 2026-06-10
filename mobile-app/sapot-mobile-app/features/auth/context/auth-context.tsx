@@ -48,7 +48,12 @@ export interface LoginLockout {
 }
 
 interface AuthContextI {
-  login: (credentials: LoginApiRequest) => Promise<{ success: boolean; lockout?: LoginLockout; attemptsRemaining?: number }>;
+  login: (credentials: LoginApiRequest) => Promise<{
+    success: boolean;
+    lockout?: LoginLockout;
+    attemptsRemaining?: number;
+    banned?: { message: string };
+  }>;
   loginAsGuest: (credentials: {
     firstName: string;
     lastName: string;
@@ -351,6 +356,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             : undefined;
         setErrors({ general: message });
         return { success: false, attemptsRemaining };
+      }
+
+      if (status === 403) {
+        const detail = data.detail;
+        const message = typeof detail === "string" ? detail : "Your account is currently banned.";
+        authLog.warn("auth › login banned", { message });
+        return { success: false, banned: { message } };
       }
 
       if (status === 429) {
