@@ -33,7 +33,6 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
-!server_cert.pem
 
 # local env files
 .env*.local
