@@ -27,6 +27,15 @@ const withServerCert: ConfigPlugin = (config) =>
     },
   ]);
 
+const certPath = path.join(__dirname, "server_cert.pem");
+
+if (process.env.SERVER_CERT) {
+  fs.writeFileSync(
+    certPath,
+    Buffer.from(process.env.SERVER_CERT, "base64").toString("utf-8")
+  );
+}
+
 const withNetworkSecurityConfig: ConfigPlugin = (config) => {
   // Dev builds allow cleartext so the Expo dev client can reach Metro (HTTP).
   // Prod builds lock down to HTTPS-only with the bundled self-signed cert.
