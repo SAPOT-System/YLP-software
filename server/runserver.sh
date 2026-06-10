@@ -1,13 +1,18 @@
 #!/bin/bash
 
-[ -f /home/sapot/certs/server.key ] || { echo "ERROR: TLS key not found at /home/sapot/certs/server.key"; exit 1; }
-[ -f /home/sapot/certs/server.crt ] || { echo "ERROR: TLS cert not found at /home/sapot/certs/server.crt"; exit 1; }
+APP_VENV=/home/sapot/YLP-software/server/app/venv
 
-source /home/sapot/YLP-software/server/app/venv/bin/activate
-pip install -r /home/sapot/YLP-software/server/app/requirements.txt
-/home/sapot/YLP-software/server/app/venv/bin/gunicorn app.main:app \
+uv venv "$APP_VENV"
+uv pip install --python "$APP_VENV/bin/python" \
+  -r /home/sapot/YLP-software/server/app/requirements.txt
+uv run "$APP_VENV/bin/gunicorn" app.main:app \
   -k uvicorn.workers.UvicornWorker \
-  -w 4 \
-  -b 0.0.0.0:8000 \
-  --keyfile /home/sapot/certs/server.key \
-  --certfile /home/sapot/certs/server.crt
+  -w 5 \
+  -b 127.0.0.1:8000 \
+  --timeout 130 \
+  --graceful-timeout 30 \
+  --worker-connections 200 \
+  --max-requests 1000 \
+  --max-requests-jitter 100 \
+  --access-logfile ../logs/gunicorn-access.log \
+  --error-logfile ../logs/gunicorn-error.log
