@@ -1,6 +1,7 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { AuthTextInput, PrimaryButton, SecondaryButton, useAuth } from "@/features/auth";
 import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { BannedBanner } from "@/features/auth/components/banned-banner";
 import { LockoutBanner } from "@/features/auth/components/lockout-banner";
 import { useLockoutTimer } from "@/features/auth/hooks/use-lockout-timer";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
@@ -31,6 +32,7 @@ const ServerLoginScreen = () => {
   const { mode, setMode } = useAppMode();
   const lockoutTimer = useLockoutTimer("lockout_login");
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
+  const [bannedMessage, setBannedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     authLog.info("[ServerLoginScreen] mounted");
@@ -84,6 +86,7 @@ const ServerLoginScreen = () => {
         authLog.info("auth › login success");
         if (mode !== "auto") setMode("server");
         setAttemptsRemaining(null);
+        setBannedMessage(null);
         setOverlayPhase("success");
         setOverlayMessage("Login successful!");
       } else if (result.lockout) {
@@ -92,6 +95,10 @@ const ServerLoginScreen = () => {
           result.lockout.deviceType,
           result.lockout.attemptsRemaining
         );
+        setAttemptsRemaining(null);
+        setOverlayPhase("idle");
+      } else if (result.banned) {
+        setBannedMessage(result.banned.message);
         setAttemptsRemaining(null);
         setOverlayPhase("idle");
       } else {
@@ -137,6 +144,9 @@ const ServerLoginScreen = () => {
               onExpire={lockoutTimer.clearLock}
             />
           )}
+          {bannedMessage !== null && (
+            <BannedBanner message={bannedMessage} />
+          )}
           {!lockoutTimer.isLocked && attemptsRemaining !== null && (
             <AttemptsWarning attemptsRemaining={attemptsRemaining} />
           )}
@@ -145,7 +155,10 @@ const ServerLoginScreen = () => {
               label="Username"
               placeholder="Username"
               value={username}
-              onChangeText={(v) => setUsername(v.toLowerCase())}
+              onChangeText={(v) => {
+                setUsername(v.toLowerCase());
+                setBannedMessage(null);
+              }}
               error={!!errors.username}
               autoCapitalize="none"
               autoCorrect={false}
@@ -157,7 +170,10 @@ const ServerLoginScreen = () => {
               label="Password"
               placeholder="Password"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(v) => {
+                setPassword(v);
+                setBannedMessage(null);
+              }}
               secureTextEntry
               error={!!errors.password}
             />
