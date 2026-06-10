@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from app.db_operations.device_attempts import ATTEMPT_BUDGETS
+from app.db_operations.device_attempts import ATTEMPT_BUDGET
 from app.models.users import User
 from app.models.securityQuestions import UserSecurityQuestion
 from app.db_operations.auth import get_password_hash
@@ -15,7 +15,7 @@ from app.models.PhonePasswordResetCode import PhonePasswordResetCode
 
 IP_A = {"X-Forwarded-For": "10.0.0.1"}
 IP_B = {"X-Forwarded-For": "10.0.0.2"}
-BUDGET = ATTEMPT_BUDGETS["anonymous"]
+BUDGET = ATTEMPT_BUDGET
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def phone_code(session: Session):
 
 def _wrong_question(client: TestClient, headers: dict) -> int:
     return client.post(
-        "/api/auth/forgot-password/security-question/answer",
+        "/auth/forgot-password/security-question/answer",
         params={"identifier": "test"},
         json={"question": "Favourite colour?", "answer": "wrong"},
         headers=headers,
@@ -70,7 +70,7 @@ def _wrong_question(client: TestClient, headers: dict) -> int:
 
 def _wrong_email(client: TestClient, email: str, headers: dict) -> int:
     return client.post(
-        "/api/auth/forgot-password/email-code",
+        "/auth/forgot-password/email-code",
         params={"email": email, "code": "XXXXXX"},
         headers=headers,
     ).status_code
@@ -78,7 +78,7 @@ def _wrong_email(client: TestClient, email: str, headers: dict) -> int:
 
 def _wrong_phone(client: TestClient, phone: str, headers: dict) -> int:
     return client.post(
-        "/api/auth/forgot-password/phone-code",
+        "/auth/forgot-password/phone-code",
         json={"phone_number": phone, "code": "XXXXXX"},
         headers=headers,
     ).status_code
@@ -124,7 +124,7 @@ def test_lockout_response_shape(client: TestClient, user_with_question):
     for _ in range(BUDGET):
         _wrong_question(client, IP_A)
     resp = client.post(
-        "/api/auth/forgot-password/security-question/answer",
+        "/auth/forgot-password/security-question/answer",
         params={"identifier": "test"},
         json={"question": "Favourite colour?", "answer": "wrong"},
         headers=IP_A,
@@ -132,5 +132,4 @@ def test_lockout_response_shape(client: TestClient, user_with_question):
     assert resp.status_code == 429
     body = resp.json()["detail"]
     assert "locked_until" in body
-    assert body["device_type"] == "anonymous"
     assert body["attempts_remaining"] == 0

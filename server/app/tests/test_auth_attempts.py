@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 def _login_wrong_password(client: TestClient, username: str = "test") -> dict:
     resp = client.post(
-        "/api/auth/token",
+        "/auth/token",
         data={
             "username": username,
             "password": "definitely_wrong_password",

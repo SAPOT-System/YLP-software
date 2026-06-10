@@ -65,7 +65,7 @@ def test_wrong_security_answer_includes_attempts_remaining(
     client: TestClient, user_with_security_question
 ):
     resp = client.post(
-        "/api/auth/forgot-password/security-question/answer",
+        "/auth/forgot-password/security-question/answer",
         params={"identifier": "test"},
         json={"question": "What is your pet's name?", "answer": "wronganswer"},
         headers=IP,
@@ -80,7 +80,7 @@ def test_wrong_email_code_includes_attempts_remaining(
     client: TestClient, email_reset_code
 ):
     resp = client.post(
-        "/api/auth/forgot-password/email-code",
+        "/auth/forgot-password/email-code",
         params={"email": email_reset_code.email, "code": "WRONG1"},
         headers=IP,
     )
@@ -95,7 +95,7 @@ def test_wrong_phone_code_includes_attempts_remaining(
 ):
     user = session.exec(select(User).where(User.username == "test")).first()
     resp = client.post(
-        "/api/auth/forgot-password/phone-code",
+        "/auth/forgot-password/phone-code",
         json={"phone_number": phone_reset_code.phone_number, "code": "WRONGX"},
         headers=IP,
     )
