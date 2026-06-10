@@ -98,3 +98,7 @@ export interface DeviceLockout429 {
   device_type: string;
   attempts_remaining: number;
 }
+
+export interface LoginBanResult {
+  message: string;
+}
