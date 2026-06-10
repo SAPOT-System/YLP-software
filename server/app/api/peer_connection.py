@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 
@@ -8,8 +9,8 @@ from uuid import UUID
 import json
 import ast
 
-from sqlmodel import except_, select
-from app.db_operations.auth import SessionDep 
+from sqlmodel import except_, select, Session
+from app.db_operations.auth import SessionDep, engine
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -21,6 +22,14 @@ from app.db_operations.websockets import authenticate_websocket, relay_message, 
 from app.db_operations.connection_manager import manager
 from app.db_operations.activity import set_user_status
 from app.models.websocketComms import MessageData, PublicMessageData
+
+
+def _set_status_bg(user_id: UUID, status: str) -> None:
+    try:
+        with Session(engine) as session:
+            set_user_status(session, user_id, status)
+    except Exception as e:
+        print(f"[activity] status update failed for {user_id}: {e}")
 
 router = APIRouter(
     prefix='/ws',
@@ -113,12 +122,10 @@ async def testing_area(target_id: UUID, my_id: UUID, token: str):
     return HTMLResponse(html)
 
 
-def get_queued_messages(user_id: UUID, session: SessionDep):
+def get_queued_messages(user_id: UUID, session: SessionDep, limit: int = 100):
     try:
-        # statement = select(Queue).where(str(Queue.to).replace("-", '') == str(user_id).replace("-", ''))
-        statement = select(Queue).where(Queue.to == user_id)
-        results = session.exec(statement).all()
-        return results
+        statement = select(Queue).where(Queue.to == user_id).limit(limit)
+        return session.exec(statement).all()
     except Exception as e:
         print("EX", e)
         return None
@@ -168,10 +175,7 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
     """
     user_id = await authenticate_websocket(websocket, token)
     await manager.connect(UUID(user_id), websocket)
-    try:
-        set_user_status(session, UUID(user_id), "Active")
-    except Exception as e:
-        print(f"[activity] failed to mark active for {user_id}: {e}")
+    asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Active")
     try:
         await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
     except:
@@ -247,8 +251,5 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
             await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
         except:
             pass
-        try:
-            set_user_status(session, UUID(user_id), "Inactive")
-        except Exception as e:
-            print(f"[activity] failed to mark inactive for {user_id}: {e}")
+        asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Inactive")
         manager.disconnect(user_id)

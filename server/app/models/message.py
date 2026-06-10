@@ -38,6 +38,7 @@ class SyncableModel(SQLModel):
         default_factory=now_ms,
         sa_type=BigInteger(),
         nullable=False,
+        index=True,
         sa_column_kwargs={"onupdate": now_ms} # This creates a fresh trigger for every table
     )
     
@@ -54,8 +55,8 @@ class Message(SyncableModel, table=True):
     linked_message_id: UUID | None = Field(default=None, foreign_key='message.id', ondelete="SET NULL", nullable=True)
 
     # foreign_key
-    conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id', ondelete="CASCADE")
-    sender_id : UUID | None = Field(default=None, foreign_key='user.id', ondelete="CASCADE")
+    conversation_id : UUID | None = Field(default=None, foreign_key='conversation.id', ondelete="CASCADE", index=True)
+    sender_id : UUID | None = Field(default=None, foreign_key='user.id', ondelete="CASCADE", index=True)
 
     user: Optional['User'] = Relationship(
         back_populates='messages'
