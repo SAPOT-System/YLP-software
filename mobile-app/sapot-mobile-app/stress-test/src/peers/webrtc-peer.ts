@@ -19,6 +19,16 @@ function buildRtpPacket(seq: number, timestamp: number, ssrc: number): Buffer {
   return Buffer.concat([header, Buffer.alloc(3, 0)]);
 }
 
+function buildVideoRtpPacket(seq: number, timestamp: number, ssrc: number, payloadBytes: number): Buffer {
+  const header = Buffer.alloc(12);
+  header[0] = 0x80;
+  header[1] = 96;                          // PT=96 (H.264)
+  header.writeUInt16BE(seq & 0xffff, 2);
+  header.writeUInt32BE(timestamp >>> 0, 4);
+  header.writeUInt32BE(ssrc >>> 0, 8);
+  return Buffer.concat([header, Buffer.alloc(payloadBytes, 0)]);
+}
+
 export class WrtcPeer implements BasePeer {
   readonly peerId: string;
   readonly peerIndex: number;
@@ -37,6 +47,13 @@ export class WrtcPeer implements BasePeer {
   private rtpSeq = 0;
   private rtpTimestamp = 0;
   private readonly rtpSsrc = Math.floor(Math.random() * 0xffffffff);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private videoTrack: any = null;
+  private videoTimer: NodeJS.Timeout | null = null;
+  private videoSeq = 0;
+  private videoTimestamp = 0;
+  private readonly videoSsrc = Math.floor(Math.random() * 0xffffffff);
 
   constructor(
     peerId: string,
@@ -101,11 +118,17 @@ export class WrtcPeer implements BasePeer {
 
       if (this.config.media) {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const track = (pc as any).addTrack('audio', 'sendonly');
           this.setupAudioTrack(track);
         } catch {
           // node-datachannel version may not support addTrack — skip silently
+        }
+        if (this.config.media.type === 'audio-video') {
+          try {
+            this.videoTrack = (pc as any).addTrack('video', 'sendonly');
+          } catch {
+            // skip if not supported
+          }
         }
       }
 
@@ -182,6 +205,32 @@ export class WrtcPeer implements BasePeer {
         }
       }, 20);
     }
+
+    if (this.videoTrack) {
+      const bitrate = this.config.media?.bitrate ?? 1000;
+      const bytesPerFrame = Math.floor((bitrate * 1000) / 8 / 30);
+      this.videoTimer = setInterval(() => {
+        try {
+          const packet = buildVideoRtpPacket(
+            this.videoSeq++,
+            this.videoTimestamp,
+            this.videoSsrc,
+            bytesPerFrame,
+          );
+          this.videoTimestamp += 3000;
+          const ok = this.videoTrack.sendMessage(packet);
+          if (ok) {
+            this.metrics.rtpPacketsSent++;
+            this.collector.recordRtpSent(this.peerId);
+          } else {
+            this.metrics.rtpPacketsLost++;
+            this.collector.recordRtpLost(this.peerId);
+          }
+        } catch {
+          // track may have closed
+        }
+      }, 33);
+    }
   }
 
   stopSending(): void {
@@ -193,13 +242,19 @@ export class WrtcPeer implements BasePeer {
       clearInterval(this.audioTimer);
       this.audioTimer = null;
     }
+    if (this.videoTimer !== null) {
+      clearInterval(this.videoTimer);
+      this.videoTimer = null;
+    }
   }
 
   async disconnect(): Promise<void> {
     this.stopSending();
     try { this.dc?.close(); } catch { /* ignore */ }
     try { this.audioTrack?.close(); } catch { /* ignore */ }
+    try { this.videoTrack?.close(); } catch { /* ignore */ }
     this.audioTrack = null;
+    this.videoTrack = null;
     this.dc = null;
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 200);

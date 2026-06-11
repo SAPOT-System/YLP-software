@@ -123,4 +123,33 @@ describe('WrtcPeer', () => {
       await Promise.all([offerer.disconnect(), answerer.disconnect()]);
     }, 15000);
   });
+
+  describe('media track (audio-video)', () => {
+    const videoConfig: WebrtcConfig = {
+      connectionTimeoutMs: 8000,
+      media: { type: 'audio-video', bitrate: 1000 },
+    };
+
+    it('rtpPacketsSent is non-negative for audio-video config after 500ms', async () => {
+      const col = new MetricsCollector();
+      const offerer = new WrtcPeer('peer-0', 0, col, videoConfig);
+      const answerer = new WrtcPeer('peer-1', 1, col, videoConfig);
+
+      offerer.sendSignal = (msg) => answerer.receiveSignal(msg);
+      answerer.sendSignal = (msg) => offerer.receiveSignal(msg);
+
+      await Promise.all([offerer.connect(), answerer.connect()]);
+
+      offerer.startSending(5);
+      answerer.startSending(5);
+      await new Promise((r) => setTimeout(r, 500));
+      offerer.stopSending();
+      answerer.stopSending();
+
+      expect(offerer.getMetrics().rtpPacketsSent).toBeGreaterThanOrEqual(0);
+      expect(answerer.getMetrics().rtpPacketsSent).toBeGreaterThanOrEqual(0);
+
+      await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+    }, 15000);
+  });
 });

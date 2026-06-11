@@ -1,0 +1,11 @@
+{
+  "mode": "webrtc",
+  "webrtc": {
+    "connectionTimeoutMs": 10000,
+    "media": { "type": "audio-video", "bitrate": 1000 }
+  },
+  "phases": [
+    { "peerCount": 2, "msgPerSec": 5, "durationSec": 10 }
+  ],
+  "outputDir": "./stress-results"
+}
