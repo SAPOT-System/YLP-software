@@ -37,5 +37,8 @@ describe('Orchestrator (WS mode, fake server)', () => {
     expect(results).toHaveLength(1);
     expect(results[0].peerCount).toBe(2);
     expect(results[0].totalSent).toBeGreaterThan(0);
+    expect(results[0].throughputMbps).toBeDefined();
+    expect(results[0].packetLossPercent).toBeDefined();
+    expect(results[0].rssiDbm).toBeNull();
   }, 15000);
 });

@@ -43,4 +43,15 @@ describe('MetricsCollector', () => {
     collector.reset();
     expect(collector.computeStats('after-reset', 1, 1, 10, now, now + 1000).totalSent).toBe(0);
   });
+
+  it('network fields default to 0 / null before orchestrator merge', () => {
+    const now = Date.now();
+    collector.recordSent('peer-1', now);
+    collector.recordAcked('peer-1', now, 10);
+    const stats = collector.computeStats('test', 1, 1, 5, now, now + 5000);
+    expect(stats.throughputMbps).toBe(0);
+    expect(stats.packetLossPercent).toBe(0);
+    expect(stats.rssiDbm).toBeNull();
+    expect(stats.linkSpeedMbps).toBeNull();
+  });
 });
