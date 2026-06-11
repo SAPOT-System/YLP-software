@@ -35,8 +35,18 @@ export class NetworkSampler {
 
   private sample(): void {
     try {
-      const devRaw = execSync('adb shell cat /proc/net/dev', { encoding: 'utf8', timeout: 2000 });
-      const snmpRaw = execSync('adb shell cat /proc/net/snmp', { encoding: 'utf8', timeout: 2000 });
+      let devRaw: string;
+      let snmpRaw: string;
+
+      try {
+        devRaw = execSync('adb shell cat /proc/net/dev', { encoding: 'utf8', timeout: 2000 });
+        snmpRaw = execSync('adb shell cat /proc/net/snmp', { encoding: 'utf8', timeout: 2000 });
+      } catch {
+        // Fallback to local Linux if adb fails
+        devRaw = execSync('cat /proc/net/dev', { encoding: 'utf8', timeout: 2000 });
+        snmpRaw = execSync('cat /proc/net/snmp', { encoding: 'utf8', timeout: 2000 });
+      }
+
       this.samples.push({
         timestamp: Date.now(),
         ...parseNetDev(devRaw),
@@ -45,7 +55,6 @@ export class NetworkSampler {
         linkSpeedMbps: this.lastLinkSpeed,
       });
     } catch {
-      console.log("error in sample")
       this.samples.push({
         timestamp: Date.now(),
         wlanRxBytes: 0,
@@ -74,13 +83,26 @@ export class NetworkSampler {
 }
 
 function parseNetDev(raw: string): { wlanRxBytes: number; wlanTxBytes: number } {
+  let bestRx = 0;
+  let bestTx = 0;
+
   for (const line of raw.split('\n')) {
     const t = line.trim();
-    if (!t.startsWith('wlan0:')) continue;
-    const p = t.split(/\s+/);
-    return { wlanRxBytes: parseInt(p[1], 10) || 0, wlanTxBytes: parseInt(p[9], 10) || 0 };
+    // Prioritize wlan0, but accept any active interface (eth0, enp..., wlp...)
+    // Skip lo (loopback) unless it's the only thing with traffic
+    if (!t.includes(':') || t.startsWith('lo:')) continue;
+
+    const p = t.split(/[:\s]+/);
+    const rx = parseInt(p[1], 10) || 0;
+    const tx = parseInt(p[9], 10) || 0;
+
+    // Use the interface with the most traffic as the likely "active" one
+    if (rx + tx > bestRx + bestTx) {
+      bestRx = rx;
+      bestTx = tx;
+    }
   }
-  return { wlanRxBytes: 0, wlanTxBytes: 0 };
+  return { wlanRxBytes: bestRx, wlanTxBytes: bestTx };
 }
 
 function parseSnmpRetrans(raw: string): number {
