@@ -12,6 +12,15 @@ export interface WsServerAck {
 
 export interface WsPong { type: 'pong' }
 
+export function decodeToken(token: string): { userId: string } {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    return { userId: payload.sub || payload.userId || payload.user_id };
+  } catch (e) {
+    throw new Error(`Failed to decode token: ${(e as Error).message}`);
+  }
+}
+
 export function buildWsUrl(serverUrl: string, token: string): string {
   const base = serverUrl.replace(/\/+$/, '');
   const wsBase = base.startsWith('https://')

@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { buildChatMessage, isServerAck, isPong, fetchJwt, buildWsUrl } from '../protocol/ws-protocol';
+import { buildChatMessage, isServerAck, isPong, fetchJwt, buildWsUrl, decodeToken } from '../protocol/ws-protocol';
 import { BasePeer, PeerMetrics, emptyMetrics } from './base-peer';
 import { MetricsCollector } from '../metrics/collector';
 
@@ -11,6 +11,8 @@ export class WsPeer implements BasePeer {
   private sendTimer?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
   private pendingAcks = new Map<string, { sentAt: number; timer: NodeJS.Timeout }>();
+  private myUserId?: string;
+  private targetUserId: string = 'device-under-test';
 
   constructor(
     peerId: string,
@@ -28,28 +30,46 @@ export class WsPeer implements BasePeer {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
+  setTarget(targetId: string): void {
+    this.targetUserId = targetId;
+  }
+
+  get userId(): string | undefined {
+    return this.myUserId;
+  }
+
   async connect(): Promise<void> {
     let url = this.serverUrl;
     if (!url.startsWith('ws') && this.credentials) {
       const token = await fetchJwt(this.serverUrl, this.credentials.username, this.credentials.password);
+      this.myUserId = decodeToken(token).userId;
+      // console.log(`[${this.peerId}] Authenticated as UUID: ${this.myUserId}`);
       url = buildWsUrl(this.serverUrl, token);
     }
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(url);
       const timeout = setTimeout(() => reject(new Error(`WS connect timeout: ${this.peerId}`)), 10000);
       this.ws.on('open', () => {
+        // console.log(`[${this.peerId}] Connected`);
         clearTimeout(timeout);
         this.startHeartbeat();
         resolve();
       });
-      this.ws.on('message', (raw) => this.handleMessage(raw.toString()));
+      this.ws.on('message', (raw) => {
+        // console.log(`[${this.peerId}] Received: ${raw}`);
+        this.handleMessage(raw.toString());
+      });
       this.ws.on('error', (err) => {
+        console.error(`[${this.peerId}] Error:`, err.message);
         clearTimeout(timeout);
         this.metrics.connectionErrors++;
         this.collector.recordConnectionError();
         reject(err);
       });
-      this.ws.on('close', () => { this.ws = undefined; });
+      this.ws.on('close', (code, reason) => {
+        // console.log(`[${this.peerId}] Closed: ${code} ${reason}`);
+        this.ws = undefined;
+      });
     });
   }
 
@@ -64,6 +84,7 @@ export class WsPeer implements BasePeer {
           this.pendingAcks.delete(msg.data.messageId);
           const latency = Date.now() - pending.sentAt;
           this.metrics.acked++;
+          // console.log(`[${this.peerId}] Acked: ${msg.data.messageId} (${latency}ms)`);
           this.metrics.writeLatencySamples.push(latency);
           this.collector.recordAcked(this.peerId, pending.sentAt, latency);
         }
@@ -73,9 +94,14 @@ export class WsPeer implements BasePeer {
 
   startSending(msgPerSec: number): void {
     const intervalMs = Math.max(10, Math.floor(1000 / msgPerSec));
+    // console.log(`[${this.peerId}] Starting send loop: ${msgPerSec} msg/sec (${intervalMs}ms)`);
     this.sendTimer = setInterval(() => {
-      if (!this.isConnected) return;
-      const msg = buildChatMessage(this.peerId, 'device-under-test', `stress-${this.metrics.sent}`);
+      if (!this.isConnected) {
+        // console.warn(`[${this.peerId}] Skipping send - not connected`);
+        return;
+      }
+      const fromId = this.myUserId || this.peerId;
+      const msg = buildChatMessage(fromId, this.targetUserId, `stress-${this.metrics.sent}`);
       const sentAt = Date.now();
       this.pendingAcks.set(msg.data.messageId, {
         sentAt,
@@ -87,6 +113,7 @@ export class WsPeer implements BasePeer {
         }, this.ackTimeoutMs),
       });
       this.ws!.send(JSON.stringify(msg));
+      // console.log(`[${this.peerId}] Sent message ${msg.data.messageId}`);
       this.metrics.sent++;
       this.collector.recordSent(this.peerId, sentAt);
     }, intervalMs);
