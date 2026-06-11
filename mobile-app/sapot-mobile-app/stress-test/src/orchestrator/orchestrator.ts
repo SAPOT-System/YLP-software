@@ -16,7 +16,7 @@ export class Orchestrator {
 
   async run(): Promise<PhaseStats[]> {
     const results: PhaseStats[] = [];
-    const transports: Array<'lan' | 'ws'> =
+    const transports: Array<'lan' | 'ws' | 'webrtc'> =
       this.config.mode === 'both' ? ['lan', 'ws'] : [this.config.mode];
 
     for (const transport of transports) {
@@ -123,7 +123,7 @@ export class Orchestrator {
     return results;
   }
 
-  private spawnPeers(transport: 'lan' | 'ws', phase: Phase): BasePeer[] {
+  private spawnPeers(transport: 'lan' | 'ws' | 'webrtc', phase: Phase): BasePeer[] {
     const peers: BasePeer[] = [];
     for (let i = 0; i < phase.peerCount; i++) {
       if (transport === 'lan') {
