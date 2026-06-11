@@ -124,7 +124,7 @@ export class Orchestrator {
         this.collector.reset();
         const peers = this.createWebrtcPeers(phase);
 
-        for (let i = 0; i < peers.length; i += 2) {
+        for (let i = 0; i + 1 < peers.length; i += 2) {
           const a = peers[i];
           const b = peers[i + 1];
           a.sendSignal = (msg) => b.receiveSignal(msg);

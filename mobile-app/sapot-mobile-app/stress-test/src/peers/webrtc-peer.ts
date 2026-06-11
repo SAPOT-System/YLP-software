@@ -83,10 +83,15 @@ export class WrtcPeer implements BasePeer {
       const startMs = Date.now();
       const timeoutMs = this.config.connectionTimeoutMs ?? 10_000;
 
+      let settled = false;
+
       const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
         this.metrics.connectionTimeouts++;
         this.metrics.connectionErrors++;
         this.collector.recordConnectionTimeout();
+        try { pc.close(); } catch { /* ignore */ }
         resolve();
       }, timeoutMs);
 
@@ -95,17 +100,21 @@ export class WrtcPeer implements BasePeer {
       this.pc = pc;
 
       pc.onStateChange((state: string) => {
+        if (settled) return;
         if (state === 'connected') {
+          settled = true;
           clearTimeout(timer);
           const elapsed = Date.now() - startMs;
           this.metrics.iceEstablishMs.push(elapsed);
           this.collector.recordIceEstablish(this.peerId, elapsed);
           resolve();
-        } else if (state === 'failed' || state === 'closed') {
+        } else if (state === 'failed') {
+          settled = true;
           clearTimeout(timer);
           this.metrics.connectionErrors++;
           resolve();
         }
+        // 'closed' during normal disconnect is not an error — ignore it
       });
 
       pc.onLocalDescription((sdp: string, type: string) => {

@@ -133,7 +133,7 @@ export function writeResults(
 
 export function formatWebrtcBlock(stats: PhaseStats, peerCount: number): string {
   const pairs = peerCount / 2;
-  const connected = pairs - stats.connectionTimeouts;
+  const connected = Math.max(0, pairs - stats.connectionErrors);
   const successPct = pairs > 0 ? ((connected / pairs) * 100).toFixed(0) : '0';
 
   const lines: string[] = [
