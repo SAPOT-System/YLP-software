@@ -5,7 +5,7 @@ import { TestConfig, validateConfig } from './orchestrator/test-config';
 import { Orchestrator } from './orchestrator/orchestrator';
 import { MetricsCollector } from './metrics/collector';
 import { NetworkSampler } from './metrics/network-sampler';
-import { formatTable, computeNetworkStats, writeResults } from './metrics/reporter';
+import { formatTable, writeResults } from './metrics/reporter';
 
 const program = new Command();
 
@@ -52,16 +52,10 @@ program
 
     console.log(`Starting stress test — mode: ${config.mode} | phases: ${config.phases.length}`);
     const results = await orchestrator.run();
-    const totalDurationMs = config.phases.reduce((s, p) => s + p.durationSec * 1000, 0);
-    const networkStats = computeNetworkStats(sampler.getSamples(), totalDurationMs);
 
     console.log('\n\n=== RESULTS ===');
     console.log(formatTable(results));
-    if (networkStats.throughputMbps > 0) {
-      console.log(`\nNetwork: ${networkStats.throughputMbps} Mbps throughput`);
-      console.log(`WiFi: ${networkStats.rssiDbm} dBm @ ${networkStats.linkSpeedMbps} Mbps | Loss: ${networkStats.packetLossPercent}%`);
-    }
-    writeResults(config.outputDir, config.mode, results, networkStats);
+    writeResults(config.outputDir, config.mode, results);
   });
 
 program.parse(process.argv);
