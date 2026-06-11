@@ -10,7 +10,12 @@
     "password": "StressTest@123"
   },
   "phases": [
-    { "peerCount": 1,  "msgPerSec": 1,   "durationSec": 20  }
+    { "peerCount": 10,  "msgPerSec": 1, "durationSec": 60 },
+    { "peerCount": 20,  "msgPerSec": 1, "durationSec": 60 },
+    { "peerCount": 50,  "msgPerSec": 1, "durationSec": 60 },
+    { "peerCount": 100, "msgPerSec": 1, "durationSec": 60 },
+    { "peerCount": 50,  "msgPerSec": 2, "durationSec": 60 },
+    { "peerCount": 100, "msgPerSec": 2, "durationSec": 60 }
   ],
   "outputDir": "./stress-results"
 }

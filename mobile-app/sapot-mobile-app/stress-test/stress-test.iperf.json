@@ -1,0 +1,14 @@
+{
+  "mode": "lan",
+  "lan": {
+    "hostIp": "192.168.1.23",
+    "iperfTargetIp": "192.168.1.2",
+    "startPort": 9000
+  },
+  "phases": [
+    { "peerCount": 10, "msgPerSec": 50,  "durationSec": 20, "iperfLoadMbps": 100 },
+    { "peerCount": 20, "msgPerSec": 50,  "durationSec": 20, "iperfLoadMbps": 200 },
+    { "peerCount": 50, "msgPerSec": 50,  "durationSec": 20, "iperfLoadMbps": 400 }
+  ],
+  "outputDir": "./stress-results"
+}
