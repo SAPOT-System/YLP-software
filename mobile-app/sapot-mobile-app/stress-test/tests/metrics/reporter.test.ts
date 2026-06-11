@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults } from '@/metrics/reporter';
+import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock } from '@/metrics/reporter';
 import { NetworkSample } from '@/metrics/network-sampler';
 import { PhaseStats } from '@/metrics/collector';
 
@@ -125,6 +125,77 @@ describe('reporter', () => {
       const result = formatSaturationAnalysis(phases);
       expect(result).toContain('THROUGHPUT PLATEAU');
       expect(result).toContain('"p2"');
+    });
+  });
+
+  describe('formatWebrtcBlock', () => {
+    function makeWebrtcPhase(overrides: Partial<PhaseStats> = {}): PhaseStats {
+      return {
+        phaseName: 'webrtc-4p',
+        peerCount: 4,
+        msgPerSec: 5,
+        durationSec: 10,
+        totalSent: 200,
+        totalAcked: 190,
+        deliveryRate: 0.95,
+        droppedCount: 10,
+        p50Ms: 20,
+        p95Ms: 45,
+        p99Ms: 80,
+        jitterMs: 5,
+        connectionErrors: 0,
+        wsPeakQueueFills: 0,
+        throughputMbps: 1.2,
+        packetLossPercent: 0.1,
+        rssiDbm: null,
+        linkSpeedMbps: null,
+        iperfStats: null,
+        iceEstablishP50Ms: 142,
+        iceEstablishP95Ms: 381,
+        iceEstablishMaxMs: 892,
+        connectionTimeouts: 0,
+        rtpPacketsSent: 0,
+        rtpPacketsLost: 0,
+        mediaEstablishP95Ms: 0,
+        ...overrides,
+      };
+    }
+
+    it('shows pair count and connection summary', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ connectionTimeouts: 1 }), 4);
+      expect(output).toContain('pairs attempted');
+      expect(output).toContain('2');
+      expect(output).toContain('timed out');
+      expect(output).toContain('1');
+    });
+
+    it('shows ICE establish percentiles', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase(), 4);
+      expect(output).toContain('142');
+      expect(output).toContain('381');
+      expect(output).toContain('892');
+    });
+
+    it('shows Chat section with sent/acked/dropped', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase(), 4);
+      expect(output).toContain('Chat');
+      expect(output).toContain('200');
+      expect(output).toContain('190');
+    });
+
+    it('omits Call section when rtpPacketsSent is 0', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ rtpPacketsSent: 0 }), 4);
+      expect(output).not.toContain('Call');
+    });
+
+    it('shows Call section when rtpPacketsSent > 0', () => {
+      const output = formatWebrtcBlock(
+        makeWebrtcPhase({ rtpPacketsSent: 4600, rtpPacketsLost: 12, mediaEstablishP95Ms: 410 }),
+        50,
+      );
+      expect(output).toContain('Call');
+      expect(output).toContain('4600');
+      expect(output).toContain('410');
     });
   });
 });

@@ -1,7 +1,7 @@
 import { TestConfig, Phase } from './test-config';
 import { MetricsCollector, PhaseStats, IperfStats } from '../metrics/collector';
 import { NetworkSampler } from '../metrics/network-sampler';
-import { computeNetworkStats, formatSaturationAnalysis } from '../metrics/reporter';
+import { computeNetworkStats, formatSaturationAnalysis, formatWebrtcBlock } from '../metrics/reporter';
 import { LanPeer } from '../peers/lan-peer';
 import { WsPeer } from '../peers/ws-peer';
 import { WrtcPeer } from '../peers/webrtc-peer';
@@ -165,6 +165,7 @@ export class Orchestrator {
 
         await Promise.allSettled(peers.map((p) => p.disconnect()));
         printPhaseStats(stats);
+        console.log(formatWebrtcBlock(stats, phase.peerCount));
         results.push(stats);
       }
     }

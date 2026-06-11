@@ -130,3 +130,36 @@ export function writeResults(
   fs.writeFileSync(filename, JSON.stringify({ transport, phases }, null, 2));
   console.log(`\nResults written to ${filename}`);
 }
+
+export function formatWebrtcBlock(stats: PhaseStats, peerCount: number): string {
+  const pairs = peerCount / 2;
+  const connected = pairs - stats.connectionTimeouts;
+  const successPct = pairs > 0 ? ((connected / pairs) * 100).toFixed(0) : '0';
+
+  const lines: string[] = [
+    'WebRTC Connections',
+    `  pairs attempted     : ${pairs}`,
+    `  connected           : ${connected}  (${successPct}%)`,
+    `  timed out           : ${stats.connectionTimeouts}`,
+    `  ICE establish p50   : ${stats.iceEstablishP50Ms}ms`,
+    `  ICE establish p95   : ${stats.iceEstablishP95Ms}ms`,
+    `  ICE establish max   : ${stats.iceEstablishMaxMs}ms`,
+    '',
+    'Chat (RTCDataChannel)',
+    `  sent / acked / dropped  : ${stats.totalSent} / ${stats.totalAcked} / ${stats.droppedCount}`,
+    `  write latency p95       : ${stats.p95Ms}ms`,
+  ];
+
+  if (stats.rtpPacketsSent > 0) {
+    const lossRate = ((stats.rtpPacketsLost / stats.rtpPacketsSent) * 100).toFixed(1);
+    lines.push(
+      '',
+      'Call (media track)',
+      `  RTP packets sent        : ${stats.rtpPacketsSent}`,
+      `  RTP packets lost        : ${stats.rtpPacketsLost}  (${lossRate}%)`,
+      `  media establish p95     : ${stats.mediaEstablishP95Ms}ms`,
+    );
+  }
+
+  return lines.join('\n');
+}
