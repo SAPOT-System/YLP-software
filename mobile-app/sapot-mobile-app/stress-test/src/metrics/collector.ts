@@ -1,3 +1,11 @@
+export interface IperfStats {
+  throughputMbps: number;
+  lossPercent: number;
+  jitterMs: number;
+  lostPackets: number;
+  totalPackets: number;
+}
+
 export interface PhaseStats {
   phaseName: string;
   peerCount: number;
@@ -13,6 +21,11 @@ export interface PhaseStats {
   jitterMs: number;
   connectionErrors: number;
   wsPeakQueueFills: number;
+  throughputMbps: number;
+  packetLossPercent: number;
+  rssiDbm: number | null;
+  linkSpeedMbps: number | null;
+  iperfStats: IperfStats | null;
 }
 
 export class MetricsCollector {
@@ -87,6 +100,11 @@ export class MetricsCollector {
       jitterMs: Math.round(Math.sqrt(variance)),
       connectionErrors: this.connectionErrors,
       wsPeakQueueFills: this.wsPeakQueueFills,
+      throughputMbps: 0,
+      packetLossPercent: 0,
+      rssiDbm: null,
+      linkSpeedMbps: null,
+      iperfStats: null,
     };
   }
 }

@@ -12,6 +12,11 @@ export interface NetworkStats {
   interfaceTxMb: number;
 }
 
+const LATENCY_SPIKE_MULTIPLIER     = 2;
+const THROUGHPUT_PLATEAU_THRESHOLD = 0.10;
+const PACKET_LOSS_THRESHOLD_PCT    = 1;
+const DELIVERY_RATE_MIN            = 0.95;
+
 export function computeNetworkStats(samples: NetworkSample[], durationMs: number): NetworkStats {
   if (samples.length < 2) {
     return {
@@ -40,8 +45,15 @@ export function computeNetworkStats(samples: NetworkSample[], durationMs: number
 }
 
 export function formatTable(phases: PhaseStats[]): string {
-  const header = 'Phase              | Peers | Msg/s | Delivered | Dropped | P50  | P95   | Jitter';
-  const sep    = '-------------------|-------|-------|-----------|---------|------|-------|-------';
+  const hasIperf = phases.some(p => p.iperfStats !== null);
+
+  const header = hasIperf
+    ? 'Phase              | Peers | Msg/s | Delivered | Dropped | P50  | P95   | Jitter | Mbps  | Loss% | iMbps | iLoss%| iJitter'
+    : 'Phase              | Peers | Msg/s | Delivered | Dropped | P50  | P95   | Jitter | Mbps  | Loss%';
+  const sep = hasIperf
+    ? '-------------------|-------|-------|-----------|---------|------|-------|--------|-------|-------|-------|-------|--------'
+    : '-------------------|-------|-------|-----------|---------|------|-------|--------|-------|------';
+
   const rows = phases.map(p => {
     const name   = p.phaseName.padEnd(18);
     const peers  = String(p.peerCount).padStart(5);
@@ -50,20 +62,71 @@ export function formatTable(phases: PhaseStats[]): string {
     const drop   = String(p.droppedCount).padStart(7);
     const p50    = `${p.p50Ms}ms`.padStart(4);
     const p95    = `${p.p95Ms}ms`.padStart(5);
-    const jitter = `${p.jitterMs}ms`.padStart(5);
-    return `${name} | ${peers} | ${rate} | ${del} | ${drop} | ${p50} | ${p95} | ${jitter}`;
+    const jitter = `${p.jitterMs}ms`.padStart(6);
+    const mbps   = `${p.throughputMbps}`.padStart(5);
+    const loss   = `${p.packetLossPercent}%`.padStart(5);
+    const base = `${name} | ${peers} | ${rate} | ${del} | ${drop} | ${p50} | ${p95} | ${jitter} | ${mbps} | ${loss}`;
+    if (!hasIperf) return base;
+    const iMbps   = p.iperfStats ? `${p.iperfStats.throughputMbps}`.padStart(5)  : '   -';
+    const iLoss   = p.iperfStats ? `${p.iperfStats.lossPercent}%`.padStart(6)    : '    -';
+    const iJitter = p.iperfStats ? `${p.iperfStats.jitterMs}ms`.padStart(7)      : '      -';
+    return `${base} | ${iMbps} | ${iLoss} | ${iJitter}`;
   });
   return [header, sep, ...rows].join('\n');
+}
+
+export function formatSaturationAnalysis(phases: PhaseStats[]): string {
+  if (phases.length < 2) {
+    return 'Not enough phases to determine saturation (need at least 2).';
+  }
+
+  const baseline = phases[0];
+  const findings: string[] = [];
+
+  for (let i = 1; i < phases.length; i++) {
+    const p = phases[i];
+    const prev = phases[i - 1];
+
+    if (baseline.p95Ms > 0 && p.p95Ms > baseline.p95Ms * LATENCY_SPIKE_MULTIPLIER) {
+      findings.push(`  [LATENCY SPIKE]      Phase "${p.phaseName}": p95 ${p.p95Ms}ms > ${LATENCY_SPIKE_MULTIPLIER}× baseline ${baseline.p95Ms}ms`);
+    }
+
+    const lossSource = p.iperfStats ?? null;
+    const lossPercent = lossSource ? lossSource.lossPercent : p.packetLossPercent;
+    const lossLabel   = lossSource ? 'iperf' : 'proc';
+    if (lossPercent > PACKET_LOSS_THRESHOLD_PCT) {
+      findings.push(`  [PACKET LOSS]        Phase "${p.phaseName}": loss ${lossPercent}% exceeds ${PACKET_LOSS_THRESHOLD_PCT}% threshold (${lossLabel})`);
+    }
+
+    if (p.deliveryRate < DELIVERY_RATE_MIN) {
+      findings.push(`  [DELIVERY DROP]      Phase "${p.phaseName}": delivery ${(p.deliveryRate * 100).toFixed(1)}% < ${DELIVERY_RATE_MIN * 100}%`);
+    }
+
+    if (
+      p.peerCount > prev.peerCount &&
+      prev.throughputMbps >= 1.0 &&
+      p.throughputMbps > 0
+    ) {
+      const growth = (p.throughputMbps - prev.throughputMbps) / prev.throughputMbps;
+      if (growth < THROUGHPUT_PLATEAU_THRESHOLD) {
+        findings.push(`  [THROUGHPUT PLATEAU] Phase "${p.phaseName}": only ${(growth * 100).toFixed(1)}% growth despite +${p.peerCount - prev.peerCount} peers`);
+      }
+    }
+  }
+
+  if (findings.length === 0) {
+    return 'No saturation detected within test range — increase peer count.';
+  }
+  return `Saturation signals detected:\n${findings.join('\n')}`;
 }
 
 export function writeResults(
   outputDir: string,
   transport: string,
   phases: PhaseStats[],
-  networkStats: NetworkStats,
 ): void {
   fs.mkdirSync(outputDir, { recursive: true });
   const filename = path.join(outputDir, `results-${transport}-${Date.now()}.json`);
-  fs.writeFileSync(filename, JSON.stringify({ transport, phases, networkStats }, null, 2));
+  fs.writeFileSync(filename, JSON.stringify({ transport, phases }, null, 2));
   console.log(`\nResults written to ${filename}`);
 }
