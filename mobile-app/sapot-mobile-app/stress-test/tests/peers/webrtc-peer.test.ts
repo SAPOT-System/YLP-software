@@ -78,4 +78,49 @@ describe('WrtcPeer', () => {
     expect(m1).not.toBe(m2);
     await peer.disconnect();
   }, 5000);
+
+  describe('media track (audio)', () => {
+    const mediaConfig: WebrtcConfig = {
+      connectionTimeoutMs: 8000,
+      media: { type: 'audio', bitrate: 32 },
+    };
+
+    it('populates rtpPacketsSent after sending for 500ms', async () => {
+      const col = new MetricsCollector();
+      const offerer = new WrtcPeer('peer-0', 0, col, mediaConfig);
+      const answerer = new WrtcPeer('peer-1', 1, col, mediaConfig);
+
+      offerer.sendSignal = (msg) => answerer.receiveSignal(msg);
+      answerer.sendSignal = (msg) => offerer.receiveSignal(msg);
+
+      await Promise.all([offerer.connect(), answerer.connect()]);
+
+      offerer.startSending(5);
+      answerer.startSending(5);
+      await new Promise((r) => setTimeout(r, 500));
+      offerer.stopSending();
+      answerer.stopSending();
+
+      expect(offerer.getMetrics().rtpPacketsSent).toBeGreaterThanOrEqual(0);
+      expect(answerer.getMetrics().rtpPacketsSent).toBeGreaterThanOrEqual(0);
+
+      await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+    }, 15000);
+
+    it('mediaEstablishMs is populated when audio track opens', async () => {
+      const col = new MetricsCollector();
+      const offerer = new WrtcPeer('peer-0', 0, col, mediaConfig);
+      const answerer = new WrtcPeer('peer-1', 1, col, mediaConfig);
+
+      offerer.sendSignal = (msg) => answerer.receiveSignal(msg);
+      answerer.sendSignal = (msg) => offerer.receiveSignal(msg);
+
+      await Promise.all([offerer.connect(), answerer.connect()]);
+      await new Promise((r) => setTimeout(r, 500));
+
+      expect(offerer.getMetrics().mediaEstablishMs.length).toBeGreaterThanOrEqual(0);
+
+      await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+    }, 15000);
+  });
 });

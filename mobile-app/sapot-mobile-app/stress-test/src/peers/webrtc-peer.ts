@@ -9,6 +9,16 @@ export type SignalMessage =
   | { type: 'answer'; sdp: string }
   | { type: 'candidate'; candidate: string; mid: string };
 
+function buildRtpPacket(seq: number, timestamp: number, ssrc: number): Buffer {
+  const header = Buffer.alloc(12);
+  header[0] = 0x80;
+  header[1] = 111;
+  header.writeUInt16BE(seq & 0xffff, 2);
+  header.writeUInt32BE(timestamp >>> 0, 4);
+  header.writeUInt32BE(ssrc >>> 0, 8);
+  return Buffer.concat([header, Buffer.alloc(3, 0)]);
+}
+
 export class WrtcPeer implements BasePeer {
   readonly peerId: string;
   readonly peerIndex: number;
@@ -20,6 +30,13 @@ export class WrtcPeer implements BasePeer {
   private sendTimer: NodeJS.Timeout | null = null;
   private metrics: PeerMetrics = emptyMetrics();
   private seqNo = 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private audioTrack: any = null;
+  private audioTimer: NodeJS.Timeout | null = null;
+  private rtpSeq = 0;
+  private rtpTimestamp = 0;
+  private readonly rtpSsrc = Math.floor(Math.random() * 0xffffffff);
 
   constructor(
     peerId: string,
@@ -82,6 +99,16 @@ export class WrtcPeer implements BasePeer {
         this.sendSignal({ type: 'candidate', candidate, mid });
       });
 
+      if (this.config.media) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const track = (pc as any).addTrack('audio', 'sendonly');
+          this.setupAudioTrack(track);
+        } catch {
+          // node-datachannel version may not support addTrack — skip silently
+        }
+      }
+
       if (this.isOfferer) {
         const dc = pc.createDataChannel('chat');
         this.setupDataChannel(dc);
@@ -90,6 +117,17 @@ export class WrtcPeer implements BasePeer {
           this.setupDataChannel(dc);
         });
       }
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private setupAudioTrack(track: any): void {
+    this.audioTrack = track;
+    const startMs = Date.now();
+    track.onOpen(() => {
+      const elapsed = Date.now() - startMs;
+      this.metrics.mediaEstablishMs.push(elapsed);
+      this.collector.recordMediaEstablish(this.peerId, elapsed);
     });
   }
 
@@ -125,6 +163,25 @@ export class WrtcPeer implements BasePeer {
         this.collector.recordDropped(this.peerId);
       }
     }, intervalMs);
+
+    if (this.audioTrack) {
+      this.audioTimer = setInterval(() => {
+        try {
+          const packet = buildRtpPacket(this.rtpSeq++, this.rtpTimestamp, this.rtpSsrc);
+          this.rtpTimestamp += 960;
+          const ok = this.audioTrack.sendMessage(packet);
+          if (ok) {
+            this.metrics.rtpPacketsSent++;
+            this.collector.recordRtpSent(this.peerId);
+          } else {
+            this.metrics.rtpPacketsLost++;
+            this.collector.recordRtpLost(this.peerId);
+          }
+        } catch {
+          // track may have closed
+        }
+      }, 20);
+    }
   }
 
   stopSending(): void {
@@ -132,11 +189,17 @@ export class WrtcPeer implements BasePeer {
       clearInterval(this.sendTimer);
       this.sendTimer = null;
     }
+    if (this.audioTimer !== null) {
+      clearInterval(this.audioTimer);
+      this.audioTimer = null;
+    }
   }
 
   async disconnect(): Promise<void> {
     this.stopSending();
     try { this.dc?.close(); } catch { /* ignore */ }
+    try { this.audioTrack?.close(); } catch { /* ignore */ }
+    this.audioTrack = null;
     this.dc = null;
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 200);
