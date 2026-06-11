@@ -11,6 +11,8 @@ const fakePhase: PhaseStats = {
   p50Ms: 12, p95Ms: 35, p99Ms: 80, jitterMs: 8, connectionErrors: 0, wsPeakQueueFills: 0,
   throughputMbps: 8.5, packetLossPercent: 0.02, rssiDbm: -60, linkSpeedMbps: 144,
   iperfStats: null,
+  iceEstablishP50Ms: 0, iceEstablishP95Ms: 0, iceEstablishMaxMs: 0,
+  connectionTimeouts: 0, rtpPacketsSent: 0, rtpPacketsLost: 0, mediaEstablishP95Ms: 0,
 };
 
 function makePhase(overrides: Partial<PhaseStats>): PhaseStats {

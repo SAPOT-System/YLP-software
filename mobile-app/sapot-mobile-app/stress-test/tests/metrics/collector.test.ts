@@ -54,4 +54,60 @@ describe('MetricsCollector', () => {
     expect(stats.rssiDbm).toBeNull();
     expect(stats.linkSpeedMbps).toBeNull();
   });
+
+  describe('WebRTC metrics', () => {
+    it('recordIceEstablish is reflected in p50/p95/max', () => {
+      collector.recordIceEstablish('peer-1', 80);
+      collector.recordIceEstablish('peer-1', 120);
+      const stats = collector.computeStats('phase', 2, 1, 5, 0, 5000);
+      expect(stats.iceEstablishP50Ms).toBe(80);
+      expect(stats.iceEstablishP95Ms).toBe(120);
+      expect(stats.iceEstablishMaxMs).toBe(120);
+    });
+
+    it('recordConnectionTimeout is counted in stats', () => {
+      collector.recordConnectionTimeout();
+      collector.recordConnectionTimeout();
+      const stats = collector.computeStats('phase', 4, 1, 5, 0, 5000);
+      expect(stats.connectionTimeouts).toBe(2);
+    });
+
+    it('recordRtpSent and recordRtpLost accumulate counts', () => {
+      for (let i = 0; i < 100; i++) collector.recordRtpSent('peer-1');
+      for (let i = 0; i < 5; i++) collector.recordRtpLost('peer-1');
+      const stats = collector.computeStats('phase', 1, 1, 5, 0, 5000);
+      expect(stats.rtpPacketsSent).toBe(100);
+      expect(stats.rtpPacketsLost).toBe(5);
+    });
+
+    it('recordMediaEstablish is reflected in mediaEstablishP95Ms', () => {
+      collector.recordMediaEstablish('peer-1', 300);
+      const stats = collector.computeStats('phase', 2, 1, 5, 0, 5000);
+      expect(stats.mediaEstablishP95Ms).toBe(300);
+    });
+
+    it('reset() clears all WebRTC fields', () => {
+      collector.recordIceEstablish('peer-1', 100);
+      collector.recordConnectionTimeout();
+      collector.recordRtpSent('peer-1');
+      collector.recordRtpLost('peer-1');
+      collector.recordMediaEstablish('peer-1', 200);
+      collector.reset();
+      const stats = collector.computeStats('phase', 2, 1, 5, 0, 5000);
+      expect(stats.iceEstablishP50Ms).toBe(0);
+      expect(stats.connectionTimeouts).toBe(0);
+      expect(stats.rtpPacketsSent).toBe(0);
+      expect(stats.rtpPacketsLost).toBe(0);
+      expect(stats.mediaEstablishP95Ms).toBe(0);
+    });
+
+    it('returns zero WebRTC stats when no WebRTC events recorded', () => {
+      const stats = collector.computeStats('phase', 2, 1, 5, 0, 5000);
+      expect(stats.iceEstablishP50Ms).toBe(0);
+      expect(stats.iceEstablishMaxMs).toBe(0);
+      expect(stats.connectionTimeouts).toBe(0);
+      expect(stats.rtpPacketsSent).toBe(0);
+      expect(stats.mediaEstablishP95Ms).toBe(0);
+    });
+  });
 });

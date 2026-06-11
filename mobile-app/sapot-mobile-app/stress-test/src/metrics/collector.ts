@@ -26,6 +26,18 @@ export interface PhaseStats {
   rssiDbm: number | null;
   linkSpeedMbps: number | null;
   iperfStats: IperfStats | null;
+  iceEstablishP50Ms: number;
+  iceEstablishP95Ms: number;
+  iceEstablishMaxMs: number;
+  connectionTimeouts: number;
+  rtpPacketsSent: number;
+  rtpPacketsLost: number;
+  mediaEstablishP95Ms: number;
+}
+
+function pct(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  return sorted[Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)];
 }
 
 export class MetricsCollector {
@@ -35,6 +47,11 @@ export class MetricsCollector {
   private ackCounts = new Map<string, number>();
   private connectionErrors = 0;
   private wsPeakQueueFills = 0;
+  private iceEstablishSamples: number[] = [];
+  private connectionTimeoutCount = 0;
+  private rtpSentCount = 0;
+  private rtpLostCount = 0;
+  private mediaEstablishSamples: number[] = [];
 
   recordSent(peerId: string, _atMs: number): void {
     this.sentCounts.set(peerId, (this.sentCounts.get(peerId) ?? 0) + 1);
@@ -52,6 +69,26 @@ export class MetricsCollector {
   recordConnectionError(): void { this.connectionErrors++; }
   recordQueueFill(): void { this.wsPeakQueueFills++; }
 
+  recordIceEstablish(_peerId: string, ms: number): void {
+    this.iceEstablishSamples.push(ms);
+  }
+
+  recordConnectionTimeout(): void {
+    this.connectionTimeoutCount++;
+  }
+
+  recordRtpSent(_peerId: string): void {
+    this.rtpSentCount++;
+  }
+
+  recordRtpLost(_peerId: string): void {
+    this.rtpLostCount++;
+  }
+
+  recordMediaEstablish(_peerId: string, ms: number): void {
+    this.mediaEstablishSamples.push(ms);
+  }
+
   reset(): void {
     this.sentCounts = new Map();
     this.latencySamples = [];
@@ -59,6 +96,11 @@ export class MetricsCollector {
     this.ackCounts = new Map();
     this.connectionErrors = 0;
     this.wsPeakQueueFills = 0;
+    this.iceEstablishSamples = [];
+    this.connectionTimeoutCount = 0;
+    this.rtpSentCount = 0;
+    this.rtpLostCount = 0;
+    this.mediaEstablishSamples = [];
   }
 
   computeStats(
@@ -77,13 +119,13 @@ export class MetricsCollector {
     for (const v of this.droppedCounts.values()) totalDropped += v;
 
     const sorted = [...this.latencySamples].sort((a, b) => a - b);
-    const pct = (p: number) => {
-      if (sorted.length === 0) return 0;
-      return sorted[Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)];
-    };
+    const localPct = (p: number) => pct(sorted, p);
     const mean = sorted.length > 0 ? sorted.reduce((s, v) => s + v, 0) / sorted.length : 0;
     const variance =
       sorted.length > 1 ? sorted.reduce((s, v) => s + (v - mean) ** 2, 0) / (sorted.length - 1) : 0;
+
+    const iceSorted = [...this.iceEstablishSamples].sort((a, b) => a - b);
+    const mediaSorted = [...this.mediaEstablishSamples].sort((a, b) => a - b);
 
     return {
       phaseName,
@@ -94,9 +136,9 @@ export class MetricsCollector {
       totalAcked,
       deliveryRate: totalSent > 0 ? totalAcked / totalSent : 0,
       droppedCount: totalDropped,
-      p50Ms: pct(50),
-      p95Ms: pct(95),
-      p99Ms: pct(99),
+      p50Ms: localPct(50),
+      p95Ms: localPct(95),
+      p99Ms: localPct(99),
       jitterMs: Math.round(Math.sqrt(variance)),
       connectionErrors: this.connectionErrors,
       wsPeakQueueFills: this.wsPeakQueueFills,
@@ -105,6 +147,13 @@ export class MetricsCollector {
       rssiDbm: null,
       linkSpeedMbps: null,
       iperfStats: null,
+      iceEstablishP50Ms: pct(iceSorted, 50),
+      iceEstablishP95Ms: pct(iceSorted, 95),
+      iceEstablishMaxMs: iceSorted.length > 0 ? iceSorted[iceSorted.length - 1] : 0,
+      connectionTimeouts: this.connectionTimeoutCount,
+      rtpPacketsSent: this.rtpSentCount,
+      rtpPacketsLost: this.rtpLostCount,
+      mediaEstablishP95Ms: pct(mediaSorted, 95),
     };
   }
 }
