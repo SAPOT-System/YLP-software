@@ -4,6 +4,7 @@ import { NetworkSampler } from '../metrics/network-sampler';
 import { computeNetworkStats, formatSaturationAnalysis } from '../metrics/reporter';
 import { LanPeer } from '../peers/lan-peer';
 import { WsPeer } from '../peers/ws-peer';
+import { WrtcPeer } from '../peers/webrtc-peer';
 import { BasePeer } from '../peers/base-peer';
 import { spawn } from 'child_process';
 
@@ -19,7 +20,7 @@ export class Orchestrator {
     const transports: Array<'lan' | 'ws' | 'webrtc'> =
       this.config.mode === 'both' ? ['lan', 'ws'] : [this.config.mode];
 
-    for (const transport of transports) {
+    if (this.config.mode !== 'webrtc') for (const transport of transports) {
       console.log(`\n=== Transport: ${transport.toUpperCase()} ===`);
       for (const phase of this.config.phases) {
         const phaseName = `${transport}-peers${phase.peerCount}-msg${phase.msgPerSec}${phase.iperfLoadMbps ? `-iperf${phase.iperfLoadMbps}M` : ''}`;
@@ -118,6 +119,56 @@ export class Orchestrator {
         printPhaseStats(stats);
       }
     }
+    if (this.config.mode === 'webrtc') {
+      for (const phase of this.config.phases) {
+        this.collector.reset();
+        const peers = this.createWebrtcPeers(phase);
+
+        for (let i = 0; i < peers.length; i += 2) {
+          const a = peers[i];
+          const b = peers[i + 1];
+          a.sendSignal = (msg) => b.receiveSignal(msg);
+          b.sendSignal = (msg) => a.receiveSignal(msg);
+        }
+
+        console.log(`\n[webrtc] phase: ${phase.peerCount} peers, ${phase.peerCount / 2} pairs`);
+        await Promise.allSettled(peers.map((p) => p.connect()));
+
+        const connected = peers.filter((p) => p.getMetrics().connectionErrors === 0).length;
+        console.log(`  connected: ${connected}/${peers.length} peers`);
+
+        const startMs = Date.now();
+        this.sampler.start();
+        peers.forEach((p) => p.startSending(phase.msgPerSec));
+        await sleep(phase.durationSec * 1000);
+        peers.forEach((p) => p.stopSending());
+        this.sampler.stop();
+        const endMs = Date.now();
+
+        const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
+        const msgStats = this.collector.computeStats(
+          `webrtc-${phase.peerCount}p`,
+          phase.peerCount,
+          phase.msgPerSec,
+          phase.durationSec,
+          startMs,
+          endMs,
+        );
+        const stats: PhaseStats = {
+          ...msgStats,
+          throughputMbps: netStats.throughputMbps,
+          packetLossPercent: netStats.packetLossPercent,
+          rssiDbm: netStats.rssiDbm,
+          linkSpeedMbps: netStats.linkSpeedMbps,
+          iperfStats: null,
+        };
+
+        await Promise.allSettled(peers.map((p) => p.disconnect()));
+        printPhaseStats(stats);
+        results.push(stats);
+      }
+    }
+
     console.log('\n=== SATURATION ANALYSIS ===');
     console.log(formatSaturationAnalysis(results));
     return results;
@@ -142,6 +193,12 @@ export class Orchestrator {
       }
     }
     return peers;
+  }
+
+  private createWebrtcPeers(phase: Phase): WrtcPeer[] {
+    return Array.from({ length: phase.peerCount }, (_, i) =>
+      new WrtcPeer(`stress-webrtc-${i}`, i, this.collector, this.config.webrtc!),
+    );
   }
 }
 

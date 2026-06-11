@@ -3,6 +3,8 @@ import { Orchestrator } from '@/orchestrator/orchestrator';
 import { MetricsCollector } from '@/metrics/collector';
 import { NetworkSampler } from '@/metrics/network-sampler';
 import { TestConfig } from '@/orchestrator/test-config';
+import { WrtcPeer } from '@/peers/webrtc-peer';
+import { WebrtcConfig } from '@/orchestrator/test-config';
 
 describe('Orchestrator (WS mode, fake server)', () => {
   let wss: WebSocketServer;
@@ -23,7 +25,7 @@ describe('Orchestrator (WS mode, fake server)', () => {
     });
   });
 
-  afterEach(async () => { await new Promise<void>(res => wss.close(() => res())); });
+  afterEach(async () => { await new Promise<void>((res) => wss.close(() => res())); });
 
   it('runs a single phase and returns PhaseStats', async () => {
     const config: TestConfig = {
@@ -40,5 +42,40 @@ describe('Orchestrator (WS mode, fake server)', () => {
     expect(results[0].throughputMbps).toBeDefined();
     expect(results[0].packetLossPercent).toBeDefined();
     expect(results[0].rssiDbm).toBeNull();
+  }, 15000);
+});
+
+describe('Orchestrator (webrtc mode, fake peers)', () => {
+  it('runs a single webrtc phase and returns PhaseStats', async () => {
+    const collector = new MetricsCollector();
+    const sampler = new NetworkSampler();
+    const config: TestConfig = {
+      mode: 'webrtc',
+      webrtc: { connectionTimeoutMs: 5000 },
+      phases: [{ peerCount: 4, msgPerSec: 2, durationSec: 2 }],
+      outputDir: './stress-results',
+    };
+
+    const orchestrator = new Orchestrator(config, collector, sampler);
+
+    // Inject a fast fake factory so the test does not need real WebRTC
+    (orchestrator as any).createWebrtcPeers = (phase: { peerCount: number }) => {
+      const cfg: WebrtcConfig = { connectionTimeoutMs: 5000 };
+      return Array.from({ length: phase.peerCount }, (_: unknown, i: number) => {
+        const p = new WrtcPeer(`fake-${i}`, i, collector, cfg);
+        p.connect = async () => {};
+        p.startSending = () => {};
+        p.stopSending = () => {};
+        p.disconnect = async () => {};
+        return p;
+      });
+    };
+
+    const results = await orchestrator.run();
+
+    expect(results).toHaveLength(1);
+    expect(results[0].peerCount).toBe(4);
+    expect(results[0].throughputMbps).toBeDefined();
+    expect(results[0].connectionTimeouts).toBeDefined();
   }, 15000);
 });
