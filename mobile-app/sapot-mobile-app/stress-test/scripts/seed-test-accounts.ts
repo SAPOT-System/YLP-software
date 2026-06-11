@@ -13,13 +13,14 @@ program
     const { serverUrl, count, prefix, password } = opts;
     let created = 0;
     let skipped = 0;
+    const baseUrl = serverUrl.replace(/\/$/, '');
 
     console.log(`Seeding ${count} accounts at ${serverUrl} (prefix: "${prefix}")...`);
 
     for (let i = 0; i < count; i++) {
       const username = `${prefix}${i}`;
       try {
-        const res = await fetch(`${serverUrl}/auth/`, {
+        const res = await fetch(`${baseUrl}/auth/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

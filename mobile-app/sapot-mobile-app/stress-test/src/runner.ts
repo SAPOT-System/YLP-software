@@ -58,7 +58,7 @@ program
     console.log('\n\n=== RESULTS ===');
     console.log(formatTable(results));
     if (networkStats.throughputMbps > 0) {
-      console.log(`\nNetwork: ${networkStats.throughputMbps} Mbps throughput | ${networkStats.goodputMbps} Mbps goodput`);
+      console.log(`\nNetwork: ${networkStats.throughputMbps} Mbps throughput`);
       console.log(`WiFi: ${networkStats.rssiDbm} dBm @ ${networkStats.linkSpeedMbps} Mbps | Loss: ${networkStats.packetLossPercent}%`);
     }
     writeResults(config.outputDir, config.mode, results, networkStats);

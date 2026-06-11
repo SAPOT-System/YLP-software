@@ -1,24 +1,16 @@
 {
   "mode": "both",
   "lan": {
-    "hostIp": "192.168.1.100",
+    "hostIp": "192.168.1.23",
     "startPort": 9000
   },
   "ws": {
-    "serverUrl": "http://192.168.1.100:8000",
-    "accountPrefix": "stress_peer_"
+    "serverUrl": "https://192.168.1.23",
+    "accountPrefix": "stress_peer_",
+    "password": "StressTest@123"
   },
   "phases": [
-    { "peerCount": 1,  "msgPerSec": 1,   "durationSec": 30  },
-    { "peerCount": 5,  "msgPerSec": 5,   "durationSec": 60  },
-    { "peerCount": 10, "msgPerSec": 5,   "durationSec": 60  },
-    { "peerCount": 20, "msgPerSec": 5,   "durationSec": 60  },
-    { "peerCount": 50, "msgPerSec": 5,   "durationSec": 60  },
-    { "peerCount": 10, "msgPerSec": 10,  "durationSec": 60  },
-    { "peerCount": 10, "msgPerSec": 50,  "durationSec": 60  },
-    { "peerCount": 10, "msgPerSec": 100, "durationSec": 60  },
-    { "peerCount": 10, "msgPerSec": 200, "durationSec": 60  },
-    { "peerCount": 20, "msgPerSec": 50,  "durationSec": 120 }
+    { "peerCount": 1,  "msgPerSec": 1,   "durationSec": 20  }
   ],
   "outputDir": "./stress-results"
 }

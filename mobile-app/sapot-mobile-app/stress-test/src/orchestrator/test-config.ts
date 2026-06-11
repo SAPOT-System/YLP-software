@@ -12,6 +12,7 @@ export interface LanConfig {
 export interface WsConfig {
   serverUrl: string;
   accountPrefix: string;
+  password: string;
 }
 
 export interface TestConfig {

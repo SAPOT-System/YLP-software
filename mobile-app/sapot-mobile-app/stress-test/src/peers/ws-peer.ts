@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { buildChatMessage, isServerAck, isPong } from '../protocol/ws-protocol';
+import { buildChatMessage, isServerAck, isPong, fetchJwt, buildWsUrl } from '../protocol/ws-protocol';
 import { BasePeer, PeerMetrics, emptyMetrics } from './base-peer';
 import { MetricsCollector } from '../metrics/collector';
 
@@ -15,9 +15,10 @@ export class WsPeer implements BasePeer {
   constructor(
     peerId: string,
     peerIndex: number,
-    private readonly wsUrl: string,
+    private readonly serverUrl: string,
     private readonly collector: MetricsCollector,
     private readonly ackTimeoutMs = 5000,
+    private readonly credentials?: { username: string; password: string },
   ) {
     this.peerId = peerId;
     this.peerIndex = peerIndex;
@@ -28,8 +29,13 @@ export class WsPeer implements BasePeer {
   }
 
   async connect(): Promise<void> {
+    let url = this.serverUrl;
+    if (!url.startsWith('ws') && this.credentials) {
+      const token = await fetchJwt(this.serverUrl, this.credentials.username, this.credentials.password);
+      url = buildWsUrl(this.serverUrl, token);
+    }
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.wsUrl);
+      this.ws = new WebSocket(url);
       const timeout = setTimeout(() => reject(new Error(`WS connect timeout: ${this.peerId}`)), 10000);
       this.ws.on('open', () => {
         clearTimeout(timeout);

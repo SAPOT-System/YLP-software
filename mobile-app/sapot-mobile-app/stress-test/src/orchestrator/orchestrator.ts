@@ -4,7 +4,6 @@ import { NetworkSampler } from '../metrics/network-sampler';
 import { LanPeer } from '../peers/lan-peer';
 import { WsPeer } from '../peers/ws-peer';
 import { BasePeer } from '../peers/base-peer';
-import { buildWsUrl, fetchJwt } from '../protocol/ws-protocol';
 
 export class Orchestrator {
   constructor(
@@ -26,8 +25,18 @@ export class Orchestrator {
         this.collector.reset();
         this.sampler.reset();
 
-        const peers = await this.spawnPeers(transport, phase);
+        const peers = this.spawnPeers(transport, phase);
         await Promise.allSettled(peers.map(p => p.connect()));
+
+        if (transport === 'lan' && peers.length > 1) {
+          const lanPeers = peers as LanPeer[];
+          await Promise.allSettled(
+            lanPeers.map((p, i) =>
+              p.connectTo(this.config.lan!.hostIp, lanPeers[(i + 1) % lanPeers.length].port)
+            )
+          );
+        }
+
         await sleep(500);
 
         const startMs = Date.now();
@@ -50,7 +59,7 @@ export class Orchestrator {
     return results;
   }
 
-  private async spawnPeers(transport: 'lan' | 'ws', phase: Phase): Promise<BasePeer[]> {
+  private spawnPeers(transport: 'lan' | 'ws', phase: Phase): BasePeer[] {
     const peers: BasePeer[] = [];
     for (let i = 0; i < phase.peerCount; i++) {
       if (transport === 'lan') {
@@ -58,10 +67,14 @@ export class Orchestrator {
         peers.push(new LanPeer(`stress-lan-${i}`, i, lan.hostIp, lan.startPort + i, this.collector));
       } else {
         const ws = this.config.ws!;
-        const wsUrl = ws.serverUrl.startsWith('ws')
-          ? ws.serverUrl
-          : buildWsUrl(ws.serverUrl, await fetchJwt(ws.serverUrl, `${ws.accountPrefix}${i}`, `stress_pass_${i}`));
-        peers.push(new WsPeer(`${ws.accountPrefix}${i}`, i, wsUrl, this.collector));
+        peers.push(new WsPeer(
+          `${ws.accountPrefix}${i}`,
+          i,
+          ws.serverUrl,
+          this.collector,
+          5000,
+          { username: `${ws.accountPrefix}${i}`, password: ws.password },
+        ));
       }
     }
     return peers;

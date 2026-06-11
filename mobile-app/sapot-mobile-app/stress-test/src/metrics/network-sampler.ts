@@ -20,7 +20,9 @@ export class NetworkSampler {
     this.sample();
     this.sampleWifi();
     this.timer = setInterval(() => this.sample(), pollMs);
+    this.timer.unref();
     this.wifiTimer = setInterval(() => this.sampleWifi(), wifiPollMs);
+    this.wifiTimer.unref();
   }
 
   stop(): void {
@@ -43,6 +45,7 @@ export class NetworkSampler {
         linkSpeedMbps: this.lastLinkSpeed,
       });
     } catch {
+      console.log("error in sample")
       this.samples.push({
         timestamp: Date.now(),
         wlanRxBytes: 0,
@@ -64,7 +67,9 @@ export class NetworkSampler {
       const speedMatch = raw.match(/Link speed:\s*(\d+)/);
       this.lastRssi = rssiMatch ? parseInt(rssiMatch[1], 10) : null;
       this.lastLinkSpeed = speedMatch ? parseInt(speedMatch[1], 10) : null;
-    } catch { /* best effort */ }
+    } catch {
+  console.log("error in sampleWifi");
+    }
   }
 }
 

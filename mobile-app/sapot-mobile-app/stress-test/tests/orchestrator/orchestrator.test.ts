@@ -28,7 +28,7 @@ describe('Orchestrator (WS mode, fake server)', () => {
   it('runs a single phase and returns PhaseStats', async () => {
     const config: TestConfig = {
       mode: 'ws',
-      ws: { serverUrl: 'ws://127.0.0.1:9903', accountPrefix: 'test_' },
+      ws: { serverUrl: 'ws://127.0.0.1:9903', accountPrefix: 'test_', password: '' },
       phases: [{ peerCount: 2, msgPerSec: 5, durationSec: 2 }],
       outputDir: '/tmp/stress-test-output',
     };

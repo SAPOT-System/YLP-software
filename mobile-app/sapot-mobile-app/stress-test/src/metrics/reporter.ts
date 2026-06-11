@@ -5,7 +5,6 @@ import { NetworkSample } from './network-sampler';
 
 export interface NetworkStats {
   throughputMbps: number;
-  goodputMbps: number;
   packetLossPercent: number;
   rssiDbm: number | null;
   linkSpeedMbps: number | null;
@@ -16,7 +15,7 @@ export interface NetworkStats {
 export function computeNetworkStats(samples: NetworkSample[], durationMs: number): NetworkStats {
   if (samples.length < 2) {
     return {
-      throughputMbps: 0, goodputMbps: 0, packetLossPercent: 0,
+      throughputMbps: 0, packetLossPercent: 0,
       rssiDbm: null, linkSpeedMbps: null, interfaceRxMb: 0, interfaceTxMb: 0,
     };
   }
@@ -27,13 +26,11 @@ export function computeNetworkStats(samples: NetworkSample[], durationMs: number
   const totalBytes = rxDelta + txDelta;
   const durationSec = durationMs / 1000;
   const throughputMbps = (totalBytes * 8) / (durationSec * 1_000_000);
-  const goodputMbps = throughputMbps * 0.85;
   const retransDelta = last.tcpRetransSegs - first.tcpRetransSegs;
   const totalSegments = Math.max(1, Math.ceil(totalBytes / 1460));
   const packetLossPercent = Math.min(100, (retransDelta / totalSegments) * 100);
   return {
     throughputMbps: Math.round(throughputMbps * 10) / 10,
-    goodputMbps: Math.round(goodputMbps * 10) / 10,
     packetLossPercent: Math.round(packetLossPercent * 100) / 100,
     rssiDbm: last.rssiDbm,
     linkSpeedMbps: last.linkSpeedMbps,
