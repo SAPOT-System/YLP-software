@@ -1,4 +1,6 @@
+import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 load_dotenv()
 from contextlib import asynccontextmanager
@@ -81,6 +83,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from starlette.routing import Match
+
+@app.middleware("http")
+async def strip_trailing_slashes(request: Request, call_next):
+    path = request.url.path
+    if path != "/" and path.endswith("/"):
+        path_without_trailing_slash = path.rstrip("/")
+
+        # Check if the stripped path matches a route in the application
+        redirect_scope = dict(request.scope)
+        redirect_scope["path"] = path_without_trailing_slash
+
+        for route in request.app.routes:
+            match, _ = route.matches(redirect_scope)
+            if match != Match.NONE:
+                request.scope["path"] = path_without_trailing_slash
+                if "raw_path" in request.scope:
+                    request.scope["raw_path"] = path_without_trailing_slash.encode("utf-8")
+                break
+
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def track_user_activity(request: Request, call_next):
     return await activity_tracking_middleware(request, call_next)
@@ -89,7 +114,7 @@ logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
 
 # On Windows: "C:/logs/fastapi_app"
-LOG_DIR = os.path.abspath("../logs") 
+LOG_DIR = os.path.abspath("../logs")
 
 # Create the directory if it doesn't exist
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -115,49 +140,57 @@ logger.addHandler(text_handler)
 
 from uuid import UUID, uuid4
 from sqlmodel import Session
-# ... (your other imports)
+
+_log_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="log-db")
+
+_LOGGABLE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+def _write_activity_log_sync(user_id_str: str, action: str, metadata: dict) -> None:
+    try:
+        with Session(engine) as session:
+            db_log = ActivityLog(
+                user_id=UUID(user_id_str),
+                action=action,
+                entity_id=None,
+                metadata_json=metadata,
+            )
+            session.add(db_log)
+            session.commit()
+    except Exception as e:
+        print(f"[log_activity] db write failed: {e}")
+
 
 @app.middleware("http")
 async def log_activity(request: Request, call_next):
-    user_id = get_user_id_from_header(request)
-    # 1. Identify User (Example: get from state or header)
-    # If you have auth middleware, user_id might be in request.state.user_id
-    current_user_id = user_id
-    
+    current_user_id = get_user_id_from_header(request)
+
     start_time = time.perf_counter()
     response = await call_next(request)
     duration = (time.perf_counter() - start_time) * 1000
 
-    # 2. Prepare Log Data
     log_data = {
         "user_id": str(current_user_id) if current_user_id else "ANONYMOUS",
         "action": f"{request.method}_{request.url.path}",
-        "entity_id": None, # Set this if you're tracking specific items
+        "entity_id": None,
         "metadata_json": {
             "status_code": response.status_code,
             "duration_ms": round(duration, 2),
-            "ip": request.client.host or None
-        }
+            "ip": request.client.host if request.client else None,
+        },
     }
 
-    # 3. Log to Files (Text & JSON)
-    # The 'extra' dict keys must match the formatter strings above
     logger.info(f"Handled {request.url.path}", extra=log_data)
 
-    # 4. Log to Database
-    if current_user_id: # Usually you only save certain activities to DB
-        with Session(engine) as session:
-            try:
-                db_log = ActivityLog(
-                    user_id=UUID(current_user_id),
-                    action=log_data["action"],
-                    entity_id=log_data["entity_id"],
-                    metadata_json=log_data["metadata_json"]
-                )
-                session.add(db_log)
-                session.commit()
-            except:
-                pass
+    # Only persist mutating requests to the DB to reduce write volume
+    if current_user_id and request.method in _LOGGABLE_METHODS:
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(
+            _log_executor,
+            _write_activity_log_sync,
+            current_user_id,
+            log_data["action"],
+            log_data["metadata_json"],
+        )
 
     return response
 

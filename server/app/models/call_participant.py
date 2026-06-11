@@ -25,8 +25,8 @@ class CallParticipant(SyncableModel, table=True):
     left_at : int | None = None
 
     # foreign keys
-    call_id : UUID | None = Field(foreign_key='conversation.id', ondelete="CASCADE")
-    user_id : UUID | None = Field(foreign_key='user.id', ondelete="CASCADE")
+    call_id : UUID | None = Field(foreign_key='conversation.id', ondelete="CASCADE", index=True)
+    user_id : UUID | None = Field(foreign_key='user.id', ondelete="CASCADE", index=True)
 
     user: List["User"] = Relationship(
         back_populates="callparticipants"

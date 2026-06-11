@@ -21,6 +21,21 @@ from app.models.users import PhoneStr, User
 import httpx
 import json
 
+# Module-level client reuses TCP connections to localhost:8001 across requests.
+# The 120s timeout matches the SMS send worst-case; health checks are much faster.
+_gsm_http_client: httpx.AsyncClient | None = None
+
+
+def _get_gsm_client() -> httpx.AsyncClient:
+    global _gsm_http_client
+    if _gsm_http_client is None or _gsm_http_client.is_closed:
+        _gsm_http_client = httpx.AsyncClient(
+            base_url="http://localhost:8001",
+            timeout=120.0,
+            limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
+        )
+    return _gsm_http_client
+
 
 class InboundSMSPayload(BaseModel):
     sender_phone: str
@@ -163,8 +178,8 @@ async def inbound_sms(
 async def gsm_health(
         current_user : Annotated[User, Depends(get_current_user)],
         ):
-    async with httpx.AsyncClient() as client:
-        response = await client.get( "http://localhost:8001/health")
+    client = _get_gsm_client()
+    response = await client.get("/health")
     return response.json()
 
 
@@ -173,11 +188,8 @@ async def gsm_health_detailed(
         current_user : Annotated[User, Depends(get_current_user_admin)],
         ):
     """Admin only"""
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "http://localhost:8001/health/detailed",
-        )
-
+    client = _get_gsm_client()
+    response = await client.get("/health/detailed")
     return response.json()
 
 
@@ -190,16 +202,14 @@ async def gsm_messages(
         phone: str|None = None
         ):
     """Admin only"""
-    url = f"http://localhost:8001/sms/messages?limit={limit}&offset={offset}"
+    params: dict = {"limit": limit, "offset": offset}
     if direction:
-        url += f"&direction={direction}"
-
+        params["direction"] = direction
     if phone:
-        url += f"&phone={phone}"
+        params["phone"] = phone
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-
+    client = _get_gsm_client()
+    response = await client.get("/sms/messages", params=params)
     return response.json()
 
 @router.post("/sms/send")
@@ -225,14 +235,11 @@ async def send_sms(
 
 
 async def sendToModule(phone_number: str, message: str):
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
-            "http://localhost:8001/sms/send",
-            json={
-                "number": phone_number,
-                "body": f"FROM {phone_number}: " + message
-            }
-        )
+    client = _get_gsm_client()
+    response = await client.post(
+        "/sms/send",
+        json={"number": phone_number, "body": f"FROM {phone_number}: " + message},
+    )
     return response.json()
 
 @router.post("/request")

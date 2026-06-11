@@ -1,7 +1,7 @@
 import { configLog } from "@/features/shared/utils/logger";
 import * as Updates from "expo-updates";
 
-const PORT = "8000";
+// const PORT = "8000";
 const DEV_HOST = process.env.EXPO_PUBLIC_DEV_HOST;
 const STAGING_HOST = "192.168.0.100";
 
@@ -22,11 +22,11 @@ export const initRuntimeOverrides = async () => {
 };
 
 export const getApiUrl = () => {
-  if (_hostOverride) return `https://${_hostOverride}:${PORT}`;
+  if (_hostOverride) return `https://${_hostOverride}`;
 
   if (__DEV__) {
     configLog.debug("config › env dev");
-    return `https://${DEV_HOST}:${PORT}`;
+    return `https://${DEV_HOST}`;
   }
 
   const channel = Updates.channel;
@@ -34,13 +34,13 @@ export const getApiUrl = () => {
   switch (channel) {
     case "preview":
       configLog.debug("config › env preview", { channel });
-      return `https://${STAGING_HOST}:${PORT}`;
+      return `https://${STAGING_HOST}`;
 
     case "production":
-      return `https://${STAGING_HOST}:${PORT}`;
+      return `https://${STAGING_HOST}`;
 
     default:
-      return `https://${DEV_HOST}:${PORT}`;
+      return `https://${DEV_HOST}`;
   }
 };
 
@@ -69,22 +69,22 @@ export function getServerVerifyKey(): string | undefined {
 }
 
 export const getWsUrl = () => {
-  if (_hostOverride) return `wss://${_hostOverride}:${PORT}`;
+  if (_hostOverride) return `wss://${_hostOverride}`;
 
   if (__DEV__) {
-    return `wss://${DEV_HOST}:${PORT}`;
+    return `wss://${DEV_HOST}`;
   }
 
   const channel = Updates.channel;
 
   switch (channel) {
     case "preview":
-      return `wss://${STAGING_HOST}:${PORT}`;
+      return `wss://${STAGING_HOST}`;
 
     case "production":
-      return `wss://${STAGING_HOST}:${PORT}`;
+      return `wss://${STAGING_HOST}`;
 
     default:
-      return `wss://${DEV_HOST}:${PORT}`;
+      return `wss://${DEV_HOST}`;
   }
 };
