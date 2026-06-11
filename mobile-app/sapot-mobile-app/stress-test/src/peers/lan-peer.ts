@@ -26,6 +26,7 @@ export class LanPeer implements BasePeer {
   private clientSharedKey?: Uint8Array;
   private clientHandshakeDone = false;
   private metrics: PeerMetrics = emptyMetrics();
+  private pendingSentAt = new Map<number, number>();
   private sendTimer?: NodeJS.Timeout;
   private mdnsService?: CiaoService;
 
@@ -90,10 +91,11 @@ export class LanPeer implements BasePeer {
               );
               this.serverHandshakeDone = true;
             } else if (frame["type"] === "encrypted" && this.serverSharedKey) {
-              decryptMessage(
-                this.serverSharedKey,
-                frame as unknown as EncryptedEnvelope
-              );
+              const msg = decryptMessage(this.serverSharedKey, frame as unknown as EncryptedEnvelope);
+              if (msg["type"] === "stress-chat") {
+                const ack = encryptMessage(this.serverSharedKey, { type: "stress-ack", seq: msg["seq"], ts: msg["ts"] });
+                socket.write(JSON.stringify(ack) + "\n");
+              }
             }
           } catch {
             /* malformed frame */
@@ -141,6 +143,19 @@ export class LanPeer implements BasePeer {
               this.clientHandshakeDone = true;
               this.clientSocket = socket;
               resolve();
+            } else if (frame["type"] === "encrypted" && this.clientHandshakeDone && this.clientSharedKey) {
+              const msg = decryptMessage(this.clientSharedKey, frame as unknown as EncryptedEnvelope);
+              if (msg["type"] === "stress-ack") {
+                const seq = msg["seq"] as number;
+                const sentAt = this.pendingSentAt.get(seq);
+                if (sentAt !== undefined) {
+                  const latency = Date.now() - sentAt;
+                  this.metrics.writeLatencySamples.push(latency);
+                  this.metrics.acked++;
+                  this.collector.recordAcked(this.peerId, sentAt, latency);
+                  this.pendingSentAt.delete(seq);
+                }
+              }
             }
           } catch {
             /* malformed frame */
@@ -202,20 +217,8 @@ export class LanPeer implements BasePeer {
           ts: sentAt,
           seq: this.metrics.sent,
         });
-        const writeStart = Date.now();
-        const flushed = this.clientSocket.write(JSON.stringify(envelope) + "\n");
-        const recordLatency = (latency: number) => {
-          this.metrics.writeLatencySamples.push(latency);
-          this.metrics.acked++;
-          this.collector.recordAcked(this.peerId, sentAt, latency);
-        };
-        if (flushed) {
-          recordLatency(Date.now() - writeStart);
-        } else {
-          this.clientSocket.once("drain", () =>
-            recordLatency(Date.now() - writeStart)
-          );
-        }
+        this.pendingSentAt.set(this.metrics.sent, sentAt);
+        this.clientSocket.write(JSON.stringify(envelope) + "\n");
         this.metrics.sent++;
         this.collector.recordSent(this.peerId, sentAt);
       } catch {
@@ -232,6 +235,7 @@ export class LanPeer implements BasePeer {
 
   async disconnect(): Promise<void> {
     this.stopSending();
+    this.pendingSentAt.clear();
     this.clientSocket?.destroy();
     this.serverSocket?.destroy();
 

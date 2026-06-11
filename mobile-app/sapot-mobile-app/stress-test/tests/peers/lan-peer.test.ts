@@ -1,7 +1,7 @@
 import net from 'net';
 import { LanPeer } from '@/peers/lan-peer';
 import { MetricsCollector } from '@/metrics/collector';
-import { generateKeyPair, computeSharedKey, decryptMessage, parsePublicKey, buildHandshakeAck } from '@/protocol/tcp-protocol';
+import { generateKeyPair, computeSharedKey, decryptMessage, encryptMessage, parsePublicKey, buildHandshakeAck } from '@/protocol/tcp-protocol';
 import { encodeBase64 } from 'tweetnacl-util';
 
 async function simulateAppConnect(port: number): Promise<{ socket: net.Socket; sharedKey: Uint8Array }> {
@@ -105,5 +105,50 @@ describe('LanPeer', () => {
   it('connectTo rejects when target port is not listening', async () => {
     await peer.connect();
     await expect(peer.connectTo('127.0.0.1', 19999)).rejects.toThrow();
+  });
+
+  it('records RTT latency when echo server replies with stress-ack', async () => {
+    const { server, port } = await new Promise<{ server: net.Server; port: number }>((resolve) => {
+      const srv = net.createServer((socket) => {
+        let buf = '';
+        let sharedKey: Uint8Array | undefined;
+        socket.on('data', (raw: Buffer) => {
+          buf += raw.toString('utf8');
+          const lines = buf.split('\n');
+          buf = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const frame = JSON.parse(line) as Record<string, unknown>;
+              if (frame['type'] === 'handshake-init' && !sharedKey) {
+                const kp = generateKeyPair();
+                sharedKey = computeSharedKey(kp.secretKey, parsePublicKey(frame['pub'] as string));
+                socket.write(JSON.stringify(buildHandshakeAck(kp.publicKey)) + '\n');
+              } else if (frame['type'] === 'encrypted' && sharedKey) {
+                const msg = decryptMessage(sharedKey, frame as never);
+                if (msg['type'] === 'stress-chat') {
+                  socket.write(JSON.stringify(encryptMessage(sharedKey, { type: 'stress-ack', seq: msg['seq'], ts: msg['ts'] })) + '\n');
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        });
+      });
+      srv.unref();
+      srv.listen(0, '127.0.0.1', () => resolve({ server: srv, port: (srv.address() as net.AddressInfo).port }));
+    });
+
+    await peer.connect();
+    await peer.connectTo('127.0.0.1', port);
+    peer.startSending(20);
+    await new Promise(res => setTimeout(res, 400));
+    peer.stopSending();
+    await new Promise(res => setTimeout(res, 100));
+
+    expect(peer.getMetrics().acked).toBeGreaterThan(0);
+    expect(peer.getMetrics().writeLatencySamples.length).toBeGreaterThan(0);
+
+    await peer.disconnect();
+    await new Promise<void>(res => server.close(() => res()));
   });
 });
