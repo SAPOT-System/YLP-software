@@ -91,6 +91,7 @@ export class WrtcPeer implements BasePeer {
         this.metrics.connectionTimeouts++;
         this.metrics.connectionErrors++;
         this.collector.recordConnectionTimeout();
+        this.collector.recordConnectionError();
         try { pc.close(); } catch { /* ignore */ }
         resolve();
       }, timeoutMs);
@@ -112,6 +113,7 @@ export class WrtcPeer implements BasePeer {
           settled = true;
           clearTimeout(timer);
           this.metrics.connectionErrors++;
+          this.collector.recordConnectionError();
           resolve();
         }
         // 'closed' during normal disconnect is not an error — ignore it

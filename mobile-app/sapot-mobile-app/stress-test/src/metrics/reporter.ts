@@ -132,15 +132,17 @@ export function writeResults(
 }
 
 export function formatWebrtcBlock(stats: PhaseStats, peerCount: number): string {
-  const pairs = peerCount / 2;
-  const connected = Math.max(0, pairs - stats.connectionErrors);
-  const successPct = pairs > 0 ? ((connected / pairs) * 100).toFixed(0) : '0';
+  const pairs = Math.floor(peerCount / 2);
+  // connectionErrors is aggregated per-peer (one per failed peer, including
+  // timeouts), so connection success is measured against peerCount, not pairs.
+  const connected = Math.max(0, peerCount - stats.connectionErrors);
+  const successPct = peerCount > 0 ? ((connected / peerCount) * 100).toFixed(0) : '0';
 
   const lines: string[] = [
     'WebRTC Connections',
     `  pairs attempted     : ${pairs}`,
-    `  connected           : ${connected}  (${successPct}%)`,
-    `  timed out           : ${stats.connectionTimeouts}`,
+    `  peers connected     : ${connected}/${peerCount}  (${successPct}%)`,
+    `  timed out (peers)   : ${stats.connectionTimeouts}`,
     `  ICE establish p50   : ${stats.iceEstablishP50Ms}ms`,
     `  ICE establish p95   : ${stats.iceEstablishP95Ms}ms`,
     `  ICE establish max   : ${stats.iceEstablishMaxMs}ms`,

@@ -190,6 +190,17 @@ npx ts-node src/runner.ts --mode both \
   --server-url http://<SERVER_IP>:8000
 ```
 
+### WebRTC mode (peer-to-peer, laptop-only)
+
+```bash
+npx ts-node src/runner.ts --mode webrtc --config stress-test.config.json
+```
+
+What happens: This mode does **not** involve the phone. It spins up pairs of simulated peers entirely on the laptop (via `node-datachannel`), wires their signaling in-process, and establishes real `RTCPeerConnection`s between each pair. It measures ICE establishment time, `RTCDataChannel` chat latency, and — when `webrtc.media` is configured — synthetic RTP audio/video track load. Use it to stress the WebRTC connection-formation and media path itself rather than the TCP/WS signaling transports.
+
+- `peerCount` **must be even** (peers connect in pairs). The validator rejects odd counts in webrtc mode.
+- The report adds a **WebRTC Connections** block showing pairs attempted, peers connected (`connected/total`), peers timed out, and ICE establish p50/p95/max. A **Call (media track)** block (RTP packets sent/lost, media establish p95) appears only when `media` is configured.
+
 ### Override individual settings without editing the config
 
 ```bash
@@ -260,7 +271,7 @@ WiFi: -61 dBm @ 144 Mbps | Loss: 0.3%
 
 ```json
 {
-  "mode": "both",          // Which transport to test: "lan", "ws", or "both"
+  "mode": "both",          // Which transport to test: "lan", "ws", "both", or "webrtc"
   "lan": {
     "hostIp": "...",       // Your laptop's IP address on the WiFi network
     "startPort": 9000      // First TCP port — each fake user gets its own (9000, 9001, ...)
@@ -269,9 +280,17 @@ WiFi: -61 dBm @ 144 Mbps | Loss: 0.3%
     "serverUrl": "...",    // FastAPI server address (http:// or https://)
     "accountPrefix": "stress_peer_"  // Prefix used for test account usernames
   },
+  "webrtc": {              // Required only for "webrtc" mode
+    "connectionTimeoutMs": 10000,    // How long to wait for ICE to reach "connected"
+    "iceServers": [{ "urls": "stun:stun.l.google.com:19302" }],  // Optional STUN/TURN
+    "media": {             // Optional — omit for data-channel-only (chat) tests
+      "type": "audio",     // "audio" or "audio-video" — adds synthetic RTP track load
+      "bitrate": 32        // Target kbps (used to size synthetic video frames)
+    }
+  },
   "phases": [
     {
-      "peerCount": 50,     // Number of simultaneous fake users in this phase
+      "peerCount": 50,     // Number of simultaneous fake users (must be EVEN for webrtc)
       "msgPerSec": 1,      // Messages each user sends per second
       "durationSec": 60    // How long to hold this phase before moving on
     }

@@ -169,6 +169,19 @@ describe('reporter', () => {
       expect(output).toContain('1');
     });
 
+    it('reduces connected peer count by connectionErrors', () => {
+      // 4 peers, 2 failed to connect → 2/4 connected (50%)
+      const output = formatWebrtcBlock(makeWebrtcPhase({ connectionErrors: 2 }), 4);
+      expect(output).toContain('2/4');
+      expect(output).toContain('50%');
+    });
+
+    it('reports 100% connected when there are no connection errors', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ connectionErrors: 0 }), 4);
+      expect(output).toContain('4/4');
+      expect(output).toContain('100%');
+    });
+
     it('shows ICE establish percentiles', () => {
       const output = formatWebrtcBlock(makeWebrtcPhase(), 4);
       expect(output).toContain('142');
