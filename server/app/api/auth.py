@@ -274,7 +274,7 @@ def get_terms_and_conditions():
 
 
 @router.post("/token", response_model=Token)
-@limiter.limit("5/minute")
+#@limiter.limit("5/minute")
 async def login_for_access_token(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -361,7 +361,7 @@ async def refresh_access_token(
     return refresh_token(body, session)
 
 @router.post("/", response_model=UserPublic, status_code=201)
-@limiter.limit("3/minute")
+# @limiter.limit("3/minute")
 def create_account(request: Request, user: UserCreate, session: SessionDep, background_tasks: BackgroundTasks):
     if not user.terms_accepted:
         raise HTTPException(

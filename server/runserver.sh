@@ -1,10 +1,10 @@
 #!/bin/bash
 
-APP_VENV=/home/sapot/YLP-software/server/app/venv
+APP_VENV=/home/adamskieee/Documents/dev/YLP-software/.claude/worktrees/feat-stress-test/server/app/venv
 
 uv venv "$APP_VENV"
 uv pip install --python "$APP_VENV/bin/python" \
-  -r /home/sapot/YLP-software/server/app/requirements.txt
+  -r /home/adamskieee/Documents/dev/YLP-software/.claude/worktrees/feat-stress-test/server/app/requirements.txt
 uv run "$APP_VENV/bin/gunicorn" app.main:app \
   -k uvicorn.workers.UvicornWorker \
   -w 5 \
