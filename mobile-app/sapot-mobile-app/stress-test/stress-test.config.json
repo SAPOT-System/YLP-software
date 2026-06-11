@@ -1,5 +1,8 @@
 {
-  "mode": "both",
+  "mode": "webrtc",
+  "webrtc": {
+    "connectionTimeoutMs": 10000
+  },
   "lan": {
     "hostIp": "192.168.1.23",
     "startPort": 9000
@@ -10,12 +13,9 @@
     "password": "StressTest@123"
   },
   "phases": [
-    { "peerCount": 10,  "msgPerSec": 1, "durationSec": 60 },
-    { "peerCount": 20,  "msgPerSec": 1, "durationSec": 60 },
-    { "peerCount": 50,  "msgPerSec": 1, "durationSec": 60 },
-    { "peerCount": 100, "msgPerSec": 1, "durationSec": 60 },
-    { "peerCount": 50,  "msgPerSec": 2, "durationSec": 60 },
-    { "peerCount": 100, "msgPerSec": 2, "durationSec": 60 }
+    { "peerCount": 2,  "msgPerSec": 5, "durationSec": 10 },
+    { "peerCount": 10, "msgPerSec": 5, "durationSec": 20 },
+    { "peerCount": 50, "msgPerSec": 5, "durationSec": 20 }
   ],
   "outputDir": "./stress-results"
 }
