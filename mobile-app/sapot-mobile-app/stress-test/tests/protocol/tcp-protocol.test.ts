@@ -1,6 +1,7 @@
 import {
   generateKeyPair, computeSharedKey, encryptMessage, decryptMessage,
   buildHandshakeInit, buildHandshakeAck, parsePublicKey,
+  buildTcpSignalPayload, isTcpSignalPayload,
 } from '@/protocol/tcp-protocol';
 
 describe('tcp-protocol', () => {
@@ -44,5 +45,35 @@ describe('tcp-protocol', () => {
     const wrongShared = computeSharedKey(charlie.secretKey, alice.publicKey);
     const envelope = encryptMessage(aliceShared, { type: 'chat', payload: 'hi' });
     expect(() => decryptMessage(wrongShared, envelope)).toThrow();
+  });
+});
+
+describe('TcpSignalPayload', () => {
+  it('buildTcpSignalPayload wraps a SignalMessage with type=signal', () => {
+    const payload = buildTcpSignalPayload({ type: 'offer', sdp: 'v=0\r\n' });
+    expect(payload.type).toBe('signal');
+    expect(payload.signal).toEqual({ type: 'offer', sdp: 'v=0\r\n' });
+  });
+
+  it('isTcpSignalPayload returns true for a valid payload', () => {
+    const payload = buildTcpSignalPayload({ type: 'candidate', candidate: 'c', mid: '0' });
+    expect(isTcpSignalPayload(payload)).toBe(true);
+  });
+
+  it('isTcpSignalPayload returns false for non-signal messages', () => {
+    expect(isTcpSignalPayload({ type: 'stress-chat', seq: 1 })).toBe(false);
+    expect(isTcpSignalPayload({ type: 'signal' })).toBe(false);
+  });
+
+  it('round-trips a TcpSignalPayload through NaCl encrypt/decrypt', () => {
+    const alice = generateKeyPair();
+    const bob = generateKeyPair();
+    const sharedKey = computeSharedKey(alice.secretKey, bob.publicKey);
+    const bobShared = computeSharedKey(bob.secretKey, alice.publicKey);
+    const payload = buildTcpSignalPayload({ type: 'answer', sdp: 'v=0\r\nfoo' });
+    const envelope = encryptMessage(sharedKey, payload as unknown as Record<string, unknown>);
+    const decrypted = decryptMessage(bobShared, envelope);
+    expect(isTcpSignalPayload(decrypted)).toBe(true);
+    expect((decrypted as unknown as typeof payload).signal).toEqual({ type: 'answer', sdp: 'v=0\r\nfoo' });
   });
 });

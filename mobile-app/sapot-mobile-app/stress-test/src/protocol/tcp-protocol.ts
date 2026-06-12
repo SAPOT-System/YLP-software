@@ -53,3 +53,23 @@ export function buildHandshakeAck(publicKey: Uint8Array): HandshakeAck {
 export function parsePublicKey(b64: string): Uint8Array {
   return decodeBase64(b64);
 }
+
+export type SignalMessage =
+  | { type: 'offer'; sdp: string }
+  | { type: 'answer'; sdp: string }
+  | { type: 'candidate'; candidate: string; mid: string };
+
+export interface TcpSignalPayload {
+  type: 'signal';
+  signal: SignalMessage;
+}
+
+export function buildTcpSignalPayload(signal: SignalMessage): TcpSignalPayload {
+  return { type: 'signal', signal };
+}
+
+export function isTcpSignalPayload(msg: unknown): msg is TcpSignalPayload {
+  if (!msg || typeof msg !== 'object') return false;
+  const m = msg as Record<string, unknown>;
+  return m['type'] === 'signal' && m['signal'] != null;
+}

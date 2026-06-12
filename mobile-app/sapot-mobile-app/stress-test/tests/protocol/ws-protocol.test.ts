@@ -1,4 +1,4 @@
-import { buildWsUrl, buildChatMessage, isServerAck, isPong } from '@/protocol/ws-protocol';
+import { buildWsUrl, buildChatMessage, isServerAck, isPong, buildWsSignalMessage, isWsSignalMessage } from '@/protocol/ws-protocol';
 
 describe('ws-protocol', () => {
   it('buildWsUrl constructs correct websocket URL', () => {
@@ -26,5 +26,29 @@ describe('ws-protocol', () => {
   it('isPong identifies pong messages', () => {
     expect(isPong({ type: 'pong' })).toBe(true);
     expect(isPong({ type: 'ping' })).toBe(false);
+  });
+});
+
+describe('WsSignalMessage', () => {
+  it('buildWsSignalMessage produces correct shape', () => {
+    const msg = buildWsSignalMessage('user-a', 'user-b', { type: 'offer', sdp: 'v=0\r\n' });
+    expect(msg.type).toBe('signal');
+    expect(msg.data.from).toBe('user-a');
+    expect(msg.data.to).toBe('user-b');
+    expect(msg.data.signal).toEqual({ type: 'offer', sdp: 'v=0\r\n' });
+  });
+
+  it('isWsSignalMessage returns true for valid signal message', () => {
+    const msg = buildWsSignalMessage('a', 'b', { type: 'candidate', candidate: 'c', mid: '0' });
+    expect(isWsSignalMessage(msg)).toBe(true);
+  });
+
+  it('isWsSignalMessage returns false for chat message', () => {
+    expect(isWsSignalMessage({ type: 'chat', data: { from: 'a', to: 'b' } })).toBe(false);
+  });
+
+  it('isWsSignalMessage returns false for non-objects', () => {
+    expect(isWsSignalMessage(null)).toBe(false);
+    expect(isWsSignalMessage('signal')).toBe(false);
   });
 });

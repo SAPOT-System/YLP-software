@@ -1,13 +1,10 @@
-import nodeDatachannel from 'node-datachannel';
-import type { DataChannel } from 'node-datachannel';
+import nodeDatachannel, { Audio, Video } from 'node-datachannel';
+import type { DataChannel, Track } from 'node-datachannel';
 import { BasePeer, PeerMetrics, emptyMetrics } from './base-peer';
 import { MetricsCollector } from '../metrics/collector';
 import { WebrtcConfig } from '../orchestrator/test-config';
-
-export type SignalMessage =
-  | { type: 'offer'; sdp: string }
-  | { type: 'answer'; sdp: string }
-  | { type: 'candidate'; candidate: string; mid: string };
+import { SignalMessage } from '../protocol/tcp-protocol';
+export type { SignalMessage };
 
 function buildRtpPacket(seq: number, timestamp: number, ssrc: number): Buffer {
   const header = Buffer.alloc(12);
@@ -41,15 +38,13 @@ export class WrtcPeer implements BasePeer {
   private metrics: PeerMetrics = emptyMetrics();
   private seqNo = 0;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private audioTrack: any = null;
+  private audioTrack: Track | null = null;
   private audioTimer: NodeJS.Timeout | null = null;
   private rtpSeq = 0;
   private rtpTimestamp = 0;
   private readonly rtpSsrc = Math.floor(Math.random() * 0xffffffff);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private videoTrack: any = null;
+  private videoTrack: Track | null = null;
   private videoTimer: NodeJS.Timeout | null = null;
   private videoSeq = 0;
   private videoTimestamp = 0;
@@ -129,14 +124,20 @@ export class WrtcPeer implements BasePeer {
 
       if (this.config.media) {
         try {
-          const track = (pc as any).addTrack('audio', 'sendonly');
+          // node-datachannel requires a media-description instance (Audio/Video),
+          // not a string — passing strings throws "Media class instance expected".
+          const audio = new Audio('audio', 'SendOnly');
+          audio.addOpusCodec(111);
+          const track = pc.addTrack(audio) as Track;
           this.setupAudioTrack(track);
         } catch {
-          // node-datachannel version may not support addTrack — skip silently
+          // node-datachannel build without media support — skip silently
         }
         if (this.config.media.type === 'audio-video') {
           try {
-            this.videoTrack = (pc as any).addTrack('video', 'sendonly');
+            const video = new Video('video', 'SendOnly');
+            video.addH264Codec(96);
+            this.videoTrack = pc.addTrack(video) as Track;
           } catch {
             // skip if not supported
           }
@@ -154,8 +155,7 @@ export class WrtcPeer implements BasePeer {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private setupAudioTrack(track: any): void {
+  private setupAudioTrack(track: Track): void {
     this.audioTrack = track;
     const startMs = Date.now();
     track.onOpen(() => {
@@ -203,7 +203,7 @@ export class WrtcPeer implements BasePeer {
         try {
           const packet = buildRtpPacket(this.rtpSeq++, this.rtpTimestamp, this.rtpSsrc);
           this.rtpTimestamp += 960;
-          const ok = this.audioTrack.sendMessage(packet);
+          const ok = this.audioTrack?.sendMessageBinary(packet) ?? false;
           if (ok) {
             this.metrics.rtpPacketsSent++;
             this.collector.recordRtpSent(this.peerId);
@@ -229,7 +229,7 @@ export class WrtcPeer implements BasePeer {
             bytesPerFrame,
           );
           this.videoTimestamp += 3000;
-          const ok = this.videoTrack.sendMessage(packet);
+          const ok = this.videoTrack?.sendMessageBinary(packet) ?? false;
           if (ok) {
             this.metrics.rtpPacketsSent++;
             this.collector.recordRtpSent(this.peerId);
