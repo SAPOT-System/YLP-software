@@ -15,19 +15,21 @@ export interface WsConfig {
   serverUrl: string;
   accountPrefix: string;
   password: string;
+  iperfTargetIp: string;
 }
 
 export interface WebrtcConfig {
   iceServers?: { urls: string }[];
   connectionTimeoutMs?: number;
+  iperfTargetIp?: string;
   media?: {
-    type: 'audio' | 'audio-video';
+    type: "audio" | "audio-video";
     bitrate?: number;
   };
 }
 
 export interface TestConfig {
-  mode: 'lan' | 'ws' | 'both' | 'webrtc';
+  mode: "lan" | "ws" | "both" | "webrtc" | "tcp-signaled" | "ws-signaled";
   lan?: LanConfig;
   ws?: WsConfig;
   webrtc?: WebrtcConfig;
@@ -36,19 +38,34 @@ export interface TestConfig {
 }
 
 export function validateConfig(config: TestConfig): void {
-  if ((config.mode === 'lan' || config.mode === 'both') && !config.lan)
-    throw new Error('lan config required for mode lan/both');
-  if ((config.mode === 'ws' || config.mode === 'both') && !config.ws)
-    throw new Error('ws config required for mode ws/both');
-  if (config.mode === 'webrtc' && !config.webrtc)
-    throw new Error('webrtc config required for mode webrtc');
-  if (config.phases.length === 0) throw new Error('at least one phase required');
+  if ((config.mode === "lan" || config.mode === "both") && !config.lan)
+    throw new Error("lan config required for mode lan/both");
+  if ((config.mode === "ws" || config.mode === "both") && !config.ws)
+    throw new Error("ws config required for mode ws/both");
+  if (config.mode === "webrtc" && !config.webrtc)
+    throw new Error("webrtc config required for mode webrtc");
+  if (config.mode === "tcp-signaled") {
+    if (!config.lan) throw new Error("lan config required for mode tcp-signaled");
+    if (!config.webrtc) throw new Error("webrtc config required for mode tcp-signaled");
+  }
+  if (config.mode === "ws-signaled") {
+    if (!config.ws) throw new Error("ws config required for mode ws-signaled");
+    if (!config.webrtc) throw new Error("webrtc config required for mode ws-signaled");
+  }
+  if (config.phases.length === 0)
+    throw new Error("at least one phase required");
   for (const p of config.phases) {
-    if (p.peerCount < 1) throw new Error('peerCount must be >= 1');
-    if (config.mode === 'webrtc' && p.peerCount % 2 !== 0)
-      throw new Error('peerCount must be even for webrtc mode');
-    if (p.msgPerSec < 1) throw new Error('msgPerSec must be >= 1');
-    if (p.durationSec < 5) throw new Error('durationSec must be >= 5');
-    if (p.iperfLoadMbps !== undefined && p.iperfLoadMbps < 0) throw new Error('iperfLoadMbps must be >= 0');
+    if (p.peerCount < 1) throw new Error("peerCount must be >= 1");
+    if (
+      (config.mode === "webrtc" ||
+        config.mode === "tcp-signaled" ||
+        config.mode === "ws-signaled") &&
+      p.peerCount % 2 !== 0
+    )
+      throw new Error(`peerCount must be even for ${config.mode} mode`);
+    if (p.msgPerSec < 1) throw new Error("msgPerSec must be >= 1");
+    if (p.durationSec < 5) throw new Error("durationSec must be >= 5");
+    if (p.iperfLoadMbps !== undefined && p.iperfLoadMbps < 0)
+      throw new Error("iperfLoadMbps must be >= 0");
   }
 }

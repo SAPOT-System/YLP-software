@@ -38,3 +38,83 @@ describe('validateConfig — webrtc mode', () => {
     expect(() => validateConfig(config)).not.toThrow();
   });
 });
+
+const baseLan = { hostIp: '127.0.0.1', startPort: 9100 };
+const baseWs = { serverUrl: 'https://x', accountPrefix: 'p_', password: 'pw', iperfTargetIp: '' };
+const baseWrtc = { connectionTimeoutMs: 5000 };
+
+describe('validateConfig — tcp-signaled mode', () => {
+  it('throws when lan config is missing', () => {
+    const config = {
+      mode: 'tcp-signaled', webrtc: baseWrtc, phases: [basePhase], outputDir: './out',
+    } as TestConfig;
+    expect(() => validateConfig(config)).toThrow('lan config required for mode tcp-signaled');
+  });
+
+  it('throws when webrtc config is missing', () => {
+    const config = {
+      mode: 'tcp-signaled', lan: baseLan, phases: [basePhase], outputDir: './out',
+    } as TestConfig;
+    expect(() => validateConfig(config)).toThrow('webrtc config required for mode tcp-signaled');
+  });
+
+  it('throws when peerCount is odd', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: baseLan,
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 3, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('peerCount must be even');
+  });
+
+  it('passes with valid tcp-signaled config', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: baseLan,
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+});
+
+describe('validateConfig — ws-signaled mode', () => {
+  it('throws when ws config is missing', () => {
+    const config = {
+      mode: 'ws-signaled', webrtc: baseWrtc, phases: [basePhase], outputDir: './out',
+    } as TestConfig;
+    expect(() => validateConfig(config)).toThrow('ws config required for mode ws-signaled');
+  });
+
+  it('throws when webrtc config is missing', () => {
+    const config = {
+      mode: 'ws-signaled', ws: baseWs, phases: [basePhase], outputDir: './out',
+    } as TestConfig;
+    expect(() => validateConfig(config)).toThrow('webrtc config required for mode ws-signaled');
+  });
+
+  it('throws when peerCount is odd', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: baseWs,
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 3, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('peerCount must be even');
+  });
+
+  it('passes with valid ws-signaled config', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: baseWs,
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+});
