@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { GuestUser, Peer } from "../database";
 import { userLog } from "../utils/logger";
 userLog.debug("[user-store] module loaded");
@@ -42,6 +43,10 @@ export class UserStore {
 
   setUser(user: Peer | GuestUser, isGuest: boolean) {
     userLog.info("user › set", { isGuest, hasUser: Boolean(user) });
+    const variant = Constants.expoConfig?.extra?.appVariant as string | undefined;
+    if (!isGuest && (variant === "development" || variant === "preview")) {
+      userLog.info("user › beacon", { userId: user.id });
+    }
     this._user = user;
     this._isGuest = isGuest;
   }

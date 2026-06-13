@@ -308,5 +308,6 @@ export default ({ config }: ConfigContext) => ({
     },
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
     displayVersion: "0.6.1",
+    appVariant: IS_DEV ? "development" : IS_PREVIEW ? "preview" : "production",
   },
 });
