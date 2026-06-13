@@ -1,6 +1,7 @@
 import net from 'net';
 import nodeDatachannel, { Audio, Video } from 'node-datachannel';
 import type { DataChannel, Track } from 'node-datachannel';
+import type { CiaoService } from '@homebridge/ciao';
 import { encodeBase64 } from 'tweetnacl-util';
 import {
   generateKeyPair,
@@ -55,6 +56,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
   private sendTimer: NodeJS.Timeout | null = null;
   private seqNo = 0;
   private metrics: PeerMetrics = emptyMetrics();
+  private mdnsService?: CiaoService;
 
   constructor(
     peerId: string,
@@ -92,9 +94,10 @@ export class TcpSignaledWrtcPeer implements BasePeer {
         const addr = server.address();
         if (addr && typeof addr === 'object') this._port = addr.port;
         server.on('connection', (socket) => this.handleInbound(socket));
-        // Star mode: after server is up, dial the phone so it receives the offer
-        // (which includes our server IP+port so the phone can dial back).
         if (this.phoneTarget) {
+          void this.advertiseMdns(this.phoneTarget.myIp);
+          // Star mode: after server is up, dial the phone so it receives the offer
+          // (which includes our server IP+port so the phone can dial back).
           this.connectTo(this.phoneTarget.ip, this.phoneTarget.port).catch(() => {});
         }
         resolve();
@@ -470,6 +473,32 @@ export class TcpSignaledWrtcPeer implements BasePeer {
     }
   }
 
+  private async advertiseMdns(myIp: string): Promise<void> {
+    try {
+      const { getResponder, Protocol } = await import('@homebridge/ciao');
+      const responder = getResponder({ interface: myIp });
+      this.mdnsService = responder.createService({
+        name: this.peerId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        type: 'lanchat' as any,
+        protocol: Protocol.TCP,
+        port: this._port,
+        restrictedAddresses: [myIp],
+        disabledIpv6: true,
+        txt: {
+          id: this.peerId,
+          username: this.peerId,
+          firstName: 'Stress',
+          lastName: String(this.peerIndex),
+          peerId: this.peerId,
+        },
+      });
+      await this.mdnsService.advertise();
+    } catch {
+      /* mDNS unavailable in test/CI environments — non-fatal */
+    }
+  }
+
   stopSending(): void {
     if (this.sendTimer !== null) { clearInterval(this.sendTimer); this.sendTimer = null; }
     if (this.audioTimer !== null) { clearInterval(this.audioTimer); this.audioTimer = null; }
@@ -491,6 +520,15 @@ export class TcpSignaledWrtcPeer implements BasePeer {
     this.pc = null;
     this.clientSocket?.destroy();
     this.serverSocket?.destroy();
+    if (this.mdnsService) {
+      try {
+        await Promise.race([
+          this.mdnsService.end(),
+          new Promise<void>((res) => setTimeout(res, 500)),
+        ]);
+      } catch { /* ignore */ }
+      this.mdnsService = undefined;
+    }
     if (this.server) {
       await Promise.race([
         new Promise<void>((res) => this.server!.close(() => res())),
