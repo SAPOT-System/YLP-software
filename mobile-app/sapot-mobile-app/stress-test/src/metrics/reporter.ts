@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { PhaseStats } from './collector';
+import { PhaseStats, IperfStats } from './collector';
 import { NetworkSample } from './network-sampler';
 
 export interface NetworkStats {
@@ -45,7 +45,7 @@ export function computeNetworkStats(samples: NetworkSample[], durationMs: number
 }
 
 export function formatTable(phases: PhaseStats[]): string {
-  const hasIperf = phases.some(p => p.iperfStats !== null);
+  const hasIperf = phases.some(p => p.iperfLoad !== null);
 
   const header = hasIperf
     ? 'Phase              | Peers | Msg/s | Delivered | Dropped | P50  | P95   | Jitter | Mbps  | Loss% | iMbps | iLoss%| iJitter'
@@ -67,12 +67,50 @@ export function formatTable(phases: PhaseStats[]): string {
     const loss   = `${p.packetLossPercent}%`.padStart(5);
     const base = `${name} | ${peers} | ${rate} | ${del} | ${drop} | ${p50} | ${p95} | ${jitter} | ${mbps} | ${loss}`;
     if (!hasIperf) return base;
-    const iMbps   = p.iperfStats ? `${p.iperfStats.throughputMbps}`.padStart(5)  : '   -';
-    const iLoss   = p.iperfStats ? `${p.iperfStats.lossPercent}%`.padStart(6)    : '    -';
-    const iJitter = p.iperfStats ? `${p.iperfStats.jitterMs}ms`.padStart(7)      : '      -';
+    const iMbps   = p.iperfLoad ? `${p.iperfLoad.throughputMbps}`.padStart(5)  : '   -';
+    const iLoss   = p.iperfLoad ? `${p.iperfLoad.lossPercent}%`.padStart(6)    : '    -';
+    const iJitter = p.iperfLoad ? `${p.iperfLoad.jitterMs}ms`.padStart(7)      : '      -';
     return `${base} | ${iMbps} | ${iLoss} | ${iJitter}`;
   });
   return [header, sep, ...rows].join('\n');
+}
+
+/**
+ * Stage 1 (clean baseline) vs Stage 2 (under stress load) per phase, with deltas.
+ * Returns '' when no phase produced any iperf data.
+ */
+export function formatIperfComparison(phases: PhaseStats[]): string {
+  const rows = phases.filter(p => p.iperfBaseline !== null || p.iperfLoad !== null);
+  if (rows.length === 0) return '';
+
+  const header = 'Phase              | Stage      |   Mbps | Loss%  | Jitter';
+  const sep    = '-------------------|------------|--------|--------|--------';
+  const lines: string[] = [header, sep];
+
+  for (const p of rows) {
+    lines.push(`${p.phaseName.padEnd(18)} | ${stageRow('baseline', p.iperfBaseline)}`);
+    lines.push(`${' '.repeat(18)} | ${stageRow('under-load', p.iperfLoad)}`);
+    if (p.iperfBaseline && p.iperfLoad) {
+      lines.push(`${' '.repeat(18)} | ${deltaRow(p.iperfBaseline, p.iperfLoad)}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function stageRow(label: string, s: IperfStats | null): string {
+  const stage = label.padEnd(10);
+  if (!s) return `${stage} |      - |      - |       -`;
+  return `${stage} | ${`${s.throughputMbps}`.padStart(6)} | ` +
+    `${`${s.lossPercent}%`.padStart(6)} | ${`${s.jitterMs}ms`.padStart(6)}`;
+}
+
+function deltaRow(base: IperfStats, load: IperfStats): string {
+  const mbps = base.throughputMbps > 0
+    ? `${(((load.throughputMbps - base.throughputMbps) / base.throughputMbps) * 100).toFixed(1)}%`
+    : '-';
+  const loss = `${(load.lossPercent - base.lossPercent).toFixed(2)}pp`;
+  const jitter = `${(load.jitterMs - base.jitterMs).toFixed(2)}ms`;
+  return `${'Δ vs base'.padEnd(10)} | ${mbps.padStart(6)} | ${loss.padStart(6)} | ${jitter.padStart(6)}`;
 }
 
 export function formatSaturationAnalysis(phases: PhaseStats[]): string {
@@ -91,7 +129,7 @@ export function formatSaturationAnalysis(phases: PhaseStats[]): string {
       findings.push(`  [LATENCY SPIKE]      Phase "${p.phaseName}": p95 ${p.p95Ms}ms > ${LATENCY_SPIKE_MULTIPLIER}× baseline ${baseline.p95Ms}ms`);
     }
 
-    const lossSource = p.iperfStats ?? null;
+    const lossSource = p.iperfLoad ?? null;
     const lossPercent = lossSource ? lossSource.lossPercent : p.packetLossPercent;
     const lossLabel   = lossSource ? 'iperf' : 'proc';
     if (lossPercent > PACKET_LOSS_THRESHOLD_PCT) {
@@ -129,6 +167,53 @@ export function writeResults(
   const filename = path.join(outputDir, `results-${transport}-${Date.now()}.json`);
   fs.writeFileSync(filename, JSON.stringify({ transport, phases }, null, 2));
   console.log(`\nResults written to ${filename}`);
+}
+
+export function getModeLabel(mode: string, isStarMode: boolean): string {
+  if (mode === 'ws-signaled') return 'server-signaling (FastAPI relay)';
+  if (mode === 'tcp-signaled') {
+    return isStarMode ? 'local-network star (phone target)' : 'protocol/CPU smoke test (loopback pair)';
+  }
+  if (mode === 'ws') return 'WS relay';
+  if (mode === 'lan') return 'LAN (TCP encrypted)';
+  if (mode === 'both') return 'LAN + WS relay';
+  if (mode === 'webrtc') return 'WebRTC (loopback)';
+  return mode;
+}
+
+export function formatRepresentativenessBanner(mode: string, isStarMode: boolean): string {
+  if (mode === 'ws-signaled') {
+    return [
+      'NOTE: This is a server-signaling test (FastAPI relay).',
+      '      WebRTC runs peer-to-peer via libdatachannel; signaling goes through the server relay.',
+      '      It does NOT measure phone-side networking or local discovery.',
+    ].join('\n');
+  }
+  if (mode === 'tcp-signaled' && !isStarMode) {
+    return [
+      'NOTE: This is a protocol/CPU smoke test (loopback pair).',
+      '      Peers exchange NaCl-encrypted signals and WebRTC data over 127.0.0.1.',
+      '      It does NOT measure phone networking or real local-network conditions.',
+    ].join('\n');
+  }
+  if (mode === 'tcp-signaled' && isStarMode) {
+    return [
+      'NOTE: Discovery and concurrent-session counts are phone-real (measured against the device).',
+      '      WebRTC peer-side runs on libdatachannel (not phone-representative).',
+    ].join('\n');
+  }
+  return '';
+}
+
+export function formatDiscoverySection(phases: PhaseStats[]): string {
+  const relevant = phases.filter(p => p.discoveryCompleteness > 0);
+  if (relevant.length === 0) return '';
+
+  const lines: string[] = ['Discovery'];
+  for (const p of relevant) {
+    lines.push(`  ${p.phaseName.padEnd(18)} completeness: ${(p.discoveryCompleteness * 100).toFixed(1)}%  p50: ${p.discoveryP50Ms}ms  p95: ${p.discoveryP95Ms}ms`);
+  }
+  return lines.join('\n');
 }
 
 export function formatWebrtcBlock(stats: PhaseStats, peerCount: number): string {

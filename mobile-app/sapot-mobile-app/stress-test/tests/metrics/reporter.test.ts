@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison } from '@/metrics/reporter';
+import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison, formatDiscoverySection, formatRepresentativenessBanner, getModeLabel } from '@/metrics/reporter';
 import { NetworkSample } from '@/metrics/network-sampler';
 import { PhaseStats } from '@/metrics/collector';
 
@@ -156,6 +156,87 @@ describe('reporter', () => {
       const result = formatSaturationAnalysis(phases);
       expect(result).toContain('THROUGHPUT PLATEAU');
       expect(result).toContain('"p2"');
+    });
+  });
+
+  describe('formatDiscoverySection', () => {
+    it('returns empty string when all phases have zero discoveryCompleteness', () => {
+      const out = formatDiscoverySection([fakePhase]);
+      expect(out).toBe('');
+    });
+
+    it('shows completeness percentage for a phase with discovery data', () => {
+      const phase = makePhase({ discoveryCompleteness: 0.8, discoveryP50Ms: 320, discoveryP95Ms: 640 });
+      const out = formatDiscoverySection([phase]);
+      expect(out).toContain('80.0%');
+      expect(out).toContain('320');
+      expect(out).toContain('640');
+    });
+
+    it('shows 100% completeness when all peers probed', () => {
+      const phase = makePhase({ phaseName: 'star-10p', discoveryCompleteness: 1.0, discoveryP50Ms: 200, discoveryP95Ms: 450 });
+      const out = formatDiscoverySection([phase]);
+      expect(out).toContain('100.0%');
+    });
+
+    it('includes a Discovery header', () => {
+      const phase = makePhase({ discoveryCompleteness: 0.5, discoveryP50Ms: 100, discoveryP95Ms: 300 });
+      const out = formatDiscoverySection([phase]);
+      expect(out).toContain('Discovery');
+    });
+
+    it('includes completeness and latency labels', () => {
+      const phase = makePhase({ discoveryCompleteness: 0.6, discoveryP50Ms: 150, discoveryP95Ms: 400 });
+      const out = formatDiscoverySection([phase]);
+      expect(out).toContain('completeness');
+      expect(out).toContain('p50');
+      expect(out).toContain('p95');
+    });
+  });
+
+  describe('formatRepresentativenessBanner', () => {
+    it('labels ws-signaled as a server-signaling test', () => {
+      const banner = formatRepresentativenessBanner('ws-signaled', false);
+      expect(banner).toMatch(/server.signaling/i);
+      expect(banner).toMatch(/FastAPI|relay/i);
+    });
+
+    it('labels tcp-signaled loopback pair as a protocol/CPU smoke test', () => {
+      const banner = formatRepresentativenessBanner('tcp-signaled', false);
+      expect(banner).toMatch(/smoke/i);
+    });
+
+    it('labels tcp-signaled star as phone-real for discovery, peer-side for WebRTC', () => {
+      const banner = formatRepresentativenessBanner('tcp-signaled', true);
+      expect(banner).toMatch(/phone.real|phone real/i);
+      expect(banner).toMatch(/libdatachannel|peer.side|not.*phone/i);
+    });
+
+    it('notes that ws-signaled is not a local-network test', () => {
+      const banner = formatRepresentativenessBanner('ws-signaled', false);
+      expect(banner).not.toMatch(/local.network test/i);
+    });
+  });
+
+  describe('getModeLabel', () => {
+    it('labels ws-signaled as server-signaling', () => {
+      expect(getModeLabel('ws-signaled', false)).toMatch(/server.signaling/i);
+    });
+
+    it('labels tcp-signaled pair as protocol smoke test', () => {
+      expect(getModeLabel('tcp-signaled', false)).toMatch(/smoke/i);
+    });
+
+    it('labels tcp-signaled star as local-network', () => {
+      expect(getModeLabel('tcp-signaled', true)).toMatch(/local.network/i);
+    });
+
+    it('labels ws as WS relay', () => {
+      expect(getModeLabel('ws', false)).toMatch(/ws|relay/i);
+    });
+
+    it('labels lan as LAN', () => {
+      expect(getModeLabel('lan', false)).toMatch(/lan/i);
     });
   });
 
