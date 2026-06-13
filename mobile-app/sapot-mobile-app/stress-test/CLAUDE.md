@@ -113,7 +113,7 @@ Both `addTrack` calls are wrapped in try/catch — if `node-datachannel` was bui
 ### Conventions that matter here
 
 - **Adding a transport mode:** extend the `mode` union + sub-config in `test-config.ts`, add a `validateConfig` branch, add a `*-peer.ts` implementing `BasePeer`, and wire spawning + target setup in `orchestrator.ts`. Keep peers transport-pure — all aggregation goes through `MetricsCollector`.
-- **iperf numbers:** `phase.iperfLoadMbps` is only a **label** in the phase name; the iperf client offered rate is auto-calibrated from the TCP probe, not from that field. iperf runs for `lan`/`ws` whenever a phase sets `iperfLoadMbps`; for `webrtc` only when `webrtc.iperfTargetIp` is also set.
+- **iperf numbers:** `phase.runIperf` is a boolean flag that enables iperf for that phase. The iperf client offered rate is auto-calibrated from the TCP probe — there is no per-phase rate config. iperf runs for `lan`/`ws` whenever a phase sets `runIperf: true`; for `webrtc` only when `webrtc.iperfTargetIp` is also set.
 - **node-datachannel is optional at runtime:** media `addTrack` is wrapped in try/catch so a build without media support degrades to data-channel-only instead of throwing. Only `webrtc` mode loads it.
 - Config files in this dir: `stress-test.config.json` (default, ships as `webrtc`), `verify-stress-test.config.json` (2-peer smoke), `stress-test.iperf.json`, `stress-test.video.json`. Results land in `./stress-results/`.
 

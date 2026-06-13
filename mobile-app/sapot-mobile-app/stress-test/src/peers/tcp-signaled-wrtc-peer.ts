@@ -32,6 +32,9 @@ export class TcpSignaledWrtcPeer implements BasePeer {
   private serverSharedKey?: Uint8Array;
   private serverHandshakeDone = false;
   private serverReceiveBuffer = '';
+  // Resolves when the phone dials back and completes the NaCl handshake with our server.
+  private serverHandshakePromise: Promise<void> | null = null;
+  private serverHandshakeResolve: (() => void) | null = null;
 
   private clientSocket?: net.Socket;
   private clientSharedKey?: Uint8Array;
@@ -70,9 +73,14 @@ export class TcpSignaledWrtcPeer implements BasePeer {
     this.peerId = peerId;
     this.peerIndex = peerIndex;
     this._port = port;
-    // Star mode: start a server so the phone can dial back after receiving the offer
-    // (the app reads ipAddress/port from the offer and opens a TcpClientAdapter back).
+    // Star mode: start a server so the phone can dial back after receiving the handshake
+    // message (the app reads ipAddress/port from it and opens a TcpClientAdapter back).
     this.server = net.createServer();
+    if (phoneTarget) {
+      this.serverHandshakePromise = new Promise<void>((resolve) => {
+        this.serverHandshakeResolve = resolve;
+      });
+    }
   }
 
   get port(): number { return this._port; }
@@ -126,10 +134,14 @@ export class TcpSignaledWrtcPeer implements BasePeer {
       }, timeoutMs);
 
       const kp = generateKeyPair();
-      // In star mode (dialing the phone), include peerId in handshake so the phone
-      // can register this peer and potentially route answers back.
+      // In star mode (dialing the phone), include peerId and appPub so the phone:
+      // (a) knows our identity, (b) stores our ECDH key in peerKeyStore which unblocks
+      // ICE candidate processing (SignalingService buffers ICE until the key is known).
       const handshake: Record<string, unknown> = { type: 'handshake-init', pub: encodeBase64(kp.publicKey) };
-      if (this.phoneTarget) handshake['userId'] = this.peerId;
+      if (this.phoneTarget) {
+        handshake['userId'] = this.peerId;
+        handshake['appPub'] = encodeBase64(kp.publicKey);
+      }
 
       const socket = net.createConnection({ host, port }, () => {
         socket.write(JSON.stringify(handshake) + '\n');
@@ -157,26 +169,61 @@ export class TcpSignaledWrtcPeer implements BasePeer {
               const sendFn = isStarMode
                 ? (msg: SignalMessage) => this.sendAppFormatViaClient(msg)
                 : (msg: SignalMessage) => this.sendViaClient(msg);
-              this.createPc(
-                (elapsed) => {
-                  if (settled) return;
-                  settled = true;
-                  clearTimeout(timer);
-                  this.metrics.iceEstablishMs.push(elapsed);
-                  this.collector.recordIceEstablish(this.peerId, elapsed);
-                  resolve();
-                },
-                () => {
-                  if (settled) return;
-                  settled = true;
-                  clearTimeout(timer);
-                  this.metrics.connectionErrors++;
-                  this.collector.recordConnectionError();
-                  resolve();
-                },
-                startMs,
-                sendFn,
-              );
+
+              const onConnected = (elapsed: number) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                this.metrics.iceEstablishMs.push(elapsed);
+                this.collector.recordIceEstablish(this.peerId, elapsed);
+                resolve();
+              };
+              const onFailed = () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                this.metrics.connectionErrors++;
+                this.collector.recordConnectionError();
+                resolve();
+              };
+              const doCreatePc = () => {
+                if (settled) return;
+                this.createPc(onConnected, onFailed, startMs, sendFn);
+              };
+
+              if (isStarMode && this.phoneTarget) {
+                // Send the app-level handshake message BEFORE the offer so the phone
+                // dials back to our TCP server. The phone's SignalingService handles
+                // "handshake" by calling TcpClientAdapter.connect(ipAddress, port) and
+                // adding us to peerForceTcp. Without this, the phone has no TCP client
+                // connection to us and silently drops the answer (sendMessage sees
+                // adapter.isConnected = false and returns).
+                const appHandshake: Record<string, unknown> = {
+                  type: 'handshake',
+                  data: {
+                    to: this.phoneTarget.userId,
+                    sender: this.peerId,
+                    ipAddress: this.phoneTarget.myIp,
+                    port: this._port,
+                    wsAllowed: false,
+                  },
+                };
+                try {
+                  const envelope = encryptMessage(sharedKey, appHandshake);
+                  socket.write(JSON.stringify(envelope) + '\n');
+                } catch { /* socket closed */ }
+
+                // Wait for the phone to dial back and complete the NaCl handshake
+                // with our server before generating the offer. This ensures the return
+                // path exists when the phone sends the answer.
+                const waitMs = Math.min(3000, (this.config.connectionTimeoutMs ?? 15_000) / 5);
+                Promise.race([
+                  this.serverHandshakePromise ?? Promise.resolve(),
+                  new Promise<void>((res) => setTimeout(res, waitMs)),
+                ]).then(doCreatePc);
+              } else {
+                doCreatePc();
+              }
             } else if (frame['type'] === 'encrypted' && this.clientSharedKey) {
               const msg = decryptMessage(this.clientSharedKey, frame as unknown as EncryptedEnvelope);
               if (isStarMode) {
@@ -228,6 +275,9 @@ export class TcpSignaledWrtcPeer implements BasePeer {
             );
             socket.write(JSON.stringify(buildHandshakeAck(kp.publicKey)) + '\n');
             this.serverHandshakeDone = true;
+            // In star mode: signal that the phone has dialed back so connectTo can proceed
+            // to create the PC (and thus generate the offer).
+            this.serverHandshakeResolve?.();
           } else if (frame['type'] === 'encrypted' && this.serverSharedKey) {
             const msg = decryptMessage(this.serverSharedKey, frame as unknown as EncryptedEnvelope);
             if (this.phoneTarget) {

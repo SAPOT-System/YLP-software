@@ -44,9 +44,7 @@ export class Orchestrator {
           const phaseName = `${transport}-peers${phase.peerCount}-msg${
             phase.msgPerSec
           }${
-            phase.iperfLoadMbps && iperfTarget
-              ? `-iperf${phase.iperfLoadMbps}M`
-              : ""
+            phase.runIperf && iperfTarget ? `-iperf` : ""
           }`;
           console.log(`\n--- Phase: ${phaseName} ---`);
           this.collector.reset();
@@ -192,9 +190,7 @@ export class Orchestrator {
         const iperfLoad = await this.awaitIperf(iperfPromise);
 
         const phaseName = `webrtc-${phase.peerCount}p${
-          phase.iperfLoadMbps && iperfTarget
-            ? `-iperf${phase.iperfLoadMbps}M`
-            : ""
+          phase.runIperf && iperfTarget ? `-iperf` : ""
         }`;
         const netStats = computeNetworkStats(
           this.sampler.getSamples(),
@@ -294,7 +290,7 @@ export class Orchestrator {
 
         const modeLabel = isStarMode ? "tcp-star" : "tcp-signaled";
         const phaseName = `${modeLabel}-${phase.peerCount}p${
-          phase.iperfLoadMbps && iperfTarget ? `-iperf${phase.iperfLoadMbps}M` : ""
+          phase.runIperf && iperfTarget ? `-iperf` : ""
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
         const msgStats = this.collector.computeStats(
@@ -433,7 +429,7 @@ export class Orchestrator {
 
         const modeLabel = isStarMode ? "ws-star" : "ws-signaled";
         const phaseName = `${modeLabel}-${phase.peerCount}p${
-          phase.iperfLoadMbps && iperfTarget ? `-iperf${phase.iperfLoadMbps}M` : ""
+          phase.runIperf && iperfTarget ? `-iperf` : ""
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
         const msgStats = this.collector.computeStats(
@@ -629,7 +625,7 @@ export class Orchestrator {
     phase: Phase,
     targetIp: string | undefined
   ): Promise<IperfStats | null> | undefined {
-    if (phase.iperfLoadMbps === undefined || !targetIp) return undefined;
+    if (!phase.runIperf || !targetIp) return undefined;
     console.log(
       `  [iperf:under-load] measuring under stress → ${targetIp} ...`
     );
