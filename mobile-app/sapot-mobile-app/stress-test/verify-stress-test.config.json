@@ -1,5 +1,5 @@
 {
-  "mode": "webrtc",
+  "mode": "tcp-signaled",
   "webrtc": {
     "connectionTimeoutMs": 10000,
     "media": { "type": "audio-video", "bitrate": 32 },

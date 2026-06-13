@@ -11,9 +11,9 @@ const program = new Command();
 
 program
   .name('stress-test')
-  .description('Sapot LAN + WebSocket + WebRTC stress tester')
+  .description('Sapot WebRTC stress tester (tcp-signaled and ws-signaled modes)')
   .option('-c, --config <path>', 'path to config JSON', './stress-test.config.json')
-  .option('--mode <mode>', 'override mode: lan | ws | both | webrtc | tcp-signaled | ws-signaled')
+  .option('--mode <mode>', 'override mode: tcp-signaled | ws-signaled')
   .option('--host-ip <ip>', 'override LAN host IP')
   .option('--server-url <url>', 'override WS server URL')
   .option('--output-dir <dir>', 'override output directory', './stress-results')

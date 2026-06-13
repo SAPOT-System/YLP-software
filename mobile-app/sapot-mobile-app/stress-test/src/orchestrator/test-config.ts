@@ -42,7 +42,7 @@ export interface WebrtcConfig {
 }
 
 export interface TestConfig {
-  mode: "lan" | "ws" | "both" | "webrtc" | "tcp-signaled" | "ws-signaled";
+  mode: "tcp-signaled" | "ws-signaled";
   lan?: LanConfig;
   ws?: WsConfig;
   webrtc?: WebrtcConfig;
@@ -51,12 +51,6 @@ export interface TestConfig {
 }
 
 export function validateConfig(config: TestConfig): void {
-  if ((config.mode === "lan" || config.mode === "both") && !config.lan)
-    throw new Error("lan config required for mode lan/both");
-  if ((config.mode === "ws" || config.mode === "both") && !config.ws)
-    throw new Error("ws config required for mode ws/both");
-  if (config.mode === "webrtc" && !config.webrtc)
-    throw new Error("webrtc config required for mode webrtc");
   if (config.mode === "tcp-signaled") {
     if (!config.lan) throw new Error("lan config required for mode tcp-signaled");
     if (!config.webrtc) throw new Error("webrtc config required for mode tcp-signaled");
@@ -74,7 +68,6 @@ export function validateConfig(config: TestConfig): void {
   for (const p of config.phases) {
     if (p.peerCount < 1) throw new Error("peerCount must be >= 1");
     const requiresEvenPeers =
-      config.mode === "webrtc" ||
       (config.mode === "ws-signaled" && !config.ws?.phoneUserId) ||
       (config.mode === "tcp-signaled" && !config.lan?.phoneIp && !config.lan?.adbDiscovery);
     if (requiresEvenPeers && p.peerCount % 2 !== 0)

@@ -7,13 +7,9 @@ import {
   formatWebrtcBlock,
   formatIperfComparison,
 } from "../metrics/reporter";
-import { LanPeer } from "../peers/lan-peer";
-import { WsPeer } from "../peers/ws-peer";
-import { WrtcPeer } from "../peers/webrtc-peer";
 import { TcpSignaledWrtcPeer } from "../peers/tcp-signaled-wrtc-peer";
 import { WsSignaledWrtcPeer } from "../peers/ws-signaled-wrtc-peer";
 import { WsStarPeer } from "../peers/ws-star-peer";
-import { BasePeer } from "../peers/base-peer";
 import { spawn } from "child_process";
 import { discoverPhoneTarget, PhoneTarget } from "../discovery/adb-runner";
 
@@ -31,195 +27,6 @@ export class Orchestrator {
 
   async run(): Promise<PhaseStats[]> {
     const results: PhaseStats[] = [];
-    const transports: Array<"lan" | "ws"> =
-      this.config.mode === "both" ? ["lan", "ws"] : [this.config.mode as "lan" | "ws"];
-
-    if (this.config.mode === "lan" || this.config.mode === "ws" || this.config.mode === "both")
-      for (const transport of transports) {
-        console.log(`\n=== Transport: ${transport.toUpperCase()} ===`);
-        // Stage 1: measure the clean link once per transport, before any stress traffic.
-        const iperfTarget = this.resolveIperfTarget(transport);
-        const iperfBaseline = await this.measureBaseline(iperfTarget);
-        for (const phase of this.config.phases) {
-          const phaseName = `${transport}-peers${phase.peerCount}-msg${
-            phase.msgPerSec
-          }${
-            phase.runIperf && iperfTarget ? `-iperf` : ""
-          }`;
-          console.log(`\n--- Phase: ${phaseName} ---`);
-          this.collector.reset();
-          this.sampler.reset();
-
-          const peers = this.spawnPeers(transport, phase);
-          const connectResults = await Promise.allSettled(
-            peers.map((p) => p.connect())
-          );
-          const failedConnects = connectResults.filter(
-            (r): r is PromiseRejectedResult => r.status === "rejected"
-          );
-          if (failedConnects.length > 0) {
-            const noun =
-              transport === "lan" ? "start their servers" : "connect";
-            console.error(
-              `  [Error] ${failedConnects.length} peers failed to ${noun}:`
-            );
-            for (const f of failedConnects) {
-              console.error(`    - ${describeConnectError(f.reason)}`);
-            }
-          }
-
-          if (transport === "ws") {
-            const wsPeers = peers as WsPeer[];
-            for (let i = 0; i < wsPeers.length; i++) {
-              const nextIdx = (i + 1) % wsPeers.length;
-              const targetId = wsPeers[nextIdx].userId;
-              if (targetId) {
-                wsPeers[i].setTarget(targetId);
-              }
-            }
-          }
-
-          if (transport === "lan" && peers.length > 1) {
-            const lanPeers = peers as LanPeer[];
-            console.log(
-              `  [LAN] Connecting ${lanPeers.length} peers in a ring topology...`
-            );
-            // Use '127.0.0.1' for peers on the same laptop to ensure they can connect
-            const ringResults = await Promise.allSettled(
-              lanPeers.map((p, i) =>
-                p.connectTo(
-                  "127.0.0.1",
-                  lanPeers[(i + 1) % lanPeers.length].port
-                )
-              )
-            );
-            const failedRing = ringResults.filter(
-              (r): r is PromiseRejectedResult => r.status === "rejected"
-            );
-            if (failedRing.length > 0) {
-              console.error(
-                `  [Error] ${failedRing.length} peers failed to connect in the ring:`
-              );
-              for (const f of failedRing) {
-                console.error(`    - ${describeConnectError(f.reason)}`);
-              }
-            }
-          }
-
-          await sleep(500);
-
-          // Stage 2: measure the link under stress, concurrent with peer traffic.
-          const iperfPromise = this.startIperf(phase, iperfTarget);
-
-          const startMs = Date.now();
-          this.sampler.start();
-          peers.forEach((p) => p.startSending(phase.msgPerSec));
-          await sleep(phase.durationSec * 1000);
-          peers.forEach((p) => p.stopSending());
-          this.sampler.stop();
-          const endMs = Date.now();
-
-          const iperfLoad = await this.awaitIperf(iperfPromise);
-
-          await Promise.allSettled(peers.map((p) => p.disconnect()));
-
-          const msgStats = this.collector.computeStats(
-            phaseName,
-            phase.peerCount,
-            phase.msgPerSec,
-            phase.durationSec,
-            startMs,
-            endMs
-          );
-          const netStats = computeNetworkStats(
-            this.sampler.getSamples(),
-            endMs - startMs
-          );
-          const stats: PhaseStats = {
-            ...msgStats,
-            throughputMbps: netStats.throughputMbps,
-            packetLossPercent: netStats.packetLossPercent,
-            rssiDbm: netStats.rssiDbm,
-            linkSpeedMbps: netStats.linkSpeedMbps,
-            iperfBaseline,
-            iperfLoad,
-          };
-          results.push(stats);
-          printPhaseStats(stats);
-        }
-      }
-    if (this.config.mode === "webrtc") {
-      // Stage 1: clean-link baseline (runs only when webrtc.iperfTargetIp is set).
-      const iperfTarget = this.resolveIperfTarget("webrtc");
-      const iperfBaseline = await this.measureBaseline(iperfTarget);
-      for (const phase of this.config.phases) {
-        this.collector.reset();
-        this.sampler.reset();
-        const peers = this.createWebrtcPeers(phase);
-
-        for (let i = 0; i + 1 < peers.length; i += 2) {
-          const a = peers[i];
-          const b = peers[i + 1];
-          a.sendSignal = (msg) => b.receiveSignal(msg);
-          b.sendSignal = (msg) => a.receiveSignal(msg);
-        }
-
-        console.log(
-          `\n[webrtc] phase: ${phase.peerCount} peers, ${
-            phase.peerCount / 2
-          } pairs`
-        );
-        await Promise.allSettled(peers.map((p) => p.connect()));
-
-        const connected = peers.filter(
-          (p) => p.getMetrics().connectionErrors === 0
-        ).length;
-        console.log(`  connected: ${connected}/${peers.length} peers`);
-
-        // Stage 2: link under stress, concurrent with peer traffic.
-        const iperfPromise = this.startIperf(phase, iperfTarget);
-
-        const startMs = Date.now();
-        this.sampler.start();
-        peers.forEach((p) => p.startSending(phase.msgPerSec));
-        await sleep(phase.durationSec * 1000);
-        peers.forEach((p) => p.stopSending());
-        this.sampler.stop();
-        const endMs = Date.now();
-
-        const iperfLoad = await this.awaitIperf(iperfPromise);
-
-        const phaseName = `webrtc-${phase.peerCount}p${
-          phase.runIperf && iperfTarget ? `-iperf` : ""
-        }`;
-        const netStats = computeNetworkStats(
-          this.sampler.getSamples(),
-          endMs - startMs
-        );
-        const msgStats = this.collector.computeStats(
-          phaseName,
-          phase.peerCount,
-          phase.msgPerSec,
-          phase.durationSec,
-          startMs,
-          endMs
-        );
-        const stats: PhaseStats = {
-          ...msgStats,
-          throughputMbps: netStats.throughputMbps,
-          packetLossPercent: netStats.packetLossPercent,
-          rssiDbm: netStats.rssiDbm,
-          linkSpeedMbps: netStats.linkSpeedMbps,
-          iperfBaseline,
-          iperfLoad,
-        };
-
-        await Promise.allSettled(peers.map((p) => p.disconnect()));
-        printPhaseStats(stats);
-        console.log(formatWebrtcBlock(stats, phase.peerCount));
-        results.push(stats);
-      }
-    }
 
     if (this.config.mode === "tcp-signaled") {
       const lan = this.config.lan!;
@@ -461,53 +268,6 @@ export class Orchestrator {
     return results;
   }
 
-  private spawnPeers(
-    transport: "lan" | "ws" | "webrtc",
-    phase: Phase
-  ): BasePeer[] {
-    const peers: BasePeer[] = [];
-    for (let i = 0; i < phase.peerCount; i++) {
-      if (transport === "lan") {
-        const lan = this.config.lan!;
-        peers.push(
-          new LanPeer(
-            `stress-lan-${i}`,
-            i,
-            lan.hostIp,
-            lan.startPort + i,
-            this.collector
-          )
-        );
-      } else {
-        const ws = this.config.ws!;
-        peers.push(
-          new WsPeer(
-            `${ws.accountPrefix}${i}`,
-            i,
-            ws.serverUrl,
-            this.collector,
-            5000,
-            { username: `${ws.accountPrefix}${i}`, password: ws.password }
-          )
-        );
-      }
-    }
-    return peers;
-  }
-
-  private createWebrtcPeers(phase: Phase): WrtcPeer[] {
-    return Array.from(
-      { length: phase.peerCount },
-      (_, i) =>
-        new WrtcPeer(
-          `stress-webrtc-${i}`,
-          i,
-          this.collector,
-          this.config.webrtc!
-        )
-    );
-  }
-
   private createTcpSignaledPeers(phase: Phase): TcpSignaledWrtcPeer[] {
     const lan = this.config.lan!;
     const phoneTarget =
@@ -559,25 +319,6 @@ export class Orchestrator {
           this.config.webrtc!,
         )
     );
-  }
-
-  private resolveIperfTarget(
-    transport: "lan" | "ws" | "webrtc"
-  ): string | undefined {
-    if (transport === "lan") {
-      return this.config.lan!.iperfTargetIp || this.config.lan!.hostIp;
-    }
-    if (transport === "ws") {
-      try {
-        return (
-          this.config.ws!.iperfTargetIp ||
-          new URL(this.config.ws!.serverUrl).hostname
-        );
-      } catch {
-        return undefined;
-      }
-    }
-    return this.config.webrtc?.iperfTargetIp;
   }
 
   // Stage 1 — clean-link baseline. Runs once per transport, with no peers sending,
