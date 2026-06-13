@@ -12,8 +12,10 @@ import { WsPeer } from "../peers/ws-peer";
 import { WrtcPeer } from "../peers/webrtc-peer";
 import { TcpSignaledWrtcPeer } from "../peers/tcp-signaled-wrtc-peer";
 import { WsSignaledWrtcPeer } from "../peers/ws-signaled-wrtc-peer";
+import { WsStarPeer } from "../peers/ws-star-peer";
 import { BasePeer } from "../peers/base-peer";
 import { spawn } from "child_process";
+import { discoverPhoneTarget, PhoneTarget } from "../discovery/adb-runner";
 
 export class Orchestrator {
   // Real link capacity (Mbps) discovered by a TCP probe, calibrated once per transport
@@ -23,7 +25,8 @@ export class Orchestrator {
   constructor(
     private readonly config: TestConfig,
     private readonly collector: MetricsCollector,
-    private readonly sampler: NetworkSampler
+    private readonly sampler: NetworkSampler,
+    private readonly phoneDiscovery: () => Promise<PhoneTarget> = discoverPhoneTarget,
   ) {}
 
   async run(): Promise<PhaseStats[]> {
@@ -223,29 +226,54 @@ export class Orchestrator {
     }
 
     if (this.config.mode === "tcp-signaled") {
-      const iperfTarget = this.config.lan!.iperfTargetIp || this.config.lan!.hostIp;
+      const lan = this.config.lan!;
+      if (lan.adbDiscovery) {
+        console.log('\nDiscovering phone target via adb...');
+        const target = await this.phoneDiscovery();
+        lan.phoneIp = target.ip;
+        lan.phonePort = target.port;
+        lan.phoneUserId = target.userId;
+        console.log(`  phone: ${target.ip}:${target.port}  userId: ${target.userId}`);
+      }
+      const isStarMode = !!lan.phoneIp;
+      const iperfTarget = lan.iperfTargetIp || (isStarMode ? lan.phoneIp : lan.hostIp);
       const iperfBaseline = await this.measureBaseline(iperfTarget || undefined);
       for (const phase of this.config.phases) {
         this.collector.reset();
         this.sampler.reset();
         const peers = this.createTcpSignaledPeers(phase);
 
-        await Promise.allSettled(peers.map((p) => p.connect()));
-
-        console.log(
-          `\n[tcp-signaled] phase: ${phase.peerCount} peers, ${phase.peerCount / 2} pairs`
-        );
-        const connectResults = await Promise.allSettled(
-          peers
-            .filter((_, i) => i % 2 === 0)
-            .map((offerer, idx) => offerer.connectTo("127.0.0.1", peers[idx * 2 + 1].port))
-        );
-        const failedConnects = connectResults.filter(
-          (r): r is PromiseRejectedResult => r.status === "rejected"
-        );
-        if (failedConnects.length > 0) {
-          console.error(`  [Error] ${failedConnects.length} pairs failed to negotiate:`);
-          for (const f of failedConnects) console.error(`    - ${describeConnectError(f.reason)}`);
+        if (isStarMode) {
+          // Star mode: connect() dials the phone directly for each peer.
+          console.log(
+            `\n[tcp-signaled/star] phase: ${phase.peerCount} peers → phone at ${lan.phoneIp}:${lan.phonePort}`
+          );
+          const connectResults = await Promise.allSettled(peers.map((p) => p.connect()));
+          const failed = connectResults.filter(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          );
+          if (failed.length > 0) {
+            console.error(`  [Error] ${failed.length} peers failed to connect to phone:`);
+            for (const f of failed) console.error(`    - ${describeConnectError(f.reason)}`);
+          }
+        } else {
+          // Pair mode: start servers first, then wire offerer→answerer via loopback.
+          await Promise.allSettled(peers.map((p) => p.connect()));
+          console.log(
+            `\n[tcp-signaled] phase: ${phase.peerCount} peers, ${phase.peerCount / 2} pairs`
+          );
+          const connectResults = await Promise.allSettled(
+            peers
+              .filter((_, i) => i % 2 === 0)
+              .map((offerer, idx) => offerer.connectTo("127.0.0.1", peers[idx * 2 + 1].port))
+          );
+          const failedConnects = connectResults.filter(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          );
+          if (failedConnects.length > 0) {
+            console.error(`  [Error] ${failedConnects.length} pairs failed to negotiate:`);
+            for (const f of failedConnects) console.error(`    - ${describeConnectError(f.reason)}`);
+          }
         }
 
         const connected = peers.filter((p) => p.getMetrics().connectionErrors === 0).length;
@@ -264,7 +292,8 @@ export class Orchestrator {
         const iperfLoad = await this.awaitIperf(iperfPromise);
         await Promise.allSettled(peers.map((p) => p.disconnect()));
 
-        const phaseName = `tcp-signaled-${phase.peerCount}p${
+        const modeLabel = isStarMode ? "tcp-star" : "tcp-signaled";
+        const phaseName = `${modeLabel}-${phase.peerCount}p${
           phase.iperfLoadMbps && iperfTarget ? `-iperf${phase.iperfLoadMbps}M` : ""
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
@@ -287,35 +316,103 @@ export class Orchestrator {
     }
 
     if (this.config.mode === "ws-signaled") {
+      const ws = this.config.ws!;
+      const isStarMode = !!ws.phoneUserId;
       let iperfTarget: string | undefined;
       try {
-        iperfTarget = this.config.ws!.iperfTargetIp || new URL(this.config.ws!.serverUrl).hostname;
+        iperfTarget = ws.iperfTargetIp || new URL(ws.serverUrl).hostname;
       } catch { /* invalid url */ }
       const iperfBaseline = await this.measureBaseline(iperfTarget);
       for (const phase of this.config.phases) {
         this.collector.reset();
         this.sampler.reset();
-        const peers = this.createWsSignaledPeers(phase);
 
-        const connectResults = await Promise.allSettled(peers.map((p) => p.connect()));
-        const failedAuth = connectResults.filter(
-          (r): r is PromiseRejectedResult => r.status === "rejected"
-        );
-        if (failedAuth.length > 0) {
-          console.error(`  [Error] ${failedAuth.length} peers failed to authenticate:`);
-          for (const f of failedAuth) console.error(`    - ${describeConnectError(f.reason)}`);
-        }
+        let peers: WsSignaledWrtcPeer[] | WsStarPeer[];
 
-        console.log(
-          `\n[ws-signaled] phase: ${phase.peerCount} peers, ${phase.peerCount / 2} pairs`
-        );
-        for (let i = 0; i + 1 < peers.length; i += 2) {
-          const offerer = peers[i];
-          const answerer = peers[i + 1];
-          if (!offerer.userId || !answerer.userId) continue;
-          answerer.negotiate(offerer.userId);
-          await sleep(100);
-          await offerer.negotiate(answerer.userId);
+        if (isStarMode) {
+          // Star mode: all peers target the phone.
+          const starPeers = this.createWsStarPeers(phase);
+          peers = starPeers;
+
+          const connectResults = await Promise.allSettled(starPeers.map((p) => p.connect()));
+          const failedAuth = connectResults.filter(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          );
+          if (failedAuth.length > 0) {
+            console.error(`  [Error] ${failedAuth.length} peers failed to authenticate:`);
+            for (const f of failedAuth) console.error(`    - ${describeConnectError(f.reason)}`);
+          }
+
+          console.log(
+            `\n[ws-star] phase: ${phase.peerCount} peers → phone ${ws.phoneUserId}`
+          );
+          await Promise.allSettled(starPeers.map((p) => p.negotiate()));
+        } else {
+          // Pair mode: peers negotiate with each other.
+          const signaledPeers = this.createWsSignaledPeers(phase);
+          peers = signaledPeers;
+
+          const connectResults = await batchedSettle(signaledPeers, (p) => p.connect(), 10, 400);
+          const failedAuth = connectResults.filter(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          );
+          if (failedAuth.length > 0) {
+            console.error(`  [Error] ${failedAuth.length} peers failed to authenticate:`);
+            for (const f of failedAuth) console.error(`    - ${describeConnectError(f.reason)}`);
+          }
+
+          console.log(
+            `\n[ws-signaled] phase: ${phase.peerCount} peers, ${phase.peerCount / 2} pairs`
+          );
+
+          // Wait for server-side queue drains before checking visibility.
+          await sleep(3000);
+
+          // Ensure each pair lands on the same server worker — multi-worker gunicorn
+          // keeps separate in-memory active_connections per process, so cross-worker
+          // relay silently fails. All pairs are checked and retried in parallel.
+          const MAX_COLOCATION_ROUNDS = 20;
+          let unresolved = signaledPeers
+            .map((_, i) => i)
+            .filter((i) => i % 2 === 0 && i + 1 < signaledPeers.length)
+            .filter((i) => !!(signaledPeers[i].userId && signaledPeers[i + 1].userId));
+
+          for (let round = 0; round < MAX_COLOCATION_ROUNDS && unresolved.length > 0; round++) {
+            const checks = await Promise.all(
+              unresolved.map(async (i) => {
+                const visible = await signaledPeers[i].getVisiblePeerIds();
+                return { i, ok: visible.includes(signaledPeers[i + 1].userId!) };
+              })
+            );
+            unresolved = checks.filter((c) => !c.ok).map((c) => c.i);
+            if (unresolved.length === 0) break;
+            if (round < MAX_COLOCATION_ROUNDS - 1) {
+              console.log(
+                `  [ws-signaled] ${unresolved.length} pair(s) on different workers — reconnecting answerers (round ${round + 1})...`
+              );
+              await batchedSettle(
+                unresolved.map((i) => signaledPeers[i + 1]),
+                (p) => p.reconnect(),
+                8,
+                300,
+              );
+              await sleep(500);
+            }
+          }
+          if (unresolved.length > 0) {
+            console.log(
+              `  [ws-signaled] WARNING: ${unresolved.length} pair(s) still split across workers after ${MAX_COLOCATION_ROUNDS} rounds`
+            );
+          }
+
+          for (let i = 0; i + 1 < signaledPeers.length; i += 2) {
+            const offerer = signaledPeers[i];
+            const answerer = signaledPeers[i + 1];
+            if (!offerer.userId || !answerer.userId) continue;
+            answerer.negotiate(offerer.userId);
+            await sleep(100);
+            await offerer.negotiate(answerer.userId);
+          }
         }
 
         const connected = peers.filter((p) => p.getMetrics().connectionErrors === 0).length;
@@ -334,7 +431,8 @@ export class Orchestrator {
         const iperfLoad = await this.awaitIperf(iperfPromise);
         await Promise.allSettled(peers.map((p) => p.disconnect()));
 
-        const phaseName = `ws-signaled-${phase.peerCount}p${
+        const modeLabel = isStarMode ? "ws-star" : "ws-signaled";
+        const phaseName = `${modeLabel}-${phase.peerCount}p${
           phase.iperfLoadMbps && iperfTarget ? `-iperf${phase.iperfLoadMbps}M` : ""
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
@@ -416,16 +514,20 @@ export class Orchestrator {
 
   private createTcpSignaledPeers(phase: Phase): TcpSignaledWrtcPeer[] {
     const lan = this.config.lan!;
+    const phoneTarget =
+      lan.phoneIp && lan.phonePort && lan.phoneUserId
+        ? { ip: lan.phoneIp, port: lan.phonePort, userId: lan.phoneUserId, myIp: lan.hostIp }
+        : undefined;
     return Array.from(
       { length: phase.peerCount },
       (_, i) =>
         new TcpSignaledWrtcPeer(
           `stress-tcp-sig-${i}`,
           i,
-          lan.hostIp,
-          0,
+          phoneTarget ? 0 : lan.startPort + i,
           this.collector,
-          this.config.webrtc!
+          this.config.webrtc!,
+          phoneTarget,
         )
     );
   }
@@ -442,6 +544,23 @@ export class Orchestrator {
           this.collector,
           { username: `${ws.accountPrefix}${i}`, password: ws.password },
           this.config.webrtc!
+        )
+    );
+  }
+
+  private createWsStarPeers(phase: Phase): WsStarPeer[] {
+    const ws = this.config.ws!;
+    return Array.from(
+      { length: phase.peerCount },
+      (_, i) =>
+        new WsStarPeer(
+          `stress-ws-star-${i}`,
+          i,
+          ws.serverUrl,
+          this.collector,
+          { username: `${ws.accountPrefix}${i}`, password: ws.password },
+          ws.phoneUserId!,
+          this.config.webrtc!,
         )
     );
   }
@@ -465,10 +584,6 @@ export class Orchestrator {
     return this.config.webrtc?.iperfTargetIp;
   }
 
-  private wantsIperf(): boolean {
-    return this.config.phases.some((p) => p.iperfLoadMbps !== undefined);
-  }
-
   // Stage 1 — clean-link baseline. Runs once per transport, with no peers sending,
   // so it captures the link's healthy capacity to compare the under-load stage against.
   // First auto-calibrates the UDP offered load from a TCP capacity probe so the load is
@@ -476,7 +591,7 @@ export class Orchestrator {
   private async measureBaseline(
     targetIp: string | undefined
   ): Promise<IperfStats | null> {
-    if (!this.wantsIperf() || !targetIp) return null;
+    if (!targetIp) return null;
 
     console.log(
       `  [iperf:calibrate] probing link capacity (tcp) → ${targetIp} ...`
@@ -574,6 +689,22 @@ function printPhaseStats(stats: PhaseStats): void {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
+}
+
+async function batchedSettle<T>(
+  items: T[],
+  fn: (item: T) => Promise<void>,
+  batchSize: number,
+  delayMs: number,
+): Promise<PromiseSettledResult<void>[]> {
+  const results: PromiseSettledResult<void>[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(batch.map(fn));
+    results.push(...batchResults);
+    if (i + batchSize < items.length) await sleep(delayMs);
+  }
+  return results;
 }
 
 function describeConnectError(reason: unknown): string {
