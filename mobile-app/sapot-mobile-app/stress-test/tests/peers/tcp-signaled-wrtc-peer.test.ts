@@ -160,3 +160,107 @@ describe('TcpSignaledWrtcPeer — mDNS advertisement (star mode)', () => {
     await peer.disconnect();
   }, 3000);
 });
+
+describe('TcpSignaledWrtcPeer — discovery probe detection', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ciaoMock = require('@homebridge/ciao') as { getResponder: jest.Mock; Protocol: { TCP: string } };
+
+  beforeEach(() => {
+    const endFn = jest.fn().mockResolvedValue(undefined);
+    const advertiseFn = jest.fn().mockResolvedValue(undefined);
+    const createServiceFn = jest.fn().mockReturnValue({ advertise: advertiseFn, end: endFn });
+    ciaoMock.getResponder.mockReturnValue({ createService: createServiceFn });
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  const phoneTarget = {
+    ip: '127.0.0.1',
+    port: 19996,
+    userId: 'phone-user-id',
+    myIp: '192.168.1.50',
+  };
+
+  it('bare connect-then-close in star mode is recorded as a discovery probe', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('probe-peer', 0, 0, col, starCfg, phoneTarget);
+    await peer.connect();
+    await new Promise((r) => setTimeout(r, 50)); // let advertiseMdns set advertiseMs
+
+    // Bare-connect: open a TCP connection and immediately close it (no data)
+    await new Promise<void>((resolve, reject) => {
+      const s = net.createConnection({ host: '127.0.0.1', port: peer.port }, () => {
+        s.destroy();
+        resolve();
+      });
+      s.on('error', reject);
+    });
+    await new Promise((r) => setTimeout(r, 100)); // let probe detection settle
+
+    const stats = col.computeStats('test', 1, 1, 1, 0, 1000);
+    expect(stats.discoveryCompleteness).toBe(1.0);
+    expect(stats.discoveryP50Ms).toBeGreaterThanOrEqual(0);
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('connection that completes NaCl handshake is not recorded as a discovery probe', async () => {
+    const col = new MetricsCollector();
+    const offerer = new TcpSignaledWrtcPeer('peer-0', 0, 0, col, cfg);
+    const answerer = new TcpSignaledWrtcPeer('peer-1', 1, 0, col, cfg);
+    await Promise.all([offerer.connect(), answerer.connect()]);
+    await offerer.connectTo('127.0.0.1', answerer.port);
+
+    const stats = col.computeStats('test', 2, 1, 1, 0, 1000);
+    expect(stats.discoveryCompleteness).toBe(0); // no probes — full handshakes only
+
+    await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+  }, 20000);
+
+  it('only the first probe per peer is counted toward discovery latency', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('probe-peer', 0, 0, col, starCfg, phoneTarget);
+    await peer.connect();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Send two bare probes
+    for (let i = 0; i < 2; i++) {
+      await new Promise<void>((resolve, reject) => {
+        const s = net.createConnection({ host: '127.0.0.1', port: peer.port }, () => {
+          s.destroy();
+          resolve();
+        });
+        s.on('error', reject);
+      });
+      await new Promise((r) => setTimeout(r, 60));
+    }
+
+    const stats = col.computeStats('test', 1, 1, 1, 0, 2000);
+    expect(stats.discoveryCompleteness).toBe(1.0); // still 1/1
+    // Only one latency sample → p50 == p95
+    expect(stats.discoveryP50Ms).toBe(stats.discoveryP95Ms);
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('pair mode (no phoneTarget) never records discovery probes', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('pair-peer', 0, 0, col, cfg);
+    await peer.connect();
+
+    // Bare probe to the pair-mode peer
+    await new Promise<void>((resolve, reject) => {
+      const s = net.createConnection({ host: '127.0.0.1', port: peer.port }, () => {
+        s.destroy();
+        resolve();
+      });
+      s.on('error', reject);
+    });
+    await new Promise((r) => setTimeout(r, 100));
+
+    const stats = col.computeStats('test', 1, 1, 1, 0, 1000);
+    expect(stats.discoveryCompleteness).toBe(0); // pair mode never records probes
+
+    await peer.disconnect();
+  }, 5000);
+});

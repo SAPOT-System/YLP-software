@@ -57,6 +57,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
   private seqNo = 0;
   private metrics: PeerMetrics = emptyMetrics();
   private mdnsService?: CiaoService;
+  private advertiseMs?: number;
 
   constructor(
     peerId: string,
@@ -257,11 +258,17 @@ export class TcpSignaledWrtcPeer implements BasePeer {
       }
     });
 
+    let socketErrored = false;
     socket.on('error', () => {
+      socketErrored = true;
       this.metrics.connectionErrors++;
       this.collector.recordConnectionError();
     });
     socket.on('close', () => {
+      if (!this.serverHandshakeDone && !socketErrored && this.advertiseMs !== undefined) {
+        const latencyMs = Date.now() - this.advertiseMs;
+        this.collector.recordDiscoveryProbe(this.peerId, latencyMs);
+      }
       this.serverSocket = undefined;
       this.serverHandshakeDone = false;
       this.serverSharedKey = undefined;
@@ -475,6 +482,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
 
   private async advertiseMdns(myIp: string): Promise<void> {
     try {
+      this.advertiseMs = Date.now();
       const { getResponder, Protocol } = await import('@homebridge/ciao');
       const responder = getResponder({ interface: myIp });
       this.mdnsService = responder.createService({

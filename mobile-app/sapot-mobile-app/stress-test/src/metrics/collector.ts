@@ -25,7 +25,9 @@ export interface PhaseStats {
   packetLossPercent: number;
   rssiDbm: number | null;
   linkSpeedMbps: number | null;
-  iperfStats: IperfStats | null;
+  // Stage 1: clean link baseline (no stress traffic). Stage 2: link under stress load.
+  iperfBaseline: IperfStats | null;
+  iperfLoad: IperfStats | null;
   iceEstablishP50Ms: number;
   iceEstablishP95Ms: number;
   iceEstablishMaxMs: number;
@@ -33,6 +35,10 @@ export interface PhaseStats {
   rtpPacketsSent: number;
   rtpPacketsLost: number;
   mediaEstablishP95Ms: number;
+  // Phone discovery metrics (tcp-signaled star mode only).
+  discoveryCompleteness: number;
+  discoveryP50Ms: number;
+  discoveryP95Ms: number;
 }
 
 function pct(sorted: number[], p: number): number {
@@ -52,6 +58,8 @@ export class MetricsCollector {
   private rtpSentCount = 0;
   private rtpLostCount = 0;
   private mediaEstablishSamples: number[] = [];
+  // peerId → latency of first probe (ms from advertise to probe)
+  private discoveryProbes = new Map<string, number>();
 
   recordSent(peerId: string, _atMs: number): void {
     this.sentCounts.set(peerId, (this.sentCounts.get(peerId) ?? 0) + 1);
@@ -89,6 +97,12 @@ export class MetricsCollector {
     this.mediaEstablishSamples.push(ms);
   }
 
+  recordDiscoveryProbe(peerId: string, latencyMs: number): void {
+    if (!this.discoveryProbes.has(peerId)) {
+      this.discoveryProbes.set(peerId, latencyMs);
+    }
+  }
+
   reset(): void {
     this.sentCounts = new Map();
     this.latencySamples = [];
@@ -101,6 +115,7 @@ export class MetricsCollector {
     this.rtpSentCount = 0;
     this.rtpLostCount = 0;
     this.mediaEstablishSamples = [];
+    this.discoveryProbes = new Map();
   }
 
   computeStats(
@@ -126,6 +141,7 @@ export class MetricsCollector {
 
     const iceSorted = [...this.iceEstablishSamples].sort((a, b) => a - b);
     const mediaSorted = [...this.mediaEstablishSamples].sort((a, b) => a - b);
+    const discoverySorted = [...this.discoveryProbes.values()].sort((a, b) => a - b);
 
     return {
       phaseName,
@@ -146,7 +162,8 @@ export class MetricsCollector {
       packetLossPercent: 0,
       rssiDbm: null,
       linkSpeedMbps: null,
-      iperfStats: null,
+      iperfBaseline: null,
+      iperfLoad: null,
       iceEstablishP50Ms: pct(iceSorted, 50),
       iceEstablishP95Ms: pct(iceSorted, 95),
       iceEstablishMaxMs: iceSorted.length > 0 ? iceSorted[iceSorted.length - 1] : 0,
@@ -154,6 +171,9 @@ export class MetricsCollector {
       rtpPacketsSent: this.rtpSentCount,
       rtpPacketsLost: this.rtpLostCount,
       mediaEstablishP95Ms: pct(mediaSorted, 95),
+      discoveryCompleteness: peerCount > 0 ? this.discoveryProbes.size / peerCount : 0,
+      discoveryP50Ms: pct(discoverySorted, 50),
+      discoveryP95Ms: pct(discoverySorted, 95),
     };
   }
 }

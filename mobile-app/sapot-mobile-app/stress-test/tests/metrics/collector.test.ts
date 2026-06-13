@@ -110,4 +110,56 @@ describe('MetricsCollector', () => {
       expect(stats.mediaEstablishP95Ms).toBe(0);
     });
   });
+
+  describe('discovery probe metrics', () => {
+    it('discoveryCompleteness is 0 when no probes recorded', () => {
+      const stats = collector.computeStats('phase', 4, 1, 5, 0, 5000);
+      expect(stats.discoveryCompleteness).toBe(0);
+    });
+
+    it('recording one probe out of two peers gives 0.5 completeness', () => {
+      collector.recordDiscoveryProbe('peer-0', 120);
+      const stats = collector.computeStats('phase', 2, 1, 5, 0, 5000);
+      expect(stats.discoveryCompleteness).toBe(0.5);
+    });
+
+    it('recording probes for all peers gives 1.0 completeness', () => {
+      collector.recordDiscoveryProbe('peer-0', 80);
+      collector.recordDiscoveryProbe('peer-1', 95);
+      collector.recordDiscoveryProbe('peer-2', 110);
+      const stats = collector.computeStats('phase', 3, 1, 5, 0, 5000);
+      expect(stats.discoveryCompleteness).toBe(1.0);
+    });
+
+    it('duplicate probes for the same peer are deduplicated', () => {
+      collector.recordDiscoveryProbe('peer-0', 50);
+      collector.recordDiscoveryProbe('peer-0', 200);
+      const stats = collector.computeStats('phase', 1, 1, 5, 0, 5000);
+      expect(stats.discoveryCompleteness).toBe(1.0);
+      expect(stats.discoveryP50Ms).toBe(50);
+    });
+
+    it('discovery latency percentiles reflect first-probe latencies', () => {
+      collector.recordDiscoveryProbe('peer-0', 10);
+      collector.recordDiscoveryProbe('peer-1', 50);
+      collector.recordDiscoveryProbe('peer-2', 100);
+      const stats = collector.computeStats('phase', 3, 1, 5, 0, 5000);
+      expect(stats.discoveryP50Ms).toBe(50);
+      expect(stats.discoveryP95Ms).toBe(100);
+    });
+
+    it('reset() clears discovery probes', () => {
+      collector.recordDiscoveryProbe('peer-0', 80);
+      collector.reset();
+      const stats = collector.computeStats('phase', 2, 1, 5, 0, 5000);
+      expect(stats.discoveryCompleteness).toBe(0);
+      expect(stats.discoveryP50Ms).toBe(0);
+    });
+
+    it('discoveryCompleteness is 0 when peerCount is 0', () => {
+      collector.recordDiscoveryProbe('peer-0', 50);
+      const stats = collector.computeStats('phase', 0, 1, 5, 0, 5000);
+      expect(stats.discoveryCompleteness).toBe(0);
+    });
+  });
 });
