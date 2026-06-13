@@ -76,7 +76,7 @@ export function validateConfig(config: TestConfig): void {
     const requiresEvenPeers =
       config.mode === "webrtc" ||
       (config.mode === "ws-signaled" && !config.ws?.phoneUserId) ||
-      (config.mode === "tcp-signaled" && !config.lan?.phoneIp);
+      (config.mode === "tcp-signaled" && !config.lan?.phoneIp && !config.lan?.adbDiscovery);
     if (requiresEvenPeers && p.peerCount % 2 !== 0)
       throw new Error(`peerCount must be even for ${config.mode} mode`);
     if (p.msgPerSec < 1) throw new Error("msgPerSec must be >= 1");

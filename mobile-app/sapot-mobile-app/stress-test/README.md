@@ -23,20 +23,52 @@ In actual mobile app usage, TCP and WebSocket are primarily used for **WebRTC co
 
 This tool runs four kinds of tests. Pick one based on what you want to measure — you do **not** need to understand the internals to choose.
 
-| You want to test... | Use mode | Need the phone? | Setup required |
-|---|---|---|---|
-| The app on a real phone over the **same WiFi** (no internet) | `lan` | ✅ Yes — Android + USB | Phone state + firewall ports |
-| The app on a real phone **through the internet server** | `ws` | ✅ Yes — Android + USB | Phone state + running server + seeded accounts |
-| Both phone tests, back-to-back | `both` | ✅ Yes | Everything above |
-| Only the **peer-to-peer voice/video engine**, on the laptop | `webrtc` | ❌ No phone at all | Just Node.js on the laptop |
-| WebRTC over the **real NaCl-encrypted LAN TCP signaling channel** | `tcp-signaled` | ❌ No phone at all | Just Node.js on the laptop |
-| WebRTC over the **WebSocket server relay** (realistic multi-machine path) | `ws-signaled` | ❌ No phone at all | Running server + seeded accounts |
+| You want to test... | Use mode | Config file | Need the phone? | What it measures |
+|---|---|---|---|---|
+| **Canonical local-network test** — real discovery + concurrent sessions against the phone | `tcp-signaled` (star) | `stress-test.tcp-star.config.json` | ✅ Yes — preview build + USB adb | Phone-real: discovery completeness/latency, concurrent-session count. Peer-side WebRTC uses libdatachannel (not phone-representative). |
+| Raw app networking over the same WiFi (chat relay) | `lan` | `stress-test.config.json` | ✅ Yes — Android + USB | LAN TCP throughput + loss |
+| App networking through the internet server (chat relay) | `ws` | `stress-test.config.json` | ✅ Yes — Android + USB | Server relay throughput |
+| Both LAN and WS back-to-back | `both` | `stress-test.config.json` | ✅ Yes | Both of the above |
+| Peer-to-peer voice/video engine only, laptop-only | `webrtc` | `stress-test.config.json` | ❌ No phone | WebRTC data channel + media |
+| Protocol/CPU smoke test — NaCl+WebRTC over loopback | `tcp-signaled` (pair) | `stress-test.tcp-signaled.config.json` | ❌ No phone | Encryption and WebRTC CPU load on the laptop. Not a local-network result. |
+| Server-signaling test (FastAPI relay) | `ws-signaled` | `stress-test.ws-signaled.config.json` | ❌ No phone | Gunicorn/WebSocket relay throughput. Not a local-network result. |
 
-**First time? Run the `webrtc` test first.** It needs nothing but your laptop and proves the tool itself works before you wrestle with phone, WiFi, and firewall setup. Then move on to the phone tests.
+**First time? Run the `webrtc` test first.** It needs nothing but your laptop and proves the tool itself works before you wrestle with phone, WiFi, and firewall setup. Then move on to the canonical local-network test.
 
-> The mode comes from the `"mode"` field in `stress-test.config.json` (or `--mode` on the command line). **The shipped default is `webrtc` — laptop-only, the phone is never used.** Change it to `lan`, `ws`, or `both` when you are ready to test a real phone.
+> The mode comes from the `"mode"` field in the config file (or `--mode` on the command line). **The shipped default (`stress-test.config.json`) is `webrtc` — laptop-only, the phone is never used.**
 
-**Everything below about phone state, ADB, and firewall ports applies only to the phone tests (`lan` / `ws` / `both`). The `webrtc`, `tcp-signaled`, and `ws-signaled` tests skip all of it.**
+**Everything about phone state, ADB, and firewall ports below applies only to phone tests. The `webrtc`, `tcp-signaled` (pair), and `ws-signaled` tests skip all of it.**
+
+---
+
+## Canonical Local-Network Test — Quickstart
+
+> Use this when you want to measure the phone's real discovery and session capacity on the same WiFi. Requires a **preview build** of the app and a USB adb connection.
+
+**Requirements:** Phone running a `preview` (or `development`) build, same WiFi as the laptop, attached via USB adb.
+
+```bash
+# 1. Confirm the phone is visible
+adb devices
+
+# 2. Launch the Sapot app on the phone, log in, navigate to the People screen
+
+# 3. Edit stress-test.tcp-star.config.json — set lan.hostIp to your laptop's WiFi IP:
+#    "hostIp": "192.168.1.23"   ← replace with: ip addr show wlan0 | grep 'inet '
+
+# 4. Run the canonical test (phone fields are auto-discovered via adb logcat)
+npx ts-node src/runner.ts --config stress-test.tcp-star.config.json
+```
+
+The runner automatically scrapes the phone's TCP port, userId, and WiFi IP from `adb logcat` and `adb shell ip addr show wlan0`. You do not need to enter `phoneIp`, `phonePort`, or `phoneUserId` manually.
+
+**What the report tells you:**
+
+- **Discovery** section — completeness (fraction of peers the phone found via mDNS) and p50/p95 latency from advertisement to first probe.
+- **WebRTC Connections** — ICE establish percentiles and connection success rate.
+- **NOTE banner** — clarifies which metrics are phone-real (discovery, sessions) and which run on libdatachannel (peer-side WebRTC).
+
+**Representativeness caveat:** The peer-side WebRTC stack is `libdatachannel` (Node.js), not the phone's native WebRTC engine. Discovery and concurrent-session count are phone-real; media/ICE behaviour on the peer side is not.
 
 ---
 
@@ -230,13 +262,13 @@ Success = both `lan-peers2-msg1` and `ws-peers2-msg1` rows at `100.0%`. Confirms
 
 **5. TCP-signaled — laptop-only, real NaCl signaling path:**
 ```bash
-npx ts-node src/runner.ts --mode tcp-signaled --config stress-test.tcp-signaled.config.json
+npx ts-node src/runner.ts --mode tcp-signaled --config verify-stress-test.config.json
 ```
 Success = a **WebRTC Connections** block reporting `2/2` peers connected (or more depending on `peerCount`). Confirms the ECDH handshake and encrypted signaling path works.
 
 **6. WS-signaled — laptop-only, server relay signaling path:**
 ```bash
-NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode ws-signaled --config stress-test.ws-signaled.config.json
+NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode ws-signaled --config verify-stress-test.config.json
 ```
 Success = a **WebRTC Connections** block reporting `2/2` peers connected. If you see `Login failed for stress_0`, seed the test accounts first (Setup step 4).
 

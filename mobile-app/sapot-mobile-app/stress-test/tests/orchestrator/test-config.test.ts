@@ -81,6 +81,43 @@ describe('validateConfig — tcp-signaled mode', () => {
   });
 });
 
+describe('validateConfig — tcp-signaled star mode (adb discovery)', () => {
+  it('passes when adbDiscovery is true and phone fields are absent', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: { hostIp: '192.168.1.23', startPort: 9200, adbDiscovery: true },
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 1, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+
+  it('still throws when phoneIp is set without phonePort even with adbDiscovery absent', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: { hostIp: '127.0.0.1', startPort: 9200, phoneIp: '192.168.1.5' },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('phonePort required');
+  });
+
+  it('canonical tcp-star config file is parseable and valid', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const path = require('path');
+    const raw = fs.readFileSync(path.resolve(__dirname, '../../stress-test.tcp-star.config.json'), 'utf8');
+    const config = JSON.parse(raw) as TestConfig;
+    expect(config.mode).toBe('tcp-signaled');
+    expect(config.lan?.adbDiscovery).toBe(true);
+    expect(config.lan?.phoneIp).toBeUndefined();
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+});
+
 describe('validateConfig — ws-signaled mode', () => {
   it('throws when ws config is missing', () => {
     const config = {
