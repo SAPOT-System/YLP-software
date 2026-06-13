@@ -164,7 +164,7 @@ def deep_parse_dict(data):
 
 
 @router.websocket("/")
-async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep, target_id: UUID|None = None):
+async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None = None):
     """
     will relay the sdp between different users
     can handle
@@ -181,29 +181,32 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
     except:
         pass
 
+    # Short-lived session scoped to the drain only — never held across the
+    # idle receive loop, so an idle peer holds zero pooled connections.
     try:
-        messages = get_queued_messages(UUID(user_id), session)
-        if messages:
-            for message in messages:
-                try:
-                    parsed = deep_parse_dict(message.data)
-                    data = MessageData(
-                            type=parsed.get("type"),
-                            data=parsed.get("data")
-                            )
-                    # Acks are ephemeral confirmations — delete and skip rather than
-                    # re-queuing them, which would trap them permanently.
-                    if data.type == 'ack':
-                        session.delete(message)
-                        session.commit()
-                        continue
-                    await relay_message(user_id, user_id, data, session)
-                    # don't delete from queue just yet, wait for it to be acknowledged by the receiver
-                    if message.payload_type == 'seen':
-                        session.delete(message)
-                        session.commit()
-                except Exception as e:
-                    print(f"[drain] failed to deliver queued message {message.id}: {e}")
+        with Session(engine) as session:
+            messages = get_queued_messages(UUID(user_id), session)
+            if messages:
+                for message in messages:
+                    try:
+                        parsed = deep_parse_dict(message.data)
+                        data = MessageData(
+                                type=parsed.get("type"),
+                                data=parsed.get("data")
+                                )
+                        # Acks are ephemeral confirmations — delete and skip rather than
+                        # re-queuing them, which would trap them permanently.
+                        if data.type == 'ack':
+                            session.delete(message)
+                            session.commit()
+                            continue
+                        await relay_message(user_id, user_id, data, session)
+                        # don't delete from queue just yet, wait for it to be acknowledged by the receiver
+                        if message.payload_type == 'seen':
+                            session.delete(message)
+                            session.commit()
+                    except Exception as e:
+                        print(f"[drain] failed to deliver queued message {message.id}: {e}")
     except Exception as e:
         print(f"[drain] failed to fetch queued messages for {user_id}: {e}")
 
@@ -234,17 +237,20 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
             elif isinstance(payload, dict) and payload.get("type") == "get-active-users":
                 await manager.send_personal_message(UUID(user_id), manager.get_active_connections())
             # relay public chat data
-            elif isinstance(payload, PublicMessageData):                
-                await relay_public_message(user_id, payload, session)
+            elif isinstance(payload, PublicMessageData):
+                with Session(engine) as session:
+                    await relay_public_message(user_id, payload, session)
             # relay message data
             elif isinstance(payload, MessageData):
                 if payload.data.to is None:
                     continue
-                await relay_message(user_id, UUID(payload.data.to), payload, session)
+                with Session(engine) as session:
+                    await relay_message(user_id, UUID(payload.data.to), payload, session)
             elif isinstance(payload, SignalMessage) and validate_sender(payload, user_id):
                 if payload.data.to is None:
                     continue
-                await relay_signal(user_id, UUID(payload.data.to), payload, session)
+                with Session(engine) as session:
+                    await relay_signal(user_id, UUID(payload.data.to), payload, session)
 
     except WebSocketDisconnect:
         try:
@@ -252,4 +258,4 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
         except:
             pass
         asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Inactive")
-        manager.disconnect(user_id)
+        manager.disconnect(UUID(user_id))
