@@ -167,7 +167,7 @@ export default ({ config }: ConfigContext) => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
-  version: "0.6.1",
+  version: "0.6.2",
   orientation: "portrait",
   icon: "./assets/images/logo.png",
   scheme: "sapotmobileapp",
@@ -307,7 +307,7 @@ export default ({ config }: ConfigContext) => ({
       projectId: "ee940ed5-5653-43cb-8938-d5f54a830c59",
     },
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
-    displayVersion: "0.6.1",
+    displayVersion: "0.6.2",
     appVariant: IS_DEV ? "development" : IS_PREVIEW ? "preview" : "production",
   },
 });
