@@ -6,23 +6,25 @@ import {
   buildWsUrl,
   decodeToken,
   isPong,
-  buildServerSignalMessage,
-  isServerSignalMessage,
-  serverSignalToInternal,
 } from '../protocol/ws-protocol';
-import { SignalMessage } from '../protocol/tcp-protocol';
 import { BasePeer, PeerMetrics, emptyMetrics } from './base-peer';
 import { MetricsCollector } from '../metrics/collector';
 import { WebrtcConfig } from '../orchestrator/test-config';
 import { buildRtpPacket, buildVideoRtpPacket } from './rtp-utils';
 
-export class WsSignaledWrtcPeer implements BasePeer {
+/**
+ * Star topology peer: authenticates with the WS server, then sends WebRTC
+ * offers to the phone (phoneUserId) using the app's native signaling message
+ * format so the phone's SignalingService can route and answer them.
+ *
+ * All WsStarPeer instances are offerers; the phone is the single hub/answerer.
+ */
+export class WsStarPeer implements BasePeer {
   readonly peerId: string;
   readonly peerIndex: number;
 
   private ws?: WebSocket;
   private myUserId?: string;
-  private partnerUserId?: string;
   private iceStartMs = 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +55,7 @@ export class WsSignaledWrtcPeer implements BasePeer {
     private readonly serverUrl: string,
     private readonly collector: MetricsCollector,
     private readonly credentials: { username: string; password: string },
+    private readonly phoneUserId: string,
     private readonly config: WebrtcConfig,
   ) {
     this.peerId = peerId;
@@ -60,7 +63,6 @@ export class WsSignaledWrtcPeer implements BasePeer {
   }
 
   get userId(): string | undefined { return this.myUserId; }
-  private get isOfferer(): boolean { return this.peerIndex % 2 === 0; }
 
   async connect(): Promise<void> {
     let token: string;
@@ -77,7 +79,7 @@ export class WsSignaledWrtcPeer implements BasePeer {
       this.ws = new WebSocket(url);
       const timeout = setTimeout(
         () => reject(new Error(`WS connect timeout: ${this.peerId}`)),
-        25000,
+        10000,
       );
       this.ws.on('open', () => {
         clearTimeout(timeout);
@@ -95,48 +97,11 @@ export class WsSignaledWrtcPeer implements BasePeer {
     });
   }
 
-  async reconnect(): Promise<void> {
-    if (this.ws) {
-      this.ws.close(1000, 'reconnect');
-      await new Promise<void>((res) => {
-        this.ws?.once('close', () => res());
-        setTimeout(res, 1000);
-      });
-      this.ws = undefined;
-    }
-    try {
-      await this.connect();
-    } catch {
-      /* colocation loop tolerates individual reconnect failures */
-    }
-  }
-
-  async getVisiblePeerIds(timeoutMs = 3000): Promise<string[]> {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return [];
-    return new Promise<string[]>((resolve) => {
-      const timer = setTimeout(() => {
-        this.ws?.off('message', onMsg);
-        resolve([]);
-      }, timeoutMs);
-      const onMsg = (raw: Buffer | string) => {
-        try {
-          const msg = JSON.parse(raw.toString());
-          if (Array.isArray(msg)) {
-            clearTimeout(timer);
-            this.ws?.off('message', onMsg);
-            resolve(msg as string[]);
-          }
-        } catch { /* ignore */ }
-      };
-      this.ws!.on('message', onMsg);
-      this.ws!.send(JSON.stringify({ type: 'get-active-users' }));
-    });
-  }
-
-  negotiate(partnerUserId: string): Promise<void> {
-    this.partnerUserId = partnerUserId;
-    if (!this.isOfferer) return Promise.resolve();
-
+  /**
+   * Sends a WebRTC offer to the phone and waits for ICE establishment.
+   * The partnerUserId arg is ignored — this peer always targets phoneUserId.
+   */
+  negotiate(_partnerUserId?: string): Promise<void> {
     return new Promise<void>((resolve) => {
       const timeoutMs = this.config.connectionTimeoutMs ?? 15_000;
       let settled = false;
@@ -146,9 +111,7 @@ export class WsSignaledWrtcPeer implements BasePeer {
         if (settled) return;
         settled = true;
         this.metrics.connectionTimeouts++;
-        this.metrics.connectionErrors++;
         this.collector.recordConnectionTimeout();
-        this.collector.recordConnectionError();
         resolve();
       }, timeoutMs);
 
@@ -170,16 +133,77 @@ export class WsSignaledWrtcPeer implements BasePeer {
           resolve();
         },
         this.iceStartMs,
-        (msg) => this.sendSignalViaWs(msg),
       );
     });
+  }
+
+  private handleMessage(raw: string): void {
+    try {
+      const msg = JSON.parse(raw) as Record<string, unknown>;
+      if (isPong(msg)) return;
+
+      const data = msg.data as Record<string, unknown> | undefined;
+      if (!data || data['sender'] !== this.phoneUserId) return;
+
+      const type = msg.type as string;
+
+      if (type === 'answer' && this.pc) {
+        const sdpObj = data['sdp'] as Record<string, unknown> | string | undefined;
+        const sdpStr =
+          typeof sdpObj === 'string' ? sdpObj :
+          typeof sdpObj === 'object' && sdpObj !== null ? String(sdpObj['sdp'] ?? '') : '';
+        if (sdpStr) this.pc.setRemoteDescription(sdpStr, 'answer');
+        return;
+      }
+
+      if (type === 'ice-candidate' && this.pc) {
+        const candidate = data['candidate'] as Record<string, unknown> | null | undefined;
+        if (candidate?.['candidate']) {
+          this.pc.addRemoteCandidate(
+            String(candidate['candidate']),
+            String(candidate['sdpMid'] ?? '0'),
+          );
+        }
+      }
+    } catch { /* ignore malformed frames */ }
+  }
+
+  private sendOffer(sdp: string): void {
+    if (!this.ws || !this.myUserId) return;
+    try {
+      this.ws.send(JSON.stringify({
+        type: 'offer',
+        data: {
+          to: this.phoneUserId,
+          sender: this.myUserId,
+          sdp: { type: 'offer', sdp },
+          ipAddress: '0.0.0.0',
+          port: 0,
+        },
+      }));
+    } catch { /* ws closed */ }
+  }
+
+  private sendCandidate(candidate: string, mid: string): void {
+    if (!this.ws || !this.myUserId) return;
+    try {
+      this.ws.send(JSON.stringify({
+        type: 'ice-candidate',
+        data: {
+          to: this.phoneUserId,
+          sender: this.myUserId,
+          candidate: { candidate, sdpMid: mid, sdpMLineIndex: 0 },
+          ipAddress: '0.0.0.0',
+          port: 0,
+        },
+      }));
+    } catch { /* ws closed */ }
   }
 
   private createPc(
     onConnected: (elapsedMs: number) => void,
     onFailed: () => void,
     startMs: number,
-    sendSignal: (msg: SignalMessage) => void,
   ): void {
     const iceServers = (this.config.iceServers ?? []).map((s) => s.urls);
     const pc = new nodeDatachannel.PeerConnection(this.peerId, { iceServers });
@@ -191,11 +215,11 @@ export class WsSignaledWrtcPeer implements BasePeer {
     });
 
     pc.onLocalDescription((sdp: string, type: string) => {
-      sendSignal({ type: type as 'offer' | 'answer', sdp });
+      if (type === 'offer') this.sendOffer(sdp);
     });
 
     pc.onLocalCandidate((candidate: string, mid: string) => {
-      sendSignal({ type: 'candidate', candidate, mid });
+      this.sendCandidate(candidate, mid);
     });
 
     if (this.config.media) {
@@ -214,65 +238,17 @@ export class WsSignaledWrtcPeer implements BasePeer {
       }
     }
 
-    if (this.isOfferer) {
-      const dc = pc.createDataChannel('chat');
-      this.setupDataChannel(dc);
-    } else {
-      pc.onDataChannel((dc: DataChannel) => {
-        this.setupDataChannel(dc);
-      });
-    }
-  }
-
-  private handleMessage(raw: string): void {
-    try {
-      const msg = JSON.parse(raw) as unknown;
-      if (isPong(msg)) return;
-      if (isServerSignalMessage(msg) && msg.data.sender === this.partnerUserId) {
-        if (!this.isOfferer && !this.pc) {
-          this.iceStartMs = Date.now();
-          this.createPc(
-            (elapsed) => {
-              this.metrics.iceEstablishMs.push(elapsed);
-              this.collector.recordIceEstablish(this.peerId, elapsed);
-            },
-            () => {
-              this.metrics.connectionErrors++;
-              this.collector.recordConnectionError();
-            },
-            this.iceStartMs,
-            (signal) => this.sendSignalViaWs(signal),
-          );
-        }
-        this.receiveSignal(serverSignalToInternal(msg));
-      }
-    } catch { /* ignore */ }
-  }
-
-  private receiveSignal(signal: SignalMessage): void {
-    if (!this.pc) return;
-    if (signal.type === 'offer' || signal.type === 'answer') {
-      this.pc.setRemoteDescription(signal.sdp, signal.type);
-    } else if (signal.type === 'candidate') {
-      this.pc.addRemoteCandidate(signal.candidate, signal.mid);
-    }
-  }
-
-  private sendSignalViaWs(signal: SignalMessage): void {
-    if (!this.ws || !this.myUserId || !this.partnerUserId) return;
-    try {
-      this.ws.send(JSON.stringify(buildServerSignalMessage(this.myUserId, this.partnerUserId, signal)));
-    } catch { /* ws closed */ }
+    // Always offerer — create the data channel.
+    const dc = pc.createDataChannel('chat');
+    this.setupDataChannel(dc);
   }
 
   private setupDataChannel(dc: DataChannel): void {
     this.dc = dc;
     dc.onMessage((msg: string | ArrayBuffer | Buffer) => {
       const raw = typeof msg === 'string' ? msg : Buffer.from(msg as ArrayBuffer).toString();
-      if (raw.startsWith('MSG:')) {
-        const parts = raw.split(':');
-        if (dc.isOpen()) dc.sendMessage(`ACK:${parts[1]}:${parts[2]}`);
-      } else if (raw.startsWith('ACK:')) {
+      // Handle ACK if phone responds (it may not for non-app messages).
+      if (raw.startsWith('ACK:')) {
         const parts = raw.split(':');
         const sentAt = parseInt(parts[2], 10);
         const latencyMs = Date.now() - sentAt;

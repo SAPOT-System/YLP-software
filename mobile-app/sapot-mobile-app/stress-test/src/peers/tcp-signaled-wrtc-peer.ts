@@ -23,7 +23,8 @@ export class TcpSignaledWrtcPeer implements BasePeer {
   readonly peerId: string;
   readonly peerIndex: number;
 
-  private server: net.Server;
+  // null in star mode — peer only dials out to the phone, never accepts inbound.
+  private server: net.Server | null;
   private _port: number;
 
   private serverSocket?: net.Socket;
@@ -48,6 +49,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
   private videoTimer: NodeJS.Timeout | null = null;
   private videoSeq = 0;
   private videoTimestamp = 0;
+  private videoFrameIndex = 0;
   private readonly videoSsrc = Math.floor(Math.random() * 0xffffffff);
 
   private sendTimer: NodeJS.Timeout | null = null;
@@ -57,36 +59,49 @@ export class TcpSignaledWrtcPeer implements BasePeer {
   constructor(
     peerId: string,
     peerIndex: number,
-    private readonly hostIp: string,
     port: number,
     private readonly collector: MetricsCollector,
     private readonly config: WebrtcConfig,
+    private readonly phoneTarget?: { ip: string; port: number; userId: string; myIp: string },
   ) {
     this.peerId = peerId;
     this.peerIndex = peerIndex;
     this._port = port;
+    // Star mode: start a server so the phone can dial back after receiving the offer
+    // (the app reads ipAddress/port from the offer and opens a TcpClientAdapter back).
     this.server = net.createServer();
   }
 
   get port(): number { return this._port; }
-  private get isOfferer(): boolean { return this.peerIndex % 2 === 0; }
+
+  // In star mode all peers are offerers (they dial the phone).
+  // In pair mode even-indexed peers are offerers.
+  private get isOfferer(): boolean {
+    return this.phoneTarget ? true : this.peerIndex % 2 === 0;
+  }
 
   connect(): Promise<void> {
+    const server = this.server!;
     return new Promise<void>((resolve, reject) => {
       const onError = (err: Error) => {
-        this.server.off('listening', onListening);
+        server.off('listening', onListening);
         reject(err);
       };
       const onListening = () => {
-        this.server.off('error', onError);
-        const addr = this.server.address();
+        server.off('error', onError);
+        const addr = server.address();
         if (addr && typeof addr === 'object') this._port = addr.port;
-        this.server.on('connection', (socket) => this.handleInbound(socket));
+        server.on('connection', (socket) => this.handleInbound(socket));
+        // Star mode: after server is up, dial the phone so it receives the offer
+        // (which includes our server IP+port so the phone can dial back).
+        if (this.phoneTarget) {
+          this.connectTo(this.phoneTarget.ip, this.phoneTarget.port).catch(() => {});
+        }
         resolve();
       };
-      this.server.once('error', onError);
-      this.server.once('listening', onListening);
-      this.server.listen(this._port, '0.0.0.0');
+      server.once('error', onError);
+      server.once('listening', onListening);
+      server.listen(this._port, '0.0.0.0');
     });
   }
 
@@ -107,12 +122,21 @@ export class TcpSignaledWrtcPeer implements BasePeer {
       }, timeoutMs);
 
       const kp = generateKeyPair();
+      // In star mode (dialing the phone), include peerId in handshake so the phone
+      // can register this peer and potentially route answers back.
+      const handshake: Record<string, unknown> = { type: 'handshake-init', pub: encodeBase64(kp.publicKey) };
+      if (this.phoneTarget) handshake['userId'] = this.peerId;
+
       const socket = net.createConnection({ host, port }, () => {
-        socket.write(
-          JSON.stringify({ type: 'handshake-init', pub: encodeBase64(kp.publicKey) }) + '\n',
-        );
+        socket.write(JSON.stringify(handshake) + '\n');
       });
       let buf = '';
+
+      // Choose send and receive format based on mode:
+      // - star mode (phoneTarget set): use app-native SignalingMessage format so the phone's
+      //   SignalingService can route and process the offer/candidates correctly.
+      // - pair mode: use stress-test's TcpSignalPayload format (peers-only loop).
+      const isStarMode = !!this.phoneTarget;
 
       socket.on('data', (raw) => {
         buf += raw.toString('utf8');
@@ -126,6 +150,9 @@ export class TcpSignaledWrtcPeer implements BasePeer {
               const sharedKey = computeSharedKey(kp.secretKey, parsePublicKey(frame['pub'] as string));
               this.clientSocket = socket;
               this.clientSharedKey = sharedKey;
+              const sendFn = isStarMode
+                ? (msg: SignalMessage) => this.sendAppFormatViaClient(msg)
+                : (msg: SignalMessage) => this.sendViaClient(msg);
               this.createPc(
                 (elapsed) => {
                   if (settled) return;
@@ -144,11 +171,15 @@ export class TcpSignaledWrtcPeer implements BasePeer {
                   resolve();
                 },
                 startMs,
-                (msg) => this.sendViaClient(msg),
+                sendFn,
               );
             } else if (frame['type'] === 'encrypted' && this.clientSharedKey) {
               const msg = decryptMessage(this.clientSharedKey, frame as unknown as EncryptedEnvelope);
-              if (isTcpSignalPayload(msg)) this.receiveSignal(msg.signal);
+              if (isStarMode) {
+                this.receiveAppFormatSignal(msg);
+              } else if (isTcpSignalPayload(msg)) {
+                this.receiveSignal(msg.signal);
+              }
             }
           } catch { /* ignore malformed frames */ }
         }
@@ -195,7 +226,12 @@ export class TcpSignaledWrtcPeer implements BasePeer {
             this.serverHandshakeDone = true;
           } else if (frame['type'] === 'encrypted' && this.serverSharedKey) {
             const msg = decryptMessage(this.serverSharedKey, frame as unknown as EncryptedEnvelope);
-            if (isTcpSignalPayload(msg)) {
+            if (this.phoneTarget) {
+              // Star mode: the phone's answer/ICE arrives in app-native format over
+              // the callback TCP connection it dialed back to us on.
+              this.receiveAppFormatSignal(msg);
+            } else if (isTcpSignalPayload(msg)) {
+              // Pair mode: peer-to-peer stress-test format.
               if (!this.pc) {
                 iceStartMs = Date.now();
                 this.createPc(
@@ -309,6 +345,61 @@ export class TcpSignaledWrtcPeer implements BasePeer {
     } catch { /* socket closed */ }
   }
 
+  // Sends in the app's native SignalingMessage format so the phone's SignalingService
+  // can route the offer/candidate correctly (checks `data.to === userStore.user.id`).
+  private sendAppFormatViaClient(msg: SignalMessage): void {
+    if (!this.clientSocket || !this.clientSharedKey || !this.phoneTarget) return;
+    let payload: Record<string, unknown>;
+    if (msg.type === 'candidate') {
+      payload = {
+        type: 'ice-candidate',
+        data: {
+          to: this.phoneTarget.userId,
+          sender: this.peerId,
+          candidate: { candidate: msg.candidate, sdpMid: msg.mid, sdpMLineIndex: 0 },
+          ipAddress: this.phoneTarget.myIp,
+          port: this._port,
+        },
+      };
+    } else {
+      payload = {
+        type: msg.type,
+        data: {
+          to: this.phoneTarget.userId,
+          sender: this.peerId,
+          sdp: { type: msg.type, sdp: msg.sdp },
+          ipAddress: this.phoneTarget.myIp,
+          port: this._port,
+        },
+      };
+    }
+    try {
+      const envelope = encryptMessage(this.clientSharedKey, payload);
+      this.clientSocket.write(JSON.stringify(envelope) + '\n');
+    } catch { /* socket closed */ }
+  }
+
+  // Parses the app's native SignalingMessage format from the phone (answer/ice-candidate).
+  private receiveAppFormatSignal(msg: unknown): void {
+    if (typeof msg !== 'object' || msg === null) return;
+    const m = msg as Record<string, unknown>;
+    const type = m['type'] as string | undefined;
+    const data = m['data'] as Record<string, unknown> | undefined;
+    if (!data) return;
+    if (type === 'answer') {
+      const sdpObj = data['sdp'] as Record<string, unknown> | string | undefined;
+      const sdpStr =
+        typeof sdpObj === 'string' ? sdpObj :
+        typeof sdpObj === 'object' && sdpObj !== null ? String(sdpObj['sdp'] ?? '') : '';
+      if (sdpStr && this.pc) this.pc.setRemoteDescription(sdpStr, 'answer');
+    } else if (type === 'ice-candidate') {
+      const cand = data['candidate'] as Record<string, unknown> | undefined;
+      if (cand?.['candidate'] && this.pc) {
+        this.pc.addRemoteCandidate(String(cand['candidate']), String(cand['sdpMid'] ?? '0'));
+      }
+    }
+  }
+
   private setupDataChannel(dc: DataChannel): void {
     this.dc = dc;
     dc.onMessage((msg: string | ArrayBuffer | Buffer) => {
@@ -366,10 +457,10 @@ export class TcpSignaledWrtcPeer implements BasePeer {
 
     if (this.videoTrack) {
       const bitrate = this.config.media?.bitrate ?? 1000;
-      const bytesPerFrame = Math.floor((bitrate * 1000) / 8 / 30);
+      const avgBytesPerFrame = Math.floor((bitrate * 1000) / 8 / 30);
       this.videoTimer = setInterval(() => {
         try {
-          const packet = buildVideoRtpPacket(this.videoSeq++, this.videoTimestamp, this.videoSsrc, bytesPerFrame);
+          const packet = buildVideoRtpPacket(this.videoSeq++, this.videoTimestamp, this.videoSsrc, avgBytesPerFrame, this.videoFrameIndex++);
           this.videoTimestamp += 3000;
           const ok = this.videoTrack?.sendMessageBinary(packet) ?? false;
           if (ok) { this.metrics.rtpPacketsSent++; this.collector.recordRtpSent(this.peerId); }
@@ -400,10 +491,12 @@ export class TcpSignaledWrtcPeer implements BasePeer {
     this.pc = null;
     this.clientSocket?.destroy();
     this.serverSocket?.destroy();
-    await Promise.race([
-      new Promise<void>((res) => this.server.close(() => res())),
-      new Promise<void>((res) => setTimeout(res, 500)),
-    ]);
+    if (this.server) {
+      await Promise.race([
+        new Promise<void>((res) => this.server!.close(() => res())),
+        new Promise<void>((res) => setTimeout(res, 500)),
+      ]);
+    }
   }
 
   getMetrics(): PeerMetrics {

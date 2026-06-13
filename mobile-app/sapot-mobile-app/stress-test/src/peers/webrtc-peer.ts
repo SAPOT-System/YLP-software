@@ -29,6 +29,7 @@ export class WrtcPeer implements BasePeer {
   private videoTimer: NodeJS.Timeout | null = null;
   private videoSeq = 0;
   private videoTimestamp = 0;
+  private videoFrameIndex = 0;
   private readonly videoSsrc = Math.floor(Math.random() * 0xffffffff);
 
   constructor(
@@ -200,14 +201,15 @@ export class WrtcPeer implements BasePeer {
 
     if (this.videoTrack) {
       const bitrate = this.config.media?.bitrate ?? 1000;
-      const bytesPerFrame = Math.floor((bitrate * 1000) / 8 / 30);
+      const avgBytesPerFrame = Math.floor((bitrate * 1000) / 8 / 30);
       this.videoTimer = setInterval(() => {
         try {
           const packet = buildVideoRtpPacket(
             this.videoSeq++,
             this.videoTimestamp,
             this.videoSsrc,
-            bytesPerFrame,
+            avgBytesPerFrame,
+            this.videoFrameIndex++,
           );
           this.videoTimestamp += 3000;
           const ok = this.videoTrack?.sendMessageBinary(packet) ?? false;
