@@ -25,21 +25,9 @@ This tool runs four kinds of tests. Pick one based on what you want to measure �
 
 | You want to test... | Use mode | Config file | Need the phone? | What it measures |
 |---|---|---|---|---|
-| **Canonical local-network test** — real discovery + concurrent sessions against the phone | `tcp-signaled` (star) | `stress-test.tcp-star.config.json` | ✅ Yes — preview build + USB adb | Phone-real: discovery completeness/latency, concurrent-session count. Peer-side WebRTC uses libdatachannel (not phone-representative). |
-| Raw app networking over the same WiFi (chat relay) | `lan` | `stress-test.config.json` | ✅ Yes — Android + USB | LAN TCP throughput + loss |
-| App networking through the internet server (chat relay) | `ws` | `stress-test.config.json` | ✅ Yes — Android + USB | Server relay throughput |
-| Both LAN and WS back-to-back | `both` | `stress-test.config.json` | ✅ Yes | Both of the above |
-| Peer-to-peer voice/video engine only, laptop-only | `webrtc` | `stress-test.config.json` | ❌ No phone | WebRTC data channel + media |
-| Protocol/CPU smoke test — NaCl+WebRTC over loopback | `tcp-signaled` (pair) | `stress-test.tcp-signaled.config.json` | ❌ No phone | Encryption and WebRTC CPU load on the laptop. Not a local-network result. |
-| Server-signaling test (FastAPI relay) | `ws-signaled` | `stress-test.ws-signaled.config.json` | ❌ No phone | Gunicorn/WebSocket relay throughput. Not a local-network result. |
+| **Canonical local-network test** — real discovery + concurrent sessions against the phone | `tcp-signaled` (star) | `stress-test.config.json` | ✅ Yes — preview build + USB adb | Phone-real: discovery completeness/latency, concurrent-session count. Peer-side WebRTC uses libdatachannel (not phone-representative). |
+| Server-signaling test (FastAPI relay) | `ws-signaled` | `stress-test.config.json` | ❌ No phone | Gunicorn/WebSocket relay throughput. Not a local-network result. |
 
-**First time? Run the `webrtc` test first.** It needs nothing but your laptop and proves the tool itself works before you wrestle with phone, WiFi, and firewall setup. Then move on to the canonical local-network test.
-
-> The mode comes from the `"mode"` field in the config file (or `--mode` on the command line). **The shipped default (`stress-test.config.json`) is `webrtc` — laptop-only, the phone is never used.**
-
-**Everything about phone state, ADB, and firewall ports below applies only to phone tests. The `webrtc`, `tcp-signaled` (pair), and `ws-signaled` tests skip all of it.**
-
----
 
 ## Canonical Local-Network Test — Quickstart
 
@@ -57,7 +45,7 @@ adb devices
 #    "hostIp": "192.168.1.23"   ← replace with: ip addr show wlan0 | grep 'inet '
 
 # 4. Run the canonical test (phone fields are auto-discovered via adb logcat)
-npx ts-node src/runner.ts --config stress-test.tcp-star.config.json
+npx ts-node src/runner.ts --config verify-stress-test.config.json
 ```
 
 The runner automatically scrapes the phone's TCP port, userId, and WiFi IP from `adb logcat` and `adb shell ip addr show wlan0`. You do not need to enter `phoneIp`, `phonePort`, or `phoneUserId` manually.
@@ -136,8 +124,8 @@ For phone tests (`lan` / `ws` / `both`), open `stress-test/stress-test.config.js
 ```json
 {
   "lan": {
-    "hostIp": "192.168.1.100",        ← change to YOUR laptop's IP on the WiFi
-    "iperfTargetIp": "192.168.1.2"    ← host running `iperf3 -s` (defaults to hostIp if omitted)
+    "hostIp": "192.168.1.101",        ← change to YOUR laptop's IP on the WiFi
+    "iperfTargetIp": "192.168.1.2",    ← host running `iperf3 -s` (defaults to hostIp if omitted). Warning: this is not the laptop IP, this is phone or another laptop
   },
   "ws": {
     "serverUrl": "https://192.168.1.100"   ← change to the server's IP (https, no port; also the iperf target)
@@ -206,7 +194,7 @@ The first two octets (e.g. `192.168`) must match your laptop's IP.
 ### Step 4 — (WS mode only) Confirm the server is reachable
 
 ```bash
-curl https://<SERVER_IP>/health
+curl -k https://<SERVER_IP>/health
 # expected: {"status": "ok"} or similar 200 response
 ```
 
@@ -225,7 +213,7 @@ If this hangs or prints `unable to connect`, the iperf server isn't running or a
 
 This is the fastest way to confirm everything works end-to-end before committing to a full run. Each smoke test runs **2 fake peers** for 20 seconds and should show ~100% delivery (or `2/2` connected for WebRTC). **Run only the one for the mode you plan to use** — but a green smoke test for every mode confirms the whole tool is healthy.
 
-All four commands below pass `--config verify-stress-test.config.json` — a dedicated, pre-built config for this step. **You don't edit your main `stress-test.config.json` at all.** The shipped file already contains a single 2-peer phase (2 is the minimum, and WebRTC requires an **even** number since it connects peers in pairs) plus `iperfLoadMbps`, so the LAN/WS smoke tests also confirm the iperf path. `--mode` on the command line overrides the file's `mode`, so the same file works for all four runs:
+All four commands below pass `--config verify-stress-test.config.json` — a dedicated, pre-built config for this step. **You don't edit your main `stress-test.config.json` at all.** The shipped file already contains a single 2-peer phase (2 is the minimum, and WebRTC requires an **even** number since it connects peers in pairs), so the LAN/WS smoke tests also confirm the iperf path. `--mode` on the command line overrides the file's `mode`, so the same file works for all four runs:
 
 ```json
 "phases": [{ "peerCount": 2, "msgPerSec": 1, "durationSec": 20, "iperfLoadMbps": 50 }]
@@ -233,40 +221,13 @@ All four commands below pass `--config verify-stress-test.config.json` — a ded
 
 Before a LAN/WS smoke test, set `lan.iperfTargetIp` (LAN) / `ws.serverUrl` (WS) in `verify-stress-test.config.json` to match your network, and confirm its `lan.hostIp` is your laptop IP.
 
-**1. WebRTC — no phone (do this one first):**
-```bash
-npx ts-node src/runner.ts --mode webrtc --config verify-stress-test.config.json
-```
-Success = a **WebRTC Connections** block reporting `2/2` peers connected. If you see that, the tool itself works.
-
-**2. LAN — requires the phone:**
-```bash
-npx ts-node src/runner.ts --mode lan --host-ip <YOUR_LAPTOP_IP> --config verify-stress-test.config.json
-```
-Success = row `lan-peers2-msg1` at `100.0%` delivered.
-
-**3. WS / server — requires the phone, a running server, and seeded accounts:**
-```bash
-NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode ws --server-url https://192.168.1.23 --config verify-stress-test.config.json
-```
-Success = row `ws-peers2-msg1` at `100.0%` delivered. If you see `Login failed for stress_peer_0`, seed the test accounts first (Setup step 4).
-
-**4. Both — runs LAN then WS back-to-back:**
-```bash
-NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode both \
-  --host-ip <YOUR_LAPTOP_IP> \
-  --server-url https://<SERVER_IP> \
-  --config verify-stress-test.config.json
-```
-Success = both `lan-peers2-msg1` and `ws-peers2-msg1` rows at `100.0%`. Confirms both phone paths in one pass.
-
-**5. TCP-signaled — laptop-only, real NaCl signaling path:**
+**1. TCP-signaled — laptop-only, real NaCl signaling path:**
 ```bash
 npx ts-node src/runner.ts --mode tcp-signaled --config verify-stress-test.config.json
 ```
 Success = a **WebRTC Connections** block reporting `2/2` peers connected (or more depending on `peerCount`). Confirms the ECDH handshake and encrypted signaling path works.
 
-**6. WS-signaled — laptop-only, server relay signaling path:**
+**2. WS-signaled — laptop-only, server relay signaling path:**
 ```bash
 NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode ws-signaled --config verify-stress-test.config.json
 ```
@@ -297,49 +258,10 @@ lan-peers2-msg1        |     2 |     1 |    100.0% |       0 | <50ms| <100ms
 
 Run all commands from inside the `stress-test/` folder.
 
-### LAN mode (direct WiFi, no server needed)
-
-```bash
-npx ts-node src/runner.ts --mode lan --host-ip <YOUR_LAPTOP_IP>
-```
-
-What happens: The laptop advertises fake users on the local network. The Sapot app on the phone discovers them automatically (same way it finds real users) and connects. Each fake user sends encrypted messages at increasing rates.
-
-### Server mode (relay through FastAPI)
-
-```bash
-NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode ws --server-url https://<SERVER_IP>
-```
-
-`NODE_EXTRA_CA_CERTS` is **required** for `ws` (and `both`) mode — it points Node at the server's CA/self-signed certificate so the HTTPS/WSS connection can be verified. Omit it and login fails with a TLS error.
-
-What happens: Fake users log in to the server and send messages through it, exactly like real Sapot users would when not on the same WiFi.
-
-### Both modes in sequence
-
-```bash
-NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode both \
-  --host-ip <YOUR_LAPTOP_IP> \
-  --server-url https://<SERVER_IP>
-```
-
-> `both` runs WS as one of its phases, so `NODE_EXTRA_CA_CERTS` is required here too.
-
-### WebRTC mode (peer-to-peer, laptop-only)
-
-```bash
-npx ts-node src/runner.ts --mode webrtc --config stress-test.config.json
-```
-
-What happens: This mode does **not** involve the phone. It spins up pairs of simulated peers entirely on the laptop (via `node-datachannel`), wires their signaling **in-process** (no network hop for the SDP/ICE exchange), and establishes real `RTCPeerConnection`s between each pair. It measures ICE establishment time, `RTCDataChannel` chat latency, and — when `webrtc.media` is configured — synthetic RTP audio/video track load. Use it to stress the WebRTC connection-formation and media path itself, isolated from any transport variability.
-
-- `peerCount` **must be even** (peers connect in pairs). The validator rejects odd counts in webrtc mode.
-- The report adds a **WebRTC Connections** block showing pairs attempted, peers connected (`connected/total`), peers timed out, and ICE establish p50/p95/max. A **Call (media track)** block (RTP packets sent/lost, media establish p95) appears only when `media` is configured.
-
 ### TCP-signaled WebRTC mode (laptop-only, real LAN signaling path)
 
 ```bash
-npx ts-node src/runner.ts --mode tcp-signaled --config stress-test.tcp-signaled.config.json
+npx ts-node src/runner.ts --mode tcp-signaled --config stress-test.config.json
 ```
 
 What happens: Like `webrtc`, this mode runs entirely on the laptop — no phone involved. Unlike `webrtc`, SDP offers/answers and ICE candidates are exchanged over real loopback TCP sockets using **exactly the same NaCl-encrypted framing the Sapot app uses** (ECDH handshake, `EncryptedEnvelope` frames). Each even-indexed peer is the offerer; it connects to the odd-indexed peer's TCP server. ICE then negotiates the WebRTC data channel over loopback.
@@ -353,7 +275,7 @@ Use this mode when you want to measure the overhead of the real signaling encryp
 ### WS-signaled WebRTC mode (laptop-only, server relay signaling path)
 
 ```bash
-NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode ws-signaled --config stress-test.ws-signaled.config.json
+NODE_EXTRA_CA_CERTS=/path/to/server.crt npx ts-node src/runner.ts --mode ws-signaled --config stress-test.config.json
 ```
 
 What happens: Peers authenticate with the FastAPI server (same JWT flow as `ws` mode), open a WebSocket, and exchange SDP/ICE signals **through the server relay** — the same path the Sapot app uses for WebRTC signaling when peers are not on the same LAN. `NODE_EXTRA_CA_CERTS` is required when the server uses a self-signed certificate.
@@ -364,32 +286,10 @@ Use this mode to measure the end-to-end WebRTC connection-formation time when si
 - `peerCount` **must be even**. Seed the test accounts first (Setup step 4) if you haven't already.
 - Use `stress-test.ws-signaled.config.json` as a starting point; update `ws.serverUrl` and `ws.password`.
 
-### Override individual settings without editing the config
-
-```bash
-npx ts-node src/runner.ts --mode lan --host-ip 192.168.1.50 --output-dir ./my-results
-```
-
----
 
 ## Measuring Raw Link Load with iperf
 
 The delivery/latency metrics above measure the **app's** signaling behavior. Alongside them, the runner measures how the underlying **network link** holds up under heavy traffic — independent of the app — by driving [`iperf3`](https://iperf.fr/), the standard network-throughput tool. `iperf3` is a required dependency for LAN and WS runs: install it on the laptop and keep an `iperf3 -s` server running at the target IP (see [Prerequisites](#prerequisites)).
-
-**How it's driven:** every phase carries an `iperfLoadMbps` field. In `lan`/`ws` modes the iperf target is derived automatically; in `webrtc` mode it runs only when you also set `webrtc.iperfTargetIp` (there is otherwise no network target for the laptop-only loopback peers):
-
-```json
-"phases": [
-  { "peerCount": 10, "msgPerSec": 50, "durationSec": 20, "iperfLoadMbps": 100 },
-  { "peerCount": 20, "msgPerSec": 50, "durationSec": 20, "iperfLoadMbps": 200 }
-]
-```
-
-A ready-made example lives in `stress-test.iperf.json`:
-
-```bash
-npx ts-node src/runner.ts --mode lan --config stress-test.iperf.json
-```
 
 **Two stages.** The link is measured in two stages so you can separate the link's healthy capacity from how the stress traffic degrades it:
 
@@ -410,9 +310,6 @@ After the run, a **`iperf: BASELINE vs UNDER-LOAD`** block prints each phase's b
 
 | Mode | iperf target |
 |---|---|
-| `lan` | `lan.iperfTargetIp` if set, otherwise `lan.hostIp` |
-| `ws` | the hostname parsed from `ws.serverUrl` |
-| `webrtc` | `webrtc.iperfTargetIp` if set, otherwise not run (no target) |
 | `tcp-signaled` | `lan.iperfTargetIp` if set, otherwise `lan.hostIp` |
 | `ws-signaled` | the hostname parsed from `ws.serverUrl` |
 
@@ -421,8 +318,6 @@ After the run, a **`iperf: BASELINE vs UNDER-LOAD`** block prints each phase's b
 - The `iperf3` binary must be installed on the laptop (`iperf3 --version`).
 - An `iperf3` **server** must be listening at the target IP — start it there with `iperf3 -s` before the run.
 - If either is missing, iperf cannot measure the link: it logs `[iperf] Failed to start …`, the iperf columns show `-`, and you lose the link-level numbers (the app metrics still print, but the run is incomplete). Each measurement has a safety timeout (the baseline window plus a 10 s grace for stage 1; a 10 s grace after the phase ends for stage 2).
-
-> **Note — `iperfLoadMbps` is a label, not a throttle.** The number you set is used only to name the phase (e.g. `lan-peers10-msg50-iperf100M`). The actual iperf client always runs at unlimited bitrate (`-b 0`), so the value does **not** cap or set the offered load. Use distinct numbers per phase mainly to label them in the results.
 
 When at least one phase produced iperf data, three extra columns appear in the results table — `iMbps` (iperf throughput), `iLoss%` (iperf packet loss), and `iJitter` (iperf jitter) — and the saturation analysis prefers iperf's loss figure over the process-level estimate when flagging packet-loss thresholds.
 

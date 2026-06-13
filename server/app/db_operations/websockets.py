@@ -126,7 +126,6 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
         
     if manager.active_connections.get(target_id):
         try:
-            print("here success")
             await manager.send_personal_message(target_id, message)
         except:
             print("here failed", payload)

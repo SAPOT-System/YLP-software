@@ -1,4 +1,12 @@
-import { buildWsUrl, buildChatMessage, isServerAck, isPong, buildWsSignalMessage, isWsSignalMessage } from '@/protocol/ws-protocol';
+import {
+  buildWsUrl,
+  buildChatMessage,
+  isServerAck,
+  isPong,
+  buildServerSignalMessage,
+  isServerSignalMessage,
+  serverSignalToInternal,
+} from '@/protocol/ws-protocol';
 
 describe('ws-protocol', () => {
   it('buildWsUrl constructs correct websocket URL', () => {
@@ -29,26 +37,45 @@ describe('ws-protocol', () => {
   });
 });
 
-describe('WsSignalMessage', () => {
-  it('buildWsSignalMessage produces correct shape', () => {
-    const msg = buildWsSignalMessage('user-a', 'user-b', { type: 'offer', sdp: 'v=0\r\n' });
-    expect(msg.type).toBe('signal');
-    expect(msg.data.from).toBe('user-a');
+describe('ServerSignalMessage', () => {
+  it('buildServerSignalMessage produces offer in server format', () => {
+    const msg = buildServerSignalMessage('user-a', 'user-b', { type: 'offer', sdp: 'v=0\r\n' });
+    expect(msg.type).toBe('offer');
+    expect(msg.data.sender).toBe('user-a');
     expect(msg.data.to).toBe('user-b');
-    expect(msg.data.signal).toEqual({ type: 'offer', sdp: 'v=0\r\n' });
+    expect(msg.data.sdp).toEqual({ type: 'offer', sdp: 'v=0\r\n' });
+    expect(msg.data.candidate).toBeUndefined();
   });
 
-  it('isWsSignalMessage returns true for valid signal message', () => {
-    const msg = buildWsSignalMessage('a', 'b', { type: 'candidate', candidate: 'c', mid: '0' });
-    expect(isWsSignalMessage(msg)).toBe(true);
+  it('buildServerSignalMessage produces ice-candidate in server format', () => {
+    const msg = buildServerSignalMessage('a', 'b', { type: 'candidate', candidate: 'cand', mid: '0' });
+    expect(msg.type).toBe('ice-candidate');
+    expect(msg.data.candidate).toEqual({ candidate: 'cand', sdpMid: '0' });
+    expect(msg.data.sdp).toBeUndefined();
   });
 
-  it('isWsSignalMessage returns false for chat message', () => {
-    expect(isWsSignalMessage({ type: 'chat', data: { from: 'a', to: 'b' } })).toBe(false);
+  it('isServerSignalMessage returns true for offer/answer/ice-candidate with sender', () => {
+    const offer = buildServerSignalMessage('a', 'b', { type: 'offer', sdp: 'v=0\r\n' });
+    expect(isServerSignalMessage(offer)).toBe(true);
+    const ice = buildServerSignalMessage('a', 'b', { type: 'candidate', candidate: 'c', mid: '0' });
+    expect(isServerSignalMessage(ice)).toBe(true);
   });
 
-  it('isWsSignalMessage returns false for non-objects', () => {
-    expect(isWsSignalMessage(null)).toBe(false);
-    expect(isWsSignalMessage('signal')).toBe(false);
+  it('isServerSignalMessage returns false for chat and non-signal types', () => {
+    expect(isServerSignalMessage({ type: 'chat', data: { sender: 'a', to: 'b' } })).toBe(false);
+    expect(isServerSignalMessage({ type: 'signal', data: { from: 'a', to: 'b' } })).toBe(false);
+    expect(isServerSignalMessage(null)).toBe(false);
+  });
+
+  it('serverSignalToInternal converts offer back to internal format', () => {
+    const server = buildServerSignalMessage('a', 'b', { type: 'offer', sdp: 'v=0\r\n' });
+    const internal = serverSignalToInternal(server);
+    expect(internal).toEqual({ type: 'offer', sdp: 'v=0\r\n' });
+  });
+
+  it('serverSignalToInternal converts ice-candidate back to internal format', () => {
+    const server = buildServerSignalMessage('a', 'b', { type: 'candidate', candidate: 'cand', mid: '1' });
+    const internal = serverSignalToInternal(server);
+    expect(internal).toEqual({ type: 'candidate', candidate: 'cand', mid: '1' });
   });
 });

@@ -1,11 +1,19 @@
 #!/bin/bash
+set -euo pipefail
 
-APP_VENV=/home/adamskieee/Documents/dev/YLP-software/.claude/worktrees/feat-stress-test/server/app/venv
+# cd to script's own directory so `app.main:app` is always importable
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-uv venv "$APP_VENV"
+APP_VENV="$SCRIPT_DIR/app/venv"
+LOGS_DIR="$SCRIPT_DIR/logs"
+mkdir -p "$LOGS_DIR"
+
+[ -d "$APP_VENV" ] || uv venv "$APP_VENV"
 uv pip install --python "$APP_VENV/bin/python" \
-  -r /home/adamskieee/Documents/dev/YLP-software/.claude/worktrees/feat-stress-test/server/app/requirements.txt
-uv run "$APP_VENV/bin/gunicorn" app.main:app \
+  -r "$SCRIPT_DIR/app/requirements.txt"
+
+exec "$APP_VENV/bin/gunicorn" app.main:app \
   -k uvicorn.workers.UvicornWorker \
   -w 5 \
   -b 127.0.0.1:8000 \
@@ -14,5 +22,5 @@ uv run "$APP_VENV/bin/gunicorn" app.main:app \
   --worker-connections 200 \
   --max-requests 1000 \
   --max-requests-jitter 100 \
-  --access-logfile ../logs/gunicorn-access.log \
-  --error-logfile ../logs/gunicorn-error.log
+  --access-logfile "$LOGS_DIR/gunicorn-access.log" \
+  --error-logfile "$LOGS_DIR/gunicorn-error.log"

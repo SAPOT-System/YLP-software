@@ -13,7 +13,7 @@ program
   .name('stress-test')
   .description('Sapot LAN + WebSocket + WebRTC stress tester')
   .option('-c, --config <path>', 'path to config JSON', './stress-test.config.json')
-  .option('--mode <mode>', 'override mode: lan | ws | both | webrtc')
+  .option('--mode <mode>', 'override mode: lan | ws | both | webrtc | tcp-signaled | ws-signaled')
   .option('--host-ip <ip>', 'override LAN host IP')
   .option('--server-url <url>', 'override WS server URL')
   .option('--output-dir <dir>', 'override output directory', './stress-results')
@@ -51,11 +51,21 @@ program
     });
 
     console.log(`Starting stress test — mode: ${config.mode} | phases: ${config.phases.length}`);
-    const results = await orchestrator.run();
+    try {
+      const results = await orchestrator.run();
 
-    console.log('\n\n=== RESULTS ===');
-    console.log(formatTable(results));
-    writeResults(config.outputDir, config.mode, results);
+      console.log('\n\n=== RESULTS ===');
+      console.log(formatTable(results));
+      writeResults(config.outputDir, config.mode, results);
+    } catch (e) {
+      console.error(`Stress test failed: ${(e as Error).message}`);
+      process.exit(1);
+    }
+
+    // Force exit: the mDNS responder (@homebridge/ciao) and other native
+    // handles keep the event loop alive, so the process would otherwise hang
+    // after finishing — leaking bound ports and blocking the next run.
+    process.exit(0);
   });
 
 program.parse(process.argv);

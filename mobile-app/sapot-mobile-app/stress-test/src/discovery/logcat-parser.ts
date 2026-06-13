@@ -18,7 +18,9 @@ export class ParseFailure extends Error {
 
 /** Extracts the TCP listen port from a logcat dump. */
 export function parsePort(logText: string): number | null {
-  const match = logText.match(/network › config constructed[^\n]*"port"\s*:\s*(\d+)/);
+  // react-native-logs puts the metadata object on the next line(s), so we use
+  // [\s\S]{0,200} to cross newlines between the label and the "port" field.
+  const match = logText.match(/network › config constructed[\s\S]{0,200}"port"\s*:\s*(\d+)/);
   if (!match) return null;
   const port = parseInt(match[1], 10);
   return isNaN(port) ? null : port;
@@ -26,10 +28,15 @@ export function parsePort(logText: string): number | null {
 
 /**
  * Extracts the userId from the dev/preview-only beacon line in a logcat dump.
- * The app emits this as: user › beacon {"userId":"<uuid>"}
+ * react-native-logs emits the metadata object on the next line(s), e.g.:
+ *   user | INFO : user › beacon
+ *   {
+ *     "userId": "<uuid>"
+ *   }
  */
 export function parseUserId(logText: string): string | null {
-  const match = logText.match(/user › beacon[^\n]*"userId"\s*:\s*"([^"]+)"/);
+  // [\s\S]{0,200} crosses newlines between the label and the "userId" field.
+  const match = logText.match(/user › beacon[\s\S]{0,200}"userId"\s*:\s*"([^"]+)"/);
   return match ? match[1] : null;
 }
 

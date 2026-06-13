@@ -10,14 +10,32 @@ _CLEANUP_INTERVAL = 20  # run TTL cleanup every N announcement-expiry cycles (~1
 _cleanup_counter = 0
 
 
+def _run_delete(session: Session, label: str, sql: str, **params) -> int:
+    """Run one DELETE in its own transaction. A failure here is isolated so it
+    cannot starve the other cleanup queries; returns affected row count (0 on error)."""
+    try:
+        result = session.exec(text(sql).bindparams(**params))
+        session.commit()
+        return result.rowcount
+    except Exception as e:
+        session.rollback()
+        print(f"[cleanup:{label} Error] {e}")
+        return 0
+
+
 def _run_ttl_cleanup(session: Session, now: datetime) -> None:
     cutoff = now - timedelta(days=7)
-    r1 = session.exec(text("DELETE FROM activitylog WHERE created_at < :cutoff").bindparams(cutoff=cutoff))
-    r2 = session.exec(text("DELETE FROM blacklistedtoken WHERE expires_at < :now").bindparams(now=now))
-    session.commit()
+    removed_logs = _run_delete(
+        session, "activity_logs",
+        "DELETE FROM activity_logs WHERE created_at < :cutoff", cutoff=cutoff,
+    )
+    removed_jtis = _run_delete(
+        session, "blacklistedtoken",
+        "DELETE FROM blacklistedtoken WHERE expires_at < :now", now=now,
+    )
     purge_expired_blacklist_cache()
-    if r1.rowcount or r2.rowcount:
-        print(f"[cleanup] removed {r1.rowcount} activity_logs, {r2.rowcount} expired JTIs")
+    if removed_logs or removed_jtis:
+        print(f"[cleanup] removed {removed_logs} activity_logs, {removed_jtis} expired JTIs")
 
 
 def expire_announcements_loop():

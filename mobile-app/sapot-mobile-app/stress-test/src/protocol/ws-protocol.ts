@@ -72,23 +72,40 @@ export function isPong(msg: unknown): msg is WsPong {
   return (msg as Record<string, unknown>)['type'] === 'pong';
 }
 
-export interface WsSignalMessage {
-  type: 'signal';
+// Server-format signal message — matches the FastAPI SignalMessage / SDPData models.
+// type is the signal type directly ("offer"|"answer"|"ice-candidate"), not a "signal" wrapper.
+// sender/to are user UUID strings. sdp/candidate match SDPData's optional dict fields.
+export interface ServerSignalMessage {
+  type: 'offer' | 'answer' | 'ice-candidate';
   data: {
-    from: string;
+    sender: string;
     to: string;
-    signal: SignalMessage;
+    sdp?: { type: string; sdp: string };
+    candidate?: { candidate: string; sdpMid: string };
   };
 }
 
-export function buildWsSignalMessage(from: string, to: string, signal: SignalMessage): WsSignalMessage {
-  return { type: 'signal', data: { from, to, signal } };
+export function buildServerSignalMessage(from: string, to: string, signal: SignalMessage): ServerSignalMessage {
+  if (signal.type === 'offer' || signal.type === 'answer') {
+    return { type: signal.type, data: { sender: from, to, sdp: { type: signal.type, sdp: signal.sdp } } };
+  }
+  return {
+    type: 'ice-candidate',
+    data: { sender: from, to, candidate: { candidate: signal.candidate, sdpMid: signal.mid } },
+  };
 }
 
-export function isWsSignalMessage(msg: unknown): msg is WsSignalMessage {
+export function isServerSignalMessage(msg: unknown): msg is ServerSignalMessage {
   if (!msg || typeof msg !== 'object') return false;
   const m = msg as Record<string, unknown>;
-  if (m['type'] !== 'signal') return false;
+  if (!['offer', 'answer', 'ice-candidate'].includes(m['type'] as string)) return false;
   const d = m['data'] as Record<string, unknown> | undefined;
-  return typeof d?.['from'] === 'string' && d?.['signal'] != null;
+  return typeof d?.['sender'] === 'string';
+}
+
+export function serverSignalToInternal(msg: ServerSignalMessage): SignalMessage {
+  if (msg.type === 'offer' || msg.type === 'answer') {
+    return { type: msg.type, sdp: msg.data.sdp?.sdp ?? '' };
+  }
+  return { type: 'candidate', candidate: msg.data.candidate?.candidate ?? '', mid: msg.data.candidate?.sdpMid ?? '0' };
 }

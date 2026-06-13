@@ -1,9 +1,25 @@
 import { parsePort, parseUserId, parseIp, parseLogcat, ParseFailure } from '@/discovery/logcat-parser';
 
-// Sample logcat lines as they appear in `adb logcat -v brief` output.
+// Single-line format (older react-native-logs or manually constructed):
 const PORT_LINE = '01-01 12:00:00.000  1234  5678 I ReactNativeJS: network › config constructed {"port":54321}';
 const BEACON_LINE = '01-01 12:00:00.001  1234  5678 I ReactNativeJS: user › beacon {"userId":"abc-123-def-456"}';
 const NOISE_LINE = '01-01 12:00:00.002  1234  5678 I SomeOtherTag: something unrelated happened';
+
+// Multi-line format — what react-native-logs actually emits on device (metadata
+// object on the following lines, as seen in real logcat output):
+const PORT_LINE_MULTILINE = [
+  '01-01 12:00:00.000  1234  5678 I ReactNativeJS:  LOG  network | INFO : network › config constructed',
+  '{',
+  '  "port": 54321',
+  '}',
+].join('\n');
+
+const BEACON_LINE_MULTILINE = [
+  '01-01 12:00:00.001  1234  5678 I ReactNativeJS:  LOG  user | INFO : user › beacon',
+  '{',
+  '  "userId": "abc-123-def-456"',
+  '}',
+].join('\n');
 
 const WLAN0_OUTPUT = `3: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP
     link/ether aa:bb:cc:dd:ee:ff brd ff:ff:ff:ff:ff:ff
@@ -18,12 +34,21 @@ describe('logcat-parser', () => {
       expect(parsePort(PORT_LINE)).toBe(54321);
     });
 
+    it('extracts port from a multi-line react-native-logs format', () => {
+      expect(parsePort(PORT_LINE_MULTILINE)).toBe(54321);
+    });
+
     it('returns null when the port line is absent', () => {
       expect(parsePort(NOISE_LINE)).toBeNull();
     });
 
     it('extracts port when embedded in a multi-line logcat dump', () => {
       const logcat = [NOISE_LINE, PORT_LINE, BEACON_LINE].join('\n');
+      expect(parsePort(logcat)).toBe(54321);
+    });
+
+    it('extracts port from a multi-line logcat dump with multi-line format', () => {
+      const logcat = [NOISE_LINE, PORT_LINE_MULTILINE, BEACON_LINE_MULTILINE].join('\n');
       expect(parsePort(logcat)).toBe(54321);
     });
 
@@ -38,12 +63,21 @@ describe('logcat-parser', () => {
       expect(parseUserId(BEACON_LINE)).toBe('abc-123-def-456');
     });
 
+    it('extracts userId from a multi-line react-native-logs format', () => {
+      expect(parseUserId(BEACON_LINE_MULTILINE)).toBe('abc-123-def-456');
+    });
+
     it('returns null when the beacon line is absent', () => {
       expect(parseUserId(NOISE_LINE)).toBeNull();
     });
 
     it('extracts userId from a multi-line logcat dump', () => {
       const logcat = [PORT_LINE, BEACON_LINE, NOISE_LINE].join('\n');
+      expect(parseUserId(logcat)).toBe('abc-123-def-456');
+    });
+
+    it('extracts userId from a multi-line logcat dump with multi-line format', () => {
+      const logcat = [PORT_LINE_MULTILINE, BEACON_LINE_MULTILINE, NOISE_LINE].join('\n');
       expect(parseUserId(logcat)).toBe('abc-123-def-456');
     });
   });

@@ -34,7 +34,7 @@ class ConnectionManager:
             try:
                 await connection.send_json(message)
             except Exception as e:
-                print("EEEE", e)
+                # print("EEEE", e)
                 disconnected_users.append(user_id)
 
         for uid in disconnected_users:
