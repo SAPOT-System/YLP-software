@@ -35,6 +35,7 @@ export interface PhaseStats {
   rtpPacketsSent: number;
   rtpPacketsLost: number;
   mediaEstablishP95Ms: number;
+  dcEstablishP95Ms: number;
   connectedPeers: number;
   // Phone discovery metrics (tcp-signaled star mode only).
   discoveryCompleteness: number;
@@ -59,6 +60,7 @@ export class MetricsCollector {
   private rtpSentCount = 0;
   private rtpLostCount = 0;
   private mediaEstablishSamples: number[] = [];
+  private dcEstablishSamples: number[] = [];
   // peerId → latency of first probe (ms from advertise to probe)
   private discoveryProbes = new Map<string, number>();
 
@@ -98,6 +100,10 @@ export class MetricsCollector {
     this.mediaEstablishSamples.push(ms);
   }
 
+  recordDcEstablish(_peerId: string, ms: number): void {
+    this.dcEstablishSamples.push(ms);
+  }
+
   recordDiscoveryProbe(peerId: string, latencyMs: number): void {
     if (!this.discoveryProbes.has(peerId)) {
       this.discoveryProbes.set(peerId, latencyMs);
@@ -116,6 +122,7 @@ export class MetricsCollector {
     this.rtpSentCount = 0;
     this.rtpLostCount = 0;
     this.mediaEstablishSamples = [];
+    this.dcEstablishSamples = [];
     this.discoveryProbes = new Map();
   }
 
@@ -141,6 +148,7 @@ export class MetricsCollector {
 
     const iceSorted = [...this.iceEstablishSamples].sort((a, b) => a - b);
     const mediaSorted = [...this.mediaEstablishSamples].sort((a, b) => a - b);
+    const dcSorted = [...this.dcEstablishSamples].sort((a, b) => a - b);
     const discoverySorted = [...this.discoveryProbes.values()].sort((a, b) => a - b);
 
     return {
@@ -171,6 +179,7 @@ export class MetricsCollector {
       rtpPacketsSent: this.rtpSentCount,
       rtpPacketsLost: this.rtpLostCount,
       mediaEstablishP95Ms: pct(mediaSorted, 95),
+      dcEstablishP95Ms: pct(dcSorted, 95),
       connectedPeers,
       discoveryCompleteness: peerCount > 0 ? this.discoveryProbes.size / peerCount : 0,
       discoveryP50Ms: pct(discoverySorted, 50),

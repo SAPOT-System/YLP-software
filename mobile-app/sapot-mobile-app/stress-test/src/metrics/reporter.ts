@@ -226,6 +226,7 @@ export function formatWebrtcBlock(stats: PhaseStats): string {
     `  ICE establish p50   : ${stats.iceEstablishP50Ms}ms`,
     `  ICE establish p95   : ${stats.iceEstablishP95Ms}ms`,
     `  ICE establish max   : ${stats.iceEstablishMaxMs}ms`,
+    `  DC open p95         : ${stats.dcEstablishP95Ms}ms`,
     '',
     'Chat (RTCDataChannel)',
     `  sent / acked / dropped  : ${stats.totalSent} / ${stats.totalAcked} / ${stats.droppedCount}`,

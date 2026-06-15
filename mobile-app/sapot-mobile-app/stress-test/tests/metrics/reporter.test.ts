@@ -14,6 +14,7 @@ const fakePhase: PhaseStats = {
   iperfLoad: null,
   iceEstablishP50Ms: 0, iceEstablishP95Ms: 0, iceEstablishMaxMs: 0,
   connectionTimeouts: 0, rtpPacketsSent: 0, rtpPacketsLost: 0, mediaEstablishP95Ms: 0,
+  dcEstablishP95Ms: 0,
   connectedPeers: 5,
   discoveryCompleteness: 0, discoveryP50Ms: 0, discoveryP95Ms: 0,
 };
@@ -267,6 +268,7 @@ describe('reporter', () => {
         rtpPacketsSent: 0,
         rtpPacketsLost: 0,
         mediaEstablishP95Ms: 0,
+        dcEstablishP95Ms: 0,
         connectedPeers: 4,
         discoveryCompleteness: 0,
         discoveryP50Ms: 0,

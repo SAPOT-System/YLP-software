@@ -26,6 +26,7 @@ export class WsStarPeer implements BasePeer {
   private ws?: WebSocket;
   private myUserId?: string;
   private iceStartMs = 0;
+  private connectStartMs = 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pc: any = null;
@@ -106,6 +107,7 @@ export class WsStarPeer implements BasePeer {
       const timeoutMs = this.config.connectionTimeoutMs ?? 15_000;
       let settled = false;
       this.iceStartMs = Date.now();
+      this.connectStartMs = this.iceStartMs;
 
       const timer = setTimeout(() => {
         if (settled) return;
@@ -246,6 +248,11 @@ export class WsStarPeer implements BasePeer {
 
   private setupDataChannel(dc: DataChannel): void {
     this.dc = dc;
+    dc.onOpen(() => {
+      const elapsed = Date.now() - this.connectStartMs;
+      this.metrics.dcEstablishMs.push(elapsed);
+      this.collector.recordDcEstablish(this.peerId, elapsed);
+    });
     dc.onMessage((msg: string | ArrayBuffer | Buffer) => {
       const raw = typeof msg === 'string' ? msg : Buffer.from(msg as ArrayBuffer).toString();
       // Handle ACK if phone responds (it may not for non-app messages).
@@ -265,7 +272,7 @@ export class WsStarPeer implements BasePeer {
     const startMs = Date.now();
     track.onOpen(() => {
       const elapsed = Date.now() - startMs;
-      this.metrics.mediaEstablishMs.push(elapsed);
+      this.metrics.audioEstablishMs.push(elapsed);
       this.collector.recordMediaEstablish(this.peerId, elapsed);
     });
   }
@@ -353,7 +360,10 @@ export class WsStarPeer implements BasePeer {
       ...this.metrics,
       writeLatencySamples: [...this.metrics.writeLatencySamples],
       iceEstablishMs: [...this.metrics.iceEstablishMs],
-      mediaEstablishMs: [...this.metrics.mediaEstablishMs],
+      dcEstablishMs: [...this.metrics.dcEstablishMs],
+      iceStateTransitions: [...this.metrics.iceStateTransitions],
+      audioEstablishMs: [...this.metrics.audioEstablishMs],
+      videoEstablishMs: [...this.metrics.videoEstablishMs],
     };
   }
 }

@@ -4,12 +4,14 @@ export interface PeerMetrics {
   dropped: number;
   writeLatencySamples: number[];
   connectionErrors: number;
-  wsPeakQueueFills: number;
   iceEstablishMs: number[];
   connectionTimeouts: number;
   rtpPacketsSent: number;
   rtpPacketsLost: number;
-  mediaEstablishMs: number[];
+  dcEstablishMs: number[];
+  iceStateTransitions: Array<{ state: string; elapsedMs: number }>;
+  audioEstablishMs: number[];
+  videoEstablishMs: number[];
   connectedAtPhaseEnd: boolean;
 }
 
@@ -30,12 +32,14 @@ export function emptyMetrics(): PeerMetrics {
     dropped: 0,
     writeLatencySamples: [],
     connectionErrors: 0,
-    wsPeakQueueFills: 0,
     iceEstablishMs: [],
     connectionTimeouts: 0,
     rtpPacketsSent: 0,
     rtpPacketsLost: 0,
-    mediaEstablishMs: [],
+    dcEstablishMs: [],
+    iceStateTransitions: [],
+    audioEstablishMs: [],
+    videoEstablishMs: [],
     connectedAtPhaseEnd: false,
   };
 }

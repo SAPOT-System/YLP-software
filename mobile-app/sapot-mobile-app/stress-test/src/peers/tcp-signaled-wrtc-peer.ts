@@ -58,6 +58,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
 
   private sendTimer: NodeJS.Timeout | null = null;
   private seqNo = 0;
+  private connectStartMs = 0;
   private metrics: PeerMetrics = emptyMetrics();
   private mdnsService?: CiaoService;
   private advertiseMs?: number;
@@ -119,7 +120,8 @@ export class TcpSignaledWrtcPeer implements BasePeer {
 
   connectTo(host: string, port: number): Promise<void> {
     return new Promise<void>((resolve) => {
-      const startMs = Date.now();
+      this.connectStartMs = Date.now();
+      const startMs = this.connectStartMs;
       const timeoutMs = this.config.connectionTimeoutMs ?? 15_000;
       let settled = false;
 
@@ -288,6 +290,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
               // Pair mode: peer-to-peer stress-test format.
               if (!this.pc) {
                 iceStartMs = Date.now();
+                this.connectStartMs = iceStartMs;
                 this.createPc(
                   (elapsed) => {
                     this.metrics.iceEstablishMs.push(elapsed);
@@ -463,6 +466,11 @@ export class TcpSignaledWrtcPeer implements BasePeer {
 
   private setupDataChannel(dc: DataChannel): void {
     this.dc = dc;
+    dc.onOpen(() => {
+      const elapsed = Date.now() - this.connectStartMs;
+      this.metrics.dcEstablishMs.push(elapsed);
+      this.collector.recordDcEstablish(this.peerId, elapsed);
+    });
     dc.onMessage((msg: string | ArrayBuffer | Buffer) => {
       const raw = typeof msg === 'string' ? msg : Buffer.from(msg as ArrayBuffer).toString();
       if (raw.startsWith('MSG:')) {
@@ -484,7 +492,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
     const startMs = Date.now();
     track.onOpen(() => {
       const elapsed = Date.now() - startMs;
-      this.metrics.mediaEstablishMs.push(elapsed);
+      this.metrics.audioEstablishMs.push(elapsed);
       this.collector.recordMediaEstablish(this.peerId, elapsed);
     });
   }
@@ -601,7 +609,10 @@ export class TcpSignaledWrtcPeer implements BasePeer {
       ...this.metrics,
       writeLatencySamples: [...this.metrics.writeLatencySamples],
       iceEstablishMs: [...this.metrics.iceEstablishMs],
-      mediaEstablishMs: [...this.metrics.mediaEstablishMs],
+      dcEstablishMs: [...this.metrics.dcEstablishMs],
+      iceStateTransitions: [...this.metrics.iceStateTransitions],
+      audioEstablishMs: [...this.metrics.audioEstablishMs],
+      videoEstablishMs: [...this.metrics.videoEstablishMs],
     };
   }
 }

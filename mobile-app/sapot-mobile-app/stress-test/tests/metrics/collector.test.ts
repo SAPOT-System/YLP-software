@@ -91,12 +91,25 @@ describe('MetricsCollector', () => {
       expect(stats.mediaEstablishP95Ms).toBe(300);
     });
 
+    it('recordDcEstablish is reflected in dcEstablishP95Ms', () => {
+      collector.recordDcEstablish('peer-1', 150);
+      collector.recordDcEstablish('peer-2', 200);
+      const stats = collector.computeStats('phase', 2, 1, 5, 0);
+      expect(stats.dcEstablishP95Ms).toBe(200);
+    });
+
+    it('dcEstablishP95Ms is 0 when no dc establish events recorded', () => {
+      const stats = collector.computeStats('phase', 2, 1, 5, 0);
+      expect(stats.dcEstablishP95Ms).toBe(0);
+    });
+
     it('reset() clears all WebRTC fields', () => {
       collector.recordIceEstablish('peer-1', 100);
       collector.recordConnectionTimeout();
       collector.recordRtpSent('peer-1');
       collector.recordRtpLost('peer-1');
       collector.recordMediaEstablish('peer-1', 200);
+      collector.recordDcEstablish('peer-1', 180);
       collector.reset();
       const stats = collector.computeStats('phase', 2, 1, 5, 0);
       expect(stats.iceEstablishP50Ms).toBe(0);
@@ -104,6 +117,7 @@ describe('MetricsCollector', () => {
       expect(stats.rtpPacketsSent).toBe(0);
       expect(stats.rtpPacketsLost).toBe(0);
       expect(stats.mediaEstablishP95Ms).toBe(0);
+      expect(stats.dcEstablishP95Ms).toBe(0);
     });
 
     it('returns zero WebRTC stats when no WebRTC events recorded', () => {
@@ -113,6 +127,7 @@ describe('MetricsCollector', () => {
       expect(stats.connectionTimeouts).toBe(0);
       expect(stats.rtpPacketsSent).toBe(0);
       expect(stats.mediaEstablishP95Ms).toBe(0);
+      expect(stats.dcEstablishP95Ms).toBe(0);
     });
   });
 

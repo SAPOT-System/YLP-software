@@ -7,7 +7,16 @@ describe('emptyMetrics', () => {
     expect(m.connectionTimeouts).toBe(0);
     expect(m.rtpPacketsSent).toBe(0);
     expect(m.rtpPacketsLost).toBe(0);
-    expect(m.mediaEstablishMs).toEqual([]);
+    expect(m.dcEstablishMs).toEqual([]);
+    expect(m.iceStateTransitions).toEqual([]);
+    expect(m.audioEstablishMs).toEqual([]);
+    expect(m.videoEstablishMs).toEqual([]);
     expect(m.connectedAtPhaseEnd).toBe(false);
+  });
+
+  it('does not include removed fields', () => {
+    const m = emptyMetrics();
+    expect('mediaEstablishMs' in m).toBe(false);
+    expect('wsPeakQueueFills' in m).toBe(false);
   });
 });
