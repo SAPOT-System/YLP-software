@@ -92,7 +92,7 @@ Requires both `lan` and `webrtc` sub-configs. Two sub-modes:
 - `WsSignaledWrtcPeer` / `WsStarPeer` / `TcpSignaledWrtcPeer`: sends `MSG:{seq}:{sentAt}` over an `RTCDataChannel` (`chat`); receiver echoes `ACK:{seq}:{sentAt}`; sender measures round-trip latency from `sentAt`.
 - Metrics → `sent`, `acked`, `dropped`, `writeLatencySamples` → `p50Ms`, `p95Ms`, `p99Ms`, `jitterMs`, `deliveryRate`.
 
-**Audio call** — synthetic Opus RTP stream at 50 pkt/s (every 20ms). Built by `rtp-utils.ts:buildRtpPacket`: 12-byte RTP header (PT=111, 48 kHz clock, timestamp +960/frame) + 3-byte zero payload. Added to the `RTCPeerConnection` as `new Audio('audio', 'SendOnly')` with `addOpusCodec(111)`. `track.onOpen` records `mediaEstablishMs`. Triggered when `webrtc.media.type` is `"audio"` or `"audio-video"`.
+**Audio call** — synthetic Opus RTP stream at 50 pkt/s (every 20ms). Built by `rtp-utils.ts:buildRtpPacket`: 12-byte RTP header (PT=111, 48 kHz clock, timestamp +960/frame) + 32-byte zero payload (44-byte packet total). Added to the `RTCPeerConnection` as `new Audio('audio', 'SendOnly')` with `addOpusCodec(111)`. `track.onOpen` records `mediaEstablishMs`. Triggered when `webrtc.media.type` is `"audio"` or `"audio-video"`.
 
 **Video call** — synthetic H.264 RTP stream at ~30 fps (every 33ms). Built by `rtp-utils.ts:buildVideoRtpPacket`: 12-byte RTP header (PT=96, 90 kHz clock, timestamp +3000/frame) + `(bitrate_kbps × 1000 / 8 / 30)` bytes of zero payload. Added as `new Video('video', 'SendOnly')` with `addH264Codec(96)`. Triggered only by `webrtc.media.type = "audio-video"`.
 

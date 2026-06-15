@@ -121,6 +121,11 @@ export class WsSignaledWrtcPeer implements BasePeer {
       const onMsg = (raw: Buffer | string) => {
         try {
           const msg = JSON.parse(raw.toString());
+          // The server handler for get-active-users sends a bare JSON array of userId strings
+          // with no type wrapper — no other server→peer frame on this socket is array-shaped,
+          // so "first array received" is a correct discriminator.  The colocation loop in the
+          // orchestrator retries on a stale cross-round response, so we tolerate the rare case
+          // where a response from a prior round arrives before this round's answer.
           if (Array.isArray(msg)) {
             clearTimeout(timer);
             this.ws?.off('message', onMsg);
