@@ -43,20 +43,33 @@ const AUTH_TIMEOUT_MS = 10000;
 
 export async function fetchJwt(serverUrl: string, username: string, password: string): Promise<string> {
   const base = serverUrl.replace(/\/+$/, '');
+
+  let clearTimer!: () => void;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const id = setTimeout(
+      () => reject(new Error(`no response within ${AUTH_TIMEOUT_MS}ms`)),
+      AUTH_TIMEOUT_MS,
+    );
+    id.unref();
+    clearTimer = () => clearTimeout(id);
+  });
+
   let res: Response;
   try {
-    res = await fetch(`${base}/auth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ username, password }).toString(),
-      // signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
-    });
+    res = await Promise.race([
+      fetch(`${base}/auth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ username, password }).toString(),
+      }),
+      timeoutPromise,
+    ]);
   } catch (e) {
-    const reason = (e as Error).name === 'TimeoutError'
-      ? `no response within ${AUTH_TIMEOUT_MS}ms`
-      : (e as Error).message;
-    throw new Error(`Auth request to ${base}/auth/token failed: ${reason}`);
+    throw new Error(`Auth request to ${base}/auth/token failed: ${(e as Error).message}`);
+  } finally {
+    clearTimer();
   }
+
   if (!res.ok) throw new Error(`Login failed for ${username}: ${res.status} ${await res.text()}`);
   return ((await res.json()) as { access_token: string }).access_token;
 }

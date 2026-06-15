@@ -6,6 +6,7 @@ import {
   buildServerSignalMessage,
   isServerSignalMessage,
   serverSignalToInternal,
+  fetchJwt,
 } from '@/protocol/ws-protocol';
 
 describe('ws-protocol', () => {
@@ -77,5 +78,65 @@ describe('ServerSignalMessage', () => {
     const server = buildServerSignalMessage('a', 'b', { type: 'candidate', candidate: 'cand', mid: '1' });
     const internal = serverSignalToInternal(server);
     expect(internal).toEqual({ type: 'candidate', candidate: 'cand', mid: '1' });
+  });
+});
+
+describe('fetchJwt', () => {
+  const AUTH_TIMEOUT_MS = 10000;
+
+  beforeEach(() => {
+    jest.spyOn(global, 'fetch');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  it('rejects with timeout message when the server does not respond within the budget', async () => {
+    jest.useFakeTimers();
+    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+
+    const jwtPromise = fetchJwt('http://server', 'user', 'pass');
+
+    // Register the rejection handler before advancing timers so the rejection is never unhandled.
+    await Promise.all([
+      expect(jwtPromise).rejects.toThrow(`no response within ${AUTH_TIMEOUT_MS}ms`),
+      jest.advanceTimersByTimeAsync(AUTH_TIMEOUT_MS + 1),
+    ]);
+  });
+
+  it('calls fetch without a signal option', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ access_token: 'tok123' }),
+    });
+
+    await fetchJwt('http://server', 'user', 'pass');
+
+    const opts = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(opts).not.toHaveProperty('signal');
+  });
+
+  it('resolves with the access token on successful auth', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ access_token: 'tok-abc' }),
+    });
+
+    const token = await fetchJwt('http://server/', 'alice', 'secret');
+    expect(token).toBe('tok-abc');
+  });
+
+  it('leaves no lingering timer after a successful auth', async () => {
+    jest.useFakeTimers();
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ access_token: 'tok-abc' }),
+    });
+
+    await fetchJwt('http://server', 'alice', 'secret');
+    // Advancing past the timeout must not throw — the timer was cleared.
+    await expect(jest.advanceTimersByTimeAsync(AUTH_TIMEOUT_MS + 1)).resolves.not.toThrow();
   });
 });
