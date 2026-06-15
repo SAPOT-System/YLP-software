@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import Constants from "expo-constants";
 import {
   mediaDevices,
   MediaStream,
@@ -8,7 +9,7 @@ import {
   RTCSessionDescription,
 } from "react-native-webrtc";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
-import { WebrtcDataMessage } from "../types";
+import { StressAckMessage, WebrtcDataMessage } from "../types";
 import { webrtcLog } from "../utils/logger";
 
 webrtcLog.debug("[webrtc-adapter] module loaded");
@@ -834,6 +835,20 @@ export class WebrtcAdapter extends EventEmitter {
           if (message?.type === "pong") {
             this.handleLivenessPong();
             return;
+          }
+          // Stress-test echo handler: dev/preview only. Replies with stress-ack
+          // and returns so the frame never reaches ChatService or WatermelonDB.
+          if (message?.type === "stress-echo") {
+            const variant = Constants.expoConfig?.extra?.appVariant as string | undefined;
+            if (variant === "development" || variant === "preview") {
+              try {
+                const ack: StressAckMessage = { type: "stress-ack", seq: message.seq, sentAt: message.sentAt };
+                channel.send(JSON.stringify(ack));
+              } catch (error) {
+                webrtcLog.debug("webrtc › stress-ack send failed", { error });
+              }
+              return;
+            }
           }
           this.emit("receivedMessage", message);
         } catch (error) {

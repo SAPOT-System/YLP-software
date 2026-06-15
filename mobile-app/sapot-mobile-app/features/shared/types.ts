@@ -184,6 +184,11 @@ export type CallControlMessage = {
   data: CallControlData;
 };
 
+/** Dev/preview-only stress test probe — echoed back by the app for round-trip latency measurement. */
+export type StressEchoMessage = { type: "stress-echo"; seq: number; sentAt: number };
+/** Reply sent by the app to a stress-echo frame (dev/preview only). */
+export type StressAckMessage = { type: "stress-ack"; seq: number; sentAt: number };
+
 /**
  * For sent and received message via webrtc
  */
@@ -193,7 +198,9 @@ export type WebrtcDataMessage =
   | SeenMessage
   | CallMessage
   | CallControlMessage
-  | LivenessMessage;
+  | LivenessMessage
+  | StressEchoMessage
+  | StressAckMessage;
 
 /**
  * Application-level liveness probe over the WebRTC data channel. Used to confirm

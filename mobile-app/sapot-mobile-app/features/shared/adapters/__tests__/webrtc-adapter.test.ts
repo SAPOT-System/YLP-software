@@ -4,6 +4,18 @@ import {
 } from "@/test/mocks/adapter.mock-builders";
 import { WebrtcAdapter } from "../webrtc-adapter";
 
+// Allow per-test control of expo-constants appVariant.
+// Variable must start with "mock" so Jest's babel-jest transform allows the
+// hoisted factory to close over it.
+let mockAppVariant: string | undefined = "production";
+
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  get default() {
+    return { expoConfig: { extra: { appVariant: mockAppVariant } } };
+  },
+}));
+
 
 jest.mock("react-native-webrtc", () => ({
   RTCPeerConnection: jest.fn(),
@@ -273,6 +285,117 @@ describe("WebrtcAdapter", () => {
       mockChannel.send.mockClear();
       jest.advanceTimersByTime(20000);
       expect(mockChannel.send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("stress-echo handling", () => {
+    type MockChannel = {
+      onopen: (() => void) | null;
+      onmessage: ((e: { data: string }) => void) | null;
+      onerror: ((e: unknown) => void) | null;
+      onclose: (() => void) | null;
+      readyState: string;
+      send: jest.Mock;
+      close: jest.Mock;
+    };
+    let mockChannel: MockChannel;
+    let a: WebrtcAdapter;
+
+    const echoFrame = JSON.stringify({ type: "stress-echo", seq: 7, sentAt: 1000 });
+
+    function mountWithChannel() {
+      jest.useFakeTimers();
+      mockChannel = {
+        onopen: null,
+        onmessage: null,
+        onerror: null,
+        onclose: null,
+        readyState: "open",
+        send: jest.fn(),
+        close: jest.fn(),
+      };
+      a = new WebrtcAdapter("peer-stress");
+      a.setDataChannel(mockChannel as unknown as Parameters<typeof a.setDataChannel>[0]);
+      mockChannel.onopen?.();
+      mockChannel.send.mockClear(); // clear pings from liveness start
+    }
+
+    afterEach(() => {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    });
+
+    it("replies with stress-ack in development builds", () => {
+      mockAppVariant = "development";
+      mountWithChannel();
+
+      mockChannel.onmessage?.({ data: echoFrame });
+
+      const sent = mockChannel.send.mock.calls.map(([raw]: [string]) => JSON.parse(raw));
+      expect(sent).toContainEqual({ type: "stress-ack", seq: 7, sentAt: 1000 });
+    });
+
+    it("replies with stress-ack in preview builds", () => {
+      mockAppVariant = "preview";
+      mountWithChannel();
+
+      mockChannel.onmessage?.({ data: echoFrame });
+
+      const sent = mockChannel.send.mock.calls.map(([raw]: [string]) => JSON.parse(raw));
+      expect(sent).toContainEqual({ type: "stress-ack", seq: 7, sentAt: 1000 });
+    });
+
+    it("does not reply in production builds", () => {
+      mockAppVariant = "production";
+      mountWithChannel();
+
+      mockChannel.onmessage?.({ data: echoFrame });
+
+      const sent = mockChannel.send.mock.calls.map(([raw]: [string]) => JSON.parse(raw));
+      expect(sent.some((m: { type: string }) => m.type === "stress-ack")).toBe(false);
+    });
+
+    it("does not emit receivedMessage for stress-echo in dev builds", () => {
+      mockAppVariant = "development";
+      mountWithChannel();
+      const received = jest.fn();
+      a.on("receivedMessage", received);
+
+      mockChannel.onmessage?.({ data: echoFrame });
+
+      expect(received).not.toHaveBeenCalled();
+    });
+
+    it("does not emit receivedMessage for stress-echo in preview builds", () => {
+      mockAppVariant = "preview";
+      mountWithChannel();
+      const received = jest.fn();
+      a.on("receivedMessage", received);
+
+      mockChannel.onmessage?.({ data: echoFrame });
+
+      expect(received).not.toHaveBeenCalled();
+    });
+
+    it("falls through to receivedMessage in production builds", () => {
+      mockAppVariant = "production";
+      mountWithChannel();
+      const received = jest.fn();
+      a.on("receivedMessage", received);
+
+      mockChannel.onmessage?.({ data: echoFrame });
+
+      expect(received).toHaveBeenCalledWith({ type: "stress-echo", seq: 7, sentAt: 1000 });
+    });
+
+    it("catches and logs without throwing when channel is closed on reply", () => {
+      mockAppVariant = "development";
+      mountWithChannel();
+      mockChannel.send.mockImplementation(() => { throw new Error("channel closed"); });
+
+      expect(() => {
+        mockChannel.onmessage?.({ data: echoFrame });
+      }).not.toThrow();
     });
   });
 });
