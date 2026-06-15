@@ -2,6 +2,7 @@ export interface Phase {
   peerCount: number;
   msgPerSec: number;
   durationSec: number;
+  totalMessages?: number;
   runIperf?: boolean;
 }
 

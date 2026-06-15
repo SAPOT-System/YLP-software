@@ -277,10 +277,15 @@ export class WsStarPeer implements BasePeer {
     });
   }
 
-  startSending(msgPerSec: number): void {
+  startSending(msgPerSec: number, totalMessages?: number): void {
     const intervalMs = Math.max(10, Math.floor(1_000 / msgPerSec));
     this.sendTimer = setInterval(() => {
       if (!this.dc?.isOpen()) return;
+      if (totalMessages !== undefined && this.metrics.sent >= totalMessages) {
+        clearInterval(this.sendTimer!);
+        this.sendTimer = null;
+        return;
+      }
       const sentAt = Date.now();
       const ok = this.dc.sendMessage(`MSG:${this.seqNo++}:${sentAt}`);
       if (ok) {

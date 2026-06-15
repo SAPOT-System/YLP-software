@@ -1,0 +1,50 @@
+{
+  "transport": "tcp-signaled",
+  "phases": [
+    {
+      "phaseName": "tcp-star-2p-iperf",
+      "peerCount": 2,
+      "msgPerSec": 2,
+      "durationSec": 20,
+      "totalSent": 56,
+      "totalAcked": 0,
+      "deliveryRate": 0,
+      "droppedCount": 0,
+      "p50Ms": 0,
+      "p95Ms": 0,
+      "p99Ms": 0,
+      "jitterMs": 0,
+      "connectionErrors": 0,
+      "wsPeakQueueFills": 0,
+      "throughputMbps": 9.7,
+      "packetLossPercent": 0.04,
+      "rssiDbm": -51,
+      "linkSpeedMbps": 72,
+      "iperfBaseline": {
+        "throughputMbps": 12,
+        "lossPercent": 0,
+        "jitterMs": 0.69,
+        "lostPackets": 0,
+        "totalPackets": 10653
+      },
+      "iperfLoad": {
+        "throughputMbps": 11.59,
+        "lossPercent": 0.01,
+        "jitterMs": 0.7,
+        "lostPackets": 2,
+        "totalPackets": 20729
+      },
+      "iceEstablishP50Ms": 5745,
+      "iceEstablishP95Ms": 6575,
+      "iceEstablishMaxMs": 6575,
+      "connectionTimeouts": 0,
+      "rtpPacketsSent": 0,
+      "rtpPacketsLost": 0,
+      "mediaEstablishP95Ms": 4700,
+      "connectedPeers": 2,
+      "discoveryCompleteness": 0,
+      "discoveryP50Ms": 0,
+      "discoveryP95Ms": 0
+    }
+  ]
+}

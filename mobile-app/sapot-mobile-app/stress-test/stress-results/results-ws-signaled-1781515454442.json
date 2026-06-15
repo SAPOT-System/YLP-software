@@ -1,0 +1,44 @@
+{
+  "transport": "ws-signaled",
+  "phases": [
+    {
+      "phaseName": "ws-signaled-2p",
+      "peerCount": 2,
+      "msgPerSec": 2,
+      "durationSec": 20,
+      "totalSent": 0,
+      "totalAcked": 0,
+      "deliveryRate": 0,
+      "droppedCount": 0,
+      "p50Ms": 0,
+      "p95Ms": 0,
+      "p99Ms": 0,
+      "jitterMs": 0,
+      "connectionErrors": 2,
+      "wsPeakQueueFills": 0,
+      "throughputMbps": 0,
+      "packetLossPercent": 0,
+      "rssiDbm": -52,
+      "linkSpeedMbps": 65,
+      "iperfBaseline": {
+        "throughputMbps": 9.94,
+        "lossPercent": 0,
+        "jitterMs": 1.55,
+        "lostPackets": 0,
+        "totalPackets": 8878
+      },
+      "iperfLoad": null,
+      "iceEstablishP50Ms": 0,
+      "iceEstablishP95Ms": 0,
+      "iceEstablishMaxMs": 0,
+      "connectionTimeouts": 0,
+      "rtpPacketsSent": 0,
+      "rtpPacketsLost": 0,
+      "mediaEstablishP95Ms": 0,
+      "connectedPeers": 0,
+      "discoveryCompleteness": 0,
+      "discoveryP50Ms": 0,
+      "discoveryP95Ms": 0
+    }
+  ]
+}

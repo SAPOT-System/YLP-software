@@ -19,7 +19,7 @@ export interface BasePeer {
   readonly peerId: string;
   readonly peerIndex: number;
   connect(): Promise<void>;
-  startSending(msgPerSec: number): void;
+  startSending(msgPerSec: number, totalMessages?: number): void;
   stopSending(): void;
   disconnect(): Promise<void>;
   getMetrics(): PeerMetrics;

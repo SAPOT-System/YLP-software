@@ -3,22 +3,22 @@
   "webrtc": {
     "connectionTimeoutMs": 10000,
     "media": { "type": "audio-video", "bitrate": 32 },
-    "iperfTargetIp": "192.168.1.5"
+    "iperfTargetIp": "192.168.1.6"
   },
   "lan": {
     "hostIp": "192.168.1.23",
-    "iperfTargetIp": "192.168.1.5",
+    "iperfTargetIp": "192.168.1.6",
     "startPort": 9000,
     "adbDiscovery": true
   },
   "ws": {
     "serverUrl": "https://192.168.1.23",
-    "iperfTargetIp": "192.168.1.5",
+    "iperfTargetIp": "192.168.1.6",
     "accountPrefix": "stress_peer_",
     "password": "StressTest@123"
   },
   "phases": [
-    { "peerCount": 2, "msgPerSec": 2, "durationSec": 20}
+    { "peerCount": 2, "msgPerSec": 2, "durationSec": 20, "runIperf": true}
   ],
   "outputDir": "./stress-results"
 }

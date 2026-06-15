@@ -64,6 +64,23 @@ describe('TcpSignaledWrtcPeer', () => {
     await Promise.all([offerer.disconnect(), answerer.disconnect()]);
   }, 20000);
 
+  it('startSending stops after totalMessages messages when the cap is set', async () => {
+    const col = new MetricsCollector();
+    const offerer = new TcpSignaledWrtcPeer('peer-0', 0, 0, col, cfg);
+    const answerer = new TcpSignaledWrtcPeer('peer-1', 1, 0, col, cfg);
+
+    await Promise.all([offerer.connect(), answerer.connect()]);
+    await offerer.connectTo('127.0.0.1', answerer.port);
+
+    offerer.startSending(100, 3);
+    await new Promise((r) => setTimeout(r, 300));
+    offerer.stopSending();
+
+    expect(offerer.getMetrics().sent).toBe(3);
+
+    await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+  }, 20000);
+
   it('records connectionError when the target port is not listening', async () => {
     const col = new MetricsCollector();
     const peer = new TcpSignaledWrtcPeer('peer-0', 0, 0, col, fastCfg);

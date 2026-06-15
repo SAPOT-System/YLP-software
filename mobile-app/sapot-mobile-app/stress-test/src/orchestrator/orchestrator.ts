@@ -83,7 +83,7 @@ export class Orchestrator {
 
         const startMs = Date.now();
         this.sampler.start();
-        peers.forEach((p) => p.startSending(phase.msgPerSec));
+        peers.forEach((p) => p.startSending(phase.msgPerSec, phase.totalMessages));
         await sleep(phase.durationSec * 1000);
         peers.forEach((p) => p.stopSending());
         const connectedPeers = peers.filter((p) => p.getMetrics().connectedAtPhaseEnd).length;
@@ -221,7 +221,7 @@ export class Orchestrator {
 
         const startMs = Date.now();
         this.sampler.start();
-        peers.forEach((p) => p.startSending(phase.msgPerSec));
+        peers.forEach((p) => p.startSending(phase.msgPerSec, phase.totalMessages));
         await sleep(phase.durationSec * 1000);
         peers.forEach((p) => p.stopSending());
         const connectedPeers = peers.filter((p) => p.getMetrics().connectedAtPhaseEnd).length;
