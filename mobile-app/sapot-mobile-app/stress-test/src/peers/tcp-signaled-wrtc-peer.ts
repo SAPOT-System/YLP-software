@@ -365,7 +365,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
         try {
           const video = new Video('video', 'SendOnly');
           video.addH264Codec(96);
-          this.videoTrack = pc.addTrack(video) as Track;
+          this.setupVideoTrack(pc.addTrack(video) as Track);
         } catch { /* video not supported */ }
       }
     }
@@ -491,11 +491,19 @@ export class TcpSignaledWrtcPeer implements BasePeer {
 
   private setupAudioTrack(track: Track): void {
     this.audioTrack = track;
-    const startMs = Date.now();
     track.onOpen(() => {
-      const elapsed = Date.now() - startMs;
+      const elapsed = Date.now() - this.connectStartMs;
       this.metrics.audioEstablishMs.push(elapsed);
-      this.collector.recordMediaEstablish(this.peerId, elapsed);
+      this.collector.recordAudioEstablish(this.peerId, elapsed);
+    });
+  }
+
+  private setupVideoTrack(track: Track): void {
+    this.videoTrack = track;
+    track.onOpen(() => {
+      const elapsed = Date.now() - this.connectStartMs;
+      this.metrics.videoEstablishMs.push(elapsed);
+      this.collector.recordVideoEstablish(this.peerId, elapsed);
     });
   }
 

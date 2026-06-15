@@ -240,7 +240,8 @@ export function formatWebrtcBlock(stats: PhaseStats): string {
       'Call (media track)',
       `  RTP packets sent        : ${stats.rtpPacketsSent}`,
       `  RTP packets lost        : ${stats.rtpPacketsLost}  (${lossRate}%)`,
-      `  media establish p95     : ${stats.mediaEstablishP95Ms}ms`,
+      `  audio establish p95     : ${stats.audioEstablishP95Ms}ms`,
+      `  video establish p95     : ${stats.videoEstablishP95Ms}ms`,
     );
   }
 

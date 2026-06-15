@@ -33,7 +33,8 @@ export interface PhaseStats {
   connectionTimeouts: number;
   rtpPacketsSent: number;
   rtpPacketsLost: number;
-  mediaEstablishP95Ms: number;
+  audioEstablishP95Ms: number;
+  videoEstablishP95Ms: number;
   dcEstablishP95Ms: number;
   connectedPeers: number;
   // Phone discovery metrics (tcp-signaled star mode only).
@@ -57,7 +58,8 @@ export class MetricsCollector {
   private connectionTimeoutCount = 0;
   private rtpSentCount = 0;
   private rtpLostCount = 0;
-  private mediaEstablishSamples: number[] = [];
+  private audioEstablishSamples: number[] = [];
+  private videoEstablishSamples: number[] = [];
   private dcEstablishSamples: number[] = [];
   // peerId → latency of first probe (ms from advertise to probe)
   private discoveryProbes = new Map<string, number>();
@@ -93,8 +95,12 @@ export class MetricsCollector {
     this.rtpLostCount++;
   }
 
-  recordMediaEstablish(_peerId: string, ms: number): void {
-    this.mediaEstablishSamples.push(ms);
+  recordAudioEstablish(_peerId: string, ms: number): void {
+    this.audioEstablishSamples.push(ms);
+  }
+
+  recordVideoEstablish(_peerId: string, ms: number): void {
+    this.videoEstablishSamples.push(ms);
   }
 
   recordDcEstablish(_peerId: string, ms: number): void {
@@ -117,7 +123,8 @@ export class MetricsCollector {
     this.connectionTimeoutCount = 0;
     this.rtpSentCount = 0;
     this.rtpLostCount = 0;
-    this.mediaEstablishSamples = [];
+    this.audioEstablishSamples = [];
+    this.videoEstablishSamples = [];
     this.dcEstablishSamples = [];
     this.discoveryProbes = new Map();
   }
@@ -143,7 +150,8 @@ export class MetricsCollector {
       sorted.length > 1 ? sorted.reduce((s, v) => s + (v - mean) ** 2, 0) / (sorted.length - 1) : 0;
 
     const iceSorted = [...this.iceEstablishSamples].sort((a, b) => a - b);
-    const mediaSorted = [...this.mediaEstablishSamples].sort((a, b) => a - b);
+    const audioSorted = [...this.audioEstablishSamples].sort((a, b) => a - b);
+    const videoSorted = [...this.videoEstablishSamples].sort((a, b) => a - b);
     const dcSorted = [...this.dcEstablishSamples].sort((a, b) => a - b);
     const discoverySorted = [...this.discoveryProbes.values()].sort((a, b) => a - b);
 
@@ -173,7 +181,8 @@ export class MetricsCollector {
       connectionTimeouts: this.connectionTimeoutCount,
       rtpPacketsSent: this.rtpSentCount,
       rtpPacketsLost: this.rtpLostCount,
-      mediaEstablishP95Ms: pct(mediaSorted, 95),
+      audioEstablishP95Ms: pct(audioSorted, 95),
+      videoEstablishP95Ms: pct(videoSorted, 95),
       dcEstablishP95Ms: pct(dcSorted, 95),
       connectedPeers,
       discoveryCompleteness: peerCount > 0 ? this.discoveryProbes.size / peerCount : 0,

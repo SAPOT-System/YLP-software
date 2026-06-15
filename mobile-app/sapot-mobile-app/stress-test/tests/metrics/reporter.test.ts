@@ -13,7 +13,7 @@ const fakePhase: PhaseStats = {
   iperfBaseline: null,
   iperfLoad: null,
   iceEstablishP50Ms: 0, iceEstablishP95Ms: 0, iceEstablishMaxMs: 0,
-  connectionTimeouts: 0, rtpPacketsSent: 0, rtpPacketsLost: 0, mediaEstablishP95Ms: 0,
+  connectionTimeouts: 0, rtpPacketsSent: 0, rtpPacketsLost: 0, audioEstablishP95Ms: 0, videoEstablishP95Ms: 0,
   dcEstablishP95Ms: 0,
   connectedPeers: 5,
   discoveryCompleteness: 0, discoveryP50Ms: 0, discoveryP95Ms: 0,
@@ -266,7 +266,8 @@ describe('reporter', () => {
         connectionTimeouts: 0,
         rtpPacketsSent: 0,
         rtpPacketsLost: 0,
-        mediaEstablishP95Ms: 0,
+        audioEstablishP95Ms: 0,
+        videoEstablishP95Ms: 0,
         dcEstablishP95Ms: 0,
         connectedPeers: 4,
         discoveryCompleteness: 0,
@@ -318,11 +319,12 @@ describe('reporter', () => {
 
     it('shows Call section when rtpPacketsSent > 0', () => {
       const output = formatWebrtcBlock(
-        makeWebrtcPhase({ rtpPacketsSent: 4600, rtpPacketsLost: 12, mediaEstablishP95Ms: 410 }),
+        makeWebrtcPhase({ rtpPacketsSent: 4600, rtpPacketsLost: 12, audioEstablishP95Ms: 410, videoEstablishP95Ms: 520 }),
       );
       expect(output).toContain('Call');
       expect(output).toContain('4600');
       expect(output).toContain('410');
+      expect(output).toContain('520');
     });
   });
 });

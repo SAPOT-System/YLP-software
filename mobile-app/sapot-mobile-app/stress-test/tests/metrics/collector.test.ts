@@ -85,10 +85,16 @@ describe('MetricsCollector', () => {
       expect(stats.rtpPacketsLost).toBe(5);
     });
 
-    it('recordMediaEstablish is reflected in mediaEstablishP95Ms', () => {
-      collector.recordMediaEstablish('peer-1', 300);
+    it('recordAudioEstablish is reflected in audioEstablishP95Ms', () => {
+      collector.recordAudioEstablish('peer-1', 300);
       const stats = collector.computeStats('phase', 2, 1, 5, 0);
-      expect(stats.mediaEstablishP95Ms).toBe(300);
+      expect(stats.audioEstablishP95Ms).toBe(300);
+    });
+
+    it('recordVideoEstablish is reflected in videoEstablishP95Ms', () => {
+      collector.recordVideoEstablish('peer-1', 450);
+      const stats = collector.computeStats('phase', 2, 1, 5, 0);
+      expect(stats.videoEstablishP95Ms).toBe(450);
     });
 
     it('recordDcEstablish is reflected in dcEstablishP95Ms', () => {
@@ -108,7 +114,8 @@ describe('MetricsCollector', () => {
       collector.recordConnectionTimeout();
       collector.recordRtpSent('peer-1');
       collector.recordRtpLost('peer-1');
-      collector.recordMediaEstablish('peer-1', 200);
+      collector.recordAudioEstablish('peer-1', 200);
+      collector.recordVideoEstablish('peer-1', 350);
       collector.recordDcEstablish('peer-1', 180);
       collector.reset();
       const stats = collector.computeStats('phase', 2, 1, 5, 0);
@@ -116,7 +123,8 @@ describe('MetricsCollector', () => {
       expect(stats.connectionTimeouts).toBe(0);
       expect(stats.rtpPacketsSent).toBe(0);
       expect(stats.rtpPacketsLost).toBe(0);
-      expect(stats.mediaEstablishP95Ms).toBe(0);
+      expect(stats.audioEstablishP95Ms).toBe(0);
+      expect(stats.videoEstablishP95Ms).toBe(0);
       expect(stats.dcEstablishP95Ms).toBe(0);
     });
 
@@ -126,7 +134,8 @@ describe('MetricsCollector', () => {
       expect(stats.iceEstablishMaxMs).toBe(0);
       expect(stats.connectionTimeouts).toBe(0);
       expect(stats.rtpPacketsSent).toBe(0);
-      expect(stats.mediaEstablishP95Ms).toBe(0);
+      expect(stats.audioEstablishP95Ms).toBe(0);
+      expect(stats.videoEstablishP95Ms).toBe(0);
       expect(stats.dcEstablishP95Ms).toBe(0);
     });
   });
