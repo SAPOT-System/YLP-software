@@ -45,6 +45,24 @@ describe('TcpSignaledWrtcPeer', () => {
     await Promise.all([offerer.disconnect(), answerer.disconnect()]);
   }, 20000);
 
+  it('iceStateTransitions records every state change with non-negative elapsedMs', async () => {
+    const col = new MetricsCollector();
+    const offerer = new TcpSignaledWrtcPeer('peer-0', 0, 0, col, cfg);
+    const answerer = new TcpSignaledWrtcPeer('peer-1', 1, 0, col, cfg);
+
+    await Promise.all([offerer.connect(), answerer.connect()]);
+    await offerer.connectTo('127.0.0.1', answerer.port);
+
+    const transitions = offerer.getMetrics().iceStateTransitions;
+    expect(transitions.length).toBeGreaterThanOrEqual(1);
+    const connected = transitions.find((t) => t.state === 'connected');
+    expect(connected).toBeDefined();
+    expect(connected!.elapsedMs).toBeGreaterThanOrEqual(0);
+    transitions.forEach((t: { state: string; elapsedMs: number }) => expect(t.elapsedMs).toBeGreaterThanOrEqual(0));
+
+    await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+  }, 20000);
+
   it('startSending increments sent count on the data channel after connectTo', async () => {
     const col = new MetricsCollector();
     const offerer = new TcpSignaledWrtcPeer('peer-0', 0, 0, col, cfg);

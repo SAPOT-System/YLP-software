@@ -193,8 +193,10 @@ export class WsSignaledWrtcPeer implements BasePeer {
     this.pc = pc;
 
     pc.onStateChange((state: string) => {
+      const elapsedMs = Date.now() - startMs;
+      this.metrics.iceStateTransitions.push({ state, elapsedMs });
       this.metrics.connectedAtPhaseEnd = (state === 'connected');
-      if (state === 'connected') onConnected(Date.now() - startMs);
+      if (state === 'connected') onConnected(elapsedMs);
       else if (state === 'failed') onFailed();
     });
 
