@@ -20,7 +20,6 @@ export interface PhaseStats {
   p99Ms: number;
   jitterMs: number;
   connectionErrors: number;
-  wsPeakQueueFills: number;
   throughputMbps: number;
   packetLossPercent: number;
   rssiDbm: number | null;
@@ -54,7 +53,6 @@ export class MetricsCollector {
   private droppedCounts = new Map<string, number>();
   private ackCounts = new Map<string, number>();
   private connectionErrors = 0;
-  private wsPeakQueueFills = 0;
   private iceEstablishSamples: number[] = [];
   private connectionTimeoutCount = 0;
   private rtpSentCount = 0;
@@ -78,7 +76,6 @@ export class MetricsCollector {
   }
 
   recordConnectionError(): void { this.connectionErrors++; }
-  recordQueueFill(): void { this.wsPeakQueueFills++; }
 
   recordIceEstablish(_peerId: string, ms: number): void {
     this.iceEstablishSamples.push(ms);
@@ -116,7 +113,6 @@ export class MetricsCollector {
     this.droppedCounts = new Map();
     this.ackCounts = new Map();
     this.connectionErrors = 0;
-    this.wsPeakQueueFills = 0;
     this.iceEstablishSamples = [];
     this.connectionTimeoutCount = 0;
     this.rtpSentCount = 0;
@@ -165,7 +161,6 @@ export class MetricsCollector {
       p99Ms: localPct(99),
       jitterMs: Math.round(Math.sqrt(variance)),
       connectionErrors: this.connectionErrors,
-      wsPeakQueueFills: this.wsPeakQueueFills,
       throughputMbps: 0,
       packetLossPercent: 0,
       rssiDbm: null,

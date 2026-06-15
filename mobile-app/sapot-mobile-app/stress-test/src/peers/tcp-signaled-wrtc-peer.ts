@@ -218,7 +218,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
                 // Wait for the phone to dial back and complete the NaCl handshake
                 // with our server before generating the offer. This ensures the return
                 // path exists when the phone sends the answer.
-                const waitMs = Math.min(3000, (this.config.connectionTimeoutMs ?? 15_000) / 5);
+                const waitMs = this.config.connectionTimeoutMs ?? 15_000;
                 Promise.race([
                   this.serverHandshakePromise ?? Promise.resolve(),
                   new Promise<void>((res) => setTimeout(res, waitMs)),
