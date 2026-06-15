@@ -210,6 +210,7 @@ export class WsStarPeer implements BasePeer {
     this.pc = pc;
 
     pc.onStateChange((state: string) => {
+      this.metrics.connectedAtPhaseEnd = (state === 'connected');
       if (state === 'connected') onConnected(Date.now() - startMs);
       else if (state === 'failed') onFailed();
     });

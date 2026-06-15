@@ -14,6 +14,7 @@ const fakePhase: PhaseStats = {
   iperfLoad: null,
   iceEstablishP50Ms: 0, iceEstablishP95Ms: 0, iceEstablishMaxMs: 0,
   connectionTimeouts: 0, rtpPacketsSent: 0, rtpPacketsLost: 0, mediaEstablishP95Ms: 0,
+  connectedPeers: 5,
   discoveryCompleteness: 0, discoveryP50Ms: 0, discoveryP95Ms: 0,
 };
 
@@ -231,12 +232,8 @@ describe('reporter', () => {
       expect(getModeLabel('tcp-signaled', true)).toMatch(/local.network/i);
     });
 
-    it('labels ws as WS relay', () => {
-      expect(getModeLabel('ws', false)).toMatch(/ws|relay/i);
-    });
-
-    it('labels lan as LAN', () => {
-      expect(getModeLabel('lan', false)).toMatch(/lan/i);
+    it('falls back to the raw mode string for unknown modes', () => {
+      expect(getModeLabel('unknown-mode', false)).toBe('unknown-mode');
     });
   });
 
@@ -270,6 +267,7 @@ describe('reporter', () => {
         rtpPacketsSent: 0,
         rtpPacketsLost: 0,
         mediaEstablishP95Ms: 0,
+        connectedPeers: 4,
         discoveryCompleteness: 0,
         discoveryP50Ms: 0,
         discoveryP95Ms: 0,
@@ -278,49 +276,48 @@ describe('reporter', () => {
     }
 
     it('shows pair count and connection summary', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase({ connectionTimeouts: 1 }), 4);
+      const output = formatWebrtcBlock(makeWebrtcPhase({ connectionTimeouts: 1 }));
       expect(output).toContain('pairs attempted');
       expect(output).toContain('2');
       expect(output).toContain('timed out');
       expect(output).toContain('1');
     });
 
-    it('reduces connected peer count by connectionErrors', () => {
-      // 4 peers, 2 failed to connect → 2/4 connected (50%)
-      const output = formatWebrtcBlock(makeWebrtcPhase({ connectionErrors: 2 }), 4);
+    it('uses connectedPeers directly for the headline connected count', () => {
+      // connectedPeers=2 out of peerCount=4 → 2/4 (50%)
+      const output = formatWebrtcBlock(makeWebrtcPhase({ connectedPeers: 2 }));
       expect(output).toContain('2/4');
       expect(output).toContain('50%');
     });
 
-    it('reports 100% connected when there are no connection errors', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase({ connectionErrors: 0 }), 4);
+    it('reports 100% connected when connectedPeers equals peerCount', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ connectedPeers: 4 }));
       expect(output).toContain('4/4');
       expect(output).toContain('100%');
     });
 
     it('shows ICE establish percentiles', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase(), 4);
+      const output = formatWebrtcBlock(makeWebrtcPhase());
       expect(output).toContain('142');
       expect(output).toContain('381');
       expect(output).toContain('892');
     });
 
     it('shows Chat section with sent/acked/dropped', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase(), 4);
+      const output = formatWebrtcBlock(makeWebrtcPhase());
       expect(output).toContain('Chat');
       expect(output).toContain('200');
       expect(output).toContain('190');
     });
 
     it('omits Call section when rtpPacketsSent is 0', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase({ rtpPacketsSent: 0 }), 4);
+      const output = formatWebrtcBlock(makeWebrtcPhase({ rtpPacketsSent: 0 }));
       expect(output).not.toContain('Call');
     });
 
     it('shows Call section when rtpPacketsSent > 0', () => {
       const output = formatWebrtcBlock(
         makeWebrtcPhase({ rtpPacketsSent: 4600, rtpPacketsLost: 12, mediaEstablishP95Ms: 410 }),
-        50,
       );
       expect(output).toContain('Call');
       expect(output).toContain('4600');

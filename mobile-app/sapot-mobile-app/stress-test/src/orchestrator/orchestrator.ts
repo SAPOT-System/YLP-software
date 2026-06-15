@@ -79,9 +79,6 @@ export class Orchestrator {
           }
         }
 
-        const connected = peers.filter((p) => p.getMetrics().connectionErrors === 0).length;
-        console.log(`  connected: ${connected}/${peers.length} peers`);
-
         const iperfPromise = this.startIperf(phase, iperfTarget || undefined);
 
         const startMs = Date.now();
@@ -89,6 +86,7 @@ export class Orchestrator {
         peers.forEach((p) => p.startSending(phase.msgPerSec));
         await sleep(phase.durationSec * 1000);
         peers.forEach((p) => p.stopSending());
+        const connectedPeers = peers.filter((p) => p.getMetrics().connectedAtPhaseEnd).length;
         this.sampler.stop();
         const endMs = Date.now();
 
@@ -101,7 +99,7 @@ export class Orchestrator {
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
         const msgStats = this.collector.computeStats(
-          phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, startMs, endMs
+          phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, connectedPeers
         );
         const stats: PhaseStats = {
           ...msgStats,
@@ -113,7 +111,7 @@ export class Orchestrator {
           iperfLoad,
         };
         printPhaseStats(stats);
-        console.log(formatWebrtcBlock(stats, phase.peerCount));
+        console.log(formatWebrtcBlock(stats));
         results.push(stats);
       }
     }
@@ -218,9 +216,6 @@ export class Orchestrator {
           }
         }
 
-        const connected = peers.filter((p) => p.getMetrics().connectionErrors === 0).length;
-        console.log(`  connected: ${connected}/${peers.length} peers`);
-
         const iperfPromise = this.startIperf(phase, iperfTarget);
 
         const startMs = Date.now();
@@ -228,6 +223,7 @@ export class Orchestrator {
         peers.forEach((p) => p.startSending(phase.msgPerSec));
         await sleep(phase.durationSec * 1000);
         peers.forEach((p) => p.stopSending());
+        const connectedPeers = peers.filter((p) => p.getMetrics().connectedAtPhaseEnd).length;
         this.sampler.stop();
         const endMs = Date.now();
 
@@ -240,7 +236,7 @@ export class Orchestrator {
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
         const msgStats = this.collector.computeStats(
-          phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, startMs, endMs
+          phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, connectedPeers
         );
         const stats: PhaseStats = {
           ...msgStats,
@@ -252,7 +248,7 @@ export class Orchestrator {
           iperfLoad,
         };
         printPhaseStats(stats);
-        console.log(formatWebrtcBlock(stats, phase.peerCount));
+        console.log(formatWebrtcBlock(stats));
         results.push(stats);
       }
     }

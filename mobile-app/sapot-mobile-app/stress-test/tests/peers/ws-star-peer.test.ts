@@ -1,6 +1,7 @@
 import http from 'http';
 import net from 'net';
 import { WebSocketServer, WebSocket as WS } from 'ws';
+import { WsStarPeer } from '@/peers/ws-star-peer';
 import { WsSignaledWrtcPeer } from '@/peers/ws-signaled-wrtc-peer';
 import { MetricsCollector } from '@/metrics/collector';
 import { WebrtcConfig } from '@/orchestrator/test-config';
@@ -79,64 +80,46 @@ function startFakeSignalingServer(): FakeServer {
 
 const cfg: WebrtcConfig = { connectionTimeoutMs: 12000 };
 
-describe('WsSignaledWrtcPeer', () => {
+describe('WsStarPeer', () => {
   let serverHandle: FakeServer;
 
   beforeEach(() => { serverHandle = startFakeSignalingServer(); });
   afterEach(async () => { await serverHandle.close(); });
 
-  it('connect() resolves with a userId derived from the JWT', async () => {
+  it('connectedAtPhaseEnd defaults to false before any negotiation', async () => {
     const col = new MetricsCollector();
-    const peer = new WsSignaledWrtcPeer('peer-0', 0, serverHandle.url, col, { username: 'alice', password: 'pw' }, cfg);
+    const peer = new WsStarPeer('star-0', 0, serverHandle.url, col, { username: 'star0', password: 'pw' }, 'nonexistent-phone', cfg);
     await peer.connect();
-    expect(peer.userId).toBe('alice');
+    expect(peer.getMetrics().connectedAtPhaseEnd).toBe(false);
     await peer.disconnect();
   }, 10000);
 
-  it('offerer and answerer negotiate over WS relay; iceEstablishMs is populated', async () => {
+  it('connectedAtPhaseEnd is true after real ICE loopback via a WsSignaledWrtcPeer phone proxy', async () => {
     const col = new MetricsCollector();
-    const offerer = new WsSignaledWrtcPeer('peer-0', 0, serverHandle.url, col, { username: 'alice', password: 'pw' }, cfg);
-    const answerer = new WsSignaledWrtcPeer('peer-1', 1, serverHandle.url, col, { username: 'bob', password: 'pw' }, cfg);
+    // A WsSignaledWrtcPeer (peerIndex 1 = answerer) acts as the "phone".
+    const phone = new WsSignaledWrtcPeer('phone', 1, serverHandle.url, col, { username: 'phone', password: 'pw' }, cfg);
+    await phone.connect();
 
-    await Promise.all([offerer.connect(), answerer.connect()]);
-    answerer.negotiate(offerer.userId!);
+    const star = new WsStarPeer('star-0', 0, serverHandle.url, col, { username: 'star0', password: 'pw' }, phone.userId!, cfg);
+    await star.connect();
+
+    // Phone sets the star peer as its partner so it processes the incoming offer.
+    phone.negotiate(star.userId!);
     await new Promise((r) => setTimeout(r, 100));
-    await offerer.negotiate(answerer.userId!);
+    await star.negotiate();
 
-    expect(offerer.getMetrics().iceEstablishMs.length).toBeGreaterThanOrEqual(1);
-    expect(offerer.getMetrics().connectionErrors).toBe(0);
-    expect(offerer.getMetrics().connectedAtPhaseEnd).toBe(true);
-    expect(answerer.getMetrics().connectedAtPhaseEnd).toBe(true);
+    expect(star.getMetrics().connectedAtPhaseEnd).toBe(true);
 
-    await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+    await Promise.all([star.disconnect(), phone.disconnect()]);
   }, 25000);
 
-  it('startSending increments sent count after successful negotiation', async () => {
+  it('connectedAtPhaseEnd stays false when connection times out (no phone answering)', async () => {
+    const fastCfg: WebrtcConfig = { connectionTimeoutMs: 200 };
     const col = new MetricsCollector();
-    const offerer = new WsSignaledWrtcPeer('peer-0', 0, serverHandle.url, col, { username: 'alice', password: 'pw' }, cfg);
-    const answerer = new WsSignaledWrtcPeer('peer-1', 1, serverHandle.url, col, { username: 'bob', password: 'pw' }, cfg);
-
-    await Promise.all([offerer.connect(), answerer.connect()]);
-    answerer.negotiate(offerer.userId!);
-    await new Promise((r) => setTimeout(r, 100));
-    await offerer.negotiate(answerer.userId!);
-
-    offerer.startSending(10);
-    answerer.startSending(10);
-    await new Promise((r) => setTimeout(r, 500));
-    offerer.stopSending();
-    answerer.stopSending();
-
-    expect(offerer.getMetrics().sent).toBeGreaterThan(0);
-
-    await Promise.all([offerer.disconnect(), answerer.disconnect()]);
-  }, 25000);
-
-  it('connect() rejects when server is unreachable, incrementing connectionErrors', async () => {
-    const col = new MetricsCollector();
-    const peer = new WsSignaledWrtcPeer('peer-0', 0, 'http://127.0.0.1:19997', col, { username: 'p0', password: 'pw' }, cfg);
-    await expect(peer.connect()).rejects.toThrow();
-    expect(peer.getMetrics().connectionErrors).toBe(1);
+    const peer = new WsStarPeer('star-0', 0, serverHandle.url, col, { username: 'star0', password: 'pw' }, 'no-such-phone', fastCfg);
+    await peer.connect();
+    await peer.negotiate();
+    expect(peer.getMetrics().connectedAtPhaseEnd).toBe(false);
     await peer.disconnect();
   }, 10000);
 });

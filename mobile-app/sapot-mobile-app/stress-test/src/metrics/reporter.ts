@@ -174,10 +174,6 @@ export function getModeLabel(mode: string, isStarMode: boolean): string {
   if (mode === 'tcp-signaled') {
     return isStarMode ? 'local-network star (phone target)' : 'protocol/CPU smoke test (loopback pair)';
   }
-  if (mode === 'ws') return 'WS relay';
-  if (mode === 'lan') return 'LAN (TCP encrypted)';
-  if (mode === 'both') return 'LAN + WS relay';
-  if (mode === 'webrtc') return 'WebRTC (loopback)';
   return mode;
 }
 
@@ -216,11 +212,10 @@ export function formatDiscoverySection(phases: PhaseStats[]): string {
   return lines.join('\n');
 }
 
-export function formatWebrtcBlock(stats: PhaseStats, peerCount: number): string {
+export function formatWebrtcBlock(stats: PhaseStats): string {
+  const peerCount = stats.peerCount;
   const pairs = Math.floor(peerCount / 2);
-  // connectionErrors is aggregated per-peer (one per failed peer, including
-  // timeouts), so connection success is measured against peerCount, not pairs.
-  const connected = Math.max(0, peerCount - stats.connectionErrors);
+  const connected = stats.connectedPeers;
   const successPct = peerCount > 0 ? ((connected / peerCount) * 100).toFixed(0) : '0';
 
   const lines: string[] = [

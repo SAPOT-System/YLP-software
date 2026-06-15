@@ -8,5 +8,6 @@ describe('emptyMetrics', () => {
     expect(m.rtpPacketsSent).toBe(0);
     expect(m.rtpPacketsLost).toBe(0);
     expect(m.mediaEstablishMs).toEqual([]);
+    expect(m.connectedAtPhaseEnd).toBe(false);
   });
 });

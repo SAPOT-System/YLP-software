@@ -10,6 +10,7 @@ export interface PeerMetrics {
   rtpPacketsSent: number;
   rtpPacketsLost: number;
   mediaEstablishMs: number[];
+  connectedAtPhaseEnd: boolean;
 }
 
 export interface BasePeer {
@@ -35,5 +36,6 @@ export function emptyMetrics(): PeerMetrics {
     rtpPacketsSent: 0,
     rtpPacketsLost: 0,
     mediaEstablishMs: [],
+    connectedAtPhaseEnd: false,
   };
 }

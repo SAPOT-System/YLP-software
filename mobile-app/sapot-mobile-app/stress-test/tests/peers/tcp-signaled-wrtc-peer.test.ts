@@ -39,6 +39,8 @@ describe('TcpSignaledWrtcPeer', () => {
     expect(offerer.getMetrics().iceEstablishMs.length).toBeGreaterThanOrEqual(1);
     expect(offerer.getMetrics().connectionErrors).toBe(0);
     expect(offerer.getMetrics().connectionTimeouts).toBe(0);
+    expect(offerer.getMetrics().connectedAtPhaseEnd).toBe(true);
+    expect(answerer.getMetrics().connectedAtPhaseEnd).toBe(true);
 
     await Promise.all([offerer.disconnect(), answerer.disconnect()]);
   }, 20000);
@@ -68,6 +70,7 @@ describe('TcpSignaledWrtcPeer', () => {
     await peer.connect();
     await peer.connectTo('127.0.0.1', 19998);
     expect(peer.getMetrics().connectionErrors).toBe(1);
+    expect(peer.getMetrics().connectedAtPhaseEnd).toBe(false);
     await peer.disconnect();
   }, 5000);
 
@@ -197,7 +200,7 @@ describe('TcpSignaledWrtcPeer — discovery probe detection', () => {
     });
     await new Promise((r) => setTimeout(r, 100)); // let probe detection settle
 
-    const stats = col.computeStats('test', 1, 1, 1, 0, 1000);
+    const stats = col.computeStats('test', 1, 1, 1, 0);
     expect(stats.discoveryCompleteness).toBe(1.0);
     expect(stats.discoveryP50Ms).toBeGreaterThanOrEqual(0);
 
@@ -211,7 +214,7 @@ describe('TcpSignaledWrtcPeer — discovery probe detection', () => {
     await Promise.all([offerer.connect(), answerer.connect()]);
     await offerer.connectTo('127.0.0.1', answerer.port);
 
-    const stats = col.computeStats('test', 2, 1, 1, 0, 1000);
+    const stats = col.computeStats('test', 2, 1, 1, 0);
     expect(stats.discoveryCompleteness).toBe(0); // no probes — full handshakes only
 
     await Promise.all([offerer.disconnect(), answerer.disconnect()]);
@@ -235,7 +238,7 @@ describe('TcpSignaledWrtcPeer — discovery probe detection', () => {
       await new Promise((r) => setTimeout(r, 60));
     }
 
-    const stats = col.computeStats('test', 1, 1, 1, 0, 2000);
+    const stats = col.computeStats('test', 1, 1, 1, 0);
     expect(stats.discoveryCompleteness).toBe(1.0); // still 1/1
     // Only one latency sample → p50 == p95
     expect(stats.discoveryP50Ms).toBe(stats.discoveryP95Ms);
@@ -258,7 +261,7 @@ describe('TcpSignaledWrtcPeer — discovery probe detection', () => {
     });
     await new Promise((r) => setTimeout(r, 100));
 
-    const stats = col.computeStats('test', 1, 1, 1, 0, 1000);
+    const stats = col.computeStats('test', 1, 1, 1, 0);
     expect(stats.discoveryCompleteness).toBe(0); // pair mode never records probes
 
     await peer.disconnect();

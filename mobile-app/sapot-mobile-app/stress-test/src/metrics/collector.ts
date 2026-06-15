@@ -35,6 +35,7 @@ export interface PhaseStats {
   rtpPacketsSent: number;
   rtpPacketsLost: number;
   mediaEstablishP95Ms: number;
+  connectedPeers: number;
   // Phone discovery metrics (tcp-signaled star mode only).
   discoveryCompleteness: number;
   discoveryP50Ms: number;
@@ -123,8 +124,7 @@ export class MetricsCollector {
     peerCount: number,
     msgPerSec: number,
     durationSec: number,
-    _startMs: number,
-    _endMs: number,
+    connectedPeers: number,
   ): PhaseStats {
     let totalSent = 0;
     for (const v of this.sentCounts.values()) totalSent += v;
@@ -171,6 +171,7 @@ export class MetricsCollector {
       rtpPacketsSent: this.rtpSentCount,
       rtpPacketsLost: this.rtpLostCount,
       mediaEstablishP95Ms: pct(mediaSorted, 95),
+      connectedPeers,
       discoveryCompleteness: peerCount > 0 ? this.discoveryProbes.size / peerCount : 0,
       discoveryP50Ms: pct(discoverySorted, 50),
       discoveryP95Ms: pct(discoverySorted, 95),
