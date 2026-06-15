@@ -197,7 +197,8 @@ export class Orchestrator {
                 8,
                 300,
               );
-              await sleep(500);
+              const backoffMs = Math.min(500 * Math.pow(2, round), 5_000);
+              await sleep(backoffMs);
             }
           }
           if (unresolved.length > 0) {
