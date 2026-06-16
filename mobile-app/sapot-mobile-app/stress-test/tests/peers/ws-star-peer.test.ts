@@ -80,6 +80,103 @@ function startFakeSignalingServer(): FakeServer {
 
 const cfg: WebrtcConfig = { connectionTimeoutMs: 12000 };
 
+function makeOpeningMockDc(sentMessages: string[]) {
+  let capturedOnOpen: (() => void) | null = null;
+  let capturedOnMessage: ((msg: string) => void) | null = null;
+  return {
+    onOpen: jest.fn((cb: () => void) => { capturedOnOpen = cb; }),
+    onMessage: jest.fn((cb: (msg: string) => void) => { capturedOnMessage = cb; }),
+    isOpen: jest.fn(() => true),
+    sendMessage: jest.fn((msg: string) => { sentMessages.push(msg); return true; }),
+    fire: (msg: string) => capturedOnMessage!(msg),
+    open: () => capturedOnOpen?.(),
+  };
+}
+
+describe('WsStarPeer — data channel format', () => {
+  const fastCfg: WebrtcConfig = { connectionTimeoutMs: 100 };
+
+  it('startSending sends JSON stress-echo format', async () => {
+    const col = new MetricsCollector();
+    const peer = new WsStarPeer('star-0', 0, 'http://127.0.0.1:19988', col, { username: 'star0', password: 'pw' }, 'phone', fastCfg);
+
+    const sent: string[] = [];
+    const mockDc = makeOpeningMockDc(sent);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+    mockDc.open();
+
+    peer.startSending(100, 1);
+    await new Promise((r) => setTimeout(r, 50));
+    peer.stopSending();
+
+    expect(sent.length).toBeGreaterThan(0);
+    const frame = JSON.parse(sent[0]) as Record<string, unknown>;
+    expect(frame['type']).toBe('stress-echo');
+    expect(typeof frame['seq']).toBe('number');
+    expect(typeof frame['sentAt']).toBe('number');
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('setupDataChannel increments acked on stress-ack frame', async () => {
+    const col = new MetricsCollector();
+    const peer = new WsStarPeer('star-0', 0, 'http://127.0.0.1:19988', col, { username: 'star0', password: 'pw' }, 'phone', fastCfg);
+
+    const mockDc = makeOpeningMockDc([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+
+    const sentAt = Date.now() - 50;
+    mockDc.fire(JSON.stringify({ type: 'stress-ack', seq: 0, sentAt }));
+
+    expect(peer.getMetrics().acked).toBe(1);
+    expect(peer.getMetrics().writeLatencySamples.length).toBe(1);
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('setupDataChannel ignores non-JSON frames', async () => {
+    const col = new MetricsCollector();
+    const peer = new WsStarPeer('star-0', 0, 'http://127.0.0.1:19988', col, { username: 'star0', password: 'pw' }, 'phone', fastCfg);
+
+    const mockDc = makeOpeningMockDc([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+
+    mockDc.fire('ACK:0:12345');
+    mockDc.fire('not-json');
+
+    expect(peer.getMetrics().acked).toBe(0);
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('setupDataChannel ignores JSON with unknown type', async () => {
+    const col = new MetricsCollector();
+    const peer = new WsStarPeer('star-0', 0, 'http://127.0.0.1:19988', col, { username: 'star0', password: 'pw' }, 'phone', fastCfg);
+
+    const mockDc = makeOpeningMockDc([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+
+    mockDc.fire(JSON.stringify({ type: 'pong' }));
+    mockDc.fire(JSON.stringify({ type: 'other', data: {} }));
+
+    expect(peer.getMetrics().acked).toBe(0);
+
+    await peer.disconnect();
+  }, 5000);
+});
+
 describe('WsStarPeer', () => {
   let serverHandle: FakeServer;
 

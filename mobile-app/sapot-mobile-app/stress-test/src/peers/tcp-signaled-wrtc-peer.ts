@@ -475,16 +475,29 @@ export class TcpSignaledWrtcPeer implements BasePeer {
     });
     dc.onMessage((msg: string | ArrayBuffer | Buffer) => {
       const raw = typeof msg === 'string' ? msg : Buffer.from(msg as ArrayBuffer).toString();
-      if (raw.startsWith('MSG:')) {
-        const parts = raw.split(':');
-        if (dc.isOpen()) dc.sendMessage(`ACK:${parts[1]}:${parts[2]}`);
-      } else if (raw.startsWith('ACK:')) {
-        const parts = raw.split(':');
-        const sentAt = parseInt(parts[2], 10);
-        const latencyMs = Date.now() - sentAt;
-        this.metrics.acked++;
-        this.metrics.writeLatencySamples.push(latencyMs);
-        this.collector.recordAcked(this.peerId, sentAt, latencyMs);
+      if (this.phoneTarget) {
+        try {
+          const frame = JSON.parse(raw) as Record<string, unknown>;
+          if (frame['type'] === 'stress-ack') {
+            const sentAt = frame['sentAt'] as number;
+            const latencyMs = Date.now() - sentAt;
+            this.metrics.acked++;
+            this.metrics.writeLatencySamples.push(latencyMs);
+            this.collector.recordAcked(this.peerId, sentAt, latencyMs);
+          }
+        } catch { /* non-JSON frame (e.g. liveness ping/pong) — ignore */ }
+      } else {
+        if (raw.startsWith('MSG:')) {
+          const parts = raw.split(':');
+          if (dc.isOpen()) dc.sendMessage(`ACK:${parts[1]}:${parts[2]}`);
+        } else if (raw.startsWith('ACK:')) {
+          const parts = raw.split(':');
+          const sentAt = parseInt(parts[2], 10);
+          const latencyMs = Date.now() - sentAt;
+          this.metrics.acked++;
+          this.metrics.writeLatencySamples.push(latencyMs);
+          this.collector.recordAcked(this.peerId, sentAt, latencyMs);
+        }
       }
     });
   }
@@ -517,7 +530,9 @@ export class TcpSignaledWrtcPeer implements BasePeer {
         return;
       }
       const sentAt = Date.now();
-      const ok = this.dc.sendMessage(`MSG:${this.seqNo++}:${sentAt}`);
+      const ok = this.phoneTarget
+        ? this.dc.sendMessage(JSON.stringify({ type: 'stress-echo', seq: this.seqNo++, sentAt }))
+        : this.dc.sendMessage(`MSG:${this.seqNo++}:${sentAt}`);
       if (ok) {
         this.metrics.sent++;
         this.collector.recordSent(this.peerId, sentAt);

@@ -199,6 +199,143 @@ describe('TcpSignaledWrtcPeer — mDNS advertisement (star mode)', () => {
   }, 3000);
 });
 
+describe('TcpSignaledWrtcPeer — star mode data channel format', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ciaoMock = require('@homebridge/ciao') as { getResponder: jest.Mock; Protocol: { TCP: string } };
+
+  const phoneTarget = {
+    ip: '127.0.0.1',
+    port: 19990,
+    userId: 'phone-user-id',
+    myIp: '192.168.1.50',
+  };
+
+  beforeEach(() => {
+    const endFn = jest.fn().mockResolvedValue(undefined);
+    const advertiseFn = jest.fn().mockResolvedValue(undefined);
+    const createServiceFn = jest.fn().mockReturnValue({ advertise: advertiseFn, end: endFn });
+    ciaoMock.getResponder.mockReturnValue({ createService: createServiceFn });
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  function makeOpeningMockDc(sentMessages: string[]) {
+    let capturedOnOpen: (() => void) | null = null;
+    let capturedOnMessage: ((msg: string) => void) | null = null;
+    const mockDc = {
+      onOpen: jest.fn((cb: () => void) => { capturedOnOpen = cb; }),
+      onMessage: jest.fn((cb: (msg: string) => void) => { capturedOnMessage = cb; }),
+      isOpen: jest.fn(() => true),
+      sendMessage: jest.fn((msg: string) => { sentMessages.push(msg); return true; }),
+      fire: (msg: string) => capturedOnMessage!(msg),
+      open: () => capturedOnOpen?.(),
+    };
+    return mockDc;
+  }
+
+  it('startSending sends JSON stress-echo format in star mode', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('star-peer', 0, 0, col, starCfg, phoneTarget);
+
+    const sent: string[] = [];
+    const mockDc = makeOpeningMockDc(sent);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+    mockDc.open();
+
+    peer.startSending(100, 1);
+    await new Promise((r) => setTimeout(r, 50));
+    peer.stopSending();
+
+    expect(sent.length).toBeGreaterThan(0);
+    const frame = JSON.parse(sent[0]) as Record<string, unknown>;
+    expect(frame['type']).toBe('stress-echo');
+    expect(typeof frame['seq']).toBe('number');
+    expect(typeof frame['sentAt']).toBe('number');
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('setupDataChannel increments acked on stress-ack frame in star mode', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('star-peer', 0, 0, col, starCfg, phoneTarget);
+
+    const mockDc = makeOpeningMockDc([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+
+    const sentAt = Date.now() - 50;
+    mockDc.fire(JSON.stringify({ type: 'stress-ack', seq: 0, sentAt }));
+
+    expect(peer.getMetrics().acked).toBe(1);
+    expect(peer.getMetrics().writeLatencySamples.length).toBe(1);
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('setupDataChannel ignores non-JSON frames in star mode', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('star-peer', 0, 0, col, starCfg, phoneTarget);
+
+    const mockDc = makeOpeningMockDc([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+
+    mockDc.fire('not-json-at-all');
+    mockDc.fire('MSG:0:12345');
+
+    expect(peer.getMetrics().acked).toBe(0);
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('setupDataChannel ignores JSON with unknown type in star mode', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('star-peer', 0, 0, col, starCfg, phoneTarget);
+
+    const mockDc = makeOpeningMockDc([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = peer as any;
+    p.connectStartMs = Date.now();
+    p.setupDataChannel(mockDc);
+
+    mockDc.fire(JSON.stringify({ type: 'ping' }));
+    mockDc.fire(JSON.stringify({ type: 'unknown-type', seq: 0 }));
+
+    expect(peer.getMetrics().acked).toBe(0);
+
+    await peer.disconnect();
+  }, 5000);
+
+  it('pair mode startSending still sends MSG: format (unchanged)', async () => {
+    const col = new MetricsCollector();
+    const peer = new TcpSignaledWrtcPeer('pair-peer', 0, 0, col, starCfg);
+
+    const sent: string[] = [];
+    const mockDc = makeOpeningMockDc(sent);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p2 = peer as any;
+    p2.connectStartMs = Date.now();
+    p2.setupDataChannel(mockDc);
+    mockDc.open();
+
+    peer.startSending(100, 1);
+    await new Promise((r) => setTimeout(r, 50));
+    peer.stopSending();
+
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent[0]).toMatch(/^MSG:\d+:\d+$/);
+
+    await peer.disconnect();
+  }, 5000);
+});
+
 describe('TcpSignaledWrtcPeer — discovery probe detection', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const ciaoMock = require('@homebridge/ciao') as { getResponder: jest.Mock; Protocol: { TCP: string } };

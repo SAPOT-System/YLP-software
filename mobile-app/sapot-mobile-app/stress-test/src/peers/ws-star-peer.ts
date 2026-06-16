@@ -257,15 +257,16 @@ export class WsStarPeer implements BasePeer {
     });
     dc.onMessage((msg: string | ArrayBuffer | Buffer) => {
       const raw = typeof msg === 'string' ? msg : Buffer.from(msg as ArrayBuffer).toString();
-      // Handle ACK if phone responds (it may not for non-app messages).
-      if (raw.startsWith('ACK:')) {
-        const parts = raw.split(':');
-        const sentAt = parseInt(parts[2], 10);
-        const latencyMs = Date.now() - sentAt;
-        this.metrics.acked++;
-        this.metrics.writeLatencySamples.push(latencyMs);
-        this.collector.recordAcked(this.peerId, sentAt, latencyMs);
-      }
+      try {
+        const frame = JSON.parse(raw) as Record<string, unknown>;
+        if (frame['type'] === 'stress-ack') {
+          const sentAt = frame['sentAt'] as number;
+          const latencyMs = Date.now() - sentAt;
+          this.metrics.acked++;
+          this.metrics.writeLatencySamples.push(latencyMs);
+          this.collector.recordAcked(this.peerId, sentAt, latencyMs);
+        }
+      } catch { /* non-JSON frame (e.g. liveness ping/pong) — ignore */ }
     });
   }
 
@@ -297,7 +298,7 @@ export class WsStarPeer implements BasePeer {
         return;
       }
       const sentAt = Date.now();
-      const ok = this.dc.sendMessage(`MSG:${this.seqNo++}:${sentAt}`);
+      const ok = this.dc.sendMessage(JSON.stringify({ type: 'stress-echo', seq: this.seqNo++, sentAt }));
       if (ok) {
         this.metrics.sent++;
         this.collector.recordSent(this.peerId, sentAt);
