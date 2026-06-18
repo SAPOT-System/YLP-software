@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/adamskieee/**)",
+      "Bash(node -e \"console.log\\(process.env.NODE_EXTRA_CA_CERTS\\)\")",
+      "Bash(gh label *)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

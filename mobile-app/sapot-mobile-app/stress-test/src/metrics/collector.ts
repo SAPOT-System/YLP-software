@@ -41,6 +41,10 @@ export interface PhaseStats {
   discoveryCompleteness: number;
   discoveryP50Ms: number;
   discoveryP95Ms: number;
+  // Event-loop lag measured on the laptop during the phase. lagValid=false means the laptop
+  // saturated before the phone — this phase's ceiling evidence should be discarded.
+  lagP95Ms: number;
+  lagValid: boolean;
 }
 
 function pct(sorted: number[], p: number): number {
@@ -180,6 +184,8 @@ export class MetricsCollector {
       discoveryCompleteness: peerCount > 0 ? this.discoveryProbes.size / peerCount : 0,
       discoveryP50Ms: pct(discoverySorted, 50),
       discoveryP95Ms: pct(discoverySorted, 95),
+      lagP95Ms: 0,
+      lagValid: true,
     };
   }
 }

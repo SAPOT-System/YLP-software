@@ -17,6 +17,7 @@ const fakePhase: PhaseStats = {
   dcEstablishP95Ms: 0,
   connectedPeers: 5,
   discoveryCompleteness: 0, discoveryP50Ms: 0, discoveryP95Ms: 0,
+  lagP95Ms: 0, lagValid: true,
 };
 
 function makePhase(overrides: Partial<PhaseStats>): PhaseStats {
@@ -42,6 +43,22 @@ describe('reporter', () => {
       const table = formatTable([fakePhase]);
       expect(table).not.toContain('Jitter');
       expect(table).toMatch(/RTT/);
+    });
+
+    it('shows EL-p95 and Lag columns', () => {
+      const table = formatTable([fakePhase]);
+      expect(table).toContain('EL-p95');
+      expect(table).toContain('Lag');
+    });
+
+    it('shows "ok" verdict when lagValid is true', () => {
+      const table = formatTable([makePhase({ lagP95Ms: 10, lagValid: true })]);
+      expect(table).toContain(' ok');
+    });
+
+    it('shows "LAG" verdict when lagValid is false', () => {
+      const table = formatTable([makePhase({ lagP95Ms: 80, lagValid: false })]);
+      expect(table).toContain('LAG');
     });
   });
 
@@ -287,6 +304,8 @@ describe('reporter', () => {
         discoveryCompleteness: 0,
         discoveryP50Ms: 0,
         discoveryP95Ms: 0,
+        lagP95Ms: 0,
+        lagValid: true,
         ...overrides,
       };
     }
@@ -346,6 +365,20 @@ describe('reporter', () => {
         makeWebrtcPhase({ rtpPacketsSent: 4600, audioEstablishP95Ms: 410, videoEstablishP95Ms: 520 }),
       );
       expect(output).not.toMatch(/lost/i);
+    });
+
+    it('shows laptop gate as ok when lagValid is true', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ lagP95Ms: 12, lagValid: true }));
+      expect(output).toContain('Laptop gate');
+      expect(output).toContain('12ms');
+      expect(output).toMatch(/ok/i);
+    });
+
+    it('shows laptop gate as INVALID when lagValid is false', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ lagP95Ms: 75, lagValid: false }));
+      expect(output).toContain('Laptop gate');
+      expect(output).toContain('75ms');
+      expect(output).toContain('INVALID');
     });
   });
 });

@@ -1,7 +1,7 @@
 {
   "mode": "tcp-signaled",
   "webrtc": {
-    "connectionTimeoutMs": 10000,
+    "connectionTimeoutMs": 15000,
     "media": { "type": "audio-video", "bitrate": 32 }
   },
   "lan": {
@@ -10,7 +10,11 @@
     "adbDiscovery": true
   },
   "phases": [
-    { "peerCount": 2, "msgPerSec": 5, "durationSec": 20 }
+    { "peerCount": 1,  "msgPerSec": 5, "durationSec": 15 },
+    { "peerCount": 2,  "msgPerSec": 5, "durationSec": 20 },
+    { "peerCount": 4,  "msgPerSec": 5, "durationSec": 20 },
+    { "peerCount": 8,  "msgPerSec": 5, "durationSec": 30 },
+    { "peerCount": 16, "msgPerSec": 5, "durationSec": 30 }
   ],
   "outputDir": "./stress-results"
 }

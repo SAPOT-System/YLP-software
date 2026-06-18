@@ -49,6 +49,8 @@ export interface TestConfig {
   webrtc?: WebrtcConfig;
   phases: Phase[];
   outputDir: string;
+  /** p95 event-loop lag threshold (ms). Phases exceeding this are flagged as laptop-saturated. Default 50. */
+  lagThresholdMs?: number;
 }
 
 export function validateConfig(config: TestConfig): void {

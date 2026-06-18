@@ -1,14 +1,8 @@
 {
-  "mode": "tcp-signaled",
+  "mode": "ws-signaled",
   "webrtc": {
     "connectionTimeoutMs": 15000,
-    "media": { "type": "audio-video", "bitrate": 32 },
-    "iperfTargetIp": "192.168.1.5"
-  },
-  "lan": {
-    "hostIp": "192.168.1.23",
-    "iperfTargetIp": "192.168.1.5",
-    "startPort": 9000
+    "media": { "type": "audio-video", "bitrate": 32 }
   },
   "ws": {
     "serverUrl": "https://192.168.1.23",
@@ -21,8 +15,7 @@
     { "peerCount": 4,  "msgPerSec": 5, "durationSec": 20, "runIperf": true },
     { "peerCount": 8,  "msgPerSec": 5, "durationSec": 20, "runIperf": true },
     { "peerCount": 16, "msgPerSec": 5, "durationSec": 30, "runIperf": true },
-    { "peerCount": 32, "msgPerSec": 5, "durationSec": 30, "runIperf": true },
-    { "peerCount": 64, "msgPerSec": 5, "durationSec": 30, "runIperf": true }
+    { "peerCount": 32, "msgPerSec": 5, "durationSec": 30, "runIperf": true }
   ],
   "outputDir": "./stress-results"
 }

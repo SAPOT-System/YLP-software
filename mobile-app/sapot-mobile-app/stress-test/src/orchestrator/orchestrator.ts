@@ -1,6 +1,8 @@
 import { TestConfig, Phase } from "./test-config";
 import { MetricsCollector, PhaseStats, IperfStats } from "../metrics/collector";
 import { NetworkSampler } from "../metrics/network-sampler";
+import { EventLoopLagSampler } from "../metrics/event-loop-lag-sampler";
+import { computeLagP95, isPhaseLagValid } from "../metrics/lag-guard";
 import {
   computeNetworkStats,
   formatSaturationAnalysis,
@@ -22,6 +24,7 @@ export class Orchestrator {
     private readonly config: TestConfig,
     private readonly collector: MetricsCollector,
     private readonly sampler: NetworkSampler,
+    private readonly lagSampler: EventLoopLagSampler = new EventLoopLagSampler(),
     private readonly phoneDiscovery: () => Promise<PhoneTarget> = discoverPhoneTarget,
   ) {}
 
@@ -44,6 +47,7 @@ export class Orchestrator {
       for (const phase of this.config.phases) {
         this.collector.reset();
         this.sampler.reset();
+        this.lagSampler.reset();
         const peers = this.createTcpSignaledPeers(phase);
 
         if (isStarMode) {
@@ -83,11 +87,13 @@ export class Orchestrator {
 
         const startMs = Date.now();
         this.sampler.start();
+        this.lagSampler.start();
         peers.forEach((p) => p.startSending(phase.msgPerSec, phase.totalMessages));
         await sleep(phase.durationSec * 1000);
         peers.forEach((p) => p.stopSending());
         const connectedPeers = peers.filter((p) => p.getMetrics().connectedAtPhaseEnd).length;
         this.sampler.stop();
+        this.lagSampler.stop();
         const endMs = Date.now();
 
         const iperfLoad = await this.awaitIperf(iperfPromise);
@@ -98,6 +104,8 @@ export class Orchestrator {
           phase.runIperf && iperfTarget ? `-iperf` : ""
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
+        const lagSamples = this.lagSampler.getSamples();
+        const lagThresholdMs = this.config.lagThresholdMs ?? 50;
         const msgStats = this.collector.computeStats(
           phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, connectedPeers
         );
@@ -108,6 +116,8 @@ export class Orchestrator {
           linkSpeedMbps: netStats.linkSpeedMbps,
           iperfBaseline,
           iperfLoad,
+          lagP95Ms: computeLagP95(lagSamples),
+          lagValid: isPhaseLagValid(lagSamples, lagThresholdMs),
         };
         printPhaseStats(stats);
         console.log(formatWebrtcBlock(stats));
@@ -126,6 +136,7 @@ export class Orchestrator {
       for (const phase of this.config.phases) {
         this.collector.reset();
         this.sampler.reset();
+        this.lagSampler.reset();
 
         let peers: WsSignaledWrtcPeer[] | WsStarPeer[];
 
@@ -220,11 +231,13 @@ export class Orchestrator {
 
         const startMs = Date.now();
         this.sampler.start();
+        this.lagSampler.start();
         peers.forEach((p) => p.startSending(phase.msgPerSec, phase.totalMessages));
         await sleep(phase.durationSec * 1000);
         peers.forEach((p) => p.stopSending());
         const connectedPeers = peers.filter((p) => p.getMetrics().connectedAtPhaseEnd).length;
         this.sampler.stop();
+        this.lagSampler.stop();
         const endMs = Date.now();
 
         const iperfLoad = await this.awaitIperf(iperfPromise);
@@ -235,6 +248,8 @@ export class Orchestrator {
           phase.runIperf && iperfTarget ? `-iperf` : ""
         }`;
         const netStats = computeNetworkStats(this.sampler.getSamples(), endMs - startMs);
+        const lagSamples = this.lagSampler.getSamples();
+        const lagThresholdMs = this.config.lagThresholdMs ?? 50;
         const msgStats = this.collector.computeStats(
           phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, connectedPeers
         );
@@ -245,6 +260,8 @@ export class Orchestrator {
           linkSpeedMbps: netStats.linkSpeedMbps,
           iperfBaseline,
           iperfLoad,
+          lagP95Ms: computeLagP95(lagSamples),
+          lagValid: isPhaseLagValid(lagSamples, lagThresholdMs),
         };
         printPhaseStats(stats);
         console.log(formatWebrtcBlock(stats));
@@ -417,6 +434,8 @@ function printPhaseStats(stats: PhaseStats): void {
   console.log(
     `  p50/p95/p99: ${stats.p50Ms}ms / ${stats.p95Ms}ms / ${stats.p99Ms}ms | RTT σ: ${stats.rttStddevMs}ms`
   );
+  const lagVerdict = stats.lagValid ? 'ok' : 'INVALID';
+  console.log(`  Laptop gate: EL-lag p95 ${stats.lagP95Ms}ms [${lagVerdict}]`);
 }
 
 function sleep(ms: number): Promise<void> {

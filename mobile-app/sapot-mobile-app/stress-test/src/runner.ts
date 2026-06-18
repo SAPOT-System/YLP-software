@@ -5,6 +5,7 @@ import { TestConfig, validateConfig } from './orchestrator/test-config';
 import { Orchestrator } from './orchestrator/orchestrator';
 import { MetricsCollector } from './metrics/collector';
 import { NetworkSampler } from './metrics/network-sampler';
+import { EventLoopLagSampler } from './metrics/event-loop-lag-sampler';
 import { formatTable, writeResults } from './metrics/reporter';
 
 const program = new Command();
@@ -43,7 +44,8 @@ program
 
     const collector = new MetricsCollector();
     const sampler = new NetworkSampler();
-    const orchestrator = new Orchestrator(config, collector, sampler);
+    const lagSampler = new EventLoopLagSampler();
+    const orchestrator = new Orchestrator(config, collector, sampler, lagSampler);
 
     process.on('SIGINT', () => {
       console.log('\nInterrupted — flushing partial results...');

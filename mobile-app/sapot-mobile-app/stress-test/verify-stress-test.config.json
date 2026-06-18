@@ -18,7 +18,7 @@
     "password": "StressTest@123"
   },
   "phases": [
-    { "peerCount": 2, "msgPerSec": 2, "durationSec": 20, "runIperf": true}
+    { "peerCount": 10, "msgPerSec": 2, "durationSec": 20, "runIperf": true}
   ],
   "outputDir": "./stress-results"
 }

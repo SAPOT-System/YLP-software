@@ -42,12 +42,14 @@ export function computeNetworkStats(samples: NetworkSample[], durationMs: number
 export function formatTable(phases: PhaseStats[]): string {
   const hasIperf = phases.some(p => p.iperfLoad !== null);
 
+  const lagSuffix = ' | EL-p95 | Lag';
+  const lagSepSuffix = ' |--------|----';
   const header = hasIperf
-    ? 'Phase              | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ  | Mbps  | iMbps | iLoss%| iJitter'
-    : 'Phase              | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ  | Mbps';
+    ? `Phase              | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ  | Mbps  | iMbps | iLoss%| iJitter${lagSuffix}`
+    : `Phase              | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ  | Mbps${lagSuffix}`;
   const sep = hasIperf
-    ? '-------------------|-------|-------|-----------|---------|------|-------|--------|-------|-------|-------|--------'
-    : '-------------------|-------|-------|-----------|---------|------|-------|--------|------';
+    ? `-------------------|-------|-------|-----------|---------|------|-------|--------|-------|-------|-------|--------${lagSepSuffix}`
+    : `-------------------|-------|-------|-----------|---------|------|-------|--------|------${lagSepSuffix}`;
 
   const rows = phases.map(p => {
     const name   = p.phaseName.padEnd(18);
@@ -59,12 +61,15 @@ export function formatTable(phases: PhaseStats[]): string {
     const p95    = `${p.p95Ms}ms`.padStart(5);
     const rttSd  = `${p.rttStddevMs}ms`.padStart(6);
     const mbps   = `${p.throughputMbps}`.padStart(5);
+    const elP95  = `${p.lagP95Ms}ms`.padStart(6);
+    const lag    = p.lagValid ? ' ok' : 'LAG';
     const base = `${name} | ${peers} | ${rate} | ${del} | ${txOvf} | ${p50} | ${p95} | ${rttSd} | ${mbps}`;
-    if (!hasIperf) return base;
+    const lagCols = ` | ${elP95} | ${lag}`;
+    if (!hasIperf) return `${base}${lagCols}`;
     const iMbps   = p.iperfLoad ? `${p.iperfLoad.throughputMbps}`.padStart(5)  : '   -';
     const iLoss   = p.iperfLoad ? `${p.iperfLoad.lossPercent}%`.padStart(6)    : '    -';
     const iJitter = p.iperfLoad ? `${p.iperfLoad.jitterMs}ms`.padStart(7)      : '      -';
-    return `${base} | ${iMbps} | ${iLoss} | ${iJitter}`;
+    return `${base} | ${iMbps} | ${iLoss} | ${iJitter}${lagCols}`;
   });
   return [header, sep, ...rows].join('\n');
 }
@@ -209,6 +214,7 @@ export function formatWebrtcBlock(stats: PhaseStats): string {
   const connected = stats.connectedPeers;
   const successPct = peerCount > 0 ? ((connected / peerCount) * 100).toFixed(0) : '0';
 
+  const lagVerdict = stats.lagValid ? 'ok' : 'INVALID — laptop event loop saturated; exclude from ceiling';
   const lines: string[] = [
     'WebRTC Connections',
     `  pairs attempted     : ${pairs}`,
@@ -222,6 +228,8 @@ export function formatWebrtcBlock(stats: PhaseStats): string {
     'Chat (RTCDataChannel)',
     `  sent / acked / tx-overflow : ${stats.totalSent} / ${stats.totalAcked} / ${stats.txQueueOverflowCount}`,
     `  write latency p95          : ${stats.p95Ms}ms`,
+    '',
+    `Laptop gate: EL-lag p95 ${stats.lagP95Ms}ms — ${lagVerdict}`,
   ];
 
   if (stats.rtpPacketsSent > 0) {
