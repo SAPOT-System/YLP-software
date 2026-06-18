@@ -12,6 +12,7 @@ const BASE: PhaseStats = {
   videoEstablishP95Ms: 0, dcEstablishP95Ms: 0, connectedPeers: 4,
   discoveryCompleteness: 0, discoveryP50Ms: 0, discoveryP95Ms: 0,
   lagP95Ms: 0, lagValid: true,
+  phoneRefused: null, neverArrived: null,
 };
 
 function phase(overrides: Partial<PhaseStats>): PhaseStats {

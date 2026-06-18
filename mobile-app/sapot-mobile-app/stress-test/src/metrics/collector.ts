@@ -45,6 +45,9 @@ export interface PhaseStats {
   // saturated before the phone — this phase's ceiling evidence should be discarded.
   lagP95Ms: number;
   lagValid: boolean;
+  // Failure attribution from phone session log (null = no log data available).
+  phoneRefused: number | null;
+  neverArrived: number | null;
 }
 
 function pct(sorted: number[], p: number): number {
@@ -186,6 +189,8 @@ export class MetricsCollector {
       discoveryP95Ms: pct(discoverySorted, 95),
       lagP95Ms: 0,
       lagValid: true,
+      phoneRefused: null,
+      neverArrived: null,
     };
   }
 }

@@ -274,5 +274,16 @@ export function formatWebrtcBlock(stats: PhaseStats): string {
     );
   }
 
+  lines.push('');
+  if (stats.phoneRefused !== null || stats.neverArrived !== null) {
+    lines.push(
+      'Failure attribution (phone session log)',
+      `  phone-refused           : ${stats.phoneRefused ?? 0}`,
+      `  never-arrived           : ${stats.neverArrived ?? 0}`,
+    );
+  } else {
+    lines.push('Failure attribution       : unavailable (no phone session log)');
+  }
+
   return lines.join('\n');
 }
