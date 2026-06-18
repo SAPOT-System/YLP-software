@@ -45,8 +45,14 @@ emit. To attribute failures to the phone, parse the phone's session log lines (e
   "unavailable" when null.
 - 20 new unit tests in `tests/discovery/session-log-parser.test.ts`.
 
-## Remaining (blocked on 0007 + adb-runner per-phase scraping)
+## Done — orchestrator wiring (2026-06-18)
 
-- Orchestrator wiring: per-phase logcat capture → `parseSessionEvents` → store in
-  `PhaseStats`. Needs `adb-runner.ts` to expose a per-phase logcat scrape, and needs
-  0007 to have the app emitting the lines in the first place.
+- `scrapeSessionLog(sinceMs, exec?)` added to `adb-runner.ts`. Formats `MM-DD HH:MM:SS.mmm`
+  timestamp for `adb logcat -d -T`; returns `null` when adb is unavailable (graceful
+  degradation). 5 new unit tests in `tests/discovery/adb-runner.test.ts`.
+- Orchestrator injects `sessionLogScraper` (default = `scrapeSessionLog`). Per-phase:
+  records `phaseStartMs = Date.now()` at phase start; after sending stops, calls
+  `sessionLogScraper(phaseStartMs)` in star mode (null in pair mode); feeds result through
+  `parseSessionEvents` → `classifyFailures` → sets `phoneRefused` / `neverArrived` on
+  `PhaseStats`. Attribution shows "unavailable" in the report until 0007 makes the app
+  emit the session log lines.

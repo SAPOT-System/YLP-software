@@ -12,7 +12,8 @@ import { TcpSignaledWrtcPeer } from "../peers/tcp-signaled-wrtc-peer";
 import { WsSignaledWrtcPeer } from "../peers/ws-signaled-wrtc-peer";
 import { WsStarPeer } from "../peers/ws-star-peer";
 import { spawn } from "child_process";
-import { discoverPhoneTarget, PhoneTarget } from "../discovery/adb-runner";
+import { discoverPhoneTarget, scrapeSessionLog, PhoneTarget } from "../discovery/adb-runner";
+import { parseSessionEvents, classifyFailures } from "../discovery/session-log-parser";
 
 export class Orchestrator {
   // Real link capacity (Mbps) discovered by a TCP probe, calibrated once per transport
@@ -25,6 +26,7 @@ export class Orchestrator {
     private readonly sampler: NetworkSampler,
     private readonly lagSampler: EventLoopLagSampler = new EventLoopLagSampler(),
     private readonly phoneDiscovery: () => Promise<PhoneTarget> = discoverPhoneTarget,
+    private readonly sessionLogScraper: (sinceMs: number) => Promise<string | null> = scrapeSessionLog,
   ) {}
 
   async run(): Promise<PhaseStats[]> {
@@ -48,6 +50,7 @@ export class Orchestrator {
         this.sampler.reset();
         this.lagSampler.reset();
         const peers = this.createTcpSignaledPeers(phase);
+        const phaseStartMs = Date.now();
 
         if (isStarMode) {
           // Star mode: connect() dials the phone directly for each peer.
@@ -95,6 +98,7 @@ export class Orchestrator {
         this.lagSampler.stop();
         const endMs = Date.now();
 
+        const sessionLogText = isStarMode ? await this.sessionLogScraper(phaseStartMs) : null;
         const iperfLoad = await this.awaitIperf(iperfPromise);
         await Promise.allSettled(peers.map((p) => p.disconnect()));
 
@@ -108,6 +112,9 @@ export class Orchestrator {
         const msgStats = this.collector.computeStats(
           phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, connectedPeers
         );
+        const attribution = sessionLogText !== null
+          ? classifyFailures(parseSessionEvents(sessionLogText), msgStats.connectionTimeouts)
+          : null;
         const stats: PhaseStats = {
           ...msgStats,
           throughputMbps: netStats.throughputMbps,
@@ -117,6 +124,8 @@ export class Orchestrator {
           iperfLoad,
           lagP95Ms: computeLagP95(lagSamples),
           lagValid: isPhaseLagValid(lagSamples, lagThresholdMs),
+          phoneRefused: attribution?.phoneRefused ?? null,
+          neverArrived: attribution?.neverArrived ?? null,
         };
         printPhaseStats(stats);
         console.log(formatWebrtcBlock(stats));
@@ -136,6 +145,7 @@ export class Orchestrator {
         this.collector.reset();
         this.sampler.reset();
         this.lagSampler.reset();
+        const phaseStartMs = Date.now();
 
         let peers: WsSignaledWrtcPeer[] | WsStarPeer[];
 
@@ -239,6 +249,7 @@ export class Orchestrator {
         this.lagSampler.stop();
         const endMs = Date.now();
 
+        const sessionLogText = isStarMode ? await this.sessionLogScraper(phaseStartMs) : null;
         const iperfLoad = await this.awaitIperf(iperfPromise);
         await Promise.allSettled(peers.map((p) => p.disconnect()));
 
@@ -252,6 +263,9 @@ export class Orchestrator {
         const msgStats = this.collector.computeStats(
           phaseName, phase.peerCount, phase.msgPerSec, phase.durationSec, connectedPeers
         );
+        const attribution = sessionLogText !== null
+          ? classifyFailures(parseSessionEvents(sessionLogText), msgStats.connectionTimeouts)
+          : null;
         const stats: PhaseStats = {
           ...msgStats,
           throughputMbps: netStats.throughputMbps,
@@ -261,6 +275,8 @@ export class Orchestrator {
           iperfLoad,
           lagP95Ms: computeLagP95(lagSamples),
           lagValid: isPhaseLagValid(lagSamples, lagThresholdMs),
+          phoneRefused: attribution?.phoneRefused ?? null,
+          neverArrived: attribution?.neverArrived ?? null,
         };
         printPhaseStats(stats);
         console.log(formatWebrtcBlock(stats));

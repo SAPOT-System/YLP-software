@@ -1,4 +1,4 @@
-import { discoverPhoneTarget, ExecFn } from '@/discovery/adb-runner';
+import { discoverPhoneTarget, scrapeSessionLog, ExecFn } from '@/discovery/adb-runner';
 import { ParseFailure } from '@/discovery/logcat-parser';
 
 const PORT_LINE = 'network › config constructed {"port":54321}';
@@ -63,5 +63,45 @@ describe('adb-runner', () => {
     });
     await expect(discoverPhoneTarget(exec)).rejects.toBeInstanceOf(ParseFailure);
     await expect(discoverPhoneTarget(exec)).rejects.toThrow(/ip/i);
+  });
+});
+
+describe('scrapeSessionLog', () => {
+  it('returns logcat text when exec succeeds', async () => {
+    const logLine = 'session › accepted {"sessionId":"s1","peerId":"p1","activeSessions":1}';
+    const exec = makeExec({ 'adb logcat': logLine });
+    const result = await scrapeSessionLog(Date.now(), exec);
+    expect(result).toBe(logLine);
+  });
+
+  it('returns null when exec throws (adb unavailable)', async () => {
+    const exec: ExecFn = () => { throw new Error('adb: command not found'); };
+    const result = await scrapeSessionLog(Date.now(), exec);
+    expect(result).toBeNull();
+  });
+
+  it('returns empty string (not null) when adb runs but emits no matching lines', async () => {
+    const exec = makeExec({ 'adb logcat': '' });
+    const result = await scrapeSessionLog(Date.now(), exec);
+    expect(result).toBe('');
+  });
+
+  it('passes -d -T flag with MM-DD HH:MM:SS.mmm timestamp to logcat', async () => {
+    let captured = '';
+    const exec: ExecFn = (cmd) => { captured = cmd; return ''; };
+    // 2026-06-18 14:30:45.123 local time
+    const sinceMs = new Date(2026, 5, 18, 14, 30, 45, 123).getTime();
+    await scrapeSessionLog(sinceMs, exec);
+    expect(captured).toContain('adb logcat -d -T');
+    expect(captured).toContain('06-18 14:30:45.123');
+  });
+
+  it('zero-pads month, day, hour, minute, second, and millisecond', async () => {
+    let captured = '';
+    const exec: ExecFn = (cmd) => { captured = cmd; return ''; };
+    // 2026-01-05 03:07:09.005
+    const sinceMs = new Date(2026, 0, 5, 3, 7, 9, 5).getTime();
+    await scrapeSessionLog(sinceMs, exec);
+    expect(captured).toContain('01-05 03:07:09.005');
   });
 });

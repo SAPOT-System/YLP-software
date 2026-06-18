@@ -13,6 +13,27 @@ function defaultExec(cmd: string): string {
   return execSync(cmd, { encoding: 'utf8', timeout: 15_000 });
 }
 
+function pad2(n: number): string { return String(n).padStart(2, '0'); }
+function pad3(n: number): string { return String(n).padStart(3, '0'); }
+
+function formatLogcatTimestamp(ms: number): string {
+  const dt = new Date(ms);
+  return `${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())} ` +
+    `${pad2(dt.getHours())}:${pad2(dt.getMinutes())}:${pad2(dt.getSeconds())}.${pad3(dt.getMilliseconds())}`;
+}
+
+/**
+ * Dumps logcat output since sinceMs (phase start). Returns null if adb is unavailable;
+ * returns empty string if adb ran but emitted no lines in the window.
+ */
+export async function scrapeSessionLog(sinceMs: number, exec: ExecFn = defaultExec): Promise<string | null> {
+  try {
+    return exec(`adb logcat -d -T "${formatLogcatTimestamp(sinceMs)}"`);
+  } catch {
+    return null;
+  }
+}
+
 function assertDeviceAttached(exec: ExecFn): void {
   const output = exec('adb devices');
   const lines = output.trim().split('\n').slice(1).filter(l => l.trim());
