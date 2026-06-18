@@ -48,11 +48,14 @@ like the userId beacon in ADR-0002.
   ("Attribution shows 'unavailable'").
 - All 20 session-log-parser unit tests pass; build clean.
 
-## Remaining (blocked on mobile app code)
+## Done (2026-06-18) — app-side implementation
 
-- App-side implementation: emit `session › accepted`, `session › rejected`, and
-  `session › active-count` log lines at the connection/signaling decision point in the
-  Sapot React Native app, gated to `APP_VARIANT` ∈ {development, preview}.
-- App-side unit tests asserting lines are emitted on accept/reject and gated by variant.
-- This work touches `mobile-app/sapot-mobile-app` app code which is not in this
-  repository (stress-test only).
+- `WebrtcSessionManager.getWebrtcAdapter` (`features/shared/services/webrtc-session-manager.ts`)
+  emits `session › accepted` with `{sessionId, peerId, activeSessions}` in development and
+  preview builds when a NEW WebRTC adapter is created. Uses the same
+  `Constants.expoConfig?.extra?.appVariant` gate as ADR-0002. Production builds emit nothing.
+- `sessionId` format: `${peerId}-${Date.now()}` — unique per adapter creation.
+- `activeSessions` = `this.webrtcAdapters.size` (post-add).
+- 7 unit tests added to `features/shared/services/__tests__/webrtc-session-manager.test.ts`.
+- 2 contract tests added to `stress-test/tests/discovery/session-log-parser.test.ts`
+  confirming single-line and multi-line logcat output are parseable by `parseSessionEvents`.

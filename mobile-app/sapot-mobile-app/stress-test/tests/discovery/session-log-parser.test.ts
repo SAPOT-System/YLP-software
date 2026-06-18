@@ -238,4 +238,42 @@ describe('session-log-parser', () => {
       expect(result.neverArrived).toBe(1);
     });
   });
+
+  // Contract test: the exact format WebrtcSessionManager emits (issue 0007) must be parseable.
+  // webrtcLog.info("session › accepted", { sessionId, peerId, activeSessions }) produces either:
+  //   single-line: "webrtc | INFO : session › accepted {"sessionId":"...","peerId":"...","activeSessions":N}"
+  //   multi-line: "webrtc | INFO : session › accepted\n{\n  ...\n}"
+  describe('contract: app-emitted lines (issue 0007)', () => {
+    it('parses the single-line format emitted by WebrtcSessionManager', () => {
+      const line =
+        '01-01 12:00:00.000  1234  5678 I ReactNativeJS:  LOG  webrtc | INFO : ' +
+        'session › accepted {"sessionId":"peer-1-1718712000000","peerId":"peer-1","activeSessions":1}';
+      const events = parseSessionEvents(line);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        kind: 'accepted',
+        sessionId: 'peer-1-1718712000000',
+        peerId: 'peer-1',
+        activeSessions: 1,
+      });
+    });
+
+    it('parses the multi-line format emitted by WebrtcSessionManager', () => {
+      const log = [
+        '01-01 12:00:00.000  1234  5678 I ReactNativeJS:  LOG  webrtc | INFO : session › accepted',
+        '{',
+        '  "sessionId": "peer-2-1718712001000",',
+        '  "peerId": "peer-2",',
+        '  "activeSessions": 2',
+        '}',
+      ].join('\n');
+      const events = parseSessionEvents(log);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        kind: 'accepted',
+        peerId: 'peer-2',
+        activeSessions: 2,
+      });
+    });
+  });
 });
