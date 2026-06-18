@@ -7,7 +7,6 @@ import {
   computeNetworkStats,
   formatSaturationAnalysis,
   formatWebrtcBlock,
-  formatIperfComparison,
 } from "../metrics/reporter";
 import { TcpSignaledWrtcPeer } from "../peers/tcp-signaled-wrtc-peer";
 import { WsSignaledWrtcPeer } from "../peers/ws-signaled-wrtc-peer";
@@ -267,12 +266,6 @@ export class Orchestrator {
         console.log(formatWebrtcBlock(stats));
         results.push(stats);
       }
-    }
-
-    const iperfComparison = formatIperfComparison(results);
-    if (iperfComparison) {
-      console.log("\n=== iperf: BASELINE vs UNDER-LOAD ===");
-      console.log(iperfComparison);
     }
 
     console.log("\n=== SATURATION ANALYSIS ===");

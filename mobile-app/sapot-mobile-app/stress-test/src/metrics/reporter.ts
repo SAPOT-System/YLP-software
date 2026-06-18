@@ -4,6 +4,7 @@ import { PhaseStats, IperfStats } from './collector';
 import { NetworkSample } from './network-sampler';
 import { CeilingResult } from './ceiling-rule';
 import { HeadroomResult } from './laptop-headroom';
+import { LinkHealthResult } from './link-health';
 
 export interface NetworkStats {
   throughputMbps: number;
@@ -15,7 +16,6 @@ export interface NetworkStats {
 
 const LATENCY_SPIKE_MULTIPLIER     = 2;
 const THROUGHPUT_PLATEAU_THRESHOLD = 0.10;
-const PACKET_LOSS_THRESHOLD_PCT    = 1;
 const DELIVERY_RATE_MIN            = 0.95;
 
 export function computeNetworkStats(samples: NetworkSample[], durationMs: number): NetworkStats {
@@ -42,36 +42,22 @@ export function computeNetworkStats(samples: NetworkSample[], durationMs: number
 }
 
 export function formatTable(phases: PhaseStats[]): string {
-  const hasIperf = phases.some(p => p.iperfLoad !== null);
-
-  const lagSuffix = ' | EL-p95 | Lag';
-  const lagSepSuffix = ' |--------|----';
-  const header = hasIperf
-    ? `Phase              | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ  | Mbps  | iMbps | iLoss%| iJitter${lagSuffix}`
-    : `Phase              | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ  | Mbps${lagSuffix}`;
-  const sep = hasIperf
-    ? `-------------------|-------|-------|-----------|---------|------|-------|--------|-------|-------|-------|--------${lagSepSuffix}`
-    : `-------------------|-------|-------|-----------|---------|------|-------|--------|------${lagSepSuffix}`;
+  const header = `Phase              | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ  | Mbps | EL-p95 | Lag`;
+  const sep    = `-------------------|-------|-------|-----------|---------|------|-------|--------|------|--------|----`;
 
   const rows = phases.map(p => {
-    const name   = p.phaseName.padEnd(18);
-    const peers  = String(p.peerCount).padStart(5);
-    const rate   = String(p.msgPerSec).padStart(5);
-    const del    = `${(p.deliveryRate * 100).toFixed(1)}%`.padStart(9);
-    const txOvf  = String(p.txQueueOverflowCount).padStart(7);
-    const p50    = `${p.p50Ms}ms`.padStart(4);
-    const p95    = `${p.p95Ms}ms`.padStart(5);
-    const rttSd  = `${p.rttStddevMs}ms`.padStart(6);
-    const mbps   = `${p.throughputMbps}`.padStart(5);
-    const elP95  = `${p.lagP95Ms}ms`.padStart(6);
-    const lag    = p.lagValid ? ' ok' : 'LAG';
-    const base = `${name} | ${peers} | ${rate} | ${del} | ${txOvf} | ${p50} | ${p95} | ${rttSd} | ${mbps}`;
-    const lagCols = ` | ${elP95} | ${lag}`;
-    if (!hasIperf) return `${base}${lagCols}`;
-    const iMbps   = p.iperfLoad ? `${p.iperfLoad.throughputMbps}`.padStart(5)  : '   -';
-    const iLoss   = p.iperfLoad ? `${p.iperfLoad.lossPercent}%`.padStart(6)    : '    -';
-    const iJitter = p.iperfLoad ? `${p.iperfLoad.jitterMs}ms`.padStart(7)      : '      -';
-    return `${base} | ${iMbps} | ${iLoss} | ${iJitter}${lagCols}`;
+    const name  = p.phaseName.padEnd(18);
+    const peers = String(p.peerCount).padStart(5);
+    const rate  = String(p.msgPerSec).padStart(5);
+    const del   = `${(p.deliveryRate * 100).toFixed(1)}%`.padStart(9);
+    const txOvf = String(p.txQueueOverflowCount).padStart(7);
+    const p50   = `${p.p50Ms}ms`.padStart(4);
+    const p95   = `${p.p95Ms}ms`.padStart(5);
+    const rttSd = `${p.rttStddevMs}ms`.padStart(6);
+    const mbps  = `${p.throughputMbps}`.padStart(4);
+    const elP95 = `${p.lagP95Ms}ms`.padStart(6);
+    const lag   = p.lagValid ? ' ok' : 'LAG';
+    return `${name} | ${peers} | ${rate} | ${del} | ${txOvf} | ${p50} | ${p95} | ${rttSd} | ${mbps} | ${elP95} | ${lag}`;
   });
   return [header, sep, ...rows].join('\n');
 }
@@ -130,10 +116,6 @@ export function formatSaturationAnalysis(phases: PhaseStats[]): string {
       findings.push(`  [LATENCY SPIKE]      Phase "${p.phaseName}": p95 ${p.p95Ms}ms > ${LATENCY_SPIKE_MULTIPLIER}× baseline ${baseline.p95Ms}ms`);
     }
 
-    if (p.iperfLoad && p.iperfLoad.lossPercent > PACKET_LOSS_THRESHOLD_PCT) {
-      findings.push(`  [PACKET LOSS]        Phase "${p.phaseName}": loss ${p.iperfLoad.lossPercent}% exceeds ${PACKET_LOSS_THRESHOLD_PCT}% threshold (iperf)`);
-    }
-
     if (p.deliveryRate < DELIVERY_RATE_MIN) {
       findings.push(`  [DELIVERY DROP]      Phase "${p.phaseName}": delivery ${(p.deliveryRate * 100).toFixed(1)}% < ${DELIVERY_RATE_MIN * 100}%`);
     }
@@ -154,6 +136,13 @@ export function formatSaturationAnalysis(phases: PhaseStats[]): string {
     return 'No saturation detected within test range — increase peer count.';
   }
   return `Saturation signals detected:\n${findings.join('\n')}`;
+}
+
+export function formatLinkHealthSummary(result: LinkHealthResult): string {
+  if (result.healthy) {
+    return `Link health: ok (${result.throughputMbps} Mbps, ${result.lossPercent}% loss)`;
+  }
+  return `Link health: DEGRADED — ${result.reason}`;
 }
 
 export function writeResults(

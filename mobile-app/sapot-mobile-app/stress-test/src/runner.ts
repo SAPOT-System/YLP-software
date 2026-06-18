@@ -6,9 +6,10 @@ import { Orchestrator } from './orchestrator/orchestrator';
 import { MetricsCollector } from './metrics/collector';
 import { NetworkSampler } from './metrics/network-sampler';
 import { EventLoopLagSampler } from './metrics/event-loop-lag-sampler';
-import { formatTable, formatCeilingSummary, formatHeadroomSummary, writeResults } from './metrics/reporter';
+import { formatTable, formatCeilingSummary, formatHeadroomSummary, formatLinkHealthSummary, writeResults } from './metrics/reporter';
 import { determineCeiling } from './metrics/ceiling-rule';
 import { assessLaptopHeadroom } from './metrics/laptop-headroom';
+import { isLinkHealthy } from './metrics/link-health';
 
 const program = new Command();
 
@@ -64,8 +65,10 @@ program
 
       const results = await orchestrator.run();
       const ceiling = determineCeiling(results);
+      const linkHealth = isLinkHealthy(results[0]?.iperfBaseline ?? null);
 
       console.log('\n\n=== RESULTS ===');
+      console.log(formatLinkHealthSummary(linkHealth));
       console.log(formatTable(results));
       console.log('\n' + formatCeilingSummary(results, ceiling));
 

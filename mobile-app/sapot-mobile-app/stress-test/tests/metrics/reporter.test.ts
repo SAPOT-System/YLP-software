@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison, formatDiscoverySection, formatRepresentativenessBanner, getModeLabel, formatCeilingSummary, formatHeadroomSummary } from '@/metrics/reporter';
+import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison, formatDiscoverySection, formatRepresentativenessBanner, getModeLabel, formatCeilingSummary, formatHeadroomSummary, formatLinkHealthSummary } from '@/metrics/reporter';
 import { CeilingResult } from '@/metrics/ceiling-rule';
 import { HeadroomResult } from '@/metrics/laptop-headroom';
+import { LinkHealthResult } from '@/metrics/link-health';
 import { NetworkSample } from '@/metrics/network-sampler';
 import { PhaseStats } from '@/metrics/collector';
 
@@ -172,18 +173,6 @@ describe('reporter', () => {
       const result = formatSaturationAnalysis(phases);
       expect(result).toContain('LATENCY SPIKE');
       expect(result).toContain('"p3"');
-    });
-
-    it('identifies packet loss onset phase from iperf under-load loss', () => {
-      const cleanLoad  = { throughputMbps: 900, lossPercent: 0,   jitterMs: 1, lostPackets: 0,   totalPackets: 10000 };
-      const lossyLoad  = { throughputMbps: 600, lossPercent: 1.5, jitterMs: 4, lostPackets: 150, totalPackets: 10000 };
-      const phases = [
-        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 20, deliveryRate: 0.99, throughputMbps: 5, iperfLoad: cleanLoad }),
-        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 22, deliveryRate: 0.98, throughputMbps: 9, iperfLoad: lossyLoad }),
-      ];
-      const result = formatSaturationAnalysis(phases);
-      expect(result).toContain('PACKET LOSS');
-      expect(result).toContain('"p2"');
     });
 
     it('identifies throughput plateau when peer count increases but throughput stalls', () => {
@@ -456,6 +445,36 @@ describe('reporter', () => {
       const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: 0, neverArrived: 0 }));
       expect(output).toContain('phone-refused');
       expect(output).toContain(': 0');
+    });
+  });
+
+  describe('formatLinkHealthSummary', () => {
+    it('shows ok verdict for a healthy baseline', () => {
+      const result: LinkHealthResult = { healthy: true, throughputMbps: 940, lossPercent: 0.01, reason: null };
+      const out = formatLinkHealthSummary(result);
+      expect(out).toMatch(/ok/i);
+      expect(out).toContain('940');
+      expect(out).toContain('0.01');
+    });
+
+    it('shows DEGRADED verdict and reason when link is unhealthy', () => {
+      const result: LinkHealthResult = { healthy: false, throughputMbps: 3, lossPercent: 0.1, reason: 'throughput 3 Mbps below 10 Mbps threshold' };
+      const out = formatLinkHealthSummary(result);
+      expect(out).toMatch(/DEGRADED/);
+      expect(out).toContain('throughput 3 Mbps below 10 Mbps threshold');
+    });
+
+    it('shows ok when no baseline is available (null → healthy passthrough)', () => {
+      const result: LinkHealthResult = { healthy: true, throughputMbps: 0, lossPercent: 0, reason: null };
+      const out = formatLinkHealthSummary(result);
+      expect(out).toMatch(/ok/i);
+    });
+
+    it('includes measured values in ok verdict', () => {
+      const result: LinkHealthResult = { healthy: true, throughputMbps: 500, lossPercent: 0.5, reason: null };
+      const out = formatLinkHealthSummary(result);
+      expect(out).toContain('500');
+      expect(out).toContain('0.5');
     });
   });
 
