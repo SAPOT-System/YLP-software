@@ -1,13 +1,13 @@
 export interface PeerMetrics {
   sent: number;
   acked: number;
-  dropped: number;
+  // Local send-queue backpressure (sendMessage returned false), NOT network loss.
+  txQueueOverflow: number;
   writeLatencySamples: number[];
   connectionErrors: number;
   iceEstablishMs: number[];
   connectionTimeouts: number;
   rtpPacketsSent: number;
-  rtpPacketsLost: number;
   dcEstablishMs: number[];
   iceStateTransitions: Array<{ state: string; elapsedMs: number }>;
   audioEstablishMs: number[];
@@ -29,13 +29,12 @@ export function emptyMetrics(): PeerMetrics {
   return {
     sent: 0,
     acked: 0,
-    dropped: 0,
+    txQueueOverflow: 0,
     writeLatencySamples: [],
     connectionErrors: 0,
     iceEstablishMs: [],
     connectionTimeouts: 0,
     rtpPacketsSent: 0,
-    rtpPacketsLost: 0,
     dcEstablishMs: [],
     iceStateTransitions: [],
     audioEstablishMs: [],

@@ -104,7 +104,6 @@ export class Orchestrator {
         const stats: PhaseStats = {
           ...msgStats,
           throughputMbps: netStats.throughputMbps,
-          packetLossPercent: netStats.packetLossPercent,
           rssiDbm: netStats.rssiDbm,
           linkSpeedMbps: netStats.linkSpeedMbps,
           iperfBaseline,
@@ -242,7 +241,6 @@ export class Orchestrator {
         const stats: PhaseStats = {
           ...msgStats,
           throughputMbps: netStats.throughputMbps,
-          packetLossPercent: netStats.packetLossPercent,
           rssiDbm: netStats.rssiDbm,
           linkSpeedMbps: netStats.linkSpeedMbps,
           iperfBaseline,
@@ -414,10 +412,10 @@ function logIperf(stats: IperfStats | null, stage: string): void {
 function printPhaseStats(stats: PhaseStats): void {
   const rate = (stats.deliveryRate * 100).toFixed(1);
   console.log(
-    `  Sent: ${stats.totalSent} | Acked: ${stats.totalAcked} (${rate}%) | Dropped: ${stats.droppedCount}`
+    `  Sent: ${stats.totalSent} | Acked: ${stats.totalAcked} (${rate}%) | TxOverflow: ${stats.txQueueOverflowCount}`
   );
   console.log(
-    `  p50/p95/p99: ${stats.p50Ms}ms / ${stats.p95Ms}ms / ${stats.p99Ms}ms | Jitter: ${stats.jitterMs}ms`
+    `  p50/p95/p99: ${stats.p50Ms}ms / ${stats.p95Ms}ms / ${stats.p99Ms}ms | RTT σ: ${stats.rttStddevMs}ms`
   );
 }
 

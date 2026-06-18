@@ -7,13 +7,13 @@ import { PhaseStats } from '@/metrics/collector';
 
 const fakePhase: PhaseStats = {
   phaseName: 'peer-ramp-5', peerCount: 5, msgPerSec: 5, durationSec: 60,
-  totalSent: 1500, totalAcked: 1490, deliveryRate: 0.9933, droppedCount: 10,
-  p50Ms: 12, p95Ms: 35, p99Ms: 80, jitterMs: 8, connectionErrors: 0,
-  throughputMbps: 8.5, packetLossPercent: 0.02, rssiDbm: -60, linkSpeedMbps: 144,
+  totalSent: 1500, totalAcked: 1490, deliveryRate: 0.9933, txQueueOverflowCount: 10,
+  p50Ms: 12, p95Ms: 35, p99Ms: 80, rttStddevMs: 8, connectionErrors: 0,
+  throughputMbps: 8.5, rssiDbm: -60, linkSpeedMbps: 144,
   iperfBaseline: null,
   iperfLoad: null,
   iceEstablishP50Ms: 0, iceEstablishP95Ms: 0, iceEstablishMaxMs: 0,
-  connectionTimeouts: 0, rtpPacketsSent: 0, rtpPacketsLost: 0, audioEstablishP95Ms: 0, videoEstablishP95Ms: 0,
+  connectionTimeouts: 0, rtpPacketsSent: 0, audioEstablishP95Ms: 0, videoEstablishP95Ms: 0,
   dcEstablishP95Ms: 0,
   connectedPeers: 5,
   discoveryCompleteness: 0, discoveryP50Ms: 0, discoveryP95Ms: 0,
@@ -31,12 +31,17 @@ describe('reporter', () => {
       expect(table).toContain('99.3%');
     });
 
-    it('contains Mbps and Loss% columns', () => {
+    it('contains a Mbps column but no Loss% column', () => {
       const table = formatTable([fakePhase]);
       expect(table).toContain('Mbps');
-      expect(table).toContain('Loss%');
       expect(table).toContain('8.5');
-      expect(table).toContain('0.02%');
+      expect(table).not.toContain('Loss%');
+    });
+
+    it('labels the RTT stddev column as RTT, not Jitter', () => {
+      const table = formatTable([fakePhase]);
+      expect(table).not.toContain('Jitter');
+      expect(table).toMatch(/RTT/);
     });
   });
 
@@ -84,8 +89,16 @@ describe('reporter', () => {
     it('returns zero stats for empty sample array', () => {
       const stats = computeNetworkStats([], 5000);
       expect(stats.throughputMbps).toBe(0);
-      expect(stats.packetLossPercent).toBe(0);
       expect(stats.rssiDbm).toBeNull();
+    });
+
+    it('does not expose the removed packetLossPercent field', () => {
+      const samples: NetworkSample[] = [
+        { timestamp: 0,    wlanRxBytes: 0,    wlanTxBytes: 0,    tcpRetransSegs: 0,  rssiDbm: -60, linkSpeedMbps: 144 },
+        { timestamp: 5000, wlanRxBytes: 1000, wlanTxBytes: 500,  tcpRetransSegs: 10, rssiDbm: -61, linkSpeedMbps: 144 },
+      ];
+      const stats = computeNetworkStats(samples, 5000);
+      expect('packetLossPercent' in stats).toBe(false);
     });
 
     it('returns zero stats for single sample', () => {
@@ -108,7 +121,8 @@ describe('reporter', () => {
         expect(content.transport).toBe('ws');
         expect(content.phases).toHaveLength(1);
         expect(content.phases[0].throughputMbps).toBe(8.5);
-        expect(content.phases[0].packetLossPercent).toBe(0.02);
+        expect(content.phases[0].txQueueOverflowCount).toBe(10);
+        expect('packetLossPercent' in content.phases[0]).toBe(false);
       } finally {
         fs.rmSync(tmpDir, { recursive: true });
       }
@@ -118,9 +132,9 @@ describe('reporter', () => {
   describe('formatSaturationAnalysis', () => {
     it('reports no saturation when all phases are healthy', () => {
       const phases = [
-        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 20, packetLossPercent: 0,   deliveryRate: 0.99, throughputMbps: 5  }),
-        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 25, packetLossPercent: 0.1, deliveryRate: 0.98, throughputMbps: 9  }),
-        makePhase({ phaseName: 'p3', peerCount: 8, p95Ms: 30, packetLossPercent: 0.2, deliveryRate: 0.97, throughputMbps: 14 }),
+        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 20, deliveryRate: 0.99, throughputMbps: 5  }),
+        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 25, deliveryRate: 0.98, throughputMbps: 9  }),
+        makePhase({ phaseName: 'p3', peerCount: 8, p95Ms: 30, deliveryRate: 0.97, throughputMbps: 14 }),
       ];
       expect(formatSaturationAnalysis(phases)).toContain('No saturation detected');
     });
@@ -131,19 +145,21 @@ describe('reporter', () => {
 
     it('identifies latency spike phase', () => {
       const phases = [
-        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 30, packetLossPercent: 0, deliveryRate: 0.99, throughputMbps: 5  }),
-        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 35, packetLossPercent: 0, deliveryRate: 0.99, throughputMbps: 9  }),
-        makePhase({ phaseName: 'p3', peerCount: 8, p95Ms: 90, packetLossPercent: 0, deliveryRate: 0.99, throughputMbps: 14 }),
+        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 30, deliveryRate: 0.99, throughputMbps: 5  }),
+        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 35, deliveryRate: 0.99, throughputMbps: 9  }),
+        makePhase({ phaseName: 'p3', peerCount: 8, p95Ms: 90, deliveryRate: 0.99, throughputMbps: 14 }),
       ];
       const result = formatSaturationAnalysis(phases);
       expect(result).toContain('LATENCY SPIKE');
       expect(result).toContain('"p3"');
     });
 
-    it('identifies packet loss onset phase', () => {
+    it('identifies packet loss onset phase from iperf under-load loss', () => {
+      const cleanLoad  = { throughputMbps: 900, lossPercent: 0,   jitterMs: 1, lostPackets: 0,   totalPackets: 10000 };
+      const lossyLoad  = { throughputMbps: 600, lossPercent: 1.5, jitterMs: 4, lostPackets: 150, totalPackets: 10000 };
       const phases = [
-        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 20, packetLossPercent: 0,   deliveryRate: 0.99, throughputMbps: 5 }),
-        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 22, packetLossPercent: 1.5, deliveryRate: 0.98, throughputMbps: 9 }),
+        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 20, deliveryRate: 0.99, throughputMbps: 5, iperfLoad: cleanLoad }),
+        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 22, deliveryRate: 0.98, throughputMbps: 9, iperfLoad: lossyLoad }),
       ];
       const result = formatSaturationAnalysis(phases);
       expect(result).toContain('PACKET LOSS');
@@ -152,8 +168,8 @@ describe('reporter', () => {
 
     it('identifies throughput plateau when peer count increases but throughput stalls', () => {
       const phases = [
-        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 20, packetLossPercent: 0, deliveryRate: 0.99, throughputMbps: 10   }),
-        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 22, packetLossPercent: 0, deliveryRate: 0.99, throughputMbps: 10.5 }),
+        makePhase({ phaseName: 'p1', peerCount: 2, p95Ms: 20, deliveryRate: 0.99, throughputMbps: 10   }),
+        makePhase({ phaseName: 'p2', peerCount: 4, p95Ms: 22, deliveryRate: 0.99, throughputMbps: 10.5 }),
       ];
       const result = formatSaturationAnalysis(phases);
       expect(result).toContain('THROUGHPUT PLATEAU');
@@ -248,14 +264,13 @@ describe('reporter', () => {
         totalSent: 200,
         totalAcked: 190,
         deliveryRate: 0.95,
-        droppedCount: 10,
+        txQueueOverflowCount: 10,
         p50Ms: 20,
         p95Ms: 45,
         p99Ms: 80,
-        jitterMs: 5,
+        rttStddevMs: 5,
         connectionErrors: 0,
         throughputMbps: 1.2,
-        packetLossPercent: 0.1,
         rssiDbm: null,
         linkSpeedMbps: null,
         iperfBaseline: null,
@@ -265,7 +280,6 @@ describe('reporter', () => {
         iceEstablishMaxMs: 892,
         connectionTimeouts: 0,
         rtpPacketsSent: 0,
-        rtpPacketsLost: 0,
         audioEstablishP95Ms: 0,
         videoEstablishP95Ms: 0,
         dcEstablishP95Ms: 0,
@@ -319,12 +333,19 @@ describe('reporter', () => {
 
     it('shows Call section when rtpPacketsSent > 0', () => {
       const output = formatWebrtcBlock(
-        makeWebrtcPhase({ rtpPacketsSent: 4600, rtpPacketsLost: 12, audioEstablishP95Ms: 410, videoEstablishP95Ms: 520 }),
+        makeWebrtcPhase({ rtpPacketsSent: 4600, audioEstablishP95Ms: 410, videoEstablishP95Ms: 520 }),
       );
       expect(output).toContain('Call');
       expect(output).toContain('4600');
       expect(output).toContain('410');
       expect(output).toContain('520');
+    });
+
+    it('does not report an RTP packets lost line (media is load-only)', () => {
+      const output = formatWebrtcBlock(
+        makeWebrtcPhase({ rtpPacketsSent: 4600, audioEstablishP95Ms: 410, videoEstablishP95Ms: 520 }),
+      );
+      expect(output).not.toMatch(/lost/i);
     });
   });
 });

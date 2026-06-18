@@ -6,7 +6,6 @@ describe('emptyMetrics', () => {
     expect(m.iceEstablishMs).toEqual([]);
     expect(m.connectionTimeouts).toBe(0);
     expect(m.rtpPacketsSent).toBe(0);
-    expect(m.rtpPacketsLost).toBe(0);
     expect(m.dcEstablishMs).toEqual([]);
     expect(m.iceStateTransitions).toEqual([]);
     expect(m.audioEstablishMs).toEqual([]);
@@ -18,5 +17,12 @@ describe('emptyMetrics', () => {
     const m = emptyMetrics();
     expect('mediaEstablishMs' in m).toBe(false);
     expect('wsPeakQueueFills' in m).toBe(false);
+    expect('rtpPacketsLost' in m).toBe(false);
+    expect('dropped' in m).toBe(false);
+  });
+
+  it('exposes txQueueOverflow in place of the old dropped counter', () => {
+    const m = emptyMetrics();
+    expect(m.txQueueOverflow).toBe(0);
   });
 });

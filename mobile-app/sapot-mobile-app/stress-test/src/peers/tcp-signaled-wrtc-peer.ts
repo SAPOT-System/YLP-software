@@ -537,8 +537,8 @@ export class TcpSignaledWrtcPeer implements BasePeer {
         this.metrics.sent++;
         this.collector.recordSent(this.peerId, sentAt);
       } else {
-        this.metrics.dropped++;
-        this.collector.recordDropped(this.peerId);
+        this.metrics.txQueueOverflow++;
+        this.collector.recordTxQueueOverflow(this.peerId);
       }
     }, intervalMs);
 
@@ -549,7 +549,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
           this.rtpTimestamp += 960;
           const ok = this.audioTrack?.sendMessageBinary(packet) ?? false;
           if (ok) { this.metrics.rtpPacketsSent++; this.collector.recordRtpSent(this.peerId); }
-          else { this.metrics.rtpPacketsLost++; this.collector.recordRtpLost(this.peerId); }
+          // media is load-only: a failed binary send is local backpressure, not counted as loss
         } catch { /* track closed */ }
       }, 20);
     }
@@ -563,7 +563,7 @@ export class TcpSignaledWrtcPeer implements BasePeer {
           this.videoTimestamp += 3000;
           const ok = this.videoTrack?.sendMessageBinary(packet) ?? false;
           if (ok) { this.metrics.rtpPacketsSent++; this.collector.recordRtpSent(this.peerId); }
-          else { this.metrics.rtpPacketsLost++; this.collector.recordRtpLost(this.peerId); }
+          // media is load-only: a failed binary send is local backpressure, not counted as loss
         } catch { /* track closed */ }
       }, 33);
     }

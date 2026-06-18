@@ -215,16 +215,18 @@ iperf3 -c <SERVER_IP> -u -t 3
 ## Reading Results
 
 ```
-Phase                  | Peers | Msg/s | Delivered | Dropped | P50  | P95
------------------------|-------|-------|-----------|---------|------|-----
-tcp-peers10-msg1       |    10 |     1 |    100.0% |       0 | 11ms | 19ms
+Phase                  | Peers | Msg/s | Delivered | TxOvf   | P50  | P95   | RTT σ
+-----------------------|-------|-------|-----------|---------|------|-------|------
+tcp-peers10-msg1       |    10 |     1 |    100.0% |       0 | 11ms | 19ms  | 3ms
 ```
 
-| Column | Healthy |
-|---|---|
-| Delivered | 99%+ |
-| P50 | < 50 ms |
-| P95 | < 200 ms |
+| Column | Meaning | Healthy |
+|---|---|---|
+| Delivered | acked / sent over the data channel | 99%+ |
+| TxOvf | local send-queue overflow (backpressure, **not** network loss) | 0 |
+| P50 | median data-channel RTT | < 50 ms |
+| P95 | 95th-percentile data-channel RTT | < 200 ms |
+| RTT σ | stddev of RTT samples (**not** RFC-3550 jitter) | low/stable |
 
 Results JSON is saved to `./stress-results/`.
 

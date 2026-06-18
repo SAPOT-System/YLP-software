@@ -14,14 +14,15 @@ export interface PhaseStats {
   totalSent: number;
   totalAcked: number;
   deliveryRate: number;
-  droppedCount: number;
+  // Local send-queue backpressure across peers, NOT network loss.
+  txQueueOverflowCount: number;
   p50Ms: number;
   p95Ms: number;
   p99Ms: number;
-  jitterMs: number;
+  // Standard deviation of data-channel RTT samples (NOT RFC-3550 jitter).
+  rttStddevMs: number;
   connectionErrors: number;
   throughputMbps: number;
-  packetLossPercent: number;
   rssiDbm: number | null;
   linkSpeedMbps: number | null;
   // Stage 1: clean link baseline (no stress traffic). Stage 2: link under stress load.
@@ -32,7 +33,6 @@ export interface PhaseStats {
   iceEstablishMaxMs: number;
   connectionTimeouts: number;
   rtpPacketsSent: number;
-  rtpPacketsLost: number;
   audioEstablishP95Ms: number;
   videoEstablishP95Ms: number;
   dcEstablishP95Ms: number;
@@ -51,13 +51,12 @@ function pct(sorted: number[], p: number): number {
 export class MetricsCollector {
   private sentCounts = new Map<string, number>();
   private latencySamples: number[] = [];
-  private droppedCounts = new Map<string, number>();
+  private txQueueOverflowCounts = new Map<string, number>();
   private ackCounts = new Map<string, number>();
   private connectionErrors = 0;
   private iceEstablishSamples: number[] = [];
   private connectionTimeoutCount = 0;
   private rtpSentCount = 0;
-  private rtpLostCount = 0;
   private audioEstablishSamples: number[] = [];
   private videoEstablishSamples: number[] = [];
   private dcEstablishSamples: number[] = [];
@@ -73,8 +72,8 @@ export class MetricsCollector {
     this.ackCounts.set(peerId, (this.ackCounts.get(peerId) ?? 0) + 1);
   }
 
-  recordDropped(peerId: string): void {
-    this.droppedCounts.set(peerId, (this.droppedCounts.get(peerId) ?? 0) + 1);
+  recordTxQueueOverflow(peerId: string): void {
+    this.txQueueOverflowCounts.set(peerId, (this.txQueueOverflowCounts.get(peerId) ?? 0) + 1);
   }
 
   recordConnectionError(): void { this.connectionErrors++; }
@@ -89,10 +88,6 @@ export class MetricsCollector {
 
   recordRtpSent(_peerId: string): void {
     this.rtpSentCount++;
-  }
-
-  recordRtpLost(_peerId: string): void {
-    this.rtpLostCount++;
   }
 
   recordAudioEstablish(_peerId: string, ms: number): void {
@@ -116,13 +111,12 @@ export class MetricsCollector {
   reset(): void {
     this.sentCounts = new Map();
     this.latencySamples = [];
-    this.droppedCounts = new Map();
+    this.txQueueOverflowCounts = new Map();
     this.ackCounts = new Map();
     this.connectionErrors = 0;
     this.iceEstablishSamples = [];
     this.connectionTimeoutCount = 0;
     this.rtpSentCount = 0;
-    this.rtpLostCount = 0;
     this.audioEstablishSamples = [];
     this.videoEstablishSamples = [];
     this.dcEstablishSamples = [];
@@ -140,8 +134,8 @@ export class MetricsCollector {
     for (const v of this.sentCounts.values()) totalSent += v;
     let totalAcked = 0;
     for (const v of this.ackCounts.values()) totalAcked += v;
-    let totalDropped = 0;
-    for (const v of this.droppedCounts.values()) totalDropped += v;
+    let totalTxQueueOverflow = 0;
+    for (const v of this.txQueueOverflowCounts.values()) totalTxQueueOverflow += v;
 
     const sorted = [...this.latencySamples].sort((a, b) => a - b);
     const localPct = (p: number) => pct(sorted, p);
@@ -163,14 +157,13 @@ export class MetricsCollector {
       totalSent,
       totalAcked,
       deliveryRate: totalSent > 0 ? totalAcked / totalSent : 0,
-      droppedCount: totalDropped,
+      txQueueOverflowCount: totalTxQueueOverflow,
       p50Ms: localPct(50),
       p95Ms: localPct(95),
       p99Ms: localPct(99),
-      jitterMs: Math.round(Math.sqrt(variance)),
+      rttStddevMs: Math.round(Math.sqrt(variance)),
       connectionErrors: this.connectionErrors,
       throughputMbps: 0,
-      packetLossPercent: 0,
       rssiDbm: null,
       linkSpeedMbps: null,
       iperfBaseline: null,
@@ -180,7 +173,6 @@ export class MetricsCollector {
       iceEstablishMaxMs: iceSorted.length > 0 ? iceSorted[iceSorted.length - 1] : 0,
       connectionTimeouts: this.connectionTimeoutCount,
       rtpPacketsSent: this.rtpSentCount,
-      rtpPacketsLost: this.rtpLostCount,
       audioEstablishP95Ms: pct(audioSorted, 95),
       videoEstablishP95Ms: pct(videoSorted, 95),
       dcEstablishP95Ms: pct(dcSorted, 95),

@@ -8,12 +8,12 @@ describe('MetricsCollector', () => {
     const now = Date.now();
     for (let i = 0; i < 10; i++) collector.recordSent('peer-1', now + i);
     for (let i = 0; i < 8; i++) collector.recordAcked('peer-1', now + i, 20);
-    for (let i = 0; i < 2; i++) collector.recordDropped('peer-1');
+    for (let i = 0; i < 2; i++) collector.recordTxQueueOverflow('peer-1');
     const stats = collector.computeStats('test', 1, 10, 60, 0);
     expect(stats.totalSent).toBe(10);
     expect(stats.totalAcked).toBe(8);
     expect(stats.deliveryRate).toBeCloseTo(0.8);
-    expect(stats.droppedCount).toBe(2);
+    expect(stats.txQueueOverflowCount).toBe(2);
   });
 
   it('computes latency percentiles', () => {
@@ -28,13 +28,13 @@ describe('MetricsCollector', () => {
     expect(stats.p99Ms).toBe(99);
   });
 
-  it('jitter is 0 when all latencies are equal', () => {
+  it('RTT stddev is 0 when all latencies are equal', () => {
     const now = Date.now();
     for (let i = 0; i < 10; i++) {
       collector.recordSent('peer-1', now);
       collector.recordAcked('peer-1', now, 20);
     }
-    expect(collector.computeStats('test', 1, 10, 60, 0).jitterMs).toBe(0);
+    expect(collector.computeStats('test', 1, 10, 60, 0).rttStddevMs).toBe(0);
   });
 
   it('resets cleanly between phases', () => {
@@ -50,9 +50,13 @@ describe('MetricsCollector', () => {
     collector.recordAcked('peer-1', now, 10);
     const stats = collector.computeStats('test', 1, 1, 5, 0);
     expect(stats.throughputMbps).toBe(0);
-    expect(stats.packetLossPercent).toBe(0);
     expect(stats.rssiDbm).toBeNull();
     expect(stats.linkSpeedMbps).toBeNull();
+  });
+
+  it('does not expose the removed packetLossPercent field', () => {
+    const stats = collector.computeStats('test', 1, 1, 5, 0);
+    expect('packetLossPercent' in stats).toBe(false);
   });
 
   it('connectedPeers is passed through from the argument', () => {
@@ -77,12 +81,16 @@ describe('MetricsCollector', () => {
       expect(stats.connectionTimeouts).toBe(2);
     });
 
-    it('recordRtpSent and recordRtpLost accumulate counts', () => {
+    it('recordRtpSent accumulates a load-only sent count', () => {
       for (let i = 0; i < 100; i++) collector.recordRtpSent('peer-1');
-      for (let i = 0; i < 5; i++) collector.recordRtpLost('peer-1');
       const stats = collector.computeStats('phase', 1, 1, 5, 0);
       expect(stats.rtpPacketsSent).toBe(100);
-      expect(stats.rtpPacketsLost).toBe(5);
+    });
+
+    it('does not expose the removed rtpPacketsLost field', () => {
+      collector.recordRtpSent('peer-1');
+      const stats = collector.computeStats('phase', 1, 1, 5, 0);
+      expect('rtpPacketsLost' in stats).toBe(false);
     });
 
     it('recordAudioEstablish is reflected in audioEstablishP95Ms', () => {
@@ -113,7 +121,6 @@ describe('MetricsCollector', () => {
       collector.recordIceEstablish('peer-1', 100);
       collector.recordConnectionTimeout();
       collector.recordRtpSent('peer-1');
-      collector.recordRtpLost('peer-1');
       collector.recordAudioEstablish('peer-1', 200);
       collector.recordVideoEstablish('peer-1', 350);
       collector.recordDcEstablish('peer-1', 180);
@@ -122,7 +129,6 @@ describe('MetricsCollector', () => {
       expect(stats.iceEstablishP50Ms).toBe(0);
       expect(stats.connectionTimeouts).toBe(0);
       expect(stats.rtpPacketsSent).toBe(0);
-      expect(stats.rtpPacketsLost).toBe(0);
       expect(stats.audioEstablishP95Ms).toBe(0);
       expect(stats.videoEstablishP95Ms).toBe(0);
       expect(stats.dcEstablishP95Ms).toBe(0);
