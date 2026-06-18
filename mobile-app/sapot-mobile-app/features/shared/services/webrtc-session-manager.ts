@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/chat/types";
 import { webrtcLog } from "@/features/shared/utils/logger";
@@ -237,6 +238,15 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         this.setupWebrtcEvents(adapter, peerId);
         this.webrtcAdapters.set(peerId, adapter);
         webrtcLog.info("webrtc › adapter created", { peerId });
+        const variant = Constants.expoConfig?.extra?.appVariant as string | undefined;
+        if (variant === "development" || variant === "preview") {
+          const sessionId = `${peerId}-${Date.now()}`;
+          webrtcLog.info("session › accepted", {
+            sessionId,
+            peerId,
+            activeSessions: this.webrtcAdapters.size,
+          });
+        }
       }
       return adapter;
     } catch (error) {
