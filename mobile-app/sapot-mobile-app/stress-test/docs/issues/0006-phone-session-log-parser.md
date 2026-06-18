@@ -33,3 +33,20 @@ emit. To attribute failures to the phone, parse the phone's session log lines (e
 ## Out of scope
 
 - Phone resource attestation via dumpsys (ADR-0005 future complement).
+
+## Done (2026-06-18)
+
+- `parseSessionEvents` implemented in `src/discovery/session-log-parser.ts`. Handles
+  single-line and multi-line react-native-logs formats; tolerates malformed payloads.
+  The log format here IS the contract for issue 0007 to implement.
+- `classifyFailures(events, connectionTimeouts)` added in the same file.
+- `PhaseStats.phoneRefused / neverArrived: number | null` added to `collector.ts`;
+  both default to `null` (unavailable). `formatWebrtcBlock` shows per-kind counts or
+  "unavailable" when null.
+- 20 new unit tests in `tests/discovery/session-log-parser.test.ts`.
+
+## Remaining (blocked on 0007 + adb-runner per-phase scraping)
+
+- Orchestrator wiring: per-phase logcat capture → `parseSessionEvents` → store in
+  `PhaseStats`. Needs `adb-runner.ts` to expose a per-phase logcat scrape, and needs
+  0007 to have the app emitting the lines in the first place.
