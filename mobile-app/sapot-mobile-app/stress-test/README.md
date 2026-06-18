@@ -232,6 +232,40 @@ Results JSON is saved to `./stress-results/`.
 
 ---
 
+## Phone Build Requirements (Star Mode)
+
+Star mode requires the phone to run a **development or preview** build of Sapot — **not a production build**. Three things are gated to internal builds:
+
+- **Phone discovery**: the app logs its WiFi IP, TCP port, and `userId` to logcat — used by the orchestrator to locate the phone automatically (ADR-0002). Production builds never log the userId.
+- **Session attribution**: the app logs session accepted/rejected/active-count events that the orchestrator uses to classify ICE failures as phone-refused vs never-arrived (ADR-0005). Production builds never emit these lines.
+
+### Session-log contract (what the phone app must emit)
+
+The app emits these lines in development/preview builds at the point a session is accepted or rejected:
+
+```
+session › accepted {"sessionId":"<uuid>","peerId":"<uuid>","activeSessions":<n>}
+session › rejected {"sessionId":"<uuid>","peerId":"<uuid>","reason":"<str>","activeSessions":<n>}
+session › active-count {"count":<n>}
+```
+
+The multi-line react-native-logs device format is also accepted:
+
+```
+ LOG  session | INFO : session › accepted
+{
+  "sessionId": "...",
+  "peerId": "...",
+  "activeSessions": 2
+}
+```
+
+If these lines are absent (production build or lines silenced), the report shows `attribution: unavailable (no phone session log)` instead of per-kind failure counts. The test still runs and reports the ceiling; attribution is degraded gracefully.
+
+See `docs/adr/0005-phone-side-session-log-contract.md` for the full format spec.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -243,3 +277,4 @@ Results JSON is saved to `./stress-results/`.
 | `adb` not found | Install Android Platform Tools |
 | iperf columns show `-` | `iperf3` not installed, or no `iperf3 -s` running at the target IP |
 | iperf connects but near-0 throughput | Firewall blocking UDP 5201 at the target — allow it inbound |
+| Attribution shows "unavailable" | Phone is running a production build; switch to development/preview |

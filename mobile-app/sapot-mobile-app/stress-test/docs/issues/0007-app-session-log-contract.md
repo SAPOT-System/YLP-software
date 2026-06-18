@@ -37,3 +37,22 @@ like the userId beacon in ADR-0002.
 
 - The stress-test parser and attribution wiring (0006).
 - Changing production logging behavior.
+
+## Done (2026-06-18) — stress-test side
+
+- ADR-0005 updated with the explicit log format contract: single-line and multi-line
+  react-native-logs formats, field semantics, null-tolerance rules, where to emit, and
+  the `APP_VARIANT` build gate.
+- README.md updated with a "Phone Build Requirements (Star Mode)" section documenting
+  the contract format, the graceful degradation path, and a new troubleshooting entry
+  ("Attribution shows 'unavailable'").
+- All 20 session-log-parser unit tests pass; build clean.
+
+## Remaining (blocked on mobile app code)
+
+- App-side implementation: emit `session › accepted`, `session › rejected`, and
+  `session › active-count` log lines at the connection/signaling decision point in the
+  Sapot React Native app, gated to `APP_VARIANT` ∈ {development, preview}.
+- App-side unit tests asserting lines are emitted on accept/reject and gated by variant.
+- This work touches `mobile-app/sapot-mobile-app` app code which is not in this
+  repository (stress-test only).
