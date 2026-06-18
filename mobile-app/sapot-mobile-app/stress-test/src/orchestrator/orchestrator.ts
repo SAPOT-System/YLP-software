@@ -280,6 +280,78 @@ export class Orchestrator {
     return results;
   }
 
+  /**
+   * Runs loopback control phases (tcp-signaled pair mode, 127.0.0.1) with the same
+   * DTLS + media configuration as the main run. Used to produce a laptop establishment
+   * ceiling for comparison via assessLaptopHeadroom.
+   */
+  async runLoopbackControl(phases: Phase[]): Promise<PhaseStats[]> {
+    if (!this.config.webrtc) return [];
+    const startPort = this.config.loopbackControl?.startPort ?? 9100;
+    const results: PhaseStats[] = [];
+
+    for (const phase of phases) {
+      const peerCount = phase.peerCount % 2 === 0 ? phase.peerCount : phase.peerCount - 1;
+      if (peerCount < 2) continue;
+
+      this.collector.reset();
+      this.lagSampler.reset();
+
+      const peers = Array.from(
+        { length: peerCount },
+        (_, i) =>
+          new TcpSignaledWrtcPeer(
+            `loopback-ctrl-${i}`,
+            i,
+            startPort + i,
+            this.collector,
+            this.config.webrtc!,
+            undefined,
+          )
+      );
+
+      await Promise.allSettled(peers.map(p => p.connect()));
+      console.log(`\n[loopback-control] phase: ${peerCount} peers, ${peerCount / 2} pairs`);
+
+      const connectResults = await Promise.allSettled(
+        peers
+          .filter((_, i) => i % 2 === 0)
+          .map((offerer, idx) => offerer.connectTo('127.0.0.1', peers[idx * 2 + 1].port))
+      );
+      const failedConnects = connectResults.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected'
+      );
+      if (failedConnects.length > 0) {
+        console.error(`  [Error] ${failedConnects.length} loopback pairs failed:`);
+        for (const f of failedConnects) console.error(`    - ${describeConnectError(f.reason)}`);
+      }
+
+      this.lagSampler.start();
+      peers.forEach(p => p.startSending(phase.msgPerSec, phase.totalMessages));
+      await sleep(phase.durationSec * 1000);
+      peers.forEach(p => p.stopSending());
+      const connectedPeers = peers.filter(p => p.getMetrics().connectedAtPhaseEnd).length;
+      this.lagSampler.stop();
+
+      await Promise.allSettled(peers.map(p => p.disconnect()));
+
+      const lagSamples = this.lagSampler.getSamples();
+      const lagThresholdMs = this.config.lagThresholdMs ?? 50;
+      const msgStats = this.collector.computeStats(
+        `loopback-ctrl-${peerCount}p`, peerCount, phase.msgPerSec, phase.durationSec, connectedPeers
+      );
+      const stats: PhaseStats = {
+        ...msgStats,
+        lagP95Ms: computeLagP95(lagSamples),
+        lagValid: isPhaseLagValid(lagSamples, lagThresholdMs),
+      };
+      printPhaseStats(stats);
+      results.push(stats);
+    }
+
+    return results;
+  }
+
   private createTcpSignaledPeers(phase: Phase): TcpSignaledWrtcPeer[] {
     const lan = this.config.lan!;
     const phoneTarget =

@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison, formatDiscoverySection, formatRepresentativenessBanner, getModeLabel, formatCeilingSummary } from '@/metrics/reporter';
+import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison, formatDiscoverySection, formatRepresentativenessBanner, getModeLabel, formatCeilingSummary, formatHeadroomSummary } from '@/metrics/reporter';
 import { CeilingResult } from '@/metrics/ceiling-rule';
+import { HeadroomResult } from '@/metrics/laptop-headroom';
 import { NetworkSample } from '@/metrics/network-sampler';
 import { PhaseStats } from '@/metrics/collector';
 
@@ -455,6 +456,38 @@ describe('reporter', () => {
       const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: 0, neverArrived: 0 }));
       expect(output).toContain('phone-refused');
       expect(output).toContain(': 0');
+    });
+  });
+
+  describe('formatHeadroomSummary', () => {
+    function headroom(overrides: Partial<HeadroomResult>): HeadroomResult {
+      return { verdict: 'headroom-ok', loopbackCeiling: 20, phoneCeiling: 8, ...overrides };
+    }
+
+    it('shows headroom-ok with ceilings and margin', () => {
+      const out = formatHeadroomSummary(headroom({ loopbackCeiling: 20, phoneCeiling: 8 }));
+      expect(out).toContain('headroom-ok');
+      expect(out).toContain('20 peers');
+      expect(out).toContain('8 peers');
+      expect(out).toContain('2.5×');
+    });
+
+    it('shows borderline verdict', () => {
+      const out = formatHeadroomSummary(headroom({ verdict: 'borderline', loopbackCeiling: 12, phoneCeiling: 8 }));
+      expect(out).toContain('borderline');
+      expect(out).toContain('1.5×');
+    });
+
+    it('shows insufficient verdict', () => {
+      const out = formatHeadroomSummary(headroom({ verdict: 'insufficient', loopbackCeiling: 8, phoneCeiling: 8 }));
+      expect(out).toContain('insufficient');
+      expect(out).toContain('1.0×');
+    });
+
+    it('shows undetermined when no loopback data', () => {
+      const out = formatHeadroomSummary(headroom({ verdict: 'undetermined', loopbackCeiling: 0, phoneCeiling: 8 }));
+      expect(out).toContain('undetermined');
+      expect(out).toContain('unavailable');
     });
   });
 });

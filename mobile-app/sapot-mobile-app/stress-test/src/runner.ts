@@ -6,8 +6,9 @@ import { Orchestrator } from './orchestrator/orchestrator';
 import { MetricsCollector } from './metrics/collector';
 import { NetworkSampler } from './metrics/network-sampler';
 import { EventLoopLagSampler } from './metrics/event-loop-lag-sampler';
-import { formatTable, formatCeilingSummary, writeResults } from './metrics/reporter';
+import { formatTable, formatCeilingSummary, formatHeadroomSummary, writeResults } from './metrics/reporter';
 import { determineCeiling } from './metrics/ceiling-rule';
+import { assessLaptopHeadroom } from './metrics/laptop-headroom';
 
 const program = new Command();
 
@@ -55,13 +56,25 @@ program
 
     console.log(`Starting stress test — mode: ${config.mode} | phases: ${config.phases.length}`);
     try {
-      const results = await orchestrator.run();
+      let loopbackResults: import('./metrics/collector').PhaseStats[] = [];
+      if (config.loopbackControl) {
+        console.log(`\n=== LOOPBACK CONTROL RUN (${config.loopbackControl.phases.length} phase(s)) ===`);
+        loopbackResults = await orchestrator.runLoopbackControl(config.loopbackControl.phases);
+      }
 
+      const results = await orchestrator.run();
       const ceiling = determineCeiling(results);
 
       console.log('\n\n=== RESULTS ===');
       console.log(formatTable(results));
       console.log('\n' + formatCeilingSummary(results, ceiling));
+
+      if (config.loopbackControl) {
+        const loopbackCeiling = determineCeiling(loopbackResults);
+        const headroom = assessLaptopHeadroom(loopbackCeiling, ceiling);
+        console.log('\n' + formatHeadroomSummary(headroom));
+      }
+
       writeResults(config.outputDir, config.mode, results);
     } catch (e) {
       console.error(`Stress test failed: ${(e as Error).message}`);

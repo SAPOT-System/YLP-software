@@ -3,6 +3,7 @@ import * as path from 'path';
 import { PhaseStats, IperfStats } from './collector';
 import { NetworkSample } from './network-sampler';
 import { CeilingResult } from './ceiling-rule';
+import { HeadroomResult } from './laptop-headroom';
 
 export interface NetworkStats {
   throughputMbps: number;
@@ -238,6 +239,21 @@ export function formatDiscoverySection(phases: PhaseStats[]): string {
     lines.push(`  ${p.phaseName.padEnd(18)} completeness: ${(p.discoveryCompleteness * 100).toFixed(1)}%  p50: ${p.discoveryP50Ms}ms  p95: ${p.discoveryP95Ms}ms`);
   }
   return lines.join('\n');
+}
+
+export function formatHeadroomSummary(result: HeadroomResult): string {
+  if (result.verdict === 'undetermined') {
+    return 'Laptop headroom: undetermined — loopback control data unavailable';
+  }
+  const ratio = result.phoneCeiling > 0
+    ? (result.loopbackCeiling / result.phoneCeiling).toFixed(1)
+    : '∞';
+  return [
+    `Laptop headroom: ${result.verdict}`,
+    `  loopback ceiling : ${result.loopbackCeiling} peers`,
+    `  phone ceiling    : ${result.phoneCeiling} peers`,
+    `  margin           : ${ratio}×`,
+  ].join('\n');
 }
 
 export function formatWebrtcBlock(stats: PhaseStats): string {

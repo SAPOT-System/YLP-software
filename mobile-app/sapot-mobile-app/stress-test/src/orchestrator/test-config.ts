@@ -42,6 +42,13 @@ export interface WebrtcConfig {
   };
 }
 
+export interface LoopbackControlConfig {
+  /** Phases to run in loopback pair mode (tcp-signaled, 127.0.0.1) before the main star run. */
+  phases: Phase[];
+  /** First TCP port for loopback peers. Default 9100. */
+  startPort?: number;
+}
+
 export interface TestConfig {
   mode: "tcp-signaled" | "ws-signaled";
   lan?: LanConfig;
@@ -51,6 +58,8 @@ export interface TestConfig {
   outputDir: string;
   /** p95 event-loop lag threshold (ms). Phases exceeding this are flagged as laptop-saturated. Default 50. */
   lagThresholdMs?: number;
+  /** Optional one-time loopback control run producing a laptop establishment ceiling. */
+  loopbackControl?: LoopbackControlConfig;
 }
 
 export function validateConfig(config: TestConfig): void {
