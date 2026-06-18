@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PhaseStats, IperfStats } from './collector';
 import { NetworkSample } from './network-sampler';
+import { CeilingResult } from './ceiling-rule';
 
 export interface NetworkStats {
   throughputMbps: number;
@@ -163,6 +164,37 @@ export function writeResults(
   const filename = path.join(outputDir, `results-${transport}-${Date.now()}.json`);
   fs.writeFileSync(filename, JSON.stringify({ transport, phases }, null, 2));
   console.log(`\nResults written to ${filename}`);
+}
+
+export function formatCeilingSummary(phases: PhaseStats[], result: CeilingResult): string {
+  if (result.validPhaseCount === 0) {
+    return 'Session ceiling: undetermined — no lag-valid phases available';
+  }
+
+  if (result.belowRange) {
+    return [
+      'Session ceiling: below tested range — all lag-valid phases already degraded',
+      `  ${result.validPhaseCount} lag-valid phase(s) considered`,
+    ].join('\n');
+  }
+
+  const ceilingPhase = phases.find(p => p.lagValid && p.peerCount === result.ceilingPeerCount);
+  const timeoutRate = ceilingPhase && ceilingPhase.peerCount > 0
+    ? ((ceilingPhase.connectionTimeouts / ceilingPhase.peerCount) * 100).toFixed(1)
+    : '0.0';
+  const iceP95 = ceilingPhase ? ceilingPhase.iceEstablishP95Ms : 0;
+
+  const annotation = result.openEnded
+    ? '  (range not exhausted — real ceiling may be higher)'
+    : '';
+
+  const lines = [
+    `Session ceiling: ${result.ceilingPeerCount} peers${annotation ? '\n' + annotation : ''}`,
+    `  ICE establish p95   : ${iceP95}ms`,
+    `  timeout rate        : ${timeoutRate}%`,
+    `  ${result.validPhaseCount} lag-valid phase(s) considered`,
+  ];
+  return lines.join('\n');
 }
 
 export function getModeLabel(mode: string, isStarMode: boolean): string {

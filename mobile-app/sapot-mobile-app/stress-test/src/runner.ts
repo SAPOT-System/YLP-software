@@ -6,7 +6,8 @@ import { Orchestrator } from './orchestrator/orchestrator';
 import { MetricsCollector } from './metrics/collector';
 import { NetworkSampler } from './metrics/network-sampler';
 import { EventLoopLagSampler } from './metrics/event-loop-lag-sampler';
-import { formatTable, writeResults } from './metrics/reporter';
+import { formatTable, formatCeilingSummary, writeResults } from './metrics/reporter';
+import { determineCeiling } from './metrics/ceiling-rule';
 
 const program = new Command();
 
@@ -56,8 +57,11 @@ program
     try {
       const results = await orchestrator.run();
 
+      const ceiling = determineCeiling(results);
+
       console.log('\n\n=== RESULTS ===');
       console.log(formatTable(results));
+      console.log('\n' + formatCeilingSummary(results, ceiling));
       writeResults(config.outputDir, config.mode, results);
     } catch (e) {
       console.error(`Stress test failed: ${(e as Error).message}`);

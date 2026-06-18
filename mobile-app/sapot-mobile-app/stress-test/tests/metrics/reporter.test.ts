@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison, formatDiscoverySection, formatRepresentativenessBanner, getModeLabel } from '@/metrics/reporter';
+import { formatTable, formatSaturationAnalysis, computeNetworkStats, writeResults, formatWebrtcBlock, formatIperfComparison, formatDiscoverySection, formatRepresentativenessBanner, getModeLabel, formatCeilingSummary } from '@/metrics/reporter';
+import { CeilingResult } from '@/metrics/ceiling-rule';
 import { NetworkSample } from '@/metrics/network-sampler';
 import { PhaseStats } from '@/metrics/collector';
 
@@ -250,6 +251,58 @@ describe('reporter', () => {
     it('notes that ws-signaled is not a local-network test', () => {
       const banner = formatRepresentativenessBanner('ws-signaled', false);
       expect(banner).not.toMatch(/local.network test/i);
+    });
+  });
+
+  describe('formatCeilingSummary', () => {
+    const ceilingPhase = makePhase({
+      phaseName: 'p4', peerCount: 4, connectedPeers: 4,
+      iceEstablishP95Ms: 280, connectionTimeouts: 0, lagValid: true,
+    });
+
+    it('reports undetermined when no lag-valid phases', () => {
+      const result: CeilingResult = { ceilingPeerCount: 0, openEnded: false, belowRange: true, validPhaseCount: 0 };
+      const out = formatCeilingSummary([], result);
+      expect(out).toContain('undetermined');
+    });
+
+    it('reports below-range when all valid phases degraded', () => {
+      const result: CeilingResult = { ceilingPeerCount: 0, openEnded: false, belowRange: true, validPhaseCount: 2 };
+      const out = formatCeilingSummary([ceilingPhase], result);
+      expect(out).toContain('below tested range');
+      expect(out).toContain('2 lag-valid phase');
+    });
+
+    it('shows ceiling peer count and secondary signals', () => {
+      const result: CeilingResult = { ceilingPeerCount: 4, openEnded: false, belowRange: false, validPhaseCount: 3 };
+      const out = formatCeilingSummary([ceilingPhase], result);
+      expect(out).toContain('4 peers');
+      expect(out).toContain('280ms');
+      expect(out).toContain('0.0%');
+      expect(out).toContain('3 lag-valid phase');
+    });
+
+    it('annotates open-ended ceiling with a note', () => {
+      const result: CeilingResult = { ceilingPeerCount: 4, openEnded: true, belowRange: false, validPhaseCount: 1 };
+      const out = formatCeilingSummary([ceilingPhase], result);
+      expect(out).toMatch(/range not exhausted|real ceiling may be higher/i);
+    });
+
+    it('does not annotate open-ended when ceiling is not open-ended', () => {
+      const result: CeilingResult = { ceilingPeerCount: 4, openEnded: false, belowRange: false, validPhaseCount: 2 };
+      const out = formatCeilingSummary([ceilingPhase], result);
+      expect(out).not.toMatch(/range not exhausted/i);
+    });
+
+    it('shows timeout rate from the ceiling phase', () => {
+      const timedOutPhase = makePhase({
+        peerCount: 4, connectedPeers: 4, connectionTimeouts: 2,
+        iceEstablishP95Ms: 400, lagValid: true,
+      });
+      const result: CeilingResult = { ceilingPeerCount: 5, openEnded: false, belowRange: false, validPhaseCount: 2 };
+      const out = formatCeilingSummary([timedOutPhase, makePhase({ peerCount: 5, connectedPeers: 5, lagValid: true, iceEstablishP95Ms: 500, connectionTimeouts: 1 })], result);
+      // peerCount=5, timeouts=1 → 20%
+      expect(out).toContain('20.0%');
     });
   });
 
