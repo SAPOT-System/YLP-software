@@ -31,8 +31,15 @@
 - `MainContainer` constructs `NotificationService` before `ConnectionService`
 - 7 unit tests added; typecheck clean
 
+**4. CallMessageRouter** (commit `4df4af442`)
+- Extracted `CallMessageRouter` → `features/shared/services/call-message-router.ts`
+- Stateless class; deps: `isBusyFor`, `hasActiveCall`, `notify` (all closures)
+- Returns `CallRouterResult` discriminated union: `emit | busy-reject | glare | noop`
+- `glare` result carries `eventName + eventPayload` so `ConnectionService.dispatchCallResult()` needs no re-read of the original message
+- Two ~100-line duplicate call dispatch blocks (WS + TCP) replaced with 3-line delegations
+- 14 unit tests; typecheck clean; `connection-service.test.ts` now passes
+
 ### Remaining (recommended order)
-4. CallMessageRouter — extract from ConnectionService constructor  
 5. MainContainer.initialize() — decompose into named phases  
 6. ChatService partial — saveCallLogWithReceipts + ConversationKeyManager
 
