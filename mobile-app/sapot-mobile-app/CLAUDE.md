@@ -20,6 +20,36 @@ The FastAPI server code in `server/` may be edited when the user explicitly requ
 
 ---
 
+## Decision Rules (precedence: top wins)
+
+1. A direct user instruction in the current task overrides any rule below.
+2. **One pattern per problem.** When two code patterns exist for the same concern,
+   prefer the one used in `features/shared/` and the most recently merged on `main`.
+   If still ambiguous, STOP and ask — never introduce a third pattern.
+3. **Reuse before creating.** Search (`Grep`/`Glob`) for an existing service,
+   adapter, hook, or util before writing a new one. Extend the existing one unless
+   the user asked for a new module.
+4. **Audit before refactoring.** Before changing shared code, find every caller and
+   list them. Do not change a shared signature without accounting for all consumers.
+5. **Server boundary.** `server/` is read-only reference. If a mobile change requires
+   a backend change, STOP and surface it — do not edit `server/` unless the user
+   explicitly approves a backend change.
+6. **Scope discipline.** Make the change requested and nothing more. No drive-by
+   refactors, renames, or dependency bumps unless asked.
+
+---
+
+## Definition of Done (all required before reporting complete)
+
+- [ ] `npm run typecheck` passes.
+- [ ] `npm test` passes for affected areas (`npm run testAll` for cross-cutting changes).
+- [ ] `npm run lint` is clean.
+- [ ] The relevant `docs/` file is updated per the doc-sync list above.
+- [ ] No new file exceeds 800 lines; no new function exceeds ~50 lines.
+- [ ] If tests, typecheck, or lint did not pass, say so explicitly — do not report done.
+
+---
+
 ## Repository Structure
 
 - **`mobile-app/sapot-mobile-app/`** — React Native / Expo mobile app (primary working directory)
@@ -191,51 +221,25 @@ The FastAPI server (`server/app/`) provides:
 - WebSocket signaling endpoint (`/ws`) — relays WebRTC `offer`/`answer`/`ICE` messages between peers via `connection_manager.py`
 - Static file serving from `static/profile_pictures/`
 
-## External CLI Orchestration
+## Git & Commits
 
-Claude Code acts as the orchestrator. Use these tools purposefully — never call them speculatively or in rapid succession.
-
-### Tools
-
-| Tool | Command | When to use |
-|---|---|---|
-| **Gemini CLI** | `gemini -p "<task>"` | Repo scanning, file discovery, summarization, context gathering before reasoning |
-| **Codex CLI** | `codex exec "<task>"` | Writing code, implementing fixes, generating tests, applying changes |
-| **GitHub Copilot CLI** | `copilot -p "<task>" --allow-all-tools` | Analyzing staged changes and generating commit messages |
-
-### Rules
-
-1. **Analysis first** — when codebase understanding is needed before acting, run `gemini -p "<task>"` and read its output fully before proceeding.
-2. **Implementation via Codex** — when writing or modifying code, delegate to `codex "<task>"` rather than editing directly, unless the change is trivial (single-line fix, renaming, etc.).
-3. **Default workflow order:** Gemini (gather context) → Claude reasoning → Codex (implement) → Claude review.
-4. **Minimal calls** — do not call Gemini or Codex if the answer is already in context. One well-scoped call beats two redundant ones.
-5. **Always read output** — never fire a CLI tool and skip its output. Synthesize the result before continuing.
-6. **Claude reviews last** — after Codex applies changes, run `npx tsc --noEmit` and review the diff before reporting done.
-
-### Commit Message Workflow
-
-When preparing a commit, use Copilot to analyze the diff and suggest a message:
-
-```bash
-# Stage changes first, then generate a commit message
-git diff --staged | copilot -p "Write a conventional commit message for these changes. Output only the commit message, nothing else." --allow-all-tools
-```
-
-- Use the Copilot-suggested message as the baseline; refine it if needed before committing.
-- Follow [Conventional Commits](https://www.conventionalcommits.org/) format: `type(scope): description`.
-- Valid types: `feat`, `fix`, `chore`, `patch`, `refactor`, `test`, `docs`.
+- Never commit directly to `main` or `develop` — create a branch first.
+- Commit only when the user asks. Do not push unless asked.
+- Follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`.
+  Valid types: `feat`, `fix`, `chore`, `refactor`, `test`, `docs`, `perf`, `ci`.
+- Analyze the full diff (`git diff <base>...HEAD`), not just the latest commit, before writing a PR summary.
 
 ---
 
 ## Conventions
-- Screens in app/ using Expo Router file-based routing
-- Use useTheme() for dark mode
-- Always handle permission states (not asked, denied, granted)
-- Always handle offline state gracefully
-- Safe area insets on all screens
-- Always run `npx tsc --noEmit` after making TypeScript changes to catch type errors before presenting the result as done.
+- Screens in `app/` using Expo Router file-based routing.
+- Use `useTheme()` for dark mode — never hardcode colors.
+- **Permission states:** every flow touching camera/mic/location/notifications must render distinct UI for `not-asked`, `denied`, and `granted`. Never assume `granted`.
+- **Offline:** every network call must catch failure and surface a user-visible state. Never leave an indefinite spinner or swallow the error silently.
+- Safe-area insets on all screens.
+- Run `npx tsc --noEmit` after any TypeScript change before reporting the result as done.
 - When fixing bugs, provide the fix directly and concisely. Avoid lengthy investigation narratives before showing the solution.
-- This is a React Native TypeScript project. Always use proper TypeScript types—never use `unknown` or `any` for callback parameters when the type can be inferred from context.
+- **TypeScript types:** prefer precise types. `any` is banned except in test mocks with an inline `// eslint-disable` justification. `unknown` is correct at trust boundaries (catch clauses, JSON/`fetch` parsing, external API responses) — narrow it before use; do not use it to avoid typing a value whose shape is known.
 
 
 ## Don'ts
