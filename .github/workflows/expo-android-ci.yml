@@ -15,11 +15,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19.6
-          cache: npm
-          cache-dependency-path: mobile-app/sapot-mobile-app/package-lock.json
+          node-version: 22
 
-      - run: npm ci
+      - run: npm install
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Lint
