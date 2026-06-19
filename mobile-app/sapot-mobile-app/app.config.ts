@@ -53,7 +53,7 @@ const withNetworkSecurityConfig: ConfigPlugin = (config) => {
     : `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
   <domain-config cleartextTrafficPermitted="false">
-    <domain includeSubdomains="false">192.168.1.23</domain>
+    <domain includeSubdomains="false">192.168.0.100</domain>
     <trust-anchors>
       <certificates src="@raw/server_cert"/>
     </trust-anchors>
