@@ -109,6 +109,25 @@ describe('TcpSignaledWrtcPeer', () => {
     await peer.disconnect();
   }, 5000);
 
+  it('peer whose timeout fires before ICE keeps connectedAtPhaseEnd false and empty iceEstablishMs', async () => {
+    // Use a 1ms timeout: fires before the NaCl handshake (2 loopback round-trips) can
+    // complete, so doCreatePc() is skipped and onStateChange never fires 'connected'.
+    // With the zombie-guard fix, even if onStateChange did fire 'connected' after settled,
+    // connectedAtPhaseEnd would still be false because the assignment lives inside onConnected.
+    const timedOutCfg: WebrtcConfig = { connectionTimeoutMs: 1 };
+    const col = new MetricsCollector();
+    const answerer = new TcpSignaledWrtcPeer('peer-1', 1, 0, col, timedOutCfg);
+    const offerer  = new TcpSignaledWrtcPeer('peer-0', 0, 0, col, timedOutCfg);
+    await Promise.all([answerer.connect(), offerer.connect()]);
+    await offerer.connectTo('127.0.0.1', answerer.port);
+    // Wait long enough for any late zombie onStateChange to arrive
+    await new Promise((r) => setTimeout(r, 30));
+    expect(offerer.getMetrics().connectedAtPhaseEnd).toBe(false);
+    expect(offerer.getMetrics().iceEstablishMs).toHaveLength(0);
+    expect(offerer.getMetrics().connectionTimeouts).toBe(1);
+    await Promise.all([offerer.disconnect(), answerer.disconnect()]);
+  }, 5000);
+
   it('getMetrics returns a snapshot copy', async () => {
     const col = new MetricsCollector();
     const peer = new TcpSignaledWrtcPeer('peer-0', 0, 0, col, fastCfg);

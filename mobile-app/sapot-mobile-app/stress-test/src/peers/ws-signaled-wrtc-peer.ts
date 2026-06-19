@@ -164,6 +164,7 @@ export class WsSignaledWrtcPeer implements BasePeer {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
+          this.metrics.connectedAtPhaseEnd = true;
           this.metrics.iceEstablishMs.push(elapsed);
           this.collector.recordIceEstablish(this.peerId, elapsed);
           resolve();
@@ -195,7 +196,6 @@ export class WsSignaledWrtcPeer implements BasePeer {
     pc.onStateChange((state: string) => {
       const elapsedMs = Date.now() - startMs;
       this.metrics.iceStateTransitions.push({ state, elapsedMs });
-      this.metrics.connectedAtPhaseEnd = (state === 'connected');
       if (state === 'connected') onConnected(elapsedMs);
       else if (state === 'failed') onFailed();
     });
@@ -244,6 +244,7 @@ export class WsSignaledWrtcPeer implements BasePeer {
           this.connectStartMs = this.iceStartMs;
           this.createPc(
             (elapsed) => {
+              this.metrics.connectedAtPhaseEnd = true;
               this.metrics.iceEstablishMs.push(elapsed);
               this.collector.recordIceEstablish(this.peerId, elapsed);
             },
