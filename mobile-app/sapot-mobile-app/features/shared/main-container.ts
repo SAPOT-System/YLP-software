@@ -25,6 +25,7 @@ import { KeyRecoveryService } from "./services/key-recovery-service";
 import { AppModeStore, NetworkConfig } from "./stores";
 
 import { CallService } from "@/features/call/services/call-service";
+import { ConversationKeyStore } from "@/features/chat/repositories/conversation-key-store";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import { ConversationRepository } from "@/features/chat/repositories/conversation-repository";
 import { MessageRepository } from "@/features/chat/repositories/message-repository";
@@ -81,6 +82,7 @@ export class MainContainer {
   readonly callMediaService: CallMediaService;
   readonly connectionService: ConnectionService;
   readonly chatService: ChatService;
+  readonly conversationKeyStore: ConversationKeyStore;
   readonly messageRepository: MessageRepository;
   readonly conversationRepository: ConversationRepository;
   readonly conversationParticipantRepository: ConversationParticipantRepository;
@@ -187,7 +189,8 @@ export class MainContainer {
       this.peerKeyStore
     );
 
-    this.messageRepository = new MessageRepository(database);
+    this.conversationKeyStore = new ConversationKeyStore();
+    this.messageRepository = new MessageRepository(database, this.conversationKeyStore);
     this.conversationRepository = new ConversationRepository(database);
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(database);
@@ -211,6 +214,7 @@ export class MainContainer {
       this.conversationRepository,
       this.conversationParticipantRepository,
       this.messageRepository,
+      this.conversationKeyStore,
       this.messageStatusRepository,
       this.userContainer.peerService,
       this.userContainer.userStore,
@@ -354,7 +358,7 @@ export class MainContainer {
               // hasMigrationKeys() is always false on a fresh startup (in-memory only),
               // so we detect the incomplete state via the persisted SecureStore flag.
               const migrationState = await getMigrationState();
-              if (migrationState === "in_progress" && !this.messageRepository.hasMigrationKeys()) {
+              if (migrationState === "in_progress" && !this.conversationKeyStore.hasMigrationKeys()) {
                 appLog.info("app › migrate-recovery: incomplete migration detected, re-running re-encrypt");
                 await this.messageRepository.reEncryptAfterMigration();
                 await clearMigrationState();
@@ -366,7 +370,7 @@ export class MainContainer {
               // we just completed a guest→auth migration. This ensures the first
               // sync push sends K_AB′ ciphertext instead of plaintext or stale
               // K_AB ciphertext to the server.
-              if (this.messageRepository.hasMigrationKeys()) {
+              if (this.conversationKeyStore.hasMigrationKeys()) {
                 appLog.info("app › running post-migration re-encryption pass");
                 await this.messageRepository.reEncryptAfterMigration();
                 appLog.info("app › post-migration re-encryption complete");
@@ -384,8 +388,8 @@ export class MainContainer {
               // During the migration window: when a new auth conversation key becomes
               // available for a peer that connected late, retry re-encryption for any
               // plaintext messages in that conversation that were skipped earlier.
-              this.messageRepository.onConversationKeySet(async (conversationId) => {
-                if (!this.messageRepository.hasMigrationKeys()) return;
+              this.conversationKeyStore.onConversationKeySet(async (conversationId: string) => {
+                if (!this.conversationKeyStore.hasMigrationKeys()) return;
                 await this.messageRepository.reEncryptConversation(conversationId);
               });
             }
@@ -421,7 +425,7 @@ export class MainContainer {
         // True when a guest→auth migration (or its crash recovery) just ran and the
         // auth-key ciphertext has not yet been pushed to the server.
         const migrationPushPending =
-          recoveryReEncryptDone || this.messageRepository.hasMigrationKeys();
+          recoveryReEncryptDone || this.conversationKeyStore.hasMigrationKeys();
 
         if (effectiveMode === "lan") {
           // LAN mode normally never contacts the server. But logout wipes the local
@@ -556,7 +560,7 @@ export class MainContainer {
     // keypair. After resetForMigration the next initialize() derives new keys from
     // the auth ECDH keypair. Messages were already decrypted to plaintext before
     // this call, so clearing the keys cannot make anything unreadable.
-    this.messageRepository.clearConversationKeys();
+    this.conversationKeyStore.clearConversationKeys();
     this.peerKeyStore.clear();
   }
 

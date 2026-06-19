@@ -4,18 +4,21 @@ import { createTestGuestUser, createTestPeer } from "@/test/factories/user.facto
 import { createCollectionMock, createWatermelonDbMock } from "@/test/mocks/database.mock-builders";
 import nacl from "tweetnacl";
 import { encodeBase64 } from "tweetnacl-util";
+import { ConversationKeyStore } from "../conversation-key-store";
 import { MessageRepository } from "../message-repository";
 
 describe("MessageRepository", () => {
   let repository: MessageRepository;
+  let keyStore: ConversationKeyStore;
   let mockCollection: ReturnType<typeof createCollectionMock>;
   let mockDb: ReturnType<typeof createWatermelonDbMock>;
 
   beforeEach(() => {
     mockCollection = createCollectionMock();
     mockDb = createWatermelonDbMock(mockCollection);
+    keyStore = new ConversationKeyStore();
 
-    repository = new MessageRepository(mockDb as never);
+    repository = new MessageRepository(mockDb as never, keyStore);
   });
 
   it("saves a new message", async () => {
@@ -29,7 +32,7 @@ describe("MessageRepository", () => {
       Promise.resolve(fn()).then((_result: any) => mockMessage)
     );
 
-    repository.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
+    keyStore.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
 
     await repository.saveMessage({
       sender: {
@@ -51,7 +54,7 @@ describe("MessageRepository", () => {
       (fn: any) => Promise.resolve(fn())
     );
 
-    repository.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
+    keyStore.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
 
     await repository.saveMessage({
       sender: {
@@ -122,11 +125,11 @@ describe("MessageRepository", () => {
       // Message stored under the old key.
       const stored = messageWith(encryptWith(oldKey, "secret history"));
 
-      repository.setConversationKey("conv-1", oldKey);
+      keyStore.setConversationKey("conv-1", oldKey);
       expect(repository.decryptMessage(stored)).toBe("secret history");
 
       // Peer key rotates → a new conversation key is derived and set.
-      repository.setConversationKey("conv-1", newKey);
+      keyStore.setConversationKey("conv-1", newKey);
 
       // The old message is still decryptable via the retained historical key.
       expect(repository.decryptMessage(stored)).toBe("secret history");
@@ -137,7 +140,7 @@ describe("MessageRepository", () => {
       const wrongKey = nacl.randomBytes(nacl.secretbox.keyLength);
       const stored = messageWith(encryptWith(unrelatedKey, "nope"));
 
-      repository.setConversationKey("conv-1", wrongKey);
+      keyStore.setConversationKey("conv-1", wrongKey);
 
       expect(repository.decryptMessage(stored)).toBe(stored.content);
     });

@@ -21,6 +21,7 @@ import { ECDH_PREFIX } from "../repositories/message-repository";
 import * as Notifications from "expo-notifications";
 import nacl from "tweetnacl";
 import {
+  ConversationKeyStore,
   ConversationParticipantRepository,
   ConversationRepository,
   MessageRepository,
@@ -61,6 +62,7 @@ export class ChatService {
     private conversationRepository: ConversationRepository,
     private conversationParticipantRepository: ConversationParticipantRepository,
     private messageRepository: MessageRepository,
+    private conversationKeyStore: ConversationKeyStore,
     private messageStatusRepository: MessageStatusRepository,
     private peerService: PeerService,
     private userStore: UserStore,
@@ -145,13 +147,13 @@ export class ChatService {
     // used to encrypt new messages.
     const historicalPubKeys = this.peerKeyStore.getHistory(peerId);
     for (const histPub of historicalPubKeys) {
-      this.messageRepository.setConversationKey(
+      this.conversationKeyStore.setConversationKey(
         conversationId,
         nacl.box.before(histPub, mySecretKey)
       );
     }
     const sharedKey = nacl.box.before(peerPubKey, mySecretKey);
-    this.messageRepository.setConversationKey(conversationId, sharedKey);
+    this.conversationKeyStore.setConversationKey(conversationId, sharedKey);
     chatLog.debug("chat › conversation key derived", {
       peerId,
       conversationId,
