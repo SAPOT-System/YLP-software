@@ -18,6 +18,57 @@ The FastAPI server code in `server/` may be edited when the user explicitly requ
 - `docs/LAN_MESSENGER.md` — LAN-only messaging behavior and constraints
 - `docs/diagrams/` — sequence/architecture diagrams
 
+These documents are mandatory for all code generation:
+- docs/architecture.md
+- docs/design-system.md
+- docs/conventions.md
+
+If conflict exists:
+CLAUDE.md overrides all inferred patterns.
+
+All code must respect
+docs/system-boundaries.md
+
+## Reuse Rules
+
+Before creating:
+
+- components
+- hooks
+- services
+- utilities
+
+Search repository first.
+
+Explain why existing implementation cannot be reused.
+
+## Refactoring
+
+Do not refactor unless explicitly requested.
+
+## Large Changes
+
+For changes affecting multiple files:
+
+Step 1:
+Audit current implementation
+
+Step 2:
+Provide plan
+
+Step 3:
+Wait for approval
+
+Step 4:
+Implement
+
+Step 5:
+Run verification
+
+## Architecture
+
+Respect documented architecture boundaries.
+
 ---
 
 ## Decision Rules (precedence: top wins)

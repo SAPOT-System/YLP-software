@@ -10,32 +10,80 @@ SAPOT is a peer-to-peer mobile messenger. Peers communicate directly via WebRTC 
 
 All services are instantiated once at app startup through two container classes. They are **not singletons** — they are passed down via React context.
 
-```
-AuthContainer
-  └── sessionStore
-  └── userStore
-  └── peerService
-  └── peerRepository
-  └── userService
+### AuthContainer (`features/auth/auth-container.ts`)
 
-MainContainer (receives AuthContainer)
-  └── networkConfig
-  └── appModeStore
-  └── wsSignalingAdapter          (shared: signaling + public chat)
-  └── tcpServerAdapter
-  └── webrtcSessionManager
-  └── signalingService
-  └── callMediaService
-  └── connectionService   ← constructed last (wires sub-services in constructor)
-  └── chatService
-  └── callService
-  └── syncService
-  └── repositories (message, conversation, call, etc.)
+Owns auth-persistent state that outlives individual screens:
+
+- `sessionStore` — WebSocket session handle
+- `userStore` — current user identity (`Peer | GuestUser`)
+- `peerService` / `peerRepository`
+- `guestMigrationService` — guest→auth conversion
+
+### MainContainer (`features/shared/main-container.ts`)
+
+Single wiring point for all runtime services. Constructed with an `AuthContainer`.
+
+**Construction order is explicit and load-bearing:**
+```
+WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService
 ```
 
-**Construction order matters.** `ConnectionService` is always constructed last because it wires sub-services via callbacks in its constructor.
+`ConnectionService` is always constructed last because it wires sub-services via callbacks in its constructor. Callbacks use closures (not `.bind()`) so `jest.spyOn` replacements on instances are respected in tests.
+
+**Two wiring patterns exist for cross-service dependencies:**
+
+1. **Constructor injection** — used for most services
+2. **Post-construction setters** — used where constructor injection would create circular dependencies:
+   ```typescript
+   connectionService.setChatService(chatService);
+   syncService.setMessageReceiptManager(messageReceiptManager);
+   ```
+
+TODO: the distinction between these two patterns is implied by the circular dependency constraint but is not documented. It is not always obvious which pattern applies to a new dependency.
+
+PIN-gated initialization: the container is held in `pendingContainerRef` and `PinEntryGate` is shown before `initialize()` is called.
 
 React context provider: `features/shared/context/main-container-context.tsx`
+
+
+---
+
+## Encryption
+
+### In Transit
+
+- **TCP**: `TcpEncryptionService` wraps/unwraps `EncryptedEnvelope` using NaCl box (peer ECDH keys; no master key needed)
+- **WebSocket**: `WsEncryptionService` encrypts signaling payloads so the relay server cannot read them
+
+### At Rest
+
+- Chat messages are encrypted per-conversation using ECDH-derived NaCl box keys
+- `MessageRepository` maintains `conversationKeys` (current) and `conversationKeyHistory` (up to 5 past keys) so messages can be decrypted after peer key rotation
+- Conversation keys are in-memory only; cleared on logout
+
+### Key Storage
+
+- Master key + signaling key: `expo-secure-store` (via `key-derivation.ts`)
+- Peer ECDH public keys: fetched from server (auth users) or via TCP handshake; cached in `PeerKeyStore`
+- Recovery: `KeyRecoveryService` wraps master key under multiple recovery methods (password, phone, email, QA token)
+
+### Guest→Auth Migration
+
+1. `GuestMigrationService` captures guest conversation keys before clearing them
+2. `MessageRepository` re-encrypts all messages with new auth ECDH keys
+3. `skipEncryptedMessageUpdatesOnNextSync()` prevents the server's stale guest-key ciphertext from overwriting the newly re-encrypted local copy on the first sync after migration
+
+Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`
+
+---
+
+## Initialization Flow (`MainContainer.initialize()`)
+
+1. Load master key, signaling keys, peer ECDH keys from secure storage
+2. Detect and complete any interrupted guest→auth re-encryption
+3. Start sync — periodic REST API sync, or LAN-only one-time push (mode-dependent)
+4. Register NetInfo + AppState listeners
+5. Idempotent via `this.initPromise` guard — safe to call multiple times
 
 ---
 
