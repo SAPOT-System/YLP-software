@@ -192,29 +192,66 @@ describe('session-log-parser', () => {
   });
 
   describe('classifyFailures', () => {
-    it('returns phoneRefused = 0 and neverArrived = 0 for empty events with no timeouts', () => {
+    it('zero timeouts: all three buckets are zero', () => {
       const result = classifyFailures([], 0);
       expect(result.phoneRefused).toBe(0);
+      expect(result.arrivedButStalled).toBe(0);
       expect(result.neverArrived).toBe(0);
     });
 
-    it('counts phone-refused from rejected events', () => {
+    it('all phone-refused: arrivedButStalled and neverArrived are zero', () => {
       const events: SessionEvent[] = [
         { kind: 'rejected', sessionId: 's1', peerId: 'p1', reason: 'limit-exceeded', activeSessions: 5 },
         { kind: 'rejected', sessionId: 's2', peerId: 'p2', reason: 'limit-exceeded', activeSessions: 5 },
       ];
       const result = classifyFailures(events, 2);
       expect(result.phoneRefused).toBe(2);
+      expect(result.arrivedButStalled).toBe(0);
       expect(result.neverArrived).toBe(0);
     });
 
-    it('counts never-arrived as timeouts not explained by rejections', () => {
+    it('accepted count exceeds remaining timeouts: arrivedButStalled clamped to remaining', () => {
+      // 3 accepted events, 1 timeout, 0 refused → arrivedButStalled = min(3, 1) = 1
       const events: SessionEvent[] = [
-        { kind: 'rejected', sessionId: 's1', peerId: 'p1', reason: 'limit-exceeded', activeSessions: 5 },
+        { kind: 'accepted', sessionId: 's1', peerId: 'p1', activeSessions: 1 },
+        { kind: 'accepted', sessionId: 's2', peerId: 'p2', activeSessions: 2 },
+        { kind: 'accepted', sessionId: 's3', peerId: 'p3', activeSessions: 3 },
+      ];
+      const result = classifyFailures(events, 1);
+      expect(result.phoneRefused).toBe(0);
+      expect(result.arrivedButStalled).toBe(1);
+      expect(result.neverArrived).toBe(0);
+    });
+
+    it('accepted count below remaining timeouts: partial stall, remainder is never-arrived', () => {
+      // 1 accepted, 3 timeouts, 0 refused → arrivedButStalled = 1, neverArrived = 2
+      const events: SessionEvent[] = [
+        { kind: 'accepted', sessionId: 's1', peerId: 'p1', activeSessions: 1 },
       ];
       const result = classifyFailures(events, 3);
-      expect(result.phoneRefused).toBe(1);
+      expect(result.phoneRefused).toBe(0);
+      expect(result.arrivedButStalled).toBe(1);
       expect(result.neverArrived).toBe(2);
+    });
+
+    it('no accepted events: all unaccounted timeouts are never-arrived', () => {
+      const result = classifyFailures([], 3);
+      expect(result.phoneRefused).toBe(0);
+      expect(result.arrivedButStalled).toBe(0);
+      expect(result.neverArrived).toBe(3);
+    });
+
+    it('accepted events consume from unaccounted timeouts after phone-refused', () => {
+      // 1 rejected, 1 accepted, 2 timeouts → remaining = 1, arrivedButStalled = min(1,1) = 1, neverArrived = 0
+      const events: SessionEvent[] = [
+        { kind: 'accepted', sessionId: 's1', peerId: 'p1', activeSessions: 1 },
+        { kind: 'active-count', count: 1 },
+        { kind: 'rejected', sessionId: 's2', peerId: 'p2', reason: 'limit-exceeded', activeSessions: 5 },
+      ];
+      const result = classifyFailures(events, 2);
+      expect(result.phoneRefused).toBe(1);
+      expect(result.arrivedButStalled).toBe(1);
+      expect(result.neverArrived).toBe(0);
     });
 
     it('neverArrived is 0 when rejections exceed timeouts', () => {
@@ -224,18 +261,8 @@ describe('session-log-parser', () => {
       ];
       const result = classifyFailures(events, 1);
       expect(result.phoneRefused).toBe(2);
+      expect(result.arrivedButStalled).toBe(0);
       expect(result.neverArrived).toBe(0);
-    });
-
-    it('ignores accepted and active-count events in phone-refused count', () => {
-      const events: SessionEvent[] = [
-        { kind: 'accepted', sessionId: 's1', peerId: 'p1', activeSessions: 1 },
-        { kind: 'active-count', count: 1 },
-        { kind: 'rejected', sessionId: 's2', peerId: 'p2', reason: 'limit-exceeded', activeSessions: 5 },
-      ];
-      const result = classifyFailures(events, 2);
-      expect(result.phoneRefused).toBe(1);
-      expect(result.neverArrived).toBe(1);
     });
   });
 

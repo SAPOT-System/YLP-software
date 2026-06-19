@@ -361,12 +361,18 @@ export class TcpSignaledWrtcPeer implements BasePeer {
         audio.addOpusCodec(111);
         const track = pc.addTrack(audio) as Track;
         this.setupAudioTrack(track);
+        this.metrics.mediaInSdp = true;
+        this.collector.recordMediaInSdp();
       } catch { /* media not supported */ }
       if (this.config.media.type === 'audio-video') {
         try {
           const video = new Video('video', 'SendOnly');
           video.addH264Codec(96);
           this.setupVideoTrack(pc.addTrack(video) as Track);
+          if (!this.metrics.mediaInSdp) {
+            this.metrics.mediaInSdp = true;
+            this.collector.recordMediaInSdp();
+          }
         } catch { /* video not supported */ }
       }
     }

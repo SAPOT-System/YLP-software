@@ -36,3 +36,26 @@ _Avoid_: phone mode, real-network test.
 The no-phone pair configuration over `127.0.0.1`, retained only as a CI/protocol check. It
 is explicitly not a session-ceiling result.
 _Avoid_: LAN test, pair test as a network result.
+
+**phone-refused**:
+A session the phone explicitly rejected — signalled by a `session › rejected` log event from
+the phone. The offer arrived and was actively turned away.
+_Avoid_: dropped, failed, error.
+
+**arrived-but-stalled**:
+A session whose offer reached the phone's WebRTC stack (phone logged `session › accepted`)
+but whose ICE negotiation never completed before the laptop's connection timeout fired.
+Distinct from never-arrived: the phone saw it but could not finish it.
+_Avoid_: partial connection, ICE failure (too broad — ICE failure can also mean never-arrived).
+
+**never-arrived**:
+A connection timeout on the laptop side with no matching `session › accepted` on the phone —
+the offer was sent but never triggered WebRTC processing on the phone.
+_Avoid_: dropped (ambiguous — doesn't distinguish phone-refused from transport loss).
+
+**mediaInSdp**:
+A per-peer flag recording whether at least one media track (`Audio`/`Video`) was successfully
+added to the `RTCPeerConnection` before the offer was generated. True means the SDP carries
+a media section (replicating a real call's ICE negotiation load). It does not mean RTP
+packets were sent — RTP delivery is tracked separately by `rtpPacketsSent`.
+_Avoid_: media connected, media supported (both imply packets flowing, which this does not).

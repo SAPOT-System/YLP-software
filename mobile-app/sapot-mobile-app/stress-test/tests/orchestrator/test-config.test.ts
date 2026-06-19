@@ -2,50 +2,59 @@ import { validateConfig, TestConfig } from '@/orchestrator/test-config';
 
 const basePhase = { peerCount: 2, msgPerSec: 5, durationSec: 10 };
 
-const baseLan = { hostIp: '127.0.0.1', startPort: 9100 };
-const baseWs = { serverUrl: 'https://x', accountPrefix: 'p_', password: 'pw', iperfTargetIp: '' };
+const baseTcpStarLan = { hostIp: '192.168.1.23', startPort: 9000, adbDiscovery: true as const };
+const baseWs = { serverUrl: 'https://x', accountPrefix: 'p_', password: 'pw', iperfTargetIp: '192.168.1.1' };
 const baseWrtc = { connectionTimeoutMs: 5000 };
 
-describe('validateConfig — tcp-signaled mode', () => {
+describe('validateConfig — tcp-signaled mode (Star Mode only)', () => {
   it('throws when lan config is missing', () => {
     const config = {
       mode: 'tcp-signaled', webrtc: baseWrtc, phases: [basePhase], outputDir: './out',
     } as TestConfig;
-    expect(() => validateConfig(config)).toThrow('lan config required for mode tcp-signaled');
+    expect(() => validateConfig(config)).toThrow('lan config is required');
   });
 
   it('throws when webrtc config is missing', () => {
     const config = {
-      mode: 'tcp-signaled', lan: baseLan, phases: [basePhase], outputDir: './out',
+      mode: 'tcp-signaled', lan: baseTcpStarLan, phases: [basePhase], outputDir: './out',
     } as TestConfig;
-    expect(() => validateConfig(config)).toThrow('webrtc config required for mode tcp-signaled');
+    expect(() => validateConfig(config)).toThrow('webrtc config is required');
   });
 
-  it('throws when peerCount is odd', () => {
+  it('throws when no star mode fields are provided (pair mode is not supported)', () => {
     const config: TestConfig = {
       mode: 'tcp-signaled',
-      lan: baseLan,
-      webrtc: baseWrtc,
-      phases: [{ peerCount: 3, msgPerSec: 5, durationSec: 10 }],
-      outputDir: './out',
-    };
-    expect(() => validateConfig(config)).toThrow('peerCount must be even');
-  });
-
-  it('passes with valid tcp-signaled config', () => {
-    const config: TestConfig = {
-      mode: 'tcp-signaled',
-      lan: baseLan,
+      lan: { hostIp: '127.0.0.1', startPort: 9100 },
       webrtc: baseWrtc,
       phases: [basePhase],
       outputDir: './out',
     };
-    expect(() => validateConfig(config)).not.toThrow();
+    expect(() => validateConfig(config)).toThrow('Star Mode');
   });
-});
 
-describe('validateConfig — tcp-signaled star mode (adb discovery)', () => {
-  it('passes when adbDiscovery is true and phone fields are absent', () => {
+  it('throws when phoneIp is set without phonePort', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: { hostIp: '127.0.0.1', startPort: 9200, phoneIp: '192.168.1.5' },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('lan.phonePort is required');
+  });
+
+  it('throws when phoneIp is set without phoneUserId', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: { hostIp: '127.0.0.1', startPort: 9200, phoneIp: '192.168.1.5', phonePort: 9000 },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('lan.phoneUserId is required');
+  });
+
+  it('passes with adbDiscovery star mode', () => {
     const config: TestConfig = {
       mode: 'tcp-signaled',
       lan: { hostIp: '192.168.1.23', startPort: 9200, adbDiscovery: true },
@@ -56,15 +65,48 @@ describe('validateConfig — tcp-signaled star mode (adb discovery)', () => {
     expect(() => validateConfig(config)).not.toThrow();
   });
 
-  it('still throws when phoneIp is set without phonePort even with adbDiscovery absent', () => {
+  it('passes with mdnsDiscovery star mode', () => {
     const config: TestConfig = {
       mode: 'tcp-signaled',
-      lan: { hostIp: '127.0.0.1', startPort: 9200, phoneIp: '192.168.1.5' },
+      lan: { hostIp: '192.168.1.23', startPort: 9200, mdnsDiscovery: true },
       webrtc: baseWrtc,
-      phases: [basePhase],
+      phases: [{ peerCount: 1, msgPerSec: 5, durationSec: 10 }],
       outputDir: './out',
     };
-    expect(() => validateConfig(config)).toThrow('phonePort required');
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+
+  it('does not require hostIp when mdnsDiscovery is true (auto-detected at run time)', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: { startPort: 9200, mdnsDiscovery: true },
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 1, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+
+  it('passes with manual star mode (phoneIp + phonePort + phoneUserId)', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: { hostIp: '192.168.1.23', startPort: 9200, phoneIp: '192.168.1.5', phonePort: 9000, phoneUserId: 'user-123' },
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 3, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+
+  it('allows odd peerCount in star mode (all peers target the phone)', () => {
+    const config: TestConfig = {
+      mode: 'tcp-signaled',
+      lan: baseTcpStarLan,
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 3, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
   });
 
   it('canonical tcp-star config file is parseable and valid', () => {
@@ -86,17 +128,61 @@ describe('validateConfig — ws-signaled mode', () => {
     const config = {
       mode: 'ws-signaled', webrtc: baseWrtc, phases: [basePhase], outputDir: './out',
     } as TestConfig;
-    expect(() => validateConfig(config)).toThrow('ws config required for mode ws-signaled');
+    expect(() => validateConfig(config)).toThrow('ws config is required');
   });
 
   it('throws when webrtc config is missing', () => {
     const config = {
       mode: 'ws-signaled', ws: baseWs, phases: [basePhase], outputDir: './out',
     } as TestConfig;
-    expect(() => validateConfig(config)).toThrow('webrtc config required for mode ws-signaled');
+    expect(() => validateConfig(config)).toThrow('webrtc config is required');
   });
 
-  it('throws when peerCount is odd', () => {
+  it('throws when ws.serverUrl is missing', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: { ...baseWs, serverUrl: '' },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('ws.serverUrl is required');
+  });
+
+  it('throws when ws.accountPrefix is missing', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: { ...baseWs, accountPrefix: '' },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('ws.accountPrefix is required');
+  });
+
+  it('throws when ws.password is missing', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: { ...baseWs, password: '' },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('ws.password is required');
+  });
+
+  it('throws when ws.iperfTargetIp is missing', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: { ...baseWs, iperfTargetIp: '' },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('ws.iperfTargetIp is required');
+  });
+
+  it('throws when peerCount is odd in pair mode (no phoneUserId)', () => {
     const config: TestConfig = {
       mode: 'ws-signaled',
       ws: baseWs,
@@ -105,6 +191,28 @@ describe('validateConfig — ws-signaled mode', () => {
       outputDir: './out',
     };
     expect(() => validateConfig(config)).toThrow('peerCount must be even');
+  });
+
+  it('allows odd peerCount in star mode (phoneUserId set)', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: { ...baseWs, phoneUserId: 'phone-user-id' },
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 3, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
+  });
+
+  it('allows odd peerCount in ws star mode when mdnsDiscovery is set', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: { ...baseWs, mdnsDiscovery: true },
+      webrtc: baseWrtc,
+      phases: [{ peerCount: 3, msgPerSec: 5, durationSec: 10 }],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).not.toThrow();
   });
 
   it('passes with valid ws-signaled config', () => {
@@ -116,5 +224,16 @@ describe('validateConfig — ws-signaled mode', () => {
       outputDir: './out',
     };
     expect(() => validateConfig(config)).not.toThrow();
+  });
+
+  it('reports all missing ws fields at once', () => {
+    const config: TestConfig = {
+      mode: 'ws-signaled',
+      ws: { serverUrl: '', accountPrefix: '', password: '', iperfTargetIp: '' },
+      webrtc: baseWrtc,
+      phases: [basePhase],
+      outputDir: './out',
+    };
+    expect(() => validateConfig(config)).toThrow('4 issue(s)');
   });
 });

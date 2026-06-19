@@ -21,7 +21,8 @@ const fakePhase: PhaseStats = {
   connectedPeers: 5,
   discoveryCompleteness: 0, discoveryP50Ms: 0, discoveryP95Ms: 0,
   lagP95Ms: 0, lagValid: true,
-  phoneRefused: null, neverArrived: null,
+  phoneRefused: null, arrivedButStalled: null, neverArrived: null,
+  mediaInSdp: false,
 };
 
 function makePhase(overrides: Partial<PhaseStats>): PhaseStats {
@@ -351,7 +352,9 @@ describe('reporter', () => {
         lagP95Ms: 0,
         lagValid: true,
         phoneRefused: null,
+        arrivedButStalled: null,
         neverArrived: null,
+        mediaInSdp: false,
         ...overrides,
       };
     }
@@ -428,23 +431,39 @@ describe('reporter', () => {
     });
 
     it('shows attribution unavailable when phoneRefused and neverArrived are null', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: null, neverArrived: null }));
+      const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: null, arrivedButStalled: null, neverArrived: null }));
       expect(output).toContain('unavailable');
       expect(output).not.toContain('phone-refused');
     });
 
-    it('shows attribution counts when phoneRefused and neverArrived are provided', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: 2, neverArrived: 3 }));
+    it('shows all three attribution buckets when attribution is provided', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: 2, arrivedButStalled: 5, neverArrived: 3 }));
       expect(output).toContain('phone-refused');
+      expect(output).toContain('arrived-but-stalled');
       expect(output).toContain('never-arrived');
       expect(output).toContain('2');
+      expect(output).toContain('5');
       expect(output).toContain('3');
     });
 
     it('shows zero counts when attribution is available but no failures occurred', () => {
-      const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: 0, neverArrived: 0 }));
+      const output = formatWebrtcBlock(makeWebrtcPhase({ phoneRefused: 0, arrivedButStalled: 0, neverArrived: 0 }));
       expect(output).toContain('phone-refused');
       expect(output).toContain(': 0');
+    });
+
+    it('shows mediaInSdp: false when no track was added', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ mediaInSdp: false }));
+      expect(output).toContain('mediaInSdp');
+      expect(output).toContain('false');
+      expect(output).not.toContain('SendOnly');
+    });
+
+    it('shows mediaInSdp: true and SendOnly note when media was added to SDP', () => {
+      const output = formatWebrtcBlock(makeWebrtcPhase({ mediaInSdp: true }));
+      expect(output).toContain('mediaInSdp');
+      expect(output).toContain('true');
+      expect(output).toContain('SendOnly');
     });
   });
 

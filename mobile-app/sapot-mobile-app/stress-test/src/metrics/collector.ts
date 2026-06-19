@@ -47,7 +47,11 @@ export interface PhaseStats {
   lagValid: boolean;
   // Failure attribution from phone session log (null = no log data available).
   phoneRefused: number | null;
+  arrivedButStalled: number | null;
   neverArrived: number | null;
+  // True if at least one peer successfully added a media track before offer generation.
+  // rtpPacketsSent=0 when mediaInSdp=true is expected: both sides are SendOnly.
+  mediaInSdp: boolean;
 }
 
 function pct(sorted: number[], p: number): number {
@@ -69,6 +73,7 @@ export class MetricsCollector {
   private dcEstablishSamples: number[] = [];
   // peerId → latency of first probe (ms from advertise to probe)
   private discoveryProbes = new Map<string, number>();
+  private mediaInSdpAny = false;
 
   recordSent(peerId: string, _atMs: number): void {
     this.sentCounts.set(peerId, (this.sentCounts.get(peerId) ?? 0) + 1);
@@ -109,6 +114,10 @@ export class MetricsCollector {
     this.dcEstablishSamples.push(ms);
   }
 
+  recordMediaInSdp(): void {
+    this.mediaInSdpAny = true;
+  }
+
   recordDiscoveryProbe(peerId: string, latencyMs: number): void {
     if (!this.discoveryProbes.has(peerId)) {
       this.discoveryProbes.set(peerId, latencyMs);
@@ -128,6 +137,7 @@ export class MetricsCollector {
     this.videoEstablishSamples = [];
     this.dcEstablishSamples = [];
     this.discoveryProbes = new Map();
+    this.mediaInSdpAny = false;
   }
 
   computeStats(
@@ -190,7 +200,9 @@ export class MetricsCollector {
       lagP95Ms: 0,
       lagValid: true,
       phoneRefused: null,
+      arrivedButStalled: null,
       neverArrived: null,
+      mediaInSdp: this.mediaInSdpAny,
     };
   }
 }

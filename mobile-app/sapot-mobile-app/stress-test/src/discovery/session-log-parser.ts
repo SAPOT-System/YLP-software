@@ -103,13 +103,18 @@ export function parseSessionEvents(logText: string): SessionEvent[] {
  * Classify ICE establishment failures from phone session events.
  *
  * - phoneRefused: sessions the phone explicitly rejected (rejected events)
- * - neverArrived: timeouts with no corresponding rejection (offer never reached phone)
+ * - arrivedButStalled: offers the phone accepted into WebRTC but ICE never finished
+ *   (capped at unaccounted timeouts so it never exceeds connectionTimeouts - phoneRefused)
+ * - neverArrived: timeouts with no matching accepted or rejected event
  */
 export function classifyFailures(
   events: SessionEvent[],
   connectionTimeouts: number,
-): { phoneRefused: number; neverArrived: number } {
+): { phoneRefused: number; arrivedButStalled: number; neverArrived: number } {
   const phoneRefused = events.filter((e) => e.kind === 'rejected').length;
-  const neverArrived = Math.max(0, connectionTimeouts - phoneRefused);
-  return { phoneRefused, neverArrived };
+  const acceptedCount = events.filter((e) => e.kind === 'accepted').length;
+  const remaining = Math.max(0, connectionTimeouts - phoneRefused);
+  const arrivedButStalled = Math.min(acceptedCount, remaining);
+  const neverArrived = remaining - arrivedButStalled;
+  return { phoneRefused, arrivedButStalled, neverArrived };
 }

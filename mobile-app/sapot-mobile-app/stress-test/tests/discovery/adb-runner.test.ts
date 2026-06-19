@@ -1,4 +1,4 @@
-import { discoverPhoneTarget, scrapeSessionLog, ExecFn } from '@/discovery/adb-runner';
+import { discoverPhoneTarget, waitForPhoneViaAdb, scrapeSessionLog, ExecFn } from '@/discovery/adb-runner';
 import { ParseFailure } from '@/discovery/logcat-parser';
 
 const PORT_LINE = 'network › config constructed {"port":54321}';
@@ -103,5 +103,67 @@ describe('scrapeSessionLog', () => {
     const sinceMs = new Date(2026, 0, 5, 3, 7, 9, 5).getTime();
     await scrapeSessionLog(sinceMs, exec);
     expect(captured).toContain('01-05 03:07:09.005');
+  });
+});
+
+describe('waitForPhoneViaAdb', () => {
+  beforeEach(() => jest.useRealTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('resolves immediately when logcat already has port, userId, and IP', async () => {
+    const exec = makeExec({
+      'adb devices': DEVICES_ONE,
+      'adb logcat': [PORT_LINE, BEACON_LINE].join('\n'),
+      'ip addr show wlan0': WLAN0,
+    });
+    const target = await waitForPhoneViaAdb(5, exec);
+    expect(target).toEqual({ ip: '192.168.1.42', port: 54321, userId: 'abc-123-def-456' });
+  });
+
+  it('throws immediately when no device is attached, without retrying', async () => {
+    let callCount = 0;
+    const exec: ExecFn = (cmd) => {
+      callCount++;
+      if (cmd.includes('adb devices')) return DEVICES_NONE;
+      throw new Error('should not reach');
+    };
+    await expect(waitForPhoneViaAdb(5, exec)).rejects.toThrow(/no device attached/i);
+    expect(callCount).toBe(1);
+  });
+
+  it('retries and resolves when logcat eventually has the needed lines', async () => {
+    jest.useFakeTimers();
+    let logcatCallCount = 0;
+    const exec: ExecFn = (cmd) => {
+      if (cmd.includes('adb devices')) return DEVICES_ONE;
+      if (cmd.includes('adb logcat')) {
+        logcatCallCount++;
+        // First two calls return no beacon; third has both lines
+        if (logcatCallCount < 3) return '';
+        return [PORT_LINE, BEACON_LINE].join('\n');
+      }
+      if (cmd.includes('ip addr show wlan0')) return WLAN0;
+      throw new Error(`Unexpected: ${cmd}`);
+    };
+
+    const promise = waitForPhoneViaAdb(30, exec);
+    // runAllTimersAsync flushes timers + microtasks so the async retry loop progresses
+    await jest.runAllTimersAsync();
+
+    const target = await promise;
+    expect(target.userId).toBe('abc-123-def-456');
+    expect(logcatCallCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('rejects with a timeout error when phone never appears', async () => {
+    jest.useFakeTimers();
+    const exec: ExecFn = (cmd) => {
+      if (cmd.includes('adb devices')) return DEVICES_ONE;
+      if (cmd.includes('adb logcat')) return ''; // never has the lines
+      throw new Error(`Unexpected: ${cmd}`);
+    };
+    const promise = waitForPhoneViaAdb(5, exec);
+    jest.advanceTimersByTime(6000);
+    await expect(promise).rejects.toThrow(/timed out after 5s/i);
   });
 });

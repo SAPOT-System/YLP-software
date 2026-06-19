@@ -146,6 +146,33 @@ describe('MetricsCollector', () => {
     });
   });
 
+  describe('mediaInSdp aggregation', () => {
+    it('is false when no peer reports a successful addTrack', () => {
+      const stats = collector.computeStats('phase', 2, 1, 5, 0);
+      expect(stats.mediaInSdp).toBe(false);
+    });
+
+    it('is true when at least one recordMediaInSdp call is made', () => {
+      collector.recordMediaInSdp();
+      const stats = collector.computeStats('phase', 2, 1, 5, 0);
+      expect(stats.mediaInSdp).toBe(true);
+    });
+
+    it('stays true when multiple peers report it', () => {
+      collector.recordMediaInSdp();
+      collector.recordMediaInSdp();
+      const stats = collector.computeStats('phase', 4, 1, 5, 0);
+      expect(stats.mediaInSdp).toBe(true);
+    });
+
+    it('reset() clears mediaInSdp back to false', () => {
+      collector.recordMediaInSdp();
+      collector.reset();
+      const stats = collector.computeStats('phase', 2, 1, 5, 0);
+      expect(stats.mediaInSdp).toBe(false);
+    });
+  });
+
   describe('discovery probe metrics', () => {
     it('discoveryCompleteness is 0 when no probes recorded', () => {
       const stats = collector.computeStats('phase', 4, 1, 5, 0);

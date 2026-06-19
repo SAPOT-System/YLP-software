@@ -5,6 +5,8 @@ export interface PhoneTarget {
   ip: string;
   port: number;
   userId: string;
+  /** Laptop's own IP on the same subnet — auto-populated by mDNS discovery. */
+  hostIp?: string;
 }
 
 export type ExecFn = (cmd: string) => string;
@@ -46,7 +48,7 @@ function assertDeviceAttached(exec: ExecFn): void {
 }
 
 /**
- * Discovers the phone target (ip, port, userId) by scraping adb logcat.
+ * One-shot: scrapes logcat once and returns the phone target or throws.
  *
  * Requires an attached adb device running a preview or development build of the app.
  * Throws actionable errors for: no device, production build, missing log lines.
@@ -68,4 +70,50 @@ export async function discoverPhoneTarget(exec: ExecFn = defaultExec): Promise<P
   if (!ip) throw new ParseFailure(['ip']);
 
   return { ip, port: port as number, userId: userId as string };
+}
+
+/**
+ * Retrying variant: polls adb logcat every 3 s until the phone target is found
+ * or {@link timeoutSec} elapses. Fails fast (no retry) if no device is attached.
+ */
+export async function waitForPhoneViaAdb(
+  timeoutSec = 60,
+  exec: ExecFn = defaultExec,
+): Promise<PhoneTarget> {
+  assertDeviceAttached(exec);
+
+  const deadlineMs = Date.now() + timeoutSec * 1000;
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const logcat = exec('adb logcat -d -v brief');
+      const port = parsePort(logcat);
+      const userId = parseUserId(logcat);
+
+      const missing: ('ip' | 'port' | 'userId')[] = [];
+      if (port === null) missing.push('port');
+      if (userId === null) missing.push('userId');
+      if (missing.length > 0) throw new ParseFailure(missing);
+
+      const wlan0 = exec('adb shell ip addr show wlan0');
+      const ip = parseIp(wlan0);
+      if (!ip) throw new ParseFailure(['ip']);
+
+      return { ip, port: port as number, userId: userId as string };
+    } catch (err) {
+      if (!(err instanceof ParseFailure)) throw err;
+
+      const remaining = deadlineMs - Date.now();
+      if (remaining <= 0) {
+        throw new Error(
+          `adb discovery timed out after ${timeoutSec}s — is the app open and a dev/preview build?`,
+        );
+      }
+
+      attempt++;
+      console.log(`[adb] Waiting for phone to appear in logcat… (${attempt * 3}s elapsed)`);
+      await new Promise<void>((res) => setTimeout(res, Math.min(3000, remaining)));
+    }
+  }
 }

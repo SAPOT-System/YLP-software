@@ -12,7 +12,8 @@ import { TcpSignaledWrtcPeer } from "../peers/tcp-signaled-wrtc-peer";
 import { WsSignaledWrtcPeer } from "../peers/ws-signaled-wrtc-peer";
 import { WsStarPeer } from "../peers/ws-star-peer";
 import { spawn } from "child_process";
-import { discoverPhoneTarget, scrapeSessionLog, PhoneTarget } from "../discovery/adb-runner";
+import { waitForPhoneViaAdb, scrapeSessionLog, PhoneTarget } from "../discovery/adb-runner";
+import { discoverPhoneViaMdns } from "../discovery/mdns-discovery";
 import { parseSessionEvents, classifyFailures } from "../discovery/session-log-parser";
 
 export class Orchestrator {
@@ -25,7 +26,7 @@ export class Orchestrator {
     private readonly collector: MetricsCollector,
     private readonly sampler: NetworkSampler,
     private readonly lagSampler: EventLoopLagSampler = new EventLoopLagSampler(),
-    private readonly phoneDiscovery: () => Promise<PhoneTarget> = discoverPhoneTarget,
+    private readonly phoneDiscovery: (timeoutSec?: number) => Promise<PhoneTarget> = waitForPhoneViaAdb,
     private readonly sessionLogScraper: (sinceMs: number) => Promise<string | null> = scrapeSessionLog,
   ) {}
 
@@ -34,9 +35,16 @@ export class Orchestrator {
 
     if (this.config.mode === "tcp-signaled") {
       const lan = this.config.lan!;
-      if (lan.adbDiscovery) {
-        console.log('\nDiscovering phone target via adb...');
-        const target = await this.phoneDiscovery();
+      const discoveryTimeout = this.config.discoveryTimeoutSec ?? 60;
+      if (lan.mdnsDiscovery) {
+        const target = await discoverPhoneViaMdns(discoveryTimeout);
+        lan.phoneIp = target.ip;
+        lan.phonePort = target.port;
+        lan.phoneUserId = target.userId;
+        if (target.hostIp && !lan.hostIp) lan.hostIp = target.hostIp;
+      } else if (lan.adbDiscovery) {
+        console.log('\n[adb] Discovering phone target via adb logcat...');
+        const target = await this.phoneDiscovery(discoveryTimeout);
         lan.phoneIp = target.ip;
         lan.phonePort = target.port;
         lan.phoneUserId = target.userId;
@@ -57,7 +65,7 @@ export class Orchestrator {
           console.log(
             `\n[tcp-signaled/star] phase: ${phase.peerCount} peers → phone at ${lan.phoneIp}:${lan.phonePort}`
           );
-          const connectResults = await Promise.allSettled(peers.map((p) => p.connect()));
+          const connectResults = await batchedSettle(peers, (p) => p.connect(), 5, 300);
           const failed = connectResults.filter(
             (r): r is PromiseRejectedResult => r.status === "rejected"
           );
@@ -125,6 +133,7 @@ export class Orchestrator {
           lagP95Ms: computeLagP95(lagSamples),
           lagValid: isPhaseLagValid(lagSamples, lagThresholdMs),
           phoneRefused: attribution?.phoneRefused ?? null,
+          arrivedButStalled: attribution?.arrivedButStalled ?? null,
           neverArrived: attribution?.neverArrived ?? null,
         };
         printPhaseStats(stats);
@@ -135,6 +144,11 @@ export class Orchestrator {
 
     if (this.config.mode === "ws-signaled") {
       const ws = this.config.ws!;
+      const discoveryTimeout = this.config.discoveryTimeoutSec ?? 60;
+      if (ws.mdnsDiscovery && !ws.phoneUserId) {
+        const target = await discoverPhoneViaMdns(discoveryTimeout);
+        ws.phoneUserId = target.userId;
+      }
       const isStarMode = !!ws.phoneUserId;
       let iperfTarget: string | undefined;
       try {
@@ -276,6 +290,7 @@ export class Orchestrator {
           lagP95Ms: computeLagP95(lagSamples),
           lagValid: isPhaseLagValid(lagSamples, lagThresholdMs),
           phoneRefused: attribution?.phoneRefused ?? null,
+          arrivedButStalled: attribution?.arrivedButStalled ?? null,
           neverArrived: attribution?.neverArrived ?? null,
         };
         printPhaseStats(stats);
@@ -365,7 +380,7 @@ export class Orchestrator {
     const lan = this.config.lan!;
     const phoneTarget =
       lan.phoneIp && lan.phonePort && lan.phoneUserId
-        ? { ip: lan.phoneIp, port: lan.phonePort, userId: lan.phoneUserId, myIp: lan.hostIp }
+        ? { ip: lan.phoneIp, port: lan.phonePort, userId: lan.phoneUserId, myIp: lan.hostIp ?? '' }
         : undefined;
     return Array.from(
       { length: phase.peerCount },

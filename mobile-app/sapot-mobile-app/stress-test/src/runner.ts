@@ -65,7 +65,7 @@ program
 
       const results = await orchestrator.run();
       const ceiling = determineCeiling(results);
-      const linkHealth = isLinkHealthy(results[0]?.iperfBaseline ?? null);
+      const linkHealth = isLinkHealthy(results[0]?.iperfBaseline ?? null, results[0]?.iperfLoad ?? null);
 
       console.log('\n\n=== RESULTS ===');
       console.log(formatLinkHealthSummary(linkHealth));

@@ -13,6 +13,7 @@ export interface PeerMetrics {
   audioEstablishMs: number[];
   videoEstablishMs: number[];
   connectedAtPhaseEnd: boolean;
+  mediaInSdp: boolean;
 }
 
 export interface BasePeer {
@@ -40,5 +41,6 @@ export function emptyMetrics(): PeerMetrics {
     audioEstablishMs: [],
     videoEstablishMs: [],
     connectedAtPhaseEnd: false,
+    mediaInSdp: false,
   };
 }

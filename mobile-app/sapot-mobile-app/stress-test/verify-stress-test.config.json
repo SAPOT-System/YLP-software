@@ -9,8 +9,9 @@
     "hostIp": "192.168.1.23",
     "iperfTargetIp": "192.168.1.6",
     "startPort": 9000,
-    "adbDiscovery": true
+    "mdnsDiscovery": true
   },
+  "discoveryTimeoutSec": 60,
   "ws": {
     "serverUrl": "https://192.168.1.23",
     "iperfTargetIp": "192.168.1.6",
@@ -18,7 +19,7 @@
     "password": "StressTest@123"
   },
   "phases": [
-    { "peerCount": 10, "msgPerSec": 2, "durationSec": 20, "runIperf": true}
+    { "peerCount": 10, "msgPerSec": 2, "durationSec": 60, "runIperf": true}
   ],
   "outputDir": "./stress-results"
 }

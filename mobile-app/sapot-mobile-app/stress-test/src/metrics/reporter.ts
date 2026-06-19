@@ -269,6 +269,11 @@ export function formatWebrtcBlock(stats: PhaseStats): string {
     `Laptop gate: EL-lag p95 ${stats.lagP95Ms}ms — ${lagVerdict}`,
   ];
 
+  lines.push('', `  mediaInSdp              : ${stats.mediaInSdp}`);
+  if (stats.mediaInSdp) {
+    lines.push('  (both sides SendOnly — rtpPacketsSent=0 is expected)');
+  }
+
   if (stats.rtpPacketsSent > 0) {
     lines.push(
       '',
@@ -284,6 +289,7 @@ export function formatWebrtcBlock(stats: PhaseStats): string {
     lines.push(
       'Failure attribution (phone session log)',
       `  phone-refused           : ${stats.phoneRefused ?? 0}`,
+      `  arrived-but-stalled     : ${stats.arrivedButStalled ?? 0}`,
       `  never-arrived           : ${stats.neverArrived ?? 0}`,
     );
   } else {
