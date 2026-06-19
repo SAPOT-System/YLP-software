@@ -70,6 +70,11 @@ export function createConnectionServiceDependencyMocks() {
 		isModeAllowed: jest.fn(() => true),
 	};
 
+	const notificationService = {
+		showCallAlert: jest.fn().mockResolvedValue(undefined),
+		dismissCallAlert: jest.fn().mockResolvedValue(undefined),
+	};
+
 	return {
 		tcpServerAdapter,
 		networkConfig,
@@ -79,6 +84,7 @@ export function createConnectionServiceDependencyMocks() {
 		wsSignalingAdapter,
 		chatService,
 		appModeStore,
+		notificationService,
 	};
 }
 

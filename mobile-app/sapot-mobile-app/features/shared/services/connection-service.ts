@@ -5,7 +5,6 @@ import { MessageStatusType } from "@/features/shared/database/model/MessageStatu
 import { MessageType } from "@/features/shared/database/model/Message";
 import { connectionLog } from "@/features/shared/utils/logger";
 import uuid from "react-native-uuid";
-import * as Notifications from "expo-notifications";
 import { MediaStream } from "react-native-webrtc";
 import {
   TcpClientAdapter,
@@ -13,6 +12,7 @@ import {
   WsSignalingAdapter,
 } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
+import { NotificationService } from "./notification-service";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
 import {
   AckMessage,
@@ -95,7 +95,6 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> };
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
-  private incomingCallNotifId: string | null = null;
 
   constructor(
     private readonly tcpServerAdapter: TcpServerAdapter,
@@ -106,6 +105,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     private readonly webrtcSessionManager: WebrtcSessionManager,
     private readonly signalingService: SignalingService,
     private readonly callMediaService: CallMediaService,
+    private readonly notificationService: NotificationService,
     private readonly peerKeyService?: PeerKeyService,
     private readonly peerKeyStore?: PeerKeyStore
   ) {
@@ -217,7 +217,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
               this.glareAcceptedPeers.add(callerPeerId);
             }
             // Fire local notification so user sees it with screen off
-            await this.showIncomingCallNotification({
+            await this.notificationService.showCallAlert({
               callerId: message.data.from,
               callerName: message.data.callerName,
               callType: message.type,
@@ -247,7 +247,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             if (this.activeCallPeerId === callerPeerId) {
               this.glareAcceptedPeers.add(callerPeerId);
             }
-            await this.showIncomingCallNotification({
+            await this.notificationService.showCallAlert({
               callerId: message.data.from,
               callerName: message.data.callerName,
               callType: message.type,
@@ -448,7 +448,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           if (this.activeCallPeerId === callerPeerId) {
             this.glareAcceptedPeers.add(callerPeerId);
           }
-          await this.showIncomingCallNotification({
+          await this.notificationService.showCallAlert({
             callerId: message.data.from,
             callerName: message.data.callerName,
             callType: message.type,
@@ -478,7 +478,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           if (this.activeCallPeerId === callerPeerId) {
             this.glareAcceptedPeers.add(callerPeerId);
           }
-          await this.showIncomingCallNotification({
+          await this.notificationService.showCallAlert({
             callerId: message.data.from,
             callerName: message.data.callerName,
             callType: message.type,
@@ -1182,44 +1182,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     );
   }
 
-  private async showIncomingCallNotification(data: {
-    callerId: string;
-    callType: string;
-    callerName: string;
-    conversationId?: string;
-  }) {
-    try {
-      this.incomingCallNotifId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "📞 Incoming Call",
-          body: `${data.callerName} is calling...`,
-          sound: "ringtone.mp3",
-          data: {
-            type: "incoming_call",
-            id: data.callerId,
-            call_type: data.callType === "video-call" ? "video" : "audio",
-            conversation_id: data.conversationId ?? "",
-          },
-        } as Notifications.NotificationContentInput,
-        trigger: {
-          channelId: "incoming-call",
-        } as Notifications.NotificationTriggerInput,
-      });
-    } catch (error) {
-      connectionLog.error("connection › incoming call notification failed", {
-        error,
-      });
-    }
-  }
-
   async dismissIncomingCallNotification() {
-    if (!this.incomingCallNotifId) return;
-    try {
-      await Notifications.dismissNotificationAsync(this.incomingCallNotifId);
-    } catch {
-      // best-effort
-    }
-    this.incomingCallNotifId = null;
+    await this.notificationService.dismissCallAlert();
   }
 
   async initializeStreamEarly(stream: "audio" | "video", peerId: string) {

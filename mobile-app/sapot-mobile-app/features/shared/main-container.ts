@@ -18,6 +18,7 @@ import {
   WebrtcSessionManager,
 } from "./services";
 import { LocalEncryptionService } from "./services/local-encryption-service";
+import { NotificationService } from "./services/notification-service";
 import { PeerKeyService } from "./services/peer-key-service";
 import { PeerKeyStore } from "./services/peer-key-store";
 import { WsEncryptionContext } from "./services/ws-encryption";
@@ -176,6 +177,8 @@ export class MainContainer {
       this.webrtcSessionManager.getWebrtcAdapter.bind(this.webrtcSessionManager)
     );
 
+    const notificationService = new NotificationService();
+
     this.connectionService = new ConnectionService(
       this.tcpServerAdapter,
       this.networkConfig,
@@ -185,6 +188,7 @@ export class MainContainer {
       this.webrtcSessionManager,
       this.signalingService,
       this.callMediaService,
+      notificationService,
       this.peerKeyService,
       this.peerKeyStore
     );
