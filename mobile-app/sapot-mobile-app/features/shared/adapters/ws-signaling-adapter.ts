@@ -4,13 +4,12 @@ import {
   AckMessage,
   CallMessage,
   ChatMessage,
-  ServerAckMessage,
   SignalingMessage,
-  SmsMessage,
 } from "../types";
 import { wsLog } from "../utils/logger";
 import { encryptSignalingPayload, decryptSignalingPayload, WsEncryptionContext, WsEncryptedPayload } from "../services/ws-encryption";
 import { SignedCredential } from "../services/peer-key-service";
+import { parseWsMessage, DecryptFn } from "./ws-message-parser";
 
 interface EncryptedSignalingWireMessage {
   type: 'offer' | 'answer' | 'ice-candidate';
@@ -393,156 +392,89 @@ export class WsSignalingAdapter extends EventEmitter {
   }
 
   private handleIncomingMessage(rawData: unknown) {
-    try {
-      if (typeof rawData !== "string") {
-        wsLog.warn("ws › payload non-string", {
-          payloadType: typeof rawData,
-        });
-        this.emit("raw-message", rawData);
-        return;
-      }
+    if (typeof rawData !== "string") {
+      wsLog.warn("ws › payload non-string", { payloadType: typeof rawData });
+      this.emit("raw-message", rawData);
+      return;
+    }
 
-      wsLog.debug("ws › payload received", { length: rawData.length });
-      const parsed = JSON.parse(rawData);
+    wsLog.debug("ws › payload received", { length: rawData.length });
 
-      if (this.isControlMessage(parsed, "pong")) {
+    const ctx = this.encryptionCtx;
+    const decrypt: DecryptFn | undefined = ctx
+      ? (enc, sender) => decryptSignalingPayload(enc, sender, ctx)
+      : undefined;
+
+    const event = parseWsMessage(rawData, decrypt);
+
+    switch (event.kind) {
+      case "pong":
         wsLog.debug("ws › pong received");
         this.clearHeartbeatTimeoutTimer();
-        return;
-      }
+        break;
 
-      if (this.isControlMessage(parsed, "ping")) {
+      case "ping":
         this.sendControlMessage("pong");
-        return;
-      }
+        break;
 
-      // Decrypt signaling payload if encrypted
-      if (
-        this.encryptionCtx &&
-        parsed &&
-        typeof parsed === "object" &&
-        (parsed as { type?: unknown }).type !== undefined &&
-        ["offer", "answer", "ice-candidate"].includes(
-          (parsed as { type: string }).type
-        )
-      ) {
-        const msg = parsed as {
-          type: string;
-          data?: { to?: string; sender?: string; enc?: WsEncryptedPayload; credential?: SignedCredential };
-        };
-        if (msg.data?.enc && msg.data.sender) {
-          const sender = msg.data.sender;
+      case "active-users":
+        this.emit("active-users", event.ids);
+        break;
 
-          // The credential is carried in plaintext alongside enc so the receiver can
-          // bootstrap the sender's ECDH key BEFORE attempting decryption.
-          if (msg.data.credential?.ecdhPublicKey && this.encryptionCtx.storePeerKey) {
-            this.encryptionCtx.storePeerKey(sender, msg.data.credential.ecdhPublicKey);
-            // Flush any ICE candidates we queued while waiting for this key.
-            this.flushPendingIce(sender);
-          }
-
-          const decrypted = decryptSignalingPayload(
-            msg.data.enc,
-            sender,
-            this.encryptionCtx
-          );
-          if (!decrypted) {
-            wsLog.warn("ws › signaling decryption failed, dropping message", { sender });
-            return;
-          }
-          const reconstructed = { ...msg, data: decrypted };
-          if (this.isSignalingMessage(reconstructed)) {
-            wsLog.debug("ws › signaling message (decrypted)", this.summarizeSignalingMessage(reconstructed));
-            this.emit("message", reconstructed);
-            return;
-          }
-          wsLog.warn("ws › decrypted message has unexpected shape", { type: msg.type });
-          return;
+      case "signaling":
+        if (event.peerCredential?.ecdhPublicKey && this.encryptionCtx?.storePeerKey) {
+          const sender = event.message.data.sender;
+          this.encryptionCtx.storePeerKey(sender, event.peerCredential.ecdhPublicKey);
+          wsLog.debug("ws › stored peer key from credential", { sender });
+          this.flushPendingIce(sender);
         }
-      }
-      
-      if (this.isSmsMessage(parsed)) {
+        wsLog.debug("ws › signaling message", this.summarizeSignalingMessage(event.message));
+        this.emit("message", event.message);
+        break;
+
+      case "sms":
         wsLog.debug("ws › sms message", {
-          messageId: (parsed as SmsMessage).data.messageId,
-          from: (parsed as SmsMessage).data.from,
+          messageId: event.message.data.messageId,
+          from: event.message.data.from,
         });
-        this.emit("ws-sms", parsed as SmsMessage);
-        return;
-      }
+        this.emit("ws-sms", event.message);
+        break;
 
-      if (this.isDirectChatMessage(parsed)) {
+      case "chat":
         wsLog.debug("ws › direct chat message", {
-          messageId: (parsed as ChatMessage).data?.messageId,
+          messageId: (event.message.data as { messageId?: string }).messageId,
         });
-        this.emit("ws-chat", parsed as ChatMessage);
-        return;
-      }
-      if (Array.isArray(parsed)) {
-        this.emit("active-users", parsed as string[]);
-        return;
-      }
+        this.emit("ws-chat", event.message);
+        break;
 
-      if (this.isCallMessage(parsed)) {
-        wsLog.debug("ws › call message", { messageType: parsed.type });
-        this.emit("call-message", parsed);
-        return;
-      }
+      case "call":
+        wsLog.debug("ws › call message", { messageType: event.message.type });
+        this.emit("call-message", event.message);
+        break;
 
-      if (this.isPublicChatMessage(parsed)) {
+      case "public-chat":
         wsLog.debug("ws › public chat message");
-        this.emit("public-message", parsed);
-        return;
-      }
+        this.emit("public-message", event.message);
+        break;
 
-      if (this.isServerAckMessage(parsed)) {
+      case "server-ack":
         wsLog.debug("ws › server ack", {
-          messageId: (parsed as ServerAckMessage).data.messageId,
-          messageType: (parsed as ServerAckMessage).data.message_type,
+          messageId: event.message.data.messageId,
+          messageType: event.message.data.message_type,
         });
-        this.emit("server-ack", parsed as ServerAckMessage);
-        return;
-      }
+        this.emit("server-ack", event.message);
+        break;
 
-      if (this.isAckMessage(parsed)) {
-        wsLog.debug("ws › peer ack", {
-          messageId: (parsed as AckMessage).data?.messageId,
-        });
-        this.emit("ws-ack", parsed as AckMessage);
-        return;
-      }
+      case "ack":
+        wsLog.debug("ws › peer ack", { messageId: event.message.data?.messageId });
+        this.emit("ws-ack", event.message);
+        break;
 
-      if (!this.isSignalingMessage(parsed)) {
-        wsLog.warn("ws › payload not signaling");
+      case "unknown":
+      default:
+        wsLog.warn("ws › payload not recognized");
         this.emit("raw-message", rawData);
-        return;
-      }
-
-      // A plaintext signaling message (bootstrapping offer or legacy mode) may
-      // carry a credential. Extract it so we have the sender's key before the
-      // higher layer tries to send an encrypted answer.
-      const ptMsg = parsed as {
-        type: string;
-        data?: { sender?: string; credential?: SignedCredential };
-      };
-      if (
-        this.encryptionCtx?.storePeerKey &&
-        ptMsg.data?.sender &&
-        ptMsg.data?.credential?.ecdhPublicKey
-      ) {
-        const sender = ptMsg.data.sender;
-        this.encryptionCtx.storePeerKey(sender, ptMsg.data.credential.ecdhPublicKey);
-        wsLog.debug("ws › stored peer key from plaintext credential", { sender });
-        this.flushPendingIce(sender);
-      }
-
-      wsLog.debug(
-        "ws › signaling message",
-        this.summarizeSignalingMessage(parsed)
-      );
-      this.emit("message", parsed);
-    } catch {
-      wsLog.warn("ws › payload parse failed", { messageType: typeof rawData });
-      this.emit("raw-message", rawData);
+        break;
     }
   }
 
@@ -575,81 +507,6 @@ export class WsSignalingAdapter extends EventEmitter {
     if (typeof data.sender === "string") return true;
 
     return false;
-  }
-
-  private isPublicChatMessage(value: unknown): boolean {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as { type?: unknown };
-    return candidate.type === "public-chat";
-  }
-
-  private isCallMessage(value: unknown): value is CallMessage {
-    if (!value || typeof value !== "object") return false;
-
-    const call = value as {
-      type?: unknown;
-      data?: unknown;
-    };
-
-    if (
-      call.type !== "audio-call" &&
-      call.type !== "video-call" &&
-      call.type !== "call-ended" &&
-      call.type !== "call-ready" &&
-      call.type !== "call-rejected" &&
-      call.type !== "call-missed"
-    ) {
-      return false;
-    }
-
-    if (!call.data || typeof call.data !== "object") return false;
-
-    const data = call.data as {
-      from?: unknown;
-      to?: unknown;
-    };
-
-    if (typeof data.to !== "string") return false;
-
-    if (typeof data.from === "string") return true;
-
-    return false;
-  }
-
-  private isSmsMessage(value: unknown): value is SmsMessage {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as { type?: unknown; data?: unknown };
-    if (candidate.type !== "chat") return false;
-    if (!candidate.data || typeof candidate.data !== "object") return false;
-    const data = candidate.data as { messageType?: unknown; senderProfile?: unknown };
-    return data.messageType === "sms" && typeof data.senderProfile === "object" && data.senderProfile !== null;
-  }
-
-  private isDirectChatMessage(value: unknown): boolean {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as { type?: unknown; data?: unknown };
-    if (candidate.type !== "chat") return false;
-    if (!candidate.data || typeof candidate.data !== "object") return false;
-    const data = candidate.data as { from?: unknown; from_user?: unknown };
-    return typeof data.from === "string" || typeof data.from_user === "string";
-  }
-
-  private isAckMessage(value: unknown): value is AckMessage {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as { type?: unknown; data?: unknown };
-    if (candidate.type !== "ack") return false;
-    if (!candidate.data || typeof candidate.data !== "object") return false;
-    const data = candidate.data as { messageId?: unknown };
-    return typeof data.messageId === "string";
-  }
-
-  private isServerAckMessage(value: unknown): value is ServerAckMessage {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as { type?: unknown; data?: unknown };
-    if (candidate.type !== "server-ack") return false;
-    if (!candidate.data || typeof candidate.data !== "object") return false;
-    const data = candidate.data as { messageId?: unknown };
-    return typeof data.messageId === "string";
   }
 
   private flushQueue() {
@@ -793,15 +650,6 @@ export class WsSignalingAdapter extends EventEmitter {
       return;
 
     this.socket.send(JSON.stringify({ type }));
-  }
-
-  private isControlMessage(
-    value: unknown,
-    type: "ping" | "pong"
-  ): value is { type: "ping" | "pong" } {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as { type?: unknown };
-    return candidate.type === type;
   }
 
   private isCurrentSocket(socket: WsLike, socketEpoch: number) {
