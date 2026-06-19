@@ -22,6 +22,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
@@ -179,6 +180,12 @@ const RecoveryKeyResetScreen = () => {
   const isSubmitting = overlayPhase !== "idle";
 
   return (
+    <KeyboardAwareScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      bounces={false}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
+    >
     <View style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}>
       <LoadingOverlay
         visible={isSubmitting}
@@ -242,6 +249,7 @@ const RecoveryKeyResetScreen = () => {
         hide={insertFailedDialog.hide}
       />
     </View>
+    </KeyboardAwareScrollView>
   );
 };
 
