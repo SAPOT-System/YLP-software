@@ -27,6 +27,7 @@ import {
 } from "../types";
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
+import { CallMessageRouter, CallRouterResult } from "./call-message-router";
 import { PeerKeyService } from "./peer-key-service";
 import { PeerKeyStore } from "./peer-key-store";
 import { SignalingService } from "./signaling-service";
@@ -95,6 +96,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> };
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
+  private callMessageRouter!: CallMessageRouter;
 
   constructor(
     private readonly tcpServerAdapter: TcpServerAdapter,
@@ -110,6 +112,12 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     private readonly peerKeyStore?: PeerKeyStore
   ) {
     super();
+
+    this.callMessageRouter = new CallMessageRouter({
+      isBusyFor: (peerId) => this.shouldBusyRejectIncomingCall(peerId),
+      hasActiveCall: (peerId) => this.activeCallPeerId === peerId,
+      notify: (data) => this.notificationService.showCallAlert(data),
+    });
 
     connectionLog.info("connection › service constructed", {
       hasTcpServerAdapter: Boolean(tcpServerAdapter),
@@ -199,103 +207,9 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       async (message: CallMessage) => {
         try {
           if (!this.isWebSocketAllowed()) return;
-          if (message.type === "audio-call") {
-            const callerPeerId = message.data.from;
-            if (this.shouldBusyRejectIncomingCall(callerPeerId)) {
-              connectionLog.info("connection › ws busy reject", {
-                callerPeerId,
-                activeCallPeerId: this.activeCallPeerId,
-              });
-              await this.handleBusyReject(
-                callerPeerId,
-                "audio",
-                message.data.callId
-              );
-              return;
-            }
-            if (this.activeCallPeerId === callerPeerId) {
-              this.glareAcceptedPeers.add(callerPeerId);
-            }
-            // Fire local notification so user sees it with screen off
-            await this.notificationService.showCallAlert({
-              callerId: message.data.from,
-              callerName: message.data.callerName,
-              callType: message.type,
-              conversationId: message.data.conversationId,
-            });
-            this.emit("audio-call", {
-              peerId: message.data.from,
-              callerName: message.data.callerName,
-              conversationId: message.data.conversationId,
-              callId: message.data.callId,
-            });
-          }
-          if (message.type === "video-call") {
-            const callerPeerId = message.data.from;
-            if (this.shouldBusyRejectIncomingCall(callerPeerId)) {
-              connectionLog.info("connection › ws busy reject", {
-                callerPeerId,
-                activeCallPeerId: this.activeCallPeerId,
-              });
-              await this.handleBusyReject(
-                callerPeerId,
-                "video",
-                message.data.callId
-              );
-              return;
-            }
-            if (this.activeCallPeerId === callerPeerId) {
-              this.glareAcceptedPeers.add(callerPeerId);
-            }
-            await this.notificationService.showCallAlert({
-              callerId: message.data.from,
-              callerName: message.data.callerName,
-              callType: message.type,
-              conversationId: message.data.conversationId,
-            });
-            this.emit("video-call", {
-              peerId: message.data.from,
-              callerName: message.data.callerName,
-              conversationId: message.data.conversationId,
-              callId: message.data.callId,
-            });
-          }
-          if (message.type === "call-ended") {
-            // TODO: check if needed to reinitialize local stream
-            // TODO: validate that the caller id is the sender
-            connectionLog.info("connection › call ended", {
-              peerId: message.data.from,
-              status: message.data.status,
-              initiatorId: message.data.initiatorId,
-            });
-            this.emit("call-ended", {
-              peerId: message.data.from,
-              status: message.data.status,
-              endedAt: message.data.endedAt,
-              durationSeconds: message.data.durationSeconds,
-              initiatorId: message.data.initiatorId,
-              callType: message.data.callType,
-              messageId: message.data.messageId,
-              conversationId: message.data.conversationId,
-            });
-          }
-          if (message.type === "call-ready") {
-            this.emit("call-ready", message.data.from);
-          }
-          if (
-            message.type === "call-rejected" &&
-            message.data.reason === "busy"
-          ) {
-            connectionLog.info("connection › ws peer busy", {
-              peerId: message.data.from,
-            });
-            this.emit("call-busy", message.data.from, {
-              callId: message.data.callId ?? "",
-              conversationId: message.data.conversationId ?? "",
-              messageId: message.data.messageId,
-              callType: message.data.callType ?? "audio",
-            });
-          }
+          const result = await this.callMessageRouter.handle(message);
+          connectionLog.debug("connection › ws call message routed", { type: message.type, action: result.action });
+          await this.dispatchCallResult(result);
         } catch (error) {
           connectionLog.error("connection › call message handling failed", {
             error,
@@ -431,102 +345,16 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             lastName: message.data.lastName,
           });
         }
-        if (message.type === "audio-call" && "from" in message.data) {
-          const callerPeerId = message.data.from;
-          if (this.shouldBusyRejectIncomingCall(callerPeerId)) {
-            connectionLog.info("connection › tcp busy reject", {
-              callerPeerId,
-              activeCallPeerId: this.activeCallPeerId,
-            });
-            await this.handleBusyReject(
-              callerPeerId,
-              "audio",
-              message.data.callId
-            );
-            return;
-          }
-          if (this.activeCallPeerId === callerPeerId) {
-            this.glareAcceptedPeers.add(callerPeerId);
-          }
-          await this.notificationService.showCallAlert({
-            callerId: message.data.from,
-            callerName: message.data.callerName,
-            callType: message.type,
-            conversationId: message.data.conversationId,
-          });
-          this.emit("audio-call", {
-            peerId: message.data.from,
-            callerName: message.data.callerName,
-            conversationId: message.data.conversationId,
-            callId: message.data.callId,
-          });
-        }
-        if (message.type === "video-call" && "from" in message.data) {
-          const callerPeerId = message.data.from;
-          if (this.shouldBusyRejectIncomingCall(callerPeerId)) {
-            connectionLog.info("connection › tcp busy reject", {
-              callerPeerId,
-              activeCallPeerId: this.activeCallPeerId,
-            });
-            await this.handleBusyReject(
-              callerPeerId,
-              "video",
-              message.data.callId
-            );
-            return;
-          }
-          if (this.activeCallPeerId === callerPeerId) {
-            this.glareAcceptedPeers.add(callerPeerId);
-          }
-          await this.notificationService.showCallAlert({
-            callerId: message.data.from,
-            callerName: message.data.callerName,
-            callType: message.type,
-            conversationId: message.data.conversationId,
-          });
-          this.emit("video-call", {
-            peerId: message.data.from,
-            callerName: message.data.callerName,
-            conversationId: message.data.conversationId,
-            callId: message.data.callId,
-          });
-        }
-        if (message.type === "call-ended" && "from" in message.data) {
-          // TODO: check if needed to reinitialize local stream
-          // TODO: validate that the caller id is the sender
-          connectionLog.info("connection › call ended", {
-            peerId: message.data.from,
-            status: message.data.status,
-            initiatorId: message.data.initiatorId,
-          });
-          this.emit("call-ended", {
-            peerId: message.data.from,
-            status: message.data.status,
-            endedAt: message.data.endedAt,
-            durationSeconds: message.data.durationSeconds,
-            initiatorId: message.data.initiatorId,
-            callType: message.data.callType,
-            messageId: message.data.messageId,
-            conversationId: message.data.conversationId,
-          });
-        }
-        if (message.type === "call-ready" && "from" in message.data) {
-          this.emit("call-ready", message.data.from);
-        }
         if (
-          message.type === "call-rejected" &&
-          "from" in message.data &&
-          message.data.reason === "busy"
+          message.type === "audio-call" ||
+          message.type === "video-call" ||
+          message.type === "call-ended" ||
+          message.type === "call-ready" ||
+          message.type === "call-rejected"
         ) {
-          connectionLog.info("connection › tcp peer busy", {
-            peerId: message.data.from,
-          });
-          this.emit("call-busy", message.data.from, {
-            callId: message.data.callId ?? "",
-            conversationId: message.data.conversationId ?? "",
-            messageId: message.data.messageId,
-            callType: message.data.callType ?? "audio",
-          });
+          const result = await this.callMessageRouter.handle(message);
+          connectionLog.debug("connection › tcp call message routed", { type: message.type, action: result.action });
+          await this.dispatchCallResult(result);
         }
       } catch (error) {
         connectionLog.error("connection › tcp handler failed", { error });
@@ -544,6 +372,30 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   shouldIgnoreCallBusy(peerId: string): boolean {
     return this.glareAcceptedPeers.has(peerId);
+  }
+
+  private async dispatchCallResult(result: CallRouterResult): Promise<void> {
+    switch (result.action) {
+      case "busy-reject":
+        await this.handleBusyReject(result.peerId, result.callType, result.callId);
+        break;
+      case "glare":
+        this.glareAcceptedPeers.add(result.peerId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.emit(result.eventName, result.eventPayload as any);
+        break;
+      case "emit":
+        if (result.eventName === "call-busy") {
+          const p = result.payload as { peerId: string; callId: string; conversationId: string; messageId?: string; callType: "audio" | "video" };
+          this.emit("call-busy", p.peerId, { callId: p.callId, conversationId: p.conversationId, messageId: p.messageId, callType: p.callType });
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          this.emit(result.eventName, result.payload as any);
+        }
+        break;
+      case "noop":
+        break;
+    }
   }
 
   private shouldBusyRejectIncomingCall(callerPeerId: string): boolean {
