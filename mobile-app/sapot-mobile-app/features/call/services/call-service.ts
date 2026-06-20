@@ -1,9 +1,11 @@
 import { ChatService } from "@/features/chat";
 import { CallStatus, CallType } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { MessageType } from "@/features/shared/database/model/Message";
 import { GuestUser } from "@/features/shared/database/model/guest-user";
 import { Peer } from "@/features/shared/database/model/Peer";
 import { ConnectionService } from "@/features/shared/services/connection-service";
+import { ConversationKeyManager } from "@/features/shared/services/conversation-key-manager";
 import { PeerService } from "@/features/shared/services/peer-service";
 import { UserStore } from "@/features/shared/stores/user-store";
 import { toAppError, captureAppError } from "@/features/shared/errors";
@@ -12,6 +14,8 @@ import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
 import { DeviceEventEmitter } from "react-native";
 import InCallManager from "react-native-incall-manager";
 import { MediaStream } from "react-native-webrtc";
+import { MessageRepository } from "@/features/chat/repositories/message-repository";
+import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 import { CallParticipantRepository, CallRepository } from "../repositories";
 callLog.debug("[call-service] module loaded");
 
@@ -64,7 +68,7 @@ type CallUserStore = {
 
 type CallPeerService = Pick<
   PeerService,
-  "findDiscoveredPeerById" | "getOrCreatePeerById"
+  "findDiscoveredPeerById" | "getOrCreatePeerById" | "findPeerById"
 >;
 
 type CallSyncService = {
@@ -73,7 +77,6 @@ type CallSyncService = {
 
 type CallLogChatService = Pick<
   ChatService,
-  | "saveCallLogWithReceipts"
   | "updateMessageStatus"
   | "acknowledgeIncomingMessage"
 > & {
@@ -145,7 +148,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     private callRepository: CallRepository,
     private callParticipantRepository: CallParticipantRepository,
     private chatService: CallLogChatService,
-    private syncService: CallSyncService
+    private syncService: CallSyncService,
+    private messageRepository: MessageRepository,
+    private messageStatusRepository: MessageStatusRepository,
+    private conversationKeyManager: ConversationKeyManager,
   ) {
     super();
     callLog.info("call › service constructed", {
@@ -161,6 +167,100 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     this.connectionService.on("switch-cam", (stream) => {
       this.emit("switch-cam", stream);
     });
+  }
+
+  async saveCallLogWithReceipts(params: {
+    peerId: string;
+    content: string;
+    status?: MessageStatusType;
+    senderId: string;
+    messageId?: string;
+    conversationId?: string;
+  }): Promise<string> {
+    const {
+      peerId,
+      content,
+      status = MessageStatusType.DELIVERED,
+      senderId,
+      messageId,
+      conversationId,
+    } = params;
+
+    if (senderId !== this.userStore.user.id && senderId !== peerId) {
+      throw new Error("senderId must be current user or peerId");
+    }
+
+    try {
+      if (messageId) {
+        const existingMessage =
+          await this.messageRepository.queryMessageById(messageId);
+        if (existingMessage) {
+          const existingStatus =
+            await this.messageStatusRepository.queryMessageStatusByMessage(
+              existingMessage.id,
+            );
+          if (existingStatus && existingStatus.status !== status) {
+            await this.messageStatusRepository.updateMessageStatusByMessage(
+              existingMessage.id,
+              status,
+            );
+          }
+          callLog.info("call › call log deduped", { peerId, messageId });
+          return existingMessage.id;
+        }
+      }
+
+      const peer = await this.peerService.findPeerById(peerId);
+      if (!peer) throw new Error("Peer not found");
+      const conversation =
+        await this.chatService.getOrCreateDirectConversationByPeer(
+          peerId,
+          conversationId,
+        );
+      await this.conversationKeyManager.deriveAndSetConversationKey(
+        peerId,
+        conversation.id,
+      );
+
+      const sender: Peer | GuestUser =
+        senderId === this.userStore.user.id
+          ? (this.userStore.user as unknown as Peer)
+          : peer;
+
+      const newMessage = await this.messageRepository.saveMessage({
+        sender,
+        content,
+        conversation,
+        messageId,
+        messageType: MessageType.CALL_LOG,
+      });
+      if (senderId === this.userStore.user.id) {
+        await this.messageStatusRepository.saveMessageStatus({
+          message: newMessage,
+          user: sender,
+          status,
+        });
+      }
+
+      callLog.info("call › call log saved", {
+        peerId,
+        conversationId: conversation.id,
+        messageId: newMessage.id,
+        senderId: sender.id,
+        status,
+      });
+      return newMessage.id;
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      callLog.error("call › call log save failed", {
+        peerId,
+        contentLength: content.length,
+        status,
+        ...appErr,
+      });
+      captureAppError(appErr);
+      throw appErr;
+    }
   }
 
   /**
@@ -477,7 +577,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       await this.callRepository.updateCallStatus(callId, CallStatus.BUSY);
       callLog.info("call › busy call status updated", { callId, peerId });
 
-      await this.chatService.saveCallLogWithReceipts({
+      await this.saveCallLogWithReceipts({
         peerId,
         content,
         status: MessageStatusType.DELIVERED,
@@ -701,7 +801,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
             const initiatorId = payload.initiatorId ?? peerId;
             const callLabel = payload.callType === "video" ? "video" : "audio";
 
-            await this.chatService.saveCallLogWithReceipts({
+            await this.saveCallLogWithReceipts({
               peerId,
               content: `Missed ${callLabel} call`,
               status: MessageStatusType.DELIVERED,
@@ -964,7 +1064,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       durationSecondsOverride
     );
 
-    const messageIdR = await this.chatService.saveCallLogWithReceipts({
+    const messageIdR = await this.saveCallLogWithReceipts({
       peerId,
       messageId,
       content: callLogMessage,

@@ -105,8 +105,9 @@ Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `r
 | `WebrtcSessionManager` | One `WebrtcAdapter` (RTCPeerConnection) per peer |
 | `SignalingService` | Routes WebRTC SDP/ICE messages over TCP or WS |
 | `CallMediaService` | Initializes and manages local mic/camera streams |
-| `CallService` | Call lifecycle, audio routing (earpiece/speaker/Bluetooth) |
+| `CallService` | Call lifecycle, audio routing, call-log persistence (`saveCallLogWithReceipts`) |
 | `ChatService` | Message send/receive and persistence via WebRTC data channels |
+| `ConversationKeyManager` | ECDH key derivation per conversation — `deriveAndSetConversationKey`, `preloadAllConversationKeys`, `rederiveKeyForPeer` |
 | `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service idempotently and only marks it active after `ZeroconfAdapter` confirms publication. |
 | `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
 | `CleanUpService` | Cleanup of stale data and connections |

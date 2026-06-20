@@ -26,6 +26,7 @@ import { KeyRecoveryService } from "./services/key-recovery-service";
 import { AppModeStore, NetworkConfig } from "./stores";
 
 import { CallService } from "@/features/call/services/call-service";
+import { ConversationKeyManager } from "./services/conversation-key-manager";
 import { ConversationKeyStore } from "@/features/chat/repositories/conversation-key-store";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import { ConversationRepository } from "@/features/chat/repositories/conversation-repository";
@@ -109,6 +110,7 @@ export class MainContainer {
   readonly peerKeyService: PeerKeyService;
   readonly peerKeyStore: PeerKeyStore;
   readonly keyRecoveryService: KeyRecoveryService;
+  readonly conversationKeyManager: ConversationKeyManager;
 
   private initPromise?: Promise<void>;
   private unsubscribeNetInfo?: () => void;
@@ -219,6 +221,14 @@ export class MainContainer {
       peerRepository: this.userContainer.peerRepository,
     });
 
+    this.conversationKeyManager = new ConversationKeyManager(
+      this.conversationKeyStore,
+      this.peerKeyService,
+      this.peerKeyStore,
+      this.userContainer.userStore,
+      this.conversationParticipantRepository,
+    );
+
     this.chatService = new ChatService(
       this.connectionService,
       this.conversationRepository,
@@ -229,8 +239,7 @@ export class MainContainer {
       this.userContainer.peerService,
       this.userContainer.userStore,
       this.syncService,
-      this.peerKeyService,
-      this.peerKeyStore
+      this.conversationKeyManager,
     );
 
     // Inject messageReceiptManager into SyncService after ChatService construction
@@ -254,10 +263,14 @@ export class MainContainer {
       this.callRepository,
       this.callParticipantRepository,
       this.chatService,
-      this.syncService
+      this.syncService,
+      this.messageRepository,
+      this.messageStatusRepository,
+      this.conversationKeyManager,
     );
 
     this.connectionService.setChatService(this.chatService);
+    this.connectionService.setCallService(this.callService);
     this.connectionService.setPeerService(this.userContainer.peerService);
     this.discoveryService.setChatService(this.chatService);
     this.discoveryService.setConnectionService(this.connectionService);
@@ -361,10 +374,10 @@ export class MainContainer {
           const peerIds =
             (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
           await this.peerKeyStore.loadAll(peerIds);
-          await this.chatService.preloadAllConversationKeys();
+          await this.conversationKeyManager.preloadAllConversationKeys();
 
           this.peerKeyStore.onKeySet((peerId) => {
-            void this.chatService.rederiveKeyForPeer(peerId);
+            void this.conversationKeyManager.rederiveKeyForPeer(peerId);
           });
         }
       }
@@ -378,10 +391,10 @@ export class MainContainer {
       const guestPeerIds =
         (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
       await this.peerKeyStore.loadAll(guestPeerIds);
-      await this.chatService.preloadAllConversationKeys();
+      await this.conversationKeyManager.preloadAllConversationKeys();
 
       this.peerKeyStore.onKeySet((peerId) => {
-        void this.chatService.rederiveKeyForPeer(peerId);
+        void this.conversationKeyManager.rederiveKeyForPeer(peerId);
       });
     }
 
@@ -447,7 +460,7 @@ export class MainContainer {
           appLog.info("app › LAN migration: forcing one-time server push");
           this.syncService.skipEncryptedMessageUpdatesOnNextSync();
           await this.syncService.syncNow();
-          await this.chatService.preloadAllConversationKeys();
+          await this.conversationKeyManager.preloadAllConversationKeys();
           appLog.info("app › LAN migration: one-time server push complete");
         } catch (error) {
           appLog.warn("app › LAN migration: one-time server push failed", { error });
@@ -458,7 +471,7 @@ export class MainContainer {
         this.syncService.skipEncryptedMessageUpdatesOnNextSync();
       }
       await this.syncService.syncNow();
-      await this.chatService.preloadAllConversationKeys();
+      await this.conversationKeyManager.preloadAllConversationKeys();
 
       this.unsubscribeNetInfo = NetInfo.addEventListener(
         (state: NetInfoState) => {
@@ -484,7 +497,7 @@ export class MainContainer {
             const peerIds =
               (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
             await this.peerKeyStore.loadAll(peerIds);
-            void this.chatService.preloadAllConversationKeys();
+            void this.conversationKeyManager.preloadAllConversationKeys();
           } catch {
             // non-fatal — keys will be re-exchanged on next signaling message
           }

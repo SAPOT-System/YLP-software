@@ -90,6 +90,7 @@ jest.mock("../services", () => ({
   CleanUpService: jest.fn().mockImplementation(() => ({})),
   ConnectionService: jest.fn().mockImplementation(() => ({
     setChatService: jest.fn(),
+    setCallService: jest.fn(),
     setPeerService: jest.fn(),
     stopTcpTransport: jest.fn(),
     start: jest.fn(),
@@ -181,13 +182,18 @@ jest.mock("@/features/chat/repositories/message-status-repository", () => ({
   })),
 }));
 
+jest.mock("../services/conversation-key-manager", () => ({
+  ConversationKeyManager: jest.fn().mockImplementation(() => ({
+    preloadAllConversationKeys: jest.fn().mockResolvedValue(undefined),
+    rederiveKeyForPeer: jest.fn().mockResolvedValue(undefined),
+    deriveAndSetConversationKey: jest.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 jest.mock("@/features/chat/services/chat-service", () => ({
   ChatService: jest.fn().mockImplementation(() => ({
     getMessageReceiptManager: jest.fn().mockReturnValue({}),
-    preloadAllConversationKeys: jest.fn().mockResolvedValue(undefined),
-    rederiveKeyForPeer: jest.fn().mockResolvedValue(undefined),
     getAllNotSentMessageForPeer: jest.fn(),
-    saveCallLogWithReceipts: jest.fn(),
     getOrCreateDirectConversationByPeer: jest.fn(),
   })),
 }));
@@ -307,7 +313,7 @@ describe("MainContainer.initializeKeys", () => {
     const container = createTestContainer(true);
     await (container as any).initializeKeys();
     expect(container.peerKeyService.initGuestKey).toHaveBeenCalled();
-    expect(container.chatService.preloadAllConversationKeys).toHaveBeenCalled();
+    expect(container.conversationKeyManager.preloadAllConversationKeys).toHaveBeenCalled();
   });
 });
 

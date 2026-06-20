@@ -15,11 +15,9 @@ import {
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
 import { chatLog } from "@/features/shared/utils/logger";
-import { PeerKeyService } from "@/features/shared/services/peer-key-service";
-import { PeerKeyStore } from "@/features/shared/services/peer-key-store";
+import { ConversationKeyManager } from "@/features/shared/services/conversation-key-manager";
 import { ECDH_PREFIX } from "../repositories/message-repository";
 import * as Notifications from "expo-notifications";
-import nacl from "tweetnacl";
 import {
   ConversationKeyStore,
   ConversationParticipantRepository,
@@ -67,8 +65,7 @@ export class ChatService {
     private peerService: PeerService,
     private userStore: UserStore,
     private syncService: ChatSyncService,
-    private peerKeyService?: PeerKeyService,
-    private peerKeyStore?: PeerKeyStore
+    private conversationKeyManager: ConversationKeyManager,
   ) {
     chatLog.info("chat › service constructed", {
       hasConnectionService: Boolean(connectionService),
@@ -92,132 +89,9 @@ export class ChatService {
 
   private async deriveAndSetConversationKey(
     peerId: string,
-    conversationId: string
+    conversationId: string,
   ): Promise<void> {
-    if (!this.peerKeyService || !this.peerKeyStore) return;
-    let peerPubKey = this.peerKeyStore.get(peerId);
-    if (!peerPubKey) {
-      peerPubKey = await this.peerKeyStore.load(peerId);
-    }
-
-    if (!peerPubKey) {
-      if (this.userStore.isGuest) {
-        // Guest users cannot reach the server. The peer's key is delivered
-        // exclusively via the TCP handshake; PeerKeyStore.onKeySet will re-invoke
-        // this method once it arrives.
-        chatLog.debug("chat › guest: peer key not yet in store, deferring", {
-          peerId,
-          conversationId,
-        });
-        return;
-      }
-
-      // Auth user: attempt a server fetch (works for auth-to-auth).
-      // For guest peers the server will return 404 — treat that as "key will
-      // arrive via TCP handshake" rather than a hard failure, and defer.
-      chatLog.info("chat › peer key missing locally, fetching from server", {
-        peerId,
-        conversationId,
-      });
-      peerPubKey = await this.peerKeyService.fetchPeerPublicKey(peerId);
-      if (peerPubKey) {
-        this.peerKeyStore.set(peerId, peerPubKey);
-      } else {
-        // 404 or network error — peer is either a guest or not yet registered.
-        // PeerKeyStore.onKeySet will trigger re-derivation once the TCP handshake
-        // delivers the key. Nothing to do here.
-        chatLog.debug("chat › peer key unavailable from server, deferring until TCP handshake", {
-          peerId,
-          conversationId,
-        });
-        return;
-      }
-    }
-    const mySecretKey = this.peerKeyService.getMySecretKey();
-    if (!mySecretKey) {
-      chatLog.warn("chat › local ECDH secret key not initialized, deferring key derivation", {
-        peerId,
-        conversationId,
-      });
-      return;
-    }
-    // Register conversation keys derived from any previously-seen peer keys
-    // first, so messages stored before the peer's ECDH key rotated remain
-    // decryptable. The current key is set last so it becomes the primary key
-    // used to encrypt new messages.
-    const historicalPubKeys = this.peerKeyStore.getHistory(peerId);
-    for (const histPub of historicalPubKeys) {
-      this.conversationKeyStore.setConversationKey(
-        conversationId,
-        nacl.box.before(histPub, mySecretKey)
-      );
-    }
-    const sharedKey = nacl.box.before(peerPubKey, mySecretKey);
-    this.conversationKeyStore.setConversationKey(conversationId, sharedKey);
-    chatLog.debug("chat › conversation key derived", {
-      peerId,
-      conversationId,
-      historicalKeys: historicalPubKeys.length,
-    });
-  }
-
-  /**
-   * Re-derives the conversation key for a specific peer.
-   * Called by MainContainer when PeerKeyStore receives a new appPub (e.g. after a
-   * TCP handshake with a guest peer that cannot register its key on the server).
-   * This ensures previously-loaded messages are decrypted without requiring a
-   * full screen reload.
-   */
-  async rederiveKeyForPeer(peerId: string): Promise<void> {
-    if (!this.peerKeyService || !this.peerKeyStore) return;
-    try {
-      const conversationId =
-        await this.conversationParticipantRepository.isDirectConversationExists([
-          peerId,
-          this.userStore.user.id,
-        ]);
-      if (!conversationId) return;
-      await this.deriveAndSetConversationKey(peerId, conversationId);
-      chatLog.debug("chat › conversation key re-derived after peer key arrival", {
-        peerId,
-        conversationId,
-      });
-    } catch (error) {
-      const appErr = toAppError(error, "database");
-      chatLog.warn("chat › rederiveKeyForPeer failed", { peerId, ...appErr });
-    }
-  }
-
-  /**
-   * Attempts to pre-derive ECDH conversation keys for all known conversations so
-   * the chat list can show decrypted message previews immediately after app startup.
-   * Skips conversations where the peer's public key is not yet available.
-   */
-  async preloadAllConversationKeys(): Promise<void> {
-    if (!this.peerKeyService || !this.peerKeyStore) return;
-    try {
-      const participants =
-        await this.conversationParticipantRepository.queryAllParticipants();
-      const myId = this.userStore.user.id;
-      const seen = new Set<string>();
-      for (const p of participants) {
-        const raw = p._raw as Record<string, string>;
-        const peerId = raw.user;
-        const conversationId = raw.conversation;
-        if (!peerId || !conversationId || peerId === myId) continue;
-        const key = `${peerId}:${conversationId}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        try {
-          await this.deriveAndSetConversationKey(peerId, conversationId);
-        } catch {
-          // Peer key not yet available — key will be derived on first interaction
-        }
-      }
-    } catch (error) {
-      const appErr = toAppError(error, "database");
-      chatLog.warn("chat › preload conversation keys failed", appErr);
-    }
+    await this.conversationKeyManager.deriveAndSetConversationKey(peerId, conversationId);
   }
 
   onConnectionState(
@@ -1235,102 +1109,6 @@ export class ChatService {
       const appErr = toAppError(error, "database");
       chatLog.error("chat › sms conversation resolve/create failed", {
         peerId,
-        ...appErr,
-      });
-      captureAppError(appErr);
-      throw appErr;
-    }
-  }
-
-  async saveCallLogWithReceipts(params: {
-    peerId: string;
-    content: string;
-    status?: MessageStatusType;
-    senderId: string;
-    messageId?: string;
-    conversationId?: string;
-  }) {
-    const {
-      peerId,
-      content,
-      status = MessageStatusType.DELIVERED,
-      senderId,
-      messageId,
-      conversationId,
-    } = params;
-
-    if (senderId !== this.userStore.user.id && senderId !== peerId) {
-      throw new Error("senderId must be current user or peerId");
-    }
-
-    try {
-      if (messageId) {
-        const existingMessage = await this.messageRepository.queryMessageById(
-          messageId
-        );
-        if (existingMessage) {
-          const existingStatus =
-            await this.messageStatusRepository.queryMessageStatusByMessage(
-              existingMessage.id
-            );
-          if (existingStatus && existingStatus.status !== status) {
-            await this.messageStatusRepository.updateMessageStatusByMessage(
-              existingMessage.id,
-              status
-            );
-            chatLog.info("chat › call log status updated on dedup", {
-              messageId: existingMessage.id,
-              status,
-            });
-          }
-          chatLog.info("chat › call log deduped", {
-            peerId,
-            messageId,
-          });
-          return existingMessage.id;
-        }
-      }
-
-      const peer = await this.peerService.findPeerById(peerId);
-      if (!peer) throw new Error("Peer not found");
-      const conversation = await this.getOrCreateDirectConversationByPeer(
-        peerId,
-        conversationId
-      );
-      await this.deriveAndSetConversationKey(peerId, conversation.id);
-
-      const sender: Peer | GuestUser =
-        senderId === this.userStore.user.id ? this.userStore.user : peer;
-
-      const newMessage = await this.messageRepository.saveMessage({
-        sender,
-        content,
-        conversation,
-        messageId,
-        messageType: MessageType.CALL_LOG,
-      });
-      if (senderId === this.userStore.user.id) {
-        await this.messageStatusRepository.saveMessageStatus({
-          message: newMessage,
-          user: sender,
-          status,
-        });
-      }
-
-      chatLog.info("chat › call log saved", {
-        peerId,
-        conversationId: conversation.id,
-        messageId: newMessage.id,
-        senderId: sender.id,
-        status,
-      });
-      return newMessage.id;
-    } catch (error) {
-      const appErr = toAppError(error, "database");
-      chatLog.error("chat › call log save failed", {
-        peerId,
-        contentLength: content.length,
-        status,
         ...appErr,
       });
       captureAppError(appErr);

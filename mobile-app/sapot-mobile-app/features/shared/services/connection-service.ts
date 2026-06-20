@@ -93,6 +93,7 @@ export type ConnectionServiceEvents = {
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
+  private callService?: { saveCallLogWithReceipts: (params: { peerId: string; content: string; status?: import("@/features/shared/database/model/MessageStatus").MessageStatusType; senderId: string; messageId?: string; conversationId?: string }) => Promise<string> };
   private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> };
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
@@ -430,8 +431,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
     let messageId: string | undefined;
 
-    if (this.chatService && this.activeCallPeerId !== callerPeerId) {
-      messageId = await this.chatService.saveCallLogWithReceipts({
+    if (this.callService && this.activeCallPeerId !== callerPeerId) {
+      messageId = await this.callService.saveCallLogWithReceipts({
         peerId: callerPeerId,
         content,
         status: MessageStatusType.DELIVERED,
@@ -447,7 +448,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       });
     } else {
       connectionLog.warn(
-        "connection › busy reject skipped call log — no chatService",
+        "connection › busy reject skipped call log — no callService",
         {
           callerPeerId,
           callType,
@@ -489,6 +490,10 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   setChatService(chatService: ChatService) {
     this.chatService = chatService;
     this.webrtcSessionManager.setChatService(chatService);
+  }
+
+  setCallService(callService: NonNullable<ConnectionService["callService"]>) {
+    this.callService = callService;
   }
 
   setPeerService(peerService: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> }) {

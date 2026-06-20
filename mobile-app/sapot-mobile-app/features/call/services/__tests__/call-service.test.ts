@@ -28,6 +28,9 @@ describe("CallService", () => {
   let mockChatService: ReturnType<
     typeof createCallServiceDependencyMocks
   >["chatService"];
+  let mockMessageRepository: { queryMessageById: jest.Mock; saveMessage: jest.Mock };
+  let mockMessageStatusRepository: { queryMessageStatusByMessage: jest.Mock; updateMessageStatusByMessage: jest.Mock; saveMessageStatus: jest.Mock };
+  let mockConversationKeyManager: { deriveAndSetConversationKey: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -66,8 +69,20 @@ describe("CallService", () => {
     mockCallParticipantRepository.updateParticipantLeftAtByCallAndUser.mockResolvedValue(
       undefined
     );
-    mockChatService.saveCallLogWithReceipts.mockResolvedValue("mock-message-id");
     mockChatService.updateMessageStatus.mockResolvedValue(undefined);
+
+    mockMessageRepository = {
+      queryMessageById: jest.fn().mockResolvedValue(undefined),
+      saveMessage: jest.fn().mockResolvedValue({ id: "mock-message-id" }),
+    };
+    mockMessageStatusRepository = {
+      queryMessageStatusByMessage: jest.fn().mockResolvedValue(undefined),
+      updateMessageStatusByMessage: jest.fn().mockResolvedValue(undefined),
+      saveMessageStatus: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConversationKeyManager = {
+      deriveAndSetConversationKey: jest.fn().mockResolvedValue(undefined),
+    };
 
     // Create service instance
     callService = new CallService(
@@ -77,7 +92,10 @@ describe("CallService", () => {
       mockCallRepository as never,
       mockCallParticipantRepository as never,
       mockChatService as never,
-      { syncNow: jest.fn().mockResolvedValue(undefined) }
+      { syncNow: jest.fn().mockResolvedValue(undefined) },
+      mockMessageRepository as never,
+      mockMessageStatusRepository as never,
+      mockConversationKeyManager as never,
     );
   });
 
@@ -265,12 +283,7 @@ describe("CallService", () => {
           }),
         })
       );
-      expect(mockChatService.saveCallLogWithReceipts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          peerId,
-          status: "sending",
-        })
-      );
+      expect(mockMessageRepository.saveMessage).toHaveBeenCalled();
     });
 
     it("should not terminate if already disconnected", async () => {
@@ -532,7 +545,7 @@ describe("CallService", () => {
       });
 
       expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
-      expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
     });
 
     it("should skip busy log when caller has an outgoing session (glare)", async () => {
@@ -546,7 +559,7 @@ describe("CallService", () => {
       });
 
       expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
-      expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
     });
   });
 });
