@@ -43,6 +43,16 @@ TODO: the distinction between these two patterns is implied by the circular depe
 
 PIN-gated initialization: the container is held in `pendingContainerRef` and `PinEntryGate` is shown before `initialize()` is called.
 
+**`initialize()` phase decomposition** — the public `initialize()` delegates to three typed private phases:
+
+| Phase | Method | Role |
+|---|---|---|
+| 1 | `initializeKeys(): Promise<KeysReady>` | Loads all crypto keys (local encryption, ECDH, peer keys, conversation keys). Clears pending password/PIN. |
+| 2 | `handleMigration(keys): Promise<MigrationOk>` | Detects and runs migration recovery re-encrypt; computes `migrationPushPending` flag. |
+| 3 | `startNetworkServices(migOk): Promise<void>` | Starts sync, NetInfo listener, periodic timer, AppState listener, network config watching. |
+
+Branded token types (`KeysReady`, `MigrationOk`) make phase ordering a TypeScript compile-time constraint — phase 2 cannot be called without a `KeysReady` token, and phase 3 cannot be called without a `MigrationOk` token.
+
 React context provider: `features/shared/context/main-container-context.tsx`
 
 

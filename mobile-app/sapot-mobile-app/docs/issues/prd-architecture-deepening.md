@@ -39,8 +39,13 @@
 - Two ~100-line duplicate call dispatch blocks (WS + TCP) replaced with 3-line delegations
 - 14 unit tests; typecheck clean; `connection-service.test.ts` now passes
 
+**5. MainContainer.initialize() phases** (commit pending)
+- Extracted three private phases: `initializeKeys()`, `handleMigration()`, `startNetworkServices()`
+- Branded token types `KeysReady` / `MigrationOk` enforce phase ordering at compile time
+- `handleMigration()` carries `migrationPushPending` flag through to `startNetworkServices()`
+- 9 unit tests in `features/shared/__tests__/main-container-initialize.test.ts`; typecheck clean
+
 ### Remaining (recommended order)
-5. MainContainer.initialize() — decompose into named phases  
 6. ChatService partial — saveCallLogWithReceipts + ConversationKeyManager
 
 ---
