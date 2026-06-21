@@ -358,6 +358,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const handler = async (payload: CallEndedEventPayload) => {
       if (payload.peerId !== peerId) return;
 
+      // Reject stale call-ended from a previous session for the same peer.
+      // Both sides include callId since the fix in terminateCallConnection.
+      const activeCallId = callService.getActiveCallId(peerId);
+      if (payload.callId && activeCallId && payload.callId !== activeCallId) {
+        callLog.warn("[CallContext] stale call-ended ignored", {
+          payloadCallId: payload.callId,
+          activeCallId,
+        });
+        return;
+      }
+
       uiLog.info("[CallContext] call › remote ended", {
         peerId,
         status: payload.status,

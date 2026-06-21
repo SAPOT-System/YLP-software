@@ -273,7 +273,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       const webrtc = this.connectionService.getWebrtcAdapter(peerId);
 
-      webrtc.setIsPolite(false);
+      webrtc.setIsPolite(this.userStore.user.id < peerId);
 
       const session = await this.ensureSession(peerId, type, false);
 
@@ -346,7 +346,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   ) {
     try {
       const webrtc = this.connectionService.getWebrtcAdapter(peerId);
-      webrtc.setIsPolite(true);
+      webrtc.setIsPolite(this.userStore.user.id < peerId);
 
       const session = await this.ensureSession(
         peerId,
@@ -715,6 +715,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     await this.terminateCallConnection(peerId, "missed");
   }
 
+  getActiveCallId(peerId: string): string | undefined {
+    return this.callSessions.get(peerId)?.callId;
+  }
+
   /**
    * Terminates the call connection with the given peer, renegotiates WebRTC, and notifies the peer.
    * @param peerId The peer id to terminate the call with
@@ -752,6 +756,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         data: {
           from: this.userStore.user.id,
           to: peerId,
+          callId: session?.callId,
           status:
             status === CallStatus.COMPLETED
               ? "completed"
@@ -855,6 +860,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     } finally {
       this.connectedState = "disconnected";
       this.initialRouteSetFor.delete(peerId);
+      this.connectionService.setActiveCall(null);
     }
   }
 

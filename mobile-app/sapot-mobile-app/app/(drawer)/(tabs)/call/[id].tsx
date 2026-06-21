@@ -147,14 +147,24 @@ export default function CallRoom() {
   }, [hideControls, controlsAnim]);
 
   useEffect(() => {
-    if (callState === "connected" || callState === "reconnecting") {
+    if (callState === "calling") {
+      // Reset visibility without starting an auto-hide timer — the end call
+      // button must stay visible for the full duration of the outgoing ring.
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      setControlsVisible(true);
+      Animated.timing(controlsAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else if (callState === "connected" || callState === "reconnecting") {
       showControls();
     }
 
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [callState, showControls]);
+  }, [callState, showControls, controlsAnim]);
 
   // ─────────────────────────────────────────────
   // Derived UI flags
