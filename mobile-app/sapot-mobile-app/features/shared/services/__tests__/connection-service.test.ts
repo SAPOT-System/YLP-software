@@ -77,6 +77,7 @@ describe("ConnectionService", () => {
   let mockWsSignalingAdapter: jest.Mocked<WsSignalingAdapter>;
   let mockChatService: jest.Mocked<ChatService>;
   let mockAppModeStore: jest.Mocked<AppModeStore>;
+  let mockNotificationService: ReturnType<typeof createConnectionServiceDependencyMocks>["notificationService"];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,6 +97,7 @@ describe("ConnectionService", () => {
     mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
     mockAppModeStore =
       mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
+    mockNotificationService = mocks.notificationService;
 
     // Mock constructors
     jest
@@ -136,7 +138,8 @@ describe("ConnectionService", () => {
       mockWsSignalingAdapter,
       webrtcSessionManager,
       signalingService,
-      callMediaService
+      callMediaService,
+      mockNotificationService as never
     );
   });
 
@@ -748,8 +751,10 @@ describe("ConnectionService", () => {
 
       await expect(connectPromise).rejects.toThrow("createOffer failed");
       // Must evict (not silently reuse) the dead adapter — this is what breaks
-      // the permanent LAN failure loop.
-      expect(evictSpy).toHaveBeenCalledWith("peer-1");
+      // the permanent LAN failure loop. First eviction is a retry (isRetry=true),
+      // second is the final failure (isRetry=false).
+      expect(evictSpy).toHaveBeenCalledWith("peer-1", true);
+      expect(evictSpy).toHaveBeenCalledWith("peer-1", false);
     });
   });
 

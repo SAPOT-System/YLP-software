@@ -313,6 +313,23 @@ describe("CallService", () => {
       );
     });
 
+    it("should include callId in the call-ended message", async () => {
+      const peerId = "peer-1";
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+
+      await callService.terminateCallConnection(peerId);
+
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({
+          type: "call-ended",
+          data: expect.objectContaining({
+            callId: "call-1",
+          }),
+        })
+      );
+    });
+
     it("should handle errors during termination", async () => {
       const peerId = "peer-1";
       const error = new Error("Termination failed");
@@ -560,6 +577,39 @@ describe("CallService", () => {
 
       expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
       expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("handleRemoteCallEnded", () => {
+    beforeEach(async () => {
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      await callService.answerCall("audio", "peer-1", "conv-1", "call-1");
+      jest.clearAllMocks();
+    });
+
+    it("clears the active call state so the next incoming call is not routed as glare", async () => {
+      await callService.handleRemoteCallEnded("peer-1", {
+        status: "completed",
+        endedAt: Date.now(),
+        durationSeconds: 10,
+        initiatorId: "peer-1",
+        callType: "audio",
+      });
+
+      expect(mockConnectionService.setActiveCall).toHaveBeenCalledWith(null);
+    });
+  });
+
+  describe("getActiveCallId", () => {
+    it("returns undefined when no session exists for peer", () => {
+      expect(callService.getActiveCallId("unknown-peer")).toBeUndefined();
+    });
+
+    it("returns the session callId when a session exists", async () => {
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      await callService.startCall("audio", "peer-1");
+
+      expect(callService.getActiveCallId("peer-1")).toBe("call-1");
     });
   });
 });

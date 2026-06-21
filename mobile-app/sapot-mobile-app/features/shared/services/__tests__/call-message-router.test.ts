@@ -187,6 +187,22 @@ describe("CallMessageRouter", () => {
         expect(result.payload).toMatchObject({ peerId: "peer-1", status: "completed" });
       }
     });
+
+    it("passes callId through to the payload", async () => {
+      const deps = makeDeps();
+      const router = new CallMessageRouter(deps);
+      const message: CallEndedMessage = {
+        type: "call-ended",
+        data: { from: "peer-1", to: "me", status: "completed", callType: "audio", callId: "call-abc" },
+      };
+
+      const result = await router.handle(message);
+
+      expect(result.action).toBe("emit");
+      if (result.action === "emit") {
+        expect((result.payload as { callId: string }).callId).toBe("call-abc");
+      }
+    });
   });
 
   describe("call-ready", () => {

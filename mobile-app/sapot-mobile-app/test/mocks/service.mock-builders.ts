@@ -206,6 +206,7 @@ export function createCallServiceDependencyMocks() {
 	const chatService = {
 		getOrCreateDirectConversationByPeer: jest.fn(),
 		updateMessageStatus: jest.fn(),
+		acknowledgeIncomingMessage: jest.fn(),
 	};
 
 	connectionService.on.mockImplementation(() => connectionService);
