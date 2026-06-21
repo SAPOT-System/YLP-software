@@ -57,6 +57,7 @@ export class WebrtcAdapter extends EventEmitter {
   private remoteDescriptionSet: boolean = false;
   private audioTrack?: MediaStreamTrack;
   private videoTrack?: MediaStreamTrack;
+  private isDisposed = false;
 
   readonly peerId: string;
   private isPolite: boolean = false;
@@ -300,6 +301,7 @@ export class WebrtcAdapter extends EventEmitter {
             });
 
             await this.peerConnection!.setLocalDescription(offer);
+            this.remoteDescriptionSet = false;
 
             this.trace("set-local-description:done");
 
@@ -356,44 +358,47 @@ export class WebrtcAdapter extends EventEmitter {
       this.setupDataChannel(channel);
     }
 
-    // A stale, unanswered local offer (e.g. left over from before a network
-    // blip) leaves the PC in "have-local-offer"; calling createOffer() on it
-    // throws E_OPERATION_ERROR. Roll it back so we can produce a fresh offer —
-    // mirrors the guard in restartIce().
-    if (this.peerConnection!.signalingState === "have-local-offer") {
-      this.trace("rollback-stale-offer");
-      await this.peerConnection!.setLocalDescription(
-        new RTCSessionDescription({ type: "rollback", sdp: "" })
-      );
-      this.isMakingOffer = false;
-    }
+    return this.enqueueNegotiation(async () => {
+      // A stale, unanswered local offer (e.g. left over from before a network
+      // blip) leaves the PC in "have-local-offer"; calling createOffer() on it
+      // throws E_OPERATION_ERROR. Roll it back so we can produce a fresh offer —
+      // mirrors the guard in restartIce().
+      if (this.peerConnection!.signalingState === "have-local-offer") {
+        this.trace("rollback-stale-offer");
+        await this.peerConnection!.setLocalDescription(
+          new RTCSessionDescription({ type: "rollback", sdp: "" })
+        );
+        this.isMakingOffer = false;
+      }
 
-    try {
-      this.isMakingOffer = true;
+      try {
+        this.isMakingOffer = true;
 
-      this.trace("create-offer:start");
-      const offer = await this.peerConnection!.createOffer();
-      this.trace("create-offer:success", {
-        sdpLength: offer.sdp?.length,
-      });
-      this.trace("set-local-description:start", {
-        type: offer.type,
-      });
+        this.trace("create-offer:start");
+        const offer = await this.peerConnection!.createOffer();
+        this.trace("create-offer:success", {
+          sdpLength: offer.sdp?.length,
+        });
+        this.trace("set-local-description:start", {
+          type: offer.type,
+        });
 
-      await this.peerConnection!.setLocalDescription(offer);
+        await this.peerConnection!.setLocalDescription(offer);
+        this.remoteDescriptionSet = false;
 
-      this.trace("set-local-description:done");
+        this.trace("set-local-description:done");
 
-      return {
-        type: "offer",
-        sdp: offer.sdp!,
-      };
-    } catch (error) {
-      this.logFailure("createOffer failed", error);
-      throw error;
-    } finally {
-      this.isMakingOffer = false;
-    }
+        return {
+          type: "offer",
+          sdp: offer.sdp!,
+        };
+      } catch (error) {
+        this.logFailure("createOffer failed", error);
+        throw error;
+      } finally {
+        this.isMakingOffer = false;
+      }
+    });
   }
 
   async restartIce() {
@@ -432,6 +437,7 @@ export class WebrtcAdapter extends EventEmitter {
         });
 
         await this.peerConnection!.setLocalDescription(offer);
+        this.remoteDescriptionSet = false;
 
         this.trace("set-local-description:done");
 
@@ -673,6 +679,7 @@ export class WebrtcAdapter extends EventEmitter {
   async handleOffer(
     offer: RTCSessionDescriptionInit
   ): Promise<{ type: "answer"; sdp: string } | undefined> {
+    if (this.isDisposed) return undefined;
     if (!this.peerConnection) {
       this.createPeerConnection();
     }
@@ -755,17 +762,17 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   async handleAnswer(answer: RTCSessionDescriptionInit) {
+    if (this.isDisposed) return;
     if (!this.peerConnection) return;
 
-    // ADDED: guard against wrong signaling state
-    if (this.peerConnection.signalingState !== "have-local-offer") {
-      webrtcLog.warn("webrtc › cannot set remote answer in state", {
-        state: this.peerConnection?.signalingState,
-      });
-      return;
-    }
-
     await this.enqueueNegotiation(async () => {
+      if (this.peerConnection?.signalingState !== "have-local-offer") {
+        webrtcLog.warn("webrtc › cannot set remote answer in state", {
+          state: this.peerConnection?.signalingState,
+        });
+        return;
+      }
+
       try {
         await this.peerConnection!.setRemoteDescription(
           new RTCSessionDescription(answer)
@@ -781,6 +788,7 @@ export class WebrtcAdapter extends EventEmitter {
         this.pendingIceCandidates = [];
       } catch (error) {
         webrtcLog.error("webrtc › handleAnswer failed", { error });
+        this.emit("connection-failed", error);
       }
     });
   }
@@ -1017,7 +1025,12 @@ export class WebrtcAdapter extends EventEmitter {
   }
 
   private enqueueNegotiation<T>(task: () => Promise<T>): Promise<T> {
-    const result = this.negotiationQueue.then(task);
+    const guarded = (): Promise<T> => {
+      if (this.isDisposed) return Promise.resolve(undefined as unknown as T);
+      return task();
+    };
+
+    const result = this.negotiationQueue.then(guarded);
 
     this.negotiationQueue = result
       .then(() => {})
@@ -1052,6 +1065,8 @@ export class WebrtcAdapter extends EventEmitter {
 
   cleanup() {
     try {
+      this.isDisposed = true;
+
       if (this.localStream) {
         this.localStream.getTracks().forEach((track) => track.stop());
         this.localStream = undefined;
