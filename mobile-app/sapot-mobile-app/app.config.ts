@@ -289,6 +289,9 @@ export default ({ config }: ConfigContext) => ({
           packagingOptions: {
             pickFirst: ["**/libc++_shared.so"],
           },
+          abiFilters: ["arm64-v8a"],
+          enableProguardInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
         },
       },
     ],
