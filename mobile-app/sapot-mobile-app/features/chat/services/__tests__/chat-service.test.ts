@@ -214,6 +214,52 @@ describe("ChatService", () => {
       );
     });
 
+    it("warms up conversation key for existing direct conversation after connect", async () => {
+      const peerId = "peer-1";
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(mockPeer);
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue("conv-1");
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const deriveAndSetSpy = jest.spyOn(chatService as any, "deriveAndSetConversationKey");
+
+      await chatService.connect(peerId);
+      // allow micro-task queue to flush the void warm-up
+      await Promise.resolve();
+
+      expect(deriveAndSetSpy).toHaveBeenCalledWith(peerId, "conv-1");
+    });
+
+    it("does not block connect when no existing conversation exists", async () => {
+      const peerId = "peer-1";
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(mockPeer);
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(undefined);
+
+      const start = Date.now();
+      await chatService.connect(peerId);
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeLessThan(500);
+    });
+
+    it("does not throw when warm-up key derivation fails", async () => {
+      const peerId = "peer-1";
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(mockPeer);
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue("conv-1");
+
+      jest
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .spyOn(chatService as any, "deriveAndSetConversationKey")
+        .mockRejectedValue(new Error("key unavailable"));
+
+      await expect(chatService.connect(peerId)).resolves.toBeUndefined();
+    });
+
     it("should fall back to direct connect if peer not discovered", async () => {
       const peerId = "peer-1";
       const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
@@ -228,6 +274,58 @@ describe("ChatService", () => {
         peerId
       );
       expect(mockConnectionService.connectToPeer).toHaveBeenCalledWith(peerId);
+    });
+  });
+
+  describe("hasPeer", () => {
+    it("returns false before connect is called", () => {
+      expect(chatService.hasPeer()).toBe(false);
+    });
+
+    it("returns true after a successful connect", async () => {
+      const peerId = "peer-1";
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(mockPeer);
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(undefined);
+
+      await chatService.connect(peerId);
+
+      expect(chatService.hasPeer()).toBe(true);
+    });
+
+    it("returns true after setPeer", async () => {
+      const peerId = "peer-1";
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(mockPeer);
+
+      await chatService.setPeer(peerId);
+
+      expect(chatService.hasPeer()).toBe(true);
+    });
+
+    it("returns false after disconnect", async () => {
+      const peerId = "peer-1";
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(mockPeer);
+      mockPeerService.findDiscoveredPeerById.mockReturnValue(undefined);
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(undefined);
+
+      await chatService.connect(peerId);
+      chatService.disconnect();
+
+      expect(chatService.hasPeer()).toBe(false);
+    });
+
+    it("returns false after removePeer", async () => {
+      const peerId = "peer-1";
+      const mockPeer = createTestPeer({ id: peerId, username: "peeruser" }) as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(mockPeer);
+
+      await chatService.setPeer(peerId);
+      chatService.removePeer();
+
+      expect(chatService.hasPeer()).toBe(false);
     });
   });
 

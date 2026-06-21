@@ -1,9 +1,9 @@
 import { APP_ROUTES } from "@/config/routes";
 import { useInformCall } from "@/features/call";
 import { MessageList, useChatService, useObservedPeer } from "@/features/chat";
+import { useSendMessage } from "@/features/chat/hooks/use-send-message";
 import { ChatRoomSource } from "@/features/chat/types";
 import { Conversation, ConversationType, Message, Peer, database } from "@/features/shared";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { Q } from "@nozbe/watermelondb";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
@@ -16,7 +16,6 @@ import {
 } from "@/features/shared/hooks";
 import { resolvePeerStatus } from "@/features/chat/utils/resolve-peer-status";
 import { toLocalPhone } from "@/features/auth/utils/validation";
-import { sendSmsToUser } from "@/features/shared/api/gsm.api";
 import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/utils/logger";
@@ -463,60 +462,17 @@ const ChatRoom = () => {
     else if (!isSmsEnabled) setIsSmsMode(false);
   }, [isSmsEnabled, isSmsConversation]);
 
-  const handleSendMessage = useCallback(async () => {
-    const textToSend = message.trim();
-    uiLog.debug("[ChatRoom] handleSendMessage called", {
-      hasMessage: Boolean(textToSend),
-      conversationId,
-    });
-    if (!textToSend) return;
-    try {
-      if ((isSmsMode || isSmsConversation) && peerId) {
-        // SMS-only path — bypass P2P entirely
-        let smsMessageId: string;
-        try {
-          const { messageId } = await chatService.sendSmsChannelMessage(
-            textToSend
-          );
-          smsMessageId = messageId;
-        } catch (smsChannelError) {
-          uiLog.error("chat › SMS channel message failed", {
-            conversationId,
-            error: smsChannelError,
-          });
-          showError("Failed to record SMS message");
-          return;
-        }
-
-        sendSmsToUser(peerId, textToSend)
-          .then((res) => {
-            const status = res.ok
-              ? MessageStatusType.DELIVERED
-              : MessageStatusType.NOT_SENT;
-            chatService
-              .updateMessageStatus(smsMessageId, status)
-              .catch(() => {});
-            if (!res.ok) showError("SMS could not be delivered");
-          })
-          .catch(() => {
-            chatService
-              .updateMessageStatus(smsMessageId, MessageStatusType.NOT_SENT)
-              .catch(() => {});
-            showError("Message sent, but SMS delivery failed.");
-          });
-
-        setMessage("");
-      } else {
-        // App Chat path — P2P only
-        const { conversationId: chatId } = await chatService.sendChatMessage(textToSend);
-        if (!conversationId && chatId) setConversationId(chatId);
-        setMessage("");
-      }
-    } catch (error) {
-      uiLog.error("chat › send message failed", { conversationId, error });
-      showError("Failed to send message");
-    }
-  }, [message, conversationId, chatService, isSmsMode, isSmsConversation, peerId, showError]);
+  const handleSendMessage = useSendMessage({
+    message,
+    setMessage,
+    conversationId,
+    setConversationId,
+    chatService,
+    isSmsMode,
+    isSmsConversation,
+    peerId,
+    showError,
+  });
 
   const handleAudioCall = useCallback(() => {
     if (peerId) {

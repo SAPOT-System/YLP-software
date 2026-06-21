@@ -94,6 +94,20 @@ export class ChatService {
     await this.conversationKeyManager.deriveAndSetConversationKey(peerId, conversationId);
   }
 
+  private async warmUpConversationKey(peerId: string): Promise<void> {
+    try {
+      const conversationId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [peerId, this.userStore.user.id],
+          ConversationType.DIRECT,
+        );
+      if (!conversationId) return;
+      await this.deriveAndSetConversationKey(peerId, conversationId);
+    } catch {
+      // warm-up is best-effort; failures are silent
+    }
+  }
+
   onConnectionState(
     listener: (payload: {
       peerId: string;
@@ -173,6 +187,7 @@ export class ChatService {
         await this.connectionService.connectToPeer(id);
       }
       chatLog.info("chat › connect complete", { peerId: id });
+      void this.warmUpConversationKey(id);
     } catch (error) {
       const appErr = toAppError(error, "network");
       chatLog.warn("chat › connect failed", { peerId: id, ...appErr });
@@ -209,6 +224,10 @@ export class ChatService {
 
   removePeer() {
     this.peer = undefined;
+  }
+
+  hasPeer(): boolean {
+    return this.peer !== undefined;
   }
 
   // TODO: Apply ACID principle and retry if failed
