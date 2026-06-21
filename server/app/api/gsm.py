@@ -137,7 +137,7 @@ async def inbound_sms(
     session.commit()
     session.refresh(msg)
 
-    is_connected = target.id in manager.active_connections
+    is_connected = await manager.is_user_connected(target.id)
     print(f"[gsm/inbound] sender={sender.username} target={target.username} connected={is_connected} msg_id={msg.id}")
 
     ws_payload = {

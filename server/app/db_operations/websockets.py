@@ -39,20 +39,22 @@ def validate_message_sender(payload: dict, user_id: UUID) -> bool:
     return str(id) == str(user_id)
 
 async def relay_signal(sender_id: UUID, target_id: UUID, payload: SignalMessage, session: SessionDep):
-    try: 
-        message = {
-            "type": payload.type,
-            "data": payload.data.model_dump(exclude_none=True)
-        }
-        if not isinstance(target_id, UUID):
-            target_id = UUID(target_id)
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    message = {
+        "type": payload.type,
+        "data": payload.data.model_dump(exclude_none=True)
+    }
+    if not isinstance(target_id, UUID):
+        target_id = UUID(target_id)
 
-        if manager.active_connections.get(target_id):
+    if await manager.is_user_connected(target_id):
+        try:
             await manager.send_personal_message(target_id, message)
-        else:
-            raise Exception("Receiver not connected")
-    except:
-        pass
+        except Exception as exc:
+            _log.debug("[relay_signal] delivery failed target=%s: %s", target_id, exc)
+    else:
+        _log.debug("[relay_signal] receiver not connected target=%s", target_id)
 
 async def relay_message_fails(sender_id: UUID, target_id: UUID, payload: MessageData, message, session:SessionDep):
     try:
@@ -124,12 +126,10 @@ async def relay_message(sender_id: UUID, target_id: UUID, payload: MessageData, 
         except Exception as e:
             pass
         
-    if manager.active_connections.get(target_id):
+    if await manager.is_user_connected(target_id):
         try:
-            print("here success")
             await manager.send_personal_message(target_id, message)
-        except:
-            print("here failed", payload)
+        except Exception:
             await relay_message_fails(sender_id, target_id, payload, message, session)
     else:
         await relay_message_fails(sender_id, target_id, payload, message, session)

@@ -44,6 +44,8 @@ from app.db_operations.token import get_user_id_from_header
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import threading
+    import redis.asyncio as aioredis
+    from app.db_operations.connection_manager import manager
 
     create_db_and_tables()
 
@@ -59,7 +61,15 @@ async def lifespan(app: FastAPI):
         daemon=True
     ).start()
 
+    redis_client = aioredis.Redis.from_url(
+        os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        decode_responses=True,
+    )
+    await manager.init(redis_client)
+
     yield
+
+    await manager.shutdown()
 
 app = FastAPI(
     title="SAPOT Server",
