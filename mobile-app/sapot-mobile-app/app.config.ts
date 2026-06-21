@@ -1,6 +1,7 @@
 import {
   ConfigPlugin,
   withAndroidManifest,
+  withAppBuildGradle,
   withDangerousMod,
 } from "@expo/config-plugins";
 import { ConfigContext } from "expo/config";
@@ -9,6 +10,18 @@ import * as path from "path";
 
 const BACKGROUND_ACTIONS_SERVICE =
   "com.asterinet.react.bgactions.RNBackgroundActionsTask";
+
+// expo-build-properties does not expose abiFilters, so we inject it directly.
+const withArmOnlyAbi: ConfigPlugin = (config) =>
+  withAppBuildGradle(config, (mod) => {
+    const contents = mod.modResults.contents;
+    if (contents.includes('abiFilters "arm64-v8a"')) return mod;
+    mod.modResults.contents = contents.replace(
+      /defaultConfig\s*\{/,
+      `defaultConfig {\n        ndk {\n            abiFilters "arm64-v8a"\n        }`
+    );
+    return mod;
+  });
 
 const withServerCert: ConfigPlugin = (config) =>
   withDangerousMod(config, [
@@ -289,12 +302,12 @@ export default ({ config }: ConfigContext) => ({
           packagingOptions: {
             pickFirst: ["**/libc++_shared.so"],
           },
-          abiFilters: ["arm64-v8a"],
           enableProguardInReleaseBuilds: true,
           enableShrinkResourcesInReleaseBuilds: true,
         },
       },
     ],
+    withArmOnlyAbi,
   ],
   experiments: {
     typedRoutes: true,
