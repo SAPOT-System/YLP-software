@@ -4,8 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Important
 
-The FastAPI server code in `server/` may be edited when the user explicitly requests a backend change.
-
 **Keep documentation in sync.** When adding or updating features, APIs, messages, database tables, or services, update the relevant file in `docs/`:
 - `docs/ARCHITECTURE.md` — new services, adapters, stores, DI wiring, transport changes
 - `docs/CALL_FLOW.md` — new call message types or lifecycle changes
@@ -18,56 +16,17 @@ The FastAPI server code in `server/` may be edited when the user explicitly requ
 - `docs/LAN_MESSENGER.md` — LAN-only messaging behavior and constraints
 - `docs/diagrams/` — sequence/architecture diagrams
 
-These documents are mandatory for all code generation:
-- docs/architecture.md
-- docs/design-system.md
-- docs/conventions.md
+Before writing any new file, read these to ensure consistency with established patterns:
+- `docs/architecture.md` — service and adapter landscape, DI wiring
+- `docs/design-system.md` — component patterns, theming, spacing
+- `docs/conventions.md` — naming, error handling, coding style
+- `docs/system-boundaries.md` — service interface and feature boundary rules
 
-If conflict exists:
-CLAUDE.md overrides all inferred patterns.
-
-All code must respect
-docs/system-boundaries.md
-
-## Reuse Rules
-
-Before creating:
-
-- components
-- hooks
-- services
-- utilities
-
-Search repository first.
-
-Explain why existing implementation cannot be reused.
-
-## Refactoring
-
-Do not refactor unless explicitly requested.
+If any conflict with CLAUDE.md, CLAUDE.md wins.
 
 ## Large Changes
 
-For changes affecting multiple files:
-
-Step 1:
-Audit current implementation
-
-Step 2:
-Provide plan
-
-Step 3:
-Wait for approval
-
-Step 4:
-Implement
-
-Step 5:
-Run verification
-
-## Architecture
-
-Respect documented architecture boundaries.
+For any change touching shared code or spanning more than one feature: list every affected file and caller, provide a written plan, wait for explicit user approval, then implement and verify. Never begin implementation before the user approves the plan.
 
 ---
 
@@ -110,42 +69,7 @@ Respect documented architecture boundaries.
 
 ## Mobile App Commands
 
-```bash
-# Start dev server (sets APP_VARIANT=development)
-npm run dev
-
-# Prebuild and run on Android device/emulator
-npm run prebuild          # expo prebuild --clean for development variant
-npm run android           # run with dev app-id
-
-# EAS cloud builds
-npm run android:dev       # development profile
-npm run android:prev      # preview profile
-npm run android:prod      # production profile
-
-# EAS OTA updates (push JS bundle without full build)
-npm run update:dev        # push to development channel
-npm run update:prev       # push to preview channel
-npm run update:prod       # push to production channel
-
-# TypeScript type check
-npm run typecheck
-
-# Lint
-npm run lint
-
-# Run all tests
-npm test
-
-# Full check: tests + typecheck + lint + expo-doctor
-npm run testAll
-
-# Run a single test file
-npx jest path/to/test.ts
-
-# Run tests matching a name pattern
-npx jest --testNamePattern="pattern"
-```
+Use the `app-commands` skill for the full CLI reference. Core quality checks: `npm run typecheck`, `npm test`, `npm run testAll`.
 
 ---
 
@@ -191,16 +115,7 @@ Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `se
 
 ### Encryption / Key Management (`features/shared/services/`)
 
-The app does end-to-end encryption (NaCl box / `tweetnacl`) over both transports plus encryption at rest:
-
-- **`tcp-encryption.ts`** — wraps/unwraps `EncryptedEnvelope` messages over the direct TCP channel.
-- **`ws-encryption.ts`** — encrypts signaling/credential payloads relayed through the server WebSocket so the relay cannot read them.
-- **`local-encryption-service.ts`** — at-rest encryption of local data; owns the master key and signaling secret key (persisted via secure storage helpers in `key-derivation.ts`).
-- **`peer-key-service.ts` / `peer-key-store.ts`** — fetches, signs, verifies, and caches peer public keys (`SignedCredential`).
-- **`key-recovery-service.ts`** — wraps the master key under multiple recovery methods (`password`, `phone`, `email`, `qa`, `token`) producing a `WrappedBlob`.
-- **`key-derivation.ts`** — KDF + secure-store accessors for master/signaling keys.
-
-Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`.
+NaCl box (`tweetnacl`) E2E encryption over both TCP and WS transports, plus at-rest encryption. Key files: `tcp-encryption.ts`, `ws-encryption.ts`, `local-encryption-service.ts`, `peer-key-service.ts`, `key-derivation.ts`, `key-recovery-service.ts`. Crypto stack: `tweetnacl`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`. Use the `crypto-architecture` skill for the full file map and decision rules.
 
 ### Adapters (`features/shared/adapters/`)
 
@@ -215,14 +130,7 @@ Thin injectable wrappers around native modules for testability:
 
 ### GPS Feature (`features/gps/`)
 
-Live location sharing with server-side relay — independent of the P2P transport.
-
-- **`GpsLocationService`** — opens a dedicated WebSocket to `/gps/ws/<userId>`, watches device position via `expo-location`, and streams `{ lat, lng }` updates. Auto-reconnects on disconnect (3 s delay). Does **not** go through `ConnectionService`.
-- **`useGpsStreaming`** — starts/stops `GpsLocationService` based on auth state and user preference. Only runs for authenticated, non-guest users with sharing enabled.
-- **`useLatestLocations`** — polls `GET /gps/latest` every 5 s via React Query; used to render other rescuers on the map.
-- **`GpsPreferenceContext`** — persists the user's sharing toggle in `expo-secure-store` (key: `gps_sharing_enabled`). Wrap screens that need the preference with `GpsPreferenceProvider`.
-- Map rendering uses `@maplibre/maplibre-react-native`.
-- `UserStore.isRescuer` gates whether GPS streaming is activated after user sync in `AuthProvider`.
+Live location sharing via a dedicated WebSocket (`/gps/ws/<userId>`) — independent of `ConnectionService`. Key hooks: `useGpsStreaming`, `useLatestLocations`. Map: `@maplibre/maplibre-react-native`. Gated by `UserStore.isRescuer`. Use the `gps-architecture` skill for hook details and data flow.
 
 ### Background Task Integration
 
@@ -241,17 +149,7 @@ WatermelonDB with SQLite. Schema (`features/shared/database/schema.ts`, version 
 
 ### Logging
 
-Scope-based logger via `react-native-logs` + Reactotron (`features/shared/utils/logger.ts`). Each module uses a named scope (e.g., `connectionLog`, `networkLog`, `backgroundLog`). Control which scopes print at runtime via the env var:
-
-```
-EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background
-```
-
-Leave unset to enable all scopes.
-
-Logs are also written to a daily file (`sapot-{date-today}.log` in the app document directory) — always on in production, opt-in during development via `EXPO_PUBLIC_LOG_TO_FILE=1`. Use the exported `getLogFilePath()` / `clearLogFile()` helpers to retrieve or clear it.
-
-In **development**, logs are additionally shipped to a laptop collector (`scripts/dev-log-server.mjs`, run via `npm run log-server`) which writes them to `dev-logs/dev-<metroPort>.log`, separated per dev-client (Metro) port. On by default in dev; disable with `EXPO_PUBLIC_LOG_TO_LAPTOP=0`. See `docs/ENV_CONFIG.md`.
+Scope-based logger (`features/shared/utils/logger.ts`). Enable specific scopes via `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,...` (unset = all). Daily log file — retrieve via `getLogFilePath()`. Use the `dev-logging` skill for log file access and the dev laptop collector.
 
 ### Environment / Config
 
@@ -276,8 +174,6 @@ The FastAPI server (`server/app/`) provides:
 
 - Never commit directly to `main` or `develop` — create a branch first.
 - Commit only when the user asks. Do not push unless asked.
-- Follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`.
-  Valid types: `feat`, `fix`, `chore`, `refactor`, `test`, `docs`, `perf`, `ci`.
 - Analyze the full diff (`git diff <base>...HEAD`), not just the latest commit, before writing a PR summary.
 
 ---
@@ -288,7 +184,7 @@ The FastAPI server (`server/app/`) provides:
 - **Permission states:** every flow touching camera/mic/location/notifications must render distinct UI for `not-asked`, `denied`, and `granted`. Never assume `granted`.
 - **Offline:** every network call must catch failure and surface a user-visible state. Never leave an indefinite spinner or swallow the error silently.
 - Safe-area insets on all screens.
-- Run `npx tsc --noEmit` after any TypeScript change before reporting the result as done.
+- Run `npm run typecheck` after any TypeScript change before reporting the result as done.
 - When fixing bugs, provide the fix directly and concisely. Avoid lengthy investigation narratives before showing the solution.
 - **TypeScript types:** prefer precise types. `any` is banned except in test mocks with an inline `// eslint-disable` justification. `unknown` is correct at trust boundaries (catch clauses, JSON/`fetch` parsing, external API responses) — narrow it before use; do not use it to avoid typing a value whose shape is known.
 
