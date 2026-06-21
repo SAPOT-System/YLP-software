@@ -45,6 +45,7 @@ export type ConnectionStatePayload = {
 
 export type CallEndedEventPayload = {
   peerId: string;
+  callId?: string;
   status?: "completed" | "missed" | "rejected";
   endedAt?: number;
   durationSeconds?: number;
@@ -148,18 +149,24 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.webrtcSessionManager.on("peer-reconnected", (peerId) => {
       this.emit("peer-reconnected", peerId);
     });
-    this.webrtcSessionManager.setEvictionCallback((peerId) => {
+    this.webrtcSessionManager.setEvictionCallback((peerId, isRetry) => {
       this.emit("connection-state", {
         peerId,
         state: "failed",
         transport: "none",
         mode: this.appModeStore.getEffectiveMode(this.userStore.isGuest),
       });
-      // If this peer was the active call partner, notify so the call UI can
-      // transition to "ended" rather than staying stuck in "connected".
       if (this.activeCallPeerId === peerId) {
-        connectionLog.warn("connection › peer evicted during active call", { peerId });
-        this.emit("peer-disconnected", peerId);
+        if (isRetry) {
+          // Adapter evicted for a retry — show reconnecting UI instead of
+          // terminating. peer-reconnected will fire once the new session's
+          // datachannel opens.
+          connectionLog.info("connection › peer evicted for retry during active call", { peerId });
+          this.emit("call-reconnecting", peerId);
+        } else {
+          connectionLog.warn("connection › peer evicted during active call", { peerId });
+          this.emit("peer-disconnected", peerId);
+        }
       }
     });
     this.webrtcSessionManager.on("call-reconnecting", (peerId) => {
@@ -755,7 +762,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             transport: signalingTransport,
             _retryCount,
           });
-          this.webrtcSessionManager.evictWebrtcAdapter(peerId);
+          this.webrtcSessionManager.evictWebrtcAdapter(peerId, true);
           this.connectToPeer(peerId, ipAddress, port, addresses, _retryCount + 1)
             .then(resolve)
             .catch(reject);
@@ -788,7 +795,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
             transport: signalingTransport,
             _retryCount,
           });
-          this.webrtcSessionManager.evictWebrtcAdapter(peerId);
+          this.webrtcSessionManager.evictWebrtcAdapter(peerId, true);
           this.connectToPeer(peerId, ipAddress, port, addresses, _retryCount + 1)
             .then(resolve)
             .catch(reject);
@@ -847,8 +854,9 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           // network blip on the other end). Discard it so the retry — and any
           // later reconnect — rebuilds a fresh PC instead of reusing the dead
           // one in a permanent failure loop.
-          this.webrtcSessionManager.evictWebrtcAdapter(peerId);
-          if (_retryCount < 1 && signalingTransport !== "none") {
+          const willRetry = _retryCount < 1 && signalingTransport !== "none";
+          this.webrtcSessionManager.evictWebrtcAdapter(peerId, willRetry);
+          if (willRetry) {
             connectionLog.info("connection › retry after createOffer failure", {
               peerId,
               transport: signalingTransport,

@@ -31,6 +31,7 @@ export class CallMessageRouter {
     if (message.type === "call-ended") {
       const payload: CallEndedEventPayload = {
         peerId: message.data.from,
+        callId: message.data.callId,
         status: message.data.status,
         endedAt: message.data.endedAt,
         durationSeconds: message.data.durationSeconds,

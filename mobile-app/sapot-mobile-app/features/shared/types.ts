@@ -90,6 +90,7 @@ export type CallEndedMessage = {
   data: {
     from: string;
     to: string;
+    callId?: string;
     status?: "completed" | "missed" | "rejected";
     endedAt?: number;
     durationSeconds?: number;

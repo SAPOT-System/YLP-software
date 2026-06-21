@@ -30,7 +30,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
   private chatService?: ChatService;
   private sendSignaling?: (peerId: string, msg: SignalingMessage) => void;
-  private onEvict?: (peerId: string) => void;
+  private onEvict?: (peerId: string, isRetry: boolean) => void;
 
   constructor(
     private readonly userStore: UserStore,
@@ -47,7 +47,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     this.sendSignaling = fn;
   }
 
-  setEvictionCallback(cb: (peerId: string) => void) {
+  setEvictionCallback(cb: (peerId: string, isRetry: boolean) => void) {
     this.onEvict = cb;
   }
 
@@ -219,11 +219,11 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     );
   }
 
-  evictWebrtcAdapter(peerId: string): void {
+  evictWebrtcAdapter(peerId: string, isRetry = false): void {
     const adapter = this.webrtcAdapters.get(peerId);
     if (!adapter) return;
     this.webrtcAdapters.delete(peerId);
-    this.onEvict?.(peerId);
+    this.onEvict?.(peerId, isRetry);
     adapter.removeAllListeners();
     adapter.cleanup();
     webrtcLog.info("webrtc › adapter evicted", { peerId });

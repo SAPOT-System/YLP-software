@@ -90,6 +90,7 @@ export class SignalingService {
 
       signalingLog.debug("signaling › ws init", {
         hasToken: Boolean(this.signalingToken),
+        userId: this.userStore.user?.id ?? null,
       });
 
       this.wsSignalingAdapter.connect({
