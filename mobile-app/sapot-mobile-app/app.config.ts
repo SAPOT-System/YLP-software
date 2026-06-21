@@ -1,8 +1,8 @@
 import {
   ConfigPlugin,
   withAndroidManifest,
-  withAppBuildGradle,
   withDangerousMod,
+  withGradleProperties,
 } from "@expo/config-plugins";
 import { ConfigContext } from "expo/config";
 import * as fs from "fs";
@@ -11,15 +11,20 @@ import * as path from "path";
 const BACKGROUND_ACTIONS_SERVICE =
   "com.asterinet.react.bgactions.RNBackgroundActionsTask";
 
-// expo-build-properties does not expose abiFilters, so we inject it directly.
+// React Native's build.gradle reads reactNativeArchitectures from
+// gradle.properties and uses it to set ndk.abiFilters in defaultConfig.
+// Setting it to arm64-v8a strips all other ABI native libs from the APK.
 const withArmOnlyAbi: ConfigPlugin = (config) =>
-  withAppBuildGradle(config, (mod) => {
-    const contents = mod.modResults.contents;
-    if (contents.includes('abiFilters "arm64-v8a"')) return mod;
-    mod.modResults.contents = contents.replace(
-      /defaultConfig\s*\{/,
-      `defaultConfig {\n        ndk {\n            abiFilters "arm64-v8a"\n        }`
+  withGradleProperties(config, (mod) => {
+    mod.modResults = mod.modResults.filter(
+      (item) =>
+        !(item.type === "property" && item.key === "reactNativeArchitectures")
     );
+    mod.modResults.push({
+      type: "property",
+      key: "reactNativeArchitectures",
+      value: "arm64-v8a",
+    });
     return mod;
   });
 
