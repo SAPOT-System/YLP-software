@@ -2,14 +2,9 @@ import type { CallService } from "@/features/call/services/call-service";
 import { callLog, hookLog, uiLog } from "@/features/shared/utils/logger";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MediaStream } from "react-native-webrtc";
+import type { CallState } from "./use-call-lifecycle";
 
 hookLog.debug("[use-remote-stream] module loaded");
-
-// Temporary local type for isolated development; replaced by the shared
-// import from ./use-call-lifecycle in Task 8.
-type CallState =
-  | "calling" | "answering" | "connected"
-  | "reconnecting" | "ended" | "no-answer" | "busy";
 
 export function useRemoteStream(params: {
   callService: CallService;

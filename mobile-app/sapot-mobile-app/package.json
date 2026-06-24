@@ -31,7 +31,11 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"
     },
-    "testTimeout": 10000
+    "testTimeout": 10000,
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/__tests__/_"
+    ]
   },
   "expo": {
     "doctor": {

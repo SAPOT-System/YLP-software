@@ -9,7 +9,7 @@ function setup(overrides: any = {}) {
   const callService = makeCallServiceMock(overrides.callService);
   const connectionService = makeConnectionServiceMock(overrides.connectionService);
   const onCallEnded = jest.fn();
-  const utils = renderHook(() =>
+  const utils = renderHook<ReturnType<typeof useCallLifecycle>, void>(() =>
     useCallLifecycle({
       callService: callService as any,
       connectionService: connectionService as any,
