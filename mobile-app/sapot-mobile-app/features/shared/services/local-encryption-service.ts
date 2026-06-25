@@ -13,6 +13,7 @@ import {
 } from "../stores/secure-config";
 import { deleteItemAsync } from "expo-secure-store";
 import { apiClient } from "@/features/shared";
+import { appLog } from "../utils/logger";
 import { deriveKey } from "./key-derivation";
 
 const VERSION_PREFIX = "v1:";
@@ -199,8 +200,8 @@ export class LocalEncryptionService {
     const blob = encodeBase64(new Uint8Array([...nonce, ...ct]));
     try {
       await apiClient.post("/users/wrapped-key", { wrapped_blob: blob });
-    } catch {
-      // Network failure — keys still usable in memory, will retry next login
+    } catch (error) {
+      appLog.warn("enc › upload wrapped key failed — will retry next login", { error });
     }
   }
 

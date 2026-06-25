@@ -47,13 +47,13 @@ export function useSendMessage({
               const status = res.ok
                 ? MessageStatusType.DELIVERED
                 : MessageStatusType.NOT_SENT;
-              chatService.updateMessageStatus(smsMessageId, status).catch(() => {});
+              chatService.updateMessageStatus(smsMessageId, status).catch((error) => uiLog.warn("use-send-message › SMS status update failed", { error }));
               if (!res.ok) showError("SMS could not be delivered");
             })
             .catch(() => {
               chatService
                 .updateMessageStatus(smsMessageId, MessageStatusType.NOT_SENT)
-                .catch(() => {});
+                .catch((error) => uiLog.warn("use-send-message › SMS not_sent status update failed", { error }));
               showError("Message sent, but SMS delivery failed.");
             });
         })

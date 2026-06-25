@@ -103,8 +103,8 @@ export class ChatService {
         );
       if (!conversationId) return;
       await this.deriveAndSetConversationKey(peerId, conversationId);
-    } catch {
-      // warm-up is best-effort; failures are silent
+    } catch (error) {
+      chatLog.debug("chat › warmUp key failed", { peerId, error });
     }
   }
 
@@ -614,7 +614,7 @@ export class ChatService {
             newMessageStatus.id,
             MessageStatusType.NOT_SENT
           )
-          .catch(() => {});
+          .catch((error) => chatLog.warn("chat › status update failed (not_sent)", { error }));
         return {
           conversationId: this.conversation!.id,
           messageId: newMessage.id,
@@ -769,7 +769,7 @@ export class ChatService {
             preparedP2pStatus.id,
             MessageStatusType.NOT_SENT
           )
-          .catch(() => {});
+          .catch((error) => chatLog.warn("chat › p2p status update failed (not_sent)", { error }));
         return {
           conversationId: this.conversation!.id,
           p2pMessageId: preparedP2pMessage.id,
@@ -835,11 +835,10 @@ export class ChatService {
       // Only downgrades SENDING/SENT — never overrides DELIVERED or READ.
       const timeout = setTimeout(async () => {
         this.ackTimeouts.delete(newMessage.id);
-        chatLog.warn(
-          "chat › sending message timeout",
-          newMessage.id,
-          newMessageStatus.id
-        );
+        chatLog.warn("chat › sending message timeout", {
+          messageId: newMessage.id,
+          messageStatusId: newMessageStatus.id,
+        });
         await this.messageStatusRepository.updateToNotSentIfStillPendingById(
           newMessageStatus.id
         );

@@ -178,16 +178,16 @@ export class PeerKeyService {
       if (cached) {
         this.serverVerifyKey = decodeBase64(cached);
       }
-    } catch {
-      // SecureStore unavailable — proceed to live fetch
+    } catch (error) {
+      appLog.debug("peer-key-service › SecureStore unavailable for server key cache", { error });
     }
     try {
       const res = await apiClient.get<{ ed25519PublicKey: string }>("/keys/server-public-key");
       const freshKey = res.data.ed25519PublicKey;
       this.serverVerifyKey = decodeBase64(freshKey);
       await SecureStore.setItemAsync(CACHE_KEY, freshKey);
-    } catch {
-      // Server unreachable — cached key (if any) is already set above
+    } catch (error) {
+      appLog.warn("peer-key-service › server verify key fetch failed", { error });
     }
   }
 

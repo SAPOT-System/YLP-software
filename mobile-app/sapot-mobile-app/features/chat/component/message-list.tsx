@@ -345,7 +345,7 @@ const MessageListItemInner = memo(
         .then((calls) => {
           if (calls.length > 0) setCallType(calls[0].callType);
         })
-        .catch(() => {});
+        .catch((error) => uiLog.debug("[message-list] call log query failed", { error }));
     }, [
       message.id,
       message.messageType,
@@ -376,7 +376,7 @@ const MessageListItemInner = memo(
       } catch (err) {
         uiLog.warn("[message-list] resend failed", { peerId, err });
         if (message.messageType === MessageType.SMS) {
-          await chatService.updateMessageStatus(message.id, MessageStatusType.NOT_SENT).catch(() => {});
+          await chatService.updateMessageStatus(message.id, MessageStatusType.NOT_SENT).catch((error) => uiLog.warn("[message-list] reset message status failed", { error }));
         }
       } finally {
         setIsResending(false);
@@ -457,7 +457,7 @@ const MessageListItemInner = memo(
           const newStatus = res.ok ? MessageStatusType.DELIVERED : MessageStatusType.NOT_SENT;
           await chatService.updateMessageStatus(message.linkedMessageId, newStatus);
         } catch {
-          await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.NOT_SENT).catch(() => {});
+          await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.NOT_SENT).catch((error) => uiLog.warn("[message-list] reset linked message status failed", { error }));
         } finally {
           setIsResending(false);
         }
