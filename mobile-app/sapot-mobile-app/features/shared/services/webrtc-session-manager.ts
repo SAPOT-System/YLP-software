@@ -98,6 +98,10 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
         switch (message.type) {
           case "chat":
             if (message.data) {
+              webrtcLog.debug("webrtc › chat received", {
+                messageId: message.data.messageId,
+                conversationId: message.data.conversationId,
+              });
               await this.chatService.handleIncomingChatMessage(message.data);
             }
             break;
@@ -121,7 +125,8 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
           case "camera_toggle":
             if (message.data) {
               webrtcLog.debug("webrtc › call control camera received", {
-                messageId: message.data,
+                from: message.data.from,
+                enabled: message.data.enabled,
               });
               if (message.data.enabled) {
                 this.emit("camera-on", message.data.from);
@@ -133,7 +138,8 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
           case "mic_toggle":
             if (message.data) {
               webrtcLog.debug("webrtc › call control mic received", {
-                messageId: message.data,
+                from: message.data.from,
+                enabled: message.data.enabled,
               });
               if (message.data.enabled) {
                 this.emit("mic-on", message.data.from);
@@ -273,6 +279,11 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
       senderProfile,
     } = messageData;
     try {
+      webrtcLog.debug("webrtc › chat send", {
+        messageId,
+        conversationId,
+        to: peerId,
+      });
       const webrtcAdapter = this.getWebrtcAdapter(peerId);
       webrtcAdapter.sendDataMessage({
         type: "chat",
