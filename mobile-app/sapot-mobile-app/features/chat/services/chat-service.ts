@@ -28,6 +28,7 @@ import {
 import { DataChatMessageI } from "../types";
 import { toAppError, captureAppError } from "@/features/shared/errors";
 import { MessageReceiptManager } from "./message-receipt-manager";
+import { MessageAckTracker } from "./message-ack-tracker";
 
 chatLog.debug("[chat-service] module loaded");
 
@@ -42,7 +43,7 @@ type ChatSyncService = {
 export class ChatService {
   private peer?: Peer;
   private conversation?: Conversation;
-  private ackTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private readonly ackTracker = new MessageAckTracker();
   private messageReceiptManager = new MessageReceiptManager();
 
   /**
@@ -494,11 +495,7 @@ export class ChatService {
   async handleServerAck(messageId: string): Promise<void> {
     try {
       chatLog.debug("chat › server ack received", { messageId });
-      const timeout = this.ackTimeouts.get(messageId);
-      if (timeout) {
-        clearTimeout(timeout);
-        this.ackTimeouts.delete(messageId);
-      }
+      this.ackTracker.clear(messageId);
       await this.messageStatusRepository.updateMessageStatusByMessage(
         messageId,
         MessageStatusType.SENT
@@ -515,12 +512,7 @@ export class ChatService {
   async handleAckMessage(messageId: string): Promise<void> {
     try {
       chatLog.debug("chat › ack received", { messageId });
-
-      const timeout = this.ackTimeouts.get(messageId);
-      if (timeout) {
-        clearTimeout(timeout);
-        this.ackTimeouts.delete(messageId);
-      }
+      this.ackTracker.clear(messageId);
 
       await this.messageStatusRepository.updateMessageStatusByMessage(
         messageId,
@@ -833,8 +825,8 @@ export class ChatService {
       // Start 12s ACK timeout — if no DELIVERED (WebRTC) or server-ack (WS) arrives,
       // flip back to NOT_SENT so the message is eligible for the retry queue.
       // Only downgrades SENDING/SENT — never overrides DELIVERED or READ.
-      const timeout = setTimeout(async () => {
-        this.ackTimeouts.delete(newMessage.id);
+      chatLog.info("chat › acktimeout sets");
+      this.ackTracker.arm(newMessage.id, async () => {
         chatLog.warn("chat › sending message timeout", {
           messageId: newMessage.id,
           messageStatusId: newMessageStatus.id,
@@ -843,8 +835,6 @@ export class ChatService {
           newMessageStatus.id
         );
       }, 12000);
-      chatLog.info("chat › acktimeout sets");
-      this.ackTimeouts.set(newMessage.id, timeout);
       const transport = this.connectionService.sendChatMessage(this.peer!.id, {
         message: message,
         conversationId: this.conversation!.id,
@@ -1398,13 +1388,11 @@ export class ChatService {
         // WS path: start 12s timeout — if no server-ack arrives, flip to NOT_SENT
         // so the message re-enters the retry queue on the next reconnect.
         // Only downgrades SENDING/SENT — never overrides DELIVERED or READ.
-        const timeout = setTimeout(async () => {
-          this.ackTimeouts.delete(message.id);
+        this.ackTracker.arm(message.id, async () => {
           await this.messageStatusRepository.updateToNotSentIfStillPendingByMessage(
             message.id
           );
         }, 12000);
-        this.ackTimeouts.set(message.id, timeout);
       }
     } catch (error) {
       const appErr = toAppError(error, "network");
@@ -1425,8 +1413,7 @@ export class ChatService {
   cleanUp(): void {
     this.peer = undefined;
     this.conversation = undefined;
-    this.ackTimeouts.forEach((timeout) => clearTimeout(timeout));
-    this.ackTimeouts.clear();
+    this.ackTracker.clearAll();
   }
 
   /**
