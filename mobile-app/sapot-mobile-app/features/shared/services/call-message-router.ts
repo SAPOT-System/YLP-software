@@ -1,6 +1,6 @@
 import { IncomingCallData } from "./notification-service";
 import { CallMessage } from "../types";
-import { CallEndedEventPayload, ConnectionServiceEvents } from "./connection-service";
+import { CallEndedEventPayload } from "./connection-service";
 
 export interface CallMessageRouterDeps {
   isBusyFor: (peerId: string) => boolean;
@@ -8,12 +8,16 @@ export interface CallMessageRouterDeps {
   notify: (data: IncomingCallData) => Promise<void>;
 }
 
-type EmitEventName = keyof ConnectionServiceEvents;
+type IncomingCallPayload = { peerId: string; callerName: string; conversationId?: string; callId?: string };
+type CallBusyPayload = { peerId: string; callId: string; conversationId: string; messageId?: string; callType: "audio" | "video" };
 
 export type CallRouterResult =
-  | { action: "emit"; eventName: EmitEventName; payload: unknown }
+  | { action: "emit"; eventName: "audio-call" | "video-call"; payload: IncomingCallPayload }
+  | { action: "emit"; eventName: "call-ended"; payload: CallEndedEventPayload }
+  | { action: "emit"; eventName: "call-ready"; payload: string }
+  | { action: "emit"; eventName: "call-busy"; payload: CallBusyPayload }
   | { action: "busy-reject"; peerId: string; callType: "audio" | "video"; callId?: string }
-  | { action: "glare"; peerId: string; eventName: "audio-call" | "video-call"; eventPayload: unknown }
+  | { action: "glare"; peerId: string; eventName: "audio-call" | "video-call"; eventPayload: IncomingCallPayload }
   | { action: "noop" };
 
 export class CallMessageRouter {

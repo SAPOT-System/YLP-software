@@ -404,8 +404,9 @@ export class WsSignalingAdapter extends EventEmitter {
     const decrypt: DecryptFn | undefined = ctx
       ? (enc, sender) => decryptSignalingPayload(enc, sender, ctx)
       : undefined;
+    const storePeerKey = ctx?.storePeerKey;
 
-    const event = parseWsMessage(rawData, decrypt);
+    const event = parseWsMessage(rawData, decrypt, storePeerKey);
 
     switch (event.kind) {
       case "pong":
@@ -472,7 +473,7 @@ export class WsSignalingAdapter extends EventEmitter {
 
       case "unknown":
       default:
-        wsLog.warn("ws › payload not recognized");
+        wsLog.warn("ws › payload not recognized", { rawDataLength: rawData?.length });
         this.emit("raw-message", rawData);
         break;
     }

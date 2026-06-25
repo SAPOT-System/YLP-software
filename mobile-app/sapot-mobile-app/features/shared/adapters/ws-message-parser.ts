@@ -24,6 +24,7 @@ export type WsEvent =
   | { kind: "unknown"; raw: unknown };
 
 export type DecryptFn = (enc: WsEncryptedPayload, sender: string) => object | null;
+export type StorePeerKeyFn = (peerId: string, ecdhPublicKeyB64: string) => void;
 
 interface EncryptedWireData {
   to: string;
@@ -109,7 +110,7 @@ function isAckMessage(value: unknown): value is AckMessage {
   return typeof (v.data as { messageId?: unknown }).messageId === "string";
 }
 
-export function parseWsMessage(raw: string, decrypt?: DecryptFn): WsEvent {
+export function parseWsMessage(raw: string, decrypt?: DecryptFn, storePeerKey?: StorePeerKeyFn): WsEvent {
   try {
     const parsed: unknown = JSON.parse(raw);
 
@@ -121,6 +122,9 @@ export function parseWsMessage(raw: string, decrypt?: DecryptFn): WsEvent {
     if (isEncryptedSignaling(parsed)) {
       if (!decrypt) return { kind: "unknown", raw: parsed };
       const sender = parsed.data.sender;
+      if (parsed.data.credential?.ecdhPublicKey && storePeerKey) {
+        storePeerKey(sender, parsed.data.credential.ecdhPublicKey);
+      }
       const decrypted = decrypt(parsed.data.enc, sender);
       if (!decrypted) return { kind: "unknown", raw: parsed };
       const reconstructed = { type: parsed.type, data: decrypted };

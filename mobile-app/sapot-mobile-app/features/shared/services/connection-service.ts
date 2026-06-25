@@ -98,6 +98,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> };
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
+  private connectingPeers: Map<string, Promise<void>> = new Map();
   private callMessageRouter!: CallMessageRouter;
 
   constructor(
@@ -389,16 +390,18 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
         break;
       case "glare":
         this.glareAcceptedPeers.add(result.peerId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.emit(result.eventName, result.eventPayload as any);
+        this.emit(result.eventName, result.eventPayload);
         break;
       case "emit":
         if (result.eventName === "call-busy") {
-          const p = result.payload as { peerId: string; callId: string; conversationId: string; messageId?: string; callType: "audio" | "video" };
-          this.emit("call-busy", p.peerId, { callId: p.callId, conversationId: p.conversationId, messageId: p.messageId, callType: p.callType });
+          const { peerId, callId, conversationId, messageId, callType } = result.payload;
+          this.emit("call-busy", peerId, { callId, conversationId, messageId, callType });
+        } else if (result.eventName === "call-ended") {
+          this.emit("call-ended", result.payload);
+        } else if (result.eventName === "call-ready") {
+          this.emit("call-ready", result.payload);
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          this.emit(result.eventName, result.payload as any);
+          this.emit(result.eventName, result.payload);
         }
         break;
       case "noop":
@@ -594,8 +597,29 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   /**
    * Initiates connection to a peer using TCP and WebRTC.
+   * Concurrent calls for the same peer share a single in-flight promise.
    */
-  async connectToPeer(
+  connectToPeer(
+    peerId: string,
+    ipAddress?: string,
+    port?: number,
+    addresses?: string[],
+    _retryCount = 0
+  ): Promise<void> {
+    if (_retryCount === 0) {
+      const inflight = this.connectingPeers.get(peerId);
+      if (inflight) return inflight;
+    }
+    const run = this.connectToPeerImpl(peerId, ipAddress, port, addresses, _retryCount);
+    if (_retryCount === 0) {
+      const tracked = run.finally(() => this.connectingPeers.delete(peerId));
+      this.connectingPeers.set(peerId, tracked);
+      return tracked;
+    }
+    return run;
+  }
+
+  private async connectToPeerImpl(
     peerId: string,
     ipAddress?: string,
     port?: number,
@@ -974,7 +998,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     let webrtcConnected = false;
     try {
       webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch {
+    } catch (error) {
+      connectionLog.debug("connection › isWebrtcConnected error (sendChat)", { peerId, error });
       webrtcConnected = false;
     }
 
@@ -1003,7 +1028,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     let webrtcConnected = false;
     try {
       webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch {
+    } catch (error) {
+      connectionLog.debug("connection › isWebrtcConnected error (sendAck)", { peerId, error });
       webrtcConnected = false;
     }
 
