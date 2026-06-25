@@ -32,6 +32,14 @@ import { PeerKeyService } from "./peer-key-service";
 import { PeerKeyStore } from "./peer-key-store";
 import { SignalingService } from "./signaling-service";
 import { WebrtcSessionManager } from "./webrtc-session-manager";
+import {
+  dedupeCandidateAddresses,
+  resolveSignalingTransport,
+  resolveConnectTimeoutMs,
+  shouldRetryConnect,
+  removeAdapterListener,
+  type SignalingTransport,
+} from "./connect-planning";
 
 connectionLog.debug("[connection-service] module loaded");
 
@@ -631,27 +639,19 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       hasIpAddress: Boolean(ipAddress),
       hasPort: Boolean(port),
     });
-    // Candidate dial list for a dual-homed peer (Wi-Fi + Ethernet): preferred
-    // address first, then any other advertised addresses, de-duplicated.
-    const candidateAddresses = Array.from(
-      new Set([ipAddress, ...(addresses ?? [])].filter((a): a is string => Boolean(a)))
-    );
+
+    const candidateAddresses = dedupeCandidateAddresses(ipAddress, addresses);
     const tcpAdapter = this.getTcpClientAdapter(peerId);
     const webrtcAdapter = this.webrtcSessionManager.getWebrtcAdapter(peerId);
     webrtcAdapter.setIsPolite(this.userStore.user.id < peerId);
-    const effectiveMode = this.appModeStore.getEffectiveMode(
-      this.userStore.isGuest
-    );
+
+    const effectiveMode = this.appModeStore.getEffectiveMode(this.userStore.isGuest);
     const canUseWebsocket = this.isWebSocketAllowed();
     const canUseTcp = this.isTcpAllowed();
     const isWsConfigured = canUseWebsocket
       ? this.signalingService.ensureWsSignaling()
       : false;
-    const signalingTransport: "ws" | "tcp" | "none" = isWsConfigured
-      ? "ws"
-      : canUseTcp
-      ? "tcp"
-      : "none";
+    const signalingTransport = resolveSignalingTransport(isWsConfigured, canUseTcp);
 
     connectionLog.debug("connection › signaling availability", {
       peerId,
@@ -662,250 +662,30 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
     if (webrtcAdapter.isConnected) {
       connectionLog.info("connection › already connected", { peerId });
-      this.emit("connection-state", {
-        peerId,
-        state: "connected",
-        transport: signalingTransport,
-        mode: effectiveMode,
-      });
+      this.emitConnectionState(peerId, "connected", signalingTransport, effectiveMode);
       return;
     }
 
-    let isTcpConnected = tcpAdapter.isConnected;
+    const isTcpConnected = await this.establishTcpForMode({
+      peerId,
+      mode: effectiveMode,
+      tcpAdapter,
+      candidateAddresses,
+      port,
+      canUseTcp,
+      isWsConfigured,
+    });
 
-    if (effectiveMode === "server") {
-      if (!isWsConfigured) {
-        throw new Error("Websocket signaling is required in server mode");
-      }
-    } else if (effectiveMode === "lan") {
-      if (!canUseTcp) {
-        throw new Error("TCP transport is required in lan mode");
-      }
-      if (!isTcpConnected) {
-        if (candidateAddresses.length === 0 || !port) {
-          throw new Error("TCP connection requires ipAddress and port");
-        }
-        await this.connectTcpWithRetry(tcpAdapter, candidateAddresses, port, 2);
-        isTcpConnected = true;
-        this.sendProfileInfo(peerId);
-      }
-    } else {
-      if (canUseTcp && !isTcpConnected) {
-        if (candidateAddresses.length > 0 && port) {
-          try {
-            await this.connectTcpWithRetry(tcpAdapter, candidateAddresses, port, 2);
-            isTcpConnected = true;
-            this.sendProfileInfo(peerId);
-          } catch (error) {
-            connectionLog.warn("connection › tcp connect failed after retries", {
-              peerId,
-              error,
-            });
-            if (!isWsConfigured) {
-              throw error;
-            }
-            // WS is configured — fall through to WebRTC over WS
-          }
-        } else if (!isWsConfigured) {
-          throw new Error("No signaling transport available in auto mode");
-        }
-      }
-    }
-
-    return new Promise<void>((resolve, reject) => {
-      let isSettled = false;
-      let timeout: ReturnType<typeof setTimeout>;
-      const timeoutMs =
-        effectiveMode === "lan"
-          ? 7000
-          : effectiveMode === "server"
-          ? 15000
-          : 10000;
-
-      this.emit("connection-state", {
-        peerId,
-        state: "connecting",
-        transport: signalingTransport,
-        mode: effectiveMode,
-      });
-
-      const removeListenerIfExists = (
-        eventName: string,
-        callback: (...args: unknown[]) => void
-      ) => {
-        const adapterWithListeners = webrtcAdapter as unknown as {
-          off?: (event: string, cb: (...args: unknown[]) => void) => void;
-          removeListener?: (
-            event: string,
-            cb: (...args: unknown[]) => void
-          ) => void;
-        };
-        if (typeof adapterWithListeners.off === "function") {
-          adapterWithListeners.off(eventName, callback);
-          return;
-        }
-        if (typeof adapterWithListeners.removeListener === "function") {
-          adapterWithListeners.removeListener(eventName, callback);
-        }
-      };
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        removeListenerIfExists(
-          "connection-established",
-          onConnectionEstablished
-        );
-        removeListenerIfExists("connection-failed", onConnectionFailed);
-      };
-
-      const onConnectionEstablished = () => {
-        if (isSettled) return;
-        isSettled = true;
-        cleanup();
-        connectionLog.info("connection › webrtc connected", { peerId });
-        this.emit("connection-state", {
-          peerId,
-          state: "connected",
-          transport: signalingTransport,
-          mode: effectiveMode,
-        });
-        resolve();
-      };
-
-      const onConnectionFailed = (error: unknown) => {
-        if (isSettled) return;
-        isSettled = true;
-        cleanup();
-        connectionLog.error("connection › webrtc connection failed", {
-          peerId,
-          error,
-        });
-        if (_retryCount < 1 && signalingTransport !== "none") {
-          connectionLog.info("connection › webrtc retry after failure", {
-            peerId,
-            transport: signalingTransport,
-            _retryCount,
-          });
-          this.webrtcSessionManager.evictWebrtcAdapter(peerId, true);
-          this.connectToPeer(peerId, ipAddress, port, addresses, _retryCount + 1)
-            .then(resolve)
-            .catch(reject);
-          return;
-        }
-        this.emit("connection-state", {
-          peerId,
-          state: "failed",
-          transport: signalingTransport,
-          mode: effectiveMode,
-          error,
-        });
-        reject(error);
-      };
-
-      webrtcAdapter.once("connection-established", onConnectionEstablished);
-      webrtcAdapter.once("connection-failed", onConnectionFailed);
-
-      timeout = setTimeout(() => {
-        if (isSettled) return;
-        isSettled = true;
-        cleanup();
-        connectionLog.warn("connection › connect timeout", {
-          peerId,
-          timeoutMs,
-        });
-        if (_retryCount < 1 && signalingTransport !== "none") {
-          connectionLog.info("connection › webrtc timeout retry", {
-            peerId,
-            transport: signalingTransport,
-            _retryCount,
-          });
-          this.webrtcSessionManager.evictWebrtcAdapter(peerId, true);
-          this.connectToPeer(peerId, ipAddress, port, addresses, _retryCount + 1)
-            .then(resolve)
-            .catch(reject);
-          return;
-        }
-        this.emit("connection-state", {
-          peerId,
-          state: "timeout",
-          transport: signalingTransport,
-          mode: effectiveMode,
-        });
-        reject(new Error("Connection timeout"));
-      }, timeoutMs);
-
-      webrtcAdapter
-        .createOffer()
-        .then(({ type, sdp }) => {
-          connectionLog.debug("connection › webrtc offer created", {
-            peerId,
-            type,
-            hasSdp: Boolean(sdp),
-          });
-          // Handshake is only needed for direct TCP fallback routing.
-          if (isTcpConnected) {
-            connectionLog.debug("connection › tcp handshake sent", { peerId });
-            this.sendMessage(peerId, {
-              type: "handshake",
-              data: {
-                ...this.buildSignalSenderData(peerId),
-                wsAllowed: this.appModeStore.isWebSocketAllowed(
-                  this.userStore.isGuest
-                ),
-              },
-            });
-          }
-          void this.signalingService.sendSignalingMessage(peerId, {
-            type,
-            data: {
-              sdp: { type, sdp },
-              ...this.buildSignalSenderData(peerId),
-            },
-          });
-        })
-        .catch((error) => {
-          if (isSettled) return;
-          isSettled = true;
-          cleanup();
-          connectionLog.warn("connection › connect failed", {
-            peerId,
-            hasIpAddress: Boolean(ipAddress),
-            hasPort: Boolean(port),
-            error,
-          });
-          // The createOffer failure typically means the peer connection is
-          // wedged or dead (e.g. a stale "have-local-offer" PC left over from a
-          // network blip on the other end). Discard it so the retry — and any
-          // later reconnect — rebuilds a fresh PC instead of reusing the dead
-          // one in a permanent failure loop.
-          const willRetry = _retryCount < 1 && signalingTransport !== "none";
-          this.webrtcSessionManager.evictWebrtcAdapter(peerId, willRetry);
-          if (willRetry) {
-            connectionLog.info("connection › retry after createOffer failure", {
-              peerId,
-              transport: signalingTransport,
-              _retryCount,
-            });
-            this.connectToPeer(
-              peerId,
-              ipAddress,
-              port,
-              addresses,
-              _retryCount + 1
-            )
-              .then(resolve)
-              .catch(reject);
-            return;
-          }
-          this.emit("connection-state", {
-            peerId,
-            state: "failed",
-            transport: signalingTransport,
-            mode: effectiveMode,
-            error,
-          });
-          reject(error);
-        });
+    return this.negotiateWebrtcConnection({
+      peerId,
+      ipAddress,
+      port,
+      addresses,
+      retryCount: _retryCount,
+      webrtcAdapter,
+      signalingTransport,
+      effectiveMode,
+      isTcpConnected,
     });
   }
 
@@ -1157,6 +937,241 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   isWebsocketConnected() {
     return this.wsSignalingAdapter.isConnected;
+  }
+
+  private emitConnectionState(
+    peerId: string,
+    state: ConnectionStatePayload["state"],
+    transport: SignalingTransport,
+    mode: ConnectionStatePayload["mode"],
+    error?: unknown
+  ): void {
+    this.emit("connection-state", {
+      peerId,
+      state,
+      transport,
+      mode,
+      ...(error !== undefined ? { error } : {}),
+    });
+  }
+
+  private retryConnect(
+    peerId: string,
+    ipAddress: string | undefined,
+    port: number | undefined,
+    addresses: string[] | undefined,
+    retryCount: number
+  ): Promise<void> {
+    this.webrtcSessionManager.evictWebrtcAdapter(peerId, true);
+    return this.connectToPeer(peerId, ipAddress, port, addresses, retryCount + 1);
+  }
+
+  private async establishTcpForMode(params: {
+    peerId: string;
+    mode: ConnectionStatePayload["mode"];
+    tcpAdapter: TcpClientAdapter;
+    candidateAddresses: string[];
+    port?: number;
+    canUseTcp: boolean;
+    isWsConfigured: boolean;
+  }): Promise<boolean> {
+    const { peerId, mode, tcpAdapter, candidateAddresses, port, canUseTcp, isWsConfigured } =
+      params;
+    let isTcpConnected = tcpAdapter.isConnected;
+
+    if (mode === "server") {
+      if (!isWsConfigured) {
+        throw new Error("Websocket signaling is required in server mode");
+      }
+      return isTcpConnected;
+    }
+
+    if (mode === "lan") {
+      if (!canUseTcp) {
+        throw new Error("TCP transport is required in lan mode");
+      }
+      if (!isTcpConnected) {
+        if (candidateAddresses.length === 0 || !port) {
+          throw new Error("TCP connection requires ipAddress and port");
+        }
+        await this.connectTcpWithRetry(tcpAdapter, candidateAddresses, port, 2);
+        isTcpConnected = true;
+        this.sendProfileInfo(peerId);
+      }
+      return isTcpConnected;
+    }
+
+    // auto
+    if (canUseTcp && !isTcpConnected) {
+      if (candidateAddresses.length > 0 && port) {
+        try {
+          await this.connectTcpWithRetry(tcpAdapter, candidateAddresses, port, 2);
+          isTcpConnected = true;
+          this.sendProfileInfo(peerId);
+        } catch (error) {
+          connectionLog.warn("connection › tcp connect failed after retries", {
+            peerId,
+            error,
+          });
+          if (!isWsConfigured) {
+            throw error;
+          }
+          // WS is configured — fall through to WebRTC over WS
+        }
+      } else if (!isWsConfigured) {
+        throw new Error("No signaling transport available in auto mode");
+      }
+    }
+    return isTcpConnected;
+  }
+
+  private async sendConnectionOffer(
+    peerId: string,
+    webrtcAdapter: WebrtcAdapter,
+    isTcpConnected: boolean
+  ): Promise<void> {
+    const { type, sdp } = await webrtcAdapter.createOffer();
+    connectionLog.debug("connection › webrtc offer created", {
+      peerId,
+      type,
+      hasSdp: Boolean(sdp),
+    });
+    if (isTcpConnected) {
+      connectionLog.debug("connection › tcp handshake sent", { peerId });
+      this.sendMessage(peerId, {
+        type: "handshake",
+        data: {
+          ...this.buildSignalSenderData(peerId),
+          wsAllowed: this.appModeStore.isWebSocketAllowed(this.userStore.isGuest),
+        },
+      });
+    }
+    void this.signalingService.sendSignalingMessage(peerId, {
+      type,
+      data: {
+        sdp: { type, sdp },
+        ...this.buildSignalSenderData(peerId),
+      },
+    });
+  }
+
+  private negotiateWebrtcConnection(params: {
+    peerId: string;
+    ipAddress?: string;
+    port?: number;
+    addresses?: string[];
+    retryCount: number;
+    webrtcAdapter: WebrtcAdapter;
+    signalingTransport: SignalingTransport;
+    effectiveMode: ConnectionStatePayload["mode"];
+    isTcpConnected: boolean;
+  }): Promise<void> {
+    const {
+      peerId,
+      ipAddress,
+      port,
+      addresses,
+      retryCount,
+      webrtcAdapter,
+      signalingTransport,
+      effectiveMode,
+      isTcpConnected,
+    } = params;
+
+    return new Promise<void>((resolve, reject) => {
+      let isSettled = false;
+      let timeout: ReturnType<typeof setTimeout>;
+      const timeoutMs = resolveConnectTimeoutMs(effectiveMode);
+
+      this.emitConnectionState(peerId, "connecting", signalingTransport, effectiveMode);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        removeAdapterListener(webrtcAdapter, "connection-established", onConnectionEstablished);
+        removeAdapterListener(webrtcAdapter, "connection-failed", onConnectionFailed);
+      };
+
+      const onConnectionEstablished = () => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        connectionLog.info("connection › webrtc connected", { peerId });
+        this.emitConnectionState(peerId, "connected", signalingTransport, effectiveMode);
+        resolve();
+      };
+
+      const onConnectionFailed = (error: unknown) => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        connectionLog.error("connection › webrtc connection failed", { peerId, error });
+        if (shouldRetryConnect(retryCount, signalingTransport)) {
+          connectionLog.info("connection › webrtc retry after failure", {
+            peerId,
+            transport: signalingTransport,
+            _retryCount: retryCount,
+          });
+          this.retryConnect(peerId, ipAddress, port, addresses, retryCount)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        this.emitConnectionState(peerId, "failed", signalingTransport, effectiveMode, error);
+        reject(error);
+      };
+
+      webrtcAdapter.once("connection-established", onConnectionEstablished);
+      webrtcAdapter.once("connection-failed", onConnectionFailed);
+
+      timeout = setTimeout(() => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        connectionLog.warn("connection › connect timeout", { peerId, timeoutMs });
+        if (shouldRetryConnect(retryCount, signalingTransport)) {
+          connectionLog.info("connection › webrtc timeout retry", {
+            peerId,
+            transport: signalingTransport,
+            _retryCount: retryCount,
+          });
+          this.retryConnect(peerId, ipAddress, port, addresses, retryCount)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        this.emitConnectionState(peerId, "timeout", signalingTransport, effectiveMode);
+        reject(new Error("Connection timeout"));
+      }, timeoutMs);
+
+      this.sendConnectionOffer(peerId, webrtcAdapter, isTcpConnected).catch((error) => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        connectionLog.warn("connection › connect failed", {
+          peerId,
+          hasIpAddress: Boolean(ipAddress),
+          hasPort: Boolean(port),
+          error,
+        });
+        // createOffer failure usually means a wedged/dead PC — discard it so the
+        // retry (and later reconnects) rebuild a fresh one instead of looping.
+        const willRetry = shouldRetryConnect(retryCount, signalingTransport);
+        this.webrtcSessionManager.evictWebrtcAdapter(peerId, willRetry);
+        if (willRetry) {
+          connectionLog.info("connection › retry after createOffer failure", {
+            peerId,
+            transport: signalingTransport,
+            _retryCount: retryCount,
+          });
+          this.connectToPeer(peerId, ipAddress, port, addresses, retryCount + 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        this.emitConnectionState(peerId, "failed", signalingTransport, effectiveMode, error);
+        reject(error);
+      });
+    });
   }
 
   private buildSignalSenderData(to: string) {
