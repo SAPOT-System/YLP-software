@@ -113,12 +113,12 @@ All triggers are fire-and-forget (`void`) — sync failures are logged but do no
 
 Two directions of mapping are handled automatically:
 
-**Pull (server → WatermelonDB):** `normalizePullChanges()`
+**Pull (server → WatermelonDB):** `normalizePullChanges()` — pulled out to `SyncPullNormalizer`
 - Converts timestamps from `string | number` to `number` via `toTimestamp()`
 - Adds WatermelonDB relation aliases (e.g. `conversation_id` → `conversation`)
 - Defaults `is_deleted` to `false` when missing
 
-**Push (WatermelonDB → server):** `toServerPayload()` per entity
+**Push (WatermelonDB → server):** `buildPushPayload()` — pulled out to `SyncPayloadBuilder`
 - Merges camelCase and snake_case aliases (e.g. `callType ?? call_type`)
 - Converts all timestamps to integers via `toInt()`
 - Casts booleans with `Boolean()`
