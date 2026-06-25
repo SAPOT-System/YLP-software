@@ -94,6 +94,24 @@ export type ConnectionServiceEvents = {
   "connection-state": [payload: ConnectionStatePayload];
 };
 
+interface CallLogWriter {
+  saveCallLogWithReceipts(params: {
+    peerId: string;
+    content: string;
+    status?: MessageStatusType;
+    senderId: string;
+    messageId?: string;
+    conversationId?: string;
+  }): Promise<string>;
+}
+
+interface PeerInfoUpdater {
+  updatePeerInfo(
+    id: string,
+    info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }
+  ): Promise<void>;
+}
+
 /**
  * ConnectionService is the facade over WebrtcSessionManager, SignalingService, and
  * CallMediaService. It owns TCP transport, WS adapter event wiring, and the
@@ -102,8 +120,8 @@ export type ConnectionServiceEvents = {
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
   private chatService?: ChatService;
-  private callService?: { saveCallLogWithReceipts: (params: { peerId: string; content: string; status?: import("@/features/shared/database/model/MessageStatus").MessageStatusType; senderId: string; messageId?: string; conversationId?: string }) => Promise<string> };
-  private peerService?: { updatePeerInfo: (id: string, info: { username?: string; firstName?: string; lastName?: string; isGuest?: boolean }) => Promise<void> };
+  private callService?: CallLogWriter;
+  private peerService?: PeerInfoUpdater;
   private activeCallPeerId: string | null = null;
   private glareAcceptedPeers: Set<string> = new Set();
   private connectingPeers: Map<string, Promise<void>> = new Map();
