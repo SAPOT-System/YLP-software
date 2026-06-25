@@ -46,10 +46,14 @@ export class PeerKeyStore {
       // render as un-decryptable blanks).
       appLog.warn("peer-key-store › public key changed for known peer; retaining previous key", { peerId });
       this.pushHistory(peerId, existing);
-      void this.persistHistory(peerId);
+      void this.persistHistory(peerId).catch((err) =>
+        appLog.warn("peer-key-store › history persist failed on key rotation", { peerId, err })
+      );
     }
     this.store.set(peerId, publicKey);
-    void SecureStore.setItemAsync(PUB_PREFIX + peerId, encodeBase64(publicKey));
+    void SecureStore.setItemAsync(PUB_PREFIX + peerId, encodeBase64(publicKey)).catch((err) =>
+      appLog.warn("peer-key-store › public key persist failed", { peerId, err })
+    );
     this.keySetListeners.forEach((l) => l(peerId));
     if (this.contactKeyUploader) {
       void this.contactKeyUploader(peerId, publicKey).catch((err) =>
@@ -121,7 +125,9 @@ export class PeerKeyStore {
     const existing = this.store.get(peerId);
     if (existing && !keysEqual(existing, publicKey)) {
       this.pushHistory(peerId, existing);
-      void this.persistHistory(peerId);
+      void this.persistHistory(peerId).catch((err) =>
+        appLog.warn("peer-key-store › history persist failed on restore", { peerId, err })
+      );
     }
     this.store.set(peerId, publicKey);
     await SecureStore.setItemAsync(PUB_PREFIX + peerId, encodeBase64(publicKey));
@@ -131,8 +137,12 @@ export class PeerKeyStore {
   delete(peerId: string): void {
     this.store.delete(peerId);
     this.history.delete(peerId);
-    void SecureStore.deleteItemAsync(PUB_PREFIX + peerId);
-    void SecureStore.deleteItemAsync(HIST_PREFIX + peerId);
+    void SecureStore.deleteItemAsync(PUB_PREFIX + peerId).catch((err) =>
+      appLog.warn("peer-key-store › public key delete failed", { peerId, err })
+    );
+    void SecureStore.deleteItemAsync(HIST_PREFIX + peerId).catch((err) =>
+      appLog.warn("peer-key-store › history delete failed", { peerId, err })
+    );
   }
 
   clear(): void {

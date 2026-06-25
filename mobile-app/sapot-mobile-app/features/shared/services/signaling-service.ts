@@ -134,7 +134,9 @@ export class SignalingService {
         this.wsSignalingAdapter.notifyPeerKeyAvailable(senderId);
         const pendingCandidates = this.pendingIceByPeer.get(senderId) ?? [];
         for (const pending of pendingCandidates) {
-          void this.handleIncomingSignaling(pending);
+          void this.handleIncomingSignaling(pending).catch((err) =>
+            signalingLog.warn("signaling › pending ICE flush failed", { senderId, err })
+          );
         }
         this.pendingIceByPeer.delete(senderId);
       }
@@ -181,7 +183,9 @@ export class SignalingService {
               sdp: { type, sdp },
               ...this.buildSignalSenderData(senderId),
             },
-          });
+          }).catch((err) =>
+            signalingLog.warn("signaling › answer send failed", { senderId, err })
+          );
           signalingLog.debug("signaling › offer answered", { senderId, type });
           break;
         }

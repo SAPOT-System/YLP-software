@@ -142,7 +142,6 @@ export class MainContainer {
     this.peerKeyService = new PeerKeyService();
     this.peerKeyStore = new PeerKeyStore();
     this.keyRecoveryService = new KeyRecoveryService();
-    this.messageStatusRepository = new MessageStatusRepository(database);
     this.zeroconfAdapter = new ZeroconfAdapter();
     this.discoveryService = new DiscoveryService(
       this.zeroconfAdapter,
@@ -377,7 +376,9 @@ export class MainContainer {
           await this.conversationKeyManager.preloadAllConversationKeys();
 
           this.peerKeyStore.onKeySet((peerId) => {
-            void this.conversationKeyManager.rederiveKeyForPeer(peerId);
+            void this.conversationKeyManager.rederiveKeyForPeer(peerId).catch((err) =>
+              appLog.warn("main › key rederive failed", { peerId, err })
+            );
           });
         }
       }
@@ -394,7 +395,9 @@ export class MainContainer {
       await this.conversationKeyManager.preloadAllConversationKeys();
 
       this.peerKeyStore.onKeySet((peerId) => {
-        void this.conversationKeyManager.rederiveKeyForPeer(peerId);
+        void this.conversationKeyManager.rederiveKeyForPeer(peerId).catch((err) =>
+          appLog.warn("main › key rederive failed", { peerId, err })
+        );
       });
     }
 
@@ -478,12 +481,16 @@ export class MainContainer {
           const isOnline =
             state.isConnected === true &&
             state.isInternetReachable !== false;
-          void this.syncService.handleConnectivityChange(isOnline);
+          void this.syncService.handleConnectivityChange(isOnline).catch((err) =>
+            appLog.warn("main › connectivity change handler failed", { isOnline, err })
+          );
         }
       );
 
       this.periodicSyncTimer = setInterval(() => {
-        void this.syncService.syncNow();
+        void this.syncService.syncNow().catch((err) =>
+          appLog.warn("main › periodic sync failed", { err })
+        );
       }, 5 * 60 * 1_000);
     }
 
@@ -497,9 +504,9 @@ export class MainContainer {
             const peerIds =
               (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
             await this.peerKeyStore.loadAll(peerIds);
-            void this.conversationKeyManager.preloadAllConversationKeys();
-          } catch {
-            // non-fatal — keys will be re-exchanged on next signaling message
+            await this.conversationKeyManager.preloadAllConversationKeys();
+          } catch (error) {
+            appLog.warn("app › key preload on foreground failed", { error });
           }
         }
         lastAppState = nextState;
