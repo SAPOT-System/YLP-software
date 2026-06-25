@@ -146,6 +146,21 @@ describe("CallService", () => {
       expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(peerId);
     });
 
+    it("tracks connected state per-peer so startCall for a new peer is not skipped", async () => {
+      // Arrange: startCall for peer-1 sets its state to "connected"
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
+      await callService.startCall("audio", "peer-1");
+      jest.clearAllMocks();
+
+      // Act: startCall for peer-2 — WebRTC also reports as connected
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
+      await callService.startCall("audio", "peer-2");
+
+      // Assert: peer-2 media init was NOT skipped
+      // (with a global flag, peer-2 would early-return because peer-1 set connectedState = "connected")
+      expect(mockConnectionService.initializeStream).toHaveBeenCalledWith("audio", "peer-2");
+    });
+
     it("should not start call if already connected", async () => {
       const peerId = "peer-1";
 
@@ -577,6 +592,88 @@ describe("CallService", () => {
 
       expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
       expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("answerCall", () => {
+    const peerId = "peer-1";
+
+    it("waits for data channel before initializing media when not connected", async () => {
+      // Arrange
+      const callOrder: string[] = [];
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.waitForDataChannel.mockImplementation(async () => {
+        callOrder.push("waitForDataChannel");
+      });
+      mockConnectionService.initializeStream.mockImplementation(async () => {
+        callOrder.push("initializeStream");
+      });
+
+      // Act
+      await callService.answerCall("audio", peerId, "conv-1", "call-1");
+
+      // Assert
+      expect(mockConnectionService.waitForDataChannel).toHaveBeenCalledWith(peerId);
+      expect(callOrder.indexOf("waitForDataChannel")).toBeLessThan(
+        callOrder.indexOf("initializeStream")
+      );
+    });
+
+    it("sends call-ready only after initializeStream resolves", async () => {
+      // Arrange
+      const callOrder: string[] = [];
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.initializeStream.mockImplementation(async () => {
+        callOrder.push("initializeStream");
+      });
+      mockConnectionService.sendCallMessage.mockImplementation(
+        (_id: string, msg: { type: string }) => {
+          if (msg.type === "call-ready") callOrder.push("call-ready");
+        }
+      );
+
+      // Act
+      await callService.answerCall("audio", peerId, "conv-1", "call-1");
+
+      // Assert
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({ type: "call-ready" })
+      );
+      expect(callOrder.indexOf("initializeStream")).toBeLessThan(
+        callOrder.indexOf("call-ready")
+      );
+    });
+
+    it("does not send call-ready when waitForDataChannel times out", async () => {
+      // Arrange
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.waitForDataChannel.mockRejectedValue(
+        new Error("Data channel timeout")
+      );
+
+      // Act
+      await expect(
+        callService.answerCall("audio", peerId, "conv-1", "call-1")
+      ).rejects.toThrow();
+
+      // Assert
+      expect(mockConnectionService.sendCallMessage).not.toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({ type: "call-ready" })
+      );
+    });
+
+    it("skips waitForDataChannel when already connected", async () => {
+      // Arrange
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
+
+      // Act
+      await callService.answerCall("audio", peerId, "conv-1", "call-1");
+
+      // Assert
+      expect(mockConnectionService.waitForDataChannel).not.toHaveBeenCalled();
+      expect(mockConnectionService.initializeStream).toHaveBeenCalledWith("audio", peerId);
     });
   });
 

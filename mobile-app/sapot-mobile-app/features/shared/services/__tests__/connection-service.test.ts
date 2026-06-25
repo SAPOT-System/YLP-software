@@ -1151,6 +1151,41 @@ describe("ConnectionService", () => {
     });
   });
 
+  describe("connectToPeer de-duplication", () => {
+    it("returns the same in-flight promise for concurrent calls to the same peer", async () => {
+      // Arrange: make the inner impl block indefinitely so both calls overlap
+      let resolveOp!: () => void;
+      const controlledPromise = new Promise<void>((res) => { resolveOp = res; });
+      jest.spyOn(connectionService as unknown as { connectToPeerImpl: () => Promise<void> }, "connectToPeerImpl")
+        .mockReturnValue(controlledPromise);
+
+      // Act
+      const p1 = connectionService.connectToPeer("peer-1");
+      const p2 = connectionService.connectToPeer("peer-1");
+
+      // Assert: both callers share the same promise
+      expect(p1).toBe(p2);
+
+      // Cleanup
+      resolveOp();
+      await p1;
+    });
+
+    it("starts a new connect after the first one settles", async () => {
+      // Arrange
+      let callCount = 0;
+      jest.spyOn(connectionService as unknown as { connectToPeerImpl: () => Promise<void> }, "connectToPeerImpl")
+        .mockImplementation(() => { callCount++; return Promise.resolve(); });
+
+      // Act: first call settles, then second call
+      await connectionService.connectToPeer("peer-1");
+      await connectionService.connectToPeer("peer-1");
+
+      // Assert: impl was called twice (once for each independent call)
+      expect(callCount).toBe(2);
+    });
+  });
+
   describe("stop", () => {
     it("should cleanup all resources", () => {
       const removeAllListenersSpy = jest.spyOn(

@@ -275,4 +275,70 @@ describe("WebrtcAdapter", () => {
       expect(mockChannel.send).not.toHaveBeenCalled();
     });
   });
+
+  describe("connection state events", () => {
+    function mountWithConnectionState(connectionState: string, iceConnectionState = "connected") {
+      const { RTCPeerConnection } = require("react-native-webrtc");
+      const mockPc = createMockRtcPeerConnection();
+      const mockDataChannel = {
+        onopen: null, onmessage: null, onerror: null, onclose: null, readyState: "open",
+      };
+      mockPc.createDataChannel.mockReturnValue(mockDataChannel);
+      Object.defineProperty(mockPc, "connectionState", {
+        get: () => connectionState,
+        configurable: true,
+      });
+      Object.defineProperty(mockPc, "iceConnectionState", {
+        get: () => iceConnectionState,
+        configurable: true,
+      });
+      Object.defineProperty(mockPc, "signalingState", {
+        get: () => "stable",
+        configurable: true,
+      });
+      RTCPeerConnection.mockReturnValue(mockPc);
+      const a = new WebrtcAdapter("peer-x");
+      a.createPeerConnection();
+      return { adapter: a, mockPc };
+    }
+
+    it("emits connection-failed when connectionState fails and ice is healthy (DTLS failure)", () => {
+      // Arrange: connectionState = "failed", iceConnectionState = "connected"
+      const { adapter, mockPc } = mountWithConnectionState("failed", "connected");
+      const failedHandler = jest.fn();
+      adapter.on("connection-failed", failedHandler);
+
+      // Act
+      mockPc.onconnectionstatechange?.();
+
+      // Assert: DTLS failure emits immediately — ICE restart cannot help
+      expect(failedHandler).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    it("does not emit connection-failed when connectionState fails alongside ice failure", () => {
+      // Arrange: both failed — scheduleIceRestart owns the connection-failed path
+      const { adapter, mockPc } = mountWithConnectionState("failed", "failed");
+      const failedHandler = jest.fn();
+      adapter.on("connection-failed", failedHandler);
+
+      // Act
+      mockPc.onconnectionstatechange?.();
+
+      // Assert: no direct emit; ICE restart handler drives recovery and eventual emission
+      expect(failedHandler).not.toHaveBeenCalled();
+    });
+
+    it("does not emit connection-failed when connectionState is connected", () => {
+      // Arrange
+      const { adapter, mockPc } = mountWithConnectionState("connected");
+      const failedHandler = jest.fn();
+      adapter.on("connection-failed", failedHandler);
+
+      // Act
+      mockPc.onconnectionstatechange?.();
+
+      // Assert
+      expect(failedHandler).not.toHaveBeenCalled();
+    });
+  });
 });

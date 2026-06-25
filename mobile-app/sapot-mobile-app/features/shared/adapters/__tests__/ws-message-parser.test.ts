@@ -178,6 +178,49 @@ describe("parseWsMessage", () => {
       const result = parseWsMessage(encRaw);
       expect(result.kind).toBe("unknown");
     });
+
+    it("bootstraps sender key from credential before decrypting when peer key is not yet known", () => {
+      // Scenario: callee has no pre-existing key for peer-a.
+      // The encrypted offer arrives with a credential containing peer-a's ECDH public key.
+      // parseWsMessage must call storePeerKey BEFORE invoking decrypt so the decrypt fn
+      // can succeed on first contact — without this, every first-contact call fails.
+      const encRaw = JSON.stringify({
+        type: "offer",
+        data: {
+          to: "peer-b",
+          sender: "peer-a",
+          enc: { nonce: "abc", box: "xyz" },
+          credential: { ecdhPublicKey: "peer-a-ecdh-key", signature: "sig", publicKey: "pk", userId: "peer-a" },
+        },
+      });
+      const decryptedData = { to: "peer-b", sender: "peer-a", sdp: {}, ipAddress: "1.2.3.4", port: 5000 };
+
+      const callOrder: string[] = [];
+      const storePeerKey = jest.fn().mockImplementation(() => { callOrder.push("storePeerKey"); });
+      const decrypt = jest.fn().mockImplementation((_enc, _sender) => {
+        callOrder.push("decrypt");
+        return decryptedData;
+      });
+
+      const result = parseWsMessage(encRaw, decrypt, storePeerKey);
+
+      expect(storePeerKey).toHaveBeenCalledWith("peer-a", "peer-a-ecdh-key");
+      expect(callOrder.indexOf("storePeerKey")).toBeLessThan(callOrder.indexOf("decrypt"));
+      expect(result.kind).toBe("signaling");
+    });
+
+    it("does not call storePeerKey when credential is absent from encrypted message", () => {
+      const encRaw = JSON.stringify({
+        type: "offer",
+        data: { to: "peer-b", sender: "peer-a", enc: { nonce: "abc", box: "xyz" } },
+      });
+      const storePeerKey = jest.fn();
+      const decrypt = jest.fn().mockReturnValue(null);
+
+      parseWsMessage(encRaw, decrypt, storePeerKey);
+
+      expect(storePeerKey).not.toHaveBeenCalled();
+    });
   });
 
   describe("malformed input", () => {
