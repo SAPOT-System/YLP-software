@@ -5,7 +5,6 @@ import { isAxiosError } from "axios";
 import { toAppError } from "@/features/shared/errors";
 import { CallStatus } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
-import { Message } from "@/features/shared/database/model/Message";
 import {
   getSyncLastPulledAt,
   saveSyncLastPulledAt,
@@ -19,6 +18,9 @@ import {
   type PushLocalDataRequestBody,
   type ServerSyncResponse,
 } from "../api/sync.api";
+import { PeerHydrator } from "./peer-hydrator";
+import { SyncPushFilter } from "./push-filter";
+import { MigrationGuard } from "./migration-guard";
 import type { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import type { PeerService } from "@/features/shared/services/peer-service";
@@ -164,28 +166,29 @@ export type SyncServiceEvents = {
 
 export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private db: Database;
-  private messageReceiptManager?: MessageReceiptManager;
   private conversationParticipantRepository: ConversationParticipantRepository;
   private currentUserId?: string;
-  private peerService?: PeerService;
   private peerRepository?: PeerRepository;
   private isSyncing = false;
   private syncLogger: SyncLogger;
   private retryAttempts = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private messageRepository?: MessageRepository;
-  private _skipEncryptedMessageUpdates = false;
+  private peerHydrator: PeerHydrator;
+  private pushFilter: SyncPushFilter;
+  private migrationGuard: MigrationGuard;
 
   constructor({ db, messageReceiptManager, currentUserId, peerService, peerRepository }: SyncServiceParams) {
     super();
     this.db = db;
-    this.messageReceiptManager = messageReceiptManager;
     this.currentUserId = currentUserId;
-    this.peerService = peerService;
     this.peerRepository = peerRepository;
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(this.db);
     this.syncLogger = new SyncLogger(20);
+    this.peerHydrator = new PeerHydrator(db, peerService, peerRepository);
+    this.pushFilter = new SyncPushFilter(messageReceiptManager);
+    this.migrationGuard = new MigrationGuard(db);
     syncLog.info("sync › service constructed", {
       hasDb: Boolean(db),
       hasReceiptManager: Boolean(messageReceiptManager),
@@ -197,12 +200,12 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
    * Used to inject ChatService's manager after MainContainer initialization.
    */
   setMessageReceiptManager(messageReceiptManager: MessageReceiptManager): void {
-    this.messageReceiptManager = messageReceiptManager;
+    this.pushFilter.setMessageReceiptManager(messageReceiptManager);
     syncLog.info("sync › message receipt manager set");
   }
 
   setPeerService(peerService: PeerService): void {
-    this.peerService = peerService;
+    this.peerHydrator.setPeerService(peerService);
     syncLog.info("sync › peer service set");
   }
 
@@ -221,7 +224,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
    * The flag is consumed and cleared on the next normalizePullChanges() call.
    */
   skipEncryptedMessageUpdatesOnNextSync(): void {
-    this._skipEncryptedMessageUpdates = true;
+    this.migrationGuard.scheduleSkip();
   }
 
   get syncLogs() {
@@ -328,7 +331,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
           };
           syncLog.debug("sync › pull changes", { counts: pullCounts });
 
-          await this.hydrateMissingPeers(changes);
+          await this.peerHydrator.hydrate(changes);
 
           await saveSyncLastPulledAt(timestamp);
           return { changes: normalizedChanges, timestamp };
@@ -629,7 +632,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         created: changes.messages.created
           .filter(
             (r) =>
-              this.shouldPushMessage(r.id as string, receiptsByMessage) ||
+              this.pushFilter.shouldPushMessage(r.id as string, receiptsByMessage) ||
               selfMessageIds.has(r.id as string)
           )
           .map((r) =>
@@ -638,7 +641,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         updated: changes.messages.updated
           .filter(
             (r) =>
-              this.shouldPushMessage(r.id as string, receiptsByMessage) ||
+              this.pushFilter.shouldPushMessage(r.id as string, receiptsByMessage) ||
               selfMessageIds.has(r.id as string)
           )
           .map((r) =>
@@ -695,7 +698,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
             }
             return rec;
           })
-          .filter((r) => this.shouldPushReceipt(r.status as MessageStatusType))
+          .filter((r) => this.pushFilter.shouldPushReceipt(r.status as MessageStatusType))
           .map((r) =>
             this.toServerPayload("message_receipts", r)
           ) as C["message_receipts"]["created"],
@@ -712,7 +715,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
             }
             return rec;
           })
-          .filter((r) => this.shouldPushReceipt(r.status as MessageStatusType))
+          .filter((r) => this.pushFilter.shouldPushReceipt(r.status as MessageStatusType))
           .map((r) =>
             this.toServerPayload("message_receipts", r)
           ) as C["message_receipts"]["updated"],
@@ -727,49 +730,6 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         items.created.length > 0 ||
         items.updated.length > 0 ||
         items.deleted.length > 0
-    );
-  }
-
-  /**
-   * Determines if a receipt status should be synced to the server.
-   * Delegates to messageReceiptManager if available; otherwise uses fallback logic.
-   */
-  private shouldPushReceipt(status: MessageStatusType): boolean {
-    if (this.messageReceiptManager) {
-      return this.messageReceiptManager.shouldPushReceipt(status);
-    }
-
-    // Fallback: exclude transient statuses
-    const transientStatuses = new Set([
-      MessageStatusType.SENDING,
-      MessageStatusType.NOT_SENT,
-      MessageStatusType.SENT,
-    ]);
-    return !transientStatuses.has(status);
-  }
-
-  /**
-   * Determines if a message should be synced based on its associated receipts.
-   * A message is excluded if ALL its receipts are transient (local-only).
-   */
-  private shouldPushMessage(
-    messageId: string,
-    receiptsByMessage: Map<string, MessageStatusType[]>
-  ): boolean {
-    if (!this.messageReceiptManager) {
-      // Fallback: if no manager, allow all messages (original behavior)
-      return true;
-    }
-
-    const receipts = receiptsByMessage.get(messageId);
-    if (!receipts || receipts.length === 0) {
-      // No receipts for this message, allow push
-      return true;
-    }
-
-    // Check if ANY receipt should be pushed (non-transient)
-    return receipts.some((status) =>
-      this.messageReceiptManager!.shouldPushReceipt(status)
     );
   }
 
@@ -1070,118 +1030,11 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     }
   }
 
-  private async hydrateMissingPeers(changes: SyncChanges): Promise<void> {
-    if (!this.peerService) {
-      syncLog.debug("sync › peer hydration skipped, no peerService");
-      return;
-    }
-
-    const rawIds: (string | undefined)[] = [
-      ...changes.conversation_participants.created.map((r) => r.user_id),
-      ...changes.messages.created.map((r) => r.sender_id),
-      ...changes.calls.created.map((r) => r.initiator_id),
-      ...changes.call_participants.created.map((r) => r.user_id),
-    ];
-
-    const allIds = [...new Set(rawIds.filter((id): id is string => Boolean(id)))];
-    if (allIds.length === 0) return;
-
-    let existingPeerIds: Set<string>;
-    try {
-      const existing = await this.db
-        .get("peers")
-        .query(Q.where("id", Q.oneOf(allIds)))
-        .fetch();
-      existingPeerIds = new Set(existing.map((r) => r.id as string));
-    } catch (error) {
-      const appErr = toAppError(error, "sync");
-      syncLog.warn("sync › peer hydration, existence check failed — skipping", appErr);
-      return;
-    }
-
-    const missingIds = allIds.filter((id) => !existingPeerIds.has(id));
-    if (missingIds.length === 0) return;
-
-    syncLog.info("sync › peer hydration, fetching missing peers", {
-      total: allIds.length,
-      missing: missingIds.length,
-    });
-
-    // Sync only runs in server/auto mode where WebSocket is always allowed.
-    const wsAllowedStub = { isWebSocketAllowed: () => true };
-
-    const results = await Promise.allSettled(
-      missingIds.map((id) => this.peerService!.getOrCreatePeerById(id, wsAllowedStub))
-    );
-
-    let hydrated = 0;
-    let fallbacks = 0;
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      if (result.status === "fulfilled") {
-        hydrated++;
-      } else {
-        const hydrationErr = toAppError(result.reason, "sync");
-        syncLog.warn("sync › peer hydration, fetch failed — creating fallback peer", {
-          peerId: missingIds[i],
-          ...hydrationErr,
-        });
-        if (this.peerRepository) {
-          try {
-            await this.peerRepository.savePeer({
-              id: missingIds[i],
-              username: missingIds[i],
-              firstName: "Unknown",
-              lastName: "User",
-            });
-            fallbacks++;
-          } catch (saveErr) {
-            const saveAppErr = toAppError(saveErr, "sync");
-            syncLog.warn("sync › peer hydration, fallback peer creation failed", {
-              peerId: missingIds[i],
-              ...saveAppErr,
-            });
-          }
-        }
-      }
-    }
-
-    syncLog.info("sync › peer hydration complete", { hydrated, fallbacks });
-  }
-
   private async normalizePullChanges(changes: SyncChanges) {
     const toIds = (arr: { id?: string }[]): string[] =>
       arr.flatMap((c) => (c.id ? [c.id] : []));
 
-    // Migration recovery: collect message IDs that are already ecdh:-encrypted
-    // locally and whose server version is also ecdh:-prefixed (but a different
-    // ciphertext — typically the old guest-key version). Filtering these out
-    // prevents the pull from overwriting locally re-encrypted messages with stale
-    // server ciphertext before the push phase can send the correct content.
-    const localEncryptedUpdatesToSkip = new Set<string>();
-    if (this._skipEncryptedMessageUpdates) {
-      this._skipEncryptedMessageUpdates = false;
-      const encryptedServerUpdates = changes.messages.updated
-        .filter((item) => ((item.content ?? "") as string).startsWith("ecdh:"))
-        .map((item) => item.id ?? "")
-        .filter(Boolean);
-      if (encryptedServerUpdates.length > 0) {
-        const localMsgs = await this.db
-          .get<Message>(Message.table)
-          .query(Q.where("id", Q.oneOf(encryptedServerUpdates)))
-          .fetch();
-        for (const m of localMsgs) {
-          if (m.content.startsWith("ecdh:")) {
-            localEncryptedUpdatesToSkip.add(m.id);
-          }
-        }
-        if (localEncryptedUpdatesToSkip.size > 0) {
-          syncLog.info("sync › recovery: skipping server ecdh: overwrites for locally re-encrypted messages", {
-            count: localEncryptedUpdatesToSkip.size,
-          });
-        }
-      }
-    }
+    const localEncryptedUpdatesToSkip = await this.migrationGuard.computeSkips(changes);
 
     const existingIds = {
       conversations: await this.checkEntitiesExist(
