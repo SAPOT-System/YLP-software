@@ -60,3 +60,44 @@ The peer currently in a live media session, tracked as `{ peerId, callType }`
 can re-attach the right local media tracks to the fresh PC. A Rebuild during a
 chat-only session attaches no media; a Rebuild during an Active call must
 re-run media initialization or the call reconnects silent/black.
+
+---
+
+# Sapot Mobile — Chat Messaging Context
+
+The chat layer: how outgoing messages move from the compose input through
+local persistence and out over the transport, and how their delivery state
+is tracked.
+
+## Language
+
+**Optimistic send**:
+Clearing the compose input and re-enabling the send button before the async
+send pipeline (conversation init, key derivation, DB write, transport) has
+completed. The message may not yet be visible in the list. Failures surface
+as a `NOT_SENT` bubble with a Resend affordance — the user is never blocked
+from composing the next message.
+_Avoid_: fire-and-forget (too vague — it elides the error-recovery contract).
+
+**Ghost bubble**:
+A temporary React-state message injected into the message list before the
+WatermelonDB write has fired, replaced by the real DB-backed record once the
+write completes. Not used in this codebase — the WatermelonDB observable is
+fast enough to act as the source of truth for optimistic display.
+_Avoid_: optimistic bubble (ambiguous with optimistic send).
+
+**Peer guard** (`hasPeer()`):
+Synchronous check that `ChatService.peer` is set before the input is cleared.
+Prevents the user from losing composed text when the peer was never resolved
+(e.g. connection setup failed before `connect()` found the peer row).
+_Avoid_: connection check (conflates transport state with peer resolution).
+
+**Key warm-up**:
+Proactively calling `deriveAndSetConversationKey` for a peer's existing
+direct (P2P) conversation at the end of `ChatService.connect()`, so the
+conversation key is cached before the user taps send. Eliminates the
+per-send key derivation cost for returning conversations. Has no effect on
+first-ever contact (no conversation exists yet to warm). SMS conversations
+are not warmed — the GSM API latency dominates and makes key derivation
+savings invisible.
+_Avoid_: key pre-fetch (implies a network call; warm-up may be purely local).

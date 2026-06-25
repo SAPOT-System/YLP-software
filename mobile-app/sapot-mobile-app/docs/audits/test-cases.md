@@ -11,19 +11,45 @@ Revised: 2026-06-20
 | **MANUAL** | Requires a human on a physical device with real hardware or real network | Physical device |
 
 **Sections 1–2** use the format: `ID | Feature | Scenario | Steps | Expected Result | Type | Execution | Priority | Risk`  
-**Sections 3–20** use the format: `ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate`  
+**Sections 3–21** use the format: `ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate`  
 — where `Automate` carries the execution tool. For MANUAL tests the Automate column reads `MANUAL (physical device)`.
 
-**Section 21** (Real Device / Real Network) is new and uses the full new format.
+**Section 21** (Real Device / Real Network) consolidates multi-device and real-network cases and uses the full Sections 3–21 format.
 
 Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 
 ---
 
+## Precondition Setup Reference
+
+> For seeded accounts, state-control API calls, OTP test mode, and the Jest login fixture, see [`test-data-environment.md`](./test-data-environment.md).
+
+The table below is a quick-reference for precondition states. Full setup procedures (SQL, shell scripts, seed script) are in the appendix above.
+
+| State | How to produce |
+|-------|----------------|
+| **Logged in (auth user)** | 1. Select Server mode on Getting Started screen 2. Enter valid credentials 3. Tap Login → navigates to Chats tab |
+| **Guest user / Guest with messages** | 1. Select LAN mode 2. Enter first + last name 3. Tap Login 4. Open chat with any discovered peer 5. Send or receive at least one message |
+| **Conversations exist in DB** | Follow "Logged in (auth user)" then send or receive at least one message with each peer |
+| **5+ prior failed attempts** | Attempt login 5 times with an incorrect password, or use the staging admin API: `POST /admin/simulate-lockout?username=<x>&count=5` |
+| **Account banned** | Use the staging admin API: `POST /admin/ban?userId=<x>` |
+| **Session > 60 days old** | Use the staging admin API: `POST /admin/age-session?userId=<x>&days=61` |
+| **OTP > 10 min old** | Request OTP, then wait 11 minutes before submitting; or use staging admin API: `POST /admin/expire-otp?userId=<x>` |
+| **Token > 30 min old** | Request a reset token, wait 31 minutes; or use staging admin API: `POST /admin/expire-reset-token?userId=<x>` |
+| **Recovery-key cooldown active** | Generate a recovery key (TC-072), then immediately navigate back to Generate Recovery Key; or use `POST /admin/set-key-cooldown?userId=<x>&days=N` |
+| **Peer discovered** | Both devices on the same WiFi in LAN mode; wait up to 10 s for mDNS discovery |
+| **WebRTC connected** | Open a chat room with a discovered peer and wait for the "Connected" status indicator |
+| **TCP connected** | Open a chat room with a LAN peer; confirm TCP status in the chat room header |
+| **Messages queued (offline peer)** | Put the receiver device in airplane mode; send messages from the sender device |
+| **Expired announcements** | Use the staging admin API: `POST /admin/expire-announcement?id=<x>`, or set `expiry_date` in the past via direct DB edit on staging |
+| **Migration complete** | Follow TC-260 (Guest Migration) through to completion |
+
+---
+
 ## 1. Getting Started / Mode Select
 
-| ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
-|----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
+| ID | Feature | Scenario | Steps | Expected Result | Type | Execution | Priority | Risk |
+|----|---------|----------|-------|-----------------|------|-----------|----------|------|
 | TC-001 | Mode Select | Server mode: backend reachable | 1. Launch app (backend running) 2. Tap "Server" 3. Tap "Proceed" | Navigates to Server Login; AppModeStore set to "server" | HYBRID | Maestro | P0 | Critical |
 | TC-002 | Mode Select | Server mode: backend unreachable | 1. Launch app (backend offline) 2. Tap "Server" 3. Tap "Proceed" | "Connection Failed" dialog shown with Retry + "Use LAN Mode" | HYBRID | Maestro | P0 | Critical |
 | TC-003 | Mode Select | Retry after connection failure recovers | 1. Dialog shown (backend restored) 2. Tap "Retry" | Health check re-runs; navigates to Server Login | HYBRID | Maestro | P1 | High |
@@ -35,15 +61,15 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 
 ## 2. Server Login
 
-| ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
-|----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
+| ID | Feature | Scenario | Steps | Expected Result | Type | Execution | Priority | Risk |
+|----|---------|----------|-------|-----------------|------|-----------|----------|------|
 | TC-010 | Server Login | Successful login | 1. Enter valid username + password 2. Tap Login | Tokens stored; MainContainer initialized; navigates to Chats tab | HYBRID | Maestro | P0 | Critical |
 | TC-011 | Server Login | Wrong password | 1. Enter valid username, wrong password 2. Tap Login | Error shown; AttemptsWarning shows remaining attempts | AUTOMATED | RNTL | P0 | Critical |
 | TC-012 | Server Login | Non-existent username | 1. Enter unknown username + any password 2. Tap Login | Generic error (not "user not found" — enumeration protection) | AUTOMATED | RNTL | P0 | Critical |
 | TC-013 | Server Login | Account locked out | 1. (5+ prior failed attempts) 2. Attempt login | LockoutBanner shown with countdown; form disabled | AUTOMATED | RNTL | P0 | Critical |
 | TC-014 | Server Login | Account banned | 1. Enter valid credentials for banned account 2. Tap Login | BannedBanner shown with ban message | AUTOMATED | RNTL | P0 | Critical |
 | TC-015 | Server Login | Login times out (30 s) | 1. Enter valid credentials 2. Backend stalls > 30 s | Timeout error; loading state cleared | AUTOMATED | Jest | P1 | High |
-| TC-016 | Server Login | Login blocked when server offline | 1. No network connectivity 2. Attempt login | `useServerAction` blocks submission | AUTOMATED | RNTL | P1 | High |
+| TC-016 | Server Login | Login blocked when server offline | 1. No network connectivity 2. Attempt login | Submit button disabled; no network request is made | AUTOMATED | RNTL | P1 | High |
 | TC-017 | Server Login | Navigate to forgot password | 1. On login screen 2. Tap "Forgot password?" | Navigates to forgot-password method picker | HYBRID | Maestro | P1 | High |
 | TC-018 | Server Login | Empty fields validation | 1. Leave both fields empty 2. Tap Login | Validation errors shown per field | AUTOMATED | RNTL | P2 | Medium |
 | TC-019 | Server Login | Refresh token auto-renews expiring session | 1. Perform any authenticated action with expiring access token | Interceptor refreshes silently; action succeeds | AUTOMATED | Jest | P0 | Critical |
@@ -119,10 +145,10 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 
 | ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
 |----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
-| TC-080 | Chats Tab | Discovered peers shown as bubbles | LAN mode, peer on network | 1. Navigate to Chats | Peer bubble per discovered device | P0 | Critical | Maestro |
+| TC-080 | Chats Tab | Discovered peers shown as bubbles | LAN mode, peer on network | 1. Navigate to Chats | Peer bubble per discovered device | P0 | Critical | MANUAL (2-device rig) |
 | TC-081 | Chats Tab | Conversations shown in list | Conversations exist in DB | 1. Navigate to Chats | Chat rows: name, last message, timestamp | P0 | Critical | RNTL |
-| TC-082 | Chats Tab | Pull-to-refresh triggers sync | Server mode | 1. Pull down | `syncService.syncNow()` called | P1 | High | Maestro |
-| TC-083 | Chats Tab | Tap peer bubble → Chat Room (source=PEER) | Peer discovered | 1. Tap peer bubble | Navigates to `/chat/[peerId]` with source=PEER | P0 | Critical | Maestro |
+| TC-082 | Chats Tab | Pull-to-refresh triggers sync | Server mode | 1. Pull down | `syncService.syncNow()` called | P1 | High | Jest |
+| TC-083 | Chats Tab | Tap peer bubble → Chat Room (source=PEER) | Peer discovered | 1. Tap peer bubble | Navigates to `/chat/[peerId]` with source=PEER | P0 | Critical | MANUAL (2-device rig) |
 | TC-084 | Chats Tab | Tap chat row → Chat Room (source=CHAT) | Conversation exists | 1. Tap chat row | Navigates to `/chat/[id]` with source=CHAT | P0 | Critical | Maestro |
 | TC-085 | Chats Tab | Search bar tap → Search screen | | 1. Tap search bar | Navigates to `/search` | P1 | High | Maestro |
 | TC-086 | Chats Tab | QR icon → QR Scanner | | 1. Tap QR icon | Navigates to `/scan-qr` | P1 | High | Maestro |
@@ -139,16 +165,16 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 
 | ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
 |----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
-| TC-100 | Chat Room | Send via WebRTC data channel | WebRTC connected | 1. Type + send message | SENDING → SENT → DELIVERED | P0 | Critical | Maestro |
-| TC-101 | Chat Room | Send via TCP | TCP connected | 1. Type + send message | SENDING → SENT → DELIVERED | P0 | Critical | Maestro |
+| TC-100 | Chat Room | Send via WebRTC data channel | WebRTC connected | 1. Type + send message | SENDING → SENT → DELIVERED | P0 | Critical | MANUAL (2-device rig) |
+| TC-101 | Chat Room | Send via TCP | TCP connected | 1. Type + send message | SENDING → SENT → DELIVERED | P0 | Critical | MANUAL (2-device rig) |
 | TC-102 | Chat Room | ACK timeout (12 s) marks NOT_SENT | Peer disconnects after send | 1. Send message 2. Wait 12 s | Message status → NOT_SENT | P0 | Critical | Jest |
 | TC-103 | Chat Room | NOT_SENT message retryable | NOT_SENT message exists | 1. Tap "Tap to retry" | Message re-queued | P1 | High | RNTL |
 | TC-104 | Chat Room | Messages encrypted at rest | Message saved | 1. Inspect DB content | `messages.content` is encrypted blob, not plaintext | P0 | Critical | Jest |
-| TC-105 | Chat Room | Receive message while screen active | Peer sends message | 1. Keep chat room open | Message appears; "seen" receipt sent | P0 | Critical | Maestro |
+| TC-105 | Chat Room | Receive message while screen active | Peer sends message | 1. Keep chat room open | Message appears; "seen" receipt sent | P0 | Critical | MANUAL (2-device rig) |
 | TC-106 | Chat Room | Seen receipt sent when focused | Unread messages | 1. Open chat room | "seen" message sent to peer | P1 | High | Jest |
 | TC-107 | Chat Room | Connecting state on mount | Peer not yet connected | 1. Open chat | "Connecting…" indicator shown | P1 | High | RNTL |
 | TC-108 | Chat Room | Failed state after 5 retries | Peer unreachable | 1. Open chat 2. Wait for retries | "Tap to retry" shown; auto-reconnect stops | P0 | Critical | Jest |
-| TC-109 | Chat Room | Exponential backoff between retries | Peer unreachable | 1. Open chat | Delays: 1s, 1.8s, 3.2s, 5.8s, 10.4s (±20% jitter) | P1 | High | Jest |
+| TC-109 | Chat Room | Exponential backoff between retries | Peer unreachable | 1. Open chat | Each successive delay is ≥1.5× the previous; total wait before 5th retry is between 10 s and 30 s | P1 | High | Jest |
 | TC-110 | Chat Room | Auto-reconnect on mDNS rediscovery | Peer IP changes | 1. Peer reconnects with new IP | Connection re-established automatically | P0 | Critical | Jest |
 | TC-111 | Chat Room | Auto-reconnect on network regain | WiFi drops then restores | 1. Lose and regain WiFi | NetInfo triggers reconnect | P0 | Critical | Jest |
 | TC-112 | Chat Room | Audio call icon navigates to Call Room | Connected | 1. Tap audio call | Navigates to `/call/[id]?type=audio` | P0 | Critical | Maestro |
@@ -171,7 +197,7 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 |----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
 | TC-130 | Incoming Call | Accept audio call | Peer calls | 1. Tap Accept | Mic permission; call answered; Call Room | P0 | Critical | MANUAL (physical device) |
 | TC-131 | Incoming Call | Accept video call | Peer video-calls | 1. Tap Accept | Mic + camera permission; Call Room | P0 | Critical | MANUAL (physical device) |
-| TC-132 | Incoming Call | Reject call | | 1. Tap Reject | `rejectIncomingCall()` called; returns to Chats | P0 | Critical | Maestro |
+| TC-132 | Incoming Call | Reject call | | 1. Tap Reject | Returns to Chats; call ended; no active call state | P0 | Critical | Maestro |
 | TC-133 | Incoming Call | Auto-dismiss after 30 s | No action | 1. Wait 30 seconds | Missed call recorded; screen dismisses | P0 | Critical | Jest |
 | TC-134 | Incoming Call | Caller hangs up before answer | Caller cancels | 1. Receive call-ended | Screen dismisses immediately | P0 | Critical | Jest |
 | TC-135 | Incoming Call | Mic permission denied blocks accept | Permission denied | 1. Deny mic permission on real device 2. Tap Accept | Blocked; permission denied message shown | P0 | Critical | MANUAL (physical device) |
@@ -209,7 +235,7 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 | TC-160 | Public Chat | Tab hidden for guests | Guest | 1. View tabs | Public Chat absent | P0 | Critical | Maestro |
 | TC-161 | Public Chat | Unavailable in LAN mode | LAN mode | 1. Navigate to Public Chat | "Unavailable" screen shown | P0 | Critical | RNTL |
 | TC-162 | Public Chat | Messages load on mount | Auth, server mode | 1. Navigate to Public Chat | Recent messages shown | P1 | High | Maestro |
-| TC-163 | Public Chat | Send message broadcasts to all | Connected | 1. Send message | All connected users receive it | P0 | Critical | Maestro |
+| TC-163 | Public Chat | Send message broadcasts to all | Connected | 1. Send message | All connected users receive it | P0 | Critical | MANUAL (2-device rig) |
 | TC-164 | Public Chat | Send disabled when disconnected | WS disconnected | 1. Open while disconnected | Send button disabled | P1 | High | RNTL |
 | TC-165 | Public Chat | Load earlier messages | History exists | 1. Tap "Load earlier messages" | Older messages loaded | P1 | High | Maestro |
 | TC-166 | Public Chat | Connection status indicator | | 1. Observe header | Green = connected; amber + spinner = connecting | P2 | Medium | RNTL |
@@ -270,8 +296,8 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 
 | ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
 |----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
-| TC-210 | Manage Profile | Upload photo via camera | Auth user | 1. Tap Change Photo → Take Photo | Photo uploaded; shown in app | P1 | High | Maestro |
-| TC-211 | Manage Profile | Upload photo from library | Auth user | 1. Tap Change Photo → Upload | Picker opens; photo uploaded | P1 | High | Maestro |
+| TC-210 | Manage Profile | Upload photo via camera | Auth user | 1. Tap Change Photo → Take Photo | Photo uploaded; shown in app | P1 | High | MANUAL (physical device) |
+| TC-211 | Manage Profile | Upload photo from library | Auth user | 1. Tap Change Photo → Upload | Picker opens; photo uploaded | P1 | High | MANUAL (physical device) |
 | TC-212 | Manage Profile | Guest cannot upload photo | Guest | 1. Navigate to Manage Profile | Photo upload option absent | P0 | Critical | RNTL |
 | TC-213 | Manage Profile | Re-auth required before changing email | Auth | 1. Tap Change Email | Re-auth modal shown | P0 | Critical | Maestro |
 | TC-214 | Manage Profile | Re-auth required before changing phone | Auth | 1. Tap Change Phone | Re-auth modal shown | P0 | Critical | Maestro |
@@ -309,7 +335,7 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 | TC-234 | Offline | Sync retries with exponential backoff | Server unreachable | 1. Trigger sync offline | Up to 5 retries; max 30 s delay | P0 | Critical | Jest |
 | TC-235 | Offline | ServerStatusBanner in server/auto mode | Server down | 1. Lose server connectivity | Banner shown | P1 | High | RNTL |
 | TC-236 | Offline | No banner in LAN mode | LAN mode, server down | 1. Navigate to Chats | No server-offline banner | P1 | High | RNTL |
-| TC-237 | Offline | LAN chat works when server down | LAN mode | 1. Lose server 2. Chat with LAN peer | Chat works via TCP; no errors | P0 | Critical | Maestro |
+| TC-237 | Offline | LAN chat works when server down | LAN mode | 1. Lose server 2. Chat with LAN peer | Chat works via TCP; no errors | P0 | Critical | MANUAL (2-device rig) |
 
 ---
 
@@ -323,11 +349,11 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 | TC-243 | Encryption | Key history decrypts old messages | Key rotated | 1. Receive message encrypted with old key | Decrypted successfully | P0 | Critical | Jest |
 | TC-244 | Key Recovery | PBKDF2 is deterministic | Known inputs | 1. Derive key twice | Same key both times | P0 | Critical | Jest |
 | TC-245 | Key Recovery | Wrong recovery key rejected | | 1. Provide wrong key | Recovery blocked | P0 | Critical | Jest |
-| TC-246 | Security | Testing endpoints blocked in production | Production server | 1. POST `/testing/test-make-admin` | 404 or 401 (currently critical bug — no auth) | P0 | Critical | Pytest |
-| TC-247 | Security | GPS monitor WS requires auth | | 1. Connect without token | Rejected (currently bug — no auth) | P0 | Critical | Pytest |
+| TC-246 | Security | Testing endpoints require admin auth | Admin token required | 1. POST `/testing/test-make-admin` without token 2. POST with non-admin token 3. POST with admin token | Steps 1–2 return 401/403; step 3 returns 200 | P0 | Critical | Pytest |
+| TC-247 | Security | GPS monitor WS requires valid rescuer token | | 1. Connect to `/gps/ws/monitor/rescuers/{id}` without token 2. Connect with non-rescuer token 3. Connect with mismatched rescuer ID 4. Connect with valid rescuer token and matching ID | Steps 1–3 close with code 1008; step 4 connects successfully | P0 | Critical | Pytest |
 | TC-248 | Security | `/auth/exists` rate-limited | | 1. Send 100 req/min | Rate limit applied | P0 | Critical | Pytest |
 | TC-249 | Security | Server Host Override not in production build | Prod build | 1. Open drawer | URL override field absent | P0 | Critical | Maestro |
-| TC-250 | Security | JWT uses environment secret | Production | 1. Check env | `JWT_SECRET_KEY` set; no hardcoded fallback | P0 | Critical | Manual |
+| TC-250 | Security | JWT uses environment secret | Production | 1. Check env | `JWT_SECRET_KEY` set; no hardcoded fallback | P0 | Critical | Pytest |
 
 ---
 
@@ -353,3 +379,22 @@ Priority: P0 (must-pass), P1 (high), P2 (medium), P3 (low)
 | TC-274 | App Lifecycle | Dark mode uses theme colors throughout | Dark mode enabled | 1. Enable dark mode 2. Navigate all screens | No hardcoded white/black colors visible; all colors from theme | P1 | High | MANUAL (physical device) |
 | TC-275 | App Lifecycle | Sensitive data in secure-store only | Rooted or ADB-enabled device | 1. ADB pull app data directory 2. Inspect files | Tokens, keys, config only in `expo-secure-store`; not in AsyncStorage or plaintext files | P0 | Critical | MANUAL (rooted/ADB device) |
 | TC-276 | App Lifecycle | Permissions: distinct UI for not-asked/denied/granted | Fresh install, real device | 1. Trigger camera, mic, location, notification permission flows 2. Verify each state | Distinct UI for not-asked vs denied vs granted; no state collapsed | P0 | Critical | MANUAL (physical device, fresh install) |
+
+---
+
+## 21. Real Device / Real Network (Multi-Peer)
+
+> All cases require **two physical devices** (Device A and Device B) unless noted. LAN cases also require both devices on the same WiFi network. Classify as MANUAL until a scripted mock-peer harness is documented and available.
+
+| ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
+|----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
+| TC-280 | P2P Messaging (LAN) | End-to-end message delivery over TCP | Both devices in LAN mode; peer discovered on Device B | 1. Device A opens chat with Device B 2. Device A types and sends a message | Message appears on Device B within 3 s; Device A status → DELIVERED | P0 | Critical | MANUAL (2-device rig) |
+| TC-281 | P2P Messaging (Server) | End-to-end message delivery via server relay | Both devices authenticated in server mode; connection established | 1. Device A sends message to Device B | Message appears on Device B; Device A status → DELIVERED | P0 | Critical | MANUAL (2-device rig) |
+| TC-282 | P2P Reconnect | Queued message delivered after peer reconnects | Device A and B previously connected; Device B goes offline | 1. Device A sends message while Device B is offline 2. Device B reconnects to network | Message delivered to Device B; Device A status → DELIVERED | P0 | Critical | MANUAL (2-device rig) |
+| TC-283 | Audio Call | End-to-end audio call between two physical devices | Both devices authenticated; mic permission granted on both | 1. Device A initiates audio call to Device B 2. Device B taps Accept | Call connects; both parties hear each other; call timer increments | P0 | Critical | MANUAL (2-device rig) |
+| TC-284 | Video Call | End-to-end video call between two physical devices | Both devices authenticated; mic and camera permission granted on both | 1. Device A initiates video call to Device B 2. Device B taps Accept | Call connects; video streams in both directions; no freeze within first 30 s | P0 | Critical | MANUAL (2-device rig) |
+| TC-285 | Call Reconnect | ICE reconnects after real network disruption mid-call | Audio call active between Device A and Device B | 1. Disable WiFi on Device A for 5 s 2. Re-enable WiFi | "Reconnecting…" overlay appears on Device A; call resumes and overlay dismisses after ICE re-negotiation | P0 | Critical | MANUAL (2-device rig + real network) |
+| TC-286 | Public Chat | Broadcast message reaches all connected users | Two authenticated users; both on Public Chat screen in server mode | 1. Device A sends a public message | Message appears on Device B in real time | P0 | Critical | MANUAL (2-device rig) |
+| TC-287 | Simultaneous Call | Tie-breaker resolves when both devices call each other at the same instant | Both devices authenticated and mutually connected | 1. Device A and Device B both tap Call on each other simultaneously | Exactly one side is designated caller; exactly one side is callee; one call proceeds cleanly; no stuck or double-call state | P0 | Critical | MANUAL (2-device rig) |
+| TC-288 | Call Rejection | Both parties reject simultaneously with no stuck state | Device A calling Device B; incoming screen shown on Device B | 1. Device A and Device B both tap Reject at the same moment | Call ends cleanly on both devices; both return to Chats; no zombie call state | P1 | High | MANUAL (2-device rig) |
+| TC-289 | Guest Migration | Peer sees continuity after guest authenticates | Guest Device A has an existing conversation with Device B | 1. Device A completes the Authenticate flow (TC-260) 2. Device A sends a new message to Device B | Device B receives the message; contact identity matches the pre-migration guest | P0 | Critical | MANUAL (2-device rig) |
