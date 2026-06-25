@@ -184,6 +184,7 @@ export function createCallServiceDependencyMocks() {
 		shouldIgnoreCallBusy: jest.fn(() => false),
 		getWebrtcAdapter: jest.fn(),
 		sendCallControlMessage: jest.fn(),
+		waitForDataChannel: jest.fn().mockResolvedValue(undefined),
 	};
 
 	const peerService = {
