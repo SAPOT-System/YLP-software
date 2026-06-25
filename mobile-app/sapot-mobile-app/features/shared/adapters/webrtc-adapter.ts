@@ -34,7 +34,6 @@ export class WebrtcAdapter extends EventEmitter {
 
   private iceRestartTimer?: ReturnType<typeof setTimeout>;
   private iceRestartAttempts = 0;
-  private isIceRestarting = false;
   private isMakingOffer = false;
   private negotiationQueue: Promise<void> = Promise.resolve();
   private readonly maxIceRestartAttempts = 3;
@@ -225,8 +224,14 @@ export class WebrtcAdapter extends EventEmitter {
             }
             break;
           case "failed":
-            // NOTE: no event emitted here — eviction only comes from ICE max retries or data channel error
-            webrtcLog.warn("webrtc › connection state failed — no eviction triggered from here", { peerId: this.peerId });
+            webrtcLog.warn("webrtc › connection state failed", { peerId: this.peerId, iceState: this.peerConnection?.iceConnectionState });
+            // Only emit directly for DTLS/transport failures where iceConnectionState is
+            // still healthy. When ICE itself fails, iceConnectionState → "failed" fires too
+            // and scheduleIceRestart already owns recovery + final connection-failed emission.
+            // Emitting here on an ICE failure would evict the adapter before restart can run.
+            if (this.peerConnection?.iceConnectionState !== "failed") {
+              this.emit("connection-failed", new Error("RTCPeerConnection failed"));
+            }
             break;
         }
       };
@@ -626,10 +631,8 @@ export class WebrtcAdapter extends EventEmitter {
       reason,
       attempt: this.iceRestartAttempts + 1,
       max: this.maxIceRestartAttempts,
-      isIceRestarting: this.isIceRestarting, // always false — guard is dead code
       signalingState: this.peerConnection?.signalingState,
     });
-    if (this.isIceRestarting) return;
     if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
       webrtcLog.warn("webrtc › ice restart attempts exceeded — emitting connection-failed", { reason, attempts: this.iceRestartAttempts });
       this.emit(
