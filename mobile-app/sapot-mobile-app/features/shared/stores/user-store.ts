@@ -2,6 +2,8 @@ import { GuestUser, Peer } from "../database";
 import { userLog } from "../utils/logger";
 userLog.debug("[user-store] module loaded");
 
+type UserStoreListener = () => void;
+
 /**
  * UserStore manages the current user's Peer object.
  */
@@ -10,6 +12,7 @@ export class UserStore {
   private _isGuest: boolean = false;
   private _isRescuer: boolean = false;
   private _isAdmin: boolean = false;
+  private listeners = new Set<UserStoreListener>();
 
   /**
    * Gets the current user as a Peer object.
@@ -33,16 +36,32 @@ export class UserStore {
   }
 
   setIsRescuer(value: boolean) {
+    if (this._isRescuer === value) return;
     this._isRescuer = value;
+    this.emit();
   }
 
   setIsAdmin(value: boolean) {
+    if (this._isAdmin === value) return;
     this._isAdmin = value;
+    this.emit();
   }
 
   setUser(user: Peer | GuestUser, isGuest: boolean) {
     userLog.info("user › set", { isGuest, hasUser: Boolean(user) });
     this._user = user;
     this._isGuest = isGuest;
+    this.emit();
+  }
+
+  subscribe(listener: UserStoreListener) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private emit() {
+    this.listeners.forEach((listener) => listener());
   }
 }

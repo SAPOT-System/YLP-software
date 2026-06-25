@@ -103,20 +103,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [errors, setErrors] = useState<LoginFormErrors>({});
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isGuest, setIsGuest] = useState(false);
-  const [isRescuer, setIsRescuer] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [needsReloginForServer, setNeedsReloginForServer] = useState(false);
   const [isOfflineWithExpiredToken, setIsOfflineWithExpiredToken] =
     useState(false);
+  const [, setUserStoreVersion] = useState(0);
   const userService = useUserService();
-  const { guestUserRepository, guestMigrationService, peerService } =
+  const { guestUserRepository, guestMigrationService, peerService, userStore } =
     useAuthContainer();
 
   useEffect(() => {
     setTokenRefreshCallback((token) => setAccessToken(token));
     setNeedsReloginCallback(() => setNeedsReloginForServer(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const unsubscribe = userStore.subscribe(() => {
+      setUserStoreVersion((v) => v + 1);
+    });
+    return unsubscribe;
+  }, [userStore]);
 
   const refreshSession = useCallback(
     async (
@@ -144,8 +149,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         const userInfo = await getUserApi(access_token);
         await userService.syncAuthenticatedUser(userInfo);
-        setIsRescuer(userService.getIsRescuer());
-        setIsAdmin(userService.getIsAdmin());
         setAccessToken(access_token);
         setIsAuthenticated(true);
         authLog.debug("setIsOfflineWithExpiredToken false");
@@ -173,8 +176,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           await clearConnectionConfig();
           setAccessToken(null);
           setIsAuthenticated(false);
-          setIsRescuer(false);
-          setIsAdmin(false);
           return false;
         }
 
@@ -226,8 +227,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
 
           if (hasLocalRecord) {
-            setIsRescuer(userService.getIsRescuer());
-            setIsAdmin(userService.getIsAdmin());
             const storedToken = await getItemAsync("access_token");
             if (storedToken) setAccessToken(storedToken);
             setIsAuthenticated(true);
@@ -239,7 +238,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               refreshSession({
                 keepSessionOnRejection: true,
                 tokenWasExpired: true,
-              }).catch(() => {});
+              }).catch((error) => authLog.warn("[AuthProvider] background session refresh failed", { error }));
             }
             return;
           }
@@ -251,7 +250,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else if (await userService.isCurrentUserGuest()) {
           authLog.info("[AuthProvider] restoring guest session");
           await userService.initialize({ isGuest: true });
-          setIsGuest(true);
         }
       } catch (err) {
         authLog.error("auth › bootstrap failed", { error: err });
@@ -324,8 +322,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsAuthenticated(true);
       setNeedsReloginForServer(false);
       setIsOfflineWithExpiredToken(false);
-      setIsRescuer(userService.getIsRescuer());
-      setIsAdmin(userService.getIsAdmin());
 
       if (isRelogin) {
         requestMainContainerReset();
@@ -405,8 +401,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsAuthenticated(true);
     setNeedsReloginForServer(false);
     setIsOfflineWithExpiredToken(false);
-    setIsRescuer(userService.getIsRescuer());
-    setIsAdmin(userService.getIsAdmin());
   };
 
   const loginAsGuest = async (credentials: {
@@ -433,7 +427,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       credentials.lastName
     );
     await userService.syncGuestUser({ ...credentials, username });
-    setIsGuest(true);
     authLog.info("[AuthProvider] guest login success");
     return { success: true };
   };
@@ -465,13 +458,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setPendingPassword(data.password);
 
       await userService.syncAuthenticatedUser(res.data);
-      setIsRescuer(userService.getIsRescuer());
-      setIsAdmin(userService.getIsAdmin());
       setAccessToken(access_token);
       setIsAuthenticated(true);
       setNeedsReloginForServer(false);
       setIsOfflineWithExpiredToken(false);
-      setIsGuest(false);
 
       authLog.info("[AuthProvider] registerAndMigrate success");
       setLoading(false);
@@ -488,9 +478,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logoutAsGuest = async () => {
     authLog.info("[AuthProvider] logoutAsGuest called");
-    setIsGuest(false);
-    setIsRescuer(false);
-    setIsAdmin(false);
     await deleteItemAsync("userUUID");
     await userService.logout();
   };
@@ -519,8 +506,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await clearConnectionConfig();
     setAccessToken(null);
     setIsAuthenticated(false);
-    setIsRescuer(false);
-    setIsAdmin(false);
     setNeedsReloginForServer(false);
     setIsOfflineWithExpiredToken(false);
   };
@@ -537,9 +522,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isAuthenticated,
         loginAsGuest,
         logoutAsGuest,
-        isGuest,
-        isRescuer,
-        isAdmin,
+        isGuest: userStore.isGuest,
+        isRescuer: userStore.isRescuer,
+        isAdmin: userStore.isAdmin,
         loginAfterRegister,
         registerAndMigrate,
         needsReloginForServer,
