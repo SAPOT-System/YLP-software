@@ -45,13 +45,6 @@ export class ChatReceiveService {
     private readonly ackTracker: MessageAckTracker,
   ) {}
 
-  private async deriveAndSetConversationKey(
-    peerId: string,
-    conversationId: string,
-  ): Promise<void> {
-    await this.conversationKeyManager.deriveAndSetConversationKey(peerId, conversationId);
-  }
-
   /**
    * Creates a chat room (conversation) with the given peer, and adds both users as participants.
    * Also used by ChatService.ensureConversationInitialized for outgoing message flows.
@@ -141,7 +134,7 @@ export class ChatReceiveService {
         data.conversationId,
         data.messageType
       );
-      await this.deriveAndSetConversationKey(sender.id, conversation.id);
+      await this.conversationKeyManager.deriveAndSetConversationKey(sender.id, conversation.id);
       await this.saveIncomingMessage(sender, conversation, data);
       void this.conversationRepository.touchConversation(conversation.id);
       this.acknowledgeIncomingMessage(sender.id, data.messageId);
