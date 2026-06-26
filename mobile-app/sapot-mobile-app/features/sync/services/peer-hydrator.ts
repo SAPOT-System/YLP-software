@@ -1,8 +1,8 @@
 import { Database, Q } from "@nozbe/watermelondb";
 import { toAppError } from "@/features/shared/errors";
 import { syncLog } from "@/features/shared/utils/logger";
-import type { PeerService } from "@/features/shared/services/peer-service";
-import type { PeerRepository } from "@/features/shared/repositories/peer-repository";
+import type { PeerService } from "@/features/shared/peer/peer-service";
+import type { PeerRepository } from "@/features/shared/peer/peer-repository";
 import type { PushLocalDataRequestBody } from "../api/sync.api";
 
 type SyncChanges = PushLocalDataRequestBody["changes"];

@@ -1,8 +1,8 @@
 import { toAppError, captureAppError } from "../shared/errors";
 import { database } from "../shared/database/database";
-import { GuestUserRepository } from "../shared/repositories/guest-user-repository";
-import { PeerRepository } from "../shared/repositories/peer-repository";
-import { PeerService } from "../shared/services/peer-service";
+import { GuestUserRepository } from "../shared/peer/guest-user-repository";
+import { PeerRepository } from "../shared/peer/peer-repository";
+import { PeerService } from "../shared/peer/peer-service";
 import { UserService } from "../shared/services/user-service";
 import { SessionStore } from "../shared/stores/session-store";
 import { UserStore } from "../shared/stores/user-store";

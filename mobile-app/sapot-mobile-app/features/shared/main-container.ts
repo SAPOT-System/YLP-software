@@ -7,7 +7,7 @@ import {
   ZeroconfAdapter,
 } from "./adapters";
 import { database } from "./database";
-import { GuestUserRepository } from "./repositories";
+import { GuestUserRepository } from "./peer";
 import {
   ActiveUsersService,
   CallMediaService,

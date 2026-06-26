@@ -11,10 +11,10 @@ import {
   UserStoreMock,
 } from "@/test/mocks/user-service.mock-builders";
 import * as ExpoSecureStore from "expo-secure-store";
-import { GuestUserRepository } from "../../repositories";
+import { GuestUserRepository } from "../../peer";
 import { SessionStore, UserStore } from "../../stores";
 import { CleanUpService } from "../clean-up-service";
-import { PeerService } from "../peer-service";
+import { PeerService } from "../../peer/peer-service";
 import { UserService } from "../user-service";
 
 // Mock expo-secure-store
@@ -30,12 +30,12 @@ jest.mock("../../stores", () => ({
   SessionStore: jest.fn(),
 }));
 
-jest.mock("../../repositories", () => ({
+jest.mock("../../peer", () => ({
   GuestUserRepository: jest.fn(),
 }));
 
 // Mock PeerService
-jest.mock("../peer-service", () => ({
+jest.mock("../../peer/peer-service", () => ({
   PeerService: jest.fn(),
 }));
 

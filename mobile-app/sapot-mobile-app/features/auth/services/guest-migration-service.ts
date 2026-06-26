@@ -1,5 +1,5 @@
 import { MessageRepository } from "@/features/chat/repositories";
-import { GuestUserRepository } from "@/features/shared/repositories";
+import { GuestUserRepository } from "@/features/shared/peer";
 import { setMigrationState } from "@/features/shared/stores/secure-config";
 import { toAppError, captureAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";

@@ -4,10 +4,10 @@ import { authLog } from "@/features/shared/utils/logger";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import uuid from "react-native-uuid";
 import { GuestUser, Peer } from "../database";
-import { GuestUserRepository } from "../repositories";
+import { GuestUserRepository } from "../peer";
 import { SessionStore, UserStore } from "../stores";
 import { CleanUpService } from "./clean-up-service";
-import { PeerService } from "./peer-service";
+import { PeerService } from "../peer/peer-service";
 
 authLog.debug("[user-service] module loaded");
 

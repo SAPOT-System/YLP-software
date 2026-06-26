@@ -1,6 +1,6 @@
-import type { GuestUserRepository } from "@/features/shared/repositories";
+import type { GuestUserRepository } from "@/features/shared/peer";
 import type { CleanUpService } from "@/features/shared/services/clean-up-service";
-import type { PeerService } from "@/features/shared/services/peer-service";
+import type { PeerService } from "@/features/shared/peer/peer-service";
 import type { SessionStore, UserStore } from "@/features/shared/stores";
 
 export type UserStoreMock = jest.Mocked<

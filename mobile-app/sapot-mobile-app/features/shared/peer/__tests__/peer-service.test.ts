@@ -7,12 +7,12 @@ import { createTestPeer } from "@/test/factories/user.factory";
 import { createPeerRepositoryMock } from "@/test/mocks/service.mock-builders";
 import { Service } from "react-native-zeroconf";
 import { Peer } from "../../database";
-import { PeerRepository } from "../../repositories";
+import { PeerRepository } from "../peer-repository";
 import { DiscoveredService } from "../../types";
 import { PeerService } from "../peer-service";
 
 // Mock the repositories
-jest.mock("../../repositories", () => ({
+jest.mock("../peer-repository", () => ({
   PeerRepository: jest.fn(),
 }));
 

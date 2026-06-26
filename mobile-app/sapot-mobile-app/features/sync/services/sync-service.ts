@@ -25,8 +25,8 @@ import { SyncPayloadBuilder } from "./sync-payload-builder";
 import { SyncPullNormalizer } from "./sync-pull-normalizer";
 import type { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
-import type { PeerService } from "@/features/shared/services/peer-service";
-import type { PeerRepository } from "@/features/shared/repositories/peer-repository";
+import type { PeerService } from "@/features/shared/peer/peer-service";
+import type { PeerRepository } from "@/features/shared/peer/peer-repository";
 import type { MessageRepository } from "@/features/chat/repositories/message-repository";
 
 syncLog.debug("[sync-service] module loaded");

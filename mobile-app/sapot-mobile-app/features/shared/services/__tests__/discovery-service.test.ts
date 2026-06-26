@@ -11,7 +11,7 @@ import { ZeroconfAdapter } from "../../adapters";
 import { Message } from "../../database";
 import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../stores";
 import { DiscoveryService } from "../discovery-service";
-import { PeerService } from "../peer-service";
+import { PeerService } from "../../peer/peer-service";
 
 // Mock the adapters
 jest.mock("../../adapters", () => ({
@@ -27,7 +27,7 @@ jest.mock("../../stores", () => ({
 }));
 
 // Mock PeerService
-jest.mock("../peer-service", () => ({
+jest.mock("../../peer/peer-service", () => ({
   PeerService: jest.fn(),
 }));
 
