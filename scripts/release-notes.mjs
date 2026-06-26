@@ -34,11 +34,31 @@ export function buildPrompt(template, tag, commits) {
   ].join("\n");
 }
 
-// Manual-fill fallback: the template with the tag filled in and commits for reference.
+// Manual-fill fallback: a blank structured draft with commits listed for reference.
 export function renderTemplate(template, tag, commits) {
-  const filled = template.trim().replace(/<TAG_NAME>/g, tag);
+  const component = tag.startsWith("mobile/") ? "Mobile" : "Server";
+  const statusMatch = tag.match(/-(alpha|beta|rc)\./i);
+  const status = statusMatch
+    ? statusMatch[1].charAt(0).toUpperCase() + statusMatch[1].slice(1)
+    : "Beta";
   return [
-    filled,
+    `# ${tag}`,
+    "",
+    `**Component:** ${component}`,
+    "",
+    `**Status:** ${status}`,
+    "",
+    "<!-- Fill in the sections below. Delete empty ones before publishing. -->",
+    "",
+    "## ✨ Added",
+    "- ",
+    "",
+    "## 🐛 Fixed",
+    "- ",
+    "",
+    "## 📝 Notes",
+    "- Intended for testing only.",
+    "- Feedback is appreciated.",
     "",
     "<!-- Commits since the previous tag (for reference — delete before publishing):",
     ...commits.map((c) => `  - ${c}`),
