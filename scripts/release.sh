@@ -31,7 +31,11 @@ case "$component" in
     exit 1 ;;
 esac
 
-git -C "$root" commit -m "chore(version): $component $version"
+if git -C "$root" diff --cached --quiet; then
+  echo "Version already at $version — skipping bump commit." >&2
+else
+  git -C "$root" commit -m "chore(version): $component $version"
+fi
 
 # Draft notes locally: Claude (sonnet) if ANTHROPIC_API_KEY is set and the SDK is
 # installed; otherwise the template for you to fill in. Review before tagging.
@@ -43,6 +47,11 @@ else
   echo "Review/edit the drafted notes at: $notes" >&2
 fi
 
+if git -C "$root" tag -l "$tag" | grep -q .; then
+  echo "Tag $tag already exists — delete it first with: git tag -d $tag" >&2
+  rm -f "$notes"
+  exit 1
+fi
 git -C "$root" tag -a "$tag" -F "$notes"
 rm -f "$notes"
 echo "Created annotated tag $tag (notes embedded in the tag message)."
