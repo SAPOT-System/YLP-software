@@ -105,7 +105,7 @@ Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `r
 | `WebrtcSessionManager` | One `WebrtcAdapter` (RTCPeerConnection) per peer |
 | `SignalingService` | Routes WebRTC SDP/ICE messages over TCP or WS |
 | `CallMediaService` | Initializes and manages local mic/camera streams |
-| `CallService` | Call lifecycle, audio routing, call-log persistence (`saveCallLogWithReceipts`) |
+| `CallService` | **Facade.** Call session lifecycle (the `callSessions` map, busy/ready glare handling, inbound/outbound flow). Audio-route management delegated to `CallAudioService`; call-log build and persist delegated to `CallLogService`. `// TODO(refactor): extract CallSessionService` — the `callSessions` state machine should move to a `CallSessionService` to push `call-service.ts` under 800 lines, deferred to avoid splitting a live state machine. |
 | `ChatService` | Facade: delegates to `ChatReceiveService` (incoming/ACK/seen) and `ChatMessageService` (send/status/resend) over a shared `MessageAckTracker`. Persists via WebRTC data channels. |
 | `ConversationKeyManager` | ECDH key derivation per conversation — `deriveAndSetConversationKey`, `preloadAllConversationKeys`, `rederiveKeyForPeer` |
 | `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service idempotently and only marks it active after `ZeroconfAdapter` confirms publication. |
