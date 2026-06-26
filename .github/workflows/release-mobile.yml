@@ -1,0 +1,31 @@
+name: Release Mobile
+on:
+  push:
+    tags: ["mobile/v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Derive version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#mobile/v}" >> "$GITHUB_ENV"
+      - name: Assert source version matches tag
+        working-directory: mobile-app/sapot-mobile-app
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$PKG" != "$VERSION" ]; then
+            echo "package.json version ($PKG) != tag ($VERSION). Run ./scripts/release.sh before tagging." >&2
+            exit 1
+          fi
+      - name: Extract notes from the annotated tag
+        run: git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE=""
+          case "$VERSION" in *-*) PRERELEASE="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md $PRERELEASE
