@@ -17,7 +17,8 @@ export function previousTag(component, tag) {
 
 export function buildCommitContext(component, tag) {
   const prev = previousTag(component, tag);
-  const range = prev ? `${prev}..${tag}` : tag;
+  // The tag doesn't exist yet when notes are generated, so use HEAD as the end ref.
+  const range = prev ? `${prev}..HEAD` : "HEAD";
   const log = execSync(`git log ${range} --pretty=format:%s`).toString();
   return { previousTag: prev, commits: log.split("\n").filter(Boolean) };
 }
