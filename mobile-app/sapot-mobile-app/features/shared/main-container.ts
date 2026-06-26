@@ -161,6 +161,9 @@ export class MainContainer {
     );
 
     // Construction order: WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService
+    // ConnectionService is wired last; services it depends on are injected via setters below.
+    // Those setters store the object reference, not a bound function, so jest.spyOn replacements
+    // on the injected instances are intercepted correctly in tests. See CLAUDE.md § Construction order.
     this.webrtcSessionManager = new WebrtcSessionManager(
       this.userContainer.userStore,
       this.networkConfig
@@ -267,6 +270,9 @@ export class MainContainer {
       this.conversationKeyManager,
     );
 
+    // Closure wiring: ConnectionService dispatches to these services through the live instance
+    // reference, not a stored bound fn, so jest.spyOn replacements are intercepted in tests.
+    // Do NOT refactor these to .bind() — that would capture the original method and bypass spies.
     this.connectionService.setChatService(this.chatService);
     this.connectionService.setCallService(this.callService);
     this.connectionService.setPeerService(this.userContainer.peerService);
