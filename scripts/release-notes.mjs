@@ -15,11 +15,19 @@ export function previousTag(component, tag) {
   }
 }
 
+const COMPONENT_PATHS = {
+  server: "server/",
+  mobile: "mobile-app/",
+};
+
 export function buildCommitContext(component, tag) {
   const prev = previousTag(component, tag);
   // The tag doesn't exist yet when notes are generated, so use HEAD as the end ref.
   const range = prev ? `${prev}..HEAD` : "HEAD";
-  const log = execSync(`git log ${range} --pretty=format:%s`).toString();
+  // Scope to the component's directory so unrelated commits are excluded.
+  const path = COMPONENT_PATHS[component] ?? "";
+  const pathFilter = path ? ` -- ${path}` : "";
+  const log = execSync(`git log ${range} --pretty=format:%s${pathFilter}`).toString();
   return { previousTag: prev, commits: log.split("\n").filter(Boolean) };
 }
 
