@@ -8,7 +8,7 @@ const MODEL = "claude-sonnet-4-6";
 
 export function previousTag(component, tag) {
   try {
-    return execSync(`git describe --tags --abbrev=0 --match "${component}/v*" "${tag}^"`)
+    return execSync(`git describe --tags --abbrev=0 --match "${component}/v*" "${tag}^"`, { stdio: "pipe" })
       .toString().trim();
   } catch {
     return "";
