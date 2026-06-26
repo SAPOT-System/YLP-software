@@ -17,6 +17,7 @@ from fastapi import Request
 from starlette.responses import JSONResponse
 
 from app.limiter import limiter
+from app.version import __version__
 
 from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
@@ -75,7 +76,7 @@ app = FastAPI(
     title="SAPOT Server",
     description="A server that will mitigate the backend of the SAPOT mobile application",
     summary="A server that contains secure endpoint for the use of a mobile application",
-    version="0.0.1",
+    version=__version__,
     lifespan=lifespan
 )
 
@@ -119,6 +120,11 @@ async def strip_trailing_slashes(request: Request, call_next):
 @app.middleware("http")
 async def track_user_activity(request: Request, call_next):
     return await activity_tracking_middleware(request, call_next)
+
+@app.get("/version")
+def get_version():
+    return {"version": __version__}
+
 
 logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
