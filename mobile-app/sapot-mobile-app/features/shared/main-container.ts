@@ -33,6 +33,7 @@ import { ConversationRepository } from "@/features/chat/repositories/conversatio
 import { MessageRepository } from "@/features/chat/repositories/message-repository";
 import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 import { ChatService } from "@/features/chat/services/chat-service";
+import { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
 import { PublicChatService } from "@/features/chat/services/public-chat-service";
 import { setAppAlive } from "@/task/signaling-task";
 import { AuthContainer } from "../auth/auth-container";
@@ -213,8 +214,12 @@ export class MainContainer {
       this.messageRepository
     );
 
+    const messageReceiptManager = new MessageReceiptManager();
+
     this.syncService = new SyncService({
       db: database,
+      messageReceiptManager,
+      messageRepository: this.messageRepository,
       currentUserId: this.userContainer.userStore.user.id,
       peerService: this.userContainer.peerService,
       peerRepository: this.userContainer.peerRepository,
@@ -240,12 +245,6 @@ export class MainContainer {
       this.syncService,
       this.conversationKeyManager,
     );
-
-    // Inject messageReceiptManager into SyncService after ChatService construction
-    this.syncService.setMessageReceiptManager(
-      this.chatService.getMessageReceiptManager()
-    );
-    this.syncService.setMessageRepository(this.messageRepository);
 
     this.publicChatService = new PublicChatService(
       this.userContainer.userStore,

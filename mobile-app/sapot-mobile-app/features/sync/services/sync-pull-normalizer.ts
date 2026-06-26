@@ -21,10 +21,6 @@ export class SyncPullNormalizer {
     private messageRepository?: MessageRepository,
   ) {}
 
-  setMessageRepository(repo: MessageRepository): void {
-    this.messageRepository = repo;
-  }
-
   private toTimestamp(value?: string | number | null): number {
     if (typeof value === "number") return value;
     if (typeof value === "string") return Date.parse(value);

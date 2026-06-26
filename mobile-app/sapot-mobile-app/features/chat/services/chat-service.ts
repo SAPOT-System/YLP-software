@@ -24,7 +24,6 @@ import {
 } from "../repositories";
 import { DataChatMessageI } from "../types";
 import { toAppError, captureAppError } from "@/features/shared/errors";
-import { MessageReceiptManager } from "./message-receipt-manager";
 import { MessageAckTracker } from "./message-ack-tracker";
 import { ChatReceiveService } from "./chat-receive-service";
 import { ChatMessageService } from "./chat-message-service";
@@ -43,20 +42,9 @@ export class ChatService {
   private peer?: Peer;
   private conversation?: Conversation;
   private readonly ackTracker = new MessageAckTracker();
-  private messageReceiptManager = new MessageReceiptManager();
   private readonly receiveService: ChatReceiveService;
   private readonly messageService: ChatMessageService;
 
-  /**
-   * Constructs a ChatService instance.
-   * @param connectionService Handles peer-to-peer network connections
-   * @param conversationRepository Repository for conversation data
-   * @param conversationParticipantRepository Repository for conversation participants
-   * @param messageRepository Repository for messages
-   * @param messageStatusRepository Repository for message statuses
-   * @param peerService Service for peer management
-   * @param userStore Store for user state
-   */
   constructor(
     private connectionService: ConnectionService,
     private conversationRepository: ConversationRepository,
@@ -108,13 +96,6 @@ export class ChatService {
       hasPeerService: Boolean(peerService),
       hasUserStore: Boolean(userStore),
     });
-  }
-
-  /**
-   * Returns the message receipt manager for filtering receipt statuses during sync.
-   */
-  getMessageReceiptManager(): MessageReceiptManager {
-    return this.messageReceiptManager;
   }
 
   private async deriveAndSetConversationKey(

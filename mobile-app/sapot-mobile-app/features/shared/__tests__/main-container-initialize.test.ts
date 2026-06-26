@@ -190,9 +190,16 @@ jest.mock("../services/conversation-key-manager", () => ({
   })),
 }));
 
+jest.mock("@/features/chat/services/message-receipt-manager", () => ({
+  MessageReceiptManager: jest.fn().mockImplementation(() => ({
+    shouldPushReceipt: jest.fn().mockReturnValue(true),
+    shouldPushMessage: jest.fn().mockReturnValue(true),
+    getTransientStatuses: jest.fn().mockReturnValue(new Set()),
+  })),
+}));
+
 jest.mock("@/features/chat/services/chat-service", () => ({
   ChatService: jest.fn().mockImplementation(() => ({
-    getMessageReceiptManager: jest.fn().mockReturnValue({}),
     getAllNotSentMessageForPeer: jest.fn(),
     getOrCreateDirectConversationByPeer: jest.fn(),
   })),
@@ -216,8 +223,6 @@ jest.mock("@/features/call/repositories/call-participant-repository", () => ({
 
 jest.mock("@/features/sync", () => ({
   SyncService: jest.fn().mockImplementation(() => ({
-    setMessageReceiptManager: jest.fn(),
-    setMessageRepository: jest.fn(),
     syncNow: jest.fn().mockResolvedValue(undefined),
     handleConnectivityChange: jest.fn(),
     skipEncryptedMessageUpdatesOnNextSync: jest.fn(),

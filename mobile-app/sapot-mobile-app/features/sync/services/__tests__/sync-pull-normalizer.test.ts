@@ -324,25 +324,14 @@ describe("SyncPullNormalizer", () => {
     });
   });
 
-  describe("setMessageRepository", () => {
-    it("should allow setting a message repository after construction", () => {
-      // Arrange
-      const mockRepo = {
-        hasMigrationKeys: jest.fn().mockReturnValue(false),
-        tryDecryptWithMigrationKeys: jest.fn(),
-      } as unknown as jest.Mocked<MessageRepository>;
-
-      // Act & Assert — should not throw
-      expect(() => normalizer.setMessageRepository(mockRepo)).not.toThrow();
-    });
-
+  describe("messageRepository (constructor-injected)", () => {
     it("should use message repository to decrypt ecdh: messages in created", async () => {
       // Arrange
       const mockRepo = {
         hasMigrationKeys: jest.fn().mockReturnValue(true),
         tryDecryptWithMigrationKeys: jest.fn().mockReturnValue("decrypted content"),
       } as unknown as jest.Mocked<MessageRepository>;
-      normalizer.setMessageRepository(mockRepo);
+      const normalizerWithRepo = new SyncPullNormalizer(mockDatabase, migrationGuard, mockRepo);
 
       const changes = createEmptyChanges();
       changes.messages.created = [
@@ -358,7 +347,7 @@ describe("SyncPullNormalizer", () => {
       ];
 
       // Act
-      const result = await normalizer.normalizePullChanges(changes);
+      const result = await normalizerWithRepo.normalizePullChanges(changes);
 
       // Assert
       const msg = result.messages.created[0];
@@ -372,7 +361,7 @@ describe("SyncPullNormalizer", () => {
         hasMigrationKeys: jest.fn().mockReturnValue(false),
         tryDecryptWithMigrationKeys: jest.fn(),
       } as unknown as jest.Mocked<MessageRepository>;
-      normalizer.setMessageRepository(mockRepo);
+      const normalizerWithRepo = new SyncPullNormalizer(mockDatabase, migrationGuard, mockRepo);
 
       const changes = createEmptyChanges();
       changes.messages.created = [
@@ -388,7 +377,7 @@ describe("SyncPullNormalizer", () => {
       ];
 
       // Act
-      const result = await normalizer.normalizePullChanges(changes);
+      const result = await normalizerWithRepo.normalizePullChanges(changes);
 
       // Assert — content untouched, decrypt not called
       expect((result.messages.created[0] as Record<string, unknown>).content).toBe("ecdh:encrypted");

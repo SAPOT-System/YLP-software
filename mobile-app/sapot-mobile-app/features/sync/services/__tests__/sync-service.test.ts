@@ -60,6 +60,7 @@ describe("SyncService", () => {
     service = new SyncService({
       db: mockDatabase,
       messageReceiptManager: mockReceiptManager,
+      messageRepository: mockMessageRepository,
       currentUserId: "user-1",
     });
   });
@@ -85,6 +86,7 @@ describe("SyncService", () => {
       const newService = new SyncService({
         db: mockDatabase,
         messageReceiptManager: newManager,
+        messageRepository: mockMessageRepository,
       });
 
       // Assert
@@ -200,7 +202,6 @@ describe("SyncService", () => {
   describe("post-migration re-encryption", () => {
     it("should re-encrypt when hasMigrationKeys is true after sync", async () => {
       // Arrange
-      service.setMessageRepository(mockMessageRepository);
       mockMessageRepository.hasMigrationKeys.mockReturnValue(true);
 
       (mockSynchronize as jest.Mock).mockResolvedValueOnce(undefined);
@@ -216,7 +217,6 @@ describe("SyncService", () => {
 
     it("should not re-encrypt when hasMigrationKeys is false", async () => {
       // Arrange
-      service.setMessageRepository(mockMessageRepository);
       mockMessageRepository.hasMigrationKeys.mockReturnValue(false);
 
       (mockSynchronize as jest.Mock).mockResolvedValueOnce(undefined);
@@ -227,55 +227,6 @@ describe("SyncService", () => {
       // Assert
       expect(mockMessageRepository.reEncryptAfterMigration).not.toHaveBeenCalled();
       expect(mockMessageRepository.clearMigrationKeys).not.toHaveBeenCalled();
-    });
-
-    it("should not crash if message repository is not set", async () => {
-      // Arrange
-      (mockSynchronize as jest.Mock).mockResolvedValueOnce(undefined);
-
-      // Act & Assert
-      await expect(service.syncNow()).resolves.toBeUndefined();
-    });
-  });
-
-  describe("setters", () => {
-    it("should set message receipt manager", () => {
-      // Arrange
-      const newManager = {
-        shouldPushReceipt: jest.fn().mockReturnValue(false),
-      } as unknown as jest.Mocked<MessageReceiptManager>;
-
-      // Act
-      service.setMessageReceiptManager(newManager);
-
-      // Assert
-      expect(service["pushFilter"]["messageReceiptManager"]).toBe(newManager);
-    });
-
-    it("should set message repository", () => {
-      // Arrange
-      const repo = {
-        hasMigrationKeys: jest.fn(),
-      } as unknown as jest.Mocked<MessageRepository>;
-
-      // Act
-      service.setMessageRepository(repo);
-
-      // Assert
-      expect(service["messageRepository"]).toBe(repo);
-    });
-
-    it("should set peer service on hydrator", () => {
-      // Arrange
-      const mockPeerService = {
-        getOrCreatePeerById: jest.fn(),
-      } as any;
-
-      // Act
-      service.setPeerService(mockPeerService);
-
-      // Assert
-      expect(service["peerHydrator"]["peerService"]).toBe(mockPeerService);
     });
   });
 
@@ -323,6 +274,7 @@ describe("SyncService", () => {
       const newService = new SyncService({
         db: mockDatabase,
         messageReceiptManager: mockReceiptManager,
+        messageRepository: mockMessageRepository,
       });
 
       // Act

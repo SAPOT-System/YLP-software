@@ -14,10 +14,6 @@ export class PeerHydrator {
     private readonly peerRepository: PeerRepository | undefined,
   ) {}
 
-  setPeerService(peerService: PeerService): void {
-    this.peerService = peerService;
-  }
-
   async hydrate(changes: SyncChanges): Promise<void> {
     if (!this.peerService) {
       syncLog.debug("sync › peer hydration skipped, no peerService");

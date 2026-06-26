@@ -300,28 +300,5 @@ describe("PeerHydrator", () => {
       expect(mockPeerService.getOrCreatePeerById).not.toHaveBeenCalled();
     });
 
-    it("should set peer service after construction", async () => {
-      // Arrange
-      const dbEmpty = mockDb([]) as unknown as Database;
-      hydrator = new PeerHydrator(dbEmpty, undefined, mockPeerRepository);
-
-      mockPeerService.getOrCreatePeerById.mockResolvedValue({} as never);
-
-      const changes = createEmptyChanges();
-      changes.messages.created = [
-        { sender_id: "peer-1", content: "test", conversation_id: "conv-1" } as never,
-      ];
-
-      // Initially should skip
-      await hydrator.hydrate(changes);
-      expect(mockPeerService.getOrCreatePeerById).not.toHaveBeenCalled();
-
-      // After setting peer service
-      hydrator.setPeerService(mockPeerService);
-      await hydrator.hydrate(changes);
-
-      // Now should call
-      expect(mockPeerService.getOrCreatePeerById).toHaveBeenCalled();
-    });
   });
 });

@@ -14,7 +14,7 @@ describe("SyncPushFilter", () => {
   });
 
   describe("shouldPushReceipt", () => {
-    it("should delegate to manager when present", () => {
+    it("should delegate to manager", () => {
       // Arrange
       filter = new SyncPushFilter(mockReceiptManager);
       mockReceiptManager.shouldPushReceipt.mockReturnValue(true);
@@ -27,9 +27,10 @@ describe("SyncPushFilter", () => {
       expect(mockReceiptManager.shouldPushReceipt).toHaveBeenCalledWith(MessageStatusType.DELIVERED);
     });
 
-    it("should exclude SENDING status when manager is undefined", () => {
+    it("should return false for SENDING when manager returns false", () => {
       // Arrange
-      filter = new SyncPushFilter(undefined);
+      filter = new SyncPushFilter(mockReceiptManager);
+      mockReceiptManager.shouldPushReceipt.mockReturnValue(false);
 
       // Act
       const result = filter.shouldPushReceipt(MessageStatusType.SENDING);
@@ -37,65 +38,9 @@ describe("SyncPushFilter", () => {
       // Assert
       expect(result).toBe(false);
     });
-
-    it("should exclude NOT_SENT status when manager is undefined", () => {
-      // Arrange
-      filter = new SyncPushFilter(undefined);
-
-      // Act
-      const result = filter.shouldPushReceipt(MessageStatusType.NOT_SENT);
-
-      // Assert
-      expect(result).toBe(false);
-    });
-
-    it("should exclude SENT status when manager is undefined", () => {
-      // Arrange
-      filter = new SyncPushFilter(undefined);
-
-      // Act
-      const result = filter.shouldPushReceipt(MessageStatusType.SENT);
-
-      // Assert
-      expect(result).toBe(false);
-    });
-
-    it("should allow DELIVERED status when manager is undefined", () => {
-      // Arrange
-      filter = new SyncPushFilter(undefined);
-
-      // Act
-      const result = filter.shouldPushReceipt(MessageStatusType.DELIVERED);
-
-      // Assert
-      expect(result).toBe(true);
-    });
-
-    it("should allow READ status when manager is undefined", () => {
-      // Arrange
-      filter = new SyncPushFilter(undefined);
-
-      // Act
-      const result = filter.shouldPushReceipt(MessageStatusType.READ);
-
-      // Assert
-      expect(result).toBe(true);
-    });
   });
 
   describe("shouldPushMessage", () => {
-    it("should return true when manager is undefined", () => {
-      // Arrange
-      filter = new SyncPushFilter(undefined);
-      const receiptsByMessage = new Map<string, MessageStatusType[]>();
-
-      // Act
-      const result = filter.shouldPushMessage("msg-1", receiptsByMessage);
-
-      // Assert
-      expect(result).toBe(true);
-    });
-
     it("should return true when message has no receipts", () => {
       // Arrange
       filter = new SyncPushFilter(mockReceiptManager);
@@ -195,65 +140,6 @@ describe("SyncPushFilter", () => {
       expect(result).toBe(true);
       // Called at most 2 times due to short-circuiting (after first true)
       expect(mockReceiptManager.shouldPushReceipt.mock.calls.length).toBeLessThanOrEqual(3);
-    });
-  });
-
-  describe("setMessageReceiptManager", () => {
-    it("should update manager for subsequent calls", () => {
-      // Arrange
-      filter = new SyncPushFilter(undefined);
-      const newManager = {
-        shouldPushReceipt: jest.fn().mockReturnValue(true),
-      } as unknown as jest.Mocked<MessageReceiptManager>;
-
-      // Act
-      filter.setMessageReceiptManager(newManager);
-      const result = filter.shouldPushReceipt(MessageStatusType.DELIVERED);
-
-      // Assert
-      expect(result).toBe(true);
-      expect(newManager.shouldPushReceipt).toHaveBeenCalledWith(MessageStatusType.DELIVERED);
-    });
-
-    it("should use new manager for shouldPushMessage", () => {
-      // Arrange
-      filter = new SyncPushFilter(undefined);
-      const newManager = {
-        shouldPushReceipt: jest.fn().mockReturnValue(true),
-      } as unknown as jest.Mocked<MessageReceiptManager>;
-      filter.setMessageReceiptManager(newManager);
-
-      const receiptsByMessage = new Map<string, MessageStatusType[]>([
-        ["msg-1", [MessageStatusType.DELIVERED]],
-      ]);
-
-      // Act
-      const result = filter.shouldPushMessage("msg-1", receiptsByMessage);
-
-      // Assert
-      expect(result).toBe(true);
-      expect(newManager.shouldPushReceipt).toHaveBeenCalled();
-    });
-
-    it("should replace existing manager", () => {
-      // Arrange
-      const initialManager = {
-        shouldPushReceipt: jest.fn().mockReturnValue(false),
-      } as unknown as jest.Mocked<MessageReceiptManager>;
-      filter = new SyncPushFilter(initialManager);
-
-      const newManager = {
-        shouldPushReceipt: jest.fn().mockReturnValue(true),
-      } as unknown as jest.Mocked<MessageReceiptManager>;
-
-      // Act
-      filter.setMessageReceiptManager(newManager);
-      const result = filter.shouldPushReceipt(MessageStatusType.DELIVERED);
-
-      // Assert
-      expect(result).toBe(true);
-      expect(newManager.shouldPushReceipt).toHaveBeenCalled();
-      expect(initialManager.shouldPushReceipt).not.toHaveBeenCalled();
     });
   });
 

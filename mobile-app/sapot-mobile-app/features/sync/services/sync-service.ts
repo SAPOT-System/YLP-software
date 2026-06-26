@@ -41,7 +41,8 @@ export type SyncEntity =
 
 interface SyncServiceParams {
   db: Database;
-  messageReceiptManager?: MessageReceiptManager;
+  messageReceiptManager: MessageReceiptManager;
+  messageRepository: MessageRepository;
   currentUserId?: string;
   peerService?: PeerService;
   peerRepository?: PeerRepository;
@@ -175,51 +176,31 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   private syncLogger: SyncLogger;
   private retryAttempts = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
-  private messageRepository?: MessageRepository;
+  private readonly messageRepository: MessageRepository;
   private peerHydrator: PeerHydrator;
   private pushFilter: SyncPushFilter;
   private migrationGuard: MigrationGuard;
   private pullNormalizer: SyncPullNormalizer;
   private readonly payloadBuilder = new SyncPayloadBuilder();
 
-  constructor({ db, messageReceiptManager, currentUserId, peerService, peerRepository }: SyncServiceParams) {
+  constructor({ db, messageReceiptManager, messageRepository, currentUserId, peerService, peerRepository }: SyncServiceParams) {
     super();
     this.db = db;
     this.currentUserId = currentUserId;
     this.peerRepository = peerRepository;
+    this.messageRepository = messageRepository;
     this.conversationParticipantRepository =
       new ConversationParticipantRepository(this.db);
     this.syncLogger = new SyncLogger(20);
     this.peerHydrator = new PeerHydrator(db, peerService, peerRepository);
     this.pushFilter = new SyncPushFilter(messageReceiptManager);
     this.migrationGuard = new MigrationGuard(db);
-    this.pullNormalizer = new SyncPullNormalizer(db, this.migrationGuard);
+    this.pullNormalizer = new SyncPullNormalizer(db, this.migrationGuard, messageRepository);
     syncLog.info("sync › service constructed", {
       hasDb: Boolean(db),
       hasReceiptManager: Boolean(messageReceiptManager),
+      hasMessageRepository: Boolean(messageRepository),
     });
-  }
-
-  /**
-   * Sets the message receipt manager after construction.
-   * Used to inject ChatService's manager after MainContainer initialization.
-   */
-  setMessageReceiptManager(messageReceiptManager: MessageReceiptManager): void {
-    this.pushFilter.setMessageReceiptManager(messageReceiptManager);
-    syncLog.info("sync › message receipt manager set");
-  }
-
-  setPeerService(peerService: PeerService): void {
-    this.peerHydrator.setPeerService(peerService);
-    syncLog.info("sync › peer service set");
-  }
-
-  /** Wired by MainContainer so normalizePullChanges can decrypt server messages
-   *  that were encrypted with the guest conversation key during migration. */
-  setMessageRepository(repo: MessageRepository): void {
-    this.messageRepository = repo;
-    this.pullNormalizer.setMessageRepository(repo);
-    syncLog.info("sync › message repository set");
   }
 
   /**
