@@ -10,6 +10,7 @@ import {
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
 import { WebrtcDataMessage } from "../types";
 import { webrtcLog } from "../utils/logger";
+import { IceRestartController } from "./ice-restart-controller";
 import { LivenessMonitor } from "./liveness-monitor";
 
 webrtcLog.debug("[webrtc-adapter] module loaded");
@@ -33,13 +34,11 @@ export class WebrtcAdapter extends EventEmitter {
   private configuration: RTCConfiguration;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
 
-  private iceRestartTimer?: ReturnType<typeof setTimeout>;
-  private iceRestartAttempts = 0;
   private isMakingOffer = false;
   private negotiationQueue: Promise<void> = Promise.resolve();
-  private readonly maxIceRestartAttempts = 3;
-  private readonly iceRestartDelayMs = 1500;
 
+  // ICE-restart backoff — managed by IceRestartController.
+  private readonly iceRestart: IceRestartController;
   // Application-level liveness probe — managed by LivenessMonitor.
   private readonly liveness: LivenessMonitor;
 
@@ -63,15 +62,45 @@ export class WebrtcAdapter extends EventEmitter {
       iceServers: [],
       iceTransportPolicy: "all",
     };
+    this.iceRestart = new IceRestartController({
+      createRestartOffer: () =>
+        this.enqueueNegotiation(async () => {
+          if (!this.peerConnection) throw new Error("no peer connection");
+          const sigState = this.peerConnection.signalingState;
+          if (sigState === "have-local-offer") {
+            webrtcLog.info("webrtc › rolling back unanswered offer before ice restart");
+            await this.peerConnection.setLocalDescription(
+              new RTCSessionDescription({ type: "rollback", sdp: "" })
+            );
+            this.isMakingOffer = false;
+          } else if (sigState !== "stable") {
+            webrtcLog.warn("webrtc › skip ice restart (not stable)", { signalingState: sigState });
+            throw new Error("not stable");
+          }
+          webrtcLog.info("webrtc › ice restart");
+          this.trace("create-offer:start");
+          const offer = await this.peerConnection.createOffer({ iceRestart: true });
+          this.trace("create-offer:success", { sdpLength: offer.sdp?.length });
+          this.trace("set-local-description:start", { type: offer.type });
+          await this.peerConnection.setLocalDescription(offer);
+          this.remoteDescriptionSet = false;
+          this.trace("set-local-description:done");
+          return { type: "offer", sdp: offer.sdp! };
+        }),
+      emitSignalOffer: (offer) => this.emit("signal-offer", offer),
+      emitIceRestarting: () => this.emit("ice-restarting"),
+      emitConnectionFailed: (error) => this.emit("connection-failed", error),
+      log: (m, d) => this.trace(m, d as Record<string, unknown>),
+    });
     this.liveness = new LivenessMonitor({
       send: (frame) => {
         if (this.dataChannel?.readyState === "open") {
           this.dataChannel.send(JSON.stringify(frame));
         }
       },
-      onLivenessLost: () => this.scheduleIceRestart("failed", true),
+      onLivenessLost: () => this.iceRestart.scheduleIceRestart("failed", true),
       onLivenessRestored: () => {
-        this.resetIceRestartState();
+        this.iceRestart.resetIceRestartState();
         this.emit("liveness-restored");
       },
       log: (m, d) => this.trace(m, d as Record<string, unknown>),
@@ -246,13 +275,13 @@ export class WebrtcAdapter extends EventEmitter {
 
       this.peerConnection.oniceconnectionstatechange = (_event) => {
         const iceState = this.peerConnection?.iceConnectionState;
-        webrtcLog.info("webrtc › ice state", { state: iceState, peerId: this.peerId, restartAttempts: this.iceRestartAttempts });
+        webrtcLog.info("webrtc › ice state", { state: iceState, peerId: this.peerId, restartAttempts: this.iceRestart.attempts });
 
         switch (iceState) {
           case "connected":
           case "completed": {
-            const wasReconnecting = this.iceRestartAttempts > 0;
-            this.resetIceRestartState();
+            const wasReconnecting = this.iceRestart.attempts > 0;
+            this.iceRestart.resetIceRestartState();
             if (wasReconnecting) {
               webrtcLog.info("webrtc › ice reconnected after restart");
               this.emit("ice-reconnected");
@@ -277,10 +306,10 @@ export class WebrtcAdapter extends EventEmitter {
             break;
           }
           case "disconnected":
-            this.scheduleIceRestart("disconnected");
+            this.iceRestart.scheduleIceRestart("disconnected");
             break;
           case "failed":
-            this.scheduleIceRestart("failed", true);
+            this.iceRestart.scheduleIceRestart("failed", true);
             this.trace("ice-failed", {
               pendingCandidates: this.pendingIceCandidates.length,
             });
@@ -407,125 +436,6 @@ export class WebrtcAdapter extends EventEmitter {
         this.isMakingOffer = false;
       }
     });
-  }
-
-  async restartIce() {
-    if (!this.peerConnection) return;
-
-    return this.enqueueNegotiation(async () => {
-      try {
-        const sigState = this.peerConnection!.signalingState;
-
-        if (sigState === "have-local-offer") {
-          // A previous ICE restart offer was sent but the peer never answered
-          // (likely also experiencing connectivity loss). Roll it back so we
-          // can create a fresh offer with new ICE credentials.
-          webrtcLog.info("webrtc › rolling back unanswered offer before ice restart");
-          await this.peerConnection!.setLocalDescription(
-            new RTCSessionDescription({ type: "rollback", sdp: "" })
-          );
-          this.isMakingOffer = false;
-        } else if (sigState !== "stable") {
-          webrtcLog.warn("webrtc › skip ice restart (not stable)", { signalingState: sigState });
-          return;
-        }
-
-        webrtcLog.info("webrtc › ice restart");
-        this.trace("create-offer:start");
-
-        const offer = await this.peerConnection!.createOffer({
-          iceRestart: true,
-        });
-        this.trace("create-offer:success", {
-          sdpLength: offer.sdp?.length,
-        });
-
-        this.trace("set-local-description:start", {
-          type: offer.type,
-        });
-
-        await this.peerConnection!.setLocalDescription(offer);
-        this.remoteDescriptionSet = false;
-
-        this.trace("set-local-description:done");
-
-        this.emit("signal-offer", {
-          type: "offer",
-          sdp: offer.sdp,
-          iceRestart: true,
-        });
-      } catch (error) {
-        webrtcLog.warn("webrtc › ice restart failed", { error });
-        this.logFailure("restartIce failed", error);
-      }
-    });
-  }
-
-  private resetIceRestartState() {
-    if (this.iceRestartAttempts > 0) {
-      webrtcLog.info("webrtc › ice restart state cleared", { attemptsUsed: this.iceRestartAttempts, peerId: this.peerId });
-    }
-    this.iceRestartAttempts = 0;
-    if (this.iceRestartTimer) {
-      clearTimeout(this.iceRestartTimer);
-      this.iceRestartTimer = undefined;
-    }
-  }
-
-  private scheduleIceRestart(
-    reason: "disconnected" | "failed",
-    immediate = false
-  ) {
-    webrtcLog.info("webrtc › schedule ice restart", {
-      reason,
-      attempt: this.iceRestartAttempts + 1,
-      max: this.maxIceRestartAttempts,
-      signalingState: this.peerConnection?.signalingState,
-    });
-    if (this.iceRestartAttempts >= this.maxIceRestartAttempts) {
-      webrtcLog.warn("webrtc › ice restart attempts exceeded — emitting connection-failed", { reason, attempts: this.iceRestartAttempts });
-      this.emit(
-        "connection-failed",
-        new Error("ICE restart attempts exceeded")
-      );
-      return;
-    }
-
-    if (this.iceRestartTimer) {
-      clearTimeout(this.iceRestartTimer);
-      this.iceRestartTimer = undefined;
-    }
-
-    // Notify upstream that a reconnect attempt is starting so the UI can
-    // transition to a "reconnecting" state immediately.
-    this.emit("ice-restarting");
-
-    const delayMs = immediate ? 0 : this.iceRestartDelayMs;
-    this.iceRestartTimer = setTimeout(() => {
-      this.iceRestartAttempts += 1;
-      this.restartIce()
-        .catch((err) => {
-          webrtcLog.warn("webrtc › ice restart attempt threw", { err, attempt: this.iceRestartAttempts });
-        })
-        .finally(() => {
-          // ICE only transitions from "failed" → "checking" when the remote peer
-          // applies our offer and sends an answer. If the peer is unreachable the
-          // iceConnectionState stays "failed" and oniceconnectionstatechange never
-          // re-fires, so the normal event-driven retry chain breaks here.
-          // Arm a fallback timer: if ICE hasn't recovered after the peer answer
-          // window, force the next attempt directly.
-          this.iceRestartTimer = setTimeout(() => {
-            const iceState = this.peerConnection?.iceConnectionState;
-            if (iceState === "failed" || iceState === "disconnected") {
-              webrtcLog.info("webrtc › offer unanswered — forcing next restart attempt", {
-                iceState,
-                attempts: this.iceRestartAttempts,
-              });
-              this.scheduleIceRestart("failed", true);
-            }
-          }, 5000);
-        });
-    }, delayMs);
   }
 
   async handleOffer(
@@ -940,7 +850,7 @@ export class WebrtcAdapter extends EventEmitter {
       this.remoteDescriptionSet = false;
       this.videoTrack = undefined;
       this.audioTrack = undefined;
-      this.resetIceRestartState();
+      this.iceRestart.resetIceRestartState();
       this.liveness.stop();
       webrtcLog.info("webrtc › cleanup");
     } catch (error) {
