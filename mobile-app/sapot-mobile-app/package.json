@@ -18,7 +18,9 @@
     "update:dev": "eas update --platform android --channel development",
     "update:prev": "eas update --platform android --channel preview && npx sentry-expo-upload-sourcemaps dist",
     "update:prod": "eas update --platform android --channel production",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "release:mobile": "echo 'Run from repo root: ./scripts/release.sh mobile <version>'",
+    "set-version": "node scripts/set-version.js"
   },
   "engines": {
     "node": ">=18"
