@@ -38,9 +38,8 @@ Determine the component (`mobile` or `server`) from the tag prefix.
 - Keep the release notes concise and focused on testers.
     
 
-Use this exact Markdown format:
+Use this exact Markdown format (output raw Markdown, no code fences):
 
-```md
 # <TAG_NAME>
 
 **Component:** Mobile | Server
@@ -62,7 +61,6 @@ Use this exact Markdown format:
 ## 📝 Notes
 - Intended for testing only.
 - Feedback is appreciated.
-```
 
 ### Guidelines
 

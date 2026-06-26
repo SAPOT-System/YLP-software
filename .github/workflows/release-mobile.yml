@@ -21,7 +21,9 @@ jobs:
             exit 1
           fi
       - name: Extract notes from the annotated tag
-        run: git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+        run: |
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+          [ -s notes.md ] || { echo "notes.md is empty — is '$GITHUB_REF_NAME' an annotated tag?" >&2; exit 1; }
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
