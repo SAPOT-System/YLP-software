@@ -35,7 +35,7 @@ export function buildPrompt(template, tag, commits) {
 }
 
 // Manual-fill fallback: a blank structured draft with commits listed for reference.
-export function renderTemplate(template, tag, commits) {
+export function renderTemplate(_template, tag, commits) {
   const component = tag.startsWith("mobile/") ? "Mobile" : "Server";
   const statusMatch = tag.match(/-(alpha|beta|rc)\./i);
   const status = statusMatch
