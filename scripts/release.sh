@@ -37,8 +37,7 @@ else
   git -C "$root" commit -m "chore(version): $component $version"
 fi
 
-# Draft notes locally: Claude (sonnet) if ANTHROPIC_API_KEY is set and the SDK is
-# installed; otherwise the template for you to fill in. Review before tagging.
+# Draft notes via the Claude CLI if available; otherwise a fillable template.
 notes="$(mktemp)"
 node "$root/scripts/release-notes.mjs" "$component" "$tag" > "$notes"
 if [[ -t 0 && -n "${EDITOR:-}" ]]; then

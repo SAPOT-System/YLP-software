@@ -1,10 +1,9 @@
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MODEL = "claude-sonnet-4-6";
 
 export function previousTag(component, tag) {
   try {
@@ -75,22 +74,24 @@ export function renderTemplate(_template, tag, commits) {
   ].join("\n");
 }
 
-export async function generateNotes(tag, component, { apiKey } = {}) {
+function claudeCliAvailable() {
+  const result = spawnSync("which", ["claude"], { stdio: "pipe" });
+  return result.status === 0;
+}
+
+export async function generateNotes(tag, component) {
   const template = readFileSync(join(HERE, "release-notes-prompt.md"), "utf8");
   const { commits } = buildCommitContext(component, tag);
-  if (apiKey) {
+  if (claudeCliAvailable()) {
     try {
-      const { default: Anthropic } = await import("@anthropic-ai/sdk");
-      const client = new Anthropic({ apiKey });
-      const response = await client.messages.create({
-        model: MODEL,
-        max_tokens: 4000,
-        messages: [{ role: "user", content: buildPrompt(template, tag, commits) }],
-      });
-      const text = response.content.find((b) => b.type === "text");
-      if (text?.text?.trim()) return text.text.trim() + "\n";
+      const prompt = buildPrompt(template, tag, commits);
+      const result = spawnSync("claude", ["-p", prompt], { stdio: "pipe", encoding: "utf8" });
+      if (result.status === 0 && result.stdout?.trim()) {
+        return result.stdout.trim() + "\n";
+      }
+      if (result.stderr) console.error(`claude CLI: ${result.stderr.trim()}`);
     } catch (err) {
-      console.error(`Claude unavailable (${err.message}); using the manual template.`);
+      console.error(`claude CLI unavailable (${err.message}); using the manual template.`);
     }
   }
   return renderTemplate(template, tag, commits);
@@ -98,7 +99,7 @@ export async function generateNotes(tag, component, { apiKey } = {}) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [, , component, tag] = process.argv;
-  generateNotes(tag, component, { apiKey: process.env.ANTHROPIC_API_KEY })
+  generateNotes(tag, component)
     .then((notes) => process.stdout.write(notes))
     .catch((err) => { console.error(err); process.exit(1); });
 }
