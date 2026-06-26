@@ -12,7 +12,7 @@ import {
   savePinWrappedBundle,
 } from "../stores/secure-config";
 import { deleteItemAsync } from "expo-secure-store";
-import { apiClient } from "@/features/shared";
+import { apiClient } from "@/features/shared/api";
 import { appLog } from "../utils/logger";
 import { deriveKey } from "./key-derivation";
 

@@ -1,8 +1,8 @@
 import nacl from "tweetnacl";
 import { ConversationKeyStore } from "@/features/chat/repositories/conversation-key-store";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
-import { PeerKeyService } from "./peer-key-service";
-import { PeerKeyStore } from "./peer-key-store";
+import { PeerKeyService } from "../crypto/peer-key-service";
+import { PeerKeyStore } from "../crypto/peer-key-store";
 import { chatLog } from "../utils/logger";
 import { toAppError } from "../errors";
 

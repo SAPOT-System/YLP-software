@@ -7,8 +7,8 @@ import {
   SignalingMessage,
   SmsMessage,
 } from "../types";
-import { WsEncryptedPayload } from "../services/ws-encryption";
-import { SignedCredential } from "../services/peer-key-service";
+import { WsEncryptedPayload } from "../crypto/ws-encryption";
+import { SignedCredential } from "../crypto/peer-key-service";
 
 export type WsEvent =
   | { kind: "signaling"; message: SignalingMessage; peerCredential?: SignedCredential }

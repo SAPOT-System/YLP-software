@@ -7,8 +7,8 @@ import {
   SignalingMessage,
 } from "../types";
 import { wsLog } from "../utils/logger";
-import { encryptSignalingPayload, decryptSignalingPayload, WsEncryptionContext, WsEncryptedPayload } from "../services/ws-encryption";
-import { SignedCredential } from "../services/peer-key-service";
+import { encryptSignalingPayload, decryptSignalingPayload, WsEncryptionContext, WsEncryptedPayload } from "../crypto/ws-encryption";
+import { SignedCredential } from "../crypto/peer-key-service";
 import { parseWsMessage, DecryptFn } from "./ws-message-parser";
 
 interface EncryptedSignalingWireMessage {

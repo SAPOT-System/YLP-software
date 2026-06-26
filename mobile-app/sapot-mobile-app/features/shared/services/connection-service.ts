@@ -28,8 +28,8 @@ import {
 import { TypedEventEmitter } from "../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
 import { CallMessageRouter, CallRouterResult } from "./call-message-router";
-import { PeerKeyService } from "./peer-key-service";
-import { PeerKeyStore } from "./peer-key-store";
+import { PeerKeyService } from "../crypto/peer-key-service";
+import { PeerKeyStore } from "../crypto/peer-key-store";
 import { SignalingService } from "./signaling-service";
 import { WebrtcSessionManager } from "./webrtc-session-manager";
 import {

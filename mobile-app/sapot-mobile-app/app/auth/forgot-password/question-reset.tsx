@@ -11,7 +11,7 @@ import {
 import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
 import { LockoutBanner } from "@/features/auth/components/lockout-banner";
 import { extractResetToken } from "@/features/auth/utils";
-import { KeyRecoveryService } from "@/features/shared/services/key-recovery-service";
+import { KeyRecoveryService } from "@/features/shared/crypto/key-recovery-service";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { checkBackEndHealth } from "@/features/shared/api";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";

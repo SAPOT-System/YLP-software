@@ -17,12 +17,12 @@ import {
   SignalingService,
   WebrtcSessionManager,
 } from "./services";
-import { LocalEncryptionService } from "./services/local-encryption-service";
+import { LocalEncryptionService } from "./crypto/local-encryption-service";
 import { NotificationService } from "./services/notification-service";
-import { PeerKeyService } from "./services/peer-key-service";
-import { PeerKeyStore } from "./services/peer-key-store";
-import { WsEncryptionContext } from "./services/ws-encryption";
-import { KeyRecoveryService } from "./services/key-recovery-service";
+import { PeerKeyService } from "./crypto/peer-key-service";
+import { PeerKeyStore } from "./crypto/peer-key-store";
+import { WsEncryptionContext } from "./crypto/ws-encryption";
+import { KeyRecoveryService } from "./crypto/key-recovery-service";
 import { AppModeStore, NetworkConfig } from "./stores";
 
 import { CallService } from "@/features/call/services/call-service";

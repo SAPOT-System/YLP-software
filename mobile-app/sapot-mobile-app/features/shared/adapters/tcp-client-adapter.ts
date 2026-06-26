@@ -9,9 +9,9 @@ import {
   encryptMessage,
   decryptMessage,
   parsePublicKey,
-} from "../services/tcp-encryption";
-import { PeerKeyService } from "../services/peer-key-service";
-import { PeerKeyStore } from "../services/peer-key-store";
+} from "../crypto/tcp-encryption";
+import { PeerKeyService } from "../crypto/peer-key-service";
+import { PeerKeyStore } from "../crypto/peer-key-store";
 
 export class TcpClientAdapter extends EventEmitter {
   private socket?: TcpSocket.Socket;

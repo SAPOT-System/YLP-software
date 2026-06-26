@@ -3,6 +3,7 @@ sharedLog.debug("[shared/index] module loaded");
 
 export * from "./adapters";
 export * from "./api";
+export * from "./crypto";
 export * from "./database";
 export * from "./repositories";
 export * from "./services";

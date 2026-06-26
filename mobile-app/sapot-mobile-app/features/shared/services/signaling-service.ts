@@ -13,8 +13,8 @@ import {
   Message,
   SignalingMessage,
 } from "../types";
-import { PeerKeyService } from "./peer-key-service";
-import { PeerKeyStore } from "./peer-key-store";
+import { PeerKeyService } from "../crypto/peer-key-service";
+import { PeerKeyStore } from "../crypto/peer-key-store";
 import { decodeBase64 } from "tweetnacl-util";
 
 signalingLog.debug("[signaling-service] module loaded");

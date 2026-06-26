@@ -14,8 +14,8 @@ jest.mock("@/config/runtime", () => ({
   getApiUrl: jest.fn(() => "http://localhost:8000"),
 }));
 
-jest.mock("../peer-key-service");
-jest.mock("../peer-key-store");
+jest.mock("../../crypto/peer-key-service");
+jest.mock("../../crypto/peer-key-store");
 
 // ── Factories ─────────────────────────────────────────────────────────────────
 

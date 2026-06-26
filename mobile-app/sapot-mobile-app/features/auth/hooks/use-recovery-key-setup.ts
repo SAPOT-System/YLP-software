@@ -1,7 +1,7 @@
 import { toAppError } from "@/features/shared/errors";
 import { authLog } from "@/features/shared/utils/logger";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
-import { KeyRecoveryService, RecoveryMethod } from "@/features/shared/services/key-recovery-service";
+import { KeyRecoveryService, RecoveryMethod } from "@/features/shared/crypto/key-recovery-service";
 import { saveRecoveryTokenHex } from "@/features/shared/stores/secure-config";
 import { setupRecoveryKeysApi, updateRecoveryKeysApi } from "../api/auth.api";
 
