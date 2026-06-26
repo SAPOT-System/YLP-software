@@ -10,12 +10,12 @@ import { UserStore } from "@/features/shared/stores/user-store";
 import { toAppError, captureAppError } from "@/features/shared/errors";
 import { callLog } from "@/features/shared/utils/logger";
 import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
-import { DeviceEventEmitter, EmitterSubscription } from "react-native";
 import InCallManager from "react-native-incall-manager";
 import { MediaStream } from "react-native-webrtc";
 import { MessageRepository } from "@/features/chat/repositories/message-repository";
 import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 import { CallParticipantRepository, CallRepository } from "../repositories";
+import { CallAudioService } from "./call-audio-service";
 import { CallLogService, CallSession } from "./call-log-service";
 callLog.debug("[call-service] module loaded");
 
@@ -106,12 +106,7 @@ type RemoteCallEndedPayload = {
  */
 export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private connectedStateByPeer: Map<string, "connected" | "disconnected"> = new Map();
-  private currentAudioRoute: AudioRouteTypes = "speaker";
-  private availableRoutes: { type: AudioRouteTypes; label: string }[] = [];
-  private isBluetoothConnected = false;
-  private isHeadsetConnected = false;
-  private audioSubscriptions: EmitterSubscription[] = [];
-  private initialRouteSetFor: Set<string> = new Set();
+  private audioService: CallAudioService;
   private callSessions: Map<string, CallSession> = new Map();
   private callLog!: CallLogService;
   private busyRejectHandler:
@@ -153,6 +148,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     private conversationKeyManager: ConversationKeyManager,
   ) {
     super();
+    this.audioService = new CallAudioService();
+    this.audioService.on("audio-route-changed", (p) => this.emit("audio-route-changed", p));
+    this.audioService.on("audio-routes-updated", (p) => this.emit("audio-routes-updated", p));
     this.callLog = new CallLogService(
       chatService,
       messageRepository,
@@ -222,16 +220,16 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         media: type,
         auto: true,
       });
-      this.setupAudioEventListeners();
+      this.audioService.setupAudioEventListeners();
 
       // Force initial route based on call type (only once per call)
-      if (!this.initialRouteSetFor.has(peerId)) {
+      if (!this.audioService.hasInitialRouteFor(peerId)) {
         if (type === "audio") {
-          this.setAudioRoute("earpiece");
+          this.audioService.setAudioRoute("earpiece");
         } else {
-          this.setAudioRoute("speaker");
+          this.audioService.setAudioRoute("speaker");
         }
-        this.initialRouteSetFor.add(peerId);
+        this.audioService.markInitialRouteSet(peerId);
       }
 
       // Set keep screen on during call
@@ -293,16 +291,16 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         media: type,
         auto: true,
       });
-      this.setupAudioEventListeners();
+      this.audioService.setupAudioEventListeners();
 
       // Force initial route based on call type (only once per call)
-      if (!this.initialRouteSetFor.has(peerId)) {
+      if (!this.audioService.hasInitialRouteFor(peerId)) {
         if (type === "audio") {
-          this.setAudioRoute("earpiece");
+          this.audioService.setAudioRoute("earpiece");
         } else {
-          this.setAudioRoute("speaker");
+          this.audioService.setAudioRoute("speaker");
         }
-        this.initialRouteSetFor.add(peerId);
+        this.audioService.markInitialRouteSet(peerId);
       }
 
       // Set keep screen on during call
@@ -358,111 +356,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       captureAppError(appErr);
       throw appErr;
     }
-  }
-
-  setupAudioEventListeners() {
-    if (this.audioSubscriptions.length > 0) return;
-
-    const wiredSub = DeviceEventEmitter.addListener("WiredHeadset", (data) => {
-      callLog.info("call › wired headset event:", data);
-      this.isHeadsetConnected = data.device === "WiredHeadset";
-      this.updateAvailableRoutes();
-      if (this.isHeadsetConnected) {
-        this.setAudioRoute("headset");
-      }
-    });
-
-    const bluetoothSub = DeviceEventEmitter.addListener("BluetoothHeadset", (data) => {
-      callLog.info("call › bluetooth headset event:", data);
-      this.isBluetoothConnected = data.device === "BluetoothHeadset";
-      this.updateAvailableRoutes();
-      if (this.isBluetoothConnected) {
-        this.setAudioRoute("bluetooth");
-      }
-    });
-
-    const proximitySub = DeviceEventEmitter.addListener("Proximity", (data) => {
-      if (data.isNear) {
-        if (
-          this.currentAudioRoute !== "earpiece" &&
-          this.currentAudioRoute !== "headset" &&
-          this.currentAudioRoute !== "bluetooth"
-        ) {
-          this.setAudioRoute("earpiece");
-        }
-      }
-    });
-
-    this.audioSubscriptions = [wiredSub, bluetoothSub, proximitySub];
-    callLog.debug("call › audio event listeners registered");
-  }
-
-  private removeAudioEventListeners() {
-    for (const sub of this.audioSubscriptions) {
-      sub.remove();
-    }
-    this.audioSubscriptions = [];
-    callLog.debug("call › audio event listeners removed");
-  }
-
-  updateAvailableRoutes() {
-    const routes: { type: AudioRouteTypes; label: string }[] = [];
-
-    // Always available
-    routes.push({ type: "earpiece", label: "Earpiece" });
-    routes.push({ type: "speaker", label: "Speaker" });
-
-    // Check for headset (platform-specific)
-    if (this.isHeadsetConnected) {
-      routes.push({ type: "headset", label: "Wired Headset" });
-    }
-
-    // Check for Bluetooth
-    if (this.isBluetoothConnected) {
-      routes.push({ type: "bluetooth", label: "Bluetooth" });
-    }
-
-    this.availableRoutes = routes;
-    this.emit("audio-routes-updated", {
-      routes: this.availableRoutes,
-    });
-  }
-
-  async setAudioRoute(route: AudioRouteTypes) {
-    callLog.debug("call › setting audio route to:", route);
-
-    switch (route) {
-      case "speaker":
-        InCallManager.setForceSpeakerphoneOn(true);
-        this.currentAudioRoute = "speaker";
-        break;
-
-      case "earpiece":
-        InCallManager.setForceSpeakerphoneOn(false);
-        this.currentAudioRoute = "earpiece";
-        break;
-
-      case "headset":
-        // For wired headsets, just turn off speaker - system auto-routes
-        InCallManager.setForceSpeakerphoneOn(false);
-        this.currentAudioRoute = "headset";
-        break;
-
-      case "bluetooth":
-        // For Bluetooth, ensure SCO is enabled for call audio
-        InCallManager.setForceSpeakerphoneOn(false);
-        // Note: On some Android versions, additional native code may be needed
-        this.currentAudioRoute = "bluetooth";
-        break;
-
-      default:
-        callLog.warn("call › unknown audio route:", route);
-    }
-
-    this.emit("audio-route-changed", {
-      route: this.currentAudioRoute,
-      available: this.availableRoutes,
-    });
   }
 
   private async handleIncomingBusyReject(
@@ -667,7 +560,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         this.connectionService.terminateCallConnection(peerId);
         InCallManager.stop();
         InCallManager.setKeepScreenOn(false);
-        this.removeAudioEventListeners();
+        this.audioService.removeAudioEventListeners();
       }
 
       const session = this.callSessions.get(peerId);
@@ -707,7 +600,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       this.setConnectedState(peerId, "disconnected");
       this.connectedStateByPeer.delete(peerId);
-      this.initialRouteSetFor.delete(peerId);
+      this.audioService.clearInitialRouteFor(peerId);
       this.connectionService.setActiveCall(null);
 
       if (this.busyRejectHandler) {
@@ -765,7 +658,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         this.connectionService.terminateCallConnection(peerId);
         InCallManager.stop();
         InCallManager.setKeepScreenOn(false);
-        this.removeAudioEventListeners();
+        this.audioService.removeAudioEventListeners();
       }
 
       const status = this.callLog.resolveFinalStatus(payload.status, session);
@@ -795,7 +688,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     } finally {
       this.setConnectedState(peerId, "disconnected");
       this.connectedStateByPeer.delete(peerId);
-      this.initialRouteSetFor.delete(peerId);
+      this.audioService.clearInitialRouteFor(peerId);
       this.connectionService.setActiveCall(null);
     }
   }
@@ -850,9 +743,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   }
 
   toggleSpeaker() {
-    const newRoute =
-      this.currentAudioRoute === "speaker" ? "earpiece" : "speaker";
-    this.setAudioRoute(newRoute);
+    this.audioService.toggleSpeaker();
   }
 
   async switchCamera(peerId: string, isFrontCamera: boolean) {
