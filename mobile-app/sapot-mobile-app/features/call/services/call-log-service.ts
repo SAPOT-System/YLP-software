@@ -4,7 +4,7 @@ import { MessageStatusType } from "@/features/shared/database/model/MessageStatu
 import { MessageType } from "@/features/shared/database/model/Message";
 import { GuestUser } from "@/features/shared/database/model/guest-user";
 import { Peer } from "@/features/shared/database/model/Peer";
-import { ConversationKeyManager } from "@/features/shared/services/conversation-key-manager";
+import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { toAppError, captureAppError } from "@/features/shared/errors";
 import { callLog } from "@/features/shared/utils/logger";
 import { MessageRepository } from "@/features/chat/repositories/message-repository";

@@ -1,4 +1,4 @@
-import { ChatService } from "@/features/chat/services/chat-service";
+import { IDiscoveryChatService } from "../service-interfaces";
 import { discoveryLog } from "@/features/shared/utils/logger";
 import {
     createTestMessage,
@@ -31,10 +31,6 @@ jest.mock("../../peer/peer-service", () => ({
   PeerService: jest.fn(),
 }));
 
-// Mock ChatService
-jest.mock("@/features/chat/services/chat-service", () => ({
-  ChatService: jest.fn(),
-}));
 
 describe("DiscoveryService", () => {
   let discoveryService: DiscoveryService;
@@ -43,7 +39,7 @@ describe("DiscoveryService", () => {
   let mockNetworkConfig: jest.Mocked<NetworkConfig>;
   let mockUserStore: jest.Mocked<UserStore>;
   let mockPeerService: jest.Mocked<PeerService>;
-  let mockChatService: jest.Mocked<ChatService>;
+  let mockChatService: jest.Mocked<IDiscoveryChatService>;
   let mockAppModeStore: jest.Mocked<AppModeStore>;
 
   beforeEach(() => {
@@ -58,7 +54,7 @@ describe("DiscoveryService", () => {
       mocks.networkConfig as unknown as jest.Mocked<NetworkConfig>;
     mockUserStore = mocks.userStore as unknown as jest.Mocked<UserStore>;
     mockPeerService = mocks.peerService as unknown as jest.Mocked<PeerService>;
-    mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
+    mockChatService = mocks.chatService as unknown as jest.Mocked<IDiscoveryChatService>;
     mockAppModeStore = mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
 
     // Mock constructors
@@ -67,7 +63,6 @@ describe("DiscoveryService", () => {
     jest.mocked(NetworkConfig).mockImplementation(() => mockNetworkConfig);
     jest.mocked(UserStore).mockImplementation(() => mockUserStore);
     jest.mocked(PeerService).mockImplementation(() => mockPeerService);
-    jest.mocked(ChatService).mockImplementation(() => mockChatService);
 
     mockZeroconfAdapter.publishService.mockResolvedValue(undefined);
     mockZeroconfAdapter.cleanUp.mockResolvedValue(undefined);

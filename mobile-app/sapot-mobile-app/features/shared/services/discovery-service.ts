@@ -1,5 +1,5 @@
-import { ChatService } from "@/features/chat/services/chat-service";
 import { discoveryLog } from "@/features/shared/utils/logger";
+import { IDiscoveryChatService } from "./service-interfaces";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../adapters";
 import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../stores";
@@ -26,7 +26,7 @@ const RESCAN_INTERVAL_MS = 150_000;
 const RESEND_DEBOUNCE_MS = 10_000;
 
 export class DiscoveryService {
-  private chatService?: ChatService;
+  private chatService?: IDiscoveryChatService;
   private connectionService?: ConnectionService;
   private publishDeviceName: string = "";
   private publishDevicePromise?: Promise<void>;
@@ -179,7 +179,7 @@ export class DiscoveryService {
    * Sets the ChatService instance to be used for message operations.
    * @param chatService The ChatService instance
    */
-  setChatService(chatService: ChatService) {
+  setChatService(chatService: IDiscoveryChatService) {
     this.chatService = chatService;
   }
 

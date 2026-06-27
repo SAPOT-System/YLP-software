@@ -182,7 +182,7 @@ jest.mock("@/features/chat/repositories/message-status-repository", () => ({
   })),
 }));
 
-jest.mock("../services/conversation-key-manager", () => ({
+jest.mock("@/features/chat/services/conversation-key-manager", () => ({
   ConversationKeyManager: jest.fn().mockImplementation(() => ({
     preloadAllConversationKeys: jest.fn().mockResolvedValue(undefined),
     rederiveKeyForPeer: jest.fn().mockResolvedValue(undefined),

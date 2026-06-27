@@ -1,4 +1,4 @@
-import { ConversationKeyManager } from "../services/conversation-key-manager";
+import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 

@@ -14,7 +14,7 @@ import {
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
 import { chatLog } from "@/features/shared/utils/logger";
-import { ConversationKeyManager } from "@/features/shared/services/conversation-key-manager";
+import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import {
   ConversationKeyStore,
   ConversationParticipantRepository,

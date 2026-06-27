@@ -26,7 +26,7 @@ import { KeyRecoveryService } from "./crypto/key-recovery-service";
 import { AppModeStore, NetworkConfig } from "./stores";
 
 import { CallService } from "@/features/call/services/call-service";
-import { ConversationKeyManager } from "./services/conversation-key-manager";
+import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { ConversationKeyStore } from "@/features/chat/repositories/conversation-key-store";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import { ConversationRepository } from "@/features/chat/repositories/conversation-repository";

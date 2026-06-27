@@ -1,4 +1,4 @@
-import { ChatService } from "@/features/chat/services/chat-service";
+import { IChatMessageHandler } from "../service-interfaces";
 import { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createConnectionServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
@@ -59,10 +59,6 @@ jest.mock("../../stores", () => ({
   AppModeStore: jest.fn(),
 }));
 
-// Mock ChatService
-jest.mock("@/features/chat/services/chat-service", () => ({
-  ChatService: jest.fn(),
-}));
 
 describe("ConnectionService", () => {
   let connectionService: ConnectionService;
@@ -75,7 +71,7 @@ describe("ConnectionService", () => {
   let mockTcpClientAdapter: jest.Mocked<TcpClientAdapter>;
   let mockWebrtcAdapter: jest.Mocked<WebrtcAdapter>;
   let mockWsSignalingAdapter: jest.Mocked<WsSignalingAdapter>;
-  let mockChatService: jest.Mocked<ChatService>;
+  let mockChatService: jest.Mocked<IChatMessageHandler>;
   let mockAppModeStore: jest.Mocked<AppModeStore>;
   let mockNotificationService: ReturnType<typeof createConnectionServiceDependencyMocks>["notificationService"];
 
@@ -94,7 +90,7 @@ describe("ConnectionService", () => {
       mocks.webrtcAdapter as unknown as jest.Mocked<WebrtcAdapter>;
     mockWsSignalingAdapter =
       mocks.wsSignalingAdapter as unknown as jest.Mocked<WsSignalingAdapter>;
-    mockChatService = mocks.chatService as unknown as jest.Mocked<ChatService>;
+    mockChatService = mocks.chatService as unknown as jest.Mocked<IChatMessageHandler>;
     mockAppModeStore =
       mocks.appModeStore as unknown as jest.Mocked<AppModeStore>;
     mockNotificationService = mocks.notificationService;
@@ -110,8 +106,6 @@ describe("ConnectionService", () => {
     jest
       .mocked(WsSignalingAdapter)
       .mockImplementation(() => mockWsSignalingAdapter);
-    jest.mocked(ChatService).mockImplementation(() => mockChatService);
-
     // Create sub-services (real instances; WebrtcAdapter constructor is mocked above)
     webrtcSessionManager = new WebrtcSessionManager(
       mockUserStore,

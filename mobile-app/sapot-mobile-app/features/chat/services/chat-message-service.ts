@@ -12,7 +12,7 @@ import {
   UserStore,
 } from "@/features/shared";
 import { chatLog } from "@/features/shared/utils/logger";
-import { ConversationKeyManager } from "@/features/shared/services/conversation-key-manager";
+import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { ECDH_PREFIX } from "../repositories/message-repository";
 import {
   ConversationParticipantRepository,

@@ -1,10 +1,10 @@
 import nacl from "tweetnacl";
 import { ConversationKeyStore } from "@/features/chat/repositories/conversation-key-store";
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
-import { PeerKeyService } from "../crypto/peer-key-service";
-import { PeerKeyStore } from "../crypto/peer-key-store";
-import { chatLog } from "../utils/logger";
-import { toAppError } from "../errors";
+import { PeerKeyService } from "@/features/shared/crypto/peer-key-service";
+import { PeerKeyStore } from "@/features/shared/crypto/peer-key-store";
+import { chatLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/errors";
 
 type KeyManagerUserStore = {
   user: { id: string };

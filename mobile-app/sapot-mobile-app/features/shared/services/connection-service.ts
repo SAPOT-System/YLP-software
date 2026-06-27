@@ -1,10 +1,9 @@
-import { ChatService } from "@/features/chat/services/chat-service";
-import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { MessageType } from "@/features/shared/database/model/Message";
 import { connectionLog } from "@/features/shared/utils/logger";
 import uuid from "react-native-uuid";
+import { IChatMessageHandler } from "./service-interfaces";
 import { MediaStream } from "react-native-webrtc";
 import {
   TcpClientAdapter,
@@ -42,6 +41,12 @@ import {
 } from "./connect-planning";
 
 connectionLog.debug("[connection-service] module loaded");
+
+/** Derives a stable conversation ID for a direct 1-to-1 conversation. */
+function directConversationId(userIdA: string, userIdB: string): string {
+  const name = [userIdA, userIdB].sort().join(":");
+  return uuid.v5(name, uuid.URL) as string;
+}
 
 export type ConnectionStatePayload = {
   peerId: string;
@@ -119,7 +124,7 @@ interface PeerInfoUpdater {
  */
 export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents> {
   private tcpClientAdapters: Map<string, TcpClientAdapter> = new Map();
-  private chatService?: ChatService;
+  private chatService?: IChatMessageHandler;
   private callService?: CallLogWriter;
   private peerService?: PeerInfoUpdater;
   private activeCallPeerId: string | null = null;
@@ -523,7 +528,7 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   /**
    * Sets the chat service. Propagates into WebrtcSessionManager after construction.
    */
-  setChatService(chatService: ChatService) {
+  setChatService(chatService: IChatMessageHandler) {
     this.chatService = chatService;
     this.webrtcSessionManager.setChatService(chatService);
   }

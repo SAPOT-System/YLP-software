@@ -1,5 +1,5 @@
-import { ChatService } from "@/features/chat/services/chat-service";
 import { DataChatMessageI } from "@/features/shared/core/messaging-types";
+import { IChatMessageHandler } from "./service-interfaces";
 import { webrtcLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
@@ -28,7 +28,7 @@ type WebrtcSessionManagerEvents = {
 
 export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManagerEvents> {
   private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
-  private chatService?: ChatService;
+  private chatService?: IChatMessageHandler;
   private sendSignaling?: (peerId: string, msg: SignalingMessage) => void;
   private onEvict?: (peerId: string, isRetry: boolean) => void;
 
@@ -51,7 +51,7 @@ export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManager
     this.onEvict = cb;
   }
 
-  setChatService(chatService: ChatService) {
+  setChatService(chatService: IChatMessageHandler) {
     this.chatService = chatService;
   }
 
