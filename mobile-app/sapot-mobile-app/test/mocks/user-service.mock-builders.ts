@@ -1,5 +1,5 @@
 import type { GuestUserRepository } from "@/features/shared/peer";
-import type { CleanUpService } from "@/features/shared/services/clean-up-service";
+import type { CleanUpService } from "@/features/shared/connection/services/clean-up-service";
 import type { PeerService } from "@/features/shared/peer/peer-service";
 import type { SessionStore, UserStore } from "@/features/shared/stores";
 

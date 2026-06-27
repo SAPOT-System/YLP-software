@@ -11,10 +11,10 @@ import {
   UserStoreMock,
 } from "@/test/mocks/user-service.mock-builders";
 import * as ExpoSecureStore from "expo-secure-store";
-import { GuestUserRepository } from "../../peer";
-import { SessionStore, UserStore } from "../../stores";
+import { GuestUserRepository } from "../../../peer";
+import { SessionStore, UserStore } from "../../../stores";
 import { CleanUpService } from "../clean-up-service";
-import { PeerService } from "../../peer/peer-service";
+import { PeerService } from "../../../peer/peer-service";
 import { UserService } from "../user-service";
 
 // Mock expo-secure-store
@@ -25,22 +25,22 @@ jest.mock("expo-secure-store", () => ({
 }));
 
 // Mock the stores
-jest.mock("../../stores", () => ({
+jest.mock("../../../stores", () => ({
   UserStore: jest.fn(),
   SessionStore: jest.fn(),
 }));
 
-jest.mock("../../peer", () => ({
+jest.mock("../../../peer", () => ({
   GuestUserRepository: jest.fn(),
 }));
 
 // Mock PeerService
-jest.mock("../../peer/peer-service", () => ({
+jest.mock("../../../peer/peer-service", () => ({
   PeerService: jest.fn(),
 }));
 
 // Mock database models
-jest.mock("../../database", () => ({
+jest.mock("../../../database", () => ({
   Peer: jest.fn(),
 }));
 

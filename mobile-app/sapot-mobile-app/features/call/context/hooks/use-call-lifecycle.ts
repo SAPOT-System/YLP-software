@@ -2,7 +2,7 @@ import type { CallService } from "@/features/call/services/call-service";
 import type {
   CallEndedEventPayload,
   ConnectionService,
-} from "@/features/shared/services/connection-service";
+} from "@/features/shared/connection/services/connection-service";
 import { callLog, hookLog, uiLog } from "@/features/shared/utils/logger";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 

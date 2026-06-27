@@ -8,10 +8,10 @@ import { createTestZeroconfService } from "@/test/factories/peer-service.factory
 import { createDiscoveryServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../../adapters";
-import { Message } from "../../database";
-import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../stores";
+import { Message } from "../../../database";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../../stores";
 import { DiscoveryService } from "../discovery-service";
-import { PeerService } from "../../peer/peer-service";
+import { PeerService } from "../../../peer/peer-service";
 
 // Mock the adapters
 jest.mock("../../adapters", () => ({
@@ -19,7 +19,7 @@ jest.mock("../../adapters", () => ({
 }));
 
 // Mock the stores
-jest.mock("../../stores", () => ({
+jest.mock("../../../stores", () => ({
   NetworkConfig: jest.fn(),
   SessionStore: jest.fn(),
   UserStore: jest.fn(),
@@ -27,7 +27,7 @@ jest.mock("../../stores", () => ({
 }));
 
 // Mock PeerService
-jest.mock("../../peer/peer-service", () => ({
+jest.mock("../../../peer/peer-service", () => ({
   PeerService: jest.fn(),
 }));
 

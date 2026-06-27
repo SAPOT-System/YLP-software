@@ -2,11 +2,11 @@ import { isAdminApi, isRescuerApi } from "@/features/shared/api/user-profile.api
 import { authLog } from "@/features/shared/utils/logger";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import uuid from "react-native-uuid";
-import { GuestUser, Peer } from "../database";
-import { GuestUserRepository } from "../peer";
-import { SessionStore, UserStore } from "../stores";
+import { GuestUser, Peer } from "../../database";
+import { GuestUserRepository } from "../../peer";
+import { SessionStore, UserStore } from "../../stores";
 import { CleanUpService } from "./clean-up-service";
-import { PeerService } from "../peer/peer-service";
+import { PeerService } from "../../peer/peer-service";
 
 /** Converts an international Philippine number (+63...) to local format (0...). */
 function toLocalPhone(phone: string): string {

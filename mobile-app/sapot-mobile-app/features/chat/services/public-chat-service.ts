@@ -1,5 +1,5 @@
 import { toAppError } from "@/features/shared/errors";
-import { WsSignalingAdapter } from "@/features/shared/adapters/ws-signaling-adapter";
+import { WsSignalingAdapter } from "@/features/shared/connection/adapters/ws-signaling-adapter";
 import { UserStore } from "@/features/shared";
 import { AppModeStore } from "@/features/shared/stores";
 import { chatLog } from "@/features/shared/utils/logger";

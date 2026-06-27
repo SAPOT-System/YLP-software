@@ -2,7 +2,7 @@ import { createDestroyOps } from "@/test/factories/destroy-op.factory";
 import { createCleanUpRepositoriesMocks } from "@/test/mocks/clean-up-service.mock-builders";
 import { CleanUpService } from "../clean-up-service";
 
-jest.mock("../../database", () => ({
+jest.mock("../../../database", () => ({
   database: {
     write: jest.fn((fn) => fn()),
     batch: jest.fn(),
@@ -16,7 +16,7 @@ describe("CleanUpService", () => {
   let discoveryServiceMock: { destroy: jest.Mock };
 
    
-  const { database } = require("../../database");
+  const { database } = require("../../../database");
 
   beforeEach(() => {
     jest.clearAllMocks();

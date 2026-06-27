@@ -5,9 +5,9 @@ import {
   MessageStatusRepository,
 } from "@/features/chat";
 import { toAppError, captureAppError } from "@/features/shared/errors";
-import { database } from "../database";
-import { GuestUserRepository, PeerRepository } from "../peer";
-import { cleanUpLog } from "../utils/logger";
+import { database } from "../../database";
+import { GuestUserRepository, PeerRepository } from "../../peer";
+import { cleanUpLog } from "../../utils/logger";
 import { ConnectionService } from "./connection-service";
 import { DiscoveryService } from "./discovery-service";
 

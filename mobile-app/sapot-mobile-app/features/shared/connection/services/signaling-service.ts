@@ -3,7 +3,7 @@ import { toAppError, captureAppError } from "@/features/shared/errors";
 import { signalingLog } from "@/features/shared/utils/logger";
 import { TcpClientAdapter, WsSignalingAdapter } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
-import { AppModeStore, NetworkConfig, UserStore } from "../stores";
+import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import type { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import {
   AckMessage,
@@ -12,9 +12,9 @@ import {
   DataAckMessage,
   Message,
   SignalingMessage,
-} from "../types";
-import { PeerKeyService } from "../crypto/peer-key-service";
-import { PeerKeyStore } from "../crypto/peer-key-store";
+} from "../../types";
+import { PeerKeyService } from "../../crypto/peer-key-service";
+import { PeerKeyStore } from "../../crypto/peer-key-store";
 import { decodeBase64 } from "tweetnacl-util";
 
 signalingLog.debug("[signaling-service] module loaded");

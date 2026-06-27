@@ -2,9 +2,9 @@ import { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import { MediaStream } from "react-native-webrtc";
 import { TcpClientAdapter } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
-import { Message as WatermelonMessage } from "../database";
-import { CallMessage, DataAckMessage, Message, SignalingMessage } from "../types";
-import { serviceLog } from "../utils/logger";
+import { Message as WatermelonMessage } from "../../database";
+import { CallMessage, DataAckMessage, Message, SignalingMessage } from "../../types";
+import { serviceLog } from "../../utils/logger";
 serviceLog.debug("[service-interfaces] module loaded");
 
 /** Minimal chat handler interface — the subset of ChatService the engine needs. */

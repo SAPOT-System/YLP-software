@@ -1,5 +1,5 @@
 import type { CallService } from "@/features/call/services/call-service";
-import type { ConnectionService } from "@/features/shared/services/connection-service";
+import type { ConnectionService } from "@/features/shared/connection/services/connection-service";
 import { hookLog, uiLog } from "@/features/shared/utils/logger";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CallState } from "./use-call-lifecycle";

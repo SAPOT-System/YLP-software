@@ -3,7 +3,7 @@ import { CallStatus, CallType } from "@/features/shared/database/model/Call";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { GuestUser } from "@/features/shared/database/model/guest-user";
 import { Peer } from "@/features/shared/database/model/Peer";
-import { ConnectionService } from "@/features/shared/services/connection-service";
+import { ConnectionService } from "@/features/shared/connection/services/connection-service";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { PeerService } from "@/features/shared/peer/peer-service";
 import { UserStore } from "@/features/shared/stores/user-store";

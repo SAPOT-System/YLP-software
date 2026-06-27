@@ -1,5 +1,5 @@
 import { IncomingCallData } from "./notification-service";
-import { CallMessage } from "../types";
+import { CallMessage } from "../../types";
 import { CallEndedEventPayload } from "./connection-service";
 
 export interface CallMessageRouterDeps {

@@ -3,15 +3,15 @@ import { IChatMessageHandler } from "./service-interfaces";
 import { webrtcLog } from "@/features/shared/utils/logger";
 import { MediaStream } from "react-native-webrtc";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
-import { NetworkConfig, UserStore } from "../stores";
+import { NetworkConfig, UserStore } from "../../stores";
 import {
   CallControlData,
   DataAckMessage,
   DataSeenMessageI,
   SignalingMessage,
   WebrtcDataMessage,
-} from "../types";
-import { TypedEventEmitter } from "../utils/typed-event-emitter";
+} from "../../types";
+import { TypedEventEmitter } from "../../utils/typed-event-emitter";
 
 webrtcLog.debug("[webrtc-session-manager] module loaded");
 

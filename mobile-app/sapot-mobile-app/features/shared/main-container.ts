@@ -18,7 +18,7 @@ import {
   WebrtcSessionManager,
 } from "./services";
 import { LocalEncryptionService } from "./crypto/local-encryption-service";
-import { NotificationService } from "./services/notification-service";
+import { NotificationService } from "./connection/services/notification-service";
 import { PeerKeyService } from "./crypto/peer-key-service";
 import { PeerKeyStore } from "./crypto/peer-key-store";
 import { WsEncryptionContext } from "./crypto/ws-encryption";

@@ -3,10 +3,10 @@ import type {
   AckMessage,
   DataAckMessage,
   SignalingMessage,
-} from "../../types";
+} from "../../../types";
 import type { WebrtcAdapter } from "../../adapters/webrtc-adapter";
 import type { WsSignalingAdapter } from "../../adapters";
-import type { AppModeStore, NetworkConfig, UserStore } from "../../stores";
+import type { AppModeStore, NetworkConfig, UserStore } from "../../../stores";
 import { SignalingService } from "../signaling-service";
 
 jest.mock("@/config/runtime", () => ({
@@ -14,8 +14,8 @@ jest.mock("@/config/runtime", () => ({
   getApiUrl: jest.fn(() => "http://localhost:8000"),
 }));
 
-jest.mock("../../crypto/peer-key-service");
-jest.mock("../../crypto/peer-key-store");
+jest.mock("../../../crypto/peer-key-service");
+jest.mock("../../../crypto/peer-key-store");
 
 // ── Factories ─────────────────────────────────────────────────────────────────
 

@@ -8,8 +8,8 @@ import {
   RTCSessionDescription,
 } from "react-native-webrtc";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
-import { WebrtcDataMessage } from "../types";
-import { webrtcLog } from "../utils/logger";
+import { WebrtcDataMessage } from "../../types";
+import { webrtcLog } from "../../utils/logger";
 import { IceRestartController } from "./ice-restart-controller";
 import { LivenessMonitor } from "./liveness-monitor";
 

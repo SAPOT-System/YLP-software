@@ -2,9 +2,9 @@ import { discoveryLog } from "@/features/shared/utils/logger";
 import { IDiscoveryChatService } from "./service-interfaces";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../adapters";
-import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../stores";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../stores";
 import type { ConnectionService } from "./connection-service";
-import { PeerService } from "../peer/peer-service";
+import { PeerService } from "../../peer/peer-service";
 
 discoveryLog.debug("[discovery-service] module loaded");
 

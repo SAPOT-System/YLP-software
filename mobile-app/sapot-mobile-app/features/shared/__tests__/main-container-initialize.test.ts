@@ -73,7 +73,7 @@ jest.mock("../services/key-recovery-service", () => ({
   KeyRecoveryService: jest.fn().mockImplementation(() => ({})),
 }));
 
-jest.mock("../services/notification-service", () => ({
+jest.mock("../connection/services/notification-service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     showCallAlert: jest.fn().mockResolvedValue(undefined),
     dismissCallAlert: jest.fn().mockResolvedValue(undefined),

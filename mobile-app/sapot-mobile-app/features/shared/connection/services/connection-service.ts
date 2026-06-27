@@ -12,7 +12,7 @@ import {
 } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { NotificationService } from "./notification-service";
-import { AppModeStore, NetworkConfig, UserStore } from "../stores";
+import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
 import {
   AckMessage,
   CallControlData,
@@ -23,12 +23,12 @@ import {
   ServerAckMessage,
   SignalingMessage,
   SmsMessage,
-} from "../types";
-import { TypedEventEmitter } from "../utils/typed-event-emitter";
+} from "../../types";
+import { TypedEventEmitter } from "../../utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
 import { CallMessageRouter, CallRouterResult } from "./call-message-router";
-import { PeerKeyService } from "../crypto/peer-key-service";
-import { PeerKeyStore } from "../crypto/peer-key-store";
+import { PeerKeyService } from "../../crypto/peer-key-service";
+import { PeerKeyStore } from "../../crypto/peer-key-store";
 import { SignalingService } from "./signaling-service";
 import { WebrtcSessionManager } from "./webrtc-session-manager";
 import {

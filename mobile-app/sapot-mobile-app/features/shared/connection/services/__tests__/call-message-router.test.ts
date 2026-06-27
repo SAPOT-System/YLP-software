@@ -9,7 +9,7 @@ import {
   CallReadyMessage,
   CallRejectedMessage,
   VideoCallMessage,
-} from "../../types";
+} from "../../../types";
 
 function makeDeps(overrides: Partial<CallMessageRouterDeps> = {}): CallMessageRouterDeps {
   return {

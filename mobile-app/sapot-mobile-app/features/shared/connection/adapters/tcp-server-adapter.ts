@@ -1,15 +1,15 @@
 import { EventEmitter } from "events";
 import TcpSocket from "react-native-tcp-socket";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
-import { tcpLog } from "../utils/logger";
+import { tcpLog } from "../../utils/logger";
 import {
   generateKeyPair,
   computeSharedKey,
   decryptMessage,
   parsePublicKey,
-} from "../crypto/tcp-encryption";
-import { PeerKeyService } from "../crypto/peer-key-service";
-import { PeerKeyStore } from "../crypto/peer-key-store";
+} from "../../crypto/tcp-encryption";
+import { PeerKeyService } from "../../crypto/peer-key-service";
+import { PeerKeyStore } from "../../crypto/peer-key-store";
 
 interface SocketState {
   buffer: string;

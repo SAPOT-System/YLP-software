@@ -1,5 +1,5 @@
 import { toAppError } from "@/features/shared/errors";
-import { CallEndedEventPayload } from "@/features/shared/services/connection-service";
+import { CallEndedEventPayload } from "@/features/shared/connection/services/connection-service";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { callLog } from "@/features/shared/utils/logger";
 import { useEffect } from "react";

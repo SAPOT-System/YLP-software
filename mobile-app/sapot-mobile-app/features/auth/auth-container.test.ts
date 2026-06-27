@@ -17,7 +17,7 @@ jest.mock("../shared/stores/user-store", () => ({
 jest.mock("../shared/peer/guest-user-repository", () => ({
   GuestUserRepository: jest.fn().mockImplementation(() => ({})),
 }));
-jest.mock("../shared/services/user-service", () => ({
+jest.mock("../shared/connection/services/user-service", () => ({
   UserService: jest.fn().mockImplementation(() => ({ initialize: jest.fn() })),
 }));
 

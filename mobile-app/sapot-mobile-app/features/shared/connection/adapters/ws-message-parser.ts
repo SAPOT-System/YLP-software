@@ -6,9 +6,9 @@ import {
   ServerAckMessage,
   SignalingMessage,
   SmsMessage,
-} from "../types";
-import { WsEncryptedPayload } from "../crypto/ws-encryption";
-import { SignedCredential } from "../crypto/peer-key-service";
+} from "../../types";
+import { WsEncryptedPayload } from "../../crypto/ws-encryption";
+import { SignedCredential } from "../../crypto/peer-key-service";
 
 export type WsEvent =
   | { kind: "signaling"; message: SignalingMessage; peerCredential?: SignedCredential }
