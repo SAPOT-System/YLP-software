@@ -4,7 +4,7 @@ import {
     createWatermelonDbMock,
 } from "@/test/mocks/database.mock-builders";
 import type { Database } from "@nozbe/watermelondb";
-import { GuestUserRepository } from "../../peer/guest-user-repository";
+import { GuestUserRepository } from "../guest-user-repository";
 
 describe("GuestUserRepository", () => {
   let repository: GuestUserRepository;

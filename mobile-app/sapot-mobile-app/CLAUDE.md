@@ -175,6 +175,7 @@ The FastAPI server (`server/app/`) provides:
 - Never commit directly to `main` or `develop` — create a branch first.
 - Commit only when the user asks. Do not push unless asked.
 - Analyze the full diff (`git diff <base>...HEAD`), not just the latest commit, before writing a PR summary.
+- **Always use `git mv` when moving or renaming files** — never `mv` + re-add. `git mv` preserves rename history so `git log --follow` works and diffs show renames instead of delete+add.
 
 ---
 
