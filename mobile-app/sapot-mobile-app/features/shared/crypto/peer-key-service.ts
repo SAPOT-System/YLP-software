@@ -1,8 +1,8 @@
 import nacl from "tweetnacl";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 import * as SecureStore from "expo-secure-store";
-import { appLog } from "../utils/logger";
-import { apiClient } from "../api/client";
+import { appLog } from "../core/utils/logger";
+import { apiClient } from "../core/api/client";
 
 export interface SignedCredential {
   peerId: string;

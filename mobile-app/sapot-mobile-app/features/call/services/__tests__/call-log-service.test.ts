@@ -1,5 +1,5 @@
 import { CallLogService } from "../call-log-service";
-import { CallStatus, CallType } from "@/features/shared/database/model/Call";
+import { CallStatus, CallType } from "@/features/shared/core/database/model/Call";
 
 describe("CallLogService pure helpers", () => {
   // Pure helpers don't touch deps; construct with stubs

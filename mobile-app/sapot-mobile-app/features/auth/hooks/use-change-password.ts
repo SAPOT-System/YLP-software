@@ -1,4 +1,4 @@
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { AxiosError } from "axios";
 import { useEffect, useState } from "react";
 import { canResetPasswordApi, resetPasswordApi } from "../api/auth.api";

@@ -1,5 +1,5 @@
-import { getGsmHealth } from "@/features/shared/api/gsm.api";
-import { hookLog } from "@/features/shared/utils/logger";
+import { getGsmHealth } from "@/features/shared/core/api/gsm.api";
+import { hookLog } from "@/features/shared/core/utils/logger";
 import { useEffect, useState } from "react";
 hookLog.debug("[use-gsm-health] module loaded");
 

@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import type { DataChatMessageI } from "@/features/chat/types";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";
-import { typeLog } from "./utils/logger";
+import { typeLog } from "./core/utils/logger";
 import type { SignedCredential } from "./crypto/peer-key-service";
 typeLog.debug("[shared/types] module loaded");
 

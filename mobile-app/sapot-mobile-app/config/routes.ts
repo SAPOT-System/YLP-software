@@ -1,4 +1,4 @@
-import { routesLog } from "@/features/shared/utils/logger";
+import { routesLog } from "@/features/shared/core/utils/logger";
 
 export const AUTH_ROUTES = {
   LOGIN: {

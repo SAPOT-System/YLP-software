@@ -13,18 +13,18 @@ import {
   database,
   formatDate,
 } from "@/features/shared";
-import { MessageType } from "@/features/shared/database/model/Message";
-import { CallType } from "@/features/shared/database/model/Call";
+import { MessageType } from "@/features/shared/core/database/model/Message";
+import { CallType } from "@/features/shared/core/database/model/Call";
 import { useMainContainer } from "@/features/shared/hooks";
 import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
 import { usePeerService } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useChatService } from "@/features/chat/hooks/use-chat-service";
 import { useTheme } from "react-native-paper";
 import { useInformCall } from "@/features/call";
-import { sendSmsToUser } from "@/features/shared/api/gsm.api";
+import { sendSmsToUser } from "@/features/shared/core/api/gsm.api";
 import { toLocalPhone } from "@/features/auth/utils/validation";
 uiLog.debug("[message-list] module loaded");
 

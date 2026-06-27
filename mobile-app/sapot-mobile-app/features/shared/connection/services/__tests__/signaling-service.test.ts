@@ -6,7 +6,7 @@ import type {
 } from "../../../types";
 import type { WebrtcAdapter } from "../../adapters/webrtc-adapter";
 import type { WsSignalingAdapter } from "../../adapters";
-import type { AppModeStore, NetworkConfig, UserStore } from "../../../stores";
+import type { AppModeStore, NetworkConfig, UserStore } from "../../../core/stores";
 import { SignalingService } from "../signaling-service";
 
 jest.mock("@/config/runtime", () => ({

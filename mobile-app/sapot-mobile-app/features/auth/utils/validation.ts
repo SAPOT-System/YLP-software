@@ -1,4 +1,4 @@
-import { authUtilsLog } from "@/features/shared/utils/logger";
+import { authUtilsLog } from "@/features/shared/core/utils/logger";
 import { RegisterFormState, RegisterFormStateErrors } from "../types";
 authUtilsLog.debug("[validation] module loaded");
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useAppMode } from "../context/app-mode-context";
-import { database, Peer } from "../database";
-import { peerLog } from "../utils";
+import { useAppMode } from "../core/context/app-mode-context";
+import { database, Peer } from "../core/database";
+import { peerLog } from "../core/utils";
 import { useUserStore } from "./use-user-store";
 import { useAcitveUserService } from "./use-active-user-service";
 import { usePeerService } from "./use-peer-service";

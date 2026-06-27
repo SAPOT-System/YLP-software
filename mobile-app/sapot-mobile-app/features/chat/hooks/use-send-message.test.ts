@@ -1,15 +1,15 @@
 import { renderHook, act } from "@testing-library/react-native";
 import { useSendMessage } from "./use-send-message";
 
-jest.mock("@/features/shared/api/gsm.api", () => ({
+jest.mock("@/features/shared/core/api/gsm.api", () => ({
   sendSmsToUser: jest.fn().mockResolvedValue({ ok: true }),
 }));
 
-jest.mock("@/features/shared/utils/logger", () => ({
+jest.mock("@/features/shared/core/utils/logger", () => ({
   uiLog: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
-jest.mock("@/features/shared/database/model/MessageStatus", () => ({
+jest.mock("@/features/shared/core/database/model/MessageStatus", () => ({
   MessageStatusType: { DELIVERED: "delivered", NOT_SENT: "not_sent" },
 }));
 

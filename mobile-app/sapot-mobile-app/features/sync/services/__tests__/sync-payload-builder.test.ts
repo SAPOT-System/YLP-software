@@ -1,6 +1,6 @@
 import { SyncPayloadBuilder } from "../sync-payload-builder";
-import { CallStatus } from "@/features/shared/database/model/Call";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { CallStatus } from "@/features/shared/core/database/model/Call";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
 
 describe("SyncPayloadBuilder.toServerPayload", () => {
   const builder = new SyncPayloadBuilder();

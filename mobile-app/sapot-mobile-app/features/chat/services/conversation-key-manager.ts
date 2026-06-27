@@ -3,8 +3,8 @@ import { ConversationKeyStore } from "@/features/chat/repositories/conversation-
 import { ConversationParticipantRepository } from "@/features/chat/repositories/conversation-participant-repository";
 import { PeerKeyService } from "@/features/shared/crypto/peer-key-service";
 import { PeerKeyStore } from "@/features/shared/crypto/peer-key-store";
-import { chatLog } from "@/features/shared/utils/logger";
-import { toAppError } from "@/features/shared/errors";
+import { chatLog } from "@/features/shared/core/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
 
 type KeyManagerUserStore = {
   user: { id: string };

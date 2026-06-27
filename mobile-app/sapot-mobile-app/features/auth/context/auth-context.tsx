@@ -2,9 +2,9 @@ import { getUserApi } from "@/features/shared";
 import {
   setNeedsReloginCallback,
   setTokenRefreshCallback,
-} from "@/features/shared/api/client";
+} from "@/features/shared/core/api/client";
 import { requestMainContainerReset } from "@/features/shared/main-container";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { isTokenExpiredLocally } from "@/features/auth/utils/token-utils";
 import { AxiosError } from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
@@ -39,7 +39,7 @@ import {
   saveLockoutInfo,
   clearLockoutInfo,
   getLockoutInfo,
-} from "@/features/shared/stores/secure-config";
+} from "@/features/shared/core/stores/secure-config";
 
 export interface LoginLockout {
   lockedUntil: string;

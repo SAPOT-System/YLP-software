@@ -1,4 +1,4 @@
-import { apiLog } from "@/features/shared/utils/logger";
+import { apiLog } from "@/features/shared/core/utils/logger";
 import { apiClient } from "./client";
 apiLog.debug("[search-api] module loaded");
 

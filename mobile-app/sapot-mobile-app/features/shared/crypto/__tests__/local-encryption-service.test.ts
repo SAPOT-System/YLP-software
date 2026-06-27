@@ -19,7 +19,7 @@ jest.mock("expo-crypto", () => ({
   getRandomBytesAsync: jest.fn(async (n: number) => new Uint8Array(n).fill(43)),
 }));
 
-jest.mock("../../stores/secure-config", () => ({
+jest.mock("../../core/stores/secure-config", () => ({
   getMasterKey: jest.fn(),
   saveMasterKey: jest.fn().mockResolvedValue(undefined),
   getSignalingSecretKey: jest.fn(),
@@ -41,7 +41,7 @@ jest.mock("@/features/shared", () => ({
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-import * as SecureConfig from "../../stores/secure-config";
+import * as SecureConfig from "../../core/stores/secure-config";
 
 function mockSecureConfigForGuestPath() {
   (SecureConfig.getPinEnabled as jest.Mock).mockResolvedValue(false);

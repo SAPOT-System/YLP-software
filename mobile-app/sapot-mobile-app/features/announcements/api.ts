@@ -1,4 +1,4 @@
-import { apiClient } from '@/features/shared/api/client';
+import { apiClient } from '@/features/shared/core/api/client';
 import { GetAnnouncementsResponse } from './types';
 
 export async function getAnnouncements(): Promise<GetAnnouncementsResponse> {

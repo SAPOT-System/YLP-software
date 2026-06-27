@@ -1,5 +1,5 @@
 import { useAuth } from "@/features/auth";
-import { useServerHealth } from "@/features/shared/context";
+import { useServerHealth } from "@/features/shared/core/context";
 import { useEffect } from "react";
 
 export function ServerDownReloginTransition() {

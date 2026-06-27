@@ -1,5 +1,5 @@
-import { toAppError } from "@/features/shared/errors";
-import { authLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { authLog } from "@/features/shared/core/utils/logger";
 import React, { createContext, useEffect, useState } from "react";
 import { PageLoader } from "@/features/shared/components/page-loader";
 import { AuthContainer } from "../auth-container";

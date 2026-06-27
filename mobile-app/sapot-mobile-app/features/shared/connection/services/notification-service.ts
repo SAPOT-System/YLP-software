@@ -1,5 +1,5 @@
 import * as Notifications from "expo-notifications";
-import { connectionLog } from "@/features/shared/utils/logger";
+import { connectionLog } from "@/features/shared/core/utils/logger";
 
 export type IncomingCallData = {
   callerId: string;

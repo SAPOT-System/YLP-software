@@ -11,13 +11,13 @@ jest.mock("expo-secure-store", () => ({
   deleteItemAsync: jest.fn(),
 }));
 
-jest.mock("../../api/client", () => ({
+jest.mock("../../core/api/client", () => ({
   apiClient: { get: jest.fn(), post: jest.fn() },
 }));
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-import { apiClient } from "../../api/client";
+import { apiClient } from "../../core/api/client";
 
 function makeFutureDate(msFromNow: number): string {
   return new Date(Date.now() + msFromNow).toISOString();

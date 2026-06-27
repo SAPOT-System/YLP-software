@@ -1,7 +1,7 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { useState } from "react";
-import { checkBackEndHealth } from "../api";
-import { hookLog } from "../utils/logger";
+import { checkBackEndHealth } from "../core/api";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-check-connection] module loaded");
 
 export const useCheckConnection = () => {

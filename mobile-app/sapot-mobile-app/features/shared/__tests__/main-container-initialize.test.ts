@@ -1,6 +1,6 @@
 import { MainContainer, setPendingPassword, setPendingPIN } from "../main-container";
 import { AuthContainer } from "@/features/auth/auth-container";
-import { AppModeStore } from "../stores";
+import { AppModeStore } from "../core/stores";
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ jest.mock("tweetnacl-util", () => ({
   decodeBase64: jest.fn(() => new Uint8Array(32)),
 }));
 
-jest.mock("../stores/secure-config", () => ({
+jest.mock("../core/stores/secure-config", () => ({
   getStoredAccessToken: jest.fn().mockResolvedValue(null),
   getMigrationState: jest.fn().mockResolvedValue(null),
   clearMigrationState: jest.fn().mockResolvedValue(undefined),
@@ -37,7 +37,7 @@ jest.mock("../stores/secure-config", () => ({
   saveUserProfile: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock("../services/local-encryption-service", () => ({
+jest.mock("../crypto/local-encryption-service", () => ({
   LocalEncryptionService: jest.fn().mockImplementation(() => ({
     initialize: jest.fn().mockResolvedValue(undefined),
     getSignalingSecretKey: jest.fn().mockReturnValue(new Uint8Array(32)),
@@ -132,7 +132,7 @@ jest.mock("../adapters", () => ({
   })),
 }));
 
-jest.mock("../stores", () => ({
+jest.mock("../core/stores", () => ({
   AppModeStore: jest.fn(),
   NetworkConfig: jest.fn().mockImplementation(() => ({
     initialize: jest.fn().mockResolvedValue(undefined),
@@ -230,11 +230,11 @@ jest.mock("@/features/sync", () => ({
   })),
 }));
 
-jest.mock("../database", () => ({
+jest.mock("../core/database", () => ({
   database: {},
 }));
 
-jest.mock("../utils/logger", () => ({
+jest.mock("../core/utils/logger", () => ({
   appLog: {
     info: jest.fn(),
     debug: jest.fn(),
@@ -295,7 +295,7 @@ function createTestContainer(isGuest = true): MainContainer {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-const secureConfig = require("../stores/secure-config");
+const secureConfig = require("../core/stores/secure-config");
 
 describe("MainContainer.initializeKeys", () => {
   beforeEach(() => {

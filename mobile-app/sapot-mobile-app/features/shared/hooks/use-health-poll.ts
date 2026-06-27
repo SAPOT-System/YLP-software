@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { checkBackEndHealth } from "../api/connection.api";
-import { hookLog } from "../utils/logger";
+import { checkBackEndHealth } from "../core/api/connection.api";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-health-poll] module loaded");
 
 export function useHealthPoll(intervalMs = 5000, enabled = true) {

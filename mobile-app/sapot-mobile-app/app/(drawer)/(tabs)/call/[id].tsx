@@ -1,6 +1,6 @@
 import { useCallContext } from "@/features/call/context/call-context";
 import { useThrottledPress } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";

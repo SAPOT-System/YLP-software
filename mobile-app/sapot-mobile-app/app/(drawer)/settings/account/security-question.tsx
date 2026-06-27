@@ -3,7 +3,7 @@ import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setu
 import { useRecoveryConstraints } from "@/features/auth/hooks/use-recovery-constraints";
 import { SettingsTextInput } from "@/features/settings";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { router } from "expo-router";

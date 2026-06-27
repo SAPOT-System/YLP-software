@@ -4,10 +4,10 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
-import { Peer } from "../database";
+import { Peer } from "../core/database";
 import { PeerListEntry, usePeerListData } from "../hooks/use-peer-list-data";
 import { useProfilePhoto } from "../hooks/use-profile-photo";
-import { uiLog } from "../utils/logger";
+import { uiLog } from "../core/utils/logger";
 
 uiLog.debug("[peer-list] module loaded");
 

@@ -13,7 +13,7 @@ import {
 } from "@/features/shared";
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import {
   ConversationKeyStore,
@@ -23,7 +23,7 @@ import {
   MessageStatusRepository,
 } from "../repositories";
 import { DataChatMessageI } from "../types";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { MessageAckTracker } from "./message-ack-tracker";
 import { ChatReceiveService } from "./chat-receive-service";
 import { ChatMessageService } from "./chat-message-service";

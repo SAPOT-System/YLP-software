@@ -1,5 +1,5 @@
-import { callLog } from "@/features/shared/utils/logger";
-import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
+import { callLog } from "@/features/shared/core/utils/logger";
+import { TypedEventEmitter } from "@/features/shared/core/utils/typed-event-emitter";
 import { DeviceEventEmitter, EmitterSubscription } from "react-native";
 import InCallManager from "react-native-incall-manager";
 import { AudioRouteTypes } from "./call-service";

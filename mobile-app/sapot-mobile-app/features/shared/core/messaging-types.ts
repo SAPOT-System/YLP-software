@@ -1,4 +1,4 @@
-import { MessageType } from "@/features/shared/database/model/Message";
+import { MessageType } from "@/features/shared/core/database/model/Message";
 
 /**
  * Wire-format types shared between the engine (ConnectionService, SignalingService,

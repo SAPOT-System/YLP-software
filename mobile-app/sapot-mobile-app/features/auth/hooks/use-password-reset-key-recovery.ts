@@ -1,7 +1,7 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { deriveKey } from "@/features/shared/crypto/key-derivation";
 import { KeyRecoveryService } from "@/features/shared/crypto/key-recovery-service";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import nacl from "tweetnacl";
 import { encodeBase64 } from "tweetnacl-util";
 import { fetchRecoveryBlobApi } from "../api/auth.api";

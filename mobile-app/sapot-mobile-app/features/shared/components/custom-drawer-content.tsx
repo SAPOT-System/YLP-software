@@ -1,11 +1,11 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { getApiUrl, setRuntimeHostOverride } from "@/config/runtime";
 import { GuestLogoutWarningModal, useAuth } from "@/features/auth";
-import { apiClient } from "@/features/shared/api/client";
+import { apiClient } from "@/features/shared/core/api/client";
 import {
   getServerHostOverride,
   saveServerHostOverride,
-} from "@/features/shared/stores/secure-config";
+} from "@/features/shared/core/stores/secure-config";
 import {
   DrawerContentComponentProps,
   DrawerItem,
@@ -25,7 +25,7 @@ import {
 } from "react-native-paper";
 import { PageLoader } from "./page-loader";
 import { useProfilePhoto, useToast, useUserProfile } from "../hooks";
-import { uiLog } from "../utils/logger";
+import { uiLog } from "../core/utils/logger";
 import { AppSnackbar } from "./app-snackbar";
 
 uiLog.debug("[custom-drawer-content] module loaded");

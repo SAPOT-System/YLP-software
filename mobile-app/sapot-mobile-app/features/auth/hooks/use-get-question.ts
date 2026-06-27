@@ -1,7 +1,7 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { isAxiosError } from "axios";
 import { useCallback, useEffect, useState } from "react";
-import { authLog } from "../../shared/utils/logger";
+import { authLog } from "../../shared/core/utils/logger";
 import { getSecurityQuestionApi } from "../api";
 
 export const useGetQuestion = (identfier: string) => {

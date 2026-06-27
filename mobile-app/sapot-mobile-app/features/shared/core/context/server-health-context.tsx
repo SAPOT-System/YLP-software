@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
 import { checkBackEndHealth } from "../api/connection.api";
-import { useHealthPoll } from "../hooks/use-health-poll";
+import { useHealthPoll } from "../../hooks/use-health-poll";
 import { useAppModeStore } from "./app-mode-context";
 
 export type ServerHealthStatus = {

@@ -41,7 +41,7 @@ jest.mock("@/features/shared", () => ({
   Peer: { table: "peers" },
 }));
 
-jest.mock("@/features/shared/utils/logger", () => ({
+jest.mock("@/features/shared/core/utils/logger", () => ({
   uiLog: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 

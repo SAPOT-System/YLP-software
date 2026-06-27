@@ -13,8 +13,8 @@ import {
   useToast,
   useUserProfile,
 } from "@/features/shared/hooks";
-import { Peer } from "@/features/shared/database/model/Peer";
-import { uiLog } from "@/features/shared/utils/logger";
+import { Peer } from "@/features/shared/core/database/model/Peer";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";

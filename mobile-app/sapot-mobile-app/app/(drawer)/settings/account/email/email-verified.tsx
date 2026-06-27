@@ -1,5 +1,5 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";

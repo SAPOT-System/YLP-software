@@ -1,5 +1,5 @@
 import { useThrottledPress } from "@/features/shared/hooks";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import React from "react";
 import { StyleProp, StyleSheet, ViewStyle } from "react-native";
 import { Button, ButtonProps } from "react-native-paper";

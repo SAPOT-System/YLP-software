@@ -4,7 +4,7 @@ import {
     GuestUser,
     Peer,
 } from "@/features/shared";
-import { ConversationType } from "@/features/shared/database/model/Conversation";
+import { ConversationType } from "@/features/shared/core/database/model/Conversation";
 import {
     createTestConversation,
     createTestConversationParticipant,

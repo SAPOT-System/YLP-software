@@ -1,4 +1,4 @@
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { useContext } from "react";
 import { AuthContainerContext } from "../context/auth-container-context";
 

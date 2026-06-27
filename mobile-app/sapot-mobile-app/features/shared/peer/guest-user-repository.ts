@@ -1,7 +1,7 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
-import { GuestUser } from "../database";
-import { guestUserLog } from "../utils/logger";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { GuestUser } from "../core/database";
+import { guestUserLog } from "../core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 
 guestUserLog.debug("[guest-user-repository] module loaded");
 

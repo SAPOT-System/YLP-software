@@ -1,5 +1,5 @@
 import { fetchTermsContent } from "@/features/auth/api/auth.api";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import React, { useEffect, useState } from "react";
 import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, View } from "react-native";
 import {

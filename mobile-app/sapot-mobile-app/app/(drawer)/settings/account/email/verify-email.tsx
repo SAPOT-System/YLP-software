@@ -7,7 +7,7 @@ import {
 import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
 import { VerificationCodeContent } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";

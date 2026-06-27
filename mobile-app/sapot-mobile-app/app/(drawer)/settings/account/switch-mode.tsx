@@ -1,10 +1,10 @@
-import { useAppMode } from "@/features/shared/context";
+import { useAppMode } from "@/features/shared/core/context";
 import {
   useConnectionService,
   useDiscoveryService,
   useUserProfile,
 } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { RadioButton, Text, useTheme } from "react-native-paper";

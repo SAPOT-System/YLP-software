@@ -1,4 +1,4 @@
-import { authComponentsLog } from "@/features/shared/utils/logger";
+import { authComponentsLog } from "@/features/shared/core/utils/logger";
 authComponentsLog.debug("[auth components] module loaded");
 
 export { default as AuthTextInput } from "./auth-text-input";

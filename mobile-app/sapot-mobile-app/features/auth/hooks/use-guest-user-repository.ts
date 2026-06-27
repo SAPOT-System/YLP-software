@@ -1,4 +1,4 @@
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { useAuthContainer } from "./use-auth-container";
 
 export function useGuestUserRepository() {

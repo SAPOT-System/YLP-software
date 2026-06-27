@@ -20,7 +20,7 @@ jest.mock("@/features/auth/hooks/use-auth-container", () => ({
   useAuthContainer: jest.fn(),
 }));
 
-jest.mock("@/features/shared/api/client", () => ({
+jest.mock("@/features/shared/core/api/client", () => ({
   setTokenRefreshCallback: jest.fn(),
   setNeedsReloginCallback: jest.fn(),
 }));
@@ -29,7 +29,7 @@ jest.mock("@/features/shared", () => ({
   getUserApi: jest.fn(),
 }));
 
-jest.mock("@/features/shared/stores/secure-config", () => ({
+jest.mock("@/features/shared/core/stores/secure-config", () => ({
   clearConnectionConfig: jest.fn(),
   getLockoutInfo: jest.fn(),
   saveLockoutInfo: jest.fn(),
@@ -59,7 +59,7 @@ const secureStore = () => jest.requireMock("expo-secure-store") as {
   setItemAsync: jest.Mock;
   deleteItemAsync: jest.Mock;
 };
-const clientMock = () => jest.requireMock("@/features/shared/api/client") as {
+const clientMock = () => jest.requireMock("@/features/shared/core/api/client") as {
   setTokenRefreshCallback: jest.Mock;
   setNeedsReloginCallback: jest.Mock;
 };
@@ -130,7 +130,7 @@ describe("AuthProvider bootstrap — local-first identity", () => {
     secureStore().setItemAsync.mockResolvedValue(undefined);
     secureStore().deleteItemAsync.mockResolvedValue(undefined);
 
-    const secureConfig = jest.requireMock("@/features/shared/stores/secure-config") as {
+    const secureConfig = jest.requireMock("@/features/shared/core/stores/secure-config") as {
       getLockoutInfo: jest.Mock;
       saveLockoutInfo: jest.Mock;
       clearLockoutInfo: jest.Mock;

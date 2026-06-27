@@ -1,4 +1,4 @@
-import { hookLog } from "@/features/shared/utils/logger";
+import { hookLog } from "@/features/shared/core/utils/logger";
 hookLog.debug("[shared/hooks] module loaded");
 
 export * from "./use-active-user-service";

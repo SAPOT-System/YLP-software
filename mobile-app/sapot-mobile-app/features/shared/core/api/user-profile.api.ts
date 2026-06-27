@@ -1,5 +1,5 @@
 import { toLocalPhone } from "@/features/auth/utils/validation";
-import { apiLog } from "@/features/shared/utils/logger";
+import { apiLog } from "@/features/shared/core/utils/logger";
 import { apiClient } from "./client";
 apiLog.debug("[user-profile-api] module loaded");
 

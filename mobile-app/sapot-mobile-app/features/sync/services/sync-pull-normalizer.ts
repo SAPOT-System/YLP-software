@@ -1,6 +1,6 @@
 import { Database, Q } from "@nozbe/watermelondb";
-import { toAppError } from "@/features/shared/errors";
-import { syncLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { syncLog } from "@/features/shared/core/utils/logger";
 import type { PushLocalDataRequestBody } from "../api/sync.api";
 import { MigrationGuard } from "./migration-guard";
 import type { MessageRepository } from "@/features/chat/repositories/message-repository";

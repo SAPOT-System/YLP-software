@@ -5,7 +5,7 @@ import {
   MessageType,
   Peer,
 } from "@/features/shared";
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import nacl from "tweetnacl";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";

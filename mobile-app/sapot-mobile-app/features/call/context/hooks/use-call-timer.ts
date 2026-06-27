@@ -1,4 +1,4 @@
-import { hookLog } from "@/features/shared/utils/logger";
+import { hookLog } from "@/features/shared/core/utils/logger";
 import { useCallback, useEffect, useState } from "react";
 import type { CallState } from "./use-call-lifecycle";
 

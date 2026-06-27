@@ -2,7 +2,7 @@ import EventEmitter from "events";
 import TcpSocket from "react-native-tcp-socket";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 import { Message } from "../../types";
-import { tcpLog } from "../../utils/logger";
+import { tcpLog } from "../../core/utils/logger";
 import {
   generateKeyPair,
   computeSharedKey,

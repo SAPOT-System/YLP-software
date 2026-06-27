@@ -1,6 +1,6 @@
 import { Database, Q } from "@nozbe/watermelondb";
-import { Message } from "@/features/shared/database/model/Message";
-import { syncLog } from "@/features/shared/utils/logger";
+import { Message } from "@/features/shared/core/database/model/Message";
+import { syncLog } from "@/features/shared/core/utils/logger";
 import type { PushLocalDataRequestBody } from "../api/sync.api";
 
 type SyncChanges = PushLocalDataRequestBody["changes"];

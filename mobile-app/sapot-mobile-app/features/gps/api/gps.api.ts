@@ -1,5 +1,5 @@
-import { apiClient } from "@/features/shared/api/client";
-import { apiLog } from "@/features/shared/utils/logger";
+import { apiClient } from "@/features/shared/core/api/client";
+import { apiLog } from "@/features/shared/core/utils/logger";
 
 export type UserLocation = {
   user_id: string;

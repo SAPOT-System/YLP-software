@@ -3,7 +3,7 @@ import type {
   CallEndedEventPayload,
   ConnectionService,
 } from "@/features/shared/connection/services/connection-service";
-import { callLog, hookLog, uiLog } from "@/features/shared/utils/logger";
+import { callLog, hookLog, uiLog } from "@/features/shared/core/utils/logger";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 hookLog.debug("[use-call-lifecycle] module loaded");

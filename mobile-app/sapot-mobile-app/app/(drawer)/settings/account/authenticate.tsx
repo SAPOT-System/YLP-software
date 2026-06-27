@@ -2,7 +2,7 @@ import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { RegisterApiRequest, RegisterFormStateErrors } from "@/features/auth/types";
 import { hasValidationErrors, validateRegistrationForm } from "@/features/auth/utils/validation";
 import { useUserProfile } from "@/features/shared/hooks/use-user-profile";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { HelperText } from "react-native-paper";

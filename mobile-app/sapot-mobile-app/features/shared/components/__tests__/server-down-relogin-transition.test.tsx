@@ -5,7 +5,7 @@ jest.mock("@/features/auth", () => ({
   useAuth: jest.fn(),
 }));
 
-jest.mock("@/features/shared/context", () => ({
+jest.mock("@/features/shared/core/context", () => ({
   useServerHealth: jest.fn(),
 }));
 
@@ -13,7 +13,7 @@ const useAuthMock = () =>
   (jest.requireMock("@/features/auth") as { useAuth: jest.Mock }).useAuth;
 
 const useServerStatusMock = () =>
-  (jest.requireMock("@/features/shared/context") as { useServerHealth: jest.Mock })
+  (jest.requireMock("@/features/shared/core/context") as { useServerHealth: jest.Mock })
     .useServerHealth;
 
 const makeAuth = (overrides: Record<string, unknown> = {}) => ({

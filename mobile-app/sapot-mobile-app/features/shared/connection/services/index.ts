@@ -1,4 +1,4 @@
-import { serviceLog } from "@/features/shared/utils/";
+import { serviceLog } from "@/features/shared/core/utils/";
 serviceLog.debug("[shared/connection/services] module loaded");
 
 export { ActiveUsersService } from "./active-users-service";

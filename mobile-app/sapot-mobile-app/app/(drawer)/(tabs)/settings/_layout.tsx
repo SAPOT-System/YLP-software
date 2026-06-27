@@ -1,4 +1,4 @@
-import { navLog } from "@/features/shared/utils/logger";
+import { navLog } from "@/features/shared/core/utils/logger";
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { Appbar, useTheme } from "react-native-paper";

@@ -1,8 +1,8 @@
 import { act, renderHook } from "@testing-library/react-native";
-import { pingServer } from "../api";
+import { pingServer } from "../core/api";
 import { usePing } from "./use-ping";
 
-jest.mock("../api", () => ({
+jest.mock("../core/api", () => ({
   pingServer: jest.fn(),
 }));
 

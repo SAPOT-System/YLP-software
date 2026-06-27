@@ -1,6 +1,6 @@
 import { reauthenticateApi } from "@/features/auth/api/auth.api";
 import { SettingsTextInput } from "@/features/settings";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { isAxiosError } from "axios";
 import { useState } from "react";
 import { View } from "react-native";

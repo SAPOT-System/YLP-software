@@ -12,7 +12,7 @@ import {
 } from "@/test/mocks/user-service.mock-builders";
 import * as ExpoSecureStore from "expo-secure-store";
 import { GuestUserRepository } from "../../../peer";
-import { SessionStore, UserStore } from "../../../stores";
+import { SessionStore, UserStore } from "../../../core/stores";
 import { CleanUpService } from "../clean-up-service";
 import { PeerService } from "../../../peer/peer-service";
 import { UserService } from "../user-service";
@@ -25,7 +25,7 @@ jest.mock("expo-secure-store", () => ({
 }));
 
 // Mock the stores
-jest.mock("../../../stores", () => ({
+jest.mock("../../../core/stores", () => ({
   UserStore: jest.fn(),
   SessionStore: jest.fn(),
 }));
@@ -40,7 +40,7 @@ jest.mock("../../../peer/peer-service", () => ({
 }));
 
 // Mock database models
-jest.mock("../../../database", () => ({
+jest.mock("../../../core/database", () => ({
   Peer: jest.fn(),
 }));
 

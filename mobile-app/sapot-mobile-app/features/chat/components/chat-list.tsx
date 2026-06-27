@@ -24,7 +24,7 @@ import { useMainContainer, useProfilePhoto } from "@/features/shared/hooks";
 import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { toLocalPhone } from "@/features/auth/utils/validation";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 uiLog.debug("[chat-list] module loaded");
 
 const enhanceChats = withObservables([], () => ({

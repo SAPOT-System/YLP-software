@@ -1,7 +1,7 @@
 import type { GuestUserRepository } from "@/features/shared/peer";
 import type { CleanUpService } from "@/features/shared/connection/services/clean-up-service";
 import type { PeerService } from "@/features/shared/peer/peer-service";
-import type { SessionStore, UserStore } from "@/features/shared/stores";
+import type { SessionStore, UserStore } from "@/features/shared/core/stores";
 
 export type UserStoreMock = jest.Mocked<
   Pick<UserStore, "setUser" | "setIsRescuer" | "setIsAdmin"> & {

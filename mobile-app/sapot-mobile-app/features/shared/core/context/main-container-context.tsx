@@ -4,7 +4,7 @@ import React, { createContext, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { Button, Text } from "react-native-paper";
 import { PageLoader } from "@/features/shared/components/page-loader";
-import { MainContainer, setPendingPIN, setResetRequestedCallback } from "../main-container";
+import { MainContainer, setPendingPIN, setResetRequestedCallback } from "../../main-container";
 import { getPinEnabled } from "../stores/secure-config";
 import { appLog } from "../utils/logger";
 import { useAppModeStore } from "./app-mode-context";

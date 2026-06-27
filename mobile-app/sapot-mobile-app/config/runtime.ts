@@ -1,4 +1,4 @@
-import { configLog } from "@/features/shared/utils/logger";
+import { configLog } from "@/features/shared/core/utils/logger";
 import * as Updates from "expo-updates";
 
 // const PORT = "8000";
@@ -13,7 +13,7 @@ export const setRuntimeHostOverride = (host: string | null) => {
 
 export const initRuntimeOverrides = async () => {
   const { getServerHostOverride } = await import(
-    "@/features/shared/stores/secure-config"
+    "@/features/shared/core/stores/secure-config"
   );
   _hostOverride = await getServerHostOverride();
   configLog.info("config › host override loaded", {

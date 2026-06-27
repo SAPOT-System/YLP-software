@@ -1,5 +1,5 @@
 import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";

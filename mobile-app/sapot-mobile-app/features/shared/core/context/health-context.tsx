@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
 import { checkBackEndHealth } from "../api/connection.api";
-import { usePing } from "../hooks/use-ping";
+import { usePing } from "../../hooks/use-ping";
 import { useAppMode } from "./app-mode-context";
 
 export type ServerStatus = {

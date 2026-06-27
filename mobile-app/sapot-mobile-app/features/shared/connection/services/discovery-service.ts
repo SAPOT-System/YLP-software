@@ -1,8 +1,8 @@
-import { discoveryLog } from "@/features/shared/utils/logger";
+import { discoveryLog } from "@/features/shared/core/utils/logger";
 import { IDiscoveryChatService } from "./service-interfaces";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../adapters";
-import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../stores";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../core/stores";
 import type { ConnectionService } from "./connection-service";
 import { PeerService } from "../../peer/peer-service";
 

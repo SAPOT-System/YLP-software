@@ -1,8 +1,8 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { WsSignalingAdapter } from "@/features/shared/connection/adapters/ws-signaling-adapter";
 import { UserStore } from "@/features/shared";
-import { AppModeStore } from "@/features/shared/stores";
-import { chatLog } from "@/features/shared/utils/logger";
+import { AppModeStore } from "@/features/shared/core/stores";
+import { chatLog } from "@/features/shared/core/utils/logger";
 import { PublicChatMessage, SendPublicChatPayload } from "../types";
 import { fetchPublicChatHistory } from "../api/public-chat.api";
 

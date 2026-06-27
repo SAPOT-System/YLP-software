@@ -1,6 +1,6 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { apiClient } from "@/features/shared";
-import { apiLog } from "@/features/shared/utils/logger";
+import { apiLog } from "@/features/shared/core/utils/logger";
 import { AxiosResponse } from "axios";
 import {
   LoginApiRequest,

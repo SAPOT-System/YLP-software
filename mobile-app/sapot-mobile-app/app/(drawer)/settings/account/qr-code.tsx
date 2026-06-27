@@ -1,8 +1,8 @@
-import { useAppMode } from "@/features/shared/context/app-mode-context";
+import { useAppMode } from "@/features/shared/core/context/app-mode-context";
 import { useUserProfile } from "@/features/shared/hooks";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { QRPayload } from "@/features/shared/types";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect, useMemo } from "react";
 import { View } from "react-native";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";

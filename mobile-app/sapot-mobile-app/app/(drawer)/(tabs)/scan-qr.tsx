@@ -1,9 +1,9 @@
 import { ChatRoomSource } from "@/features/chat/types";
-import { useAppMode } from "@/features/shared/context/app-mode-context";
+import { useAppMode } from "@/features/shared/core/context/app-mode-context";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { usePeerService } from "@/features/shared/hooks/use-peer-service";
 import { QRPayload } from "@/features/shared/types";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { Camera, CameraView, type BarcodeScanningResult } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";

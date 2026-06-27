@@ -1,8 +1,8 @@
 import { MessageRepository } from "@/features/chat/repositories";
 import { GuestUserRepository } from "@/features/shared/peer";
-import { setMigrationState } from "@/features/shared/stores/secure-config";
-import { toAppError, captureAppError } from "@/features/shared/errors";
-import { authLog } from "@/features/shared/utils/logger";
+import { setMigrationState } from "@/features/shared/core/stores/secure-config";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { authLog } from "@/features/shared/core/utils/logger";
 
 authLog.debug("[guest-migration-service] module loaded");
 

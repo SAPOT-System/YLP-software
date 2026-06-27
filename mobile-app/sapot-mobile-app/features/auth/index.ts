@@ -1,4 +1,4 @@
-import { authIndexLog } from "@/features/shared/utils/logger";
+import { authIndexLog } from "@/features/shared/core/utils/logger";
 authIndexLog.debug("[auth] module loaded");
 
 export * from "./api";

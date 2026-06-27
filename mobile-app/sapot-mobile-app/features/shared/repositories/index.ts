@@ -1,4 +1,4 @@
-import { repoLog } from "@/features/shared/utils/logger";
+import { repoLog } from "@/features/shared/core/utils/logger";
 repoLog.debug("[shared/repositories] module loaded");
 
 

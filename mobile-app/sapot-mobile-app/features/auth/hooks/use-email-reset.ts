@@ -1,5 +1,5 @@
-import { toAppError } from "@/features/shared/errors";
-import { authLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { authLog } from "@/features/shared/core/utils/logger";
 import axios from "axios";
 import { useState } from "react";
 import {

@@ -1,4 +1,4 @@
-import { authHooksLog } from "@/features/shared/utils/logger";
+import { authHooksLog } from "@/features/shared/core/utils/logger";
 authHooksLog.debug("[auth hooks] module loaded");
 
 export * from "./use-auth-container";

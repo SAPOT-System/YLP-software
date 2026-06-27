@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { hookLog } from "../utils/logger";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-dialog-visibility] module loaded");
 
 export function useDialogVisibility(initial = false) {

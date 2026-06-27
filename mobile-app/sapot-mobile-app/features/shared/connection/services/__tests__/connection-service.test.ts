@@ -9,7 +9,7 @@ import {
   WsSignalingAdapter,
 } from "../../adapters";
 import { WebrtcAdapter } from "../../adapters/webrtc-adapter";
-import { AppModeStore, NetworkConfig, UserStore } from "../../../stores";
+import { AppModeStore, NetworkConfig, UserStore } from "../../../core/stores";
 import {
   AudioCallMessage,
   CallEndedMessage,
@@ -53,7 +53,7 @@ jest.mock("../../adapters/webrtc-adapter", () => ({
 }));
 
 // Mock the stores
-jest.mock("../../../stores", () => ({
+jest.mock("../../../core/stores", () => ({
   NetworkConfig: jest.fn(),
   UserStore: jest.fn(),
   AppModeStore: jest.fn(),

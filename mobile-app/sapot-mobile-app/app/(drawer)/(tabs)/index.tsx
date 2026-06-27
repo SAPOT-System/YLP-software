@@ -6,10 +6,10 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { ChatList, useChats } from "@/features/chat";
 import { useChatService } from "@/features/chat/hooks/use-chat-service";
-import { contactUnknownUser } from "@/features/shared/api/gsm.api";
+import { contactUnknownUser } from "@/features/shared/core/api/gsm.api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import PeerList from "@/features/shared/components/peer-list";
-import { Peer } from "@/features/shared/database";
+import { Peer } from "@/features/shared/core/database";
 import {
   useConnectionService,
   useDiscoveryService,
@@ -20,7 +20,7 @@ import { useDialogVisibility } from "@/features/shared/hooks/use-dialog-visibili
 import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useSyncService } from "@/features/shared/hooks/use-sync-service";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";

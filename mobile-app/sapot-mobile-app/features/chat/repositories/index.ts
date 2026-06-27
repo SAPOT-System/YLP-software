@@ -1,4 +1,4 @@
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
 chatLog.debug("[chat/repositories] module loaded");
 
 export { ConversationKeyStore } from "./conversation-key-store";

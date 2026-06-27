@@ -1,6 +1,6 @@
-import { toAppError } from "@/features/shared/errors";
-import { database, Peer } from "../database";
-import { dbLog } from "../utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { database, Peer } from "../core/database";
+import { dbLog } from "../core/utils/logger";
 
 dbLog.debug("[use-database] module loaded");
 

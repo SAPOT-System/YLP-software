@@ -2,7 +2,7 @@ import { usePublicChat } from "@/features/chat/hooks/use-public-chat";
 import { PublicChatMessage } from "@/features/chat/types";
 import { formatDate } from "@/features/shared";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useEffect, useRef, useState } from "react";
 import {

@@ -1,6 +1,6 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { useThrottledPress } from "@/features/shared/hooks";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { saveDocuments } from "@react-native-documents/picker";
 import { File, Paths } from "expo-file-system";
 import { router } from "expo-router";

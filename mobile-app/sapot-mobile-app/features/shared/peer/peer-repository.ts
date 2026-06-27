@@ -1,7 +1,7 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
-import { Peer } from "../database";
-import { peerLog } from "../utils/logger";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { Peer } from "../core/database";
+import { peerLog } from "../core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 
 peerLog.debug("[peer-repository] module loaded");
 

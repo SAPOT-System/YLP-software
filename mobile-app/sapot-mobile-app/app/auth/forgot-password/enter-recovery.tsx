@@ -7,7 +7,7 @@ import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
 import { useToast } from "@/features/shared/hooks";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { setItemAsync } from "expo-secure-store";
 import { OTPInput } from "input-otp-native";

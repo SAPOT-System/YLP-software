@@ -1,4 +1,4 @@
-import { authTypesLog } from "@/features/shared/utils/logger";
+import { authTypesLog } from "@/features/shared/core/utils/logger";
 
 authTypesLog.debug("[auth types] module loaded");
 

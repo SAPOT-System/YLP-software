@@ -1,4 +1,4 @@
-import { chatTypesLog } from "@/features/shared/utils/logger";
+import { chatTypesLog } from "@/features/shared/core/utils/logger";
 chatTypesLog.debug("[chat/types] module loaded");
 
 // Wire-format types now live in the engine core; re-exported here so existing

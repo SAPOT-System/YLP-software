@@ -1,7 +1,7 @@
-import { Peer } from "@/features/shared/database/model/Peer";
+import { Peer } from "@/features/shared/core/database/model/Peer";
 import { usePeerService } from "@/features/shared/hooks/use-peer-service";
 import { useProfilePhoto } from "@/features/shared/hooks/use-profile-photo";
-import { hookLog, uiLog } from "@/features/shared/utils/logger";
+import { hookLog, uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect, useState } from "react";
 
 hookLog.debug("[use-peer-info] module loaded");

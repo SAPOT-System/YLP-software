@@ -5,8 +5,8 @@ import {
   MessageStatusType,
   Peer,
 } from "@/features/shared";
-import { chatLog } from "@/features/shared/utils/logger";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { chatLog } from "@/features/shared/core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { messageStatusId } from "@/features/chat/utils/message-status-id";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 

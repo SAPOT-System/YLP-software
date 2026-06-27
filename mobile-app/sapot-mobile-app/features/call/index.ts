@@ -1,4 +1,4 @@
-import { callLog } from "@/features/shared/utils/logger";
+import { callLog } from "@/features/shared/core/utils/logger";
 callLog.debug("[call/index] module loaded");
 
 export * from "./hooks";

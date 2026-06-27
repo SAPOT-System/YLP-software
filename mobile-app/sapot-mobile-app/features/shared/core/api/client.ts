@@ -2,7 +2,7 @@ import { getApiUrl } from "@/config/runtime";
 import axios from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 
-import { apiLog } from "@/features/shared/utils/logger";
+import { apiLog } from "@/features/shared/core/utils/logger";
 apiLog.debug("[api-client] module loaded");
 
 export const apiClient = axios.create({

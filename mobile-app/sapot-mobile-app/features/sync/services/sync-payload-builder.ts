@@ -1,4 +1,4 @@
-import { syncLog } from "@/features/shared/utils/logger";
+import { syncLog } from "@/features/shared/core/utils/logger";
 import type {
   PushLocalDataRequestBody,
 } from "../api/sync.api";

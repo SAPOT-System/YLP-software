@@ -1,4 +1,4 @@
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import React from "react";
 import { View } from "react-native";
 import { Modal, Portal, Text, useTheme } from "react-native-paper";

@@ -1,6 +1,6 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { PrimaryButton } from "@/features/auth";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { View } from "react-native";

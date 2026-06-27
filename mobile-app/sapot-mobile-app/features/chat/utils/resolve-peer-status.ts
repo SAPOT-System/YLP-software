@@ -1,4 +1,4 @@
-import { formatRelativeTime } from "@/features/shared/utils";
+import { formatRelativeTime } from "@/features/shared/core/utils";
 
 // Discovery marks a peer stale after this window without an mDNS sighting.
 // Mirrors STALE_TTL_MS in discovery-service so the header trusts `isOnline`

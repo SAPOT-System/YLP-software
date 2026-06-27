@@ -1,4 +1,4 @@
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
 import nacl from "tweetnacl";
 import { decodeBase64 } from "tweetnacl-util";
 

@@ -1,4 +1,4 @@
-import { utilLog } from "@/features/shared/utils/logger";
+import { utilLog } from "@/features/shared/core/utils/logger";
 utilLog.debug("[shared/utils] module loaded");
 
 export * from "./format-date";

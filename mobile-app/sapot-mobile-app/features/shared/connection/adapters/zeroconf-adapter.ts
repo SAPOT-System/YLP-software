@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import Zeroconf, { Service } from "react-native-zeroconf";
 import { PublishedService } from "../../types";
-import { zeroconfLog } from "../../utils/logger";
+import { zeroconfLog } from "../../core/utils/logger";
 
 zeroconfLog.debug("[zeroconf-adapter] module loaded");
 

@@ -1,6 +1,6 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet } from "react-native";

@@ -10,10 +10,10 @@ import {
   savePinEnabled,
   getPinWrappedBundle,
   savePinWrappedBundle,
-} from "../stores/secure-config";
+} from "../core/stores/secure-config";
 import { deleteItemAsync } from "expo-secure-store";
-import { apiClient } from "@/features/shared/api";
-import { appLog } from "../utils/logger";
+import { apiClient } from "@/features/shared/core/api";
+import { appLog } from "../core/utils/logger";
 import { deriveKey } from "./key-derivation";
 
 const VERSION_PREFIX = "v1:";

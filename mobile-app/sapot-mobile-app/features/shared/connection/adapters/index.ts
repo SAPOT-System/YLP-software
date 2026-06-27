@@ -1,4 +1,4 @@
-import { adapterLog } from "@/features/shared/utils/logger";
+import { adapterLog } from "@/features/shared/core/utils/logger";
 adapterLog.debug("[shared/connection/adapters] module loaded");
 
 export { TcpClientAdapter } from "./tcp-client-adapter";

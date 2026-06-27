@@ -1,5 +1,5 @@
-import { toAppError, captureAppError } from "@/features/shared/errors";
-import { authLog } from "@/features/shared/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { isAxiosError } from "axios";
 import { setItemAsync } from "expo-secure-store";
 import { useState } from "react";

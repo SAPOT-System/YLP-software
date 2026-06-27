@@ -7,7 +7,7 @@ import {
 import { SettingsTextInput } from "@/features/settings";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useServerAction, useToast, useUserProfile } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";

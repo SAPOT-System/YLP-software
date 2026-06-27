@@ -1,5 +1,5 @@
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
-import { chatLog } from "@/features/shared/utils/logger";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
+import { chatLog } from "@/features/shared/core/utils/logger";
 
 chatLog.debug("[message-receipt-manager] module loaded");
 

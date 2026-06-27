@@ -1,9 +1,9 @@
 import { getWsUrl } from "@/config/runtime";
-import { useAppMode } from "@/features/shared/context/app-mode-context";
+import { useAppMode } from "@/features/shared/core/context/app-mode-context";
 import { useMainContainer } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
-import { getStoredAccessToken } from "@/features/shared/stores/secure-config";
-import { hookLog } from "@/features/shared/utils/logger";
+import { getStoredAccessToken } from "@/features/shared/core/stores/secure-config";
+import { hookLog } from "@/features/shared/core/utils/logger";
 import { useCallback, useEffect, useState } from "react";
 import { PublicChatMessage } from "../types";
 

@@ -1,5 +1,5 @@
-import { useAppMode, useServerStatus } from "@/features/shared/context";
-import { uiLog } from "@/features/shared/utils/logger";
+import { useAppMode, useServerStatus } from "@/features/shared/core/context";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { Button, Icon, Text, useTheme } from "react-native-paper";

@@ -1,11 +1,11 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
-import { Conversation, ConversationType } from "@/features/shared/database/model/Conversation";
-import { ConversationParticipant } from "@/features/shared/database/model/ConversationParticipant";
-import { GuestUser } from "@/features/shared/database/model/guest-user";
-import { Peer } from "@/features/shared/database/model/Peer";
-import { chatLog } from "@/features/shared/utils/logger";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { Conversation, ConversationType } from "@/features/shared/core/database/model/Conversation";
+import { ConversationParticipant } from "@/features/shared/core/database/model/ConversationParticipant";
+import { GuestUser } from "@/features/shared/core/database/model/guest-user";
+import { Peer } from "@/features/shared/core/database/model/Peer";
+import { chatLog } from "@/features/shared/core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { conversationParticipantId } from "@/features/chat/utils/conversation-participant-id";
 
 chatLog.debug("[conversation-participant-repository] module loaded");

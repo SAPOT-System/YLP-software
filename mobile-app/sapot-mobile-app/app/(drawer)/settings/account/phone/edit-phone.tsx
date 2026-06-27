@@ -2,7 +2,7 @@ import { SETTINGS_ROUTES } from "@/config/routes";
 import { SettingsTextInput } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { useServerAction } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";

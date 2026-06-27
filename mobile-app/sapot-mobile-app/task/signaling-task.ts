@@ -14,7 +14,7 @@ import {
     getStoredUsername,
     getStoredWsUrl,
     saveAppAlive,
-} from "@/features/shared/stores/secure-config";
+} from "@/features/shared/core/stores/secure-config";
 import { CallMessage } from "@/features/shared/types";
 import * as BackgroundTask from "expo-background-task";
 import * as Notifications from "expo-notifications";

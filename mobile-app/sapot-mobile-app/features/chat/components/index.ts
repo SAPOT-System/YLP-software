@@ -1,4 +1,4 @@
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 uiLog.debug("[chat/components] module loaded");
 
 export { default as ChatList } from "./chat-list";

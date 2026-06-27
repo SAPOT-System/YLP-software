@@ -1,9 +1,9 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { GuestLogoutWarningModal, useAuth } from "@/features/auth";
 import { Peer } from "@/features/shared";
-import { useThemePreference } from "@/features/shared/context";
+import { useThemePreference } from "@/features/shared/core/context";
 import { useProfilePhoto, useUserProfile } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";

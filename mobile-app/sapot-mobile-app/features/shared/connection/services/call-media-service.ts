@@ -1,6 +1,6 @@
 import { MediaStream } from "react-native-webrtc";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
-import { callLog } from "../../utils/logger";
+import { callLog } from "../../core/utils/logger";
 
 callLog.debug("[call-media-service] module loaded");
 

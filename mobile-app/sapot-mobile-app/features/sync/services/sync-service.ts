@@ -2,16 +2,16 @@ import { Database } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 import { isAxiosError } from "axios";
-import { toAppError } from "@/features/shared/errors";
-import { CallStatus } from "@/features/shared/database/model/Call";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { toAppError } from "@/features/shared/core/errors";
+import { CallStatus } from "@/features/shared/core/database/model/Call";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
 import {
   getSyncLastPulledAt,
   saveSyncLastPulledAt,
-} from "@/features/shared/stores/secure-config";
-import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
-import { syncLog } from "@/features/shared/utils/logger";
-import { clearMigrationState } from "@/features/shared/stores/secure-config";
+} from "@/features/shared/core/stores/secure-config";
+import { TypedEventEmitter } from "@/features/shared/core/utils/typed-event-emitter";
+import { syncLog } from "@/features/shared/core/utils/logger";
+import { clearMigrationState } from "@/features/shared/core/stores/secure-config";
 import {
   pushLocalDataApi,
   sync as syncApi,

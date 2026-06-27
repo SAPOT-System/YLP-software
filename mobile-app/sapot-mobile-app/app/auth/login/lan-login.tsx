@@ -1,8 +1,8 @@
 import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
-import { useAppMode } from "@/features/shared/context";
-import { authLog } from "@/features/shared/utils/logger";
+import { useAppMode } from "@/features/shared/core/context";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";

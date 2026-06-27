@@ -1,4 +1,4 @@
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import React from "react";
 import { Text, View } from "react-native";
 import { Button, Icon, useTheme } from "react-native-paper";

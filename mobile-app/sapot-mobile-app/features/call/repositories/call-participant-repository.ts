@@ -1,6 +1,6 @@
 import { Call, CallParticipant, GuestUser, Peer } from "@/features/shared";
-import { callLog } from "@/features/shared/utils/logger";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { callLog } from "@/features/shared/core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { callParticipantId } from "@/features/call/utils/call-participant-id";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 callLog.debug("[call-participant-repository] module loaded");

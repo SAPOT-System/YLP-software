@@ -1,4 +1,4 @@
-import { apiLog } from "@/features/shared/utils/logger";
+import { apiLog } from "@/features/shared/core/utils/logger";
 apiLog.debug("[shared/api] module loaded");
 
 export * from "./client";

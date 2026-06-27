@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import { sendSmsToUser } from "@/features/shared/api/gsm.api";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
-import { uiLog } from "@/features/shared/utils/logger";
+import { sendSmsToUser } from "@/features/shared/core/api/gsm.api";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { ChatService } from "@/features/chat/services/chat-service";
 
 type Params = {

@@ -1,4 +1,4 @@
-import type { AppMode } from "@/features/shared/stores/app-mode-store";
+import type { AppMode } from "@/features/shared/core/stores/app-mode-store";
 
 /** Signaling channel selected for a connect attempt. */
 export type SignalingTransport = "ws" | "tcp" | "none";

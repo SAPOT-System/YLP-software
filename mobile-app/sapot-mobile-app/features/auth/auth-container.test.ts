@@ -1,17 +1,17 @@
-import { authLog } from "../shared/utils/logger";
+import { authLog } from "../shared/core/utils/logger";
 
 // Mock the specific modules AuthContainer imports so construction doesn't hit real DB
-jest.mock("../shared/database/database", () => ({ database: {} }));
+jest.mock("../shared/core/database/database", () => ({ database: {} }));
 jest.mock("../shared/peer/peer-repository", () => ({
   PeerRepository: jest.fn().mockImplementation(() => ({})),
 }));
 jest.mock("../shared/peer/peer-service", () => ({
   PeerService: jest.fn().mockImplementation(() => ({})),
 }));
-jest.mock("../shared/stores/session-store", () => ({
+jest.mock("../shared/core/stores/session-store", () => ({
   SessionStore: jest.fn().mockImplementation(() => ({})),
 }));
-jest.mock("../shared/stores/user-store", () => ({
+jest.mock("../shared/core/stores/user-store", () => ({
   UserStore: jest.fn().mockImplementation(() => ({})),
 }));
 jest.mock("../shared/peer/guest-user-repository", () => ({

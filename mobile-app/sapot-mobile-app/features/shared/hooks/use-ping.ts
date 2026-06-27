@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { pingServer } from "../api";
-import { hookLog } from "../utils/logger";
+import { pingServer } from "../core/api";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-ping] module loaded");
 
 export const usePing = ({ enabled = true }: { enabled?: boolean } = {}) => {

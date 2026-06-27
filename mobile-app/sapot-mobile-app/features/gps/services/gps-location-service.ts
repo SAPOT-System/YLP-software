@@ -1,6 +1,6 @@
 import * as Location from "expo-location";
-import { toAppError } from "@/features/shared/errors";
-import { gpsLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { gpsLog } from "@/features/shared/core/utils/logger";
 import { haversineMeters } from "../utils/haversine";
 
 gpsLog.debug("[gps-location-service] module loaded");

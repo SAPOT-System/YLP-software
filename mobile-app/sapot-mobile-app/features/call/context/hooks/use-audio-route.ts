@@ -1,5 +1,5 @@
 import type { AudioRouteTypes, CallService } from "@/features/call/services/call-service";
-import { hookLog, uiLog } from "@/features/shared/utils/logger";
+import { hookLog, uiLog } from "@/features/shared/core/utils/logger";
 import { useCallback, useEffect, useRef } from "react";
 
 hookLog.debug("[use-audio-route] module loaded");

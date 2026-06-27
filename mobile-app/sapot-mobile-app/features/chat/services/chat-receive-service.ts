@@ -9,7 +9,7 @@ import {
   PeerService,
   UserStore,
 } from "@/features/shared";
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import * as Notifications from "expo-notifications";
 import {
@@ -19,7 +19,7 @@ import {
   MessageStatusRepository,
 } from "../repositories";
 import { DataChatMessageI } from "../types";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { MessageAckTracker } from "./message-ack-tracker";
 
 type ChatSyncService = {

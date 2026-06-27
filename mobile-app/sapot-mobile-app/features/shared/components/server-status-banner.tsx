@@ -1,6 +1,6 @@
 import { useAuth } from "@/features/auth";
-import { useAppMode, useServerHealth } from "@/features/shared/context";
-import { uiLog } from "@/features/shared/utils/logger";
+import { useAppMode, useServerHealth } from "@/features/shared/core/context";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

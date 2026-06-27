@@ -1,5 +1,5 @@
 import { IDiscoveryChatService } from "../service-interfaces";
-import { discoveryLog } from "@/features/shared/utils/logger";
+import { discoveryLog } from "@/features/shared/core/utils/logger";
 import {
     createTestMessage,
     createTestMessages,
@@ -8,8 +8,8 @@ import { createTestZeroconfService } from "@/test/factories/peer-service.factory
 import { createDiscoveryServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { Service } from "react-native-zeroconf";
 import { ZeroconfAdapter } from "../../adapters";
-import { Message } from "../../../database";
-import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../../stores";
+import { Message } from "../../../core/database";
+import { AppModeStore, NetworkConfig, SessionStore, UserStore } from "../../../core/stores";
 import { DiscoveryService } from "../discovery-service";
 import { PeerService } from "../../../peer/peer-service";
 
@@ -19,7 +19,7 @@ jest.mock("../../adapters", () => ({
 }));
 
 // Mock the stores
-jest.mock("../../../stores", () => ({
+jest.mock("../../../core/stores", () => ({
   NetworkConfig: jest.fn(),
   SessionStore: jest.fn(),
   UserStore: jest.fn(),

@@ -4,7 +4,7 @@ import {
   clearLockoutInfo,
   getLockoutInfo,
   saveLockoutInfo,
-} from "@/features/shared/stores/secure-config";
+} from "@/features/shared/core/stores/secure-config";
 
 interface LockoutTimerState {
   isLocked: boolean;

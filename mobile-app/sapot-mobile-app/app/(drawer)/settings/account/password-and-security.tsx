@@ -1,6 +1,6 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";

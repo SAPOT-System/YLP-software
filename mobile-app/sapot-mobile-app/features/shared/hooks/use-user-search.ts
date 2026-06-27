@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { searchUsers } from "../api";
-import { hookLog } from "../utils/logger";
+import { searchUsers } from "../core/api";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-user-search] module loaded");
 
 const DEFAULT_LIMIT = 10;

@@ -12,7 +12,7 @@ import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setu
 import { VerificationCodeContent } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { useSyncService } from "@/features/shared/hooks/use-sync-service";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";

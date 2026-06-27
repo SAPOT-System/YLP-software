@@ -1,7 +1,7 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { useEffect, useState } from "react";
-import { Peer } from "../database";
-import { hookLog } from "../utils/logger";
+import { Peer } from "../core/database";
+import { hookLog } from "../core/utils/logger";
 import { usePeerService } from "./use-peer-service";
 hookLog.debug("[use-peers] module loaded");
 

@@ -1,4 +1,4 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { getApiUrl } from "@/config/runtime";
 import { utilLog } from "./logger";
 utilLog.debug("[normalize-media-url] module loaded");

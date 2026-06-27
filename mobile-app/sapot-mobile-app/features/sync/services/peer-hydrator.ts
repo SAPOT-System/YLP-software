@@ -1,6 +1,6 @@
 import { Database, Q } from "@nozbe/watermelondb";
-import { toAppError } from "@/features/shared/errors";
-import { syncLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { syncLog } from "@/features/shared/core/utils/logger";
 import type { PeerService } from "@/features/shared/peer/peer-service";
 import type { PeerRepository } from "@/features/shared/peer/peer-repository";
 import type { PushLocalDataRequestBody } from "../api/sync.api";

@@ -10,9 +10,9 @@ import {
 } from "@/features/auth";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { checkBackEndHealth } from "@/features/shared/api";
+import { checkBackEndHealth } from "@/features/shared/core/api";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
 import { deleteItemAsync, getItemAsync } from "expo-secure-store";
 import React, { useCallback, useEffect, useRef, useState } from "react";

@@ -4,10 +4,10 @@ import {
   MessageRepository,
   MessageStatusRepository,
 } from "@/features/chat";
-import { toAppError, captureAppError } from "@/features/shared/errors";
-import { database } from "../../database";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { database } from "../../core/database";
 import { GuestUserRepository, PeerRepository } from "../../peer";
-import { cleanUpLog } from "../../utils/logger";
+import { cleanUpLog } from "../../core/utils/logger";
 import { ConnectionService } from "./connection-service";
 import { DiscoveryService } from "./discovery-service";
 

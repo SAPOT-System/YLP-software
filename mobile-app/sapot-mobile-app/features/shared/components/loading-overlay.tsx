@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Icon, Portal, Text, useTheme } from "react-native-paper";
-import { uiLog } from "../utils/logger";
+import { uiLog } from "../core/utils/logger";
 uiLog.debug("[loading-overlay] module loaded");
 
 interface LoadingOverlayProps {

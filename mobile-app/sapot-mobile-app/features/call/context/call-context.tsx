@@ -1,7 +1,7 @@
 import { ChatRoomSource } from "@/features/chat/types";
-import { Peer } from "@/features/shared/database/model/Peer";
+import { Peer } from "@/features/shared/core/database/model/Peer";
 import { useConnectionService } from "@/features/shared/hooks/use-connection-service";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useRouter } from "expo-router";
 import React, {
   createContext,

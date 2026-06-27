@@ -1,6 +1,6 @@
 import { ResetOption, SecondaryButton } from "@/features/auth";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
 import { ScrollView, View } from "react-native";

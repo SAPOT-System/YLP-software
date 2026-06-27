@@ -1,4 +1,4 @@
-import { contextLog } from "@/features/shared/utils/logger";
+import { contextLog } from "@/features/shared/core/utils/logger";
 contextLog.debug("[shared/context] module loaded");
 
 export * from "./app-mode-context";

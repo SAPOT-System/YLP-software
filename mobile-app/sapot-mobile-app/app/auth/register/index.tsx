@@ -8,9 +8,9 @@ import {
 import { RegisterFormState } from "@/features/auth/types";
 import { validateRegistrationForm } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { checkBackEndHealth } from "@/features/shared/api";
+import { checkBackEndHealth } from "@/features/shared/core/api";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";

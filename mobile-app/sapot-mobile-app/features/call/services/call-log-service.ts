@@ -1,12 +1,12 @@
 import { ChatService } from "@/features/chat";
-import { CallStatus, CallType } from "@/features/shared/database/model/Call";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
-import { MessageType } from "@/features/shared/database/model/Message";
-import { GuestUser } from "@/features/shared/database/model/guest-user";
-import { Peer } from "@/features/shared/database/model/Peer";
+import { CallStatus, CallType } from "@/features/shared/core/database/model/Call";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
+import { MessageType } from "@/features/shared/core/database/model/Message";
+import { GuestUser } from "@/features/shared/core/database/model/guest-user";
+import { Peer } from "@/features/shared/core/database/model/Peer";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
-import { toAppError, captureAppError } from "@/features/shared/errors";
-import { callLog } from "@/features/shared/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { callLog } from "@/features/shared/core/utils/logger";
 import { MessageRepository } from "@/features/chat/repositories/message-repository";
 import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 

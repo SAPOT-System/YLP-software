@@ -1,4 +1,4 @@
-import { modelLog } from "@/features/shared/utils/logger";
+import { modelLog } from "@/features/shared/core/utils/logger";
 modelLog.debug("[database/models] module loaded");
 
 export * from "./Call";

@@ -1,5 +1,5 @@
 import { database, Peer } from "@/features/shared";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { Q } from "@nozbe/watermelondb";
 import { useEffect, useState } from "react";
 

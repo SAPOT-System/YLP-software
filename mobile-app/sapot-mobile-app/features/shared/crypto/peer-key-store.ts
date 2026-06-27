@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
-import { appLog } from "../utils/logger";
+import { appLog } from "../core/utils/logger";
 
 export type ContactKeyUploader = (
   peerId: string,

@@ -1,4 +1,4 @@
-import { dbLog } from "@/features/shared/utils/logger";
+import { dbLog } from "@/features/shared/core/utils/logger";
 dbLog.debug("[shared/database] module loaded");
 
 export * from "./database";

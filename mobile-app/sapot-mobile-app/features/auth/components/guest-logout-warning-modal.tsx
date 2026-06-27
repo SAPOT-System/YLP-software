@@ -1,6 +1,6 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { SETTINGS_ROUTES } from "@/config/routes";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { useRouter } from "expo-router";
 import React from "react";
 import { View } from "react-native";

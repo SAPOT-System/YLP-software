@@ -5,8 +5,8 @@ import {
   TcpServerAdapter,
   WsSignalingAdapter,
   ZeroconfAdapter,
-} from "./adapters";
-import { database } from "./database";
+} from "./connection/adapters";
+import { database } from "./core/database";
 import { GuestUserRepository } from "./peer";
 import {
   ActiveUsersService,
@@ -14,16 +14,16 @@ import {
   CleanUpService,
   ConnectionService,
   DiscoveryService,
+  NotificationService,
   SignalingService,
   WebrtcSessionManager,
-} from "./services";
+} from "./connection/services";
 import { LocalEncryptionService } from "./crypto/local-encryption-service";
-import { NotificationService } from "./connection/services/notification-service";
 import { PeerKeyService } from "./crypto/peer-key-service";
 import { PeerKeyStore } from "./crypto/peer-key-store";
 import { WsEncryptionContext } from "./crypto/ws-encryption";
 import { KeyRecoveryService } from "./crypto/key-recovery-service";
-import { AppModeStore, NetworkConfig } from "./stores";
+import { AppModeStore, NetworkConfig } from "./core/stores";
 
 import { CallService } from "@/features/call/services/call-service";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
@@ -46,8 +46,8 @@ import {
   saveUserProfile,
   getMigrationState,
   clearMigrationState,
-} from "./stores/secure-config";
-import { appLog } from "./utils/logger";
+} from "./core/stores/secure-config";
+import { appLog } from "./core/utils/logger";
 
 type KeysReady = { readonly _brand: "KeysReady" };
 type MigrationOk = {

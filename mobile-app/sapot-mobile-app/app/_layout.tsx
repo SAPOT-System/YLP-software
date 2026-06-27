@@ -6,11 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import "react-native-reanimated";
 
 if (__DEV__) {
-  import("../features/shared/utils/reactotron");
+  import("../features/shared/core/utils/reactotron");
 }
 
 import Colors from "@/constants/Colors";
-import { layoutLog } from "@/features/shared/utils/logger";
+import { layoutLog } from "@/features/shared/core/utils/logger";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
 
@@ -32,7 +32,7 @@ import {
   AppModeProvider,
   ThemePreferenceProvider,
   useThemePreference,
-} from "@/features/shared/context";
+} from "@/features/shared/core/context";
 import merge from "deepmerge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Sentry from "@sentry/react-native";

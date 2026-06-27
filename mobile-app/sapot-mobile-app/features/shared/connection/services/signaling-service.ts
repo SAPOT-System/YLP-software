@@ -1,9 +1,9 @@
 import { getWsUrl } from "@/config/runtime";
-import { toAppError, captureAppError } from "@/features/shared/errors";
-import { signalingLog } from "@/features/shared/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { signalingLog } from "@/features/shared/core/utils/logger";
 import { TcpClientAdapter, WsSignalingAdapter } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
-import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
+import { AppModeStore, NetworkConfig, UserStore } from "../../core/stores";
 import type { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import {
   AckMessage,

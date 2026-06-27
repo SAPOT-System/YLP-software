@@ -1,6 +1,6 @@
 import { useAuth } from "@/features/auth";
 import { useConnectionService } from "@/features/shared/hooks";
-import { navLog } from "@/features/shared/utils/logger";
+import { navLog } from "@/features/shared/core/utils/logger";
 import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
 import FontAwesome from "@expo/vector-icons/FontAwesome";

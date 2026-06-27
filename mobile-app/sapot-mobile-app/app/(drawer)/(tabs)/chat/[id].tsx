@@ -18,7 +18,7 @@ import { resolvePeerStatus } from "@/features/chat/utils/resolve-peer-status";
 import { toLocalPhone } from "@/features/auth/utils/validation";
 import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import NetInfo from "@react-native-community/netinfo";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";

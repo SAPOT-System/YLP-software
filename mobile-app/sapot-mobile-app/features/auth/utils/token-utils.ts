@@ -1,5 +1,5 @@
-import { toAppError } from "@/features/shared/errors";
-import { authUtilsLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { authUtilsLog } from "@/features/shared/core/utils/logger";
 import { jwtDecode } from "jwt-decode";
 
 authUtilsLog.debug("[token-utils] module loaded");

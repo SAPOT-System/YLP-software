@@ -1,9 +1,9 @@
 import { Service } from "react-native-zeroconf";
-import { getUserById } from "../api/search.api";
-import { toAppError, captureAppError } from "@/features/shared/errors";
+import { getUserById } from "../core/api/search.api";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { PeerRepository } from "./peer-repository";
 import { DiscoveredService } from "../types";
-import { peerLog } from "../utils/logger";
+import { peerLog } from "../core/utils/logger";
 
 peerLog.debug("[peer-service] module loaded");
 

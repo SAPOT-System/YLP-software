@@ -1,5 +1,5 @@
 import { APP_ROUTES, SETTINGS_ROUTES } from "@/config/routes";
-import { navLog } from "@/features/shared/utils/logger";
+import { navLog } from "@/features/shared/core/utils/logger";
 import { router, Stack, useGlobalSearchParams, usePathname } from "expo-router";
 import { useEffect } from "react";
 import { Appbar, useTheme } from "react-native-paper";

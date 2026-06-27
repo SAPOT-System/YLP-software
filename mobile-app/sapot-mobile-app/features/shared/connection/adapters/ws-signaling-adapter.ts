@@ -6,7 +6,7 @@ import {
   ChatMessage,
   SignalingMessage,
 } from "../../types";
-import { wsLog } from "../../utils/logger";
+import { wsLog } from "../../core/utils/logger";
 import { encryptSignalingPayload, decryptSignalingPayload, WsEncryptionContext, WsEncryptedPayload } from "../../crypto/ws-encryption";
 import { SignedCredential } from "../../crypto/peer-key-service";
 import { parseWsMessage, DecryptFn } from "./ws-message-parser";

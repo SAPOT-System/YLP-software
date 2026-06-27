@@ -1,4 +1,4 @@
-import { callLog } from "@/features/shared/utils/logger";
+import { callLog } from "@/features/shared/core/utils/logger";
 import { createTestPeer } from "@/test/factories/user.factory";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createCallServiceDependencyMocks } from "@/test/mocks/service.mock-builders";

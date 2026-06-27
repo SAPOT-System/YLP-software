@@ -1,7 +1,7 @@
 import { DataChatMessageI } from "@/features/shared/core/messaging-types";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
-import { MessageType } from "@/features/shared/database/model/Message";
-import { connectionLog } from "@/features/shared/utils/logger";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
+import { MessageType } from "@/features/shared/core/database/model/Message";
+import { connectionLog } from "@/features/shared/core/utils/logger";
 import uuid from "react-native-uuid";
 import { IChatMessageHandler } from "./service-interfaces";
 import { MediaStream } from "react-native-webrtc";
@@ -12,7 +12,7 @@ import {
 } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { NotificationService } from "./notification-service";
-import { AppModeStore, NetworkConfig, UserStore } from "../../stores";
+import { AppModeStore, NetworkConfig, UserStore } from "../../core/stores";
 import {
   AckMessage,
   CallControlData,
@@ -24,7 +24,7 @@ import {
   SignalingMessage,
   SmsMessage,
 } from "../../types";
-import { TypedEventEmitter } from "../../utils/typed-event-emitter";
+import { TypedEventEmitter } from "../../core/utils/typed-event-emitter";
 import { CallMediaService } from "./call-media-service";
 import { CallMessageRouter, CallRouterResult } from "./call-message-router";
 import { PeerKeyService } from "../../crypto/peer-key-service";

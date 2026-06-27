@@ -6,7 +6,7 @@ import {
   MessageStatusType,
   MessageType,
 } from "@/features/shared";
-import { apiLog } from "@/features/shared/utils/logger";
+import { apiLog } from "@/features/shared/core/utils/logger";
 apiLog.debug("[sync-api] module loaded");
 
 interface ServerEntityPage<T extends object, U extends object> {

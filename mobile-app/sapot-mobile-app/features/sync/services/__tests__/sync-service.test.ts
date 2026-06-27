@@ -6,10 +6,10 @@ import type { MessageReceiptManager } from "@/features/chat/services/message-rec
 // Mock the sync API and dependencies
 jest.mock("../../api/sync.api");
 jest.mock("@nozbe/watermelondb/sync");
-jest.mock("@/features/shared/stores/secure-config");
+jest.mock("@/features/shared/core/stores/secure-config");
 
 import * as syncApi from "../../api/sync.api";
-import * as secureConfig from "@/features/shared/stores/secure-config";
+import * as secureConfig from "@/features/shared/core/stores/secure-config";
 import { synchronize } from "@nozbe/watermelondb/sync";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

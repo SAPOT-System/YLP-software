@@ -1,6 +1,6 @@
-import { toAppError } from "@/features/shared/errors";
+import { toAppError } from "@/features/shared/core/errors";
 import { useMediaPermissions } from "@/features/shared/hooks/use-media-permissions";
-import { hookLog } from "@/features/shared/utils/logger";
+import { hookLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import { useCallService } from "./use-call-service";
 hookLog.debug("[use-call] module loaded");
