@@ -1,5 +1,5 @@
 import { ChatService } from "@/features/chat/services/chat-service";
-import { DataChatMessageI } from "@/features/chat/types";
+import { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createConnectionServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import { RTCSessionDescriptionInit } from "react-native-webrtc/lib/typescript/RTCSessionDescription";

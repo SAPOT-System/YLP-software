@@ -2,6 +2,7 @@ import { sharedLog } from "@/features/shared/utils/logger";
 sharedLog.debug("[shared/index] module loaded");
 
 export * from "./adapters";
+export * from "./core/messaging-types";
 export * from "./api";
 export * from "./crypto";
 export * from "./database";

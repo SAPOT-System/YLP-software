@@ -4,7 +4,7 @@ import { signalingLog } from "@/features/shared/utils/logger";
 import { TcpClientAdapter, WsSignalingAdapter } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
 import { AppModeStore, NetworkConfig, UserStore } from "../stores";
-import type { DataChatMessageI } from "@/features/chat/types";
+import type { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import {
   AckMessage,
   CallMessage,

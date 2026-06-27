@@ -1,6 +1,6 @@
 import { ChatService } from "@/features/chat/services/chat-service";
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
-import { DataChatMessageI } from "@/features/chat/types";
+import { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
 import { MessageType } from "@/features/shared/database/model/Message";
 import { connectionLog } from "@/features/shared/utils/logger";

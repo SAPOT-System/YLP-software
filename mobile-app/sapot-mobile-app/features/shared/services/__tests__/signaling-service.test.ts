@@ -1,4 +1,4 @@
-import type { DataChatMessageI } from "@/features/chat/types";
+import type { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import type {
   AckMessage,
   DataAckMessage,

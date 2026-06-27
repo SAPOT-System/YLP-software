@@ -1,4 +1,4 @@
-import { SendPublicChatPayload } from "@/features/chat/types";
+import { SendPublicChatPayload } from "@/features/shared/core/messaging-types";
 import {
   AckMessage,
   CallMessage,

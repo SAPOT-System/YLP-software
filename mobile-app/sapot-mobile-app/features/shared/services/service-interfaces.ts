@@ -1,5 +1,5 @@
 import { ChatService } from "@/features/chat/services/chat-service";
-import { DataChatMessageI } from "@/features/chat/types";
+import { DataChatMessageI } from "@/features/shared/core/messaging-types";
 import { MediaStream } from "react-native-webrtc";
 import { TcpClientAdapter } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
