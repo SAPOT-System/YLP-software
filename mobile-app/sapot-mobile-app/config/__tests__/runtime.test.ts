@@ -22,7 +22,7 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://192.168.1.10:8000");
+    expect(result).toBe("https://192.168.1.10");
   });
 
   it("should return preview URL when channel is preview", () => {
@@ -40,7 +40,7 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://192.168.0.100:8000");
+    expect(result).toBe("https://192.168.0.100");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -59,7 +59,7 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://192.168.0.100:8000");
+    expect(result).toBe("https://192.168.0.100");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -78,7 +78,7 @@ describe("getApiUrl", () => {
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://192.168.1.10:8000");
+    expect(result).toBe("https://192.168.1.10");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -94,7 +94,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://192.168.1.10:8000");
+    expect(result).toBe("wss://192.168.1.10");
   });
 
   it("should return preview websocket URL when channel is preview", () => {
@@ -110,7 +110,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://192.168.0.100:8000");
+    expect(result).toBe("wss://192.168.0.100");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -129,7 +129,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://192.168.0.100:8000");
+    expect(result).toBe("wss://192.168.0.100");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -148,7 +148,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://192.168.1.10:8000");
+    expect(result).toBe("wss://192.168.1.10");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
