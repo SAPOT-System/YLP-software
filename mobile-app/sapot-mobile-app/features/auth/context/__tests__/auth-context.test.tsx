@@ -36,11 +36,6 @@ jest.mock("@/features/shared/core/stores/secure-config", () => ({
   clearLockoutInfo: jest.fn(),
 }));
 
-jest.mock("@/features/shared/services/device-key-service", () => ({
-  buildDeviceFields: jest.fn(),
-  clearDeviceSigningKey: jest.fn(),
-}));
-
 jest.mock("@/features/auth/api", () => ({
   register: jest.fn(),
   loginApi: jest.fn(),
@@ -119,6 +114,12 @@ const makeAuthContainer = () => ({
   guestUserRepository: { getCurrentGuestUser: jest.fn() },
   guestMigrationService: {},
   peerService: { findPeerById: jest.fn() },
+  userStore: {
+    subscribe: jest.fn(() => jest.fn()),
+    isGuest: false,
+    isRescuer: false,
+    isAdmin: false,
+  },
 });
 
 describe("AuthProvider bootstrap — local-first identity", () => {
@@ -139,12 +140,6 @@ describe("AuthProvider bootstrap — local-first identity", () => {
     secureConfig.saveLockoutInfo.mockResolvedValue(undefined);
     secureConfig.clearLockoutInfo.mockResolvedValue(undefined);
 
-    const deviceKeyService = jest.requireMock("@/features/shared/services/device-key-service") as {
-      buildDeviceFields: jest.Mock;
-      clearDeviceSigningKey: jest.Mock;
-    };
-    deviceKeyService.buildDeviceFields.mockResolvedValue(null);
-    deviceKeyService.clearDeviceSigningKey.mockReturnValue(undefined);
   });
 
   it("sets isAuthenticated=true when userUUID and local DB record exist", async () => {

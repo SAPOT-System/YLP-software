@@ -100,7 +100,7 @@ features/<name>/
 
 Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`
 
-### Core Services (`features/shared/services/`)
+### Core Services (`features/shared/connection/services/`)
 
 - **`ConnectionService`** — central P2P facade. Manages `TcpClientAdapter` per peer, orchestrates `WebrtcSessionManager`, `SignalingService`, and `CallMediaService`. Extends `TypedEventEmitter<ConnectionServiceEvents>`, emitting typed call/stream/connection events. Three transport modes: `auto` (WS first, TCP fallback), `server` (WS only), `lan` (TCP only). Mode is driven by `AppModeStore`.
 - **`WebrtcSessionManager`** — manages one `WebrtcAdapter` (RTCPeerConnection) per peer. Forwards events (`remoteStream`, `peer-reconnected`, `camera-on`, etc.) up to `ConnectionService`.
@@ -113,11 +113,11 @@ Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `se
 - **`CleanUpService`** — purges stale peers, messages, and conversations. Wired into `UserService` so cleanup runs on logout.
 - **`ActiveUsersService`** — tracks which peers are currently online via the WS signaling adapter and notifies listeners of presence changes.
 
-### Encryption / Key Management (`features/shared/services/`)
+### Encryption / Key Management (`features/shared/crypto/`)
 
 NaCl box (`tweetnacl`) E2E encryption over both TCP and WS transports, plus at-rest encryption. Key files: `tcp-encryption.ts`, `ws-encryption.ts`, `local-encryption-service.ts`, `peer-key-service.ts`, `key-derivation.ts`, `key-recovery-service.ts`. Crypto stack: `tweetnacl`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`. Use the `crypto-architecture` skill for the full file map and decision rules.
 
-### Adapters (`features/shared/adapters/`)
+### Adapters (`features/shared/connection/adapters/`)
 
 Thin injectable wrappers around native modules for testability:
 
@@ -139,7 +139,7 @@ The app supports Android background connectivity via `expo-background-task` + `e
 Two mechanisms coordinate foreground and background:
 
 1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down. On cleanup, `setAppAlive(false)` lets the task resume.
-2. **Secure storage handoff** — `features/shared/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes updated IP immediately on WiFi change so the background task always reads the latest config on wake.
+2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes updated IP immediately on WiFi change so the background task always reads the latest config on wake.
 
 The background task wakes every 15 minutes (Android minimum) and uses the stored config to maintain connectivity when the app is killed.
 
@@ -149,7 +149,7 @@ WatermelonDB with SQLite. Schema (`features/shared/database/schema.ts`, version 
 
 ### Logging
 
-Scope-based logger (`features/shared/utils/logger.ts`). Enable specific scopes via `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,...` (unset = all). Daily log file — retrieve via `getLogFilePath()`. Use the `dev-logging` skill for log file access and the dev laptop collector.
+Scope-based logger (`features/shared/core/utils/logger.ts`). Enable specific scopes via `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,...` (unset = all). Daily log file — retrieve via `getLogFilePath()`. Use the `dev-logging` skill for log file access and the dev laptop collector.
 
 ### Environment / Config
 

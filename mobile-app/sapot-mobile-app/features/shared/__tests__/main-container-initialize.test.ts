@@ -45,7 +45,7 @@ jest.mock("../crypto/local-encryption-service", () => ({
   })),
 }));
 
-jest.mock("../services/peer-key-service", () => ({
+jest.mock("../crypto/peer-key-service", () => ({
   PeerKeyService: jest.fn().mockImplementation(() => ({
     initFromSecretKey: jest.fn().mockResolvedValue(undefined),
     initGuestKey: jest.fn().mockResolvedValue(undefined),
@@ -57,7 +57,7 @@ jest.mock("../services/peer-key-service", () => ({
   })),
 }));
 
-jest.mock("../services/peer-key-store", () => ({
+jest.mock("../crypto/peer-key-store", () => ({
   PeerKeyStore: jest.fn().mockImplementation(() => ({
     get: jest.fn().mockReturnValue(null),
     set: jest.fn(),
@@ -69,25 +69,22 @@ jest.mock("../services/peer-key-store", () => ({
   })),
 }));
 
-jest.mock("../services/key-recovery-service", () => ({
+jest.mock("../crypto/key-recovery-service", () => ({
   KeyRecoveryService: jest.fn().mockImplementation(() => ({})),
 }));
 
-jest.mock("../connection/services/notification-service", () => ({
-  NotificationService: jest.fn().mockImplementation(() => ({
-    showCallAlert: jest.fn().mockResolvedValue(undefined),
-    dismissCallAlert: jest.fn().mockResolvedValue(undefined),
-  })),
-}));
+jest.mock("../crypto/ws-encryption", () => ({}));
 
-jest.mock("../services/ws-encryption", () => ({}));
-
-jest.mock("../services", () => ({
+jest.mock("../connection/services", () => ({
   ActiveUsersService: jest.fn().mockImplementation(() => ({})),
   CallMediaService: jest.fn().mockImplementation(() => ({
     getWebrtcAdapter: jest.fn(),
   })),
   CleanUpService: jest.fn().mockImplementation(() => ({})),
+  NotificationService: jest.fn().mockImplementation(() => ({
+    showCallAlert: jest.fn().mockResolvedValue(undefined),
+    dismissCallAlert: jest.fn().mockResolvedValue(undefined),
+  })),
   ConnectionService: jest.fn().mockImplementation(() => ({
     setChatService: jest.fn(),
     setCallService: jest.fn(),
@@ -109,7 +106,7 @@ jest.mock("../services", () => ({
   })),
 }));
 
-jest.mock("../adapters", () => ({
+jest.mock("../connection/adapters", () => ({
   TcpServerAdapter: jest.fn().mockImplementation(() => ({
     start: jest.fn(),
     stop: jest.fn(),
@@ -144,7 +141,7 @@ jest.mock("../core/stores", () => ({
   })),
 }));
 
-jest.mock("../repositories", () => ({
+jest.mock("../peer", () => ({
   GuestUserRepository: jest.fn().mockImplementation(() => ({})),
 }));
 

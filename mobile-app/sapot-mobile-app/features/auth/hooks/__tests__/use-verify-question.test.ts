@@ -1,10 +1,6 @@
 import { renderHook, act } from "@testing-library/react-native";
 import { useVerifyAnswer } from "../use-verify-question";
 
-jest.mock("@/features/shared/services/device-key-service", () => ({
-  buildDeviceFields: jest.fn().mockResolvedValue({}),
-}));
-
 jest.mock("../../api/auth.api", () => ({
   fetchChallengeApi: jest.fn(),
   verifySecurityQuestionApi: jest.fn(),

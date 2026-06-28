@@ -238,7 +238,7 @@ On Android, a background task (`task/signaling-task.ts`) maintains WebSocket con
 Two mechanisms coordinate foreground ↔ background:
 
 1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down. `setAppAlive(false)` on cleanup lets it resume.
-2. **Secure storage handoff** — `features/shared/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes the latest IP immediately on WiFi change so the background task always reads fresh config. Background Zeroconf cleanup also uses the adapter-tracked published service name so teardown can unpublish the correct mDNS registration.
+2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes the latest IP immediately on WiFi change so the background task always reads fresh config. Background Zeroconf cleanup also uses the adapter-tracked published service name so teardown can unpublish the correct mDNS registration.
 
 ---
 

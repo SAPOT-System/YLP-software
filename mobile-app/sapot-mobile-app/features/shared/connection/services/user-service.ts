@@ -67,7 +67,8 @@ export class UserService {
       this.log("initialize start", { isGuest });
       let id = await getItemAsync("userUUID");
       if (!id) {
-        throw new Error("UserService: userUUID missing from SecureStore — cannot initialize user");
+        this.warn("initialize skipped", { reason: "userUUID missing from SecureStore" });
+        return;
       }
 
       this.sessionStore.setUserId(id);

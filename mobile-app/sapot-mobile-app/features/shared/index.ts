@@ -5,4 +5,3 @@ export * from "./core";
 export * from "./connection";
 export * from "./crypto";
 export * from "./peer";
-export * from "./repositories";

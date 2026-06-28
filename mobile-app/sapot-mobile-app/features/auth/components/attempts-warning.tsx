@@ -9,7 +9,7 @@ interface AttemptsWarningProps {
 export const AttemptsWarning = ({ attemptsRemaining }: AttemptsWarningProps) => {
   const { colors } = useTheme();
 
-  if (attemptsRemaining < 0) return null;
+  if (attemptsRemaining <= 0) return null;
 
   const isLastChance = attemptsRemaining === 0;
   const noun = attemptsRemaining === 1 ? 'attempt' : 'attempts';
