@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderHook, act } from "@testing-library/react-native";
 import { useAudioRoute } from "../use-audio-route";
 import { captureHandler, makeCallServiceMock } from "./_helpers";

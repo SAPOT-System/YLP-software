@@ -101,6 +101,7 @@ export const TermsModal = ({ visible, onAccept, onDismiss }: TermsModalProps) =>
     }
     if (content !== null) return;
     loadTerms();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {

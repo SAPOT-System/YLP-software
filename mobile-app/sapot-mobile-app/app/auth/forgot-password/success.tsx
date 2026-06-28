@@ -34,7 +34,7 @@ const SuccessScreen = () => {
       authLog.info("[SuccessScreen] unmounted");
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [scale, opacity]);
 
   const iconStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

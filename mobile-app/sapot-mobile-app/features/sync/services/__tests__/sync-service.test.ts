@@ -99,6 +99,7 @@ describe("SyncService", () => {
     it("should support single-page sync", async () => {
       // Arrange
       (mockSynchronize as jest.Mock).mockImplementationOnce(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async ({ pullChanges }: any) => {
           const result = await pullChanges({
             lastPulledAt: 0,
@@ -145,6 +146,7 @@ describe("SyncService", () => {
     it("should clear retry timer on connectivity change online", () => {
       // Arrange
       const clearTimeoutSpy = jest.spyOn(global, "clearTimeout");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       service["retryTimer"] = setTimeout(() => {}, 1000) as any;
 
       // Act
@@ -251,6 +253,7 @@ describe("SyncService", () => {
     it("should clear retry timer on cleanup", () => {
       // Arrange
       const clearTimeoutSpy = jest.spyOn(global, "clearTimeout");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       service["retryTimer"] = setTimeout(() => {}, 1000) as any;
 
       // Act

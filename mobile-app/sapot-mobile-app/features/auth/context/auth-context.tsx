@@ -114,7 +114,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     setTokenRefreshCallback((token) => setAccessToken(token));
     setNeedsReloginCallback(() => setNeedsReloginForServer(true));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const unsubscribe = userStore.subscribe(() => {

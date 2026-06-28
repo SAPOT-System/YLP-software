@@ -56,9 +56,9 @@ export default function SwitchMode() {
       uiLog.info("[SwitchMode] enabling zeroconf", prevMode, nextMode);
       try {
         await discoveryService.publishDevice();
-      } catch (error: any) {
+      } catch (error: unknown) {
         uiLog.error("[SwitchMode] failed to publish discovery service", {
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
       discoveryService.startDiscovery();

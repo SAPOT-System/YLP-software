@@ -70,6 +70,7 @@ export function UserMarkerSheet({
       setHidden(false);
       snapTo(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPath]);
 
   // Slide in when a user is selected; peek when path mode is active
@@ -88,6 +89,7 @@ export function UserMarkerSheet({
       translateY.value = withTiming(SHEET_HEIGHT, SLIDE_CONFIG);
       backdropOpacity.value = withTiming(0, { duration: 200 });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUser, pathMode]);
 
   const snapTo = (hidden: boolean) => {

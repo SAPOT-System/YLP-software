@@ -34,6 +34,7 @@ export default function VerifyEmail() {
     return () => {
       uiLog.info("[VerifyEmail] unmounted");
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sendCode = async () => {

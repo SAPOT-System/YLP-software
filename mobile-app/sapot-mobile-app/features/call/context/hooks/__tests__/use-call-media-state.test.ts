@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderHook, act } from "@testing-library/react-native";
 import { useCallMediaState } from "../use-call-media-state";
 import { captureHandler, makeCallServiceMock, makeConnectionServiceMock } from "./_helpers";

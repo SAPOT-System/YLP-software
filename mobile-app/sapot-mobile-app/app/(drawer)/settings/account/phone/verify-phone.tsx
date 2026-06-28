@@ -44,6 +44,7 @@ export default function VerifyPhone() {
     return () => {
       uiLog.info("[VerifyPhone] unmounted");
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sendCode = async () => {

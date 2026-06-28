@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
 import { AppError } from "../app-error";
 import { toAppError } from "../to-app-error";

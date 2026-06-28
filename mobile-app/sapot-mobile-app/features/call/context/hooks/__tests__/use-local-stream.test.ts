@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderHook, act } from "@testing-library/react-native";
 import { useLocalStream } from "../use-local-stream";
 import { captureHandler, makeCallServiceMock } from "./_helpers";

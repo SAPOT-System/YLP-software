@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createRegisterNavigationMock } from "@/test/mocks/auth-component.mock-builders";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
