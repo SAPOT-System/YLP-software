@@ -2,6 +2,8 @@
 
 A peer-to-peer mobile messenger built with React Native / Expo. Supports direct LAN communication via WebRTC + TCP and server-relayed communication via WebSocket.
 
+New here? Start with [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
+
 ---
 
 ## Prerequisites

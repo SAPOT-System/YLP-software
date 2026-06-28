@@ -206,6 +206,8 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 
 ## Feature Structure
 
+Domain features follow a by-type layout:
+
 ```
 features/<name>/
   services/       — Business logic
@@ -216,7 +218,34 @@ features/<name>/
   index.ts        — Public API
 ```
 
-Features: `auth`, `announcements`, `call`, `chat`, `getting-started`, `settings`, `shared`, `sync`
+`features/` is not flat — features differ enormously in size and complexity:
+
+| Feature | Lines | Files | Role |
+|---|---|---|---|
+| `shared/` | ~22 k | 166 | **Engine** — P2P runtime, encryption, DI, database |
+| `chat/` | ~7.5 k | 45 | Message threads, sync, conversation key management |
+| `auth/` | ~6.2 k | 68 | Registration, login, PIN gate, guest flow |
+| `call/` | ~4.1 k | 35 | Audio/video call UI and lifecycle |
+| `sync/` | ~3.2 k | 16 | Background data sync with server |
+| `gps/` | ~0.7 k | 10 | Live location sharing (rescuers only) |
+| `settings/` | ~0.6 k | 5 | User preferences |
+| `announcements/` | ~0.4 k | 9 | Server-fetched announcement board |
+| `getting-started/` | ~0.4 k | 8 | Onboarding screens |
+
+`features/shared/` is ~50 % of all production code. It is a layered engine, not a utility bucket. See the sub-domain layout below and `features/shared/README.md` for the one-page map.
+
+### Engine Sub-domains (`features/shared/`)
+
+Four sub-domains in dependency order (bottom → top):
+
+| Sub-domain | Path | Lines | What lives here |
+|---|---|---|---|
+| **core** | `shared/core/` | ~3.5 k | Logger, errors, context, WatermelonDB schema/models, stores, API client |
+| **crypto** | `shared/crypto/` | ~1.7 k | NaCl E2E encryption, key derivation, key recovery, at-rest encryption |
+| **peer** | `shared/peer/` | ~1.7 k | `PeerService`, `PeerRepository`, `GuestUserRepository` |
+| **connection** | `shared/connection/` | ~10.9 k | `ConnectionService`, WebRTC, signaling, TCP/WS adapters, discovery |
+
+**One-way dependency rule:** `core` ← `crypto` ← `peer` / `connection` ← domain features. A sub-domain may only import from itself and sub-domains *below* it. Domain features (`chat/`, `auth/`, etc.) depend on the engine — never the reverse.
 
 ### `features/announcements/`
 

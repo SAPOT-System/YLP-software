@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs/diagrams/` — sequence/architecture diagrams
 
 Before writing any new file, read these to ensure consistency with established patterns:
-- `docs/architecture.md` — service and adapter landscape, DI wiring
+- `docs/ARCHITECTURE.md` — service and adapter landscape, DI wiring
 - `docs/design-system.md` — component patterns, theming, spacing
 - `docs/conventions.md` — naming, error handling, coding style
 - `docs/system-boundaries.md` — service interface and feature boundary rules
