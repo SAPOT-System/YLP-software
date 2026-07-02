@@ -14,26 +14,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: mobile-app/sapot-mobile-app/package.json
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: mobile-app/sapot-mobile-app/pnpm-lock.yaml
 
-      - run: npm install
+      - run: pnpm install --frozen-lockfile
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Typecheck
-        run: npm run typecheck --if-present
+        run: pnpm run typecheck --if-present
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Unit tests
-        run: npm test -- --runInBand --forceExit
+        run: pnpm test -- --runInBand --forceExit
         if: hashFiles('**/*.test.*') != ''
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Expo Doctor
-        run: npx expo-doctor
+        run: pnpm exec expo-doctor
         working-directory: mobile-app/sapot-mobile-app
