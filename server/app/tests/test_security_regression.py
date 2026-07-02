@@ -1,15 +1,17 @@
 """
-Regression tests for TC-246 and TC-247.
+Regression tests for TC-247.
 
-TC-246: /testing/* endpoints must require admin authentication.
 TC-247: /gps/ws/monitor/rescuers/{id} must require a valid rescuer token.
+
+TC-246 (/testing/* endpoints must require admin authentication) was removed:
+the testing router is no longer included in the app (see main.py), so those
+endpoints don't exist in any deployment.
 """
 import uuid
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.api.admin import makeAdmin
 from app.models.users import User
 from app.models.rescuer import Rescuer
 from app.db_operations.auth import get_password_hash
@@ -36,22 +38,6 @@ def plain_user(session: Session) -> User:
 
 
 @pytest.fixture
-def admin_user(session: Session) -> User:
-    user = User(
-        id=uuid.uuid4(),
-        username="admin_tc246",
-        first_name="Admin",
-        last_name="User",
-        hashed_password=get_password_hash("AdminPass1"),
-    )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    makeAdmin(user, session)
-    return user
-
-
-@pytest.fixture
 def rescuer_user(session: Session) -> User:
     user = User(
         id=uuid.uuid4(),
@@ -72,69 +58,6 @@ def rescuer_user(session: Session) -> User:
 def _token(client: TestClient, username: str, password: str) -> str:
     headers = get_auth_headers(client, username, password)
     return headers["Authorization"].removeprefix("Bearer ")
-
-
-# ---------------------------------------------------------------------------
-# TC-246 — /testing/* endpoints must require admin auth
-# ---------------------------------------------------------------------------
-
-class TestTC246TestingEndpointsRequireAdmin:
-
-    def test_make_admin_rejects_unauthenticated(self, client: TestClient, plain_user: User):
-        resp = client.post(f"/testing/test-make-admin?username={plain_user.username}")
-        assert resp.status_code == 401
-
-    def test_make_rescuer_rejects_unauthenticated(self, client: TestClient, plain_user: User):
-        resp = client.post(f"/testing/test-make-rescuer?username={plain_user.username}")
-        assert resp.status_code == 401
-
-    def test_make_admin_rejects_non_admin_token(self, client: TestClient, plain_user: User):
-        headers = get_auth_headers(client, plain_user.username, "PlainPass1")
-        resp = client.post(
-            f"/testing/test-make-admin?username={plain_user.username}",
-            headers=headers,
-        )
-        assert resp.status_code == 403
-
-    def test_make_rescuer_rejects_non_admin_token(self, client: TestClient, plain_user: User):
-        headers = get_auth_headers(client, plain_user.username, "PlainPass1")
-        resp = client.post(
-            f"/testing/test-make-rescuer?username={plain_user.username}",
-            headers=headers,
-        )
-        assert resp.status_code == 403
-
-    def test_make_admin_succeeds_with_admin_token(
-        self, client: TestClient, plain_user: User, admin_user: User
-    ):
-        headers = get_auth_headers(client, admin_user.username, "AdminPass1")
-        resp = client.post(
-            f"/testing/test-make-admin?username={plain_user.username}",
-            headers=headers,
-        )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
-
-    def test_make_rescuer_succeeds_with_admin_token(
-        self, client: TestClient, plain_user: User, admin_user: User
-    ):
-        headers = get_auth_headers(client, admin_user.username, "AdminPass1")
-        resp = client.post(
-            f"/testing/test-make-rescuer?username={plain_user.username}",
-            headers=headers,
-        )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
-
-    def test_make_admin_returns_404_for_unknown_username(
-        self, client: TestClient, admin_user: User
-    ):
-        headers = get_auth_headers(client, admin_user.username, "AdminPass1")
-        resp = client.post(
-            "/testing/test-make-admin?username=does_not_exist",
-            headers=headers,
-        )
-        assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
