@@ -55,7 +55,7 @@ Entry point `app/main.py` (mounted as `app.main:app`). Request flow: Nginx (TLS)
 - Adding a default/fallback value for a required secret env var — this repo has a documented incident (hardcoded DB credentials, hardcoded JWT secret fallback, CORS wildcard) that this fail-fast pattern exists specifically to prevent. See `../SECURITY.md`.
 - Making `app/api/testing.py` reachable outside `ENVIRONMENT=development` — it's conditionally imported in `app/main.py` specifically to keep `test-make-admin`/`test-make-rescuer` out of production.
 - Hand-editing `../docs/api/openapi/*.yaml`, `../docs/database/tables.md`, or `../docs/database/erd.md` — these are generated; CI fails on drift between them and the source.
-- Hand-editing `app/version.py` instead of using `scripts/set_version.py`.
+- Hand-editing `app/version.py` instead of using `./scripts/release.sh server <version>` (repo root) — `scripts/set_version.py` alone bumps the file but skips the commit/tag/release-notes steps.
 - Changing an endpoint's request/response shape without checking `../docs/api/openapi/` and the mobile/admin clients that depend on it — this server has no consumers of its own; both other components assume the current contract.
 - Assuming `app/api/gsm.py` talks to `GSM-module/GSM-API/` — it does not; the live GSM service is `GSM-module/GSM-fastapi/` (port 8001). See `../GSM-module/CLAUDE.md`.
 
@@ -63,5 +63,5 @@ Entry point `app/main.py` (mounted as `app.main:app`). Request flow: Nginx (TLS)
 
 - Auth/token/session changes (`app/db_operations/auth.py`, `app/db_operations/token.py`) and CORS/rate-limit config changes: read `../SECURITY.md` in full first, and run `app/tests/test_security_regression.py`, `test_ip_lockout.py`, `test_recovery_ip_lockout.py` specifically — these encode past incidents.
 - Endpoint/schema changes: regenerate and check both doc sets (OpenAPI, DB docs) per Development Conventions, and flag the change as cross-component in your summary since mobile and admin clients are not updated automatically (see root `CLAUDE.md`).
-- Release prep: `app/version.py` must match the intended git tag (`server/vX.Y.Z`) — set via `python3 scripts/set_version.py <X.Y.Z[-(alpha|beta|rc).N]>`; see `../VERSIONING.md`. Not relevant to ordinary feature/bugfix work.
+- Release prep: `app/version.py` must match the intended git tag (`server/vX.Y.Z`). **Use the repo-root entry point, `./scripts/release.sh server <X.Y.Z[-(alpha|beta|rc).N]>`** — it bumps the version, commits, drafts release notes, and creates the annotated tag in one step; see `../VERSIONING.md`. `scripts/set_version.py` (`server/scripts/`) is an internal step `release.sh` calls — running it standalone leaves the bump uncommitted and untagged. Not relevant to ordinary feature/bugfix work.
 - Run `pytest` (from `server/app/`) for any change; it's the only safety net given the lack of migration tooling and generated-doc drift checks.

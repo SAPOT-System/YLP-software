@@ -56,6 +56,7 @@ Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem ove
 - `GSM-API/app/gsm/gsm_runtime.py`'s module-level `ser` is a global shared across threads with no lock — if `GSM-API` is ever revived, this is a live race condition, not a style nit.
 - `GSM-trial-code.ino` is not wire-compatible with either Python service — never point a deployment at it, even for "quick testing."
 - Treating `docs/features/sms-gateway/design.md` as accurate — its protocol/endpoint descriptions don't match the real code (see Architecture).
+- `server/app/api/gsm.py`'s own code comments refer to "GSM-API" as a generic name for **the GSM service it proxies to** (i.e. the live `GSM-fastapi/`, port 8001) — not the literal `GSM-module/GSM-API/` directory documented above as non-deployed. Don't let those comments override the Architecture section above.
 
 ## When Modifying This Project
 

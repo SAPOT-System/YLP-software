@@ -8,6 +8,8 @@ React Native / Expo (Expo Router) Android app — the primary client of the SAPO
 
 Stack: Expo, React Native, TypeScript, WatermelonDB (SQLite), WebRTC, `react-native-tcp-socket`, `tweetnacl` (E2E crypto), `expo-background-task`.
 
+Use the `app-commands` skill for the full CLI reference beyond the quality-gate commands listed in "When Modifying This Project" below.
+
 ## Architecture
 
 ### Dependency Injection
