@@ -6,20 +6,18 @@ Instructions for Claude Code working in this repository. This file governs *how*
 
 Not a package-graph monorepo — no root `package.json`, no Nx/Turborepo/pnpm-workspace, no shared internal packages. Six independently-built components, each with its own package manager and often its own `flake.nix`/`.envrc` (Nix, pinned toolchain — treat as required, not optional, per root `README.org`):
 
-| Component | Stack | Sub-CLAUDE.md? |
-|---|---|---|
-| `mobile-app/sapot-mobile-app/` | Expo/React Native/TS | **Yes** — read it first |
-| `admin-frontend/sapot-admin/` | Next.js 16/React 19/TS | **Yes** (→ `AGENTS.md`, Next.js breaking-change warning) |
-| `server/app/` | FastAPI/SQLModel/Python | No — this file governs directly |
-| `GSM-module/` | `GSM-API/` (current FastAPI service) + `GSM-fastapi/` (older, unconfirmed status) + Arduino `.ino` firmware | No |
-| `captive-portal/` | Static HTML/CSS/JS | No |
-| `tileserver/` | Deploy scripts only, no source | No |
+| Component | Stack |
+|---|---|
+| `mobile-app/sapot-mobile-app/` | Expo/React Native/TS |
+| `admin-frontend/sapot-admin/` | Next.js 16/React 19/TS |
+| `server/` | FastAPI/SQLModel/Python |
+| `GSM-module/` | `GSM-fastapi/` (live FastAPI service) + `GSM-API/` (parallel WIP, not deployed) + Arduino `.ino` firmware |
+| `captive-portal/` | Static HTML/CSS/JS |
+| `tileserver/` | Deploy scripts only, no source |
 
-Full purpose/entry-point/dependency detail for each component: `docs/README.md`. Do not duplicate that table here — it will drift.
+Every component above has its own `CLAUDE.md` with project-specific architecture and conventions — **always read the target component's `CLAUDE.md` before editing there; it overrides this file for that subtree.** Full purpose/entry-point/dependency detail for each component: `docs/README.md`. Do not duplicate that table here — it will drift.
 
-**A sub-component's own `CLAUDE.md` overrides this file for that subtree.** Notably `mobile-app/sapot-mobile-app/CLAUDE.md` marks `server/` read-only *from the mobile app's perspective only* — that does not apply when the task is about the server itself.
-
-**Unresolved:** which of `GSM-module/GSM-API/` vs `GSM-module/GSM-fastapi/` is the live service is not confirmed by this review. Check `docs/deployment/gsm-module.md` and `docs/features/sms-gateway/` before assuming either is dead code.
+`GSM-module/GSM-fastapi/` is the live SMS-gateway service; `GSM-module/GSM-API/` is a parallel, incomplete rewrite not referenced by any deployment doc or by `server/` — see `GSM-module/CLAUDE.md` for the evidence and don't assume `GSM-API/` is dead code without reading it.
 
 ## Working Principles
 
