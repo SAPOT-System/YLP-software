@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from typing import Annotated, Dict
 from uuid import UUID
@@ -17,7 +18,9 @@ from app.models.users import UserUpdate, UserPasswordUpdate
 # needs physical network access first. Raises safe login capacity ~6×.
 password_hash = PasswordHash([Argon2Hasher(time_cost=1, memory_cost=19456, parallelism=1)])
 
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_db"
+SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL")
+if not SQLALCHEMY_DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 

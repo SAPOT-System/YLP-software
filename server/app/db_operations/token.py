@@ -43,7 +43,7 @@ def _cache_blacklisted(jti_str: str, expires_at: datetime) -> None:
 def purge_expired_blacklist_cache() -> None:
     pass  # Redis expires keys automatically via TTL
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "7a272aa19fd88943207a62115b64f67530731eafd3b79a228f42972a2a51df1e")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"

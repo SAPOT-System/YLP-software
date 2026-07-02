@@ -22,7 +22,11 @@ from app.version import __version__
 from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
 from app.db_operations.auth import SessionDep, create_db_and_tables
-from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, testing, public_chat, mikrotik, captive_portal, download
+from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, public_chat, mikrotik, captive_portal, download
+
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "production")
+if ENVIRONMENT == "development":
+    from app.api import testing
 from app.api import keys, wrapped_key, user_keys
 from app.models.peer_key import PeerKey
 from app.models.wrapped_key import WrappedKey
@@ -84,11 +88,13 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+_cors_origins = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+if not _cors_origins:
+    raise RuntimeError("CORS_ALLOWED_ORIGINS environment variable is not set")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "*",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -225,8 +231,8 @@ app.include_router(sync.router)
 app.include_router(profile_picture.router)
 app.include_router(gps.router)
 app.include_router(admin.router)
-# delete when going to production
-app.include_router(testing.router)
+if ENVIRONMENT == "development":
+    app.include_router(testing.router)
 app.include_router(public_chat.router)
 app.include_router(gsm.router)
 app.include_router(captive_portal.router)
