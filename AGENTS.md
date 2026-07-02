@@ -78,40 +78,9 @@ Different workspaces use genuinely different stacks — there is no unified stac
 
 ## Development Commands
 
-There is **no repo-level install/build/test command** that spans all projects — each subproject is built, run, and tested independently from within its own directory.
-
-**`server/`**
-- Install: create the Nix environment (`flake.nix`) or `pip install -r requirements.txt`
-- Run (dev): see `server/` README/docs for uvicorn invocation; prod uses `runserver.sh` (gunicorn+uvicorn, 5 workers)
-- Test: `pytest` (config at `server/app/pytest.ini`, `testpaths = tests`; tests live in `server/app/tests/`), coverage via `pytest-cov`
-
-**`mobile-app/sapot-mobile-app/`** (pnpm)
-- Install: `pnpm install`
-- Dev: `pnpm dev` / `pnpm start` (Expo)
-- Build/native: `pnpm prebuild`, `pnpm android`, `pnpm ios`
-- Test: `pnpm test` (Jest, `jest-expo` preset)
-- Typecheck: `pnpm typecheck` (`tsc --noEmit`)
-- Lint: `pnpm lint`
-- All-in-one gate: `pnpm testAll` (test + typecheck + lint + `expo-doctor`) — run this before considering mobile-app work done
-- Release: `pnpm release:mobile` (delegates to root `scripts/release.sh`)
-- **npm/pnpm inconsistency (verified, not a typo to "fix"):** the project declares pnpm as its package manager (`pnpm-lock.yaml`, pinned `packageManager` field in `package.json`), but `mobile-app/sapot-mobile-app/CLAUDE.md` documents these same checks as `npm run typecheck` / `npm test` / `npm run testAll`, and the `testAll` script's own body (`"npm run test && npm run typecheck && npm run lint && npx expo-doctor"`) shells into `npm` internally regardless of how it's invoked. In practice both `npm` and `pnpm` need to be available. `pnpm run <script>` and `npm run <script>` are both observed in the wild here — prefer `pnpm` for installs (matches the lockfile), but don't be surprised to see `npm run` in this project's own docs/scripts.
-
-**`admin-frontend/sapot-admin/`** (npm)
-- Install: `npm install`
-- Dev: `npm run dev` (sets `NODE_EXTRA_CA_CERTS` to trust a self-signed cert)
-- Build: `npm run build`
-- Start (prod): `npm run start`
-- Lint: `npm run lint`
-- No test script/framework is currently configured in this project — don't assume Jest/Vitest exists here.
-
-**`GSM-module/GSM-fastapi/`**
-- Install: Nix flake or `pip install -r requirements.txt`
-- Run: `run-api.sh`
-
-**Root (`scripts/`)**
-- Release orchestration: `scripts/release.sh` (bumps version, tags, drafts release notes)
-- Doc generation (checked by CI): `python scripts/generate_openapi_docs.py`, `python scripts/generate_db_docs.py`
-- Release-notes script test: `node --test scripts/__tests__/release-notes.test.mjs` (or equivalent Node test runner invocation)
+There is **no repo-level install/build/test command** that spans all projects — each subproject is built, run, and tested independently from within its own directory. Exact install/build/test/lint commands are documented once, in each project's own `AGENTS.md` — see `server/AGENTS.md`, `mobile-app/sapot-mobile-app/AGENTS.md`, `admin-frontend/sapot-admin/AGENTS.md`, `GSM-module/AGENTS.md`, `scripts/AGENTS.md` — rather than repeated here. Two things worth knowing before you open any of them:
+- `mobile-app/sapot-mobile-app/` uses **pnpm** as its declared package manager, but some of its own scripts/docs invoke `npm run ...` internally — both toolchains need to be available. Full detail in that project's `AGENTS.md`.
+- `admin-frontend/sapot-admin/` has no test framework configured at all — don't assume one exists there.
 
 ## Working in a Monorepo (Polyrepo)
 
@@ -185,39 +154,22 @@ No single repo-wide test command exists; each project is tested independently.
 - Do not introduce a new cross-project shared code path (relative import, symlink, or copied file) — this repo's architecture is deliberately network-decoupled; if two projects truly need the same logic, that's a decision for the user, not something to infer and implement.
 - Keep changes scoped to the affected project(s). A server API change plus its corresponding client update is expected to span `server/` + `mobile-app/`/`admin-frontend/`; an unrelated third project should not be touched.
 - If you change a `server/app/api/*` contract, update both client callers and consider regenerating OpenAPI/DB docs (CI enforces this for `server/app/**` changes).
-- Read and follow the project-local `AGENTS.md`/`CLAUDE.md` in `admin-frontend/sapot-admin/` and `mobile-app/sapot-mobile-app/` when working in those directories — they are more specific and take precedence over this file.
+- Every top-level project has its own `AGENTS.md` — `server/`, `mobile-app/sapot-mobile-app/`, `admin-frontend/sapot-admin/`, `GSM-module/`, `captive-portal/`, `tileserver/`, `scripts/`, `deployment-scripts/`. Read the one for the directory you're working in before making changes; it takes precedence over this file for anything project-specific. `mobile-app/sapot-mobile-app/` and `admin-frontend/sapot-admin/` also have a `CLAUDE.md` with deeper architecture detail — Claude Code loads this automatically, but read it manually if you're a different agent, before large changes there.
 - Follow `CONTRIBUTING.md` branch-naming and commit-message conventions repo-wide.
 - Follow `VERSIONING.md` — mobile and server version independently via git tags (`mobile/vX.Y.Z`, `server/vX.Y.Z`); never hand-bump version fields outside the documented tooling.
 
 ## Workspace Notes
 
-**`server/`**
-- Entry point: `app/main.py`
-- Important dependencies: FastAPI, SQLModel/SQLAlchemy, MariaDB, Redis, PyJWT, RouterOS-api
-- Pitfall: required env vars (`DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`) must be set or the app fails fast — don't reintroduce hardcoded fallbacks (this was a previously-fixed security issue per `SECURITY.md`).
+Entry points and per-project pitfalls now live in each project's own `AGENTS.md` (see the list in "AI Agent Guidelines" above). Quick orientation only:
 
-**`mobile-app/sapot-mobile-app/`**
-- Entry point: Expo Router app root (see `CLAUDE.md` for the current entry/DI wiring)
-- Important dependencies: WatermelonDB, tweetnacl/@noble/hashes, Expo SDK ~54
-- Pitfall: `server/` is read-only reference from here per the project's own `CLAUDE.md` — don't modify server code to unblock a mobile feature without flagging it explicitly.
-
-**`admin-frontend/sapot-admin/`**
-- Entry point: Next.js App Router (`app/`)
-- Important dependencies: maplibre-gl, recharts, Dexie, tweetnacl
-- Pitfall: this project has no test framework configured — don't claim test coverage or invent a `test` script.
-
-**`GSM-module/GSM-fastapi/`**
-- Entry point: `main.py`, run via `run-api.sh`
-- Pitfall: this is the deployed service (confirmed by `deployment-scripts/server-GSM-api.service`); `GSM-API/` is a parallel WIP rewrite — don't confuse the two or assume `GSM-API/` is live.
-- Known open gap: hardcoded default DB path in `config.py` (see `SECURITY.md`).
-
-**`captive-portal/`**
-- Entry point: served directly by MikroTik router, no app server involved
-- Pitfall: `api.json` uses RouterOS template syntax (`$(...)`), not literal JSON.
-
-**`tileserver/`**
-- Entry point: `deploy-tiling-server.sh` / `deploy-tiling-server-detached.sh`
-- Pitfall: depends on a `.mbtiles` file that is not committed to the repo (fetched externally); scripts will fail without it present locally.
+| Project | Entry point |
+|---|---|
+| `server/` | `app/main.py` |
+| `mobile-app/sapot-mobile-app/` | Expo Router app root (see `CLAUDE.md`) |
+| `admin-frontend/sapot-admin/` | Next.js App Router (`app/`) |
+| `GSM-module/GSM-fastapi/` | `main.py`, via `run-api.sh` |
+| `captive-portal/` | served by MikroTik router, no app server |
+| `tileserver/` | `deploy-tiling-server(-detached).sh` |
 
 ## Pull Request Checklist
 
