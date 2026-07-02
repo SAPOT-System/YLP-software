@@ -41,5 +41,5 @@ jobs:
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Expo Doctor
-        run: pnpm exec expo-doctor
+        run: pnpm dlx expo-doctor
         working-directory: mobile-app/sapot-mobile-app
