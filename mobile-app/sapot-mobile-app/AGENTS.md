@@ -1,6 +1,6 @@
 # AGENTS.md — mobile-app/sapot-mobile-app
 
-React Native (Expo) mobile app — SAPOT's primary end-user client for offline-capable messaging, calls, GPS sharing, and SMS. See the root `AGENTS.md` for repo-wide conventions and `CLAUDE.md` in this directory for architecture, DI wiring, and decision rules — this file only covers workflow/tooling not already there.
+React Native (Expo) mobile app — SAPOT's primary end-user client for offline-capable messaging, calls, GPS sharing, and SMS. See the root `AGENTS.md` for repo-wide conventions. This directory also has a `CLAUDE.md` covering architecture, DI wiring, and decision rules — Claude Code loads it automatically, but read it manually if you're a different coding agent before large changes. This file only covers workflow/tooling not already there.
 
 ## Development Workflow
 
