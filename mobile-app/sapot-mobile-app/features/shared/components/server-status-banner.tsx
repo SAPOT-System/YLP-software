@@ -1,9 +1,11 @@
-import { useServerHealth, useServerStatus } from "@/features/shared/context";
-import { uiLog } from "@/features/shared/utils/logger";
+import { useAuth } from "@/features/auth";
+import { useAppMode, useServerHealth } from "@/features/shared/core/context";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, Text, useTheme } from "react-native-paper";
+import { AnimatedBannerStrip } from "./animated-banner-strip";
 uiLog.debug("[server-status-banner] module loaded");
 
 const BANNER_HEIGHT = 32;
@@ -32,25 +34,19 @@ function useBannerState(offline: boolean): BannerState {
   return state;
 }
 
-function OfflineBanner({ state }: { state: BannerState }) {
+function OfflineBanner({
+  state,
+  top,
+  variant,
+}: {
+  state: BannerState;
+  top: number;
+  variant?: "auth" | "unauth";
+}) {
   const theme = useTheme();
-  const { top: safeTop } = useSafeAreaInsets();
   const visible = state !== "hidden";
   const lastActiveState = useRef<"offline" | "reconnected">("offline");
-  if (state !== "hidden") {
-    lastActiveState.current = state;
-  }
-  const translateY = useRef(new Animated.Value(-BANNER_HEIGHT)).current;
-
-  useEffect(() => {
-    uiLog.debug("[OfflineBanner] state changed", { state });
-    Animated.spring(translateY, {
-      toValue: visible ? 0 : -BANNER_HEIGHT,
-      useNativeDriver: true,
-      bounciness: 3,
-      speed: 16,
-    }).start();
-  }, [visible, translateY]);
+  if (state !== "hidden") lastActiveState.current = state;
 
   const isReconnected = lastActiveState.current === "reconnected";
   const backgroundColor = isReconnected
@@ -62,53 +58,80 @@ function OfflineBanner({ state }: { state: BannerState }) {
     : theme.colors.onErrorContainer;
 
   return (
-    <Animated.View
-      style={{
-        position: "absolute",
-        top: safeTop,
-        left: 0,
-        right: 0,
-        height: BANNER_HEIGHT,
-        zIndex: 999,
-        overflow: "hidden",
-      }}
+    <AnimatedBannerStrip
+      visible={visible}
+      top={top}
+      height={BANNER_HEIGHT}
+      zIndex={999}
+      pointerEvents="none"
     >
-      <Animated.View
-        style={[styles.banner, { transform: [{ translateY }], backgroundColor }]}
-        pointerEvents="none"
-      >
+      <View style={[styles.row, { backgroundColor }]}>
         <Icon
           source={isReconnected ? "cloud-check" : "cloud-alert"}
           size={14}
           color={iconColor}
         />
-        <Text style={{ color: textColor, fontSize: 12, marginLeft: 6 }}>
-          {isReconnected ? "Server online" : "Server unavailable"}
+        <Text style={[styles.text, { color: textColor }]}>
+          {isReconnected
+            ? "Server online"
+            : variant === "auth"
+            ? "Server unavailable — do not logout, your data will be lost"
+            : "Server unavailable"}
         </Text>
-      </Animated.View>
-    </Animated.View>
+      </View>
+    </AnimatedBannerStrip>
   );
 }
 
-/** Used inside the drawer layout (HealthProvider / usePing). */
+/** Used inside the drawer layout (ServerHealthProvider).
+ *  Hidden until the initial health check completes.
+ *  Suppresses itself when OfflineExpiredBanner is active — that banner
+ *  already communicates server-down with more specific messaging. */
 export function ServerStatusBanner() {
-  const { shouldWarn } = useServerStatus();
-  const state = useBannerState(shouldWarn);
-  return <OfflineBanner state={state} />;
+  const { online, initialChecked } = useServerHealth();
+  const { isOfflineWithExpiredToken } = useAuth();
+  const { store } = useAppMode();
+  const { top: safeTop } = useSafeAreaInsets();
+  const [ready, setReady] = useState(false);
+
+  const effectiveMode = store.getEffectiveMode(false);
+  const isServerMode = effectiveMode === "server" || effectiveMode === "auto";
+  const shouldWarn = initialChecked && isServerMode && !online;
+
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 10000);
+    return () => clearTimeout(t);
+  }, []);
+
+  const state = useBannerState(ready && shouldWarn && !isOfflineWithExpiredToken);
+  return <OfflineBanner state={state} top={safeTop} variant="auth" />;
 }
 
 /** Used inside auth / getting-started layouts (ServerHealthProvider / GET /). */
 export function ServerHealthBanner() {
   const { online } = useServerHealth();
-  const state = useBannerState(!online);
-  return <OfflineBanner state={state} />;
+  const { top: safeTop } = useSafeAreaInsets();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 5500);
+    return () => clearTimeout(t);
+  }, []);
+
+  const state = useBannerState(ready && online === false && online !== null);
+  console.log("state", state);
+  return <OfflineBanner state={state} top={safeTop} variant="unauth" />;
 }
 
 const styles = StyleSheet.create({
-  banner: {
+  row: {
     height: BANNER_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  text: {
+    fontSize: 12,
+    marginLeft: 6,
   },
 });

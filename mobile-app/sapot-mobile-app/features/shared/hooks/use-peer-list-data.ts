@@ -1,9 +1,9 @@
 import { Q } from "@nozbe/watermelondb";
 import { useEffect, useMemo, useState } from "react";
-import { useAppMode } from "../context/app-mode-context";
-import { database, Peer } from "../database";
-import { ConversationParticipant } from "../database/model/ConversationParticipant";
-import { peerLog } from "../utils";
+import { useAppMode } from "../core/context/app-mode-context";
+import { database, Peer } from "../core/database";
+import { ConversationParticipant } from "../core/database/model/ConversationParticipant";
+import { peerLog } from "../core/utils";
 import { useAcitveUserService } from "./use-active-user-service";
 import { useConnectionService } from "./use-connection-service";
 import { usePeerService } from "./use-peer-service";

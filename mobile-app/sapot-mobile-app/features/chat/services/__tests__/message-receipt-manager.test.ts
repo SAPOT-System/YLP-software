@@ -1,5 +1,5 @@
 import { MessageReceiptManager } from "../message-receipt-manager";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
 
 describe("MessageReceiptManager", () => {
   let manager: MessageReceiptManager;

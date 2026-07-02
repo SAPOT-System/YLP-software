@@ -1,5 +1,6 @@
+import { toAppError } from "@/features/shared/core/errors";
 import { useThrottledPress } from "@/features/shared/hooks";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { saveDocuments } from "@react-native-documents/picker";
 import { File, Paths } from "expo-file-system";
 import { router } from "expo-router";
@@ -46,10 +47,10 @@ const DownloadFileButton: React.FC<DownloadFileButtonProps> = ({
       } else {
         Alert.alert("Save cancelled", "No location selected.");
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      authLog.error("[DownloadFileButton] Error in download", { error });
-      Alert.alert("Download failed", error.message || "Unknown error");
+      } catch (error) {
+      const appErr = toAppError(error, "auth");
+      authLog.error("[DownloadFileButton] Error in download", appErr);
+      Alert.alert("Download failed", appErr.message || "Unknown error");
     }
   }, [fileData, fileName, route, onAfterDownload]);
 

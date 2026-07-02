@@ -1,4 +1,4 @@
-import { authUtilsLog } from "@/features/shared/utils/logger";
+import { authUtilsLog } from "@/features/shared/core/utils/logger";
 import { RegisterFormState, RegisterFormStateErrors } from "../types";
 authUtilsLog.debug("[validation] module loaded");
 
@@ -6,11 +6,7 @@ export const validateRegistrationForm = ({
   username,
   firstName,
   lastName,
-  email,
-  phoneNumber,
   password,
-  questionAnswer,
-  securityQuestion,
   confirmPassword,
   termsChecked,
 }: Partial<RegisterFormState>): RegisterFormStateErrors => {
@@ -18,25 +14,20 @@ export const validateRegistrationForm = ({
     hasUsername: Boolean(username?.trim()),
     hasFirstName: Boolean(firstName?.trim()),
     hasLastName: Boolean(lastName?.trim()),
-    hasEmail: Boolean(email?.trim()),
-    hasPhoneNumber: Boolean(phoneNumber?.trim()),
     hasPassword: Boolean(password),
     hasConfirmPassword: Boolean(confirmPassword),
-    hasSecurityQuestion: Boolean(securityQuestion),
-    hasQuestionAnswer: Boolean(questionAnswer),
     termsChecked: Boolean(termsChecked),
   });
   const errors: RegisterFormStateErrors = {};
-  // First Name validation
+
   if (username !== undefined && !username.trim()) {
     errors.username = "Username is required";
-  } else if (username !== undefined && username.trim().length <= 2) {
+  } else if (username !== undefined && username.trim().length < 2) {
     errors.username = "Username must be at least 2 characters";
   } else if (username !== undefined && username.trim().length >= 50) {
     errors.username = "Username must be less than 50 characters";
   }
 
-  // First Name validation
   if (firstName !== undefined && !firstName.trim()) {
     errors.firstName = "First name is required";
   } else if (
@@ -45,13 +36,12 @@ export const validateRegistrationForm = ({
     !/^[\p{L}\s'-]+$/u.test(firstName)
   ) {
     errors.firstName = "First name must contain only letters";
-  } else if (firstName !== undefined && firstName.trim().length <= 2) {
+  } else if (firstName !== undefined && firstName.trim().length < 2) {
     errors.firstName = "First name must be at least 2 characters";
   } else if (firstName !== undefined && firstName.trim().length >= 50) {
     errors.firstName = "First name must be less than 50 characters";
   }
 
-  // Last Name validation
   if (lastName !== undefined && !lastName.trim()) {
     errors.lastName = "Last name is required";
   } else if (
@@ -63,43 +53,11 @@ export const validateRegistrationForm = ({
   } else if (lastName !== undefined && lastName.trim().length < 2) {
     errors.lastName = "Last name must be at least 2 characters";
   } else if (lastName !== undefined && lastName.trim().length > 50) {
-    errors.lastName = "First name must be less than or equal to 50 characters";
+    errors.lastName = "Last name must be less than or equal to 50 characters";
   }
 
-  // Phone Number validation
-  if (
-    phoneNumber !== undefined &&
-    phoneNumber.length !== 11 &&
-    phoneNumber.length > 0
-  ) {
-    errors.phoneNumber = "Phone number must be at least 11 digits";
-  } else if (
-    phoneNumber !== undefined &&
-    phoneNumber.length > 0 &&
-    !/^09\d{9}$/.test(phoneNumber)
-  ) {
-    errors.phoneNumber = "Phone number must be in the format 09XXXXXXXXX";
-  }
-
-  // Email validation
-  const emailError = validateEmail(email);
-  if (emailError) {
-    errors.email = emailError;
-  }
-
-  // Question validation
-  if (securityQuestion !== undefined && !securityQuestion) {
-    errors.securityQuestion = "Security question is required";
-  }
-  // Answer validation
-  if (questionAnswer !== undefined && !questionAnswer) {
-    errors.questionAnswer = "Answer is required";
-  }
-
-  // Password and confirm password validation
   Object.assign(errors, validatePassword(password, confirmPassword));
 
-  // Terms & Conditions validation
   if (termsChecked !== undefined && !termsChecked) {
     errors.termsChecked = "You must agree to the terms and conditions";
   }
@@ -166,6 +124,19 @@ export const validatePassword = (
   return errors;
 };
 
+export const toInternationalPhone = (phone: string): string => {
+  if (!phone) return phone;
+  if (phone.startsWith("+63")) return phone;
+  if (phone.startsWith("0")) return "+63" + phone.slice(1);
+  return phone;
+};
+
+export const toLocalPhone = (phone: string): string => {
+  if (!phone) return phone;
+  if (phone.startsWith("+63")) return "0" + phone.slice(3);
+  return phone;
+};
+
 export const validateGuestLoginForm = (firstName: string, lastName: string) => {
   authUtilsLog.debug("[validateGuestLoginForm] called", {
     hasFirstName: Boolean(firstName?.trim()),
@@ -175,21 +146,23 @@ export const validateGuestLoginForm = (firstName: string, lastName: string) => {
   // First Name validation
   if (!firstName.trim()) {
     errors.firstName = "First name is required";
-  } else if (firstName.trim().length <= 2) {
+  } else if (firstName.trim().length < 2) {
     errors.firstName = "First name must be at least 2 characters";
-  } else if (!/^[\p{L}\s'-]+$/u.test(firstName)) {
+  } else if (!/^[\p{L}\s'-]+$/u.test(firstName.trim())) {
     errors.firstName = "First name must contain only letters";
   } else if (firstName.trim().length >= 50) {
     errors.firstName = "First name must be less than 50 characters";
   }
 
   // Last Name validation
-  if (lastName.trim().length < 2 && lastName.trim().length > 0) {
+  if (!lastName.trim()) {
+    errors.lastName = "Last name is required";
+  } else if (lastName.trim().length < 2) {
     errors.lastName = "Last name must be at least 2 characters";
-  } else if (!/^[\p{L}\s'-]+$/u.test(lastName)) {
+  } else if (!/^[\p{L}\s'-]+$/u.test(lastName.trim())) {
     errors.lastName = "Last name must contain only letters";
-  } else if (lastName.trim().length > 50 && lastName.trim().length > 0) {
-    errors.lastName = "First name must be less than or equal to 50 characters";
+  } else if (lastName.trim().length > 50) {
+    errors.lastName = "Last name must be less than or equal to 50 characters";
   }
 
   return errors;

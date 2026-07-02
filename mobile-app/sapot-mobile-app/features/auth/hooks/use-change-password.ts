@@ -1,4 +1,4 @@
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { AxiosError } from "axios";
 import { useEffect, useState } from "react";
 import { canResetPasswordApi, resetPasswordApi } from "../api/auth.api";
@@ -7,6 +7,7 @@ import { hasValidationErrors, validatePassword } from "../utils";
 export const useChangePassword = (token: string) => {
   const [loading, setLoading] = useState(false);
   const [isTokenValid, setIsTokenValid] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<{
     password?: string;
@@ -24,8 +25,9 @@ export const useChangePassword = (token: string) => {
         return;
       }
       try {
-        const canChangePassword = await canResetPasswordApi(token);
-        setIsTokenValid(canChangePassword);
+        const result = await canResetPasswordApi(token);
+        setIsTokenValid(result.valid);
+        setUserId(result.userId);
       } catch (error) {
         authLog.error("[useChangePassword] Error in validateToken", { error });
         setIsTokenValid(false);
@@ -38,11 +40,14 @@ export const useChangePassword = (token: string) => {
     password: string;
     confirmPassword: string;
     identifier: string;
+    wrappedBlob?: string;
+    recoveryToken?: string;
   }) => {
     authLog.debug("[useChangePassword] changePassword called", {
       password: "[REDACTED]",
       confirmPassword: "[REDACTED]",
       identifierLength: form.identifier.length,
+      hasWrappedBlob: Boolean(form.wrappedBlob),
     });
     if (!token) {
       setErrors({ general: "Reset token is missing. Please start again." });
@@ -61,7 +66,7 @@ export const useChangePassword = (token: string) => {
     }
 
     try {
-      const res = await resetPasswordApi(token, form.password);
+      const res = await resetPasswordApi(token, form.password, form.wrappedBlob, form.recoveryToken);
 
       return { success: res.status === 200 };
     } catch (err) {
@@ -95,9 +100,8 @@ export const useChangePassword = (token: string) => {
       }
 
       // Generic error
-      // TODO: Add the message from the server response
       setErrors({
-        general: "An error occurred. Please try again",
+        general: data?.detail ?? "An error occurred. Please try again",
       });
 
       return { success: false };
@@ -106,5 +110,5 @@ export const useChangePassword = (token: string) => {
     }
   };
 
-  return { changePassword, loading, errors, isTokenValid };
+  return { changePassword, loading, errors, isTokenValid, userId };
 };

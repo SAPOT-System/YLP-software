@@ -2,7 +2,7 @@ import { AuthTextInput, PrimaryButton, useAuth } from "@/features/auth";
 import { RegisterApiRequest, RegisterFormStateErrors } from "@/features/auth/types";
 import { hasValidationErrors, validateRegistrationForm } from "@/features/auth/utils/validation";
 import { useUserProfile } from "@/features/shared/hooks/use-user-profile";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { HelperText } from "react-native-paper";
@@ -11,9 +11,9 @@ export default function Authenticate() {
   const { registerAndMigrate, loading } = useAuth();
   const { user } = useUserProfile();
 
-  const [firstName, setFirstName] = useState(user.firstName ?? "");
-  const [lastName, setLastName] = useState(user.lastName ?? "");
-  const [username, setUsername] = useState(user.username ?? "");
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
+  const [username, setUsername] = useState(user?.username ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<RegisterFormStateErrors>({});
@@ -35,6 +35,7 @@ export default function Authenticate() {
       last_name: lastName.trim(),
       username: username.trim(),
       password,
+      terms_accepted: true,
     };
 
     const result = await registerAndMigrate(data);

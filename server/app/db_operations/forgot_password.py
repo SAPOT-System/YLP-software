@@ -55,15 +55,14 @@ def generate_and_save_new_recovery_key(
     if not user_id:
         raise Exception('User not found.')
 
+    now = datetime.utcnow()
     existing_key = session.exec(select(RecoveryKey).where(RecoveryKey.user_id == user_id)).first()
 
-    if (existing_key):
-        setattr(existing_key, 'key_hash', hashed_key)
+    if existing_key:
+        existing_key.key_hash = hashed_key
+        existing_key.updated_at = now
     else:
-        existing_key = RecoveryKey(
-            user_id = user_id,
-            key_hash = hashed_key
-        )
+        existing_key = RecoveryKey(user_id=user_id, key_hash=hashed_key, created_at=now, updated_at=now)
         existing_key = RecoveryKey.model_validate(existing_key)
     if not existing_key:
         raise Exception("NO KEY")

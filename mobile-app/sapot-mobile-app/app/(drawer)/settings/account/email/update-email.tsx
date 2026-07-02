@@ -1,14 +1,15 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
 import { validateEmail } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
-import { uiLog } from "@/features/shared/utils/logger";
-import { router } from "expo-router";
+import { uiLog } from "@/features/shared/core/utils/logger";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Button, HelperText, useTheme } from "react-native-paper";
 
 export default function UpdateEmail() {
   const theme = useTheme();
+  const { reauth_token } = useLocalSearchParams<{ reauth_token?: string }>();
   const [newEmail, setNewEmail] = useState("");
   const [confirmNewEmail, setConfirmNewEmail] = useState("");
   const [errors, setErrors] = useState<{
@@ -29,6 +30,8 @@ export default function UpdateEmail() {
       confirmEmailLength: confirmNewEmail.length,
     });
   }, [newEmail, confirmNewEmail]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     uiLog.debug("[UpdateEmail] handleSubmit called");
@@ -51,13 +54,22 @@ export default function UpdateEmail() {
       return;
     }
 
-    uiLog.info("[Navigation] Navigating to VerifyEmail", {
-      screen: SETTINGS_ROUTES.VERIFY_EMAIL,
-    });
-    router.push({
-      pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
-      params: { email: newEmail.trim() },
-    });
+    setIsSubmitting(true);
+    try {
+      uiLog.info("[Navigation] Navigating to VerifyEmail", {
+        screen: SETTINGS_ROUTES.VERIFY_EMAIL,
+        newEmail: newEmail,
+      });
+      router.push({
+        pathname: SETTINGS_ROUTES.VERIFY_EMAIL,
+        params: { email: newEmail.trim(), reauth_token: reauth_token ?? "" },
+      });
+    } catch (error) {
+      uiLog.error("[UpdateEmail] Navigation failed", { error });
+      setErrors({ newEmail: "Failed to proceed. Please try again." });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
@@ -100,7 +112,13 @@ export default function UpdateEmail() {
             {errors.confirmNewEmail}
           </HelperText>
         </View>
-        <Button mode="contained" style={{ width: 164 }} onPress={handleSubmit}>
+        <Button
+          mode="contained"
+          style={{ width: 164 }}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+          loading={isSubmitting}
+        >
           Submit
         </Button>
       </View>

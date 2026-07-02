@@ -1,4 +1,4 @@
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { Text, useTheme } from "react-native-paper";

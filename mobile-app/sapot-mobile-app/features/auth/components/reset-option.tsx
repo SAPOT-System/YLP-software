@@ -1,5 +1,5 @@
 import { AUTH_ROUTES } from "@/config/routes";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, View } from "react-native";
@@ -13,13 +13,13 @@ const resetOptionData = {
   email: {
     link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Reset via email",
-    description: "If you have email linked to account",
+    description: "If you have an email linked to your account",
     icon: "email",
   },
   sms: {
     link: AUTH_ROUTES.FORGOT_PASSWORD.ENTER_IDENTIFIER,
     title: "Reset via SMS",
-    description: "If you have number linked to account",
+    description: "If you have a phone number linked to your account",
     icon: "cellphone",
   },
   question: {

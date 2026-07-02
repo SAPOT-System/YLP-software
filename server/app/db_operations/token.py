@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import os
+import threading
+import redis as _redis_module
 from uuid import UUID, uuid4
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -18,10 +21,63 @@ from app.models.users import UserCreate
 from app.models.jti import BlacklistedToken
 from app.db_operations.auth import get_user, get_user_by_ID
 
-SECRET_KEY = "7a272aa19fd88943207a62115b64f67530731eafd3b79a228f42972a2a51df1e"
+_REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+try:
+    _redis: _redis_module.Redis = _redis_module.from_url(_REDIS_URL, decode_responses=True)
+    _redis.ping()
+    _REDIS_AVAILABLE = True
+except Exception:
+    _redis = None  # type: ignore[assignment]
+    _REDIS_AVAILABLE = False
+
+_blacklist_lock = threading.Lock()
+
+
+def _cache_blacklisted(jti_str: str, expires_at: datetime) -> None:
+    if _REDIS_AVAILABLE:
+        ttl = max(1, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
+        _redis.setex(f"bl:{jti_str}", ttl, "1")
+
+
+def purge_expired_blacklist_cache() -> None:
+    pass  # Redis expires keys automatically via TTL
+
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_ACCESS_TOKEN_EXPIRE_DAYS = 60
+REAUTH_TOKEN_EXPIRE_MINUTES = 10
+
+
+def create_reauth_token(user_id: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=REAUTH_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": user_id, "type": "reauth", "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_reauth_token(request: Request) -> None:
+    """Raise HTTP 401 if the X-Reauth-Token header is missing or invalid."""
+    token = request.headers.get("X-Reauth-Token")
+    if not token:
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Password confirmation required",
+        )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "reauth":
+            raise HTTPException(
+                status_code=HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
+    except PyJWTError:
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Reauth token is invalid or expired",
+        )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
@@ -198,35 +254,36 @@ def create_token_pair(user_id: UUID) -> Token:
         "exp": now + timedelta(days=REFRESH_ACCESS_TOKEN_EXPIRE_DAYS)
     }
 
-    return Token(
+    res = Token(
         access_token=jwt.encode(access_payload, SECRET_KEY, algorithm=ALGORITHM),
         refresh_token=jwt.encode(refresh_payload, SECRET_KEY, algorithm=ALGORITHM),
         token_type="bearer"
     )
 
+    return res
+
 def is_token_blacklisted(session: SessionDep, jti_str: str) -> bool:
     try:
-        # Convert the string from the JWT back into a UUID object for the DB query
+        if _REDIS_AVAILABLE:
+            return bool(_redis.exists(f"bl:{jti_str}"))
         jti_uuid = UUID(jti_str)
-        statement = select(BlacklistedToken).where(BlacklistedToken.jti == jti_uuid)
-        return session.exec(statement).first() is not None
+        result = session.exec(
+            select(BlacklistedToken).where(BlacklistedToken.jti == jti_uuid)
+        ).first()
+        if result:
+            _cache_blacklisted(jti_str, result.expires_at)
+            return True
+        return False
     except (ValueError, AttributeError):
-        return True # If JTI is mangled, treat it as invalid/blacklisted
+        return True
 
 
 def add_to_blacklist(session: SessionDep, jti_str: str, expires_at: datetime):
-    """
-    Persists a revoked JTI to SQLite.
-    """
-    # Convert string JTI from JWT back to UUID object for SQLite
     jti_uuid = UUID(jti_str)
-
-    blacklisted_token = BlacklistedToken(
-        jti=jti_uuid,
-        expires_at=expires_at
-    )
+    blacklisted_token = BlacklistedToken(jti=jti_uuid, expires_at=expires_at)
     session.add(blacklisted_token)
     session.commit()
+    _cache_blacklisted(jti_str, expires_at)
 
 def logout(
     token: Annotated[str, Depends(oauth2_scheme)],

@@ -4,35 +4,52 @@ import {
     canResetPasswordApi,
     PrimaryButton,
     SecondaryButton,
+    StepDots,
     useGetQuestion,
     useVerifyAnswer,
 } from "@/features/auth";
+import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { LockoutBanner } from "@/features/auth/components/lockout-banner";
+import { extractResetToken } from "@/features/auth/utils";
+import { KeyRecoveryService } from "@/features/shared/crypto/key-recovery-service";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useToast } from "@/features/shared/hooks";
-import { authLog } from "@/features/shared/utils/logger";
+import { checkBackEndHealth } from "@/features/shared/core/api";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
-import { deleteItemAsync, getItemAsync } from "expo-secure-store";
-import React, { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, View } from "react-native";
-import { ActivityIndicator, HelperText } from "react-native-paper";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { HelperText } from "react-native-paper";
 
 const QuestionResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
 
   const getQuestionResult = useGetQuestion(identifier);
-  const { loading: gettingQuestionLoading, question } = getQuestionResult;
+  const { loading: gettingQuestionLoading, question, error: questionError, refetch } = getQuestionResult;
 
   const {
-    loading: verifyAnswerLoading,
     error,
     verifyAnswer,
+    lockout,
+    attemptsRemaining,
   } = useVerifyAnswer(identifier);
 
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
+  const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  const submittingRef = useRef(false);
   const [answer, setAnswer] = useState("");
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success" && pendingNavRef.current) {
+      pendingNavRef.current();
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   useEffect(() => {
     authLog.info("[QuestionResetScreen] mounted");
@@ -45,21 +62,14 @@ const QuestionResetScreen = () => {
     const checkStoredToken = async () => {
       try {
         const storedToken = await getItemAsync("reset_password_token");
-        const storedIdentifier = await getItemAsync(
-          "reset_password_identifier"
-        );
+        const storedIdentifier = await getItemAsync("reset_password_identifier");
 
-        if (!storedToken || !storedIdentifier) {
-          return;
-        }
-
-        if (storedIdentifier !== identifier) {
-          return;
-        }
+        if (!storedToken || !storedIdentifier) return;
+        if (storedIdentifier !== identifier) return;
 
         const isValid = await canResetPasswordApi(storedToken);
 
-        if (isValid) {
+        if (isValid.valid) {
           authLog.info("[Navigation] Navigating to ResetPassword", {
             screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
           });
@@ -72,9 +82,7 @@ const QuestionResetScreen = () => {
           await deleteItemAsync("reset_password_identifier");
         }
       } catch (error) {
-        authLog.error("[QuestionResetScreen] Error in check stored token", {
-          error,
-        });
+        authLog.error("[QuestionResetScreen] Error in check stored token", { error });
         await deleteItemAsync("reset_password_token");
         await deleteItemAsync("reset_password_identifier");
       } finally {
@@ -85,86 +93,155 @@ const QuestionResetScreen = () => {
     checkStoredToken();
   }, [identifier]);
 
-  if (checkingStoredToken) {
-    return <ActivityIndicator />;
+  if (checkingStoredToken || gettingQuestionLoading) {
+    return (
+      <View style={{ flex: 1 }}>
+        <LoadingOverlay visible />
+      </View>
+    );
   }
 
-  if (gettingQuestionLoading) {
-    return <ActivityIndicator />;
+  if (questionError || !question) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}>
+        <ScreenHeader headerName="Resetting Password" />
+        <ScreenContent
+          title="Password Recovery"
+          description="We couldn't load your security question."
+        >
+          <HelperText type="error" visible>
+            {questionError || "No security question found for this account."}
+          </HelperText>
+          <PrimaryButton
+            style={{ marginBottom: 8 }}
+            onPress={refetch}
+          >
+            Try Again
+          </PrimaryButton>
+          <SecondaryButton onPress={() => router.back()}>
+            Back
+          </SecondaryButton>
+        </ScreenContent>
+      </View>
+    );
   }
-  const handleVerify = async () => {
+
+  const handleVerify = async (): Promise<void> => {
+    if (submittingRef.current || lockout.isLocked) return;
+    submittingRef.current = true;
+    try {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showError("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
     authLog.debug("[QuestionResetScreen] handleVerify called", {
       hasAnswer: Boolean(answer.trim()),
     });
+
+    setOverlayPhase("loading");
+    setOverlayMessage("");
+
     const res = await verifyAnswer({ question, answer });
 
     if (res.success && res.resetLink) {
-      const token = res.resetLink.split("token=")[1];
+      const token = extractResetToken(res.resetLink);
+
+      await Promise.all([
+        setItemAsync("reset_recovery_token", res.recoveryToken ?? ""),
+        setItemAsync("reset_recovery_secret", KeyRecoveryService.normalizeAnswer(answer)),
+        setItemAsync("reset_recovery_salt", question),
+      ]);
 
       authLog.info("[Navigation] Navigating to ResetPassword", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
       });
-      router.push({
-        pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-        params: { token, identifier },
-      });
+      pendingNavRef.current = () =>
+        router.push({
+          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+          params: { token, identifier, method: "qa" },
+        });
+      setOverlayPhase("success");
+      setOverlayMessage("Answer verified!");
+    } else {
+      setOverlayPhase("error");
+      setOverlayMessage(error.general || error.answer || "Verification failed. Please try again.");
+    }
+    } finally {
+      submittingRef.current = false;
     }
   };
 
+  const isSubmitting = overlayPhase !== "idle";
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-    >
-      <View
-        style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <View style={{ flex: 1 }}>
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Verifying…"
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
       >
-        <ScreenHeader headerName="Resetting Password" />
-        <ScreenContent
-          title="Password Recovery"
-          description="Please enter the answer to your security question"
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
         >
-          <View
-            style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+          <ScreenHeader headerName="Resetting Password" />
+          <StepDots total={3} current={2} />
+          <ScreenContent
+            title="Password Recovery"
+            description="Please enter the answer to your security question"
           >
-            <HelperText type="error">{error.general}</HelperText>
-            <AuthTextInput
-              label={question}
-              placeholder={question}
-              value={answer}
-              onChangeText={setAnswer}
-              error={!!error.answer}
-            />
-            <HelperText type="error">{error.answer}</HelperText>
-          </View>
-          <PrimaryButton
-            onPress={handleVerify}
-            loading={verifyAnswerLoading}
-            disabled={verifyAnswerLoading}
-          >
-            Verify
-          </PrimaryButton>
-          <SecondaryButton
-            style={{ marginTop: 16 }}
-            onPress={() => {
-              authLog.info("[Navigation] goBack triggered from QuestionReset");
-              router.back();
-            }}
-            disabled={verifyAnswerLoading}
-          >
-            Back
-          </SecondaryButton>
-        </ScreenContent>
-      </View>
-      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
-        {toastMessage}
-      </AppSnackbar>
-    </KeyboardAvoidingView>
+            {lockout.isLocked && (
+              <LockoutBanner
+                secondsRemaining={lockout.secondsRemaining}
+                deviceType={lockout.deviceType}
+                onExpire={lockout.clearLock}
+              />
+            )}
+            {!lockout.isLocked && attemptsRemaining !== null && (
+              <AttemptsWarning attemptsRemaining={attemptsRemaining} />
+            )}
+            <View
+              style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
+            >
+              <AuthTextInput
+                label={question}
+                placeholder="Enter your answer"
+                value={answer}
+                onChangeText={setAnswer}
+                error={!!error.answer}
+              />
+              <HelperText type="error" visible={!!error.answer}>{error.answer}</HelperText>
+            </View>
+            <PrimaryButton
+              onPress={handleVerify}
+              loading={overlayPhase === "loading"}
+              disabled={isSubmitting || lockout.isLocked}
+            >
+              {overlayPhase === "loading" ? "Verifying…" : "Verify"}
+            </PrimaryButton>
+            <SecondaryButton
+              style={{ marginTop: 16 }}
+              onPress={() => {
+                authLog.info("[Navigation] goBack triggered from QuestionReset");
+                router.back();
+              }}
+              disabled={isSubmitting}
+            >
+              Back
+            </SecondaryButton>
+          </ScreenContent>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 

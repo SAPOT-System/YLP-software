@@ -1,15 +1,13 @@
 from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
 from sqlmodel import select
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from app.models.email_verification import EmailVerification
 from app.db_operations.auth import SessionDep
 from app.models.users import User
-from app.db_operations.token import get_current_user
+from app.db_operations.token import get_current_user, verify_reauth_token
 from app.models.email_verification import send_verification_email
-from app.db_operations.forgot_password import generate_reset_code
 
 
 router = APIRouter(
@@ -49,6 +47,8 @@ def verify_email_code(payload: VerifyCodeRequest, db: SessionDep):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    if verification.email:
+        user.email = verification.email
     user.email_verified = True
     
     # 4. Cleanup
@@ -62,35 +62,27 @@ def verify_email_code(payload: VerifyCodeRequest, db: SessionDep):
 
 @router.post("/resend-verification-code")
 def resend_verification_email(
-    current_user: Annotated[User, Depends(get_current_user)], 
-    session: SessionDep, 
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: SessionDep,
     background_tasks: BackgroundTasks,
-    request: Request
+    request: Request,
+    email: str | None = None,
 ):
-    if current_user.email_verified:
+    if current_user.email_verified and not email:
         return {"message": "Email already verified"}
 
-    # Generate new 6-digit code
-    otp_code = generate_reset_code()
-    
-    # Update or Create verification record
-    # Note: It's best practice to delete old codes for that user first
+    if email:
+        verify_reauth_token(request)
+
+    # Delete any existing code before issuing a new one
     existing_code = session.exec(
         select(EmailVerification).where(EmailVerification.user_id == current_user.id)
     ).first()
     if existing_code:
         session.delete(existing_code)
+        session.commit()
 
-    new_verification = EmailVerification(
-        token=otp_code,
-        user_id=current_user.id,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10) # Shorter expiry for OTPs
-    )
-    
-    session.add(new_verification)
-    session.commit()
+    send_verification_email(current_user.id, session, background_tasks, request, email=email)
 
-    # Pass the otp_code to your background task to send the actual email
-    send_verification_email(current_user.id, session, background_tasks, request)
-
-    return {"message": f"Verification code sent to {current_user.email}"}
+    target_email = email or current_user.email
+    return {"message": f"Verification code sent to {target_email}"}

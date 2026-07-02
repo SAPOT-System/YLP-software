@@ -1,0 +1,814 @@
+#+TITLE: Arduino GSM ↔ Python/FastAPI Architecture Plan
+#+AUTHOR: Emmanpip & ChatGPT
+#+DATE: 2026-05-08
+
+* Goal
+
+Build a layered SMS relay system using:
+
+#+begin_example
+Phone <-> GSM Module <-> Arduino <-> USB Serial <-> FastAPI (GSM Service)
+                                                    ↓
+                                             FastAPI (Main API)
+                                                    ↓
+                                              SAPOT System
+#+end_example
+
+The system should:
+
+1. Receive SMS messages
+2. Forward SMS data to the GSM FastAPI service
+3. Let the main FastAPI application decide responses
+4. Send SMS replies back through the GSM module
+5. Support SAPOT SMS relay workflows
+6. Keep GSM handling isolated from application/business logic
+
+---
+
+* Updated Architecture Decision
+
+Chosen Architecture:
+Thin Arduino + Dedicated GSM FastAPI Service
+
+#+begin_example
+Phone
+  ↓
+GSM Module
+  ↓
+Arduino (bridge only)
+  ↓
+FastAPI GSM Service
+  ↓
+FastAPI Main API
+  ↓
+SAPOT Application Logic
+#+end_example
+
+This separates:
+
+- hardware communication
+- SMS transport
+- business logic
+- user/session management
+
+into independent layers.
+
+---
+
+* High-Level Service Roles
+
+** Arduino Layer
+
+Purpose:
+Hardware bridge and GSM watchdog.
+
+Responsibilities:
+- communicate with GSM module
+- detect GSM failures
+- auto-reset GSM module when needed
+- extract SMS metadata
+- forward events to GSM FastAPI service
+- execute outgoing SMS commands
+
+Arduino SHOULD NOT:
+- contain business logic
+- know SAPOT workflows
+- validate users
+- store sessions
+- understand commands semantically
+
+Arduino must remain generic and reusable.
+
+---
+
+** FastAPI GSM Service
+
+Purpose:
+Serial communication gateway between Arduino and backend services.
+
+Responsibilities:
+- maintain serial connection with Arduino
+- parse serial protocol
+- expose HTTP/WebSocket API
+- relay events to main FastAPI service
+- receive SMS send requests
+- queue outgoing GSM commands
+- centralize GSM logging
+- monitor modem health
+
+This service acts as a transport layer.
+
+---
+
+** FastAPI Main Service
+
+Purpose:
+Application brain and SAPOT backend.
+
+Responsibilities:
+- parse incoming SMS meaning
+- manage SMS user sessions
+- validate users against SAPOT database
+- route SMS messages
+- generate responses
+- maintain conversation state
+- authenticate requests
+- integrate with SAPOT mobile/web app
+- database integration
+- future dashboard/admin integration
+
+The main FastAPI service owns ALL business logic.
+
+---
+
+* Recommended Service Separation
+
+Recommended deployment:
+
+#+begin_example
+fastapi-gsm/
+├── serial_manager.py
+├── gsm_controller.py
+├── protocol.py
+├── api.py
+└── main.py
+
+fastapi-main/
+├── sms_router.py
+├── session_manager.py
+├── sapot_integration.py
+├── database.py
+├── api.py
+└── main.py
+#+end_example
+
+---
+
+* Communication Layers
+
+There are now THREE communication layers.
+
+---
+
+** Layer 1: GSM ↔ Arduino
+
+Protocol:
+AT commands
+
+Example:
+
+#+begin_example
++CMT: "+639171234567","","26/05/07,10:30:00+32"
+HELLO
+#+end_example
+
+Controlled entirely by the GSM modem.
+
+---
+
+** Layer 2: Arduino ↔ FastAPI GSM Service
+
+Transport:
+USB serial
+
+Protocol:
+Custom line-based protocol
+
+Requirements:
+- one message per line
+- machine-readable
+- predictable
+- easy to debug
+
+Format:
+
+#+begin_example
+EVENT|DATA|DATA
+#+end_example
+
+---
+
+** Layer 3: GSM FastAPI ↔ Main FastAPI
+
+Transport:
+HTTP REST API or WebSocket
+
+Recommended:
+HTTP for MVP
+
+Example flow:
+
+#+begin_src json
+POST /sms/incoming
+{
+  "sender": "+639171234567",
+  "message": "PING"
+}
+#+end_src
+
+Main API response:
+
+#+begin_src json
+{
+  "reply": "PONG"
+}
+#+end_src
+
+Then GSM service sends:
+
+#+begin_example
+SEND_SMS|+639171234567|PONG
+#+end_example
+
+to Arduino.
+
+---
+
+* Event Model
+
+System should remain event-driven.
+
+Arduino emits EVENTS to the GSM FastAPI service.
+
+---
+
+** Incoming SMS Event
+
+Arduino → GSM FastAPI
+
+#+begin_example
+SMS_RECEIVED|+639171234567|PING
+#+end_example
+
+Fields:
+1. Event type
+2. Sender number
+3. SMS body
+
+---
+
+** SMS Sent Confirmation
+
+#+begin_example
+SMS_SENT|+639171234567
+#+end_example
+
+---
+
+** SMS Failure
+
+#+begin_example
+SMS_FAILED|+639171234567|NETWORK_ERROR
+#+end_example
+
+---
+
+** GSM Ready Event
+
+#+begin_example
+GSM_READY
+#+end_example
+
+---
+
+** Network Events
+
+#+begin_example
+NETWORK_OK
+NETWORK_LOST
+SIM_MISSING
+#+end_example
+
+---
+
+* Commands Sent to Arduino
+
+FastAPI GSM Service sends commands to Arduino.
+
+Format:
+
+#+begin_example
+COMMAND|DATA|DATA
+#+end_example
+
+Main command:
+
+#+begin_example
+SEND_SMS|+639171234567|PONG
+#+end_example
+
+---
+
+* Recommended Internal API Design
+
+** GSM FastAPI Endpoints
+
+Example endpoints:
+
+#+begin_example
+POST /sms/send
+POST /gsm/reset
+GET  /gsm/status
+GET  /health
+#+end_example
+
+Example:
+
+#+begin_src json
+POST /sms/send
+
+{
+  "phone": "+639171234567",
+  "message": "PONG"
+}
+#+end_src
+
+---
+
+** Main FastAPI Endpoints
+
+Example internal endpoints:
+
+#+begin_example
+POST /sms/incoming
+POST /sms/status
+#+end_example
+
+Example:
+
+#+begin_src json
+POST /sms/incoming
+
+{
+  "sender": "+639171234567",
+  "message": "PING",
+  "timestamp": "2026-05-08T10:30:00"
+}
+#+end_src
+
+---
+
+* SMS Session Strategy
+
+Unlike simple command parsing, SAPOT requires session-based SMS flows.
+
+Each phone number should maintain a session state.
+
+Example:
+
+#+begin_src json
+{
+  "+639171234567": {
+    "target": "+639998887777",
+    "state": "CONNECTED"
+  }
+}
+#+end_src
+
+This state SHOULD exist only in the Main FastAPI service.
+
+Arduino and GSM FastAPI remain stateless.
+
+---
+
+* SAPOT SMS Relay Workflow
+
+** Step 1 — User Sends Initial Message
+
+#+begin_example
+hi there sapot server
+#+end_example
+
+---
+
+** Step 2 — Main API Creates Session
+
+Server responds:
+
+#+begin_example
+Hi! Welcome to SAPOT SMS relay feature.
+
+Please enter your target recipient using:
+
+[target] +639123456789
+#+end_example
+
+Session state:
+
+#+begin_example
+WAITING_FOR_TARGET
+#+end_example
+
+---
+
+** Step 3 — User Sends Target
+
+#+begin_example
+[target] +639124323459
+#+end_example
+
+Main API behavior:
+- validate target number
+- check SAPOT database
+- store target in session
+
+---
+
+** Step 4A — Target Exists
+
+Response:
+
+#+begin_example
+Your message was forwarded to <username>
+through both SMS and the SAPOT app.
+
+The user may or may not reply.
+#+end_example
+
+Session becomes:
+
+#+begin_example
+CONNECTED
+#+end_example
+
+---
+
+** Step 4B — Target Does Not Exist
+
+#+begin_example
+This user does not exist within the SAPOT database.
+
+Please enter a valid number.
+#+end_example
+
+Session resets to:
+
+#+begin_example
+WAITING_FOR_TARGET
+#+end_example
+
+---
+
+* Persistent SMS Relay Behavior
+
+After a successful target selection:
+
+#+begin_example
+hello
+how are you
+good morning
+#+end_example
+
+should automatically relay to the selected target.
+
+The target remains active until:
+- user changes target
+- session expires
+- user sends reset command
+
+Example reset command:
+
+#+begin_example
+RESET
+#+end_example
+
+---
+
+* Suggested SMS Commands
+
+#+begin_example
+[target] +639123456789
+RESET
+HELP
+STATUS
+#+end_example
+
+Avoid natural language parsing for control commands.
+
+Structured commands are:
+- deterministic
+- easier to maintain
+- safer
+- scalable
+
+---
+
+* Suggested Session State Machine
+
+#+begin_example
+NEW_USER
+    ↓
+WAITING_FOR_TARGET
+    ↓
+CONNECTED
+    ↓
+RESET
+    ↓
+WAITING_FOR_TARGET
+#+end_example
+
+---
+
+* Processing Pipeline
+
+#+begin_example
+Raw GSM Response
+    ↓
+Arduino extracts SMS
+    ↓
+Arduino emits serial event
+    ↓
+GSM FastAPI receives event
+    ↓
+GSM FastAPI calls Main FastAPI
+    ↓
+Main FastAPI processes business logic
+    ↓
+Main FastAPI returns response
+    ↓
+GSM FastAPI sends SEND_SMS command
+    ↓
+Arduino sends SMS via GSM
+#+end_example
+
+---
+
+* Reliability Planning
+
+** Arduino Responsibilities
+
+Monitor:
+- network registration
+- SIM presence
+- GSM responsiveness
+
+Emit:
+
+#+begin_example
+NETWORK_LOST
+SIM_MISSING
+#+end_example
+
+---
+
+** GSM FastAPI Responsibilities
+
+Handle:
+- serial reconnects
+- command queueing
+- API retries
+- health monitoring
+- GSM watchdog logging
+
+---
+
+** Main FastAPI Responsibilities
+
+Handle:
+- user sessions
+- business validation
+- SAPOT database integration
+- relay authorization
+- future analytics
+
+---
+
+* Logging Strategy
+
+All services should produce structured logs.
+
+Recommended fields:
+- timestamp
+- sender
+- target
+- message
+- response
+- delivery status
+- GSM state
+
+Example:
+
+#+begin_example
+[2026-05-08 12:01:22]
+
+EVENT=SMS_RECEIVED
+FROM=+639171234567
+TARGET=+639998887777
+BODY=hello
+STATUS=FORWARDED
+#+end_example
+
+---
+
+* Security Planning
+
+Recommended MVP protections:
+
+- whitelist internal API communication
+- validate sender phone numbers
+- rate-limit SMS abuse
+- require SAPOT registration
+- log all relay activity
+
+Example:
+
+#+begin_example
+AUTHORIZED_SENDERS = [
+  "+639171234567"
+]
+#+end_example
+
+---
+
+* Serial Communication Philosophy
+
+Treat serial communication like a strict API contract.
+
+Rules:
+- one event per line
+- machine-readable
+- predictable
+- no random debug prints
+
+Recommended prefixes:
+
+Protocol:
+#+begin_example
+EVENT|...
+#+end_example
+
+Debug:
+#+begin_example
+LOG|...
+#+end_example
+
+Errors:
+#+begin_example
+ERROR|...
+#+end_example
+
+---
+
+* Example End-to-End Flow
+
+** User Sends SMS
+
+#+begin_example
+PING
+#+end_example
+
+---
+
+** Arduino Emits Event
+
+#+begin_example
+SMS_RECEIVED|+639171234567|PING
+#+end_example
+
+---
+
+** GSM FastAPI Receives Event
+
+Parses serial protocol and forwards request to Main FastAPI.
+
+---
+
+** Main FastAPI Processes Logic
+
+- validates sender
+- checks session state
+- generates response
+
+---
+
+** Main FastAPI Returns Response
+
+#+begin_src json
+{
+  "reply": "PONG"
+}
+#+end_src
+
+---
+
+** GSM FastAPI Sends Command
+
+#+begin_example
+SEND_SMS|+639171234567|PONG
+#+end_example
+
+---
+
+** Arduino Sends SMS
+
+Arduino executes GSM AT commands.
+
+---
+
+** Arduino Reports Success
+
+#+begin_example
+SMS_SENT|+639171234567
+#+end_example
+
+---
+
+* MVP Milestones
+
+** Milestone 1
+
+Goal:
+Receive SMS in GSM FastAPI logs.
+
+Flow:
+
+#+begin_example
+Phone → GSM → Arduino → FastAPI GSM
+#+end_example
+
+---
+
+** Milestone 2
+
+Goal:
+Forward SMS events to Main FastAPI.
+
+Flow:
+
+#+begin_example
+FastAPI GSM → FastAPI Main
+#+end_example
+
+---
+
+** Milestone 3
+
+Goal:
+Send SMS manually from Main FastAPI.
+
+Flow:
+
+#+begin_example
+Main FastAPI → GSM FastAPI → Arduino → GSM
+#+end_example
+
+---
+
+** Milestone 4
+
+Goal:
+Automatic SMS replies.
+
+Example:
+
+#+begin_example
+PING → PONG
+#+end_example
+
+---
+
+** Milestone 5
+
+Goal:
+SAPOT target relay sessions.
+
+Features:
+- target selection
+- persistent routing
+- session tracking
+
+---
+
+** Milestone 6
+
+Goal:
+Database-backed messaging and dashboards.
+
+---
+
+* Core Architectural Principle
+
+Keep Arduino:
+- dumb
+- stateless
+- hardware-focused
+
+Keep GSM FastAPI:
+- transport-focused
+- isolated from business logic
+- reusable
+
+Keep Main FastAPI:
+- smart
+- stateful
+- responsible for all SAPOT logic
+
+This architecture enables future upgrades:
+- dashboards
+- cloud deployment
+- Redis queues
+- WebSocket live monitoring
+- PostgreSQL
+- async workers
+- multi-modem scaling
+- distributed GSM gateways

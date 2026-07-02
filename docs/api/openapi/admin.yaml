@@ -1,0 +1,953 @@
+openapi: 3.1.0
+info:
+  title: SAPOT Server — Admin
+  version: 0.0.2-beta.1
+paths:
+  /admin:
+    get:
+      tags:
+      - admin
+      summary: Test If Admin
+      operationId: test_if_admin_admin_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /admin/announcements/{announcement_id}:
+    patch:
+      tags:
+      - admin
+      summary: Edit Announcement
+      operationId: edit_announcement_admin_announcements__announcement_id__patch
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: announcement_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Announcement Id
+      - name: title
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      - name: content
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content
+      - name: priority
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/PriorityType'
+          - type: 'null'
+          title: Priority
+      - name: target_audience
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AudienceType'
+          - type: 'null'
+          title: Target Audience
+      - name: expires_at
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AnnouncementStatusType'
+          - type: 'null'
+          title: Status
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - admin
+      summary: Delete Announcement
+      operationId: delete_announcement_admin_announcements__announcement_id__delete
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: announcement_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Announcement Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/ban/user:
+    post:
+      tags:
+      - admin
+      summary: Ban User
+      operationId: ban_user_admin_ban_user_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: duration_in_days
+        in: query
+        required: true
+        schema:
+          type: integer
+          title: Duration In Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/create/user:
+    post:
+      tags:
+      - admin
+      summary: Create User
+      operationId: create_user_admin_create_user_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateThroughAdmin'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /admin/create/user/admin:
+    post:
+      tags:
+      - admin
+      summary: Create Admin
+      operationId: create_admin_admin_create_user_admin_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/create/user/rescuer:
+    post:
+      tags:
+      - admin
+      summary: Create Rescuer
+      operationId: create_rescuer_admin_create_user_rescuer_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/delete/user:
+    post:
+      tags:
+      - admin
+      summary: Delete User
+      operationId: delete_user_admin_delete_user_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/edit/user:
+    post:
+      tags:
+      - admin
+      summary: Edit User
+      operationId: edit_user_admin_edit_user_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateThroughAdmin'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /admin/get-active-users:
+    get:
+      tags:
+      - admin
+      summary: Get All Latest Locations
+      description: |-
+        Returns the most recent location for every user who has sent a ping.
+        Useful for the initial map load.
+      operationId: get_all_latest_locations_admin_get_active_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /admin/get-all-announcements:
+    get:
+      tags:
+      - admin
+      summary: Get Announcements
+      operationId: get_announcements_admin_get_all_announcements_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AnnouncementStatusType'
+          - type: 'null'
+          title: Status
+      - name: keyword
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ''
+          title: Keyword
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/get-logs:
+    get:
+      tags:
+      - admin
+      summary: Get System Logs
+      operationId: get_system_logs_admin_get_logs_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: keyword
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ''
+          title: Keyword
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 10
+          title: Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/login:
+    post:
+      tags:
+      - admin
+      summary: Login For Access Token
+      operationId: login_for_access_token_admin_login_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_login_for_access_token_admin_login_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/logout:
+    post:
+      tags:
+      - admin
+      summary: Logout User
+      operationId: logout_user_admin_logout_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /admin/network/interfaces:
+    get:
+      tags:
+      - admin
+      summary: Read Interfaces
+      operationId: read_interfaces_admin_network_interfaces_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /admin/network/usage:
+    get:
+      tags:
+      - admin
+      summary: Get Live Speed
+      operationId: get_live_speed_admin_network_usage_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /admin/post-announcement:
+    post:
+      tags:
+      - admin
+      summary: Create Announcement
+      operationId: create_announcement_admin_post_announcement_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: title
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Title
+      - name: content
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Content
+      - name: priority
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/PriorityType'
+      - name: target_audience
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/AudienceType'
+      - name: expires_at
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: Expires At
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/refresh:
+    post:
+      tags:
+      - admin
+      summary: Refresh Access Token
+      operationId: refresh_access_token_admin_refresh_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+  /admin/remove/user/admin:
+    post:
+      tags:
+      - admin
+      summary: Remove Admin
+      operationId: remove_admin_admin_remove_user_admin_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/remove/user/rescuer:
+    post:
+      tags:
+      - admin
+      summary: Remove Rescuer
+      operationId: remove_rescuer_admin_remove_user_rescuer_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/unban/user:
+    post:
+      tags:
+      - admin
+      summary: Unban User
+      operationId: unban_user_admin_unban_user_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/user-info:
+    get:
+      tags:
+      - admin
+      summary: Get User Info
+      operationId: get_user_info_admin_user_info_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/users-activity:
+    get:
+      tags:
+      - admin
+      summary: Get Admin Users
+      operationId: get_admin_users_admin_users_activity_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: keyword
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ''
+          title: Keyword
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 10
+          title: Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    AnnouncementStatusType:
+      type: string
+      enum:
+      - active
+      - expired
+      title: AnnouncementStatusType
+    AudienceType:
+      type: string
+      enum:
+      - admin
+      - user
+      - rescuer
+      title: AudienceType
+    Body_login_for_access_token_admin_login_post:
+      properties:
+        grant_type:
+          anyOf:
+          - type: string
+            pattern: ^password$
+          - type: 'null'
+          title: Grant Type
+        username:
+          type: string
+          title: Username
+        password:
+          type: string
+          format: password
+          title: Password
+        scope:
+          type: string
+          title: Scope
+          default: ''
+        client_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Id
+        client_secret:
+          anyOf:
+          - type: string
+          - type: 'null'
+          format: password
+          title: Client Secret
+      type: object
+      required:
+      - username
+      - password
+      title: Body_login_for_access_token_admin_login_post
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    PriorityType:
+      type: string
+      enum:
+      - low
+      - normal
+      - high
+      title: PriorityType
+    UserCreateThroughAdmin:
+      properties:
+        username:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Username
+          description: Unique username used for login and identification. Must be between 2 and 50 characters.
+          examples:
+          - johndoe
+        first_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: First Name
+          description: User's first name. Must be between 2 and 50 characters.
+          examples:
+          - John
+        last_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Last Name
+          description: User's last name. Must be between 2 and 50 characters.
+          examples:
+          - Doe
+        phone_number:
+          anyOf:
+          - type: string
+            pattern: ^\+639\d{9}$
+          - type: 'null'
+          title: Phone Number
+          description: User's phone number in international format (E.164 recommended).
+          examples:
+          - '+14155552671'
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+          description: Valid email address used for account communication and login.
+          examples:
+          - john.doe@example.com
+        id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Id
+          description: Optional unique identifier for the user. If not provided, it will be generated automatically.
+          examples:
+          - 550e8400-e29b-41d4-a716-446655440000
+        password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Password
+          description: Password must be 8–128 characters long and include at least one uppercase letter, one lowercase letter, and one number.
+          examples:
+          - StrongPass123
+        terms_accepted:
+          type: boolean
+          title: Terms Accepted
+          default: true
+        is_admin:
+          type: boolean
+          title: Is Admin
+          default: false
+        is_rescuer:
+          type: boolean
+          title: Is Rescuer
+          default: false
+      type: object
+      required:
+      - username
+      - first_name
+      - last_name
+      - password
+      title: UserCreateThroughAdmin
+    UserUpdateThroughAdmin:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        username:
+          anyOf:
+          - type: string
+            maxLength: 50
+            minLength: 2
+          - type: 'null'
+          title: Username
+        first_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Name
+        last_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Name
+        phone_number:
+          anyOf:
+          - type: string
+            pattern: ^\+639\d{9}$
+          - type: 'null'
+          title: Phone Number
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+        is_admin:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Admin
+        is_rescuer:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Rescuer
+      type: object
+      required:
+      - id
+      title: UserUpdateThroughAdmin
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    OAuth2PasswordBearer:
+      type: oauth2
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: auth/token

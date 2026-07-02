@@ -2,40 +2,56 @@ from uuid import UUID
 from fastapi import HTTPException
 from app.db_operations.auth import SessionDep
 from app.models.users import User
+from app.models.activity import UserActivity
 from sqlmodel import select, Session, func, or_
 from fastapi.responses import JSONResponse
 
-def search_case_insensitive(value: str, session: Session, limit: int, offset: int):
+def search_case_insensitive(
+    value: str,
+    session: Session,
+    limit: int = 20,
+    offset: int = 0,
+):
+    value = value.strip()
+
+    if not value:
+        return []
+
     search_val = f"%{value}%"
 
-    statement = (
-        select(User)
-        .where(
-            or_(
-                # Search username
-                User.username.ilike(search_val),
-                # Search first_name independently
-                User.first_name.ilike(search_val),
-                # Search last_name independently
-                User.last_name.ilike(search_val),
-                # Search combined "First Last"
-                (func.concat(User.first_name, " ", User.last_name)).ilike(search_val),
-                # Search combined "Last First" (optional, for "Doe John" queries)
-                (func.concat(User.last_name, " ", User.first_name)).ilike(search_val)
-            )
-        )
-        .offset(offset)
-        .limit(limit)
-    )
+    full_name = User.first_name + " " + User.last_name
+    reverse_full_name = User.last_name + " " + User.first_name
 
-    results = session.exec(statement).all()
+    statement = (
+            select(User)
+            .where(
+                User.guest == None  # exclude guests
+                )
+            .where(
+                or_(
+                    User.username.ilike(search_val),
+                    User.first_name.ilike(search_val),
+                    User.last_name.ilike(search_val),
+                    full_name.ilike(search_val),
+                    reverse_full_name.ilike(search_val),
+                    )
+                )
+            .offset(offset)
+            .limit(limit)
+            )
+
+    users = session.exec(statement).all()
 
     return [
-        user.model_dump(
-            mode="json",
-            include={"id", "username", "first_name", "last_name"}
-        )
-        for user in results
+        {
+            "id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone_is_verified": len(user.phone_is_verified) > 0,
+            "role": _resolve_role(user),
+        }
+        for user in users
     ]
 
 def search_by_id(value: UUID, session: SessionDep):
@@ -43,7 +59,28 @@ def search_by_id(value: UUID, session: SessionDep):
     results = session.exec(statement).first()
     if not results:
         raise HTTPException(404, "user not found")
-    return results.model_dump(
+
+    activity = session.exec(
+        select(UserActivity).where(UserActivity.user_id == value)
+    ).first()
+    last_active = (
+        activity.last_active.isoformat() + "Z" if activity and activity.last_active else None
+    )
+
+    return {
+        **results.model_dump(
             mode="json",
             include={"id", "username", "first_name", "last_name"}
-        )
+        ),
+        "phone_is_verified": len(results.phone_is_verified) > 0,
+        "role": _resolve_role(results),
+        "last_active": last_active,
+        "status": activity.status if activity else "Inactive",
+    }
+
+def _resolve_role(user: User) -> str:
+    if user.admin is not None:
+        return "admin"
+    if user.rescuer is not None:
+        return "rescuer"
+    return "user"

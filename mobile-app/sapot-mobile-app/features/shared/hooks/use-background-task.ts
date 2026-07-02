@@ -3,7 +3,7 @@ import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
 import { AppState, AppStateStatus, Platform } from "react-native";
 import BackgroundService from "react-native-background-actions";
-import { backgroundLog } from "../utils";
+import { backgroundLog } from "../core/utils";
 import { setAppAlive, SIGNALING_TASK } from "@/task/signaling-task";
 
 // ── Foreground service task ────────────────────────────────────────────────────

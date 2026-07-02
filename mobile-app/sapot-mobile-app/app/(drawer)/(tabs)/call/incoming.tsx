@@ -1,5 +1,5 @@
 import { useCallService } from "@/features/call";
-import { Peer } from "@/features/shared/database/model/Peer";
+import { Peer } from "@/features/shared/core/database/model/Peer";
 import {
   useConnectionService,
   usePeerService,
@@ -8,7 +8,7 @@ import {
 } from "@/features/shared/hooks";
 import { stopForegroundService } from "@/features/shared/hooks/use-background-task";
 import { useMediaPermissions } from "@/features/shared/hooks/use-media-permissions";
-import { navLog, uiLog } from "@/features/shared/utils/logger";
+import { navLog, uiLog } from "@/features/shared/core/utils/logger";
 import * as Notifications from "expo-notifications";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";

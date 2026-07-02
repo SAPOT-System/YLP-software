@@ -1,10 +1,10 @@
-import { useAppMode } from "@/features/shared/context";
+import { useAppMode } from "@/features/shared/core/context";
 import {
   useConnectionService,
   useDiscoveryService,
   useUserProfile,
 } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { RadioButton, Text, useTheme } from "react-native-paper";
@@ -44,29 +44,34 @@ export default function SwitchMode() {
   const applyMode = async (nextMode: "auto" | "server" | "lan") => {
     uiLog.debug("[SwitchMode] applyMode called", { nextMode });
     if (mode === nextMode) return;
+    const prevMode = mode;
     setMode(nextMode);
 
     const allowZeroconf = store.isZeroconfAllowed(isGuest);
     const allowTcp = store.isTcpAllowed(isGuest);
 
     if (allowZeroconf) {
-      uiLog.info("[SwitchMode] enabling zeroconf");
+      if (prevMode === "lan" && nextMode === "auto") return;
+      if (prevMode === "auto" && nextMode === "lan") return;
+      uiLog.info("[SwitchMode] enabling zeroconf", prevMode, nextMode);
       try {
         await discoveryService.publishDevice();
-      } catch (error) {
+      } catch (error: unknown) {
         uiLog.error("[SwitchMode] failed to publish discovery service", {
-          error,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
       discoveryService.startDiscovery();
     } else {
       uiLog.info("[SwitchMode] disabling zeroconf");
       discoveryService.stopDiscovery();
-      discoveryService.destroy();
+      await discoveryService.destroy();
     }
 
     if (allowTcp) {
-      uiLog.info("[SwitchMode] enabling tcp transport");
+      if (prevMode === "lan" && nextMode === "auto") return;
+      if (prevMode === "auto" && nextMode === "lan") return;
+      uiLog.info("[SwitchMode] enabling tcp transport", prevMode, nextMode);
       connectionService.start();
     } else {
       uiLog.info("[SwitchMode] disabling tcp transport");
@@ -98,8 +103,7 @@ export default function SwitchMode() {
             variant="bodySmall"
             style={{ color: theme.colors.error, marginTop: 12 }}
           >
-            Selected mode is not available for your account. We switched you to
-            {" "}
+            Selected mode is not available for your account. We switched you to{" "}
             {effectiveMode.toUpperCase()}.
           </Text>
         )}

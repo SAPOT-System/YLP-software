@@ -1,0 +1,101 @@
+import { Collection, Database, Q } from "@nozbe/watermelondb";
+import { GuestUser } from "../core/database";
+import { guestUserLog } from "../core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+
+guestUserLog.debug("[guest-user-repository] module loaded");
+
+export class GuestUserRepository {
+  private db: Database;
+  private guestUserCollection: Collection<GuestUser>;
+
+  constructor(db: Database) {
+    this.db = db;
+    this.guestUserCollection = this.db.get<GuestUser>(GuestUser.table);
+    guestUserLog.info("guest-user › repository constructed", {
+      hasDatabase: Boolean(db),
+    });
+  }
+
+  async saveGuestUser(newGuestUser: {
+    id: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+  }) {
+    try {
+      return await this.db.write(async () => {
+        const guestUser = await this.guestUserCollection.create(
+          (guestUser: GuestUser) => {
+            guestUser.username = newGuestUser.username;
+            guestUser.firstName = newGuestUser.firstName;
+            guestUser.lastName = newGuestUser.lastName;
+            guestUser._raw.id = newGuestUser.id;
+          }
+        );
+        return guestUser;
+      });
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      guestUserLog.error("guest-user › create failed", {
+        guestUserId: newGuestUser.id,
+        ...appErr,
+      });
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  async isGuestUserExist(id: string) {
+    try {
+      const existing = await this.guestUserCollection
+        .query(Q.where("id", id))
+        .fetch();
+      return existing.length > 0;
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      guestUserLog.error("guest-user › check exists failed", {
+        guestUserId: id,
+        ...appErr,
+      });
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  async getCurrentGuestUser() {
+    try {
+      const users = await this.guestUserCollection.query().fetch();
+      return users[0] || null;
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      guestUserLog.error("guest-user › fetch current failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  async deleteAllGuestUser() {
+    try {
+      await this.db.write(async () => {
+        const records = await this.guestUserCollection.query().fetch();
+
+        const ops = records.map((r) => r.prepareDestroyPermanently());
+
+        await this.db.batch(...ops);
+      });
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      guestUserLog.error("guest-user › delete all failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  async getGuestUserDestroyOps() {
+    guestUserLog.debug("guest-user › destroy ops requested");
+    const records = await this.guestUserCollection.query().fetch();
+
+    return records.map((r) => r.prepareDestroyPermanently());
+  }
+}

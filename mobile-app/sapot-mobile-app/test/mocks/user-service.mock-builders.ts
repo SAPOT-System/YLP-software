@@ -1,12 +1,13 @@
-import type { GuestUserRepository } from "@/features/shared/repositories";
-import type { CleanUpService } from "@/features/shared/services/clean-up-service";
-import type { PeerService } from "@/features/shared/services/peer-service";
-import type { SessionStore, UserStore } from "@/features/shared/stores";
+import type { GuestUserRepository } from "@/features/shared/peer";
+import type { CleanUpService } from "@/features/shared/connection/services/clean-up-service";
+import type { PeerService } from "@/features/shared/peer/peer-service";
+import type { SessionStore, UserStore } from "@/features/shared/core/stores";
 
 export type UserStoreMock = jest.Mocked<
-  Pick<UserStore, "setUser" | "setIsRescuer"> & {
+  Pick<UserStore, "setUser" | "setIsRescuer" | "setIsAdmin"> & {
     user?: unknown;
     isRescuer?: boolean;
+    isAdmin?: boolean;
   }
 >;
 
@@ -46,8 +47,10 @@ export function createUserStoreMock(
   return {
     user: undefined,
     isRescuer: false,
+    isAdmin: false,
     setUser: jest.fn(),
     setIsRescuer: jest.fn(),
+    setIsAdmin: jest.fn(),
     ...overrides,
   };
 }

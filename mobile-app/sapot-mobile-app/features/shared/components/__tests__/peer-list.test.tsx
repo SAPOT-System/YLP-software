@@ -3,14 +3,14 @@ import { render } from "@testing-library/react-native";
 import React from "react";
 
 // Mock app-mode context so hooks that use it don't throw
-jest.mock("../../context/app-mode-context", () => ({
+jest.mock("../../core/context/app-mode-context", () => ({
   AppModeProvider: ({ children }: { children: React.ReactNode }) => children,
   useAppModeStore: () => ({ mode: "server" }),
   useAppMode: () => ({ mode: "server", setMode: () => {}, store: {} }),
 }));
 
 // Provide a database mock that returns an observable-like object with subscribe
-jest.mock("../../database", () => {
+jest.mock("../../core/database", () => {
   const peers = [
     { id: "peer-1", username: "alice", firstName: "Alice", isOnline: true },
     { id: "peer-2", username: "bob", firstName: "Bob", isOnline: false },

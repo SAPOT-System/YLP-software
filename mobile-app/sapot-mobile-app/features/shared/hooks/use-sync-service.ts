@@ -1,4 +1,4 @@
-import { hookLog } from "../utils/logger";
+import { hookLog } from "../core/utils/logger";
 import { useMainContainer } from "./use-main-container";
 hookLog.debug("[use-sync-service] module loaded");
 

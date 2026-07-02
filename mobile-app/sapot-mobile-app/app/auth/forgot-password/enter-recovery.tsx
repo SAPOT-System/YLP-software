@@ -1,22 +1,49 @@
 import { AUTH_ROUTES } from "@/config/routes";
-import { useEmailReset } from "@/features/auth";
+import { SecondaryButton, StepDots, useEmailReset, useSmsReset } from "@/features/auth";
+import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { LockoutBanner } from "@/features/auth/components/lockout-banner";
+import { extractResetToken } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { authLog } from "@/features/shared/utils/logger";
+import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
+import { useToast } from "@/features/shared/hooks";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { router, useLocalSearchParams } from "expo-router";
+import { setItemAsync } from "expo-secure-store";
 import { OTPInput } from "input-otp-native";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { HelperText, Text, useTheme } from "react-native-paper";
 
 const CODE_LENGTH = 6;
 const COUNTDOWN_SECONDS = 5 * 60;
 
 const EnterRecoveryScreen = () => {
-  const { identifier: email } = useLocalSearchParams<{ identifier: string }>();
-  const { verifyCode, sendCode, error } = useEmailReset();
+  const { identifier, method } = useLocalSearchParams<{
+    identifier: string;
+    method?: string;
+  }>();
+  const isSms = method === "sms";
+  const emailReset = useEmailReset();
+  const smsReset = useSmsReset();
+  const { verifyCode, sendCode, error, attemptsRemaining } = isSms ? smsReset : emailReset;
+  const lockout = isSms ? smsReset.lockout : emailReset.lockout;
   const theme = useTheme();
   const [code, setCode] = useState<string>("");
   const [secondsLeft, setSecondsLeft] = useState<number>(COUNTDOWN_SECONDS);
+  const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success" && pendingNavRef.current) {
+      pendingNavRef.current();
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   useEffect(() => {
     authLog.info("[EnterRecoveryScreen] mounted");
@@ -26,9 +53,7 @@ const EnterRecoveryScreen = () => {
   }, []);
 
   useEffect(() => {
-    if (secondsLeft <= 0) {
-      return;
-    }
+    if (secondsLeft <= 0) return;
 
     const timerId = setInterval(() => {
       setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
@@ -43,42 +68,82 @@ const EnterRecoveryScreen = () => {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     authLog.debug("[EnterRecoveryScreen] handleResend called");
-    sendCode(email);
-    setSecondsLeft(COUNTDOWN_SECONDS);
+    const res = await sendCode(identifier);
+    if (res.success) {
+      setSecondsLeft(COUNTDOWN_SECONDS);
+      setCode("");
+    } else {
+      showError("Failed to resend code. Please try again.");
+    }
   };
 
   const handleOnChange = async (newCode: string) => {
     setCode(newCode);
 
+    if (lockout.isLocked) return;
+
     if (newCode.length === CODE_LENGTH) {
-      const res = await verifyCode(email, newCode);
+      setOverlayPhase("loading");
+      setOverlayMessage("");
+      try {
+        const res = await verifyCode(identifier, newCode);
 
-      if (res.success && res.recoveryLink) {
-        const token = res.recoveryLink.split("token=")[1];
+        if (res.success && res.recoveryLink) {
+          const token = extractResetToken(res.recoveryLink);
+          const recoveryToken = (res as { recoveryToken?: string | null }).recoveryToken ?? "";
 
-        router.push({
-          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-          params: {
-            token: token,
-            identifier: email,
-          },
-        });
+          await setItemAsync("reset_recovery_token", recoveryToken);
+
+          pendingNavRef.current = () =>
+            router.push({
+              pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+              params: { token, identifier, method: isSms ? "sms" : "email" },
+            });
+          setOverlayPhase("success");
+          setOverlayMessage("Code verified!");
+        } else {
+          setCode("");
+          setOverlayPhase("error");
+          setOverlayMessage(error ?? "Invalid code. Please try again.");
+        }
+      } catch {
+        setCode("");
+        setOverlayPhase("error");
+        setOverlayMessage("Verification failed. Please try again.");
       }
     }
   };
 
+  const description = isSms
+    ? `We've sent it to your phone ${identifier}`
+    : `We've sent it to your email ${identifier}`;
+
   return (
+    <KeyboardAwareScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      bounces={false}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
+    >
     <View
       style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
     >
       <ScreenHeader headerName="Resetting Password" />
-      <ScreenContent
-        title="Enter Recovery Code"
-        description={`We've sent it on your email ${email}`}
-      >
-        <HelperText type="error">{error}</HelperText>
+      <StepDots total={3} current={2} />
+      <ScreenContent title="Enter Recovery Code" description={description}>
+        {lockout.isLocked && (
+          <LockoutBanner
+            secondsRemaining={lockout.secondsRemaining}
+            deviceType={lockout.deviceType}
+            onExpire={lockout.clearLock}
+          />
+        )}
+        {!lockout.isLocked && attemptsRemaining !== null && (
+          <AttemptsWarning attemptsRemaining={attemptsRemaining} />
+        )}
+        <HelperText type="error" visible={!!error}>{error}</HelperText>
         <OTPInput
           value={code}
           onChange={handleOnChange}
@@ -103,7 +168,7 @@ const EnterRecoveryScreen = () => {
                     borderRadius: 8,
                     width: 44,
                     height: 56,
-                    marginHorizontal: 4,
+                    marginHorizontal: index === 2 ? 12 : 4,
                     justifyContent: "center",
                     alignItems: "center",
                   }}
@@ -158,8 +223,28 @@ const EnterRecoveryScreen = () => {
             </Text>
           </Text>
         </View>
+        <SecondaryButton
+          style={{ marginTop: 24 }}
+          onPress={() => {
+            authLog.info("[Navigation] goBack triggered from EnterRecovery");
+            router.back();
+          }}
+        >
+          Back
+        </SecondaryButton>
       </ScreenContent>
+      <LoadingOverlay
+        visible={overlayPhase !== "idle"}
+        text="Verifying…"
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
+      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
+        {toastMessage}
+      </AppSnackbar>
     </View>
+    </KeyboardAwareScrollView>
   );
 };
 

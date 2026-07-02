@@ -9,7 +9,7 @@ import {
 import { navLog } from "@/features/shared";
 import { FailedDialog } from "@/features/shared/components/failed-dialog";
 import LoadingOverlay from "@/features/shared/components/loading-overlay";
-import { useAppMode } from "@/features/shared/context";
+import { useAppMode } from "@/features/shared/core/context";
 import { useCheckConnection, useLoadingOverlay } from "@/features/shared/hooks";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";

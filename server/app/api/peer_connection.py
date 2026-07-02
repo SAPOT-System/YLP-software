@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 
@@ -8,8 +9,8 @@ from uuid import UUID
 import json
 import ast
 
-from sqlmodel import except_, select
-from app.db_operations.auth import SessionDep 
+from sqlmodel import except_, select, Session
+from app.db_operations.auth import SessionDep, engine
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -19,7 +20,16 @@ from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
 from app.db_operations.websockets import authenticate_websocket, relay_message, relay_public_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message
 from app.db_operations.connection_manager import manager
+from app.db_operations.activity import set_user_status
 from app.models.websocketComms import MessageData, PublicMessageData
+
+
+def _set_status_bg(user_id: UUID, status: str) -> None:
+    try:
+        with Session(engine) as session:
+            set_user_status(session, user_id, status)
+    except Exception as e:
+        print(f"[activity] status update failed for {user_id}: {e}")
 
 router = APIRouter(
     prefix='/ws',
@@ -112,12 +122,10 @@ async def testing_area(target_id: UUID, my_id: UUID, token: str):
     return HTMLResponse(html)
 
 
-def get_queued_messages(user_id: UUID, session: SessionDep):
+def get_queued_messages(user_id: UUID, session: SessionDep, limit: int = 100):
     try:
-        # statement = select(Queue).where(str(Queue.to).replace("-", '') == str(user_id).replace("-", ''))
-        statement = select(Queue).where(Queue.to == user_id)
-        results = session.exec(statement).all()
-        return results
+        statement = select(Queue).where(Queue.to == user_id).limit(limit)
+        return session.exec(statement).all()
     except Exception as e:
         print("EX", e)
         return None
@@ -156,7 +164,7 @@ def deep_parse_dict(data):
 
 
 @router.websocket("/")
-async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep, target_id: UUID|None = None):
+async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None = None):
     """
     will relay the sdp between different users
     can handle
@@ -167,32 +175,38 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
     """
     user_id = await authenticate_websocket(websocket, token)
     await manager.connect(UUID(user_id), websocket)
+    asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Active")
     try:
         await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
     except:
         pass
 
     try:
-        messages = get_queued_messages(UUID(user_id), session)
-        if messages:
-            for message in messages:
-                try:
-                    parsed = deep_parse_dict(message.data)
-                    parsed["data"]["from"] = parsed["data"]["from_user"]
-                    # data = MessageData.model_validate(**deep_parse_dict(message.data))
-                    data = MessageData(
-                            type=parsed.get("type"),
-                            data=parsed.get("data")
-                            )
-                    await relay_message(user_id, user_id, data, session)
-                    # don't delete from queue just yet, wait for it to be acknowledged by the receiver
-                    if message.payload_type == 'seen':
-                        session.delete(message)
-                        session.commit()
-                except Exception as e:
-                    pass
-    except:
-        pass
+        with Session(engine) as session:
+            messages = get_queued_messages(UUID(user_id), session)
+            if messages:
+                for message in messages:
+                    try:
+                        parsed = deep_parse_dict(message.data)
+                        data = MessageData(
+                                type=parsed.get("type"),
+                                data=parsed.get("data")
+                                )
+                        # Acks are ephemeral confirmations — delete and skip rather than
+                        # re-queuing them, which would trap them permanently.
+                        if data.type == 'ack':
+                            session.delete(message)
+                            session.commit()
+                            continue
+                        await relay_message(user_id, user_id, data, session)
+                        # don't delete from queue just yet, wait for it to be acknowledged by the receiver
+                        if message.payload_type == 'seen':
+                            session.delete(message)
+                            session.commit()
+                    except Exception as e:
+                        print(f"[drain] failed to deliver queued message {message.id}: {e}")
+    except Exception as e:
+        print(f"[drain] failed to fetch queued messages for {user_id}: {e}")
 
     try:
         while True:
@@ -201,32 +215,45 @@ async def main_web_socket(token: str, websocket: WebSocket, session: SessionDep,
             if not raw_payload:
                 continue
 
-            try:
-                payload = PublicMessageData.model_validate(raw_payload)
-            except Exception as _:
-                payload = raw_payload
-                
-            try:
-                payload = MessageData.model_validate(raw_payload)
-            except Exception as e:
-                payload = payload
+            raw_type = raw_payload.type if hasattr(raw_payload, "type") else raw_payload.get("type")
+            if raw_type == "public-chat":
+                try:
+                    payload = PublicMessageData.model_validate(raw_payload)
+                except Exception:
+                    payload = raw_payload
+            else:
+                try:
+                    payload = MessageData.model_validate(raw_payload)
+                except Exception:
+                    try:
+                        payload = SignalMessage(**raw_payload)
+                    except Exception:
+                        payload = raw_payload
             if isinstance(payload, dict) and payload.get("type") == "ping":
                 await manager.send_personal_message(UUID(user_id), {"type": "pong"})
             # get online users
             elif isinstance(payload, dict) and payload.get("type") == "get-active-users":
-                await manager.send_personal_message(UUID(user_id), manager.get_active_connections())
+                await manager.send_personal_message(UUID(user_id), await manager.get_active_connections())
             # relay public chat data
             elif isinstance(payload, PublicMessageData):                
-                await relay_public_message(user_id, payload, session)
+                with Session(engine) as session:
+                    await relay_public_message(user_id, payload, session)
             # relay message data
             elif isinstance(payload, MessageData):
-                await relay_message(user_id, UUID(payload.data.to), payload, session)
+                if payload.data.to is None:
+                    continue
+                with Session(engine) as session:
+                    await relay_message(user_id, UUID(payload.data.to), payload, session)
             elif isinstance(payload, SignalMessage) and validate_sender(payload, user_id):
-                await relay_signal(user_id, UUID(payload.data.to), payload, session)
+                if payload.data.to is None:
+                    continue
+                with Session(engine) as session:
+                    await relay_signal(user_id, UUID(payload.data.to), payload, session)
 
     except WebSocketDisconnect:
         try:
             await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
         except:
             pass
-        manager.disconnect(user_id)
+        asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Inactive")
+        await manager.disconnect(UUID(user_id))

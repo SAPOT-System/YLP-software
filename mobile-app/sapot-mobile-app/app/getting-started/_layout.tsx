@@ -2,13 +2,13 @@ import { APP_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
 import { navLog } from "@/features/shared";
 import { ServerHealthBanner } from "@/features/shared/components/server-status-banner";
-import { ServerHealthProvider } from "@/features/shared/context";
+import { ServerHealthProvider } from "@/features/shared/core/context";
 import { Redirect, Stack } from "expo-router";
 import { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Layout() {
-  const { isAuthenticated, isGuest } = useAuth();
+  const { isAuthenticated, isGuest, isBootstrapping } = useAuth();
 
   useEffect(() => {
     navLog.info("[GettingStartedLayout] mounted");
@@ -23,6 +23,8 @@ export default function Layout() {
       isGuest,
     });
   }, [isAuthenticated, isGuest]);
+
+  if (isBootstrapping) return null;
 
   if (isAuthenticated || isGuest) {
     navLog.info("[Navigation] Navigating to Home", {

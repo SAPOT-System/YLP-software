@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { hookLog } from "../utils/logger";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-toast] module loaded");
 
 type ToastVariant = "neutral" | "error";

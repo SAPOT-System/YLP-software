@@ -2,8 +2,10 @@ from typing import Annotated
 from sqlalchemy import or_
 from fastapi import Depends, HTTPException
 from fastapi.routing import APIRouter
+from sqlmodel import select
 from app.db_operations.token import get_current_user
 
+from app.models.phone_verification import PhoneVerified
 from app.models.users import UserUpdate, User
 from app.db_operations.auth import update_user_info
 from app.db_operations.auth import SessionDep
@@ -46,6 +48,10 @@ def update_user(
         update_data = new_user_data.model_dump(exclude_unset=True)
         
         for key, value in update_data.items():
+            # Gate email and phone_number updates - they must go through verification
+            if key in ["email", "phone_number"]:
+                continue
+
             if hasattr(current_user, key):
                 setattr(current_user, key, value)
         

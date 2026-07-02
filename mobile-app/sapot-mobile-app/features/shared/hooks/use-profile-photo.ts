@@ -2,10 +2,10 @@ import { getApiUrl } from "@/config/runtime";
 import {
     getCurrentUserProfilePicApi,
     getUserProfilePicApi,
-} from "@/features/shared/api/user-profile.api";
-import { normalizeMediaUrl } from "@/features/shared/utils/normalize-media-url";
+} from "@/features/shared/core/api/user-profile.api";
+import { normalizeMediaUrl } from "@/features/shared/core/utils/normalize-media-url";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { photoLog } from "../utils/logger";
+import { photoLog } from "../core/utils/logger";
 photoLog.debug("[use-profile-photo] module loaded");
 
 type ProfilePhotoState = {

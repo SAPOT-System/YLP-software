@@ -1,0 +1,168 @@
+openapi: 3.1.0
+info:
+  title: SAPOT Server — Sync
+  version: 0.0.2-beta.1
+paths:
+  /sync/pull:
+    get:
+      tags:
+      - sync
+      summary: Pull Remote Changes
+      operationId: pull_remote_changes_sync_pull_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: last_pulled_at
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Last Pulled At
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /sync/push:
+    post:
+      tags:
+      - sync
+      summary: Push Local Data
+      operationId: push_local_data_sync_push_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushSyncRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+components:
+  schemas:
+    GuestUserHint:
+      properties:
+        first_name:
+          type: string
+          title: First Name
+        last_name:
+          type: string
+          title: Last Name
+        username:
+          type: string
+          title: Username
+      type: object
+      required:
+      - first_name
+      - last_name
+      - username
+      title: GuestUserHint
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    PushSyncRequest:
+      properties:
+        changes:
+          additionalProperties:
+            $ref: '#/components/schemas/TableChanges'
+          type: object
+          title: Changes
+        last_pulled_at:
+          type: integer
+          title: Last Pulled At
+        guest_users:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/GuestUserHint'
+            type: object
+          - type: 'null'
+          title: Guest Users
+      type: object
+      required:
+      - changes
+      - last_pulled_at
+      title: PushSyncRequest
+    TableChanges:
+      properties:
+        created:
+          items: {}
+          type: array
+          title: Created
+          default: []
+        updated:
+          items: {}
+          type: array
+          title: Updated
+          default: []
+        deleted:
+          items:
+            type: string
+          type: array
+          title: Deleted
+          default: []
+      type: object
+      title: TableChanges
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    OAuth2PasswordBearer:
+      type: oauth2
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: auth/token

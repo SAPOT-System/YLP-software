@@ -1,6 +1,6 @@
 import { APP_ROUTES, AUTH_ROUTES } from "@/config/routes";
 import { useAuth } from "@/features/auth";
-import { navLog } from "@/features/shared/utils/logger";
+import { navLog } from "@/features/shared/core/utils/logger";
 import { Redirect, router } from "expo-router";
 import React, { useEffect } from "react";
 import { Image, useColorScheme, View } from "react-native";
@@ -9,7 +9,7 @@ import { Button, Text, useTheme } from "react-native-paper";
 const Index = () => {
   const theme = useTheme();
   const isDark = useColorScheme() === "dark";
-  const { isAuthenticated, isGuest } = useAuth();
+  const { isAuthenticated, isGuest, isBootstrapping } = useAuth();
 
   useEffect(() => {
     navLog.info("[Index] mounted");
@@ -24,6 +24,10 @@ const Index = () => {
       isGuest,
     });
   }, [isAuthenticated, isGuest]);
+
+  // RootLayoutGate holds the splash until isBootstrapping is false, so this
+  // guard should never trigger — belt-and-suspenders for slow devices.
+  if (isBootstrapping) return null;
 
   if (isAuthenticated || isGuest) {
     navLog.info("[Navigation] Navigating to Home", {

@@ -1,4 +1,4 @@
-import { routesLog } from "@/features/shared/utils/logger";
+import { routesLog } from "@/features/shared/core/utils/logger";
 
 export const AUTH_ROUTES = {
   LOGIN: {
@@ -12,7 +12,6 @@ export const AUTH_ROUTES = {
     QUESTION_RESET: "/auth/forgot-password/question-reset",
     RECOVERY_KEY_RESET: "/auth/forgot-password/recovery-key-reset",
     RESET_PASSWORD: "/auth/forgot-password/reset-password",
-    SMS_RESET: "/auth/forgot-password/sms-reset",
     SUCCESS: "/auth/forgot-password/success",
   },
   REGISTER: "/auth/register",
@@ -26,6 +25,8 @@ export const SETTINGS_ROUTES = {
   CHANGE_PASSWORD: "/(drawer)/settings/account/change-password",
   SECURITY_QUESTION: "/(drawer)/settings/account/security-question",
   GENERATE_RECOVERY_KEY: "/(drawer)/settings/account/generate-recovery-key",
+  RECOVERY_SETUP: "/(drawer)/settings/account/recovery-setup",
+  ENCRYPTION_PIN: "/(drawer)/settings/account/encryption-pin",
   AUTHENTICATE: "/(drawer)/settings/account/authenticate",
   CONTACTS: "/(drawer)/settings/account/contacts",
   QR_CODE: "/(drawer)/settings/account/qr-code",
@@ -33,6 +34,11 @@ export const SETTINGS_ROUTES = {
   // Account email
   UPDATE_EMAIL: "/(drawer)/settings/account/email/update-email",
   VERIFY_EMAIL: "/(drawer)/settings/account/email/verify-email",
+  EMAIL_VERIFIED: "/(drawer)/settings/account/email/email-verified",
+  // Account phone
+  EDIT_PHONE: "/(drawer)/settings/account/phone/edit-phone",
+  VERIFY_PHONE: "/(drawer)/settings/account/phone/verify-phone",
+  PHONE_VERIFIED: "/(drawer)/settings/account/phone/phone-verified",
 
   // Preferences
   THEME: "/(drawer)/settings/preferences/theme",

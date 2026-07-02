@@ -1,11 +1,7 @@
-import { sharedLog } from "@/features/shared/utils/logger";
+import { sharedLog } from "@/features/shared/core/utils/logger";
 sharedLog.debug("[shared/index] module loaded");
 
-export * from "./adapters";
-export * from "./api";
-export * from "./database";
-export * from "./repositories";
-export * from "./services";
-export * from "./stores";
-export * from "./utils";
-
+export * from "./core";
+export * from "./connection";
+export * from "./crypto";
+export * from "./peer";

@@ -1,4 +1,4 @@
-import { syncLog } from "@/features/shared/utils/logger";
+import { syncLog } from "@/features/shared/core/utils/logger";
 syncLog.debug("[sync/services] module loaded");
 
 export { SyncService } from "./sync-service";

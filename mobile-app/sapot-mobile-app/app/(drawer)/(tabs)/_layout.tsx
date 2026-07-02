@@ -1,5 +1,6 @@
+import { useAuth } from "@/features/auth";
 import { useConnectionService } from "@/features/shared/hooks";
-import { navLog } from "@/features/shared/utils/logger";
+import { navLog } from "@/features/shared/core/utils/logger";
 import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
@@ -108,6 +109,7 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
+  const { isRescuer, isGuest } = useAuth();
 
   useEffect(() => {
     navLog.info("[TabLayout] mounted");
@@ -193,20 +195,26 @@ export default function TabLayout() {
             headerTransparent: true,
             headerShadowVisible: false,
             headerStyle: { backgroundColor: "transparent" },
+            href: isGuest ? null : undefined,
             tabBarIcon: ({ color }) => (
               <SimpleLineIcons size={24} name="globe" color={color} />
             ),
           }}
         />
         <Tabs.Screen
-          name="calls"
+          name="map"
           options={{
-            title: "Calls",
+            title: "Live Map",
+            tabBarLabel: "Map",
             tabBarIcon: ({ color }) => (
-              <Feather name="phone-call" size={24} color={color} />
+              <Feather name="map" size={24} color={color} />
             ),
-            headerShown: false,
-            tabBarLabel: "Calls",
+            headerTitleAlign: "center",
+            headerTitleStyle: { fontWeight: "bold", fontSize: 24 },
+            headerTransparent: true,
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: "transparent" },
+            href: isRescuer ? undefined : null,
           }}
         />
         <Tabs.Screen
@@ -218,6 +226,7 @@ export default function TabLayout() {
             ),
             headerShown: false,
             tabBarLabel: "Server",
+            href: null,
           }}
         />
         <Tabs.Screen

@@ -4,8 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Important
 
-**Do not edit the FastAPI server code** in `server/`. It is included as a working directory for reference only.
-
 **Keep documentation in sync.** When adding or updating features, APIs, messages, database tables, or services, update the relevant file in `docs/`:
 - `docs/ARCHITECTURE.md` — new services, adapters, stores, DI wiring, transport changes
 - `docs/CALL_FLOW.md` — new call message types or lifecycle changes
@@ -15,6 +13,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs/ENV_CONFIG.md` — new env vars, build variants, or secure storage keys
 - `docs/TESTING.md` — new test utilities, mock patterns, or testing conventions
 - `docs/CONNECTION_MESSAGES.md` — new WebSocket, TCP, or WebRTC data channel messages
+- `docs/LAN_MESSENGER.md` — LAN-only messaging behavior and constraints
+- `docs/diagrams/` — sequence/architecture diagrams
+
+Before writing any new file, read these to ensure consistency with established patterns:
+- `docs/ARCHITECTURE.md` — service and adapter landscape, DI wiring
+- `docs/design-system.md` — component patterns, theming, spacing
+- `docs/conventions.md` — naming, error handling, coding style
+- `docs/system-boundaries.md` — service interface and feature boundary rules
+
+If any conflict with CLAUDE.md, CLAUDE.md wins.
+
+## Large Changes
+
+For any change touching shared code or spanning more than one feature: list every affected file and caller, provide a written plan, wait for explicit user approval, then implement and verify. Never begin implementation before the user approves the plan.
+
+---
+
+## Decision Rules (precedence: top wins)
+
+1. A direct user instruction in the current task overrides any rule below.
+2. **One pattern per problem.** When two code patterns exist for the same concern,
+   prefer the one used in `features/shared/` and the most recently merged on `main`.
+   If still ambiguous, STOP and ask — never introduce a third pattern.
+3. **Reuse before creating.** Search (`Grep`/`Glob`) for an existing service,
+   adapter, hook, or util before writing a new one. Extend the existing one unless
+   the user asked for a new module.
+4. **Audit before refactoring.** Before changing shared code, find every caller and
+   list them. Do not change a shared signature without accounting for all consumers.
+5. **Server boundary.** `server/` is read-only reference. If a mobile change requires
+   a backend change, STOP and surface it — do not edit `server/` unless the user
+   explicitly approves a backend change.
+6. **Scope discipline.** Make the change requested and nothing more. No drive-by
+   refactors, renames, or dependency bumps unless asked.
+
+---
+
+## Definition of Done (all required before reporting complete)
+
+- [ ] `npm run typecheck` passes.
+- [ ] `npm test` passes for affected areas (`npm run testAll` for cross-cutting changes).
+- [ ] `npm run lint` is clean.
+- [ ] The relevant `docs/` file is updated per the doc-sync list above.
+- [ ] No new file exceeds 800 lines; no new function exceeds ~50 lines.
+- [ ] If tests, typecheck, or lint did not pass, say so explicitly — do not report done.
 
 ---
 
@@ -27,39 +69,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Mobile App Commands
 
-```bash
-# Start dev server (sets APP_VARIANT=development)
-npm run dev
-
-# Prebuild and run on Android device/emulator
-npm run prebuild          # expo prebuild --clean for development variant
-npm run android           # run with dev app-id
-
-# EAS cloud builds
-npm run android:dev       # development profile
-npm run android:prev      # preview profile
-npm run android:prod      # production profile
-
-# EAS OTA updates (push JS bundle without full build)
-npm run update:dev        # push to development channel
-npm run update:prev       # push to preview channel
-npm run update:prod       # push to production channel
-
-# TypeScript type check
-npm run typecheck
-
-# Lint
-npm run lint
-
-# Run all tests
-npm test
-
-# Run a single test file
-npx jest path/to/test.ts
-
-# Run tests matching a name pattern
-npx jest --testNamePattern="pattern"
-```
+Use the `app-commands` skill for the full CLI reference. Core quality checks: `npm run typecheck`, `npm test`, `npm run testAll`.
 
 ---
 
@@ -88,9 +98,9 @@ features/<name>/
   index.ts        # Public API
 ```
 
-Features: `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`
+Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`
 
-### Core Services (`features/shared/services/`)
+### Core Services (`features/shared/connection/services/`)
 
 - **`ConnectionService`** — central P2P facade. Manages `TcpClientAdapter` per peer, orchestrates `WebrtcSessionManager`, `SignalingService`, and `CallMediaService`. Extends `TypedEventEmitter<ConnectionServiceEvents>`, emitting typed call/stream/connection events. Three transport modes: `auto` (WS first, TCP fallback), `server` (WS only), `lan` (TCP only). Mode is driven by `AppModeStore`.
 - **`WebrtcSessionManager`** — manages one `WebrtcAdapter` (RTCPeerConnection) per peer. Forwards events (`remoteStream`, `peer-reconnected`, `camera-on`, etc.) up to `ConnectionService`.
@@ -101,8 +111,13 @@ Features: `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`
 - **`CallService`** — audio/video call lifecycle. Manages audio routes (earpiece/speaker/Bluetooth) via `react-native-incall-manager`.
 - **`SyncService`** — periodic sync of local data with the server REST API.
 - **`CleanUpService`** — purges stale peers, messages, and conversations. Wired into `UserService` so cleanup runs on logout.
+- **`ActiveUsersService`** — tracks which peers are currently online via the WS signaling adapter and notifies listeners of presence changes.
 
-### Adapters (`features/shared/adapters/`)
+### Encryption / Key Management (`features/shared/crypto/`)
+
+NaCl box (`tweetnacl`) E2E encryption over both TCP and WS transports, plus at-rest encryption. Key files: `tcp-encryption.ts`, `ws-encryption.ts`, `local-encryption-service.ts`, `peer-key-service.ts`, `key-derivation.ts`, `key-recovery-service.ts`. Crypto stack: `tweetnacl`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`. Use the `crypto-architecture` skill for the full file map and decision rules.
+
+### Adapters (`features/shared/connection/adapters/`)
 
 Thin injectable wrappers around native modules for testability:
 
@@ -115,14 +130,7 @@ Thin injectable wrappers around native modules for testability:
 
 ### GPS Feature (`features/gps/`)
 
-Live location sharing with server-side relay — independent of the P2P transport.
-
-- **`GpsLocationService`** — opens a dedicated WebSocket to `/gps/ws/<userId>`, watches device position via `expo-location`, and streams `{ lat, lng }` updates. Auto-reconnects on disconnect (3 s delay). Does **not** go through `ConnectionService`.
-- **`useGpsStreaming`** — starts/stops `GpsLocationService` based on auth state and user preference. Only runs for authenticated, non-guest users with sharing enabled.
-- **`useLatestLocations`** — polls `GET /gps/latest` every 5 s via React Query; used to render other rescuers on the map.
-- **`GpsPreferenceContext`** — persists the user's sharing toggle in `expo-secure-store` (key: `gps_sharing_enabled`). Wrap screens that need the preference with `GpsPreferenceProvider`.
-- Map rendering uses `@maplibre/maplibre-react-native`.
-- `UserStore.isRescuer` gates whether GPS streaming is activated after user sync in `AuthProvider`.
+Live location sharing via a dedicated WebSocket (`/gps/ws/<userId>`) — independent of `ConnectionService`. Key hooks: `useGpsStreaming`, `useLatestLocations`. Map: `@maplibre/maplibre-react-native`. Gated by `UserStore.isRescuer`. Use the `gps-architecture` skill for hook details and data flow.
 
 ### Background Task Integration
 
@@ -131,23 +139,17 @@ The app supports Android background connectivity via `expo-background-task` + `e
 Two mechanisms coordinate foreground and background:
 
 1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down. On cleanup, `setAppAlive(false)` lets the task resume.
-2. **Secure storage handoff** — `features/shared/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes updated IP immediately on WiFi change so the background task always reads the latest config on wake.
+2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes updated IP immediately on WiFi change so the background task always reads the latest config on wake.
 
 The background task wakes every 15 minutes (Android minimum) and uses the stored config to maintain connectivity when the app is killed.
 
 ### Local Database
 
-WatermelonDB with SQLite. Schema (`features/shared/database/schema.ts`, version 6) tables: `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Migrations in `features/shared/database/migrations.ts`.
+WatermelonDB with SQLite. Schema (`features/shared/database/schema.ts`, version 10) tables: `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Notable columns: `peers.role`, `peers.is_guest`, `messages.is_encrypted`. Migrations in `features/shared/database/migrations.ts`.
 
 ### Logging
 
-Scope-based logger via `react-native-logs` + Reactotron (`features/shared/utils/logger.ts`). Each module uses a named scope (e.g., `connectionLog`, `networkLog`, `backgroundLog`). Control which scopes print at runtime via the env var:
-
-```
-EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background
-```
-
-Leave unset to enable all scopes.
+Scope-based logger (`features/shared/core/utils/logger.ts`). Enable specific scopes via `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,...` (unset = all). Daily log file — retrieve via `getLogFilePath()`. Use the `dev-logging` skill for log file access and the dev laptop collector.
 
 ### Environment / Config
 
@@ -168,15 +170,24 @@ The FastAPI server (`server/app/`) provides:
 - WebSocket signaling endpoint (`/ws`) — relays WebRTC `offer`/`answer`/`ICE` messages between peers via `connection_manager.py`
 - Static file serving from `static/profile_pictures/`
 
+## Git & Commits
+
+- Never commit directly to `main` or `develop` — create a branch first.
+- Commit only when the user asks. Do not push unless asked.
+- Analyze the full diff (`git diff <base>...HEAD`), not just the latest commit, before writing a PR summary.
+- **Always use `git mv` when moving or renaming files** — never `mv` + re-add. `git mv` preserves rename history so `git log --follow` works and diffs show renames instead of delete+add.
+
+---
+
 ## Conventions
-- Screens in app/ using Expo Router file-based routing
-- Use useTheme() for dark mode
-- Always handle permission states (not asked, denied, granted)
-- Always handle offline state gracefully
-- Safe area insets on all screens
-- Always run `npx tsc --noEmit` after making TypeScript changes to catch type errors before presenting the result as done.
+- Screens in `app/` using Expo Router file-based routing.
+- Use `useTheme()` for dark mode — never hardcode colors.
+- **Permission states:** every flow touching camera/mic/location/notifications must render distinct UI for `not-asked`, `denied`, and `granted`. Never assume `granted`.
+- **Offline:** every network call must catch failure and surface a user-visible state. Never leave an indefinite spinner or swallow the error silently.
+- Safe-area insets on all screens.
+- Run `npm run typecheck` after any TypeScript change before reporting the result as done.
 - When fixing bugs, provide the fix directly and concisely. Avoid lengthy investigation narratives before showing the solution.
-- This is a React Native TypeScript project. Always use proper TypeScript types—never use `unknown` or `any` for callback parameters when the type can be inferred from context.
+- **TypeScript types:** prefer precise types. `any` is banned except in test mocks with an inline `// eslint-disable` justification. `unknown` is correct at trust boundaries (catch clauses, JSON/`fetch` parsing, external API responses) — narrow it before use; do not use it to avoid typing a value whose shape is known.
 
 
 ## Don'ts

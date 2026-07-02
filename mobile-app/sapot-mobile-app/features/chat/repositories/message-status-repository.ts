@@ -1,11 +1,13 @@
 import {
-    GuestUser,
-    Message,
-    MessageStatus,
-    MessageStatusType,
-    Peer,
+  GuestUser,
+  Message,
+  MessageStatus,
+  MessageStatusType,
+  Peer,
 } from "@/features/shared";
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { messageStatusId } from "@/features/chat/utils/message-status-id";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 chatLog.debug("[message-status-repository] module loaded");
@@ -32,6 +34,28 @@ export class MessageStatusRepository {
    * @param params Object containing message, user, and status
    * @returns Promise<MessageStatus> The saved message status
    */
+  prepareMessageStatusCreate({
+    message,
+    user,
+    status,
+  }: {
+    message: Message;
+    user: Peer | GuestUser;
+    status: MessageStatusType;
+  }): MessageStatus {
+    return this.messageStatusCollection.prepareCreate(
+      (messageStatus: MessageStatus) => {
+        messageStatus._raw.id = messageStatusId(message.id, user.id);
+        messageStatus.message.set(message);
+        messageStatus.user.set(user);
+        messageStatus.status = status;
+        messageStatus.createdAt = new Date();
+        messageStatus.updatedAt = new Date();
+        messageStatus.isDeleted = false;
+      }
+    );
+  }
+
   async saveMessageStatus({
     message,
     user,
@@ -42,9 +66,11 @@ export class MessageStatusRepository {
     status: MessageStatusType;
   }) {
     try {
+      chatLog.debug("chat › saving", message.content, "into", status);
       return await this.db.write(async () => {
         return await this.messageStatusCollection.create(
           (messageStatus: MessageStatus) => {
+            messageStatus._raw.id = messageStatusId(message.id, user.id);
             messageStatus.message.set(message);
             messageStatus.user.set(user);
             messageStatus.status = status;
@@ -55,12 +81,14 @@ export class MessageStatusRepository {
         );
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › message status save failed", {
         messageId: message.id,
         status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -84,6 +112,7 @@ export class MessageStatusRepository {
           chatLog.debug("chat › message status updating", {
             messageId,
             status,
+            messageStatusId: messageStatus[0].id,
           });
           await messageStatus[0].update((messageStatus) => {
             messageStatus.status = status;
@@ -92,12 +121,14 @@ export class MessageStatusRepository {
         }
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › message status update failed", {
         messageId,
         status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -112,6 +143,7 @@ export class MessageStatusRepository {
     status: MessageStatusType
   ) {
     try {
+      chatLog.debug("chat › message", messageStatusId, " saving into", status);
       return await this.db.write(async () => {
         const messageStatus = await this.messageStatusCollection.query(
           Q.where("id", messageStatusId)
@@ -125,12 +157,14 @@ export class MessageStatusRepository {
         }
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › status update by id failed", {
         messageStatusId,
         status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -149,11 +183,13 @@ export class MessageStatusRepository {
         return messageStatus[0];
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › status query by message failed", {
         messageId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -176,11 +212,13 @@ export class MessageStatusRepository {
         return messageStatus;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › not sent status query failed", {
         messageCount: messageIds.length,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -192,8 +230,10 @@ export class MessageStatusRepository {
     try {
       return await this.messageStatusCollection.query().fetch();
     } catch (error) {
-      chatLog.error("chat › status list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › status list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -226,11 +266,61 @@ export class MessageStatusRepository {
         );
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › delivered-to-read update failed", {
         messageCount: messageIds.length,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  async updateToNotSentIfStillPendingById(statusId: string): Promise<void> {
+    try {
+      await this.db.write(async () => {
+        const records = await this.messageStatusCollection
+          .query(Q.where("id", statusId))
+          .fetch();
+        if (records.length === 0) return;
+        const record = records[0];
+        if (
+          record.status === MessageStatusType.SENDING ||
+          record.status === MessageStatusType.SENT
+        ) {
+          await record.update((r) => {
+            r.status = MessageStatusType.NOT_SENT;
+            r.updatedAt = new Date();
+          });
+        }
+      });
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › conditional not-sent update by id failed", { statusId, ...appErr });
+    }
+  }
+
+  async updateToNotSentIfStillPendingByMessage(messageId: string): Promise<void> {
+    try {
+      await this.db.write(async () => {
+        const records = await this.messageStatusCollection
+          .query(Q.where("message", messageId))
+          .fetch();
+        if (records.length === 0) return;
+        const record = records[0];
+        if (
+          record.status === MessageStatusType.SENDING ||
+          record.status === MessageStatusType.SENT
+        ) {
+          await record.update((r) => {
+            r.status = MessageStatusType.NOT_SENT;
+            r.updatedAt = new Date();
+          });
+        }
+      });
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › conditional not-sent update by message failed", { messageId, ...appErr });
     }
   }
 

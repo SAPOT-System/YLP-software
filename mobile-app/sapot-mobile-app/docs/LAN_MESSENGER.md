@@ -63,6 +63,8 @@ Peers on the same WiFi network are discovered using mDNS (Multicast DNS) via `re
 3. **Resending** — When a peer comes online, try to resend any pending messages
 4. **Deduplication** — Filter out self (by peerId)
 
+`DiscoveryService.publishDevice()` is idempotent while the device is already published, and `ZeroconfAdapter` serializes publish/cleanup work so listener teardown does not race an in-flight publish.
+
 #### Publishing the Device
 
 ```typescript
@@ -86,6 +88,8 @@ publishDevice() {
 ```
 
 The device is published on the port that `TcpServerAdapter` listens on (typically 8765 or next available).
+
+The adapter keeps track of the active published service name so cleanup can unpublish the correct registration even when the caller does not have that name available.
 
 #### Service Resolution (Peer Comes Online)
 

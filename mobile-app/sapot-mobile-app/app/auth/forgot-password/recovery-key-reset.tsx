@@ -4,34 +4,47 @@ import {
     FileUploadResultCard,
     PrimaryButton,
     SecondaryButton,
+    StepDots,
     useVerifyRecoveryKey,
 } from "@/features/auth";
+import { AttemptsWarning } from "@/features/auth/components/attempts-warning";
+import { LockoutBanner } from "@/features/auth/components/lockout-banner";
 import { canResetPasswordApi } from "@/features/auth/api/auth.api";
+import { extractResetToken } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { checkBackEndHealth } from "@/features/shared/core/api";
 import { FailedDialog } from "@/features/shared/components/failed-dialog";
-import { useDialogVisibility, useToast } from "@/features/shared/hooks";
-import { authLog } from "@/features/shared/utils/logger";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
+import { useDialogVisibility } from "@/features/shared/hooks";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { pick } from "@react-native-documents/picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { deleteItemAsync, getItemAsync } from "expo-secure-store";
-import React, { useEffect, useState } from "react";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
-import { ActivityIndicator, HelperText } from "react-native-paper";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 const RecoveryKeyResetScreen = () => {
   const { identifier } = useLocalSearchParams<{ identifier: string }>();
 
-  // Dialog
   const insertFailedDialog = useDialogVisibility();
 
   const [file, setFile] = useState<ExpoFileUpload>();
   const [checkingStoredToken, setCheckingStoredToken] = useState(true);
 
-  const { loading, error, verifyRecoveryKey } =
-    useVerifyRecoveryKey(identifier);
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showError, hideToast } = useToast();
+  const { error, verifyRecoveryKey, lockout, attemptsRemaining } = useVerifyRecoveryKey(identifier);
+  const [overlayPhase, setOverlayPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  const submittingRef = useRef(false);
+
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success" && pendingNavRef.current) {
+      pendingNavRef.current();
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
   useEffect(() => {
     authLog.info("[RecoveryKeyResetScreen] mounted");
@@ -44,21 +57,14 @@ const RecoveryKeyResetScreen = () => {
     const checkStoredToken = async () => {
       try {
         const storedToken = await getItemAsync("reset_password_token");
-        const storedIdentifier = await getItemAsync(
-          "reset_password_identifier"
-        );
+        const storedIdentifier = await getItemAsync("reset_password_identifier");
 
-        if (!storedToken || !storedIdentifier) {
-          return;
-        }
-
-        if (storedIdentifier !== identifier) {
-          return;
-        }
+        if (!storedToken || !storedIdentifier) return;
+        if (storedIdentifier !== identifier) return;
 
         const isValid = await canResetPasswordApi(storedToken);
 
-        if (isValid) {
+        if (isValid.valid) {
           authLog.info("[Navigation] Navigating to ResetPassword", {
             screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
           });
@@ -71,9 +77,7 @@ const RecoveryKeyResetScreen = () => {
           await deleteItemAsync("reset_password_identifier");
         }
       } catch (error) {
-        authLog.error("[RecoveryKeyResetScreen] Error in check stored token", {
-          error,
-        });
+        authLog.error("[RecoveryKeyResetScreen] Error in check stored token", { error });
         await deleteItemAsync("reset_password_token");
         await deleteItemAsync("reset_password_identifier");
       } finally {
@@ -85,7 +89,11 @@ const RecoveryKeyResetScreen = () => {
   }, [identifier]);
 
   if (checkingStoredToken) {
-    return <ActivityIndicator />;
+    return (
+      <View style={{ flex: 1 }}>
+        <LoadingOverlay visible />
+      </View>
+    );
   }
 
   const handleFileUpload = async () => {
@@ -110,29 +118,57 @@ const RecoveryKeyResetScreen = () => {
     }
   };
 
-  const handleVerify = async () => {
+  const handleVerify = async (): Promise<void> => {
+    if (submittingRef.current || lockout.isLocked) return;
+    submittingRef.current = true;
+    try {
     authLog.debug("[RecoveryKeyResetScreen] handleVerify called", {
       hasFile: Boolean(file),
     });
     if (!file) return;
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showError("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
+
+    setOverlayPhase("loading");
+    setOverlayMessage("");
 
     const res = await verifyRecoveryKey(file);
 
     if (res.success && res.resetLink) {
-      const token = res.resetLink.split("token=")[1];
+      const token = extractResetToken(res.resetLink);
+
+      // Read the recovery key hex from the file so the recovery hook can unwrap the blob
+      let keyHex = "";
+      try {
+        const fileRes = await fetch(file.uri);
+        keyHex = (await fileRes.text()).trim();
+      } catch { /* non-fatal — recovery will be skipped */ }
+
+      await Promise.all([
+        setItemAsync("reset_recovery_token", res.recoveryToken ?? ""),
+        setItemAsync("reset_recovery_secret", keyHex),
+      ]);
 
       authLog.info("[Navigation] Navigating to ResetPassword", {
         screen: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
       });
-      router.push({
-        pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
-        params: { token, identifier },
-      });
+      pendingNavRef.current = () =>
+        router.push({
+          pathname: AUTH_ROUTES.FORGOT_PASSWORD.RESET_PASSWORD,
+          params: { token, identifier, method: "token" },
+        });
+      setOverlayPhase("success");
+      setOverlayMessage("Recovery key verified!");
+    } else {
+      setOverlayPhase("error");
+      setOverlayMessage(error.general || error.recoveryKey || "Verification failed. Please try again.");
+    }
+    } finally {
+      submittingRef.current = false;
     }
   };
 
@@ -141,23 +177,45 @@ const RecoveryKeyResetScreen = () => {
     setFile(undefined);
   };
 
+  const isSubmitting = overlayPhase !== "idle";
+
   return (
-    <View
-      style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
+    <KeyboardAwareScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      bounces={false}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
     >
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}>
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Verifying…"
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
       <ScreenHeader headerName="Resetting Password" />
+      <StepDots total={3} current={2} />
       <ScreenContent
         title="Upload Recovery Key"
-        description="Recovery key was provided when you first created your account"
+        description="Recovery key was provided when you first created your account. Check your Downloads folder or saved files from when you registered."
       >
+        {lockout.isLocked && (
+          <LockoutBanner
+            secondsRemaining={lockout.secondsRemaining}
+            deviceType={lockout.deviceType}
+            onExpire={lockout.clearLock}
+          />
+        )}
+        {!lockout.isLocked && attemptsRemaining !== null && (
+          <AttemptsWarning attemptsRemaining={attemptsRemaining} />
+        )}
         <View
           style={{ width: "100%", alignItems: "stretch", marginBottom: 32 }}
         >
-          <HelperText type="error">{error.general}</HelperText>
-          <SecondaryButton onPress={handleFileUpload} disabled={!!file}>
-            Insert File
+          <SecondaryButton onPress={handleFileUpload} disabled={!!file || isSubmitting}>
+            Choose File
           </SecondaryButton>
-          <HelperText type="error">{error.recoveryKey}</HelperText>
           {file && (
             <FileUploadResultCard
               fileName={file.name}
@@ -167,10 +225,10 @@ const RecoveryKeyResetScreen = () => {
         </View>
         <PrimaryButton
           onPress={handleVerify}
-          loading={loading}
-          disabled={loading}
+          loading={overlayPhase === "loading"}
+          disabled={!file || isSubmitting || lockout.isLocked}
         >
-          Verify
+          {overlayPhase === "loading" ? "Verifying…" : "Verify"}
         </PrimaryButton>
         <SecondaryButton
           style={{ marginTop: 16 }}
@@ -178,7 +236,7 @@ const RecoveryKeyResetScreen = () => {
             authLog.info("[Navigation] goBack triggered from RecoveryKeyReset");
             router.back();
           }}
-          disabled={loading}
+          disabled={isSubmitting}
         >
           Back
         </SecondaryButton>
@@ -190,10 +248,8 @@ const RecoveryKeyResetScreen = () => {
         visible={insertFailedDialog.visible}
         hide={insertFailedDialog.hide}
       />
-      <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
-        {toastMessage}
-      </AppSnackbar>
     </View>
+    </KeyboardAwareScrollView>
   );
 };
 

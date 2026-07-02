@@ -1,5 +1,6 @@
 import { Conversation, ConversationType } from "@/features/shared";
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
 chatLog.debug("[conversation-repository] module loaded");
@@ -54,13 +55,15 @@ export class ConversationRepository {
         return this.conversationCollections.database.write(action);
       }
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › conversation save failed", {
         conversationId: newConversation.id,
         type: newConversation.type,
         isInTransaction,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -78,8 +81,10 @@ export class ConversationRepository {
 
       return result[0].type === ConversationType.DIRECT ? true : false;
     } catch (error) {
-      chatLog.error("chat › direct check failed", { conversationId: chatId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › direct check failed", { conversationId: chatId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -91,8 +96,10 @@ export class ConversationRepository {
     try {
       return (await this.conversationCollections.query().fetch()) || [];
     } catch (error) {
-      chatLog.error("chat › conversation list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › conversation list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -109,11 +116,13 @@ export class ConversationRepository {
 
       return conversation.length > 0;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › conversation exists check failed", {
         conversationId: id,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -130,11 +139,30 @@ export class ConversationRepository {
       // TODO: make a logic to return nothing if id is not exists
       return conversation[0];
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › conversation query failed", {
         conversationId: id,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  async touchConversation(id: string): Promise<void> {
+    try {
+      const [conversation] = await this.conversationCollections
+        .query(Q.where("id", id))
+        .fetch();
+      if (!conversation) return;
+      await this.conversationCollections.database.write(async () => {
+        await conversation.update((record) => {
+          record.updatedAt = new Date();
+        });
+      });
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › touch conversation failed", { conversationId: id, ...appErr });
     }
   }
 

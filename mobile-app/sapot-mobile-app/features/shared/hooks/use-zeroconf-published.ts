@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { useAppMode } from "../context";
+import { useAppMode } from "../core/context";
 import { useDiscoveryService } from "./use-discovery-service";
 
 /**

@@ -28,7 +28,7 @@ def test_update_profile_success(client: TestClient, session: SessionDep):
     payload = {
         "username": "new_unique_name",
         "email": "new@example.com",
-        "phone_number": "123456789"
+        "phone_number": "+639788667679"
     }
     response = client.post('/update/profile/', json=payload, headers=headers)
 
@@ -98,7 +98,7 @@ def test_update_profile_same_data_no_conflict(client: TestClient, session: Sessi
     payload = {
         "username": "test",
         "email": "test@example.com",
-        "phone_number": "987654321"
+        "phone_number": "+639788667679"
     }
     response = client.post('/update/profile/', json=payload, headers=headers)
 

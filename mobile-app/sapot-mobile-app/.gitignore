@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# dev log collector output (scripts/dev-log-server.mjs)
+dev-logs/
+
 # Expo
 .expo/
 .expo
@@ -41,3 +44,5 @@ yarn-error.*
 # generated native folders
 /ios
 android/
+
+.env.local

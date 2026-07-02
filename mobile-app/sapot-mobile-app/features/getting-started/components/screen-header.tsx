@@ -17,7 +17,7 @@ export const ScreenHeader = ({ headerName }: ScreenHeaderProps) => {
       }}
     >
       <Image
-        source={require("../../../assets/images/getting-started-header.png")}
+        source={require("../../../assets/images/getting-started-header.webp")}
         style={styles.headerImage}
       />
       <View style={styles.textOverlay}>

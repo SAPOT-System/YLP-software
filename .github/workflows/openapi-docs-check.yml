@@ -1,0 +1,42 @@
+name: Generated Docs Check
+
+on:
+  pull_request:
+    paths:
+      - "server/app/**"
+      - "docs/api/openapi/**"
+      - "docs/database/tables.md"
+      - "docs/database/erd.md"
+      - "scripts/generate_openapi_docs.py"
+      - "scripts/generate_db_docs.py"
+  push:
+    branches: [develop, main]
+    paths:
+      - "server/app/**"
+      - "docs/api/openapi/**"
+      - "docs/database/tables.md"
+      - "docs/database/erd.md"
+      - "scripts/generate_openapi_docs.py"
+      - "scripts/generate_db_docs.py"
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: server/app/requirements.txt
+
+      - name: Install server dependencies
+        run: pip install -r requirements.txt
+        working-directory: server/app
+
+      - name: Regenerate OpenAPI docs and fail on drift
+        run: python3 scripts/generate_openapi_docs.py --check
+
+      - name: Regenerate DB docs and fail on drift
+        run: python3 scripts/generate_db_docs.py --check

@@ -1,10 +1,11 @@
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 
-import { Conversation, ConversationType } from "@/features/shared/database/model/Conversation";
-import { ConversationParticipant } from "@/features/shared/database/model/ConversationParticipant";
-import { GuestUser } from "@/features/shared/database/model/guest-user";
-import { Peer } from "@/features/shared/database/model/Peer";
-import { chatLog } from "@/features/shared/utils/logger";
+import { Conversation, ConversationType } from "@/features/shared/core/database/model/Conversation";
+import { ConversationParticipant } from "@/features/shared/core/database/model/ConversationParticipant";
+import { GuestUser } from "@/features/shared/core/database/model/guest-user";
+import { Peer } from "@/features/shared/core/database/model/Peer";
+import { chatLog } from "@/features/shared/core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { conversationParticipantId } from "@/features/chat/utils/conversation-participant-id";
 
 chatLog.debug("[conversation-participant-repository] module loaded");
@@ -63,12 +64,14 @@ export class ConversationParticipantRepository {
         return this.conversationParticipantsCollection.database.write(action);
       }
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › participant save failed", {
         conversationId: newParticipant.conversation.id,
         isInTransaction,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -94,12 +97,14 @@ export class ConversationParticipantRepository {
         )
       );
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › participants bulk save failed", {
         participantCount: users.length,
         isInTransaction,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -126,11 +131,13 @@ export class ConversationParticipantRepository {
         undefined
       );
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › self conversation check failed", {
         userId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -139,7 +146,10 @@ export class ConversationParticipantRepository {
    * @param userIds Array of user ids
    * @returns Promise<string | undefined> The direct conversation id or undefined
    */
-  async isDirectConversationExists(userIds: string[]) {
+  async isDirectConversationExists(
+    userIds: string[],
+    type: ConversationType = ConversationType.DIRECT
+  ) {
     try {
       // Find live participant rows whose user is one of the given ids.
       // Filter is_deleted so a soft-deleted participant cannot resurrect or
@@ -172,18 +182,20 @@ export class ConversationParticipantRepository {
       const directConversations = await conversationsCollection
         .query(
           Q.where("id", Q.oneOf(candidateIds)),
-          Q.where("type", ConversationType.DIRECT),
+          Q.where("type", type),
           Q.where("is_deleted", false)
         )
         .fetch();
 
       return directConversations[0]?.id ?? undefined;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › direct conversation check failed", {
         participantCount: userIds.length,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -195,8 +207,10 @@ export class ConversationParticipantRepository {
     try {
       return await this.conversationParticipantsCollection.query().fetch();
     } catch (error) {
-      chatLog.error("chat › participants list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › participants list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -219,12 +233,14 @@ export class ConversationParticipantRepository {
 
       return conversation;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › conversation query by peer failed", {
         peerId,
         currentUserId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -245,23 +261,21 @@ export class ConversationParticipantRepository {
         .query(Q.where("conversation", conversationId))
         .fetch();
 
-      if (
-        participants.length === 2 &&
-        participants[0].user.id === participants[1].user.id
-      ) {
+      // Self-conversation: all participants are the current user
+      const others = participants.filter((p) => p.user.id !== currentUserId);
+      if (others.length === 0 && participants.length > 0) {
         return [participants[0]];
       }
-
-      // Exclude the user
-      const peer = participants.filter((p) => p.user.id !== currentUserId);
-      return peer;
+      return others;
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › peer query by conversation failed", {
         conversationId,
         currentUserId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

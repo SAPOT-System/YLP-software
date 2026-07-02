@@ -3,7 +3,6 @@ import {
   Conversation,
   ConversationType,
   database,
-  GuestUser,
   Message,
   MessageStatus,
   MessageStatusType,
@@ -13,16 +12,21 @@ import {
   UserStore,
 } from "@/features/shared";
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
-import { chatLog } from "@/features/shared/utils/logger";
-import * as Notifications from "expo-notifications";
+import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
+import { chatLog } from "@/features/shared/core/utils/logger";
+import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import {
+  ConversationKeyStore,
   ConversationParticipantRepository,
   ConversationRepository,
   MessageRepository,
   MessageStatusRepository,
 } from "../repositories";
 import { DataChatMessageI } from "../types";
-import { MessageReceiptManager } from "./message-receipt-manager";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { MessageAckTracker } from "./message-ack-tracker";
+import { ChatReceiveService } from "./chat-receive-service";
+import { ChatMessageService } from "./chat-message-service";
 
 chatLog.debug("[chat-service] module loaded");
 
@@ -37,29 +41,50 @@ type ChatSyncService = {
 export class ChatService {
   private peer?: Peer;
   private conversation?: Conversation;
-  private ackTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  private messageReceiptManager = new MessageReceiptManager();
+  private readonly ackTracker = new MessageAckTracker();
+  private readonly receiveService: ChatReceiveService;
+  private readonly messageService: ChatMessageService;
 
-  /**
-   * Constructs a ChatService instance.
-   * @param connectionService Handles peer-to-peer network connections
-   * @param conversationRepository Repository for conversation data
-   * @param conversationParticipantRepository Repository for conversation participants
-   * @param messageRepository Repository for messages
-   * @param messageStatusRepository Repository for message statuses
-   * @param peerService Service for peer management
-   * @param userStore Store for user state
-   */
   constructor(
     private connectionService: ConnectionService,
     private conversationRepository: ConversationRepository,
     private conversationParticipantRepository: ConversationParticipantRepository,
     private messageRepository: MessageRepository,
+    private conversationKeyStore: ConversationKeyStore,
     private messageStatusRepository: MessageStatusRepository,
     private peerService: PeerService,
     private userStore: UserStore,
-    private syncService: ChatSyncService
+    private syncService: ChatSyncService,
+    private conversationKeyManager: ConversationKeyManager,
   ) {
+    this.receiveService = new ChatReceiveService(
+      peerService,
+      messageRepository,
+      messageStatusRepository,
+      conversationRepository,
+      conversationParticipantRepository,
+      connectionService,
+      userStore,
+      syncService,
+      conversationKeyManager,
+      this.ackTracker,
+    );
+    this.messageService = new ChatMessageService(
+      messageRepository,
+      messageStatusRepository,
+      connectionService,
+      conversationRepository,
+      conversationParticipantRepository,
+      userStore,
+      syncService,
+      conversationKeyManager,
+      this.ackTracker,
+      {
+        ensureConversationInitialized: () => this.ensureConversationInitialized(),
+        getActivePeer: () => this.peer,
+        getOrCreateSmsConversationByPeer: (peerId: string) => this.getOrCreateSmsConversationByPeer(peerId),
+      },
+    );
     chatLog.info("chat › service constructed", {
       hasConnectionService: Boolean(connectionService),
       hasConversationRepository: Boolean(conversationRepository),
@@ -73,11 +98,25 @@ export class ChatService {
     });
   }
 
-  /**
-   * Returns the message receipt manager for filtering receipt statuses during sync.
-   */
-  getMessageReceiptManager(): MessageReceiptManager {
-    return this.messageReceiptManager;
+  private async deriveAndSetConversationKey(
+    peerId: string,
+    conversationId: string,
+  ): Promise<void> {
+    await this.conversationKeyManager.deriveAndSetConversationKey(peerId, conversationId);
+  }
+
+  private async warmUpConversationKey(peerId: string): Promise<void> {
+    try {
+      const conversationId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [peerId, this.userStore.user.id],
+          ConversationType.DIRECT,
+        );
+      if (!conversationId) return;
+      await this.deriveAndSetConversationKey(peerId, conversationId);
+    } catch (error) {
+      chatLog.debug("chat › warmUp key failed", { peerId, error });
+    }
   }
 
   onConnectionState(
@@ -110,6 +149,28 @@ export class ChatService {
     };
   }
 
+  onCallReconnecting(listener: (peerId: string) => void): () => void {
+    this.connectionService.on("call-reconnecting", listener);
+    return () => {
+      if (typeof this.connectionService.off === "function") {
+        this.connectionService.off("call-reconnecting", listener);
+        return;
+      }
+      this.connectionService.removeListener("call-reconnecting", listener);
+    };
+  }
+
+  onPeerRediscovered(listener: (peerId: string) => void): () => void {
+    this.connectionService.on("peer-rediscovered", listener);
+    return () => {
+      if (typeof this.connectionService.off === "function") {
+        this.connectionService.off("peer-rediscovered", listener);
+        return;
+      }
+      this.connectionService.removeListener("peer-rediscovered", listener);
+    };
+  }
+
   /**
    * Connects to a peer by id, establishing a network connection for chat.
    * @param id The peer id to connect to
@@ -130,15 +191,19 @@ export class ChatService {
         await this.connectionService.connectToPeer(
           discoveredPeer.id,
           discoveredPeer.ipAddress,
-          discoveredPeer.port
+          discoveredPeer.port,
+          discoveredPeer.addresses
         );
       } catch {
         await this.connectionService.connectToPeer(id);
       }
       chatLog.info("chat › connect complete", { peerId: id });
+      void this.warmUpConversationKey(id);
     } catch (error) {
-      chatLog.warn("chat › connect failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      chatLog.warn("chat › connect failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -154,8 +219,10 @@ export class ChatService {
       this.conversation = undefined;
       this.peer = undefined;
     } catch (error) {
-      chatLog.error("chat › disconnect failed", { error });
-      throw error;
+      const appErr = toAppError(error, "network");
+      chatLog.error("chat › disconnect failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -170,6 +237,10 @@ export class ChatService {
     this.peer = undefined;
   }
 
+  hasPeer(): boolean {
+    return this.peer !== undefined;
+  }
+
   // TODO: Apply ACID principle and retry if failed
 
   /**
@@ -177,153 +248,8 @@ export class ChatService {
    * @param data Incoming chat message data
    * @returns Promise<void>
    */
-  async handleIncomingChatMessage(data: DataChatMessageI): Promise<void> {
-    try {
-      chatLog.debug("chat › incoming message", {
-        conversationId: data.conversationId,
-        messageId: data.messageId,
-        senderId: data.from,
-      });
-      let sender = await this.peerService.findPeerById(data.from);
-      if (!sender) {
-        chatLog.info("chat › sender not found, creating peer", {
-          senderId: data.from,
-          username: data.senderProfile.username,
-        });
-        sender = await this.peerService.createUser(
-          data.from,
-          data.senderProfile.username,
-          data.senderProfile.firstName,
-          data.senderProfile.lastName
-        );
-      }
-      const existingMessage = await this.messageRepository.queryMessageById(
-        data.messageId
-      );
-      if (existingMessage) {
-        chatLog.info("chat › incoming message deduped", {
-          messageId: data.messageId,
-          conversationId: data.conversationId,
-        });
-        this.acknowledgeIncomingMessage(sender.id, data.messageId);
-        return;
-      }
-      const conversation = await this.getOrCreateConversationForIncoming(
-        sender,
-        data.conversationId
-      );
-      await this.saveIncomingMessage(sender, conversation, data);
-      this.acknowledgeIncomingMessage(sender.id, data.messageId);
-      const senderName =
-        `${sender.firstName} ${sender.lastName ?? ""}`.trim() ||
-        sender.username;
-      void this.showChatNotification(
-        senderName,
-        data.message,
-        conversation.id,
-        sender.id
-      );
-    } catch (error) {
-      chatLog.error("chat › incoming message failed", {
-        conversationId: data.conversationId,
-        messageId: data.messageId,
-        senderId: data.from,
-        error,
-      });
-      throw error;
-    }
-  }
-
-  private async showChatNotification(
-    senderName: string,
-    messageContent: string,
-    conversationId: string,
-    senderId: string
-  ): Promise<void> {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: senderName,
-          body:
-            messageContent.length > 100
-              ? messageContent.slice(0, 97) + "..."
-              : messageContent,
-          data: {
-            type: "incoming_message",
-            conversation_id: conversationId,
-            sender_id: senderId,
-            sender_name: senderName,
-            message_preview: messageContent.slice(0, 100),
-          },
-        },
-        trigger: { channelId: "chat-messages" },
-      });
-    } catch (error) {
-      chatLog.error("chat › show notification failed", { error });
-    }
-  }
-
-  /**
-   * Gets or creates a conversation for an incoming message, ensuring the conversation exists in the repository.
-   * @param sender The sender peer
-   * @param conversationId The conversation id
-   * @returns Promise<Conversation>
-   */
-  private async getOrCreateConversationForIncoming(
-    sender: Peer,
-    conversationId: string
-  ): Promise<Conversation> {
-    const isConversationExist =
-      await this.conversationRepository.isConversationExist(conversationId);
-    chatLog.debug("chat › conversation exists", {
-      conversationId,
-      exists: isConversationExist,
-    });
-    if (!isConversationExist) {
-      const existingConversationId =
-        await this.conversationParticipantRepository.isDirectConversationExists(
-          [sender.id, this.userStore.user.id]
-        );
-      if (existingConversationId) {
-        chatLog.debug("chat › reusing existing direct conversation", {
-          conversationId: existingConversationId,
-          senderId: sender.id,
-        });
-        return await this.conversationRepository.queryConversationById(
-          existingConversationId
-        );
-      }
-      return await this.createChatRoom(sender, conversationId);
-    } else {
-      return await this.conversationRepository.queryConversationById(
-        conversationId
-      );
-    }
-  }
-
-  /**
-   * Saves an incoming message to the repository.
-   * @param sender The sender peer
-   * @param conversation The conversation
-   * @param data Incoming chat message data
-   * @returns Promise<void>
-   */
-  private async saveIncomingMessage(
-    sender: Peer,
-    conversation: Conversation,
-    data: DataChatMessageI
-  ): Promise<void> {
-    await this.messageRepository.saveMessage({
-      sender: sender,
-      content: data.message,
-      conversation: conversation,
-      messageId: data.messageId,
-    });
-    chatLog.debug("chat › incoming saved", {
-      conversationId: conversation.id,
-      messageId: data.messageId,
-      senderId: sender.id,
-    });
+  handleIncomingChatMessage(data: DataChatMessageI): Promise<void> {
+    return this.receiveService.handleIncomingChatMessage(data);
   }
 
   /**
@@ -332,11 +258,7 @@ export class ChatService {
    * @param messageId The message id to acknowledge
    */
   acknowledgeIncomingMessage(senderId: string, messageId: string): void {
-    this.connectionService.sendAckMessage(senderId, {
-      messageId,
-      to: senderId,
-      from: this.userStore.user.id,
-    });
+    return this.receiveService.acknowledgeIncomingMessage(senderId, messageId);
   }
 
   /**
@@ -345,26 +267,8 @@ export class ChatService {
    * @param conversationId The conversation id that was seen
    * @returns Promise<void>
    */
-  async handleSeenMessage(conversationId: string): Promise<void> {
-    try {
-      chatLog.debug("chat › seen received", { conversationId });
-      const ourMessages =
-        await this.messageRepository.queryMessagesByConversationAndSender(
-          conversationId,
-          this.userStore.user.id
-        );
-      const messageIds = ourMessages.map((m) => m.id);
-      await this.messageStatusRepository.updateDeliveredMessagesToRead(
-        messageIds
-      );
-      chatLog.debug("chat › seen handled", {
-        conversationId,
-        updatedCount: messageIds.length,
-      });
-    } catch (error) {
-      chatLog.error("chat › seen handling failed", { conversationId, error });
-      throw error;
-    }
+  handleSeenMessage(conversationId: string): Promise<void> {
+    return this.receiveService.handleSeenMessage(conversationId);
   }
 
   /**
@@ -372,128 +276,58 @@ export class ChatService {
    * Called by the receiver when they open/view a conversation.
    * @param conversationId The conversation id to mark as read
    */
-  markConversationAsRead(conversationId: string): void {
-    if (!this.peer) return;
-    try {
-      chatLog.debug("chat › mark as read", {
-        conversationId,
-        peerId: this.peer.id,
-      });
-      this.connectionService.sendSeenMessage(this.peer.id, conversationId);
-    } catch (error) {
-      chatLog.warn("chat › mark as read failed", { conversationId, error });
-    }
+  markConversationAsRead(conversationId: string): Promise<void> {
+    return this.receiveService.markConversationAsRead(conversationId, this.peer);
   }
 
   /**
-   * Handles an incoming acknowledgment message for a given messageId, updating its status to DELIVERED.
+   * Handles an incoming acknowledgment message for a given messageId, updating its status to SENT.
    * @param messageId The message id to acknowledge
    * @returns Promise<void>
    */
-  async handleServerAck(messageId: string): Promise<void> {
-    try {
-      chatLog.debug("chat › server ack received", { messageId });
-      const timeout = this.ackTimeouts.get(messageId);
-      if (timeout) {
-        clearTimeout(timeout);
-        this.ackTimeouts.delete(messageId);
-      }
-      await this.messageStatusRepository.updateMessageStatusByMessage(
-        messageId,
-        MessageStatusType.SENT
-      );
-      chatLog.debug("chat › status set to SENT via server ack", { messageId });
-    } catch (error) {
-      chatLog.error("chat › server ack handling failed", { messageId, error });
-      throw error;
-    }
+  handleServerAck(messageId: string): Promise<void> {
+    return this.receiveService.handleServerAck(messageId);
   }
 
-  async handleAckMessage(messageId: string): Promise<void> {
-    try {
-      chatLog.debug("chat › ack received", { messageId });
-
-      const timeout = this.ackTimeouts.get(messageId);
-      if (timeout) {
-        clearTimeout(timeout);
-        this.ackTimeouts.delete(messageId);
-      }
-
-      await this.messageStatusRepository.updateMessageStatusByMessage(
-        messageId,
-        MessageStatusType.DELIVERED
-      );
-      if (!this.userStore.isGuest) void this.syncService.syncNow();
-    } catch (error) {
-      chatLog.error("chat › ack handling failed", { messageId, error });
-      throw error;
-    }
+  handleAckMessage(messageId: string): Promise<void> {
+    return this.receiveService.handleAckMessage(messageId);
   }
-
-  // TODO: make a transaction on this function to follow ACID principle
-  // TODO: make a logic where user can send conversation even if the receiver is not online. Store the sent conversation and wait for receiver to be online.
-  // This method will use the current class state about peer and conversation
 
   /**
    * Sends a chat message to the current peer, ensuring conversation state and updating message status.
+   * If the peer is unreachable, the message is persisted as NOT_SENT and retried when the peer reconnects.
    * @param message The message content
-   * @returns Promise<string> The conversation id
+   * @returns Promise<{ conversationId: string; messageId: string }>
    */
-  async sendChatMessage(message: string): Promise<string> {
-    try {
-      if (!this.peer) throw new Error("No peer state stored");
-      chatLog.debug("chat › send start", {
-        peerId: this.peer.id,
-        messageLength: message.length,
-      });
-      await this.ensureConversationInitialized();
-      const { newMessage, newMessageStatus } = await this.createMessage({
-        sender: this.userStore.user,
-        message: message,
-        conversation: this.conversation!,
-      });
-      const isSelfChat = this.peer.id === this.userStore.user.id;
-      console.log(isSelfChat);
-      if (isSelfChat) {
-        await this.messageStatusRepository.updateMessageStatusById(
-          newMessageStatus.id,
-          MessageStatusType.SENT
-        );
-        chatLog.debug("chat › send complete (self)", {
-          peerId: this.peer.id,
-          conversationId: this.conversation?.id,
-          messageId: newMessage.id,
-        });
-        if (!this.userStore.isGuest) void this.syncService.syncNow();
-        return this.conversation!.id;
-      }
-      await this.sendAndTrackMessageStatus(
-        newMessage,
-        newMessageStatus,
-        message
-      );
-      if (!this.userStore.isGuest) void this.syncService.syncNow();
-      chatLog.debug("chat › send complete", {
-        peerId: this.peer.id,
-        conversationId: this.conversation?.id,
-        messageId: newMessage.id,
-      });
-      return this.conversation!.id;
-    } catch (error) {
-      chatLog.error("chat › send failed", {
-        peerId: this.peer?.id,
-        conversationId: this.conversation?.id,
-        error,
-      });
-      throw error;
-    }
+  sendChatMessage(
+    message: string,
+    messageType?: MessageType
+  ): Promise<{ conversationId: string; messageId: string }> {
+    return this.messageService.sendChatMessage(message, messageType);
+  }
+
+  sendSmsChannelMessage(
+    message: string
+  ): Promise<{ conversationId: string; messageId: string }> {
+    return this.messageService.sendSmsChannelMessage(message);
+  }
+
+  /**
+   * Sends a message via P2P and SMS simultaneously.
+   */
+  sendChatMessageWithSms(message: string): Promise<{
+    conversationId: string;
+    p2pMessageId: string;
+    smsMessageId: string;
+  }> {
+    return this.messageService.sendChatMessageWithSms(message);
   }
 
   /**
    * Ensures the conversation property is initialized for sending a message. Creates a new conversation if needed.
-   * @returns Promise<void>
+   * @returns Promise<Conversation>
    */
-  private async ensureConversationInitialized(): Promise<void> {
+  private async ensureConversationInitialized(): Promise<Conversation> {
     if (!this.conversation && this.peer) {
       let conversationId;
       if (this.peer.id === this.userStore.user.id) {
@@ -508,7 +342,7 @@ export class ChatService {
           );
       }
       if (!conversationId) {
-        this.conversation = await this.createChatRoom(this.peer);
+        this.conversation = await this.receiveService.createChatRoom(this.peer);
       } else {
         this.conversation =
           await this.conversationRepository.queryConversationById(
@@ -516,147 +350,7 @@ export class ChatService {
           );
       }
     }
-  }
-
-  /**
-   * Sends a chat message over the network and updates its status in the repository.
-   * @param newMessage The message object
-   * @param newMessageStatus The message status object
-   * @param message The message content
-   * @returns Promise<void>
-   */
-  private async sendAndTrackMessageStatus(
-    newMessage: Message,
-    newMessageStatus: MessageStatus,
-    message: string
-  ): Promise<void> {
-    try {
-      chatLog.debug("chat › send message", {
-        messageId: newMessage.id,
-        conversationId: this.conversation?.id,
-        peerId: this.peer?.id,
-        messageLength: message.length,
-      });
-      const transport = this.connectionService.sendChatMessage(this.peer!.id, {
-        message: message,
-        conversationId: this.conversation!.id,
-        messageId: newMessage.id,
-        to: this.peer!.id,
-        from: this.userStore.user.id,
-        sentAt: newMessage.createdAt,
-        messageType: newMessage.messageType,
-        senderProfile: {
-          username: this.userStore.user.username,
-          firstName: this.userStore.user.firstName,
-          lastName: this.userStore.user.lastName || undefined,
-        },
-      });
-      if (transport === "webrtc") {
-        await this.messageStatusRepository.updateMessageStatusById(
-          newMessageStatus.id,
-          MessageStatusType.SENT
-        );
-      }
-      // Start 12s ACK timeout — if no DELIVERED (WebRTC) or server-ack (WS) arrives,
-      // flip back to NOT_SENT so the message is eligible for the retry queue.
-      const timeout = setTimeout(async () => {
-        this.ackTimeouts.delete(newMessage.id);
-        await this.messageStatusRepository.updateMessageStatusById(
-          newMessageStatus.id,
-          MessageStatusType.NOT_SENT
-        );
-      }, 12000);
-      this.ackTimeouts.set(newMessage.id, timeout);
-    } catch (error) {
-      chatLog.warn("chat › send failed", {
-        messageId: newMessage.id,
-        conversationId: this.conversation?.id,
-        peerId: this.peer?.id,
-        error,
-      });
-      await this.messageStatusRepository.updateMessageStatusById(
-        newMessageStatus.id,
-        MessageStatusType.NOT_SENT
-      );
-    }
-  }
-
-  // TODO: Apply transaction
-
-  /**
-   * Creates a message and its status in a transaction.
-   * @param params Object containing sender, message, and conversation
-   * @returns Promise<{ newMessage: Message; newMessageStatus: MessageStatus }>
-   */
-  private async createMessage(params: {
-    sender: Peer | GuestUser;
-    message: string;
-    conversation: Conversation;
-  }): Promise<{ newMessage: Message; newMessageStatus: MessageStatus }> {
-    const { sender, message, conversation } = params;
-    try {
-      const newMessage = await this.messageRepository.saveMessage({
-        sender: sender,
-        content: message,
-        conversation: conversation,
-      });
-      const newMessageStatus =
-        await this.messageStatusRepository.saveMessageStatus({
-          message: newMessage,
-          user: sender,
-          status: MessageStatusType.SENDING,
-        });
-
-      return { newMessage, newMessageStatus };
-    } catch (error) {
-      chatLog.error("chat › create message failed", {
-        conversationId: conversation.id,
-        senderId: sender.id,
-        error,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Creates a chat room (conversation) with the given peer, and adds both users as participants.
-   * @param peer The peer to create the chat room with
-   * @param conversationId Optional conversation id
-   * @returns Promise<Conversation>
-   */
-  private async createChatRoom(
-    peer: Peer,
-    conversationId?: string
-  ): Promise<Conversation> {
-    // Wrap into write method to ensure ACID for safety transaction
-    try {
-      chatLog.info("chat › room create", {
-        peerId: peer.id,
-        hasConversationId: Boolean(conversationId),
-      });
-      return await database.write(async () => {
-        const conversation = await this.conversationRepository.saveConversation(
-          {
-            type: ConversationType.DIRECT,
-            id: conversationId,
-          },
-          true
-        );
-        await this.conversationParticipantRepository.saveMultipleConversationParticipant(
-          [peer, this.userStore.user],
-          conversation,
-          true
-        );
-        return conversation;
-      });
-    } catch (error) {
-      chatLog.error("chat › create room failed", {
-        peerId: peer.id,
-        conversationId,
-        error,
-      });
-      throw error;
-    }
+    return this.conversation!;
   }
 
   // TODO: Determine if the conversation is direct or group conversation for integrating group conversation soon
@@ -677,8 +371,10 @@ export class ChatService {
         );
       return participants[0].user.id;
     } catch (error) {
-      chatLog.error("chat › peer id by chat failed", { chatId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › peer id by chat failed", { chatId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -689,18 +385,23 @@ export class ChatService {
    */
   async findChatByPeer(peerId: string): Promise<string | undefined> {
     try {
-      const chat =
-        await this.conversationParticipantRepository.queryConversationByPeer(
-          peerId,
-          this.userStore.user.id
+      const directId =
+        await this.conversationParticipantRepository.isDirectConversationExists(
+          [peerId, this.userStore.user.id]
         );
+      if (directId) return directId;
 
-      if (chat.length <= 0) return undefined;
-
-      return chat[0].conversation.id;
+      // Fall back to SMS conversation using the deterministic ID so the lookup
+      // doesn't depend on participant records being present.
+      const smsId = smsConversationId(this.userStore.user.id, peerId);
+      const smsExists =
+        await this.conversationRepository.isConversationExist(smsId);
+      return smsExists ? smsId : undefined;
     } catch (error) {
-      chatLog.error("chat › chat by peer failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › chat by peer failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -758,115 +459,66 @@ export class ChatService {
         return conversation;
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › direct conversation resolve/create failed", {
         peerId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
-  async saveCallLogWithReceipts(params: {
-    peerId: string;
-    content: string;
-    status?: MessageStatusType;
-    senderId: string;
-    messageId?: string;
-    conversationId?: string;
-  }) {
-    const {
-      peerId,
-      content,
-      status = MessageStatusType.DELIVERED,
-      senderId,
-      messageId,
-      conversationId,
-    } = params;
-
-    if (senderId !== this.userStore.user.id && senderId !== peerId) {
-      throw new Error("senderId must be current user or peerId");
-    }
-
+  async getOrCreateSmsConversationByPeer(
+    peerId: string
+  ): Promise<Conversation> {
     try {
-      if (messageId) {
-        const existingMessage = await this.messageRepository.queryMessageById(
-          messageId
-        );
-        if (existingMessage) {
-          const existingStatus =
-            await this.messageStatusRepository.queryMessageStatusByMessage(
-              existingMessage.id
-            );
-          if (existingStatus && existingStatus.status !== status) {
-            await this.messageStatusRepository.updateMessageStatusByMessage(
-              existingMessage.id,
-              status
-            );
-            chatLog.info("chat › call log status updated on dedup", {
-              messageId: existingMessage.id,
-              status,
-            });
-          }
-          chatLog.info("chat › call log deduped", {
-            peerId,
-            messageId,
-          });
-          return existingMessage.id;
-        }
-      }
-
       const peer = await this.peerService.findPeerById(peerId);
       if (!peer) throw new Error("Peer not found");
-      const conversation = await this.getOrCreateDirectConversationByPeer(
-        peerId,
-        conversationId
-      );
 
-      const sender: Peer | GuestUser =
-        senderId === this.userStore.user.id ? this.userStore.user : peer;
+      const effectiveId = smsConversationId(this.userStore.user.id, peerId);
 
-      const newMessage = await this.messageRepository.saveMessage({
-        sender,
-        content,
-        conversation,
-        messageId,
-        messageType: MessageType.CALL_LOG,
-      });
-      if (senderId === this.userStore.user.id) {
-        await this.messageStatusRepository.saveMessageStatus({
-          message: newMessage,
-          user: sender,
-          status,
+      return await database.write(async () => {
+        const existsById =
+          await this.conversationRepository.isConversationExist(effectiveId);
+        if (existsById) {
+          return await this.conversationRepository.queryConversationById(
+            effectiveId
+          );
+        }
+
+        const conversation = await this.conversationRepository.saveConversation(
+          { type: ConversationType.SMS, id: effectiveId },
+          true
+        );
+        await this.conversationParticipantRepository.saveMultipleConversationParticipant(
+          [peer, this.userStore.user],
+          conversation,
+          true
+        );
+        chatLog.info("chat › sms room create", {
+          peerId: peer.id,
+          conversationId: conversation.id,
         });
-      }
-
-      chatLog.info("chat › call log saved", {
-        peerId,
-        conversationId: conversation.id,
-        messageId: newMessage.id,
-        senderId: sender.id,
-        status,
+        return conversation;
       });
-      return newMessage.id;
     } catch (error) {
-      chatLog.error("chat › call log save failed", {
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › sms conversation resolve/create failed", {
         peerId,
-        contentLength: content.length,
-        status,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
-  async updateMessageStatus(
-    messageId: string,
-    status: MessageStatusType
-  ): Promise<void> {
-    await this.messageStatusRepository.updateMessageStatusByMessage(
-      messageId,
-      status
-    );
+  linkMessages(p2pMessageId: string, smsMessageId: string): Promise<void> {
+    return this.messageService.linkMessages(p2pMessageId, smsMessageId);
+  }
+
+  updateMessageStatus(messageId: string, status: MessageStatusType): Promise<void> {
+    return this.messageService.updateMessageStatus(messageId, status);
   }
 
   /**
@@ -877,8 +529,10 @@ export class ChatService {
     try {
       return await this.conversationRepository.queryAllConversation();
     } catch (error) {
-      chatLog.error("chat › list conversations failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › list conversations failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -891,15 +545,26 @@ export class ChatService {
     conversationId: string
   ): Promise<Message[]> {
     try {
+      const peerId =
+        this.peer?.id ??
+        (await this.conversationParticipantRepository
+          .queryPeerByChatId(conversationId, this.userStore.user.id)
+          .then((participants) => participants[0]?.user.id)
+          .catch(() => undefined));
+      if (peerId) {
+        await this.deriveAndSetConversationKey(peerId, conversationId);
+      }
       return await this.messageRepository.queryMessagesByConversation(
         conversationId
       );
     } catch (error) {
+      const appErr = toAppError(error, "database");
       chatLog.error("chat › messages by conversation failed", {
         conversationId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -908,15 +573,8 @@ export class ChatService {
    * @param messageId The message id
    * @returns Promise<MessageStatus>
    */
-  async getMessageStatus(messageId: string): Promise<MessageStatus> {
-    try {
-      return await this.messageStatusRepository.queryMessageStatusByMessage(
-        messageId
-      );
-    } catch (error) {
-      chatLog.error("chat › message status failed", { messageId, error });
-      throw error;
-    }
+  getMessageStatus(messageId: string): Promise<MessageStatus> {
+    return this.messageService.getMessageStatus(messageId);
   }
 
   /**
@@ -931,8 +589,10 @@ export class ChatService {
         count: participants.length,
       });
     } catch (error) {
-      chatLog.error("chat › participants list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › participants list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -940,14 +600,8 @@ export class ChatService {
    * Gets all message statuses (for debugging/logging).
    * @returns Promise<void>
    */
-  async getAllStatus(): Promise<void> {
-    try {
-      const statuses = await this.messageStatusRepository.queryAllStatuses();
-      chatLog.debug("chat › statuses listed", { count: statuses.length });
-    } catch (error) {
-      chatLog.error("chat › statuses list failed", { error });
-      throw error;
-    }
+  getAllStatus(): Promise<void> {
+    return this.messageService.getAllStatus();
   }
 
   /**
@@ -955,45 +609,8 @@ export class ChatService {
    * @param peerId The peer id
    * @returns Promise<Message[]>
    */
-  async getAllNotSentMessageForPeer(peerId: string): Promise<Message[]> {
-    // get the conversation between peer
-    try {
-      const conversation =
-        await this.conversationParticipantRepository.queryConversationByPeer(
-          peerId,
-          this.userStore.user.id
-        );
-
-      if (conversation.length <= 0) return [];
-
-      // get the all messages on the conversation
-      const messages = await this.messageRepository.queryMessagesByConversation(
-        conversation[0].conversation.id
-      );
-      const messageIds = messages.map((m) => m.id);
-      chatLog.debug("chat › message ids loaded", {
-        peerId,
-        count: messageIds.length,
-      });
-
-      const unsentStatuses =
-        await this.messageStatusRepository.queryNotSentByMessages(messageIds);
-
-      const unsentStatusesIds: string[] = unsentStatuses.map(
-        (u) => u.message.id
-      );
-
-      if (!unsentStatusesIds) return [];
-      chatLog.debug("chat › unsent messages", {
-        peerId,
-        count: unsentStatusesIds.length,
-      });
-
-      return messages.filter((m) => unsentStatusesIds.includes(m.id));
-    } catch (error) {
-      chatLog.error("chat › unsent messages failed", { peerId, error });
-      throw error;
-    }
+  getAllNotSentMessageForPeer(peerId: string): Promise<Message[]> {
+    return this.messageService.getAllNotSentMessageForPeer(peerId);
   }
 
   /**
@@ -1003,73 +620,12 @@ export class ChatService {
    * @param options The peer's ipAddress and port — required when WebSocket is not available (LAN-only mode)
    * @returns Promise<void>
    */
-  async tryResendMessage(
+  tryResendMessage(
     message: Message,
     peerId: string,
     options?: { ipAddress: string; port: number }
   ): Promise<void> {
-    try {
-      if (!this.connectionService.isWebSocketAllowed()) {
-        // LAN mode: WebRTC over TCP is the only transport — connection must be pre-established.
-        if (!options?.ipAddress || !options?.port) {
-          throw new Error(
-            "ipAddress and port are required when WebSocket is not available"
-          );
-        }
-        await this.connectionService.connectToPeer(
-          peerId,
-          options.ipAddress,
-          options.port
-        );
-        await this.connectionService.waitForDataChannel(peerId);
-      }
-      // Signal retry in progress.
-      await this.messageStatusRepository.updateMessageStatusByMessage(
-        message.id,
-        MessageStatusType.SENDING
-      );
-      // auto/server mode: sendChatMessage tries WebRTC first, falls back to WS internally.
-      // LAN mode: WebRTC is now connected from the block above.
-      const transport = this.connectionService.sendChatMessage(peerId, {
-        message: message.content,
-        conversationId: message.conversation.id,
-        messageId: message.id,
-        from: message.sender.id,
-        to: peerId,
-        sentAt: message.createdAt,
-        messageType: message.messageType,
-        senderProfile: {
-          username: this.userStore.user.username,
-          firstName: this.userStore.user.firstName,
-          lastName: this.userStore.user.lastName || undefined,
-        },
-      });
-      if (transport === "webrtc") {
-        await this.messageStatusRepository.updateMessageStatusByMessage(
-          message.id,
-          MessageStatusType.SENT
-        );
-      } else {
-        // WS path: start 12s timeout — if no server-ack arrives, flip to NOT_SENT
-        // so the message re-enters the retry queue on the next reconnect.
-        const timeout = setTimeout(async () => {
-          this.ackTimeouts.delete(message.id);
-          await this.messageStatusRepository.updateMessageStatusByMessage(
-            message.id,
-            MessageStatusType.NOT_SENT
-          );
-        }, 12000);
-        this.ackTimeouts.set(message.id, timeout);
-      }
-    } catch (error) {
-      chatLog.error("chat › resend failed", {
-        peerId,
-        messageId: message.id,
-        conversationId: message.conversation.id,
-        error,
-      });
-      throw error;
-    }
+    return this.messageService.tryResendMessage(message, peerId, options);
   }
 
   /**
@@ -1078,8 +634,7 @@ export class ChatService {
   cleanUp(): void {
     this.peer = undefined;
     this.conversation = undefined;
-    this.ackTimeouts.forEach((timeout) => clearTimeout(timeout));
-    this.ackTimeouts.clear();
+    this.ackTracker.clearAll();
   }
 
   /**

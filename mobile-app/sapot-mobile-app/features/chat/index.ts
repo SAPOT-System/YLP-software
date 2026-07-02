@@ -1,7 +1,7 @@
-import { chatLog } from "@/features/shared/utils/logger";
+import { chatLog } from "@/features/shared/core/utils/logger";
 chatLog.debug("[chat/index] module loaded");
 
-export * from "./component";
+export * from "./components";
 
 export * from "./hooks";
 

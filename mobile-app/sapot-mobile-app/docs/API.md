@@ -248,9 +248,24 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
   "last_name":      "string",
   "email":          "string",
   "phone_number":   "string",
-  "email_verified": "boolean"
+  "email_verified": "boolean",
+  "role":           "\"admin\" | \"rescuer\" | \"user\""
 }
 ```
+
+---
+
+### `GET /user-utils/is-rescuer` — Check Rescuer Role
+**Auth:** Required
+
+**Response `200`:** `true` or `false`
+
+---
+
+### `GET /user-utils/is-admin` — Check Admin Role
+**Auth:** Required
+
+**Response `200`:** `true` or `false`
 
 ---
 
@@ -263,14 +278,37 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 {
   "res": [
     {
-      "id":         "string",
-      "username":   "string",
-      "first_name": "string",
-      "last_name":  "string"
+      "id":              "string",
+      "username":        "string",
+      "first_name":      "string",
+      "last_name":       "string",
+      "phone_is_verified": "boolean",
+      "role":            "\"admin\" | \"rescuer\" | \"user\""
     }
   ]
 }
 ```
+
+---
+
+### `GET /user-utils/search-user/{id}` — Get User by ID
+**Auth:** Required
+
+**Response `200`:**
+```json
+{
+  "id":              "string",
+  "username":        "string",
+  "first_name":      "string",
+  "last_name":       "string",
+  "phone_is_verified": "boolean",
+  "role":            "\"admin\" | \"rescuer\" | \"user\"",
+  "last_active":     "ISO-8601 string | null",
+  "status":          "\"Active\" | \"Inactive\""
+}
+```
+`last_active` / `status` come from `UserActivity`, stamped on WS connect/disconnect (and REST
+activity). The client uses `last_active` to render the "Last seen …" label for offline peers.
 
 ---
 

@@ -10,32 +10,90 @@ SAPOT is a peer-to-peer mobile messenger. Peers communicate directly via WebRTC 
 
 All services are instantiated once at app startup through two container classes. They are **not singletons** — they are passed down via React context.
 
-```
-AuthContainer
-  └── sessionStore
-  └── userStore
-  └── peerService
-  └── peerRepository
-  └── userService
+### AuthContainer (`features/auth/auth-container.ts`)
 
-MainContainer (receives AuthContainer)
-  └── networkConfig
-  └── appModeStore
-  └── wsSignalingAdapter          (shared: signaling + public chat)
-  └── tcpServerAdapter
-  └── webrtcSessionManager
-  └── signalingService
-  └── callMediaService
-  └── connectionService   ← constructed last (wires sub-services in constructor)
-  └── chatService
-  └── callService
-  └── syncService
-  └── repositories (message, conversation, call, etc.)
+Owns auth-persistent state that outlives individual screens:
+
+- `sessionStore` — WebSocket session handle
+- `userStore` — current user identity (`Peer | GuestUser`)
+- `peerService` / `peerRepository`
+- `guestMigrationService` — guest→auth conversion
+
+### MainContainer (`features/shared/main-container.ts`)
+
+Single wiring point for all runtime services. Constructed with an `AuthContainer`.
+
+**Construction order is explicit and load-bearing:**
+```
+WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService
 ```
 
-**Construction order matters.** `ConnectionService` is always constructed last because it wires sub-services via callbacks in its constructor.
+`ConnectionService` is always constructed last because it wires sub-services via callbacks in its constructor. Callbacks use closures (not `.bind()`) so `jest.spyOn` replacements on instances are respected in tests.
+
+**Two wiring patterns exist for cross-service dependencies:**
+
+1. **Constructor injection** — used for most services
+2. **Post-construction setters** — used where constructor injection would create circular dependencies:
+   ```typescript
+   connectionService.setChatService(chatService);
+   syncService.setMessageReceiptManager(messageReceiptManager);
+   ```
+
+TODO: the distinction between these two patterns is implied by the circular dependency constraint but is not documented. It is not always obvious which pattern applies to a new dependency.
+
+PIN-gated initialization: the container is held in `pendingContainerRef` and `PinEntryGate` is shown before `initialize()` is called.
+
+**`initialize()` phase decomposition** — the public `initialize()` delegates to three typed private phases:
+
+| Phase | Method | Role |
+|---|---|---|
+| 1 | `initializeKeys(): Promise<KeysReady>` | Loads all crypto keys (local encryption, ECDH, peer keys, conversation keys). Clears pending password/PIN. |
+| 2 | `handleMigration(keys): Promise<MigrationOk>` | Detects and runs migration recovery re-encrypt; computes `migrationPushPending` flag. |
+| 3 | `startNetworkServices(migOk): Promise<void>` | Starts sync, NetInfo listener, periodic timer, AppState listener, network config watching. |
+
+Branded token types (`KeysReady`, `MigrationOk`) make phase ordering a TypeScript compile-time constraint — phase 2 cannot be called without a `KeysReady` token, and phase 3 cannot be called without a `MigrationOk` token.
 
 React context provider: `features/shared/context/main-container-context.tsx`
+
+
+---
+
+## Encryption
+
+### In Transit
+
+- **TCP**: `TcpEncryptionService` wraps/unwraps `EncryptedEnvelope` using NaCl box (peer ECDH keys; no master key needed)
+- **WebSocket**: `WsEncryptionService` encrypts signaling payloads so the relay server cannot read them
+
+### At Rest
+
+- Chat messages are encrypted per-conversation using ECDH-derived NaCl box keys
+- `MessageRepository` maintains `conversationKeys` (current) and `conversationKeyHistory` (up to 5 past keys) so messages can be decrypted after peer key rotation
+- Conversation keys are in-memory only; cleared on logout
+
+### Key Storage
+
+- Master key + signaling key: `expo-secure-store` (via `key-derivation.ts`)
+- Peer ECDH public keys: fetched from server (auth users) or via TCP handshake; cached in `PeerKeyStore`
+- Recovery: `KeyRecoveryService` wraps master key under multiple recovery methods (password, phone, email, QA token)
+
+### Guest→Auth Migration
+
+1. `GuestMigrationService` captures guest conversation keys before clearing them
+2. `MessageRepository` re-encrypts all messages with new auth ECDH keys
+3. `skipEncryptedMessageUpdatesOnNextSync()` prevents the server's stale guest-key ciphertext from overwriting the newly re-encrypted local copy on the first sync after migration
+
+Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`
+
+---
+
+## Initialization Flow (`MainContainer.initialize()`)
+
+1. Load master key, signaling keys, peer ECDH keys from secure storage
+2. Detect and complete any interrupted guest→auth re-encryption
+3. Start sync — periodic REST API sync, or LAN-only one-time push (mode-dependent)
+4. Register NetInfo + AppState listeners
+5. Idempotent via `this.initPromise` guard — safe to call multiple times
 
 ---
 
@@ -47,9 +105,10 @@ React context provider: `features/shared/context/main-container-context.tsx`
 | `WebrtcSessionManager` | One `WebrtcAdapter` (RTCPeerConnection) per peer |
 | `SignalingService` | Routes WebRTC SDP/ICE messages over TCP or WS |
 | `CallMediaService` | Initializes and manages local mic/camera streams |
-| `CallService` | Call lifecycle, audio routing (earpiece/speaker/Bluetooth) |
-| `ChatService` | Message send/receive and persistence via WebRTC data channels |
-| `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service only after `ZeroconfAdapter` confirms publication. |
+| `CallService` | **Facade.** Call session lifecycle (the `callSessions` map, busy/ready glare handling, inbound/outbound flow). Audio-route management delegated to `CallAudioService`; call-log build and persist delegated to `CallLogService`. `// TODO(refactor): extract CallSessionService` — the `callSessions` state machine should move to a `CallSessionService` to push `call-service.ts` under 800 lines, deferred to avoid splitting a live state machine. |
+| `ChatService` | Facade: delegates to `ChatReceiveService` (incoming/ACK/seen) and `ChatMessageService` (send/status/resend) over a shared `MessageAckTracker`. Persists via WebRTC data channels. |
+| `ConversationKeyManager` | ECDH key derivation per conversation — `deriveAndSetConversationKey`, `preloadAllConversationKeys`, `rederiveKeyForPeer` |
+| `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service idempotently and only marks it active after `ZeroconfAdapter` confirms publication. |
 | `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
 | `CleanUpService` | Cleanup of stale data and connections |
 
@@ -68,6 +127,43 @@ Controlled by `AppModeStore`. Mode is determined by user settings and guest stat
 Guards in `ConnectionService`:
 - `isWebSocketAllowed()` — checks `AppModeStore` + guest status
 - `isTcpAllowed()` — checks `AppModeStore` + guest status
+
+---
+
+## Presence & Last-Seen
+
+Live presence is a list of currently-connected user IDs from the WS signaling server
+(`ActiveUsersService` ↔ `get-active-users`), surfaced via `useIsUserActive`.
+
+For **"Last seen …"** when a peer is offline, the server stamps `UserActivity.last_active`
+(+`status`) on WS connect/disconnect (`app/api/peer_connection.py` → `set_user_status`) and exposes
+`last_active` through `GET /user-utils/search-user/{id}`. The chat screen calls
+`PeerService.refreshLastSeen(peerId)` while a peer is offline, persisting the value to
+`peers.last_seen_at`; LAN/mDNS online/offline transitions also stamp `last_seen_at` as a fallback.
+`setPeerLastSeen` keeps the newest of the two sources. The header renders
+`Last seen <formatRelativeTime(lastSeenAt)>`.
+
+---
+
+## Peer Re-discovery & Dynamic Addressing
+
+`PeerService.register()` keeps the in-memory `discoveredPeerServices` cache (port/IP per
+peer) in sync on **every** mDNS `serviceResolved`, not just first sight. If a peer restarts its
+TCP server on a new port and re-advertises under the same id, the cached address is overwritten
+and `register()` returns `{ addressChanged: true }`.
+
+When the address changes, `DiscoveryService` calls
+`ConnectionService.handlePeerRediscovered(peerId)`, which:
+1. Evicts the stale `TcpClientAdapter` (`evictTcpClientAdapter` — disconnects the dead socket and
+   removes it from the map so the next connect builds a fresh one at the new address), and
+2. Emits the `"peer-rediscovered"` event.
+
+`ChatService` exposes this via `onPeerRediscovered()`. The chat screen
+(`app/(drawer)/(tabs)/chat/[id].tsx`) subscribes and re-dials the peer, so a port change is
+honored without leaving the conversation. The chat screen also re-dials on `NetInfo`
+network-regained and exposes a manual "Tap to retry" once the bounded reconnect budget
+(`MAX_RECONNECT_RETRIES`) is exhausted. Mid-session ICE disruption (weak WiFi) surfaces as
+"Reconnecting…" via the existing `"call-reconnecting"` event (`onCallReconnecting()`).
 
 ---
 
@@ -101,12 +197,16 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 | `TcpServerAdapter` | `react-native-tcp-socket` (server) |
 | `TcpClientAdapter` | `react-native-tcp-socket` (client, one per peer) |
 | `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat — shared by `SignalingService`, `ConnectionService`, and `PublicChatService` |
-| `WebrtcAdapter` | `react-native-webrtc` (RTCPeerConnection, one per peer) |
-| `ZeroconfAdapter` | `react-native-zeroconf`. Exposes publish confirmation via the native `published` event. |
+| `WebrtcAdapter` | **Facade.** `react-native-webrtc` (RTCPeerConnection, one per peer). Liveness ping/pong probing now delegated to `LivenessMonitor`; ICE-restart backoff delegated to `IceRestartController`. Both sub-units are driven by the adapter via injected closures (no direct adapter reference). `// TODO(refactor): extract local-media-controls` — `initializeLocalStream*`, `toggleMic`, `toggleCamera`, `switchCamera`, `getLocalStream` share `peerConnection`/`localStream` with `createPeerConnection`/`cleanup`, so this split is deferred to avoid a PC-core split; reaching <800 lines is possible once that seam is clean. |
+| `LivenessMonitor` | Application-level data-channel ping/pong probe, extracted from `WebrtcAdapter`. Detects half-open links and triggers ICE restart via closures. |
+| `IceRestartController` | ICE-restart scheduling and exponential-backoff logic, extracted from `WebrtcAdapter`. Drives `createOffer({ iceRestart: true })` and emits `signal-offer`/`ice-restarting`/`connection-failed` via closures. |
+| `ZeroconfAdapter` | `react-native-zeroconf`. Tracks the active published service name, exposes publish confirmation via the native `published` event, and serializes scan/publish cleanup. |
 
 ---
 
 ## Feature Structure
+
+Domain features follow a by-type layout:
 
 ```
 features/<name>/
@@ -118,7 +218,34 @@ features/<name>/
   index.ts        — Public API
 ```
 
-Features: `auth`, `announcements`, `call`, `chat`, `getting-started`, `settings`, `shared`, `sync`
+`features/` is not flat — features differ enormously in size and complexity:
+
+| Feature | Lines | Files | Role |
+|---|---|---|---|
+| `shared/` | ~22 k | 166 | **Engine** — P2P runtime, encryption, DI, database |
+| `chat/` | ~7.5 k | 45 | Message threads, sync, conversation key management |
+| `auth/` | ~6.2 k | 68 | Registration, login, PIN gate, guest flow |
+| `call/` | ~4.1 k | 35 | Audio/video call UI and lifecycle |
+| `sync/` | ~3.2 k | 16 | Background data sync with server |
+| `gps/` | ~0.7 k | 10 | Live location sharing (rescuers only) |
+| `settings/` | ~0.6 k | 5 | User preferences |
+| `announcements/` | ~0.4 k | 9 | Server-fetched announcement board |
+| `getting-started/` | ~0.4 k | 8 | Onboarding screens |
+
+`features/shared/` is ~50 % of all production code. It is a layered engine, not a utility bucket. See the sub-domain layout below and `features/shared/README.md` for the one-page map.
+
+### Engine Sub-domains (`features/shared/`)
+
+Four sub-domains in dependency order (bottom → top):
+
+| Sub-domain | Path | Lines | What lives here |
+|---|---|---|---|
+| **core** | `shared/core/` | ~3.5 k | Logger, errors, context, WatermelonDB schema/models, stores, API client |
+| **crypto** | `shared/crypto/` | ~1.7 k | NaCl E2E encryption, key derivation, key recovery, at-rest encryption |
+| **peer** | `shared/peer/` | ~1.7 k | `PeerService`, `PeerRepository`, `GuestUserRepository` |
+| **connection** | `shared/connection/` | ~10.9 k | `ConnectionService`, WebRTC, signaling, TCP/WS adapters, discovery |
+
+**One-way dependency rule:** `core` ← `crypto` ← `peer` / `connection` ← domain features. A sub-domain may only import from itself and sub-domains *below* it. Domain features (`chat/`, `auth/`, etc.) depend on the engine — never the reverse.
 
 ### `features/announcements/`
 
@@ -140,7 +267,7 @@ On Android, a background task (`task/signaling-task.ts`) maintains WebSocket con
 Two mechanisms coordinate foreground ↔ background:
 
 1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down. `setAppAlive(false)` on cleanup lets it resume.
-2. **Secure storage handoff** — `features/shared/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes the latest IP immediately on WiFi change so the background task always reads fresh config.
+2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes the latest IP immediately on WiFi change so the background task always reads fresh config. Background Zeroconf cleanup also uses the adapter-tracked published service name so teardown can unpublish the correct mDNS registration.
 
 ---
 

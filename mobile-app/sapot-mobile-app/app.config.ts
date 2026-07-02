@@ -1,17 +1,110 @@
-import { ConfigPlugin, withAndroidManifest } from "@expo/config-plugins";
+import {
+  ConfigPlugin,
+  withAndroidManifest,
+  withDangerousMod,
+  withGradleProperties,
+} from "@expo/config-plugins";
 import { ConfigContext } from "expo/config";
+import * as fs from "fs";
+import * as path from "path";
 
 const BACKGROUND_ACTIONS_SERVICE =
   "com.asterinet.react.bgactions.RNBackgroundActionsTask";
 
-const withCleartextTraffic: ConfigPlugin = (config) =>
-  withAndroidManifest(config, (mod) => {
-    const app = mod.modResults.manifest.application?.[0];
-    if (app?.$) {
-      app.$["android:usesCleartextTraffic"] = "true";
-    }
+// React Native's build.gradle reads reactNativeArchitectures from
+// gradle.properties and uses it to set ndk.abiFilters in defaultConfig.
+// Setting it to arm64-v8a strips all other ABI native libs from the APK.
+const withArmOnlyAbi: ConfigPlugin = (config) =>
+  withGradleProperties(config, (mod) => {
+    mod.modResults = mod.modResults.filter(
+      (item) =>
+        !(item.type === "property" && item.key === "reactNativeArchitectures")
+    );
+    mod.modResults.push({
+      type: "property",
+      key: "reactNativeArchitectures",
+      value: "arm64-v8a",
+    });
     return mod;
   });
+
+const withServerCert: ConfigPlugin = (config) =>
+  withDangerousMod(config, [
+    "android",
+    (mod) => {
+      const rawDir = path.join(
+        mod.modRequest.platformProjectRoot,
+        "app/src/main/res/raw"
+      );
+      fs.mkdirSync(rawDir, { recursive: true });
+      fs.copyFileSync(
+        path.join(mod.modRequest.projectRoot, "server_cert.pem"),
+        path.join(rawDir, "server_cert.pem")
+      );
+      return mod;
+    },
+  ]);
+
+const certPath = path.join(__dirname, "server_cert.pem");
+
+if (process.env.SERVER_CERT) {
+  fs.writeFileSync(
+    certPath,
+    Buffer.from(process.env.SERVER_CERT, "base64").toString("utf-8")
+  );
+}
+
+const withNetworkSecurityConfig: ConfigPlugin = (config) => {
+  // Dev builds allow cleartext so the Expo dev client can reach Metro (HTTP).
+  // Prod builds lock down to HTTPS-only with the bundled self-signed cert.
+  const xml = IS_DEV
+    ? `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <base-config cleartextTrafficPermitted="true">
+    <trust-anchors>
+      <certificates src="system"/>
+      <certificates src="user"/>
+      <certificates src="@raw/server_cert"/>
+    </trust-anchors>
+  </base-config>
+</network-security-config>`
+    : `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="false">192.168.0.100</domain>
+    <trust-anchors>
+      <certificates src="@raw/server_cert"/>
+    </trust-anchors>
+  </domain-config>
+</network-security-config>`;
+
+  // Step 1: write the XML into res/xml/
+  const withWrittenFile: ConfigPlugin = (cfg) =>
+    withDangerousMod(cfg, [
+      "android",
+      (mod) => {
+        const resDir = path.join(
+          mod.modRequest.platformProjectRoot,
+          "app/src/main/res/xml"
+        );
+        fs.mkdirSync(resDir, { recursive: true });
+        fs.writeFileSync(path.join(resDir, "network_security_config.xml"), xml);
+        return mod;
+      },
+    ]);
+
+  // Step 2: wire the attribute into AndroidManifest.xml
+  const withManifestAttr: ConfigPlugin = (cfg) =>
+    withAndroidManifest(cfg, (mod) => {
+      const app = mod.modResults.manifest.application?.[0];
+      if (app?.$) {
+        app.$["android:networkSecurityConfig"] = "@xml/network_security_config";
+      }
+      return mod;
+    });
+
+  return withManifestAttr(withWrittenFile(config));
+};
 
 const withBackgroundActionsForegroundService: ConfigPlugin = (config) =>
   withAndroidManifest(config, (mod) => {
@@ -92,7 +185,7 @@ export default ({ config }: ConfigContext) => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
-  version: "0.2.2",
+  version: "0.9.1",
   orientation: "portrait",
   icon: "./assets/images/logo.png",
   scheme: "sapotmobileapp",
@@ -171,7 +264,8 @@ export default ({ config }: ConfigContext) => ({
       },
     ],
     withBackgroundActionsForegroundService,
-    withCleartextTraffic,
+    withServerCert,
+    withNetworkSecurityConfig,
     "expo-router",
     "expo-secure-store",
     [
@@ -181,6 +275,14 @@ export default ({ config }: ConfigContext) => ({
         microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
         recordAudioAndroid: true,
         barcodeScannerEnabled: true,
+      },
+    ],
+    [
+      "@sentry/react-native/expo",
+      {
+        url: "https://sentry.io/",
+        project: "sapot-mobile-app",
+        organization: "adriele-matthew-tosino",
       },
     ],
     [
@@ -205,9 +307,12 @@ export default ({ config }: ConfigContext) => ({
           packagingOptions: {
             pickFirst: ["**/libc++_shared.so"],
           },
+          enableProguardInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
         },
       },
     ],
+    withArmOnlyAbi,
   ],
   experiments: {
     typedRoutes: true,
@@ -223,6 +328,6 @@ export default ({ config }: ConfigContext) => ({
       projectId: "ee940ed5-5653-43cb-8938-d5f54a830c59",
     },
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
-    displayVersion: "0.2.2",
+    displayVersion: "0.9.1",
   },
 });

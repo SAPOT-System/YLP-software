@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useAppMode } from "@/features/shared/context";
+import { useAppMode } from "@/features/shared/core/context";
 import { renderHook } from "@testing-library/react-native";
 import { useDiscoveryService } from "../use-discovery-service";
 import { useZeroconfPublished } from "../use-zeroconf-published";
 
 jest.mock("../use-discovery-service");
-jest.mock("@/features/shared/context");
+jest.mock("@/features/shared/core/context");
 
 describe("useZeroconfPublished", () => {
   let mockDiscoveryService: any;

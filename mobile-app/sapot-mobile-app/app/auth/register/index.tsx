@@ -1,22 +1,24 @@
 import { APP_ROUTES } from "@/config/routes";
 import {
-  RecoveryKeyDownloadModal,
   RegisterStep1,
-  RegisterStep2,
+  TermsModal,
   useAuth,
   useRegister,
 } from "@/features/auth";
 import { RegisterFormState } from "@/features/auth/types";
+import { validateRegistrationForm } from "@/features/auth/utils";
 import { ScreenContent, ScreenHeader } from "@/features/getting-started";
-import { checkBackEndHealth } from "@/features/shared/api";
-import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useToast } from "@/features/shared/hooks";
-import { authLog } from "@/features/shared/utils/logger";
-import React, { useEffect, useState } from "react";
+import { checkBackEndHealth } from "@/features/shared/core/api";
+import LoadingOverlay from "@/features/shared/components/loading-overlay";
+import { authLog } from "@/features/shared/core/utils/logger";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { useTheme } from "react-native-paper";
 
 type RegisterFormField = keyof RegisterFormState;
+type OverlayPhase = "idle" | "loading" | "success" | "error";
+
+const REGISTER_TIMEOUT_MS = 30_000;
 
 const Register = () => {
   const {
@@ -29,156 +31,141 @@ const Register = () => {
   } = useRegister();
   const auth = useAuth();
 
-  // Form state
-  const theme = useTheme();
-  const [step, setStep] = useState(1);
-  const { visible: toastVisible, message: toastMessage, variant: toastVariant, showToast, showError, hideToast } = useToast();
+  const [overlayPhase, setOverlayPhase] = useState<OverlayPhase>("idle");
+  const [overlayMessage, setOverlayMessage] = useState("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [form, setForm] = useState<RegisterFormState>({
     username: "",
     firstName: "",
     lastName: "",
-    phoneNumber: "",
-    email: "",
     password: "",
-    securityQuestion: "",
-    questionAnswer: "",
     confirmPassword: "",
     termsChecked: false,
   });
-
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalData, setModalData] = useState("");
-  const showModal = () => {
-    authLog.info("[Register] recovery key modal shown");
-    setModalVisible(true);
-  };
-  const hideModal = () => {
-    authLog.info("[Register] recovery key modal hidden");
-    setModalVisible(false);
-  };
 
   useEffect(() => {
     authLog.info("[Register] mounted");
     return () => {
       authLog.info("[Register] unmounted");
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
-  useEffect(() => {
-    authLog.debug("[Register] useEffect triggered, deps:", {
-      step,
-      loading,
-      hasErrors: Object.keys(errors).length > 0,
-    });
-  }, [step, loading, errors]);
+  const handleOverlayDismiss = useCallback(() => {
+    if (overlayPhase === "success") {
+      router.replace(APP_ROUTES.HOME);
+    }
+    setOverlayPhase("idle");
+    setOverlayMessage("");
+  }, [overlayPhase]);
 
-  const handleStep1Submit = async (values: Partial<RegisterFormState>) => {
+  const handleBlur = async (name: RegisterFormField) => {
+    const fields: Partial<RegisterFormState> =
+      name === "password" || name === "confirmPassword"
+        ? { password: form.password, confirmPassword: form.confirmPassword }
+        : { [name]: form[name] as string };
+    const fieldErrors = validateRegistrationForm(fields);
+    setErrors((prev) => ({ ...prev, ...fieldErrors }));
+
+    if (name === "username" && form.username && !fieldErrors.username) {
+      if (await checkIfIdentifierExists(form.username)) {
+        authLog.warn("[Register] username exists on blur");
+        setErrors((prev) => ({ ...prev, username: "Username already exists" }));
+      }
+    }
+  };
+
+  const handleSubmit = async (values: Partial<RegisterFormState>) => {
     const reachable = await checkBackEndHealth();
     if (!reachable) {
-      showToast("Cannot reach server. Please check your connection.");
+      setOverlayPhase("error");
+      setOverlayMessage("Cannot reach server. Please check your connection.");
       return;
     }
-    authLog.debug("[Register] handleStep1Submit called", {
-      hasFirstName: Boolean(values.firstName),
-      hasLastName: Boolean(values.lastName),
-      hasPhoneNumber: Boolean(values.phoneNumber),
-      hasEmail: Boolean(values.email),
-      hasUsername: Boolean(values.username),
-    });
-    const step1Values = {
-      firstName: values.firstName,
-      lastName: values.lastName,
-      phoneNumber: values.phoneNumber,
-      email: values.email,
-      username: values.username,
-    };
-    const clientValidationResult = validateRegisterStep(step1Values);
+
+    const clientValidationResult = validateRegisterStep(values);
     if (!clientValidationResult.success) {
-      authLog.warn("[Register] step1 validation failed");
+      authLog.warn("[Register] validation failed");
       return;
     }
 
     if (values.username && (await checkIfIdentifierExists(values.username))) {
       authLog.warn("[Register] username exists");
-      setErrors({ username: "Username exists" });
+      setErrors({ username: "Username already exists" });
       return;
     }
-    if (
-      values.phoneNumber &&
-      (await checkIfIdentifierExists(values.phoneNumber))
-    ) {
-      authLog.warn("[Register] phone number exists");
-      setErrors({ phoneNumber: "Phone number exists" });
-      return;
-    }
-    if (values.email && (await checkIfIdentifierExists(values.email))) {
-      authLog.warn("[Register] email exists");
-      setErrors({ email: "Email exists" });
-      return;
-    }
+
     setErrors({});
-    setForm((prev) => ({ ...prev, ...values }));
-    setStep(2);
-    authLog.info("[Register] moved to step 2");
-  };
-
-  const handleStep2Submit = async (values: Partial<RegisterFormState>) => {
-    const reachable = await checkBackEndHealth();
-    if (!reachable) {
-      showToast("Cannot reach server. Please check your connection.");
-      return;
-    }
-    authLog.debug("[Register] handleStep2Submit called", {
-      hasPassword: Boolean(values.password),
-      hasConfirmPassword: Boolean(values.confirmPassword),
-      hasSecurityQuestion: Boolean(values.securityQuestion),
-      hasQuestionAnswer: Boolean(values.questionAnswer),
-      termsChecked: Boolean(values.termsChecked),
-    });
-    const clientValidationResult = validateRegisterStep(values);
-    if (!clientValidationResult.success) {
-      authLog.warn("[Register] step2 validation failed");
-      return;
-    }
-
     const fullForm = { ...form, ...values };
     setForm(fullForm);
+
+    setOverlayPhase("loading");
+    setOverlayMessage("");
+
+    timeoutRef.current = setTimeout(() => {
+      authLog.warn("[Register] registration timed out");
+      setOverlayPhase("error");
+      setOverlayMessage("Registration timed out. Please try again.");
+    }, REGISTER_TIMEOUT_MS);
+
     const serverSideResult = await registerUser(fullForm);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     if (serverSideResult.success) {
-      authLog.info("auth › register success", {
-        hasRecoveryKeyLink: Boolean(serverSideResult.recoveryKeyFileLink),
-      });
-      showToast("Account created successfully!");
-      setModalData(serverSideResult.recoveryKeyFileLink!);
-      showModal();
+      authLog.info("auth › register success");
+      const { setPendingPassword } = await import("@/features/shared/main-container");
+      setPendingPassword(fullForm.password);
       await auth.loginAfterRegister(serverSideResult.info!);
-      // TODO: Store token from result.data
-      // TODO: Update auth state
-      // TODO: Reset navigation to main app
-    } else if (!serverSideResult.success) {
+      setOverlayPhase("success");
+      setOverlayMessage("Account created successfully!");
+    } else {
       authLog.warn("auth › register failed");
-      showError("Account creation failed!");
+      setOverlayPhase("error");
+      setOverlayMessage("Account creation failed. Please try again.");
     }
   };
 
   const handleChange = (name: RegisterFormField, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
-  // For network and server errors
+  const handleTermsPress = () => setTermsModalVisible(true);
+
+  const handleTermsAccept = () => {
+    setForm((prev) => ({ ...prev, termsChecked: true }));
+    if (errors.termsChecked) {
+      setErrors((prev) => ({ ...prev, termsChecked: undefined }));
+    }
+    setTermsModalVisible(false);
+  };
+
+  const handleTermsDismiss = () => setTermsModalVisible(false);
+
   useEffect(() => {
     if (errors.general) {
       authLog.warn("[Register] general error", { message: errors.general });
-      showError(errors.general);
     }
-  }, [errors.general, showToast, showError]);
+  }, [errors.general]);
+
+  const isSubmitting = overlayPhase !== "idle";
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
+      <LoadingOverlay
+        visible={isSubmitting}
+        text="Creating account..."
+        status={overlayPhase !== "idle" ? overlayPhase : "loading"}
+        statusMessage={overlayMessage}
+        onDismiss={handleOverlayDismiss}
+      />
       <View
         style={{ flex: 1, alignItems: "center", justifyContent: "flex-start" }}
       >
@@ -187,70 +174,28 @@ const Register = () => {
           title="Welcome to SAPOT"
           description="Create an account to get started"
         >
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 8,
-              justifyContent: "center",
-              marginBottom: 16,
-              width: "100%",
-            }}
-          >
-            {[1, 2].map((s) => (
-              <View
-                key={s}
-                style={{
-                  height: 6,
-                  flex: 1,
-                  maxWidth: 80,
-                  borderRadius: 3,
-                  backgroundColor:
-                    s <= step
-                      ? theme.colors.primary
-                      : theme.colors.surfaceVariant,
-                }}
-              />
-            ))}
-          </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             style={{ width: "100%" }}
           >
-            <View>
-              {step === 1 && (
-                <RegisterStep1
-                  values={form}
-                  errors={errors}
-                  loading={loading}
-                  onChange={handleChange}
-                  onSubmit={handleStep1Submit}
-                />
-              )}
-              {step === 2 && (
-                <RegisterStep2
-                  values={form}
-                  errors={errors}
-                  loading={loading}
-                  onSubmit={handleStep2Submit}
-                  onChange={handleChange}
-                  onBack={() => setStep(1)}
-                />
-              )}
-            </View>
+            <RegisterStep1
+              values={form}
+              errors={errors}
+              loading={isSubmitting || loading}
+              onChange={handleChange}
+              onSubmit={handleSubmit}
+              onBlur={handleBlur}
+              onTermsPress={handleTermsPress}
+            />
           </ScrollView>
         </ScreenContent>
-
-        {/* Toast Notification */}
-        <AppSnackbar visible={toastVisible} onDismiss={hideToast} variant={toastVariant}>
-          {toastMessage}
-        </AppSnackbar>
-        <RecoveryKeyDownloadModal
-          visible={modalVisible}
-          hideModal={hideModal}
-          route={APP_ROUTES.HOME}
-          fileData={modalData}
-        />
       </View>
+
+      <TermsModal
+        visible={termsModalVisible}
+        onAccept={handleTermsAccept}
+        onDismiss={handleTermsDismiss}
+      />
     </KeyboardAvoidingView>
   );
 };

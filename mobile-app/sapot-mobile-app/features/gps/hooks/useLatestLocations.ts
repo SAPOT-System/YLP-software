@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { gpsLog } from "@/features/shared/utils/logger";
+import { gpsLog } from "@/features/shared/core/utils/logger";
 import { getLatestLocationsApi } from "../api/gps.api";
 
 const POLL_INTERVAL_MS = 5000;

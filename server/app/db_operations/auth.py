@@ -1,22 +1,40 @@
+import os
+from datetime import datetime, timezone
 from typing import Annotated, Dict
 from uuid import UUID
 from fastapi import Depends, HTTPException, Request
 from pwdlib import PasswordHash
-from sqlmodel import SQLModel, Session, create_engine, select
+from sqlalchemy.exc import IntegrityError
+from pwdlib.hashers.argon2 import Argon2Hasher
+from sqlmodel import SQLModel, Session, create_engine, select, or_
 
 from app.models.users import User, UserCreate
 from app.models.users import UserUpdate, UserPasswordUpdate
 
 
 
-password_hash = PasswordHash.recommended()
+# Reduced from recommended() defaults (time_cost=2, memory_cost=65536)
+# to OWASP minimum — adequate for a LAN-only deployment where an attacker
+# needs physical network access first. Raises safe login capacity ~6×.
+password_hash = PasswordHash([Argon2Hasher(time_cost=1, memory_cost=19456, parallelism=1)])
 
-
+SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL")
+if not SQLALCHEMY_DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, connect_args=connect_args)
+# engine = create_engine(sqlite_url, connect_args=connect_args)
+#
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_recycle=1800,      # recycle before MySQL's default 8h wait_timeout
+    pool_pre_ping=True,     # verify connection is alive before use
+    pool_size=10,           # 4 workers × 2 middleware paths + 2 bg threads + headroom
+    max_overflow=5,         # allow short bursts up to 15 total connections
+    pool_timeout=10,        # fail fast instead of blocking indefinitely
+)
 
 
 def create_db_and_tables():
@@ -47,36 +65,24 @@ def db_create_user(user: UserCreate, session: SessionDep):
         
     errors: Dict[str, str] = {}
 
-    # Check username
-    existing_username = session.exec(
-        select(User).where(User.username == user.username)
-    ).first()
+    # Single OR query instead of 3 sequential round-trips
+    conditions = [User.username == user.username]
+    if user.email:
+        conditions.append(User.email == user.email)
+    if user.phone_number:
+        conditions.append(User.phone_number == user.phone_number)
 
-    if existing_username:
-        errors["username"] = "Username already taken"
-        
-    # Check email
-    existing_email = session.exec(
-        select(User).where(User.email == user.email)
-    ).first()
+    conflicts = session.exec(select(User).where(or_(*conditions))).all()
+    for existing in conflicts:
+        if existing.username == user.username:
+            errors["username"] = "Username already taken"
+        if user.email and existing.email == user.email:
+            errors["email"] = "Email already registered"
+        if user.phone_number and existing.phone_number == user.phone_number:
+            errors["phone_number"] = "Phone number already registered"
 
-    if existing_email and user.email :
-        errors["email"] = "Email already registered"
-
-    # Check phone number
-    existing_phone = session.exec(
-        select(User).where(User.phone_number == user.phone_number)
-    ).first()
-
-    if existing_phone and user.phone_number:
-        errors["phone_number"] = "Phone number already registered"
-
-    # If any errors exist → return them
     if errors:
-        raise HTTPException(
-            status_code=400,
-            detail=errors
-        )
+        raise HTTPException(status_code=400, detail=errors)
     if not user_in_db:
         hashed_password = get_password_hash(user.password)
         db_user = User.model_validate(
@@ -86,8 +92,15 @@ def db_create_user(user: UserCreate, session: SessionDep):
         if hasattr(user, 'id') and user.id:
             db_user.id = user.id
 
+        if user.terms_accepted:
+            db_user.terms_accepted_at = datetime.now(timezone.utc)
+
         session.add(db_user)
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            raise HTTPException(status_code=400, detail={"username": "Username or contact already registered"})
         session.refresh(db_user)
         return db_user
     elif user_in_db and user_in_db.guest:
@@ -101,6 +114,9 @@ def db_create_user(user: UserCreate, session: SessionDep):
         
         for field, value in new_user_dump.items():
             setattr(user_in_db, field, value)
+
+        if user.terms_accepted:
+            user_in_db.terms_accepted_at = datetime.now(timezone.utc)
 
         session.add(user_in_db)
         # delete guest record
@@ -146,21 +162,20 @@ def get_user_by_ID(session: SessionDep, ID: UUID):
     return user
 
 
-def get_user(identifier: str|UUID, session: SessionDep):
-    methods = [get_user_by_email, get_user_by_username, get_user_by_phone_number, get_user_by_ID]
+def get_user(identifier: str | UUID, session: SessionDep):
+    import uuid as _uuid
+    conditions = [
+        User.email == str(identifier),
+        User.username == str(identifier),
+        User.phone_number == str(identifier),
+    ]
+    try:
+        uid = _uuid.UUID(str(identifier))
+        conditions.append(User.id == uid)
+    except (ValueError, AttributeError):
+        pass
 
-    user = None
-
-    for method in methods:
-        try:
-            user = method(session, identifier)
-        except:
-            continue
-
-    if not user:
-        return None
-
-    return user
+    return session.exec(select(User).where(or_(*conditions))).first()
 
 
 def authenticate_user(

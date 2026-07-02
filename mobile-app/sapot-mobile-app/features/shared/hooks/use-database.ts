@@ -1,5 +1,6 @@
-import { database, Peer } from "../database";
-import { dbLog } from "../utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { database, Peer } from "../core/database";
+import { dbLog } from "../core/utils/logger";
 
 dbLog.debug("[use-database] module loaded");
 
@@ -18,7 +19,8 @@ const useDatabase = () => {
       });
       dbLog.info("database › peer created", { peerId: createdPeer.id });
     } catch (error) {
-      dbLog.error("database › peer create failed", { error });
+      const appErr = toAppError(error, "database");
+      dbLog.error("database › peer create failed", appErr);
     }
   };
 
@@ -28,7 +30,8 @@ const useDatabase = () => {
       dbLog.debug("database › peers listed", { count: allPeers.length });
       return allPeers;
     } catch (error) {
-      dbLog.error("database › peers list failed", { error });
+      const appErr = toAppError(error, "database");
+      dbLog.error("database › peers list failed", appErr);
     }
   };
 
@@ -44,7 +47,8 @@ const useDatabase = () => {
       });
       dbLog.info("database › peers delete complete");
     } catch (error) {
-      dbLog.error("database › peers delete failed", { error });
+      const appErr = toAppError(error, "database");
+      dbLog.error("database › peers delete failed", appErr);
     }
   };
 
@@ -56,7 +60,8 @@ const useDatabase = () => {
       });
       dbLog.info("database › reset complete");
     } catch (error) {
-      dbLog.error("database › reset failed", { error });
+      const appErr = toAppError(error, "database");
+      dbLog.error("database › reset failed", appErr);
     }
   };
 

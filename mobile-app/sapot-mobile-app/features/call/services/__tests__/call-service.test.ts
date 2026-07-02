@@ -1,4 +1,4 @@
-import { callLog } from "@/features/shared/utils/logger";
+import { callLog } from "@/features/shared/core/utils/logger";
 import { createTestPeer } from "@/test/factories/user.factory";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createCallServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
@@ -28,6 +28,9 @@ describe("CallService", () => {
   let mockChatService: ReturnType<
     typeof createCallServiceDependencyMocks
   >["chatService"];
+  let mockMessageRepository: { queryMessageById: jest.Mock; saveMessage: jest.Mock };
+  let mockMessageStatusRepository: { queryMessageStatusByMessage: jest.Mock; updateMessageStatusByMessage: jest.Mock; saveMessageStatus: jest.Mock };
+  let mockConversationKeyManager: { deriveAndSetConversationKey: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -66,8 +69,20 @@ describe("CallService", () => {
     mockCallParticipantRepository.updateParticipantLeftAtByCallAndUser.mockResolvedValue(
       undefined
     );
-    mockChatService.saveCallLogWithReceipts.mockResolvedValue("mock-message-id");
     mockChatService.updateMessageStatus.mockResolvedValue(undefined);
+
+    mockMessageRepository = {
+      queryMessageById: jest.fn().mockResolvedValue(undefined),
+      saveMessage: jest.fn().mockResolvedValue({ id: "mock-message-id" }),
+    };
+    mockMessageStatusRepository = {
+      queryMessageStatusByMessage: jest.fn().mockResolvedValue(undefined),
+      updateMessageStatusByMessage: jest.fn().mockResolvedValue(undefined),
+      saveMessageStatus: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConversationKeyManager = {
+      deriveAndSetConversationKey: jest.fn().mockResolvedValue(undefined),
+    };
 
     // Create service instance
     callService = new CallService(
@@ -77,7 +92,10 @@ describe("CallService", () => {
       mockCallRepository as never,
       mockCallParticipantRepository as never,
       mockChatService as never,
-      { syncNow: jest.fn().mockResolvedValue(undefined) }
+      { syncNow: jest.fn().mockResolvedValue(undefined) },
+      mockMessageRepository as never,
+      mockMessageStatusRepository as never,
+      mockConversationKeyManager as never,
     );
   });
 
@@ -126,6 +144,21 @@ describe("CallService", () => {
         peerId
       );
       expect(mockConnectionService.renegotiate).toHaveBeenCalledWith(peerId);
+    });
+
+    it("tracks connected state per-peer so startCall for a new peer is not skipped", async () => {
+      // Arrange: startCall for peer-1 sets its state to "connected"
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
+      await callService.startCall("audio", "peer-1");
+      jest.clearAllMocks();
+
+      // Act: startCall for peer-2 — WebRTC also reports as connected
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
+      await callService.startCall("audio", "peer-2");
+
+      // Assert: peer-2 media init was NOT skipped
+      // (with a global flag, peer-2 would early-return because peer-1 set connectedState = "connected")
+      expect(mockConnectionService.initializeStream).toHaveBeenCalledWith("audio", "peer-2");
     });
 
     it("should not start call if already connected", async () => {
@@ -265,12 +298,7 @@ describe("CallService", () => {
           }),
         })
       );
-      expect(mockChatService.saveCallLogWithReceipts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          peerId,
-          status: "sending",
-        })
-      );
+      expect(mockMessageRepository.saveMessage).toHaveBeenCalled();
     });
 
     it("should not terminate if already disconnected", async () => {
@@ -295,6 +323,23 @@ describe("CallService", () => {
           data: expect.objectContaining({
             from: "test-user-id",
             to: peerId,
+          }),
+        })
+      );
+    });
+
+    it("should include callId in the call-ended message", async () => {
+      const peerId = "peer-1";
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+
+      await callService.terminateCallConnection(peerId);
+
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({
+          type: "call-ended",
+          data: expect.objectContaining({
+            callId: "call-1",
           }),
         })
       );
@@ -434,10 +479,10 @@ describe("CallService", () => {
         // Expected to throw
       }
 
-      expect(logSpy).toHaveBeenCalledWith("call › starting call failed", {
-        peerId,
-        error,
-      });
+      expect(logSpy).toHaveBeenCalledWith(
+        "call › starting call failed",
+        expect.objectContaining({ peerId, cause: error })
+      );
     });
 
     it("should maintain proper error context for all methods", () => {
@@ -454,10 +499,10 @@ describe("CallService", () => {
 
       expect(() => callService.toggleMic(peerId)).toThrow("Mic error");
 
-      expect(logSpy).toHaveBeenCalledWith("call › mic toggle failed", {
-        peerId,
-        error: micError,
-      });
+      expect(logSpy).toHaveBeenCalledWith(
+        "call › mic toggle failed",
+        expect.objectContaining({ peerId, cause: micError })
+      );
     });
   });
 
@@ -532,7 +577,7 @@ describe("CallService", () => {
       });
 
       expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
-      expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
     });
 
     it("should skip busy log when caller has an outgoing session (glare)", async () => {
@@ -546,7 +591,122 @@ describe("CallService", () => {
       });
 
       expect(mockCallRepository.updateCallStatus).not.toHaveBeenCalled();
-      expect(mockChatService.saveCallLogWithReceipts).not.toHaveBeenCalled();
+      expect(mockMessageRepository.saveMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("answerCall", () => {
+    const peerId = "peer-1";
+
+    it("waits for data channel before initializing media when not connected", async () => {
+      // Arrange
+      const callOrder: string[] = [];
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.waitForDataChannel.mockImplementation(async () => {
+        callOrder.push("waitForDataChannel");
+      });
+      mockConnectionService.initializeStream.mockImplementation(async () => {
+        callOrder.push("initializeStream");
+      });
+
+      // Act
+      await callService.answerCall("audio", peerId, "conv-1", "call-1");
+
+      // Assert
+      expect(mockConnectionService.waitForDataChannel).toHaveBeenCalledWith(peerId);
+      expect(callOrder.indexOf("waitForDataChannel")).toBeLessThan(
+        callOrder.indexOf("initializeStream")
+      );
+    });
+
+    it("sends call-ready only after initializeStream resolves", async () => {
+      // Arrange
+      const callOrder: string[] = [];
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.initializeStream.mockImplementation(async () => {
+        callOrder.push("initializeStream");
+      });
+      mockConnectionService.sendCallMessage.mockImplementation(
+        (_id: string, msg: { type: string }) => {
+          if (msg.type === "call-ready") callOrder.push("call-ready");
+        }
+      );
+
+      // Act
+      await callService.answerCall("audio", peerId, "conv-1", "call-1");
+
+      // Assert
+      expect(mockConnectionService.sendCallMessage).toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({ type: "call-ready" })
+      );
+      expect(callOrder.indexOf("initializeStream")).toBeLessThan(
+        callOrder.indexOf("call-ready")
+      );
+    });
+
+    it("does not send call-ready when waitForDataChannel times out", async () => {
+      // Arrange
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      mockConnectionService.waitForDataChannel.mockRejectedValue(
+        new Error("Data channel timeout")
+      );
+
+      // Act
+      await expect(
+        callService.answerCall("audio", peerId, "conv-1", "call-1")
+      ).rejects.toThrow();
+
+      // Assert
+      expect(mockConnectionService.sendCallMessage).not.toHaveBeenCalledWith(
+        peerId,
+        expect.objectContaining({ type: "call-ready" })
+      );
+    });
+
+    it("skips waitForDataChannel when already connected", async () => {
+      // Arrange
+      mockConnectionService.isWebrtcConnected.mockReturnValue(true);
+
+      // Act
+      await callService.answerCall("audio", peerId, "conv-1", "call-1");
+
+      // Assert
+      expect(mockConnectionService.waitForDataChannel).not.toHaveBeenCalled();
+      expect(mockConnectionService.initializeStream).toHaveBeenCalledWith("audio", peerId);
+    });
+  });
+
+  describe("handleRemoteCallEnded", () => {
+    beforeEach(async () => {
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      await callService.answerCall("audio", "peer-1", "conv-1", "call-1");
+      jest.clearAllMocks();
+    });
+
+    it("clears the active call state so the next incoming call is not routed as glare", async () => {
+      await callService.handleRemoteCallEnded("peer-1", {
+        status: "completed",
+        endedAt: Date.now(),
+        durationSeconds: 10,
+        initiatorId: "peer-1",
+        callType: "audio",
+      });
+
+      expect(mockConnectionService.setActiveCall).toHaveBeenCalledWith(null);
+    });
+  });
+
+  describe("getActiveCallId", () => {
+    it("returns undefined when no session exists for peer", () => {
+      expect(callService.getActiveCallId("unknown-peer")).toBeUndefined();
+    });
+
+    it("returns the session callId when a session exists", async () => {
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      await callService.startCall("audio", "peer-1");
+
+      expect(callService.getActiveCallId("peer-1")).toBe("call-1");
     });
   });
 });

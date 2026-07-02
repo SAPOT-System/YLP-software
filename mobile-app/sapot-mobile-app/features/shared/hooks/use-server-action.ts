@@ -1,5 +1,5 @@
-import { useServerStatus } from "@/features/shared/context";
-import { hookLog } from "../utils/logger";
+import { useServerStatus } from "@/features/shared/core/context";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-server-action] module loaded");
 
 export function useServerAction() {

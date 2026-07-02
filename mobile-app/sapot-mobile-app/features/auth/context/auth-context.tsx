@@ -1,5 +1,11 @@
 import { getUserApi } from "@/features/shared";
-import { authLog } from "@/features/shared/utils/logger";
+import {
+  setNeedsReloginCallback,
+  setTokenRefreshCallback,
+} from "@/features/shared/core/api/client";
+import { requestMainContainerReset } from "@/features/shared/main-container";
+import { authLog } from "@/features/shared/core/utils/logger";
+import { isTokenExpiredLocally } from "@/features/auth/utils/token-utils";
 import { AxiosError } from "axios";
 import { deleteItemAsync, getItemAsync, setItemAsync } from "expo-secure-store";
 import React, {
@@ -26,19 +32,32 @@ import {
 import {
   generateGuestUsername,
   hasValidationErrors,
-  isAccessTokenValid,
-  isRefreshTokenValid,
   validateGuestLoginForm,
 } from "../utils/";
+import {
+  clearConnectionConfig,
+  saveLockoutInfo,
+  clearLockoutInfo,
+  getLockoutInfo,
+} from "@/features/shared/core/stores/secure-config";
+
+export interface LoginLockout {
+  lockedUntil: string;
+  deviceType: string;
+  attemptsRemaining: number;
+}
 
 interface AuthContextI {
-  login: (credentials: LoginApiRequest) => Promise<{ success: boolean }>;
+  login: (credentials: LoginApiRequest) => Promise<{
+    success: boolean;
+    lockout?: LoginLockout;
+    attemptsRemaining?: number;
+    banned?: { message: string };
+  }>;
   loginAsGuest: (credentials: {
     firstName: string;
     lastName: string;
-  }) => Promise<{
-    success: boolean;
-  }>;
+  }) => Promise<{ success: boolean }>;
   loginAfterRegister: (data: RegisterApiResponse) => Promise<void>;
   registerAndMigrate: (
     data: RegisterApiRequest
@@ -46,13 +65,26 @@ interface AuthContextI {
   logout: () => Promise<void>;
   logoutAsGuest: () => Promise<void>;
   loading: boolean;
+  isBootstrapping: boolean;
   errors: LoginFormErrors;
   isAuthenticated: boolean;
   accessToken: string | null;
   isGuest: boolean;
   isRescuer: boolean;
+  isAdmin: boolean;
+  needsReloginForServer: boolean;
+  isOfflineWithExpiredToken: boolean;
+  transitionReloginToOffline: () => void;
+  transitionOfflineToRelogin: () => void;
 }
+
 const AuthContext = createContext<AuthContextI | null>(null);
+
+interface DeviceLockoutResponse {
+  locked_until: string;
+  device_type: string;
+  attempts_remaining: number;
+}
 
 interface LoginFormErrors extends GuestLoginFormErrors {
   username?: string;
@@ -67,91 +99,164 @@ interface GuestLoginFormErrors {
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [errors, setErrors] = useState<LoginFormErrors>({});
-  // TODO: remove
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isGuest, setIsGuest] = useState(false);
-  const [isRescuer, setIsRescuer] = useState(false);
+  const [needsReloginForServer, setNeedsReloginForServer] = useState(false);
+  const [isOfflineWithExpiredToken, setIsOfflineWithExpiredToken] =
+    useState(false);
+  const [, setUserStoreVersion] = useState(0);
   const userService = useUserService();
-  const { guestUserRepository, guestMigrationService, peerService } =
+  const { guestUserRepository, guestMigrationService, peerService, userStore } =
     useAuthContainer();
 
-  const refreshSession = useCallback(async () => {
-    try {
-      authLog.debug("[AuthProvider] refreshSession called");
-      const refreshToken = await getItemAsync("refresh_token");
-      if (!refreshToken) {
-        authLog.warn("[AuthProvider] missing refresh token");
-        return false;
-      }
-      const isRefreshValid = await isRefreshTokenValid(refreshToken);
-      if (!isRefreshValid) {
-        return false;
-      }
+  useEffect(() => {
+    setTokenRefreshCallback((token) => setAccessToken(token));
+    setNeedsReloginCallback(() => setNeedsReloginForServer(true));
+  }, []);
 
-      const { access_token, refresh_token } = await refreshTokenApi(
-        refreshToken
-      );
-      await setItemAsync("access_token", access_token);
-      await setItemAsync("refresh_token", refresh_token);
+  useEffect(() => {
+    const unsubscribe = userStore.subscribe(() => {
+      setUserStoreVersion((v) => v + 1);
+    });
+    return unsubscribe;
+  }, [userStore]);
 
-      const userInfo = await getUserApi(access_token);
-      await userService.syncAuthenticatedUser(userInfo);
-      setIsRescuer(userService.getIsRescuer());
+  const refreshSession = useCallback(
+    async (
+      opts: {
+        keepSessionOnRejection?: boolean;
+        tokenWasExpired?: boolean;
+      } = {}
+    ) => {
+      try {
+        authLog.debug("[AuthProvider] refreshSession called");
+        const refreshToken = await getItemAsync("refresh_token");
+        if (!refreshToken) {
+          authLog.warn("[AuthProvider] missing refresh token");
+          if (opts.keepSessionOnRejection) {
+            setNeedsReloginForServer(true);
+          }
+          return false;
+        }
 
-      setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
-      return true;
-    } catch (err) {
-      authLog.warn("auth › refresh session failed", { error: err });
-      const uuid = await getItemAsync("userUUID");
-      if (uuid) {
-        const userInfo = await peerService.findPeerById(uuid);
-        if (!userInfo) return false;
+        const { access_token, refresh_token } = await refreshTokenApi(
+          refreshToken
+        );
+        await setItemAsync("access_token", access_token);
+        await setItemAsync("refresh_token", refresh_token);
 
-        await userService.syncAuthenticatedUser({
-          id: userInfo.id,
-          username: userInfo.username,
-          first_name: userInfo.firstName,
-          last_name: userInfo.lastName,
-          email: userInfo.email,
-          phone_number: userInfo.phoneNumber,
-          email_verified: userInfo.emailVerified,
-        });
+        const userInfo = await getUserApi(access_token);
+        await userService.syncAuthenticatedUser(userInfo);
+        setAccessToken(access_token);
         setIsAuthenticated(true);
-
+        authLog.debug("setIsOfflineWithExpiredToken false");
+        setIsOfflineWithExpiredToken(false);
         return true;
-      } else {
+      } catch (err) {
+        authLog.warn("auth › refresh session failed", { error: err });
+
+        const isServerRejection =
+          (err as { response?: { status: number } })?.response?.status === 401;
+
+        if (isServerRejection) {
+          if (opts.keepSessionOnRejection) {
+            authLog.warn(
+              "auth › server rejected refresh token, surfacing relogin banner"
+            );
+            setNeedsReloginForServer(true);
+            return false;
+          }
+          authLog.warn("auth › server rejected refresh token, logging out");
+          await deleteItemAsync("access_token");
+          await deleteItemAsync("refresh_token");
+          await deleteItemAsync("userUUID");
+          await userService.logout();
+          await clearConnectionConfig();
+          setAccessToken(null);
+          setIsAuthenticated(false);
+          return false;
+        }
+
+        // Network error: restore from local data for offline use
+        const uuid = await getItemAsync("userUUID");
+        if (uuid) {
+          const userInfo = await peerService.findPeerById(uuid);
+          if (!userInfo) return false;
+
+          await userService.syncAuthenticatedUser({
+            id: userInfo.id,
+            username: userInfo.username,
+            first_name: userInfo.firstName,
+            last_name: userInfo.lastName,
+            email: userInfo.email,
+            phone_number: userInfo.phoneNumber,
+            email_verified: userInfo.emailVerified,
+          });
+          if (opts.tokenWasExpired) {
+            authLog.warn(
+              "auth › server unreachable with expired token, warning user not to logout"
+            );
+            setIsOfflineWithExpiredToken(true);
+          }
+          setIsAuthenticated(true);
+          return true;
+        }
         return false;
       }
-    }
-  }, [userService, peerService]);
+    },
+    [userService, peerService]
+  );
 
   useEffect(() => {
     (async () => {
       authLog.debug("auth › bootstrap start");
       setLoading(true);
-      const token = await getItemAsync("access_token");
-      const uuid = await getItemAsync("userUUID");
-      if (token && uuid) {
-        authLog.info("[AuthProvider] restoring authenticated session");
+      try {
+        const uuid = await getItemAsync("userUUID");
 
-        const isValid = await isAccessTokenValid(token);
-        if (isValid) {
-          await userService.initialize({ isGuest: false });
-          setIsRescuer(userService.getIsRescuer());
-          setAccessToken(token);
-          setIsAuthenticated(true);
-        } else {
+        if (uuid) {
+          let hasLocalRecord = false;
+          try {
+            await userService.initialize({ isGuest: false });
+            userService.getUser();
+            hasLocalRecord = true;
+          } catch {
+            hasLocalRecord = false;
+          }
+
+          if (hasLocalRecord) {
+            const storedToken = await getItemAsync("access_token");
+            if (storedToken) setAccessToken(storedToken);
+            setIsAuthenticated(true);
+            setLoading(false);
+
+            const tokenWasExpired =
+              !storedToken || isTokenExpiredLocally(storedToken);
+            if (tokenWasExpired) {
+              refreshSession({
+                keepSessionOnRejection: true,
+                tokenWasExpired: true,
+              }).catch((error) => authLog.warn("[AuthProvider] background session refresh failed", { error }));
+            }
+            return;
+          }
+
+          authLog.warn(
+            "[AuthProvider] no local record, attempting server refresh"
+          );
           await refreshSession();
+        } else if (await userService.isCurrentUserGuest()) {
+          authLog.info("[AuthProvider] restoring guest session");
+          await userService.initialize({ isGuest: true });
         }
-      } else if (await userService.isCurrentUserGuest()) {
-        authLog.info("[AuthProvider] restoring guest session");
-        await userService.initialize({ isGuest: true });
-        setIsGuest(true);
+      } catch (err) {
+        authLog.error("auth › bootstrap failed", { error: err });
+      } finally {
+        setLoading(false);
+        setIsBootstrapping(false);
       }
-      setLoading(false);
     })();
   }, [refreshSession, userService]);
 
@@ -163,17 +268,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(true);
     setErrors({});
 
-    // Basic client-side validation
     const validationErrors: LoginFormErrors = {};
-
     if (!credentials.username.trim()) {
       validationErrors.username = "Username is required";
     }
-
     if (!credentials.password.trim()) {
       validationErrors.password = "Password is required";
     }
-
     if (Object.keys(validationErrors).length > 0) {
       authLog.warn("[AuthProvider] login validation failed");
       setErrors(validationErrors);
@@ -181,35 +282,59 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return { success: false };
     }
 
+    const existingLockout = await getLockoutInfo("lockout_login");
+    if (existingLockout) {
+      const until = new Date(existingLockout.lockedUntil);
+      if (until > new Date()) {
+        authLog.warn("auth › login blocked by active lockout", { lockedUntil: existingLockout.lockedUntil, deviceType: existingLockout.deviceType });
+        setErrors({ general: "Too many attempts. Please wait before trying again." });
+        setLoading(false);
+        return { success: false };
+      }
+      await clearLockoutInfo("lockout_login");
+    }
+
+    const isRelogin = needsReloginForServer;
+
     try {
       const res = await loginApi(credentials);
       setLoading(false);
 
-      const { access_token, refresh_token } = res.data;
+      if (isRelogin) {
+        authLog.info(
+          "[AuthProvider] relogin succeeded — wiping local DB for fresh session"
+        );
+        await userService.wipeDatabase();
+      }
 
+      const { access_token, refresh_token } = res.data;
       await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
       const userInfo = await getUserApi(access_token);
+      const { setPendingPassword } = await import(
+        "@/features/shared/main-container"
+      );
+      setPendingPassword(credentials.password);
 
       await userService.syncAuthenticatedUser(userInfo);
-
       setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
-      setIsRescuer(userService.getIsRescuer());
-      return {
-        success: true,
-      };
+      setIsAuthenticated(true);
+      setNeedsReloginForServer(false);
+      setIsOfflineWithExpiredToken(false);
+
+      if (isRelogin) {
+        requestMainContainerReset();
+      }
+
+      await clearLockoutInfo("lockout_login");
+      return { success: true };
     } catch (err) {
       authLog.error("auth › login failed", { error: err });
       setLoading(false);
 
       const axiosError = err as AxiosError<LoginApiErrorResponse>;
-
-      // Network error
-      if (!axiosError.response) {
-        return { success: false };
-      }
+      if (!axiosError.response) return { success: false };
 
       const status = axiosError.response.status;
       const data = axiosError.response.data;
@@ -219,28 +344,63 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (status === 401) {
-        setErrors({ general: data.detail });
-        return { success: false };
+        const detail = data.detail;
+        const message = typeof detail === 'string' ? detail : detail.message;
+        const attemptsRemaining =
+          typeof detail === 'object' && detail.attempts_remaining != null
+            ? detail.attempts_remaining
+            : undefined;
+        setErrors({ general: message });
+        return { success: false, attemptsRemaining };
+      }
+
+      if (status === 403) {
+        const detail = data.detail;
+        const message = typeof detail === "string" ? detail : "Your account is currently banned.";
+        authLog.warn("auth › login banned", { message });
+        return { success: false, banned: { message } };
+      }
+
+      if (status === 429) {
+        const lockoutData = (data as unknown as { detail: DeviceLockoutResponse }).detail;
+        authLog.warn("auth › login device lockout", { deviceType: lockoutData.device_type, lockedUntil: lockoutData.locked_until });
+        await saveLockoutInfo(
+          "lockout_login",
+          lockoutData.locked_until,
+          lockoutData.device_type,
+          lockoutData.attempts_remaining
+        );
+        setErrors({ general: "Too many attempts. Your device is temporarily locked." });
+        return {
+          success: false,
+          lockout: {
+            lockedUntil: lockoutData.locked_until,
+            deviceType: lockoutData.device_type,
+            attemptsRemaining: lockoutData.attempts_remaining,
+          },
+        };
       }
 
       setErrors({ general: "An unexpected error occurred." });
-
       return { success: false };
     }
   };
 
   const loginAfterRegister = async (data: RegisterApiResponse) => {
-    const { access_token } = data;
-
+    const { access_token, refresh_token } = data;
     authLog.debug("[AuthProvider] loginAfterRegister called", {
       hasAccessToken: Boolean(access_token),
     });
 
+    await setItemAsync("access_token", access_token);
+    await setItemAsync("refresh_token", refresh_token);
+
     const userInfo = await getUserApi(access_token);
     await userService.syncAuthenticatedUser(userInfo);
-
-    setIsAuthenticated(await isAccessTokenValid(access_token));
-    setIsRescuer(userService.getIsRescuer());
+    setAccessToken(access_token);
+    setIsAuthenticated(true);
+    setNeedsReloginForServer(false);
+    setIsOfflineWithExpiredToken(false);
   };
 
   const loginAsGuest = async (credentials: {
@@ -251,14 +411,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       hasFirstName: Boolean(credentials.firstName?.trim()),
       hasLastName: Boolean(credentials.lastName?.trim()),
     });
-    const errors = validateGuestLoginForm(
+    const validationErrors = validateGuestLoginForm(
       credentials.firstName,
       credentials.lastName
     );
 
-    if (hasValidationErrors(errors)) {
+    if (hasValidationErrors(validationErrors)) {
       authLog.warn("[AuthProvider] guest login validation failed");
-      setErrors(errors);
+      setErrors(validationErrors);
       return { success: false };
     }
 
@@ -266,13 +426,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       credentials.firstName,
       credentials.lastName
     );
-
     await userService.syncGuestUser({ ...credentials, username });
-
-    setIsGuest(true);
-
     authLog.info("[AuthProvider] guest login success");
-
     return { success: true };
   };
 
@@ -295,13 +450,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await setItemAsync("access_token", access_token);
       await setItemAsync("refresh_token", refresh_token);
 
-      await guestMigrationService.cleanUp();
+      await guestMigrationService.migrateAndCleanUp();
+
+      const { setPendingPassword } = await import(
+        "@/features/shared/main-container"
+      );
+      setPendingPassword(data.password);
 
       await userService.syncAuthenticatedUser(res.data);
-      setIsRescuer(userService.getIsRescuer());
       setAccessToken(access_token);
-      setIsAuthenticated(await isAccessTokenValid(access_token));
-      setIsGuest(false);
+      setIsAuthenticated(true);
+      setNeedsReloginForServer(false);
+      setIsOfflineWithExpiredToken(false);
 
       authLog.info("[AuthProvider] registerAndMigrate success");
       setLoading(false);
@@ -318,12 +478,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logoutAsGuest = async () => {
     authLog.info("[AuthProvider] logoutAsGuest called");
-    setIsGuest(false);
-    setIsRescuer(false);
     await deleteItemAsync("userUUID");
-
     await userService.logout();
   };
+
+  const transitionReloginToOffline = useCallback(() => {
+    setNeedsReloginForServer(false);
+    setIsOfflineWithExpiredToken(true);
+  }, []);
+
+  const transitionOfflineToRelogin = useCallback(() => {
+    setIsOfflineWithExpiredToken(false);
+    setNeedsReloginForServer(true);
+  }, []);
 
   const logout = async () => {
     authLog.info("[AuthProvider] logout called");
@@ -335,38 +502,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await deleteItemAsync("access_token");
     await deleteItemAsync("refresh_token");
     await deleteItemAsync("userUUID");
-
     await userService.logout();
+    await clearConnectionConfig();
     setAccessToken(null);
     setIsAuthenticated(false);
-    setIsRescuer(false);
+    setNeedsReloginForServer(false);
+    setIsOfflineWithExpiredToken(false);
   };
-
-  // silent login on app start
-  //   const bootstrapAuth = async () => {
-  //     const refreshToken = await SecureStore.getItemAsync("refresh_token");
-
-  //     if (!refreshToken) {
-  //       setLoading(false);
-  //       return;
-  //     }
-
-  //     try {
-  //       const res = await api.post("/refresh", {
-  //         refreshToken,
-  //       });
-
-  //       tokenService.setAccessToken(res.data.accessToken);
-  //     } catch {
-  //       await logout();
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   useEffect(() => {
-  //     bootstrapAuth();
-  //   }, []);
 
   return (
     <AuthContext.Provider
@@ -374,15 +516,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         login,
         logout,
         loading,
+        isBootstrapping,
         errors,
         accessToken,
         isAuthenticated,
         loginAsGuest,
         logoutAsGuest,
-        isGuest,
-        isRescuer,
+        isGuest: userStore.isGuest,
+        isRescuer: userStore.isRescuer,
+        isAdmin: userStore.isAdmin,
         loginAfterRegister,
         registerAndMigrate,
+        needsReloginForServer,
+        isOfflineWithExpiredToken,
+        transitionReloginToOffline,
+        transitionOfflineToRelogin,
       }}
     >
       {children}

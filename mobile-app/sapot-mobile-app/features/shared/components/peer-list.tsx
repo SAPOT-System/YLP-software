@@ -4,10 +4,10 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
-import { Peer } from "../database";
+import { Peer } from "../core/database";
 import { PeerListEntry, usePeerListData } from "../hooks/use-peer-list-data";
 import { useProfilePhoto } from "../hooks/use-profile-photo";
-import { uiLog } from "../utils/logger";
+import { uiLog } from "../core/utils/logger";
 
 uiLog.debug("[peer-list] module loaded");
 
@@ -15,20 +15,8 @@ const ONLINE_DOT_SIZE = 14;
 
 const PeerList = () => {
   const entries = usePeerListData();
-  const theme = useTheme();
   return (
     <View style={{ gap: 12, marginTop: 12 }}>
-      <Text
-        variant="bodyLarge"
-        style={{
-          fontSize: 20,
-          fontWeight: 700,
-          color: theme.dark ? "#9AA7C1" : "#103462",
-        }}
-      >
-        Peers
-      </Text>
-
       <FlatList
         horizontal
         contentContainerStyle={{ gap: 24 }}

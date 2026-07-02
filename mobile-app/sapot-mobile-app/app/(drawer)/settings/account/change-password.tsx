@@ -1,24 +1,27 @@
 import { changePasswordApi } from "@/features/auth/api/auth.api";
+import { useMasterKeyRecovery } from "@/features/auth/hooks/use-master-key-recovery";
 import {
     hasValidationErrors,
     validatePassword,
 } from "@/features/auth/utils/validation";
 import { SettingsTextInput } from "@/features/settings";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useServerAction, useToast } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { useServerAction, useToast, useUserProfile } from "@/features/shared/hooks";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import {
     Button,
     HelperText,
-    Text,
     useTheme,
 } from "react-native-paper";
+import { isAxiosError } from "axios";
 
 export default function ChangePassword() {
   const theme = useTheme();
+  const { rewrapAllBlobs } = useMasterKeyRecovery();
+  const { user } = useUserProfile();
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
@@ -27,7 +30,11 @@ export default function ChangePassword() {
     password?: string;
     confirmPassword?: string;
   }>({});
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     visible: toastVisible,
@@ -43,6 +50,7 @@ export default function ChangePassword() {
     uiLog.info("[ChangePasswordSettings] mounted");
     return () => {
       uiLog.info("[ChangePasswordSettings] unmounted");
+      if (backTimerRef.current) clearTimeout(backTimerRef.current);
     };
   }, []);
 
@@ -85,7 +93,12 @@ export default function ChangePassword() {
       setErrors({});
       showToast("Change password successfully");
 
-      setTimeout(() => {
+      const rewrapResult = await rewrapAllBlobs({ userId: user?.id ?? "", newPassword: newPass });
+      if (!rewrapResult.success) {
+        showError("Password changed but recovery keys could not be updated. Visit Settings → Recovery Methods to re-configure.");
+      }
+
+      backTimerRef.current = setTimeout(() => {
         uiLog.info("[Navigation] goBack triggered from ChangePasswordSettings");
         router.back();
       }, 1000);
@@ -93,7 +106,14 @@ export default function ChangePassword() {
       uiLog.error("[ChangePasswordSettings] Error in change password", {
         error,
       });
-      setErrors({ currentPassword: "Invalid password" });
+      if (
+        isAxiosError(error) &&
+        (error.response?.status === 401 || error.response?.status === 403)
+      ) {
+        setErrors({ currentPassword: "Incorrect password." });
+      } else {
+        showError("Something went wrong. Please try again.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -117,7 +137,9 @@ export default function ChangePassword() {
                   }));
                 }
               }}
-              secureTextEntry
+              secureTextEntry={!showCurrent}
+              icon={showCurrent ? "eye-off" : "eye"}
+              onIconPress={() => setShowCurrent((prev) => !prev)}
             />
             <HelperText type="error" visible={Boolean(errors.currentPassword)}>
               {errors.currentPassword}
@@ -134,7 +156,9 @@ export default function ChangePassword() {
                   setErrors((prev) => ({ ...prev, password: undefined }));
                 }
               }}
-              secureTextEntry
+              secureTextEntry={!showNew}
+              icon={showNew ? "eye-off" : "eye"}
+              onIconPress={() => setShowNew((prev) => !prev)}
             />
             <HelperText type="error" visible={Boolean(errors.password)}>
               {errors.password}
@@ -154,24 +178,15 @@ export default function ChangePassword() {
                   }));
                 }
               }}
-              secureTextEntry
+              secureTextEntry={!showConfirm}
+              icon={showConfirm ? "eye-off" : "eye"}
+              onIconPress={() => setShowConfirm((prev) => !prev)}
             />
           </View>
           <HelperText type="error" visible={Boolean(errors.confirmPassword)}>
             {errors.confirmPassword}
           </HelperText>
         </View>
-        <Text
-          variant="bodyMedium"
-          style={{
-            textDecorationLine: "underline",
-            textAlign: "left",
-            textDecorationColor: theme.colors.inverseOnSurface,
-            color: theme.colors.inverseOnSurface,
-          }}
-        >
-          Forgot password?
-        </Text>
         <Button
           mode="contained"
           style={{ width: 164 }}

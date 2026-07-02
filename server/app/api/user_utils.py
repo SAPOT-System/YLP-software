@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from app.models.users import User
 from app.db_operations.token import get_current_user
 from app.db_operations.auth import SessionDep
-from app.db_operations.user_search import search_by_id, search_case_insensitive
+from app.db_operations.user_search import search_by_id, search_case_insensitive, _resolve_role
 from app.models.users import UserInfo
 from app.models.announcement import Announcement, AnnouncementStatusType
 
@@ -37,7 +37,24 @@ def get_current_user_info(
         current_user : Annotated[User, Depends(get_current_user)],
 ):
 
-    return current_user
+    return UserInfo(
+        id=str(current_user.id),
+        username=current_user.username,
+        first_name=current_user.first_name,
+        last_name=current_user.last_name,
+        phone_number=current_user.phone_number,
+        email=current_user.email,
+        email_verified=current_user.email_verified,
+        phone_verified=bool(current_user.phone_is_verified),
+        role=_resolve_role(current_user),
+    )
+
+
+@router.get("/is-admin")
+def is_admin(
+        current_user: Annotated[User, Depends(get_current_user)]
+):
+    return bool(current_user.admin)
 
 
 @router.get("/search-user/{id}")

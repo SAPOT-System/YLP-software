@@ -1,5 +1,6 @@
 import { Call, CallStatus, CallType, Conversation, GuestUser, Peer } from "@/features/shared";
-import { callLog } from "@/features/shared/utils/logger";
+import { callLog } from "@/features/shared/core/utils/logger";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 callLog.debug("[call-repository] module loaded");
 
@@ -52,14 +53,16 @@ export class CallRepository {
 
       return this.db.write(action);
     } catch (error) {
+      const appErr = toAppError(error, "database");
       callLog.error("call › save failed", {
         conversationId: newCall.conversation.id,
         callType: newCall.callType,
         status: newCall.status,
         isInTransaction,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -68,8 +71,10 @@ export class CallRepository {
       const calls = await this.callsCollection.query(Q.where("id", callId)).fetch();
       return calls[0] ?? null;
     } catch (error) {
-      callLog.error("call › query by id failed", { callId, error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      callLog.error("call › query by id failed", { callId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -79,11 +84,13 @@ export class CallRepository {
         .query(Q.where("conversation", conversationId))
         .fetch();
     } catch (error) {
+      const appErr = toAppError(error, "database");
       callLog.error("call › query by conversation failed", {
         conversationId,
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -91,8 +98,10 @@ export class CallRepository {
     try {
       return await this.callsCollection.query().fetch();
     } catch (error) {
-      callLog.error("call › list failed", { error });
-      throw error;
+      const appErr = toAppError(error, "database");
+      callLog.error("call › list failed", appErr);
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -115,13 +124,15 @@ export class CallRepository {
         });
       });
     } catch (error) {
+      const appErr = toAppError(error, "database");
       callLog.error("call › update status failed", {
         callId,
         status,
         hasEndTime: Boolean(endTime),
-        error,
+        ...appErr,
       });
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 

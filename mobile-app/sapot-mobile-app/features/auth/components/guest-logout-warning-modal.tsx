@@ -1,5 +1,6 @@
+import { toAppError } from "@/features/shared/core/errors";
 import { SETTINGS_ROUTES } from "@/config/routes";
-import { authLog } from "@/features/shared/utils/logger";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { useRouter } from "expo-router";
 import React from "react";
 import { View } from "react-native";
@@ -25,8 +26,9 @@ export const GuestLogoutWarningModal = ({
     setIsLoading(true);
     try {
       await onLogout();
-    } catch (err) {
-      authLog.error("[GuestLogoutWarningModal] logout failed", { error: err });
+    } catch (error) {
+      const appErr = toAppError(error, "auth");
+      authLog.error("[GuestLogoutWarningModal] logout failed", appErr);
     } finally {
       setIsLoading(false);
     }

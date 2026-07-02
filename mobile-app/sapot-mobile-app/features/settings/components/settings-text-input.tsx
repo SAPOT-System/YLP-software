@@ -37,7 +37,7 @@ const SettingsTextInput = ({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "flex-start",
+          justifyContent: "space-between",
         }}
       >
         <Text

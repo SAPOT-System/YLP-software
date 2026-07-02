@@ -1,17 +1,22 @@
 import { ChatService } from "@/features/chat";
-import { CallStatus, CallType } from "@/features/shared/database/model/Call";
-import { MessageStatusType } from "@/features/shared/database/model/MessageStatus";
-import { GuestUser } from "@/features/shared/database/model/guest-user";
-import { Peer } from "@/features/shared/database/model/Peer";
-import { ConnectionService } from "@/features/shared/services/connection-service";
-import { PeerService } from "@/features/shared/services/peer-service";
-import { UserStore } from "@/features/shared/stores/user-store";
-import { callLog } from "@/features/shared/utils/logger";
-import { TypedEventEmitter } from "@/features/shared/utils/typed-event-emitter";
-import { DeviceEventEmitter } from "react-native";
+import { CallStatus, CallType } from "@/features/shared/core/database/model/Call";
+import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
+import { GuestUser } from "@/features/shared/core/database/model/guest-user";
+import { Peer } from "@/features/shared/core/database/model/Peer";
+import { ConnectionService } from "@/features/shared/connection/services/connection-service";
+import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
+import { PeerService } from "@/features/shared/peer/peer-service";
+import { UserStore } from "@/features/shared/core/stores/user-store";
+import { toAppError, captureAppError } from "@/features/shared/core/errors";
+import { callLog } from "@/features/shared/core/utils/logger";
+import { TypedEventEmitter } from "@/features/shared/core/utils/typed-event-emitter";
 import InCallManager from "react-native-incall-manager";
 import { MediaStream } from "react-native-webrtc";
+import { MessageRepository } from "@/features/chat/repositories/message-repository";
+import { MessageStatusRepository } from "@/features/chat/repositories/message-status-repository";
 import { CallParticipantRepository, CallRepository } from "../repositories";
+import { CallAudioService } from "./call-audio-service";
+import { CallLogService, CallSession } from "./call-log-service";
 callLog.debug("[call-service] module loaded");
 
 export type AudioRouteTypes = "earpiece" | "speaker" | "headset" | "bluetooth";
@@ -51,6 +56,7 @@ type CallConnectionService = Pick<
   | "isWebSocketAllowed"
   | "setActiveCall"
   | "sendCallControlMessage"
+  | "waitForDataChannel"
 >;
 
 type CallUserStore = {
@@ -63,7 +69,7 @@ type CallUserStore = {
 
 type CallPeerService = Pick<
   PeerService,
-  "findDiscoveredPeerById" | "getOrCreatePeerById"
+  "findDiscoveredPeerById" | "getOrCreatePeerById" | "findPeerById"
 >;
 
 type CallSyncService = {
@@ -72,7 +78,6 @@ type CallSyncService = {
 
 type CallLogChatService = Pick<
   ChatService,
-  | "saveCallLogWithReceipts"
   | "updateMessageStatus"
   | "acknowledgeIncomingMessage"
 > & {
@@ -94,31 +99,16 @@ type RemoteCallEndedPayload = {
   conversationId?: string;
 };
 
-type CallSession = {
-  callId: string;
-  peerId: string;
-  callType: CallType;
-  startedAt: Date;
-  answeredAt?: Date;
-  peerName: string;
-  isIncoming: boolean;
-  finalized: boolean;
-  conversationId: string;
-};
 
-// TODO: probably store the peerId state
 /**
  * CallService manages call connections, including starting/terminating calls, handling streams,
  * and toggling audio/video for peer-to-peer calls. It extends EventEmitter to emit call-related events.
  */
 export class CallService extends TypedEventEmitter<CallServiceEvents> {
-  private connectedState: "connected" | "disconnected" = "disconnected";
-  private currentAudioRoute: AudioRouteTypes = "speaker";
-  private availableRoutes: { type: AudioRouteTypes; label: string }[] = [];
-  private isBluetoothConnected = false;
-  private isHeadsetConnected = false;
-  private initialRouteSetFor: Set<string> = new Set();
+  private connectedStateByPeer: Map<string, "connected" | "disconnected"> = new Map();
+  private audioService: CallAudioService;
   private callSessions: Map<string, CallSession> = new Map();
+  private callLog!: CallLogService;
   private busyRejectHandler:
     | ((
         peerId: string,
@@ -132,6 +122,14 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     | null = null;
   private callReadyHandler: ((peerId: string) => void) | null = null;
 
+  private getConnectedState(peerId: string): "connected" | "disconnected" {
+    return this.connectedStateByPeer.get(peerId) ?? "disconnected";
+  }
+
+  private setConnectedState(peerId: string, state: "connected" | "disconnected"): void {
+    this.connectedStateByPeer.set(peerId, state);
+  }
+
   /**
    * Constructs a CallService instance.
    * @param connectionService Handles network and media stream operations
@@ -144,9 +142,23 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     private callRepository: CallRepository,
     private callParticipantRepository: CallParticipantRepository,
     private chatService: CallLogChatService,
-    private syncService: CallSyncService
+    private syncService: CallSyncService,
+    private messageRepository: MessageRepository,
+    private messageStatusRepository: MessageStatusRepository,
+    private conversationKeyManager: ConversationKeyManager,
   ) {
     super();
+    this.audioService = new CallAudioService();
+    this.audioService.on("audio-route-changed", (p) => this.emit("audio-route-changed", p));
+    this.audioService.on("audio-routes-updated", (p) => this.emit("audio-routes-updated", p));
+    this.callLog = new CallLogService(
+      chatService,
+      messageRepository,
+      messageStatusRepository,
+      conversationKeyManager,
+      userStore,
+      peerService,
+    );
     callLog.info("call › service constructed", {
       hasConnectionService: Boolean(connectionService),
       hasUserStore: Boolean(userStore),
@@ -162,6 +174,17 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     });
   }
 
+  async saveCallLogWithReceipts(params: {
+    peerId: string;
+    content: string;
+    status?: MessageStatusType;
+    senderId: string;
+    messageId?: string;
+    conversationId?: string;
+  }): Promise<string> {
+    return this.callLog.saveCallLogWithReceipts(params);
+  }
+
   /**
    * Starts a call with the given peer. Assumes TCP and WebRTC connections are established.
    * Initializes local media, listens for remote streams, and renegotiates WebRTC.
@@ -172,13 +195,13 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       const webrtc = this.connectionService.getWebrtcAdapter(peerId);
 
-      webrtc.setIsPolite(false);
+      webrtc.setIsPolite(this.userStore.user.id < peerId);
 
       const session = await this.ensureSession(peerId, type, false);
 
       const isWebrtcConnected =
         this.connectionService.isWebrtcConnected(peerId);
-      if (this.connectedState === "connected" && isWebrtcConnected) {
+      if (this.getConnectedState(peerId) === "connected" && isWebrtcConnected) {
         callLog.warn("call › already connected", { peerId, type });
         return;
       }
@@ -197,15 +220,16 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         media: type,
         auto: true,
       });
+      this.audioService.setupAudioEventListeners();
 
       // Force initial route based on call type (only once per call)
-      if (!this.initialRouteSetFor.has(peerId)) {
+      if (!this.audioService.hasInitialRouteFor(peerId)) {
         if (type === "audio") {
-          this.setAudioRoute("earpiece");
+          this.audioService.setAudioRoute("earpiece");
         } else {
-          this.setAudioRoute("speaker");
+          this.audioService.setAudioRoute("speaker");
         }
-        this.initialRouteSetFor.add(peerId);
+        this.audioService.markInitialRouteSet(peerId);
       }
 
       // Set keep screen on during call
@@ -221,17 +245,19 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       // Renegotiate the webrtc to include the audio and video
       await this.connectionService.renegotiate(peerId);
 
-      this.connectedState = "connected";
+      this.setConnectedState(peerId, "connected");
     } catch (error) {
-      callLog.error("call › starting call failed", { peerId, error });
-      if (this.connectedState !== "connected") {
+      const appErr = toAppError(error, "media");
+      callLog.error("call › starting call failed", { peerId, ...appErr });
+      if (this.getConnectedState(peerId) !== "connected") {
         try {
           await this.terminateCallConnection(peerId, "missed");
-        } catch {
-          // best-effort cleanup
+        } catch (error) {
+          callLog.debug("call › terminateCallConnection cleanup failed after startCall error", { peerId, error });
         }
       }
-      throw error;
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -243,7 +269,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   ) {
     try {
       const webrtc = this.connectionService.getWebrtcAdapter(peerId);
-      webrtc.setIsPolite(true);
+      webrtc.setIsPolite(this.userStore.user.id < peerId);
 
       const session = await this.ensureSession(
         peerId,
@@ -265,19 +291,27 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         media: type,
         auto: true,
       });
+      this.audioService.setupAudioEventListeners();
 
       // Force initial route based on call type (only once per call)
-      if (!this.initialRouteSetFor.has(peerId)) {
+      if (!this.audioService.hasInitialRouteFor(peerId)) {
         if (type === "audio") {
-          this.setAudioRoute("earpiece");
+          this.audioService.setAudioRoute("earpiece");
         } else {
-          this.setAudioRoute("speaker");
+          this.audioService.setAudioRoute("speaker");
         }
-        this.initialRouteSetFor.add(peerId);
+        this.audioService.markInitialRouteSet(peerId);
       }
 
       // Set keep screen on during call
       InCallManager.setKeepScreenOn(true);
+
+      if (!this.connectionService.isWebrtcConnected(peerId)) {
+        await this.connectionService.waitForDataChannel(peerId);
+      }
+
+      // Initialize local audio and video before announcing readiness
+      await this.connectionService.initializeStream(type, peerId);
 
       this.connectionService.sendCallMessage(peerId, {
         type: "call-ready",
@@ -287,13 +321,12 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         },
       });
 
-      // Initialize local audio and video
-      await this.connectionService.initializeStream(type, peerId);
-
-      this.connectedState = "connected";
+      this.setConnectedState(peerId, "connected");
     } catch (error) {
-      callLog.error("call › answering call failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › answering call failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -309,7 +342,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         await this.connectionService.connectToPeer(
           discoveredPeer.id,
           discoveredPeer.ipAddress,
-          discoveredPeer.port
+          discoveredPeer.port,
+          discoveredPeer.addresses
         );
       } catch {
         callLog.info("call › connect with no ip and port", { peerId: id });
@@ -317,112 +351,11 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       }
       callLog.info("call › connect complete", { peerId: id });
     } catch (error) {
-      callLog.warn("call › connect failed", { peerId: id, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.warn("call › connect failed", { peerId: id, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
-  }
-
-  setupAudioEventListeners() {
-    // Listen for wired headset plug/unplug events
-    DeviceEventEmitter.addListener("WiredHeadset", (data) => {
-      callLog.info("call › wired headset event:", data);
-      this.isHeadsetConnected = data.device === "WiredHeadset";
-      this.updateAvailableRoutes();
-
-      // Auto-route to headset if just plugged in
-      if (this.isHeadsetConnected) {
-        this.setAudioRoute("headset");
-      }
-    });
-
-    // Listen for Bluetooth headset connection events
-    DeviceEventEmitter.addListener("BluetoothHeadset", (data) => {
-      callLog.info("call › bluetooth headset event:", data);
-      this.isBluetoothConnected = data.device === "BluetoothHeadset";
-      this.updateAvailableRoutes();
-
-      // Auto-route to Bluetooth if just connected
-      if (this.isBluetoothConnected) {
-        this.setAudioRoute("bluetooth");
-      }
-    });
-
-    // Proximity sensor - auto-switch to earpiece when phone near ear
-    DeviceEventEmitter.addListener("Proximity", (data) => {
-      if (data.isNear) {
-        // Phone near ear - switch to earpiece
-        if (
-          this.currentAudioRoute !== "earpiece" &&
-          this.currentAudioRoute !== "headset" &&
-          this.currentAudioRoute !== "bluetooth"
-        ) {
-          this.setAudioRoute("earpiece");
-        }
-      } else if (this.currentAudioRoute === "earpiece") {
-        // Phone away from ear - restore previous route (speaker if video call)
-        // This requires tracking previous route separately
-      }
-    });
-  }
-
-  updateAvailableRoutes() {
-    const routes: { type: AudioRouteTypes; label: string }[] = [];
-
-    // Always available
-    routes.push({ type: "earpiece", label: "Earpiece" });
-    routes.push({ type: "speaker", label: "Speaker" });
-
-    // Check for headset (platform-specific)
-    if (this.isHeadsetConnected) {
-      routes.push({ type: "headset", label: "Wired Headset" });
-    }
-
-    // Check for Bluetooth
-    if (this.isBluetoothConnected) {
-      routes.push({ type: "bluetooth", label: "Bluetooth" });
-    }
-
-    this.availableRoutes = routes;
-    this.emit("audio-routes-updated", {
-      routes: this.availableRoutes,
-    });
-  }
-
-  async setAudioRoute(route: AudioRouteTypes) {
-    callLog.debug("call › setting audio route to:", route);
-
-    switch (route) {
-      case "speaker":
-        InCallManager.setForceSpeakerphoneOn(true);
-        this.currentAudioRoute = "speaker";
-        break;
-
-      case "earpiece":
-        InCallManager.setForceSpeakerphoneOn(false);
-        this.currentAudioRoute = "earpiece";
-        break;
-
-      case "headset":
-        // For wired headsets, just turn off speaker - system auto-routes
-        InCallManager.setForceSpeakerphoneOn(false);
-        this.currentAudioRoute = "headset";
-        break;
-
-      case "bluetooth":
-        // For Bluetooth, ensure SCO is enabled for call audio
-        InCallManager.setForceSpeakerphoneOn(false);
-        // Note: On some Android versions, additional native code may be needed
-        this.currentAudioRoute = "bluetooth";
-        break;
-
-      default:
-        callLog.warn("call › unknown audio route:", route);
-    }
-
-    this.emit("audio-route-changed", {
-      route: this.currentAudioRoute,
-      available: this.availableRoutes,
-    });
   }
 
   private async handleIncomingBusyReject(
@@ -469,7 +402,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       await this.callRepository.updateCallStatus(callId, CallStatus.BUSY);
       callLog.info("call › busy call status updated", { callId, peerId });
 
-      await this.chatService.saveCallLogWithReceipts({
+      await this.saveCallLogWithReceipts({
         peerId,
         content,
         status: MessageStatusType.DELIVERED,
@@ -566,8 +499,8 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       });
       try {
         await this.terminateCallConnection(peerId, "missed");
-      } catch {
-        // best-effort cleanup
+      } catch (error) {
+        callLog.debug("call › terminateCallConnection cleanup failed after notify error", { peerId, error });
       }
       throw notifyError;
     }
@@ -607,6 +540,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     await this.terminateCallConnection(peerId, "missed");
   }
 
+  getActiveCallId(peerId: string): string | undefined {
+    return this.callSessions.get(peerId)?.callId;
+  }
+
   /**
    * Terminates the call connection with the given peer, renegotiates WebRTC, and notifies the peer.
    * @param peerId The peer id to terminate the call with
@@ -619,14 +556,15 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       callLog.info("call › terminate", { peerId });
 
-      if (this.connectedState === "connected") {
+      if (this.getConnectedState(peerId) === "connected") {
         this.connectionService.terminateCallConnection(peerId);
         InCallManager.stop();
         InCallManager.setKeepScreenOn(false);
+        this.audioService.removeAudioEventListeners();
       }
 
       const session = this.callSessions.get(peerId);
-      const status = this.resolveFinalStatus(reason, session);
+      const status = this.callLog.resolveFinalStatus(reason, session);
       const endTime = new Date();
 
       // Determine initiatorId based on isIncoming flag
@@ -644,6 +582,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         data: {
           from: this.userStore.user.id,
           to: peerId,
+          callId: session?.callId,
           status:
             status === CallStatus.COMPLETED
               ? "completed"
@@ -651,7 +590,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
               ? "rejected"
               : "missed",
           endedAt: endTime.getTime(),
-          durationSeconds: this.calculateDurationSeconds(session, endTime),
+          durationSeconds: this.callLog.calculateDurationSeconds(session, endTime),
           initiatorId,
           messageId,
           conversationId: session?.conversationId,
@@ -659,8 +598,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         },
       });
 
-      this.connectedState = "disconnected";
-      this.initialRouteSetFor.delete(peerId);
+      this.setConnectedState(peerId, "disconnected");
+      this.connectedStateByPeer.delete(peerId);
+      this.audioService.clearInitialRouteFor(peerId);
       this.connectionService.setActiveCall(null);
 
       if (this.busyRejectHandler) {
@@ -672,8 +612,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         this.callReadyHandler = null;
       }
     } catch (error) {
-      callLog.error("call › terminate failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › terminate failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -691,7 +633,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
             const initiatorId = payload.initiatorId ?? peerId;
             const callLabel = payload.callType === "video" ? "video" : "audio";
 
-            await this.chatService.saveCallLogWithReceipts({
+            await this.saveCallLogWithReceipts({
               peerId,
               content: `Missed ${callLabel} call`,
               status: MessageStatusType.DELIVERED,
@@ -701,9 +643,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
             });
             void this.syncService.syncNow();
           } catch (logError) {
+            const logAppErr = toAppError(logError, "media");
             callLog.warn("call › retroactive call log failed", {
               peerId,
-              logError,
+              ...logAppErr,
             });
           }
         }
@@ -711,13 +654,14 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         return;
       }
 
-      if (this.connectedState === "connected") {
+      if (this.getConnectedState(peerId) === "connected") {
         this.connectionService.terminateCallConnection(peerId);
         InCallManager.stop();
         InCallManager.setKeepScreenOn(false);
+        this.audioService.removeAudioEventListeners();
       }
 
-      const status = this.resolveFinalStatus(payload.status, session);
+      const status = this.callLog.resolveFinalStatus(payload.status, session);
       const endTime =
         typeof payload.endedAt === "number"
           ? new Date(payload.endedAt)
@@ -737,16 +681,15 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       void this.syncService.syncNow();
       this.chatService.acknowledgeIncomingMessage(peerId, payload.messageId!);
     } catch (error) {
-      callLog.error("call › remote finalize failed", {
-        peerId,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        error,
-      });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › remote finalize failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     } finally {
-      this.connectedState = "disconnected";
-      this.initialRouteSetFor.delete(peerId);
+      this.setConnectedState(peerId, "disconnected");
+      this.connectedStateByPeer.delete(peerId);
+      this.audioService.clearInitialRouteFor(peerId);
+      this.connectionService.setActiveCall(null);
     }
   }
 
@@ -758,8 +701,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       this.connectionService.toggleMic(peerId);
     } catch (error) {
-      callLog.error("call › mic toggle failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › mic toggle failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -771,8 +716,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       return await this.connectionService.toggleCamera(peerId);
     } catch (error) {
-      callLog.error("call › camera toggle failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › camera toggle failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -787,17 +734,16 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         enabled: camEnabled,
       });
     } catch (error) {
+      const appErr = toAppError(error, "media");
       callLog.warn("call › media state sync failed (non-fatal)", {
         peerId,
-        error,
+        ...appErr,
       });
     }
   }
 
   toggleSpeaker() {
-    const newRoute =
-      this.currentAudioRoute === "speaker" ? "earpiece" : "speaker";
-    this.setAudioRoute(newRoute);
+    this.audioService.toggleSpeaker();
   }
 
   async switchCamera(peerId: string, isFrontCamera: boolean) {
@@ -813,8 +759,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       return this.connectionService.getLocalStream(peerId);
     } catch (error) {
-      callLog.error("call › get local stream failed", { peerId, error });
-      throw error;
+      const appErr = toAppError(error, "media");
+      callLog.error("call › get local stream failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
     }
   }
 
@@ -848,9 +796,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         callId: session.callId,
       });
     } catch (error) {
+      const appErr = toAppError(error, "media");
       callLog.error("call › peer participant save failed on call-ready", {
         peerId,
-        error,
+        ...appErr,
       });
     }
   }
@@ -901,7 +850,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       peerId,
       callType: type === "video" ? CallType.VIDEO : CallType.AUDIO,
       startedAt: now,
-      peerName: this.getDisplayName(peer),
+      peerName: this.callLog.getDisplayName(peer),
       isIncoming,
       finalized: false,
       conversationId: conversation.id,
@@ -909,16 +858,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
     this.callSessions.set(peerId, session);
     return session;
-  }
-
-  private resolveFinalStatus(
-    reason: "completed" | "missed" | "rejected" | undefined,
-    session?: CallSession
-  ): CallStatus {
-    if (reason === "rejected") return CallStatus.REJECTED;
-    if (reason === "missed") return CallStatus.MISSED;
-    if (reason === "completed") return CallStatus.COMPLETED;
-    return session?.answeredAt ? CallStatus.COMPLETED : CallStatus.MISSED;
   }
 
   private async finalizeSession(
@@ -941,14 +880,14 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       endTime
     );
 
-    const callLogMessage = this.buildCallLogMessage(
+    const callLogMessage = this.callLog.buildCallLogMessage(
       session,
       status,
       endTime,
       durationSecondsOverride
     );
 
-    const messageIdR = await this.chatService.saveCallLogWithReceipts({
+    const messageIdR = await this.saveCallLogWithReceipts({
       peerId,
       messageId,
       content: callLogMessage,
@@ -962,65 +901,4 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     return messageIdR;
   }
 
-  private buildCallLogMessage(
-    session: CallSession,
-    status: CallStatus,
-    endTime: Date,
-    durationSecondsOverride?: number
-  ): string {
-    if (status === CallStatus.REJECTED) {
-      return "Call declined";
-    }
-
-    if (status === CallStatus.MISSED) {
-      const callLabel = session.callType === CallType.VIDEO ? "video" : "audio";
-      return `Missed ${callLabel} call`;
-    }
-
-    const durationFrom = session.answeredAt ?? session.startedAt;
-    const durationInSeconds =
-      typeof durationSecondsOverride === "number"
-        ? Math.max(0, Math.floor(durationSecondsOverride))
-        : Math.max(
-            0,
-            Math.floor((endTime.getTime() - durationFrom.getTime()) / 1000)
-          );
-
-    const callLabel = session.callType === CallType.VIDEO ? "Video" : "Audio";
-    return `${callLabel} call \u2022 ${this.formatDuration(durationInSeconds)}`;
-  }
-
-  private calculateDurationSeconds(
-    session: CallSession | undefined,
-    endTime: Date
-  ): number {
-    if (!session) {
-      return 0;
-    }
-
-    const durationFrom = session.answeredAt ?? session.startedAt;
-    return Math.max(
-      0,
-      Math.floor((endTime.getTime() - durationFrom.getTime()) / 1000)
-    );
-  }
-
-  private formatDuration(seconds: number): string {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}:${String(minutes).padStart(2, "0")}:${String(
-        remainingSeconds
-      ).padStart(2, "0")}`;
-    }
-
-    return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
-  }
-
-  private getDisplayName(peer: Peer | GuestUser): string {
-    const fullName = [peer.firstName, peer.lastName].filter(Boolean).join(" ");
-    return fullName || peer.username || "Unknown";
-  }
 }

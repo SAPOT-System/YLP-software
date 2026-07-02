@@ -70,6 +70,11 @@ export function createConnectionServiceDependencyMocks() {
 		isModeAllowed: jest.fn(() => true),
 	};
 
+	const notificationService = {
+		showCallAlert: jest.fn().mockResolvedValue(undefined),
+		dismissCallAlert: jest.fn().mockResolvedValue(undefined),
+	};
+
 	return {
 		tcpServerAdapter,
 		networkConfig,
@@ -79,6 +84,7 @@ export function createConnectionServiceDependencyMocks() {
 		wsSignalingAdapter,
 		chatService,
 		appModeStore,
+		notificationService,
 	};
 }
 
@@ -87,6 +93,7 @@ export function createDiscoveryServiceDependencyMocks() {
 		on: jest.fn(),
 		startScan: jest.fn(),
 		stopScan: jest.fn(),
+		restartScan: jest.fn(),
 		publishService: jest.fn(),
 		cleanUp: jest.fn(),
 	};
@@ -112,12 +119,16 @@ export function createDiscoveryServiceDependencyMocks() {
 	};
 
 	const peerService = {
-		register: jest.fn(),
+		register: jest.fn().mockResolvedValue({ addressChanged: false }),
 		markOffline: jest.fn(),
 		markOnline: jest.fn(),
 		getAllPeers: jest.fn(),
 		findPeerById: jest.fn(),
 		findDiscoveredPeerById: jest.fn(),
+		getDiscoveredPeers: jest.fn(() => []),
+		recordProbeFailure: jest.fn(() => 1),
+		resetProbeFailures: jest.fn(),
+		touchDiscoveredPeer: jest.fn(),
 		createUser: jest.fn(),
 		cleanUp: jest.fn(),
 	};
@@ -173,6 +184,7 @@ export function createCallServiceDependencyMocks() {
 		shouldIgnoreCallBusy: jest.fn(() => false),
 		getWebrtcAdapter: jest.fn(),
 		sendCallControlMessage: jest.fn(),
+		waitForDataChannel: jest.fn().mockResolvedValue(undefined),
 	};
 
 	const peerService = {
@@ -194,8 +206,8 @@ export function createCallServiceDependencyMocks() {
 
 	const chatService = {
 		getOrCreateDirectConversationByPeer: jest.fn(),
-		saveCallLogWithReceipts: jest.fn(),
 		updateMessageStatus: jest.fn(),
+		acknowledgeIncomingMessage: jest.fn(),
 	};
 
 	connectionService.on.mockImplementation(() => connectionService);
@@ -252,28 +264,35 @@ export function createChatServiceDependencyMocks() {
 		saveConversation: jest.fn(),
 		queryAllConversation: jest.fn(),
 		getConversationDestroyOps: jest.fn(),
+		touchConversation: jest.fn().mockResolvedValue(undefined),
 	};
 
 	const conversationParticipantRepository = {
 		isDirectConversationExists: jest.fn(),
 		saveMultipleConversationParticipant: jest.fn(),
-		queryPeerByChatId: jest.fn(),
+		queryPeerByChatId: jest.fn().mockResolvedValue([]),
 		queryConversationByPeer: jest.fn(),
 		queryAllParticipants: jest.fn(),
 		getParticipantDestroyOps: jest.fn(),
 	};
 
 	const messageRepository = {
+		prepareMessageCreate: jest.fn(),
 		saveMessage: jest.fn(),
 		queryMessagesByConversation: jest.fn(),
 		queryMessageById: jest.fn(),
 		getAllMessageDestroyOps: jest.fn(),
+		decryptMessage: jest.fn((message: { content: string }) => message.content),
+		setConversationKey: jest.fn(),
+		onConversationKeySet: jest.fn(() => () => {}),
 	};
 
 	const messageStatusRepository = {
+		prepareMessageStatusCreate: jest.fn(),
 		saveMessageStatus: jest.fn(),
 		updateMessageStatusById: jest.fn(),
 		updateMessageStatusByMessage: jest.fn(),
+		updateToNotSentIfStillPendingById: jest.fn().mockResolvedValue(undefined),
 		queryMessageStatusByMessage: jest.fn(),
 		queryAllStatuses: jest.fn(),
 		queryNotSentByMessages: jest.fn(),

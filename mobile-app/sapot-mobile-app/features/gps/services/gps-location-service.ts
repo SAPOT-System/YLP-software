@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
-import { gpsLog } from "@/features/shared/utils/logger";
+import { toAppError } from "@/features/shared/core/errors";
+import { gpsLog } from "@/features/shared/core/utils/logger";
 import { haversineMeters } from "../utils/haversine";
 
 gpsLog.debug("[gps-location-service] module loaded");
@@ -19,12 +20,14 @@ export class GpsLocationService {
 
   private wsBaseUrl = "";
   private userId = "";
+  private token = "";
 
   private lastSentAt: number = 0;
   private lastSentLat: number | null = null;
   private lastSentLng: number | null = null;
+  private pendingCoords: { lat: number; lng: number } | null = null;
 
-  async start(wsBaseUrl: string, userId: string) {
+  async start(wsBaseUrl: string, userId: string, token: string) {
     if (this.locationSub) {
       gpsLog.warn("gps › start skipped", { reason: "already running" });
       return;
@@ -34,6 +37,7 @@ export class GpsLocationService {
     this.stopped = false;
     this.wsBaseUrl = wsBaseUrl;
     this.userId = userId;
+    this.token = token;
 
     this.connectWs();
 
@@ -48,7 +52,8 @@ export class GpsLocationService {
       gpsLog.info("gps › location watch started");
       this.startHeartbeat();
     } catch (error) {
-      gpsLog.error("gps › watchPositionAsync failed", { error });
+      const appErr = toAppError(error, "gps");
+      gpsLog.error("gps › watchPositionAsync failed", appErr);
       this.stop();
     }
   }
@@ -73,14 +78,21 @@ export class GpsLocationService {
     this.lastSentAt = 0;
     this.lastSentLat = null;
     this.lastSentLng = null;
+    this.pendingCoords = null;
   }
 
   private maybeSend(location: Location.LocationObject) {
     if (this.ws?.readyState !== WebSocket.OPEN) {
-      gpsLog.debug("gps › location update dropped", {
-        reason: "ws not open",
-        readyState: this.ws?.readyState,
-      });
+      const { latitude: lat, longitude: lng } = location.coords;
+      if (this.lastSentLat === null) {
+        this.pendingCoords = { lat, lng };
+        gpsLog.debug("gps › location buffered (ws not open yet)");
+      } else {
+        gpsLog.debug("gps › location update dropped", {
+          reason: "ws not open",
+          readyState: this.ws?.readyState,
+        });
+      }
       return;
     }
 
@@ -131,12 +143,17 @@ export class GpsLocationService {
   private connectWs() {
     if (this.stopped) return;
 
-    const url = `${this.wsBaseUrl.replace(/\/+$/, "")}/gps/ws/${this.userId}`;
+    const base = this.wsBaseUrl.replace(/\/+$/, "");
+    const url = `${base}/gps/ws/${this.userId}?token=${encodeURIComponent(this.token)}`;
     gpsLog.info("gps › ws connect", { url });
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
       gpsLog.info("gps › ws open");
+      if (this.pendingCoords) {
+        this.sendCoords(this.pendingCoords.lat, this.pendingCoords.lng);
+        this.pendingCoords = null;
+      }
     };
 
     ws.onerror = (event) => {
@@ -151,6 +168,12 @@ export class GpsLocationService {
         reason: event.reason,
         wasClean: event.wasClean,
       });
+      // 1008 = policy violation (auth rejected), 4004 = user not found — do not retry
+      if (event.code === 1008 || event.code === 4004) {
+        gpsLog.error("gps › ws permanent failure, stopping", { code: event.code });
+        this.stop();
+        return;
+      }
       if (!this.stopped) {
         this.scheduleReconnect();
       }

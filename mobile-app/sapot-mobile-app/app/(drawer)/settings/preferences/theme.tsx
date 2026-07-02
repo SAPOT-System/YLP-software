@@ -1,5 +1,5 @@
-import { ThemeChoice, useThemePreference } from "@/features/shared/context";
-import { uiLog } from "@/features/shared/utils/logger";
+import { ThemeChoice, useThemePreference } from "@/features/shared/core/context";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import { RadioButton, Text, useTheme } from "react-native-paper";

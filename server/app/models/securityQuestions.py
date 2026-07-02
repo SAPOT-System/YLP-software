@@ -1,15 +1,20 @@
 from uuid import UUID
-from sqlmodel import SQLModel, Field, Relationship
+from datetime import datetime
+from sqlmodel import SQLModel, Field, Relationship, UniqueConstraint
 from typing import Optional, List
 from pydantic import BaseModel, Field as PydanticField
 
 
 
 class UserSecurityQuestion(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("user_id", name="uq_user_security_question"),)
+
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     question: str
     answer_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_burned: bool = Field(default=False)
 
     user: "User" = Relationship(back_populates="security_questions")
 

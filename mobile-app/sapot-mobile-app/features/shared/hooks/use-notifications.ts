@@ -1,8 +1,9 @@
+import { toAppError } from "@/features/shared/core/errors";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import { backgroundLog } from "../utils/logger";
+import { backgroundLog } from "../core/utils/logger";
 
 Notifications.setNotificationHandler({
   handleNotification: async (
@@ -50,7 +51,7 @@ export const useNotifications = (
     notificationListener.current =
       Notifications.addNotificationReceivedListener((notification) => {
         const data = notification.request.content.data;
-        console.log("useNotification", data);
+        // console.log("useNotification", data);
 
         if (data?.type === "incoming_call") {
           backgroundLog.info("notifications › incoming call received (fg)");
@@ -124,7 +125,8 @@ export const useNotifications = (
       });
       backgroundLog.info("notifications › incoming call channel ready");
     } catch (error) {
-      backgroundLog.error("notifications › channel setup failed", { error });
+      const appErr = toAppError(error, "network");
+      backgroundLog.error("notifications › channel setup failed", appErr);
     }
   };
 
@@ -137,9 +139,8 @@ export const useNotifications = (
       });
       backgroundLog.info("notifications › chat message channel ready");
     } catch (error) {
-      backgroundLog.error("notifications › chat channel setup failed", {
-        error,
-      });
+      const appErr = toAppError(error, "network");
+      backgroundLog.error("notifications › chat channel setup failed", appErr);
     }
   };
 
@@ -176,9 +177,8 @@ export const useNotifications = (
 
       backgroundLog.info("notifications › permission granted");
     } catch (error) {
-      backgroundLog.error("notifications › permission request failed", {
-        error,
-      });
+      const appErr = toAppError(error, "network");
+      backgroundLog.error("notifications › permission request failed", appErr);
     }
   };
 };

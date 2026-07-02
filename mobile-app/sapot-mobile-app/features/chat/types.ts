@@ -1,23 +1,13 @@
-import { chatTypesLog } from "@/features/shared/utils/logger";
-import { MessageType } from "../shared";
+import { chatTypesLog } from "@/features/shared/core/utils/logger";
 chatTypesLog.debug("[chat/types] module loaded");
 
-export interface SenderProfile {
-  username: string;
-  firstName: string;
-  lastName?: string;
-}
-
-export interface DataChatMessageI {
-  message: string; //TODO: implement enum
-  conversationId: string;
-  messageId: string;
-  from: string;
-  to: string;
-  sentAt: Date;
-  messageType: MessageType;
-  senderProfile: SenderProfile;
-}
+// Wire-format types now live in the engine core; re-exported here so existing
+// chat-domain imports keep working without any changes.
+export type {
+  SenderProfile,
+  DataChatMessageI,
+  SendPublicChatPayload,
+} from "@/features/shared/core/messaging-types";
 
 /**
  * This is enum for determining where the chat room is triggered, it is either in peer list item or chat list item
@@ -28,18 +18,11 @@ export enum ChatRoomSource {
 }
 
 export interface PublicChatMessage {
+  id?: string;
   type: "public-chat";
   content: string;
   is_deleted: boolean;
   sender_id: string;
+  sender_name?: string;
   received_at: Date;
-}
-
-export interface SendPublicChatPayload {
-  type: "public-chat";
-  content: string;
-  from: string;
-  created_at: number;
-  updated_at: number;
-  is_deleted: boolean;
 }

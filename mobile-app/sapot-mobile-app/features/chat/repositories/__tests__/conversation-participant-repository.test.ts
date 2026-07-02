@@ -4,6 +4,7 @@ import {
     GuestUser,
     Peer,
 } from "@/features/shared";
+import { ConversationType } from "@/features/shared/core/database/model/Conversation";
 import {
     createTestConversation,
     createTestConversationParticipant,
@@ -150,6 +151,41 @@ describe("ConversationParticipantRepository", () => {
       "user-1",
       "user-2",
     ]);
+
+    expect(result).toBeUndefined();
+  });
+
+  it("finds an SMS conversation when type=SMS is passed", async () => {
+    mockCollection
+      .query()
+      .fetch.mockResolvedValueOnce([
+        { conversation: { id: "conv-sms-1" } },
+        { conversation: { id: "conv-sms-1" } },
+      ])
+      .mockResolvedValueOnce([{ id: "conv-sms-1" }]);
+
+    const result = await repository.isDirectConversationExists(
+      ["user-1", "user-2"],
+      ConversationType.SMS
+    );
+
+    expect(result).toBe("conv-sms-1");
+  });
+
+  it("returns undefined when type=SMS but candidate is a DIRECT conversation", async () => {
+    // Verification fetch returns empty because the type filter (SMS) excludes the DIRECT row.
+    mockCollection
+      .query()
+      .fetch.mockResolvedValueOnce([
+        { conversation: { id: "conv-direct-1" } },
+        { conversation: { id: "conv-direct-1" } },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const result = await repository.isDirectConversationExists(
+      ["user-1", "user-2"],
+      ConversationType.SMS
+    );
 
     expect(result).toBeUndefined();
   });

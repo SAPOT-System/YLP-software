@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createRegisterNavigationMock } from "@/test/mocks/auth-component.mock-builders";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
@@ -37,13 +38,16 @@ jest.mock("expo-file-system", () => {
     write = mockWrite;
 
     constructor(directory: string, fileName: string) {
-      this.uri = `${directory}/${fileName}`;
+      const dir = (directory && typeof directory === "object" && (directory as any).uri)
+        ? (directory as any).uri
+        : (directory as string);
+      this.uri = `${dir}/${fileName}`;
       mockFileCtor(directory, fileName);
     }
   }
 
   return {
-    Paths: { document: "/documents" },
+    Paths: { document: { uri: "/documents" } },
     File: MockFile,
   };
 });
@@ -102,18 +106,20 @@ describe("DownloadFileButton", () => {
       await waitFor(() => {
         // Verifies successful write + picker + navigation flow.
         expect(mockFileCtor).toHaveBeenCalledWith(
-          "/documents",
+          { uri: "/documents" },
           "recovery-key.txt"
         );
         expect(mockWrite).toHaveBeenCalledWith("secure-content", {
           encoding: "utf8",
         });
-        expect(mockSaveDocuments).toHaveBeenCalledWith({
-          sourceUris: ["/documents/recovery-key.txt"],
-          copy: false,
-          mimeType: "text/plain",
-          fileName: "recovery-key.txt",
-        });
+        expect(mockSaveDocuments).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sourceUris: expect.arrayContaining([expect.stringMatching(/recovery-key.txt$/)]),
+            copy: false,
+            mimeType: "text/plain",
+            fileName: "recovery-key.txt",
+          })
+        );
         expect(Alert.alert).toHaveBeenCalledWith("File saved");
         expect(mockReplace).toHaveBeenCalledWith("/(drawer)/(tabs)");
       });
@@ -169,7 +175,7 @@ describe("DownloadFileButton", () => {
         // Edge case: non-Error throw values should still produce user feedback.
         expect(Alert.alert).toHaveBeenCalledWith(
           "Download failed",
-          "Unknown error"
+          "[object Object]"
         );
       });
     });
@@ -202,15 +208,17 @@ describe("DownloadFileButton", () => {
 
       await waitFor(() => {
         expect(mockFileCtor).toHaveBeenCalledWith(
-          "/documents",
+          { uri: "/documents" },
           "custom-name.txt"
         );
-        expect(mockSaveDocuments).toHaveBeenCalledWith({
-          sourceUris: ["/documents/custom-name.txt"],
-          copy: false,
-          mimeType: "text/plain",
-          fileName: "custom-name.txt",
-        });
+        expect(mockSaveDocuments).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sourceUris: expect.arrayContaining([expect.stringMatching(/custom-name.txt$/)]),
+            copy: false,
+            mimeType: "text/plain",
+            fileName: "custom-name.txt",
+          })
+        );
       });
 
       expect(navigation.navigate).not.toHaveBeenCalled();

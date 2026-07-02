@@ -1,6 +1,6 @@
 import { useContext } from "react";
-import { MainContainerContext } from "../context/main-container-context";
-import { hookLog } from "../utils/logger";
+import { MainContainerContext } from "../core/context/main-container-context";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-main-container] module loaded");
 
 export function useMainContainer() {

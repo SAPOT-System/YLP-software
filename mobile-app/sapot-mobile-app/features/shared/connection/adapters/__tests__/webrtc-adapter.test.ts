@@ -1,0 +1,344 @@
+import {
+    createMockMediaStream,
+    createMockRtcPeerConnection,
+} from "@/test/mocks/adapter.mock-builders";
+import { WebrtcAdapter } from "../webrtc-adapter";
+
+
+jest.mock("react-native-webrtc", () => ({
+  RTCPeerConnection: jest.fn(),
+  RTCSessionDescription: jest.fn(),
+  RTCIceCandidate: jest.fn(),
+  mediaDevices: {
+    getUserMedia: jest.fn(),
+    enumerateDevices: jest.fn(),
+  },
+}));
+
+describe("WebrtcAdapter", () => {
+  let adapter: WebrtcAdapter;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    adapter = new WebrtcAdapter("peer-1");
+  });
+
+  it("creates adapter with peer id", () => {
+    expect(adapter.peerId).toBe("peer-1");
+  });
+
+  it("initializes peer connection", async () => {
+    const { RTCPeerConnection } = require("react-native-webrtc");
+    const mockPeerConnection = createMockRtcPeerConnection();
+
+    RTCPeerConnection.mockReturnValue(mockPeerConnection);
+
+    // Test basic instantiation
+    expect(adapter.peerId).toBe("peer-1");
+  });
+
+  it("handles local stream initialization", async () => {
+    const { mediaDevices } = require("react-native-webrtc");
+    const mockStream = createMockMediaStream();
+
+    mediaDevices.getUserMedia.mockResolvedValue(mockStream);
+
+    // Test instantiation and configuration
+    expect(adapter).toBeDefined();
+    expect(adapter.peerId).toBe("peer-1");
+  });
+
+  it("emits events", (done) => {
+    const listener = jest.fn();
+    adapter.on("test-event", listener);
+
+    adapter.emit("test-event", { data: "test" });
+
+    setTimeout(() => {
+      expect(listener).toHaveBeenCalledWith({ data: "test" });
+      done();
+    }, 0);
+  });
+
+  describe("perfect negotiation / glare handling", () => {
+    const incomingOffer = { type: "offer" as const, sdp: "v=0\r\n" };
+
+    function mountAdapter(signalingState: string, isMakingOffer = false) {
+      const { RTCPeerConnection } = require("react-native-webrtc");
+      const mockPc = createMockRtcPeerConnection();
+
+      const mockDataChannel = {
+        onopen: null,
+        onmessage: null,
+        onerror: null,
+        onclose: null,
+        readyState: "open",
+      };
+      mockPc.createDataChannel.mockReturnValue(mockDataChannel);
+
+      let currentSignalingState = signalingState;
+      Object.defineProperty(mockPc, "signalingState", {
+        get: () => currentSignalingState,
+        configurable: true,
+      });
+
+      mockPc.setLocalDescription.mockImplementation(() => {
+        currentSignalingState = "stable";
+        return Promise.resolve();
+      });
+      mockPc.setRemoteDescription.mockResolvedValue(undefined);
+      mockPc.createAnswer.mockResolvedValue({ type: "answer", sdp: "v=0\r\n" });
+
+      RTCPeerConnection.mockReturnValue(mockPc);
+
+      const a = new WebrtcAdapter("peer-x");
+      a.createPeerConnection();
+
+      if (isMakingOffer) {
+        (a as unknown as { isMakingOffer: boolean }).isMakingOffer = true;
+      }
+
+      return { adapter: a, mockPc };
+    }
+
+    it("impolite peer ignores incoming offer on collision", async () => {
+      const { adapter: a, mockPc } = mountAdapter("have-local-offer", true);
+      a.setIsPolite(false);
+
+      const result = await a.handleOffer(incomingOffer);
+
+      expect(result).toBeUndefined();
+      expect(mockPc.setRemoteDescription).not.toHaveBeenCalled();
+    });
+
+    it("polite peer rolls back then accepts incoming offer on collision", async () => {
+      const { adapter: a, mockPc } = mountAdapter("have-local-offer", true);
+      a.setIsPolite(true);
+
+      await a.handleOffer(incomingOffer);
+
+      const { RTCSessionDescription } = require("react-native-webrtc");
+      expect(RTCSessionDescription).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "rollback" })
+      );
+      expect(mockPc.setLocalDescription).toHaveBeenCalled();
+      expect(mockPc.setRemoteDescription).toHaveBeenCalled();
+    });
+
+    it("polite peer processes offer normally when stable (no collision)", async () => {
+      const { adapter: a, mockPc } = mountAdapter("stable");
+      a.setIsPolite(true);
+
+      await a.handleOffer(incomingOffer);
+
+      const { RTCSessionDescription } = require("react-native-webrtc");
+      const rollbackCall = (RTCSessionDescription as jest.Mock).mock.calls.find(
+        ([arg]) => arg?.type === "rollback"
+      );
+      expect(rollbackCall).toBeUndefined();
+      expect(mockPc.setRemoteDescription).toHaveBeenCalled();
+    });
+
+    it("discards ICE candidates while ignoring offer (impolite glare)", async () => {
+      const { adapter: a, mockPc } = mountAdapter("have-local-offer", true);
+      a.setIsPolite(false);
+
+      // Trigger isIgnoringOffer by handling offer while impolite + collision
+      await a.handleOffer(incomingOffer);
+
+      await a.addIceCandidate({ candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0 });
+
+      expect(mockPc.addIceCandidate).not.toHaveBeenCalled();
+    });
+
+    it("rolls back a stale have-local-offer before creating a fresh offer", async () => {
+      const { adapter: a, mockPc } = mountAdapter("have-local-offer");
+      mockPc.createOffer.mockResolvedValue({ type: "offer", sdp: "v=0\r\n" });
+
+      const result = await a.createOffer();
+
+      const { RTCSessionDescription } = require("react-native-webrtc");
+      expect(RTCSessionDescription).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "rollback" })
+      );
+      expect(result).toEqual({ type: "offer", sdp: "v=0\r\n" });
+    });
+
+    it("does not roll back when the PC is already stable", async () => {
+      const { adapter: a, mockPc } = mountAdapter("stable");
+      mockPc.createOffer.mockResolvedValue({ type: "offer", sdp: "v=0\r\n" });
+
+      await a.createOffer();
+
+      const { RTCSessionDescription } = require("react-native-webrtc");
+      const rollbackCall = (RTCSessionDescription as jest.Mock).mock.calls.find(
+        ([arg]) => arg?.type === "rollback"
+      );
+      expect(rollbackCall).toBeUndefined();
+    });
+  });
+
+  describe("liveness (ping/pong)", () => {
+    type MockChannel = {
+      onopen: (() => void) | null;
+      onmessage: ((e: { data: string }) => void) | null;
+      onerror: ((e: unknown) => void) | null;
+      onclose: (() => void) | null;
+      readyState: string;
+      send: jest.Mock;
+      close: jest.Mock;
+    };
+    let mockChannel: MockChannel;
+    let a: WebrtcAdapter;
+
+    const sent = () =>
+      mockChannel.send.mock.calls.map(([raw]: [string]) => JSON.parse(raw));
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockChannel = {
+        onopen: null,
+        onmessage: null,
+        onerror: null,
+        onclose: null,
+        readyState: "open",
+        send: jest.fn(),
+        close: jest.fn(),
+      };
+      a = new WebrtcAdapter("peer-live");
+      a.setDataChannel(mockChannel as unknown as Parameters<typeof a.setDataChannel>[0]);
+      // Data channel open starts the monitor.
+      mockChannel.onopen?.();
+    });
+
+    afterEach(() => {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    });
+
+    it("sends a ping on the configured interval", () => {
+      jest.advanceTimersByTime(4000);
+      expect(sent().some((m) => m.type === "ping")).toBe(true);
+    });
+
+    it("replies to an incoming ping with a pong echoing the nonce", () => {
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "ping", data: { nonce: 99 } }),
+      });
+      expect(sent()).toContainEqual({ type: "pong", data: { nonce: 99 } });
+    });
+
+    it("does not propagate liveness frames to chat handling", () => {
+      const received = jest.fn();
+      a.on("receivedMessage", received);
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "ping", data: { nonce: 1 } }),
+      });
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "pong", data: { nonce: 1 } }),
+      });
+      expect(received).not.toHaveBeenCalled();
+    });
+
+    it("forces an ICE restart after consecutive missed pongs", () => {
+      const iceRestarting = jest.fn();
+      a.on("ice-restarting", iceRestarting);
+
+      jest.advanceTimersByTime(4000); // ping #1
+      jest.advanceTimersByTime(3000); // miss #1
+      jest.advanceTimersByTime(4000); // ping #2
+      jest.advanceTimersByTime(3000); // miss #2 → liveness lost
+
+      expect(iceRestarting).toHaveBeenCalled();
+    });
+
+    it("emits liveness-restored when a pong arrives after degradation", () => {
+      const restored = jest.fn();
+      a.on("liveness-restored", restored);
+
+      jest.advanceTimersByTime(4000); // ping #1
+      jest.advanceTimersByTime(3000); // miss #1
+      jest.advanceTimersByTime(4000); // ping #2
+      jest.advanceTimersByTime(3000); // miss #2 → degraded
+
+      mockChannel.onmessage?.({
+        data: JSON.stringify({ type: "pong", data: { nonce: 2 } }),
+      });
+
+      expect(restored).toHaveBeenCalled();
+    });
+
+    it("stops probing once the data channel closes", () => {
+      mockChannel.onclose?.();
+      mockChannel.send.mockClear();
+      jest.advanceTimersByTime(20000);
+      expect(mockChannel.send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("connection state events", () => {
+    function mountWithConnectionState(connectionState: string, iceConnectionState = "connected") {
+      const { RTCPeerConnection } = require("react-native-webrtc");
+      const mockPc = createMockRtcPeerConnection();
+      const mockDataChannel = {
+        onopen: null, onmessage: null, onerror: null, onclose: null, readyState: "open",
+      };
+      mockPc.createDataChannel.mockReturnValue(mockDataChannel);
+      Object.defineProperty(mockPc, "connectionState", {
+        get: () => connectionState,
+        configurable: true,
+      });
+      Object.defineProperty(mockPc, "iceConnectionState", {
+        get: () => iceConnectionState,
+        configurable: true,
+      });
+      Object.defineProperty(mockPc, "signalingState", {
+        get: () => "stable",
+        configurable: true,
+      });
+      RTCPeerConnection.mockReturnValue(mockPc);
+      const a = new WebrtcAdapter("peer-x");
+      a.createPeerConnection();
+      return { adapter: a, mockPc };
+    }
+
+    it("emits connection-failed when connectionState fails and ice is healthy (DTLS failure)", () => {
+      // Arrange: connectionState = "failed", iceConnectionState = "connected"
+      const { adapter, mockPc } = mountWithConnectionState("failed", "connected");
+      const failedHandler = jest.fn();
+      adapter.on("connection-failed", failedHandler);
+
+      // Act
+      mockPc.onconnectionstatechange?.();
+
+      // Assert: DTLS failure emits immediately — ICE restart cannot help
+      expect(failedHandler).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    it("does not emit connection-failed when connectionState fails alongside ice failure", () => {
+      // Arrange: both failed — scheduleIceRestart owns the connection-failed path
+      const { adapter, mockPc } = mountWithConnectionState("failed", "failed");
+      const failedHandler = jest.fn();
+      adapter.on("connection-failed", failedHandler);
+
+      // Act
+      mockPc.onconnectionstatechange?.();
+
+      // Assert: no direct emit; ICE restart handler drives recovery and eventual emission
+      expect(failedHandler).not.toHaveBeenCalled();
+    });
+
+    it("does not emit connection-failed when connectionState is connected", () => {
+      // Arrange
+      const { adapter, mockPc } = mountWithConnectionState("connected");
+      const failedHandler = jest.fn();
+      adapter.on("connection-failed", failedHandler);
+
+      // Act
+      mockPc.onconnectionstatechange?.();
+
+      // Assert
+      expect(failedHandler).not.toHaveBeenCalled();
+    });
+  });
+});

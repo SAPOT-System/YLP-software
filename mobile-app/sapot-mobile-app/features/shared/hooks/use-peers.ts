@@ -1,6 +1,7 @@
+import { toAppError } from "@/features/shared/core/errors";
 import { useEffect, useState } from "react";
-import { Peer } from "../database";
-import { hookLog } from "../utils/logger";
+import { Peer } from "../core/database";
+import { hookLog } from "../core/utils/logger";
 import { usePeerService } from "./use-peer-service";
 hookLog.debug("[use-peers] module loaded");
 
@@ -15,7 +16,8 @@ const usePeers = () => {
         hookLog.info("[usePeers] loaded", { count: nextPeers.length });
         setPeers(nextPeers);
       } catch (error) {
-        hookLog.error("[usePeers] load failed", { error });
+        const appErr = toAppError(error, "database");
+        hookLog.error("[usePeers] load failed", appErr);
       }
     };
     init();

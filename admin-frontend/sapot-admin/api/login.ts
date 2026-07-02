@@ -1,6 +1,8 @@
 'use server'
 
+import { db } from '@/lib/db';
 import { clearSessionData } from '@/lib/sync/collectChanges';
+import { pull, sync } from '@/lib/sync/syncEngine';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -15,8 +17,10 @@ export async function loginAction(formData: FormData) {
   loginData.append('username', username as string);
   loginData.append('password', password as string);
 
+  const baseUrl = process.env.API_DOMAIN || 'https://localhost:8000';
+
   try {
-    const response = await fetch('http://localhost:8000/admin/login', {
+    const response = await fetch(`${baseUrl}/admin/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -37,7 +41,7 @@ export async function loginAction(formData: FormData) {
     
     cookieStore.set('access_token', data.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false,
       sameSite: 'lax',
       maxAge: 60 * 15, // 15 minutes
     });
@@ -45,11 +49,14 @@ export async function loginAction(formData: FormData) {
     if (data.refresh_token) {
       cookieStore.set('refresh_token', data.refresh_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: false,
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7, // 7 days
       });
     }
+
+		await db.open();
+		await sync();
 
   } catch (err) {
     return { error: 'Connection to backend failed' };

@@ -1,0 +1,392 @@
+import { DataChatMessageI } from "@/features/shared/core/messaging-types";
+import { IChatMessageHandler } from "./service-interfaces";
+import { webrtcLog } from "@/features/shared/core/utils/logger";
+import { MediaStream } from "react-native-webrtc";
+import { WebrtcAdapter } from "../adapters/webrtc-adapter";
+import { NetworkConfig, UserStore } from "../../core/stores";
+import {
+  CallControlData,
+  DataAckMessage,
+  DataSeenMessageI,
+  SignalingMessage,
+  WebrtcDataMessage,
+} from "../../types";
+import { TypedEventEmitter } from "../../core/utils/typed-event-emitter";
+
+webrtcLog.debug("[webrtc-session-manager] module loaded");
+
+type WebrtcSessionManagerEvents = {
+  remoteStream: [stream: MediaStream];
+  "peer-reconnected": [peerId: string];
+  "call-reconnecting": [peerId: string];
+  "camera-off": [peerId: string];
+  "camera-on": [peerId: string];
+  "switch-cam": [stream: MediaStream];
+  "mic-off": [peerId: string];
+  "mic-on": [peerId: string];
+};
+
+export class WebrtcSessionManager extends TypedEventEmitter<WebrtcSessionManagerEvents> {
+  private webrtcAdapters: Map<string, WebrtcAdapter> = new Map();
+  private chatService?: IChatMessageHandler;
+  private sendSignaling?: (peerId: string, msg: SignalingMessage) => void;
+  private onEvict?: (peerId: string, isRetry: boolean) => void;
+
+  constructor(
+    private readonly userStore: UserStore,
+    private readonly networkConfig: NetworkConfig
+  ) {
+    super();
+    webrtcLog.info("webrtc › session manager constructed", {
+      hasUserStore: Boolean(userStore),
+      hasNetworkConfig: Boolean(networkConfig),
+    });
+  }
+
+  setSignalingSender(fn: (peerId: string, msg: SignalingMessage) => void) {
+    this.sendSignaling = fn;
+  }
+
+  setEvictionCallback(cb: (peerId: string, isRetry: boolean) => void) {
+    this.onEvict = cb;
+  }
+
+  setChatService(chatService: IChatMessageHandler) {
+    this.chatService = chatService;
+  }
+
+  private buildSignalSenderData(to: string) {
+    const id = this.userStore.user.id;
+    return {
+      to,
+      from: id,
+      sender: id,
+      ipAddress: this.networkConfig.ipAddress,
+      port: this.networkConfig.port,
+    };
+  }
+
+  setupWebrtcEvents(webrtcAdapter: WebrtcAdapter, peerId: string) {
+    webrtcLog.debug("webrtc › setup events", { peerId });
+
+    webrtcAdapter.on("onicecandidate", (candidate) => {
+      try {
+        if (!this.sendSignaling)
+          throw new Error("Signaling sender not configured");
+        this.sendSignaling(peerId, {
+          type: "ice-candidate",
+          data: {
+            ...this.buildSignalSenderData(peerId),
+            candidate,
+          },
+        });
+      } catch (error) {
+        webrtcLog.error("webrtc › ice candidate send failed", {
+          peerId,
+          error,
+        });
+      }
+    });
+
+    webrtcAdapter.on("receivedMessage", async (message: WebrtcDataMessage) => {
+      try {
+        if (!this.chatService) {
+          throw new Error(
+            "Chat service not initialized. Call setChatService before using chat features."
+          );
+        }
+        switch (message.type) {
+          case "chat":
+            if (message.data) {
+              webrtcLog.debug("webrtc › chat received", {
+                messageId: message.data.messageId,
+                conversationId: message.data.conversationId,
+              });
+              await this.chatService.handleIncomingChatMessage(message.data);
+            }
+            break;
+          case "ack":
+            if (message.data) {
+              webrtcLog.debug("webrtc › ack received", {
+                messageId: message.data.messageId,
+              });
+              await this.chatService.handleAckMessage(message.data.messageId);
+            }
+            break;
+          case "seen":
+            if (message.data) {
+              webrtcLog.debug("webrtc › seen received", {
+                conversationId: message.data.conversationId,
+                from: message.data.from,
+              });
+              await this.chatService.handleSeenMessage(message.data.conversationId);
+            }
+            break;
+          case "camera_toggle":
+            if (message.data) {
+              webrtcLog.debug("webrtc › call control camera received", {
+                from: message.data.from,
+                enabled: message.data.enabled,
+              });
+              if (message.data.enabled) {
+                this.emit("camera-on", message.data.from);
+              } else {
+                this.emit("camera-off", message.data.from);
+              }
+            }
+            break;
+          case "mic_toggle":
+            if (message.data) {
+              webrtcLog.debug("webrtc › call control mic received", {
+                from: message.data.from,
+                enabled: message.data.enabled,
+              });
+              if (message.data.enabled) {
+                this.emit("mic-on", message.data.from);
+              } else {
+                this.emit("mic-off", message.data.from);
+              }
+            }
+            break;
+        }
+      } catch (error) {
+        webrtcLog.error("webrtc › message handler failed", {
+          peerId,
+          error,
+        });
+      }
+    });
+
+    webrtcAdapter.on("switch-cam", (stream: MediaStream) =>
+      this.emit("switch-cam", stream)
+    );
+
+    webrtcAdapter.on("remoteStream", (stream) => {
+      this.emit("remoteStream", stream);
+    });
+
+    webrtcAdapter.on("datachannel-open", () => {
+      webrtcLog.info("webrtc › datachannel-open → peer-reconnected", { peerId });
+      this.emit("peer-reconnected", peerId);
+    });
+
+    webrtcAdapter.on("ice-reconnected", () => {
+      webrtcLog.info("webrtc › ice-reconnected → peer-reconnected", { peerId });
+      this.emit("peer-reconnected", peerId);
+    });
+
+    // A successful data-channel ping round-trip proves the peer is reachable even
+    // if the ICE state machine never re-reported "connected" — resolves the
+    // one-sided "Reconnecting…" desync after a Wi-Fi flap.
+    webrtcAdapter.on("liveness-restored", () => {
+      webrtcLog.info("webrtc › liveness-restored → peer-reconnected", { peerId });
+      this.emit("peer-reconnected", peerId);
+    });
+
+    webrtcAdapter.on("ice-restarting", () => {
+      webrtcLog.info("webrtc › ice-restarting → call-reconnecting", { peerId });
+      this.emit("call-reconnecting", peerId);
+    });
+
+    webrtcAdapter.on("connection-closed", () => {
+      webrtcLog.warn("webrtc › connection-closed → evicting adapter", { peerId });
+      this.evictWebrtcAdapter(peerId);
+    });
+
+    webrtcAdapter.on("connection-failed", () => {
+      webrtcLog.warn("webrtc › connection-failed → evicting adapter", { peerId });
+      this.evictWebrtcAdapter(peerId);
+    });
+
+    webrtcAdapter.on(
+      "signal-offer",
+      (payload: {
+        type: "offer";
+        sdp: string | undefined;
+        iceRestart?: boolean;
+        reason?: string;
+      }) => {
+        try {
+          if (!this.sendSignaling)
+            throw new Error("Signaling sender not configured");
+          this.sendSignaling(peerId, {
+            type: payload.type,
+            data: {
+              sdp: { type: payload.type, sdp: payload.sdp! },
+              iceRestart: payload.iceRestart,
+              reason: payload.reason,
+              ...this.buildSignalSenderData(peerId),
+            },
+          });
+        } catch (error) {
+          webrtcLog.error("webrtc › offer send failed", { peerId, error });
+        }
+      }
+    );
+  }
+
+  evictWebrtcAdapter(peerId: string, isRetry = false): void {
+    const adapter = this.webrtcAdapters.get(peerId);
+    if (!adapter) return;
+    this.webrtcAdapters.delete(peerId);
+    this.onEvict?.(peerId, isRetry);
+    adapter.removeAllListeners();
+    adapter.cleanup();
+    webrtcLog.info("webrtc › adapter evicted", { peerId });
+  }
+
+  getWebrtcAdapter(peerId: string): WebrtcAdapter {
+    try {
+      let adapter = this.webrtcAdapters.get(peerId);
+      if (!adapter) {
+        adapter = new WebrtcAdapter(peerId);
+        this.setupWebrtcEvents(adapter, peerId);
+        this.webrtcAdapters.set(peerId, adapter);
+        webrtcLog.info("webrtc › adapter created", { peerId });
+      }
+      return adapter;
+    } catch (error) {
+      webrtcLog.error("webrtc › adapter get failed", { peerId, error });
+      throw error;
+    }
+  }
+
+  waitForDataChannel(peerId: string, timeoutMs = 5000): Promise<void> {
+    const adapter = this.getWebrtcAdapter(peerId);
+    if (adapter.isConnected) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`waitForDataChannel: timeout for peer ${peerId}`));
+      }, timeoutMs);
+      adapter.once("datachannel-open", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  }
+
+  sendChatMessage(peerId: string, messageData: DataChatMessageI) {
+    const {
+      message,
+      conversationId,
+      messageId,
+      from,
+      sentAt,
+      messageType,
+      to,
+      senderProfile,
+    } = messageData;
+    try {
+      webrtcLog.debug("webrtc › chat send", {
+        messageId,
+        conversationId,
+        to: peerId,
+      });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: "chat",
+        data: {
+          message,
+          conversationId,
+          messageId,
+          from,
+          to,
+          sentAt,
+          messageType,
+          senderProfile,
+        },
+      });
+    } catch (error) {
+      webrtcLog.warn("webrtc › chat send failed", {
+        peerId,
+        conversationId,
+        messageId,
+        messageType,
+        hasMessage: Boolean(message),
+        error,
+      });
+      throw error;
+    }
+  }
+
+  sendSeenMessage(peerId: string, seenData: DataSeenMessageI) {
+    const { conversationId } = seenData;
+    try {
+      webrtcLog.debug("webrtc › seen send", { peerId, conversationId });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: "seen",
+        data: {
+          conversationId,
+          from: this.userStore.user.id,
+          to: peerId,
+        },
+      });
+    } catch (error) {
+      webrtcLog.error("webrtc › seen send failed", {
+        peerId,
+        conversationId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  sendAckMessage(peerId: string, ackData: DataAckMessage) {
+    const { messageId } = ackData;
+    try {
+      webrtcLog.debug("webrtc › ack send", { peerId, messageId });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: "ack",
+        data: {
+          messageId,
+          from: this.userStore.user.id,
+          to: peerId,
+        },
+      });
+    } catch (error) {
+      webrtcLog.error("webrtc › ack send failed", {
+        peerId,
+        messageId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  sendCallControlMessage(
+    peerId: string,
+    type: "camera_toggle" | "mic_toggle",
+    { enabled, from }: CallControlData
+  ) {
+    try {
+      webrtcLog.debug("webrtc › call control send", { peerId, type, enabled });
+      const webrtcAdapter = this.getWebrtcAdapter(peerId);
+      webrtcAdapter.sendDataMessage({
+        type: type,
+        data: {
+          from: from,
+          enabled: enabled,
+        },
+      });
+    } catch (error) {
+      webrtcLog.error("webrtc › call control send failed", {
+        peerId,
+        enabled,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  cleanupAll() {
+    this.webrtcAdapters.forEach((adapter) => {
+      adapter.removeAllListeners();
+      adapter.cleanup();
+    });
+    this.webrtcAdapters.clear();
+  }
+}

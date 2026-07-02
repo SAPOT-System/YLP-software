@@ -1,9 +1,9 @@
-import { configLog } from "@/features/shared/utils/logger";
+import { configLog } from "@/features/shared/core/utils/logger";
 import * as Updates from "expo-updates";
 
-const DEV_PORT = "8000";
+// const PORT = "8000";
 const DEV_HOST = process.env.EXPO_PUBLIC_DEV_HOST;
-const STAGING_HOST = "sapot.online";
+const STAGING_HOST = "192.168.0.100";
 
 let _hostOverride: string | null = null;
 
@@ -13,18 +13,20 @@ export const setRuntimeHostOverride = (host: string | null) => {
 
 export const initRuntimeOverrides = async () => {
   const { getServerHostOverride } = await import(
-    "@/features/shared/stores/secure-config"
+    "@/features/shared/core/stores/secure-config"
   );
   _hostOverride = await getServerHostOverride();
-  configLog.info("config › host override loaded", { hasOverride: Boolean(_hostOverride) });
+  configLog.info("config › host override loaded", {
+    hasOverride: Boolean(_hostOverride),
+  });
 };
 
 export const getApiUrl = () => {
-  if (_hostOverride) return `http://${_hostOverride}:${DEV_PORT}`;
+  if (_hostOverride) return `https://${_hostOverride}`;
 
   if (__DEV__) {
     configLog.debug("config › env dev");
-    return `http://${DEV_HOST}:${DEV_PORT}`;
+    return `https://${DEV_HOST}`;
   }
 
   const channel = Updates.channel;
@@ -38,17 +40,17 @@ export const getApiUrl = () => {
       return `https://${STAGING_HOST}`;
 
     default:
-      return `http://${DEV_HOST}:${DEV_PORT}`;
+      return `https://${DEV_HOST}`;
   }
 };
 
 const TILE_PORT = "8080";
 
 export const getTileServerUrl = () => {
-  if (_hostOverride) return `http://${_hostOverride}:${TILE_PORT}`;
+  if (_hostOverride) return `https://${_hostOverride}:${TILE_PORT}`;
 
   if (__DEV__) {
-    return `http://${DEV_HOST}:${TILE_PORT}`;
+    return `https://${DEV_HOST}:${TILE_PORT}`;
   }
 
   const channel = Updates.channel;
@@ -56,17 +58,21 @@ export const getTileServerUrl = () => {
   switch (channel) {
     case "preview":
     case "production":
-      return `https://${STAGING_HOST}`;
+      return `https://${STAGING_HOST}:${TILE_PORT}`;
     default:
-      return `http://${DEV_HOST}:${TILE_PORT}`;
+      return `https://${DEV_HOST}:${TILE_PORT}`;
   }
 };
 
+export function getServerVerifyKey(): string | undefined {
+  return process.env.EXPO_PUBLIC_SERVER_VERIFY_KEY;
+}
+
 export const getWsUrl = () => {
-  if (_hostOverride) return `ws://${_hostOverride}:${DEV_PORT}`;
+  if (_hostOverride) return `wss://${_hostOverride}`;
 
   if (__DEV__) {
-    return `ws://${DEV_HOST}:${DEV_PORT}`;
+    return `wss://${DEV_HOST}`;
   }
 
   const channel = Updates.channel;
@@ -79,6 +85,6 @@ export const getWsUrl = () => {
       return `wss://${STAGING_HOST}`;
 
     default:
-      return `ws://${DEV_HOST}:${DEV_PORT}`;
+      return `wss://${DEV_HOST}`;
   }
 };

@@ -1,9 +1,11 @@
 import { AUTH_ROUTES } from "@/config/routes";
 import { Link } from "expo-router";
+import React, { useRef } from "react";
 import { StyleSheet, View } from "react-native";
-import { HelperText, Text, useTheme } from "react-native-paper";
+import { Checkbox, HelperText, Text, useTheme } from "react-native-paper";
 import { RegisterStepProps } from "../types";
-import AuthTextInput from "./auth-text-input";
+import AuthTextInput, { PaperTextInputRef } from "./auth-text-input";
+import { PasswordRequirements } from "./password-requirements";
 import PrimaryButton from "./primary-button";
 
 export const RegisterStep1 = ({
@@ -11,63 +13,42 @@ export const RegisterStep1 = ({
   errors,
   onChange,
   onSubmit,
+  onBlur,
   loading,
+  onTermsPress,
 }: RegisterStepProps) => {
   const theme = useTheme();
 
-  const formatPHNumber = (input: string) => {
-    let num = input.replace(/[^0-9]/g, "");
-
-    if (num.startsWith("639")) {
-      num = "0" + num.slice(2);
-    }
-
-    if (num.startsWith("9")) {
-      num = "0" + num;
-    }
-
-    return num.slice(0, 11);
-  };
-
-  const handlePhoneChange = (value: string) => {
-    const formatted = formatPHNumber(value);
-    onChange("phoneNumber", formatted);
-  };
+  const firstNameRef = useRef<PaperTextInputRef>(null);
+  const lastNameRef = useRef<PaperTextInputRef>(null);
+  const usernameRef = useRef<PaperTextInputRef>(null);
+  const passwordRef = useRef<PaperTextInputRef>(null);
+  const confirmPasswordRef = useRef<PaperTextInputRef>(null);
 
   const formatName = (input: string) => {
-    // Remove non-letter characters (allow accented letters)
     let cleaned = input.replace(/[^a-zA-ZÀ-ÿÑñ\s-]/g, "");
-
-    // Convert to lowercase
     cleaned = cleaned.toLowerCase();
-
-    // Capitalize first letter of each word
     cleaned = cleaned.replace(/\b\w/g, (char) => char.toUpperCase());
-
     return cleaned;
   };
 
-  const handleFirstNameChange = (value: string) => {
-    const formatted = formatName(value);
-    onChange("firstName", formatted);
-  };
-
-  const handleLastNameChange = (value: string) => {
-    const formatted = formatName(value);
-    onChange("lastName", formatted);
-  };
   return (
     <>
       <View style={{ alignItems: "stretch", marginBottom: 32 }}>
-        {/* First Name */}
         <AuthTextInput
+          ref={firstNameRef}
           label="First Name"
-          placeholder="First Name"
+          placeholder="e.g. Juan"
           value={values.firstName}
-          onChangeText={handleFirstNameChange}
+          onChangeText={(value) => onChange("firstName", formatName(value))}
+          onBlur={() => onBlur?.("firstName")}
           style={styles.textInput}
           error={!!errors.firstName}
           required={true}
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="next"
+          onSubmitEditing={() => lastNameRef.current?.focus()}
         />
         {errors.firstName && (
           <HelperText type="error" style={styles.helperText}>
@@ -75,15 +56,20 @@ export const RegisterStep1 = ({
           </HelperText>
         )}
 
-        {/* Last Name */}
         <AuthTextInput
+          ref={lastNameRef}
           label="Last Name"
-          placeholder="Last Name"
+          placeholder="e.g. Dela Cruz"
           value={values.lastName}
-          onChangeText={handleLastNameChange}
+          onChangeText={(value) => onChange("lastName", formatName(value))}
+          onBlur={() => onBlur?.("lastName")}
           style={styles.textInput}
           required={true}
           error={!!errors.lastName}
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="next"
+          onSubmitEditing={() => usernameRef.current?.focus()}
         />
         {errors.lastName && (
           <HelperText type="error" style={styles.helperText}>
@@ -92,15 +78,19 @@ export const RegisterStep1 = ({
         )}
 
         <AuthTextInput
+          ref={usernameRef}
           label="Username"
-          placeholder="Username"
+          placeholder="e.g. juan_delacruz"
           value={values.username}
-          onChangeText={(value) => {
-            onChange("username", value);
-          }}
+          onChangeText={(value) => onChange("username", value.toLowerCase())}
+          onBlur={() => onBlur?.("username")}
           style={styles.textInput}
           required={true}
           error={!!errors.username}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
         />
         {errors.username && (
           <HelperText type="error" style={styles.helperText}>
@@ -108,54 +98,94 @@ export const RegisterStep1 = ({
           </HelperText>
         )}
 
-        {/* Phone Number */}
         <AuthTextInput
-          label="Phone Number"
-          placeholder="Phone Number"
-          value={values.phoneNumber}
-          onChangeText={handlePhoneChange}
-          keyboardType="phone-pad"
+          ref={passwordRef}
+          label="Password"
+          placeholder="Min. 8 characters"
+          value={values.password}
+          onChangeText={(value) => onChange("password", value)}
+          onBlur={() => onBlur?.("password")}
+          secureTextEntry
           style={styles.textInput}
-          error={!!errors.phoneNumber}
+          required={true}
+          error={!!errors.password}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          returnKeyType="next"
+          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
         />
-        {errors.phoneNumber && (
+        <PasswordRequirements password={values.password} />
+        {errors.password && (
           <HelperText type="error" style={styles.helperText}>
-            {errors.phoneNumber}
+            {errors.password}
           </HelperText>
         )}
 
-        {/* Email Address */}
         <AuthTextInput
-          label="Email Address"
-          placeholder="Email Address"
-          value={values.email}
-          onChangeText={(value) => {
-            onChange("email", value);
-          }}
-          keyboardType="email-address"
+          ref={confirmPasswordRef}
+          label="Confirm Password"
+          placeholder="Re-enter your password"
+          value={values.confirmPassword}
+          onChangeText={(value) => onChange("confirmPassword", value)}
+          onBlur={() => onBlur?.("confirmPassword")}
+          secureTextEntry
           style={styles.textInput}
-          error={!!errors.email}
+          required={true}
+          error={!!errors.confirmPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          returnKeyType="done"
+          submitBehavior="blurAndSubmit"
         />
-        {errors.email && (
+        {errors.confirmPassword && (
           <HelperText type="error" style={styles.helperText}>
-            {errors.email}
+            {errors.confirmPassword}
+          </HelperText>
+        )}
+
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Checkbox
+            status={values.termsChecked ? "checked" : "unchecked"}
+            onPress={() =>
+              values.termsChecked
+                ? onChange("termsChecked", false)
+                : onTermsPress?.()
+            }
+          />
+          <Text variant="bodyMedium">
+            I agree to{" "}
+            <Text
+              variant="bodyMedium"
+              style={{
+                fontWeight: "600",
+                color: theme.colors.primary,
+                textDecorationLine: "underline",
+              }}
+              onPress={onTermsPress}
+            >
+              Terms & Conditions
+            </Text>
+          </Text>
+        </View>
+        {errors.termsChecked && (
+          <HelperText type="error" style={styles.helperText}>
+            {errors.termsChecked}
           </HelperText>
         )}
       </View>
+
       <View style={{ alignItems: "center" }}>
-        {/* Submit Button */}
         <PrimaryButton
-          onPress={() => {
-            onSubmit(values);
-          }}
+          onPress={() => onSubmit(values)}
           style={{ marginBottom: 8 }}
           loading={loading}
           disabled={loading}
         >
-          Continue
+          Create Account
         </PrimaryButton>
 
-        {/* Login Link */}
         <Text variant="bodyMedium">
           Already have an account?{" "}
           <Link

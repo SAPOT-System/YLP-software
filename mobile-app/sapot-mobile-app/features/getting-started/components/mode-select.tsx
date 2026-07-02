@@ -1,9 +1,9 @@
 import { getApiUrl, setRuntimeHostOverride } from "@/config/runtime";
-import { apiClient } from "@/features/shared/api/client";
+import { apiClient } from "@/features/shared/core/api/client";
 import {
   getServerHostOverride,
   saveServerHostOverride,
-} from "@/features/shared/stores/secure-config";
+} from "@/features/shared/core/stores/secure-config";
 import React, { useEffect, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import {

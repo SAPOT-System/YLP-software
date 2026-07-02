@@ -1,5 +1,5 @@
 import { APP_ROUTES, SETTINGS_ROUTES } from "@/config/routes";
-import { navLog } from "@/features/shared/utils/logger";
+import { navLog } from "@/features/shared/core/utils/logger";
 import { router, Stack, useGlobalSearchParams, usePathname } from "expo-router";
 import { useEffect } from "react";
 import { Appbar, useTheme } from "react-native-paper";
@@ -131,6 +131,30 @@ export default function SettingsLayout() {
         name="account/email/verify-email"
         options={{
           title: "Verify with Email Address",
+        }}
+      />
+      <Stack.Screen
+        name="account/email/email-verified"
+        options={{
+          title: "Email Verified",
+        }}
+      />
+      <Stack.Screen
+        name="account/phone/edit-phone"
+        options={{
+          title: "Phone Number",
+        }}
+      />
+      <Stack.Screen
+        name="account/phone/verify-phone"
+        options={{
+          title: "Verify Phone Number",
+        }}
+      />
+      <Stack.Screen
+        name="account/phone/phone-verified"
+        options={{
+          title: "Phone Verified",
         }}
       />
       <Stack.Screen

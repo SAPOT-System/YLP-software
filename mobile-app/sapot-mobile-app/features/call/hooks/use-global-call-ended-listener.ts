@@ -1,6 +1,7 @@
-import { CallEndedEventPayload } from "@/features/shared/services/connection-service";
+import { toAppError } from "@/features/shared/core/errors";
+import { CallEndedEventPayload } from "@/features/shared/connection/services/connection-service";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
-import { callLog } from "@/features/shared/utils/logger";
+import { callLog } from "@/features/shared/core/utils/logger";
 import { useEffect } from "react";
 
 export function useGlobalCallEndedListener() {
@@ -20,9 +21,10 @@ export function useGlobalCallEndedListener() {
           conversationId:payload.conversationId
         });
       } catch (error) {
+        const appErr = toAppError(error, "media");
         callLog.warn("call › global call-ended handler failed", {
           peerId: payload.peerId,
-          error,
+          ...appErr,
         });
       }
     };

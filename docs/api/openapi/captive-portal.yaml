@@ -1,0 +1,363 @@
+openapi: 3.1.0
+info:
+  title: SAPOT Server — Captive Portal
+  version: 0.0.2-beta.1
+paths:
+  /portal/api/v1/guests:
+    post:
+      tags:
+      - captive portal
+      summary: Record a new guest login
+      description: |-
+        Called by `login.html` immediately after the user submits their name.
+
+        - Creates a new `GuestSession` row with `status=active`.
+        - If the same `session_id` is sent twice (e.g. double-submit), returns the
+          existing record with HTTP 200 instead of raising a 409.
+      operationId: create_guest_session_portal_api_v1_guests_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuestLoginRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestSessionRead'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - captive portal
+      summary: List all guest sessions
+      description: |-
+        Retrieve all recorded guest sessions.
+
+        **Query parameters**
+        - `status=active` — only currently connected guests
+        - `status=disconnected` — only past sessions
+        - `search=Juan` — partial match on first or last name
+        - `limit` / `offset` — standard pagination
+      operationId: list_guests_portal_api_v1_guests_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/SessionStatus'
+          - type: 'null'
+          description: 'Filter by status: active | disconnected'
+          title: Status
+        description: 'Filter by status: active | disconnected'
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Search by first or last name (case-insensitive)
+          title: Search
+        description: Search by first or last name (case-insensitive)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          description: Max results per page
+          default: 50
+          title: Limit
+        description: Max results per page
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          description: Pagination offset
+          default: 0
+          title: Offset
+        description: Pagination offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestListResponse'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /portal/api/v1/guests/stats:
+    get:
+      tags:
+      - captive portal
+      summary: Aggregate session statistics
+      description: |-
+        Returns total, active, and disconnected session counts.
+        Useful for a future SAPOT admin dashboard.
+      operationId: get_stats_portal_api_v1_guests_stats_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+        '404':
+          description: Not Found
+  /portal/api/v1/guests/{session_id}:
+    get:
+      tags:
+      - captive portal
+      summary: Retrieve a single guest session
+      description: Fetch one session by its client-generated `session_id`.
+      operationId: get_guest_session_portal_api_v1_guests__session_id__get
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestSessionRead'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /portal/api/v1/guests/{session_id}/disconnect:
+    patch:
+      tags:
+      - captive portal
+      summary: Mark a session as disconnected
+      description: |-
+        Called by `logout.html` when the user clicks Disconnect.
+        Sets `status=disconnected` and records `disconnect_at`.
+        Safe to call multiple times (idempotent).
+      operationId: disconnect_guest_session_portal_api_v1_guests__session_id__disconnect_patch
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestSessionRead'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    GuestListResponse:
+      properties:
+        total:
+          type: integer
+          title: Total
+        results:
+          items:
+            $ref: '#/components/schemas/GuestSessionRead'
+          type: array
+          title: Results
+      type: object
+      required:
+      - total
+      - results
+      title: GuestListResponse
+    GuestLoginRequest:
+      properties:
+        session_id:
+          type: string
+          title: Session Id
+          description: Client-generated session ID (sess_<timestamp>_<random>)
+        first_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Last Name
+        mac_address:
+          anyOf:
+          - type: string
+            maxLength: 17
+          - type: 'null'
+          title: Mac Address
+          description: Client MAC address (from MikroTik $(mac))
+        ip_address:
+          anyOf:
+          - type: string
+            maxLength: 45
+          - type: 'null'
+          title: Ip Address
+          description: Client IP address (from MikroTik $(ip))
+        hotspot_name:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Hotspot Name
+          description: MikroTik hotspot hostname
+      type: object
+      required:
+      - session_id
+      - first_name
+      - last_name
+      title: GuestLoginRequest
+      description: Body accepted by POST /api/v1/guests.
+    GuestSessionRead:
+      properties:
+        session_id:
+          type: string
+          title: Session Id
+          description: Client-generated session ID (sess_<timestamp>_<random>)
+        first_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Last Name
+        mac_address:
+          anyOf:
+          - type: string
+            maxLength: 17
+          - type: 'null'
+          title: Mac Address
+          description: Client MAC address (from MikroTik $(mac))
+        ip_address:
+          anyOf:
+          - type: string
+            maxLength: 45
+          - type: 'null'
+          title: Ip Address
+          description: Client IP address (from MikroTik $(ip))
+        hotspot_name:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Hotspot Name
+          description: MikroTik hotspot hostname
+        id:
+          type: integer
+          title: Id
+        status:
+          $ref: '#/components/schemas/SessionStatus'
+        login_at:
+          type: string
+          format: date-time
+          title: Login At
+        disconnect_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Disconnect At
+      type: object
+      required:
+      - session_id
+      - first_name
+      - last_name
+      - id
+      - status
+      - login_at
+      - disconnect_at
+      title: GuestSessionRead
+      description: Full session object returned to clients.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    SessionStatus:
+      type: string
+      enum:
+      - active
+      - disconnected
+      title: SessionStatus
+    StatsResponse:
+      properties:
+        total_sessions:
+          type: integer
+          title: Total Sessions
+        active_sessions:
+          type: integer
+          title: Active Sessions
+        disconnected_sessions:
+          type: integer
+          title: Disconnected Sessions
+      type: object
+      required:
+      - total_sessions
+      - active_sessions
+      - disconnected_sessions
+      title: StatsResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

@@ -1,10 +1,11 @@
-import { useAppMode } from "@/features/shared/context/app-mode-context";
+import { useAppMode } from "@/features/shared/core/context/app-mode-context";
 import { useUserProfile } from "@/features/shared/hooks";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
 import { QRPayload } from "@/features/shared/types";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect, useMemo } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { Text, useTheme } from "react-native-paper";
 import QRCode from "react-native-qrcode-svg";
 
@@ -25,6 +26,7 @@ export default function QrCodeScreen() {
     mode === "server" || Boolean(container.networkConfig.ipAddress);
 
   const qrValue = useMemo(() => {
+    if (!user) return "";
     const payload: QRPayload = {
       id: user.id,
       firstName: user.firstName ?? "",
@@ -37,6 +39,8 @@ export default function QrCodeScreen() {
     };
     return JSON.stringify(payload);
   }, [user, mode, container.networkConfig.ipAddress, container.networkConfig.port]);
+
+  if (!user) return <LoadingSpinner />;
 
   const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ");
 
@@ -69,7 +73,7 @@ export default function QrCodeScreen() {
           </View>
         ) : (
           <View style={{ alignItems: "center", gap: 12 }}>
-            <ActivityIndicator />
+            <LoadingSpinner />
             <Text style={{ color: theme.colors.onSurface }}>
               Waiting for network...
             </Text>

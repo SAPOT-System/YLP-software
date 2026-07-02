@@ -15,8 +15,22 @@ jest.mock('reactotron-react-native', () => ({
   display: jest.fn(),
 }));
 
+jest.mock("@sentry/react-native", () => ({
+  captureException: jest.fn(),
+  captureMessage: jest.fn(),
+  wrap: (Component) => Component,
+  init: jest.fn(),
+  mobileReplayIntegration: jest.fn(() => ({})),
+  feedbackIntegration: jest.fn(() => ({})),
+  getGlobalScope: jest.fn(() => ({ setTag: jest.fn() })),
+}));
+
 // Mock axios to avoid fetch adapter issues in Jest
+// Preserve AxiosError and isAxiosError from the real module so error-handling
+// utilities that depend on them work correctly in tests.
 jest.mock('axios', () => {
+  const actualAxios = jest.requireActual('axios');
+
   const create = jest.fn(() => ({
     defaults: {},
     interceptors: {
@@ -27,8 +41,10 @@ jest.mock('axios', () => {
 
   return {
     __esModule: true,
-    default: { create },
+    default: { ...actualAxios.default, create },
     create,
+    isAxiosError: actualAxios.isAxiosError,
+    AxiosError: actualAxios.AxiosError,
   };
 });
 
@@ -52,8 +68,10 @@ jest.mock('@nozbe/watermelondb', () => ({
     sortBy: jest.fn(),
     oneOf: jest.fn(),
     desc: jest.fn(),
+    asc: jest.fn(),
     skip: jest.fn(),
-    take: jest.fn()
+    take: jest.fn(),
+    notEq: jest.fn(),
   },
   tableSchema: jest.fn((config) => config),
   appSchema: jest.fn((config) => config),
@@ -148,6 +166,27 @@ jest.mock('expo-background-task', () => ({
   },
 }));
 
+// Mock expo-file-system (new API: File / Directory / Paths) used by the logger's
+// file transport. Keeps file writes as no-ops in the Node test environment.
+jest.mock('expo-file-system', () => {
+  class File {
+    constructor(uri) {
+      this.uri = uri;
+      this.exists = false;
+    }
+    create() {}
+    delete() {}
+    open() {
+      return { writeBytes() {}, close() {}, size: 0, offset: 0 };
+    }
+  }
+  return {
+    File,
+    Directory: class Directory {},
+    Paths: { document: { uri: 'file:///mock/documents/' } },
+  };
+});
+
 jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notification-id'),
   dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
@@ -158,6 +197,33 @@ jest.mock('expo-notifications', () => ({
     HIGH: 4,
   },
 }));
+
+// Mock react-native-quick-base64 (TurboModule not available in Jest)
+jest.mock('react-native-quick-base64', () => ({
+  btoa: (data) => Buffer.from(data, 'binary').toString('base64'),
+  atob: (data) => Buffer.from(data, 'base64').toString('binary'),
+  fromByteArray: (data) => Buffer.from(data).toString('base64'),
+  toByteArray: (data) => new Uint8Array(Buffer.from(data, 'base64')),
+}));
+
+// Mock react-native-quick-crypto (TurboModule not available in Jest)
+jest.mock('react-native-quick-crypto', () => {
+  const crypto = require('crypto');
+  return {
+    __esModule: true,
+    default: {
+      pbkdf2: (secret, salt, iterations, keylen, digest, callback) => {
+        crypto.pbkdf2(secret, salt, iterations, keylen, digest, (err, key) => {
+          callback(err, key ? new Uint8Array(key) : null);
+        });
+      },
+      pbkdf2Sync: (secret, salt, iterations, keylen, digest) => {
+        const key = crypto.pbkdf2Sync(secret, salt, iterations, keylen, digest);
+        return new Uint8Array(key);
+      },
+    },
+  };
+});
 
 // Mock document picker (native module)
 jest.mock('@react-native-documents/picker', () => ({

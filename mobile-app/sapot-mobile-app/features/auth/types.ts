@@ -1,4 +1,4 @@
-import { authTypesLog } from "@/features/shared/utils/logger";
+import { authTypesLog } from "@/features/shared/core/utils/logger";
 
 authTypesLog.debug("[auth types] module loaded");
 
@@ -12,18 +12,16 @@ export interface RegisterStepProps {
   loading: boolean;
   onChange: (name: keyof RegisterFormState, value: string | boolean) => void;
   onSubmit: (values: Partial<RegisterFormState>) => void;
+  onBlur?: (name: keyof RegisterFormState) => void;
   onBack?: () => void;
+  onTermsPress?: () => void;
 }
 
 export interface RegisterFormState {
   username: string;
   firstName: string;
   lastName: string;
-  phoneNumber: string;
-  email: string;
   password: string;
-  securityQuestion: string;
-  questionAnswer: string;
   confirmPassword: string;
   termsChecked: boolean;
 }
@@ -39,6 +37,7 @@ export interface RegisterApiRequest {
   last_name: string;
   phone_number?: string;
   email?: string;
+  terms_accepted: boolean;
 }
 
 type ApiRegisterFieldErrorResponse = Partial<
@@ -85,6 +84,21 @@ export interface LoginApiResponse {
   token_type: string;
 }
 
+export interface Login401Detail {
+  message: string;
+  attempts_remaining?: number;
+}
+
 export interface LoginApiErrorResponse {
-  detail: string;
+  detail: Login401Detail | string;
+}
+
+export interface DeviceLockout429 {
+  locked_until: string;
+  device_type: string;
+  attempts_remaining: number;
+}
+
+export interface LoginBanResult {
+  message: string;
 }

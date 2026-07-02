@@ -45,12 +45,21 @@ class SyncResponse(BaseModel):
     timestamp: int
 
 
+class GuestUserHint(BaseModel):
+    first_name: str
+    last_name: str
+    username: str
+
 class PushSyncRequest(BaseModel):
     # Watermelon wraps all table data in a 'changes' key
-    changes: Dict[str, TableChanges] 
-    
+    changes: Dict[str, TableChanges]
+
     # Watermelon also sends the timestamp of the last successful pull
-    last_pulled_at: int 
+    last_pulled_at: int
+
+    # Real name hints for guest peers — used by ensure_user_exists to create
+    # placeholder rows with actual names instead of "Guest"/"User" defaults.
+    guest_users: Optional[Dict[str, GuestUserHint]] = None
 
     # If you want strict Pydantic validation instead of Dict[str, Any], use this:
     # changes: "SyncChanges"

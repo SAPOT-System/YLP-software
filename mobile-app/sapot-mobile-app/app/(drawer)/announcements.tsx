@@ -8,11 +8,10 @@ import {
 } from "@/features/announcements/types";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
-import { uiLog } from "@/features/shared/utils/logger";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   ScrollView,
@@ -20,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { Appbar, Chip, Text, useTheme } from "react-native-paper";
+import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 const FILTERS: { key: AnnouncementFilter; label: string }[] = [
   { key: "all", label: "All" },
@@ -168,7 +168,7 @@ export default function AnnouncementsScreen() {
       </ScrollView>
 
       {isLoading ? (
-        <ActivityIndicator style={styles.loader} />
+        <LoadingSpinner style={styles.loader} />
       ) : (
         <FlatList
           data={filtered}

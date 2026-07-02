@@ -1,19 +1,24 @@
-import { Conversation, GuestUser, MessageType, Peer } from "@/features/shared";
+import { Conversation, GuestUser, Message, MessageType, Peer } from "@/features/shared";
 import { createTestConversation, createTestMessages } from "@/test/factories/chat-model.factory";
 import { createTestGuestUser, createTestPeer } from "@/test/factories/user.factory";
 import { createCollectionMock, createWatermelonDbMock } from "@/test/mocks/database.mock-builders";
+import nacl from "tweetnacl";
+import { encodeBase64 } from "tweetnacl-util";
+import { ConversationKeyStore } from "../conversation-key-store";
 import { MessageRepository } from "../message-repository";
 
 describe("MessageRepository", () => {
   let repository: MessageRepository;
+  let keyStore: ConversationKeyStore;
   let mockCollection: ReturnType<typeof createCollectionMock>;
   let mockDb: ReturnType<typeof createWatermelonDbMock>;
 
   beforeEach(() => {
     mockCollection = createCollectionMock();
     mockDb = createWatermelonDbMock(mockCollection);
+    keyStore = new ConversationKeyStore();
 
-    repository = new MessageRepository(mockDb as never);
+    repository = new MessageRepository(mockDb as never, keyStore);
   });
 
   it("saves a new message", async () => {
@@ -26,6 +31,8 @@ describe("MessageRepository", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       Promise.resolve(fn()).then((_result: any) => mockMessage)
     );
+
+    keyStore.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
 
     await repository.saveMessage({
       sender: {
@@ -46,6 +53,8 @@ describe("MessageRepository", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (fn: any) => Promise.resolve(fn())
     );
+
+    keyStore.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
 
     await repository.saveMessage({
       sender: {
@@ -89,5 +98,51 @@ describe("MessageRepository", () => {
     await repository.queryMessagesByConversation("conv-1", 10, 5);
 
     expect(mockCollection.query).toHaveBeenCalled();
+  });
+
+  describe("conversation key rotation", () => {
+    const encryptWith = (key: Uint8Array, plaintext: string): string => {
+      const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+      const ciphertext = nacl.secretbox(
+        new TextEncoder().encode(plaintext),
+        nonce,
+        key
+      );
+      return `ecdh:${encodeBase64(nonce)}:${encodeBase64(ciphertext)}`;
+    };
+
+    const messageWith = (content: string) =>
+      ({
+        id: "msg-1",
+        content,
+        _raw: { conversation: "conv-1" },
+      } as unknown as Message);
+
+    it("decrypts messages encrypted under a previous key after the key rotates", () => {
+      const oldKey = nacl.randomBytes(nacl.secretbox.keyLength);
+      const newKey = nacl.randomBytes(nacl.secretbox.keyLength);
+
+      // Message stored under the old key.
+      const stored = messageWith(encryptWith(oldKey, "secret history"));
+
+      keyStore.setConversationKey("conv-1", oldKey);
+      expect(repository.decryptMessage(stored)).toBe("secret history");
+
+      // Peer key rotates → a new conversation key is derived and set.
+      keyStore.setConversationKey("conv-1", newKey);
+
+      // The old message is still decryptable via the retained historical key.
+      expect(repository.decryptMessage(stored)).toBe("secret history");
+    });
+
+    it("returns ciphertext unchanged when no candidate key can decrypt it", () => {
+      const unrelatedKey = nacl.randomBytes(nacl.secretbox.keyLength);
+      const wrongKey = nacl.randomBytes(nacl.secretbox.keyLength);
+      const stored = messageWith(encryptWith(unrelatedKey, "nope"));
+
+      keyStore.setConversationKey("conv-1", wrongKey);
+
+      expect(repository.decryptMessage(stored)).toBe(stored.content);
+    });
   });
 });

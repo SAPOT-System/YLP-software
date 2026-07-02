@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import unique
 from typing import Annotated, List, Optional
 import uuid
@@ -21,12 +22,15 @@ if TYPE_CHECKING:
     from app.models.banned_user import BannedUser
     from app.models.guest import Guest
     from app.models.announcement import Announcement
+    from app.models.phone_verification import PhoneVerification, PhoneVerified
     # from app.models.email_verification import EmailVerification
 
 
 PhoneStr = Annotated[
     str,
-    StringConstraints(pattern=r"^\+?1?\d{9,15}$")
+    StringConstraints(
+        pattern=r"^\+639\d{9}$"
+    )
 ]
 
 class UserBase(SQLModel):
@@ -45,6 +49,7 @@ class User(UserBase, table=True):
     )
     hashed_password: str
     email_verified : bool =  Field(default=False)
+    terms_accepted_at: datetime | None = Field(default=None, nullable=True)
 
     security_questions: List["UserSecurityQuestion"] = Relationship(
             back_populates="user",
@@ -139,6 +144,24 @@ class User(UserBase, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
 
+
+    phone_verifications: List["PhoneVerification"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan"
+        }
+    )
+
+    phone_is_verified: List["PhoneVerified"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan"
+        }
+    )
+
+
+
+
 class UserPublic(UserBase):
     id: uuid.UUID
     detail: str
@@ -198,6 +221,12 @@ class UserCreate(UserBase):
         examples=["StrongPass123"]
     )
 
+    terms_accepted: bool = PyField(
+        default=False,
+        description="Whether the user has accepted the Terms & Conditions.",
+        examples=[True]
+    )
+
     @field_validator("password")
     @classmethod
     def password_complexity(cls, v: str):
@@ -209,9 +238,17 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one uppercase letter")
         return v
 
+    @field_validator("terms_accepted")
+    @classmethod
+    def must_accept_terms(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("You must accept the Terms & Conditions to register.")
+        return v
+
 class UserCreateThroughAdmin(UserCreate):
     is_admin: bool = False
     is_rescuer: bool = False
+    terms_accepted: bool = True
 
 
 class UserUpdate(SQLModel):
@@ -282,3 +319,5 @@ class UserInfo(UserBase):
     # (email, phone number, username, first name, last name, and id
     id: uuid.UUID
     email_verified: bool
+    phone_verified: bool
+    role: str  # "admin" | "rescuer" | "user"

@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
-import { checkBackEndHealth } from "../api/connection.api";
-import { hookLog } from "../utils/logger";
+import { checkBackEndHealth } from "../core/api/connection.api";
+import { hookLog } from "../core/utils/logger";
 hookLog.debug("[use-health-poll] module loaded");
 
-export function useHealthPoll(intervalMs = 5000) {
-  const [online, setOnline] = useState(true);
+export function useHealthPoll(intervalMs = 5000, enabled = true) {
+  const [online, setOnline] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
     const interval = setInterval(async () => {
       const ok = await checkBackEndHealth();
       hookLog.debug("[useHealthPoll] poll result", { ok });
       setOnline(ok);
     }, intervalMs);
     return () => clearInterval(interval);
-  }, [intervalMs]);
+  }, [intervalMs, enabled]);
 
   return { online };
 }

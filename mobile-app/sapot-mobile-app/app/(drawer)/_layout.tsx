@@ -8,14 +8,17 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { GpsPreferenceProvider } from "@/features/gps/context/gps-preference-context";
 import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
+import { OfflineExpiredBanner } from "@/features/shared/components/offline-expired-banner";
+import { ReloginBanner } from "@/features/shared/components/relogin-banner";
+import { ServerDownReloginTransition } from "@/features/shared/components/server-down-relogin-transition";
 import { ServerStatusBanner } from "@/features/shared/components/server-status-banner";
 import { ZeroconfStatusIndicator } from "@/features/shared/components/zeroconf-status-indicator";
-import { HealthProvider, MainContainerProvider, useAppMode } from "@/features/shared/context";
+import { HealthProvider, MainContainerProvider, ServerHealthProvider, useAppMode } from "@/features/shared/core/context";
 import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
 import { useForegroundSync } from "@/features/shared/hooks/use-foreground-sync";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
 import { useZeroconfPublished } from "@/features/shared/hooks/use-zeroconf-published";
-import { navLog } from "@/features/shared/utils/logger";
+import { navLog } from "@/features/shared/core/utils/logger";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
@@ -23,7 +26,8 @@ import { Redirect, router } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { useEffect, useRef } from "react";
 import { Platform, TouchableOpacity, View } from "react-native";
-import { ActivityIndicator, Icon, Text, useTheme } from "react-native-paper";
+import { Icon, Text, useTheme } from "react-native-paper";
+import { PageLoader } from "@/features/shared/components/page-loader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import "../../task/signaling-task";
 
@@ -95,7 +99,7 @@ function HeaderRight() {
 }
 
 export default function DrawerLayout() {
-  const { isAuthenticated, loading, isGuest, isRescuer } = useAuth();
+  const { isAuthenticated, loading, isGuest } = useAuth();
   const theme = useTheme();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { unregister } = useBackgroundTask();
@@ -209,7 +213,7 @@ export default function DrawerLayout() {
 
   if (loading) {
     navLog.info("[DrawerLayout] auth loading");
-    return <ActivityIndicator />;
+    return <PageLoader />;
   }
 
   if (!isAuthenticated && !isGuest) {
@@ -221,8 +225,12 @@ export default function DrawerLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
+      <ServerHealthProvider>
       <HealthProvider>
+        <ServerDownReloginTransition />
         <ServerStatusBanner />
+        <ReloginBanner />
+        <OfflineExpiredBanner />
         <GpsPreferenceProvider>
         <GpsStreamingEffect />
         <MainContainerProvider>
@@ -258,7 +266,7 @@ export default function DrawerLayout() {
                     const routesWithoutHeader = [
                       "settings",
                       "public-chat",
-                      "calls",
+                      "map",
                       "server",
                       "chat/[id]",
                       "call/[id]",
@@ -269,7 +277,7 @@ export default function DrawerLayout() {
 
                     return {
                       drawerLabel: "Home",
-                      title: "SAPOT",
+                      title: "",
                       headerTitleAlign: "center",
                       headerTitleContainerStyle: {
                         justifyContent: "center",
@@ -356,15 +364,6 @@ export default function DrawerLayout() {
                   }}
                 />
                 <Drawer.Screen
-                  name="gps"
-                  options={{
-                    drawerLabel: "map",
-                    title: "GPS Map",
-                    headerShown: false,
-                    drawerItemStyle: isRescuer ? undefined : { display: "none" },
-                  }}
-                />
-                <Drawer.Screen
                   name="settings"
                   options={{
                     drawerItemStyle: { display: "none" },
@@ -379,6 +378,7 @@ export default function DrawerLayout() {
         </MainContainerProvider>
       </GpsPreferenceProvider>
       </HealthProvider>
+      </ServerHealthProvider>
     </SafeAreaView>
   );
 }
