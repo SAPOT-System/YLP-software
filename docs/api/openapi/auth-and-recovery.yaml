@@ -1,0 +1,684 @@
+openapi: 3.1.0
+info:
+  title: SAPOT Server — Auth And Recovery
+  version: 0.0.2-beta.1
+paths:
+  /auth/forgot-password/email:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Send Reset
+      operationId: send_reset_auth_forgot_password_email_post
+      parameters:
+      - name: email
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Email
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/email-code:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Confirm Code
+      operationId: confirm_code_auth_forgot_password_email_code_post
+      parameters:
+      - name: email
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Email
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Code
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/email-recovery/send:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Send Email Recovery
+      operationId: send_email_recovery_auth_forgot_password_email_recovery_send_post
+      parameters:
+      - name: email
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Email
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/email-recovery/verify:
+    get:
+      tags:
+      - auth
+      - forgot password
+      summary: Verify Email Recovery
+      operationId: verify_email_recovery_auth_forgot_password_email_recovery_verify_get
+      parameters:
+      - name: t
+        in: query
+        required: true
+        schema:
+          type: string
+          title: T
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/generate-new-recovery-key:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Get Recovery Key
+      operationId: get_recovery_key_auth_forgot_password_generate_new_recovery_key_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /auth/forgot-password/generate-security-question:
+    get:
+      tags:
+      - auth
+      - forgot password
+      summary: Generate Security Question
+      operationId: generate_security_question_auth_forgot_password_generate_security_question_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /auth/forgot-password/otp/send:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Send Recovery Otp
+      operationId: send_recovery_otp_auth_forgot_password_otp_send_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneResetRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/otp/verify:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Verify Recovery Otp
+      operationId: verify_recovery_otp_auth_forgot_password_otp_verify_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneCodeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/phone:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Send Phone Reset
+      operationId: send_phone_reset_auth_forgot_password_phone_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneResetRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/phone-code:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Confirm Phone Code
+      operationId: confirm_phone_code_auth_forgot_password_phone_code_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneCodeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/recovery-constraints:
+    get:
+      tags:
+      - auth
+      - forgot password
+      summary: Get Recovery Constraints
+      operationId: get_recovery_constraints_auth_forgot_password_recovery_constraints_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryConstraintsOut'
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /auth/forgot-password/recovery-with-recovery-key:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Recover With Recovery Key
+      operationId: recover_with_recovery_key_auth_forgot_password_recovery_with_recovery_key_post
+      parameters:
+      - name: user_identifier
+        in: query
+        required: true
+        schema:
+          type: string
+          title: User Identifier
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_recover_with_recovery_key_auth_forgot_password_recovery_with_recovery_key_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/reset-password:
+    get:
+      tags:
+      - auth
+      - forgot password
+      summary: Can Reset Password
+      operationId: can_reset_password_auth_forgot_password_reset_password_get
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Reset Password
+      operationId: reset_password_auth_forgot_password_reset_password_post
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/security-question:
+    get:
+      tags:
+      - auth
+      - forgot password
+      summary: Get Security Question
+      operationId: get_security_question_auth_forgot_password_security_question_get
+      parameters:
+      - name: identifier
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Identifier
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityQuestionOut'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/security-question/answer:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Verify Security Answer
+      operationId: verify_security_answer_auth_forgot_password_security_question_answer_post
+      parameters:
+      - name: identifier
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecurityAnswerIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/forgot-password/security-questions:
+    post:
+      tags:
+      - auth
+      - forgot password
+      summary: Add Security Questions
+      operationId: add_security_questions_auth_forgot_password_security_questions_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSecurityQuestion'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+components:
+  schemas:
+    AddSecurityQuestion:
+      properties:
+        questions:
+          items:
+            $ref: '#/components/schemas/SecurityQuestionItem'
+          type: array
+          title: Questions
+      type: object
+      required:
+      - questions
+      title: AddSecurityQuestion
+    Body_recover_with_recovery_key_auth_forgot_password_recovery_with_recovery_key_post:
+      properties:
+        key_file:
+          type: string
+          format: binary
+          title: Key File
+      type: object
+      required:
+      - key_file
+      title: Body_recover_with_recovery_key_auth_forgot_password_recovery_with_recovery_key_post
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    PasswordResetRequest:
+      properties:
+        new_password:
+          type: string
+          minLength: 8
+          title: New Password
+        wrapped_blob:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wrapped Blob
+        recovery_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Token
+      type: object
+      required:
+      - new_password
+      title: PasswordResetRequest
+    PhoneCodeRequest:
+      properties:
+        phone_number:
+          type: string
+          title: Phone Number
+        code:
+          type: string
+          title: Code
+      type: object
+      required:
+      - phone_number
+      - code
+      title: PhoneCodeRequest
+    PhoneResetRequest:
+      properties:
+        phone_number:
+          type: string
+          title: Phone Number
+      type: object
+      required:
+      - phone_number
+      title: PhoneResetRequest
+    RecoveryConstraintsOut:
+      properties:
+        recovery_key:
+          $ref: '#/components/schemas/RecoveryKeyConstraint'
+        security_question:
+          $ref: '#/components/schemas/SecurityQuestionConstraint'
+      type: object
+      required:
+      - recovery_key
+      - security_question
+      title: RecoveryConstraintsOut
+    RecoveryKeyConstraint:
+      properties:
+        has_key:
+          type: boolean
+          title: Has Key
+        can_change:
+          type: boolean
+          title: Can Change
+        days_since_generated:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Days Since Generated
+        days_until_changeable:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Days Until Changeable
+      type: object
+      required:
+      - has_key
+      - can_change
+      - days_since_generated
+      - days_until_changeable
+      title: RecoveryKeyConstraint
+    SecurityAnswerIn:
+      properties:
+        question:
+          type: string
+          title: Question
+        answer:
+          type: string
+          title: Answer
+      type: object
+      required:
+      - question
+      - answer
+      title: SecurityAnswerIn
+    SecurityQuestionConstraint:
+      properties:
+        has_question:
+          type: boolean
+          title: Has Question
+        can_change:
+          type: boolean
+          title: Can Change
+        is_burned:
+          type: boolean
+          title: Is Burned
+        is_expired:
+          type: boolean
+          title: Is Expired
+        days_since_set:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Days Since Set
+        days_until_changeable:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Days Until Changeable
+        days_until_expiry:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Days Until Expiry
+      type: object
+      required:
+      - has_question
+      - can_change
+      - is_burned
+      - is_expired
+      - days_since_set
+      - days_until_changeable
+      - days_until_expiry
+      title: SecurityQuestionConstraint
+    SecurityQuestionItem:
+      properties:
+        question:
+          type: string
+          title: Question
+          example: What is your mother's maiden name?
+        answer:
+          type: string
+          title: Answer
+          example: Smith
+      type: object
+      required:
+      - question
+      - answer
+      title: SecurityQuestionItem
+    SecurityQuestionOut:
+      properties:
+        question:
+          type: string
+          title: Question
+      type: object
+      required:
+      - question
+      title: SecurityQuestionOut
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    OAuth2PasswordBearer:
+      type: oauth2
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: auth/token

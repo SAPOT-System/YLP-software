@@ -1,0 +1,529 @@
+openapi: 3.1.0
+info:
+  title: SAPOT Server — Authentication
+  version: 0.0.2-beta.1
+paths:
+  /auth/:
+    get:
+      tags:
+      - auth
+      summary: Read Auth Status
+      operationId: read_auth_status_auth__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+    post:
+      tags:
+      - auth
+      summary: Create Account
+      operationId: create_account_auth__post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/change-password:
+    post:
+      tags:
+      - auth
+      summary: Change Password
+      operationId: change_password_auth_change_password_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /auth/exists:
+    get:
+      tags:
+      - auth
+      summary: Exists
+      operationId: exists_auth_exists_get
+      parameters:
+      - name: identifier
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Identifier
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Logout User
+      operationId: logout_user_auth_logout_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /auth/reauthenticate:
+    post:
+      tags:
+      - auth
+      summary: Reauthenticate
+      operationId: reauthenticate_auth_reauthenticate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReauthenticateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /auth/refresh:
+    post:
+      tags:
+      - auth
+      summary: Refresh Access Token
+      operationId: refresh_access_token_auth_refresh_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/terms:
+    get:
+      tags:
+      - auth
+      summary: Get Terms And Conditions
+      operationId: get_terms_and_conditions_auth_terms_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+  /auth/token:
+    post:
+      tags:
+      - auth
+      summary: Login For Access Token
+      operationId: login_for_access_token_auth_token_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_login_for_access_token_auth_token_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/verify/resend-verification-code:
+    post:
+      tags:
+      - verify
+      - email
+      summary: Resend Verification Email
+      operationId: resend_verification_email_auth_verify_resend_verification_code_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: email
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/verify/verify-code:
+    post:
+      tags:
+      - verify
+      - email
+      summary: Verify Email Code
+      operationId: verify_email_code_auth_verify_verify_code_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyCodeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    Body_login_for_access_token_auth_token_post:
+      properties:
+        grant_type:
+          anyOf:
+          - type: string
+            pattern: ^password$
+          - type: 'null'
+          title: Grant Type
+        username:
+          type: string
+          title: Username
+        password:
+          type: string
+          format: password
+          title: Password
+        scope:
+          type: string
+          title: Scope
+          default: ''
+        client_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Id
+        client_secret:
+          anyOf:
+          - type: string
+          - type: 'null'
+          format: password
+          title: Client Secret
+      type: object
+      required:
+      - username
+      - password
+      title: Body_login_for_access_token_auth_token_post
+    ChangePasswordRequest:
+      properties:
+        current_password:
+          type: string
+          title: Current Password
+        new_password:
+          type: string
+          title: New Password
+      type: object
+      required:
+      - current_password
+      - new_password
+      title: ChangePasswordRequest
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ReauthenticateRequest:
+      properties:
+        current_password:
+          type: string
+          title: Current Password
+      type: object
+      required:
+      - current_password
+      title: ReauthenticateRequest
+    RefreshRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - refresh_token
+      title: RefreshRequest
+    Token:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+        token_type:
+          type: string
+          title: Token Type
+      type: object
+      required:
+      - access_token
+      - refresh_token
+      - token_type
+      title: Token
+    UserCreate:
+      properties:
+        username:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Username
+          description: Unique username used for login and identification. Must be between 2 and 50 characters.
+          examples:
+          - johndoe
+        first_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: First Name
+          description: User's first name. Must be between 2 and 50 characters.
+          examples:
+          - John
+        last_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Last Name
+          description: User's last name. Must be between 2 and 50 characters.
+          examples:
+          - Doe
+        phone_number:
+          anyOf:
+          - type: string
+            pattern: ^\+639\d{9}$
+          - type: 'null'
+          title: Phone Number
+          description: User's phone number in international format (E.164 recommended).
+          examples:
+          - '+14155552671'
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+          description: Valid email address used for account communication and login.
+          examples:
+          - john.doe@example.com
+        id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Id
+          description: Optional unique identifier for the user. If not provided, it will be generated automatically.
+          examples:
+          - 550e8400-e29b-41d4-a716-446655440000
+        password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Password
+          description: Password must be 8–128 characters long and include at least one uppercase letter, one lowercase letter, and one number.
+          examples:
+          - StrongPass123
+        terms_accepted:
+          type: boolean
+          title: Terms Accepted
+          description: Whether the user has accepted the Terms & Conditions.
+          default: false
+          examples:
+          - true
+      type: object
+      required:
+      - username
+      - first_name
+      - last_name
+      - password
+      title: UserCreate
+    UserPublic:
+      properties:
+        username:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Username
+        first_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Last Name
+        phone_number:
+          anyOf:
+          - type: string
+            pattern: ^\+639\d{9}$
+          - type: 'null'
+          title: Phone Number
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+        id:
+          type: string
+          format: uuid
+          title: Id
+        detail:
+          type: string
+          title: Detail
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - username
+      - first_name
+      - last_name
+      - id
+      - detail
+      - access_token
+      - refresh_token
+      title: UserPublic
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VerifyCodeRequest:
+      properties:
+        code:
+          type: string
+          title: Code
+      type: object
+      required:
+      - code
+      title: VerifyCodeRequest
+  securitySchemes:
+    OAuth2PasswordBearer:
+      type: oauth2
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: auth/token

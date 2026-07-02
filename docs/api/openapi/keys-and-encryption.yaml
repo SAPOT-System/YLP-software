@@ -1,0 +1,453 @@
+openapi: 3.1.0
+info:
+  title: SAPOT Server — Keys And Encryption
+  version: 0.0.2-beta.1
+paths:
+  /keys/contacts:
+    get:
+      tags:
+      - keys
+      summary: List Contact Keys
+      description: |-
+        Returns all backed-up contact keys for the authenticated user.
+        The blobs are opaque to the server — only the user can decrypt them.
+      operationId: list_contact_keys_keys_contacts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /keys/contacts/{peer_id}:
+    post:
+      tags:
+      - keys
+      summary: Upsert Contact Key
+      description: |-
+        Backs up a peer's ECDH public key, encrypted under the caller's master key.
+        Used for guest peers who are not server-registered and whose keys are
+        otherwise only available from a local TCP handshake. Upserts on conflict.
+      operationId: upsert_contact_key_keys_contacts__peer_id__post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: peer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Peer Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertContactKeyRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /keys/register:
+    post:
+      tags:
+      - keys
+      summary: Register Key
+      operationId: register_key_keys_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterKeyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedCredential'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /keys/server-public-key:
+    get:
+      tags:
+      - keys
+      summary: Get Server Public Key
+      operationId: get_server_public_key_keys_server_public_key_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+  /keys/{peer_id}:
+    get:
+      tags:
+      - keys
+      summary: Get Peer Key
+      operationId: get_peer_key_keys__peer_id__get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: peer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Peer Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedCredential'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /keys/{peer_id}/type:
+    get:
+      tags:
+      - keys
+      summary: Get Peer Type
+      description: Returns whether peer_id is a guest (no registered PeerKey) or authenticated.
+      operationId: get_peer_type_keys__peer_id__type_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: peer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Peer Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /users/recovery-key:
+    get:
+      tags:
+      - users
+      - key recovery
+      summary: Get Recovery Key
+      operationId: get_recovery_key_users_recovery_key_get
+      parameters:
+      - name: recovery_token
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Recovery Token
+      - name: method
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Method
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /users/recovery-keys:
+    put:
+      tags:
+      - users
+      - key recovery
+      summary: Update Recovery Keys
+      operationId: update_recovery_keys_users_recovery_keys_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoverySetupRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /users/recovery-setup:
+    post:
+      tags:
+      - users
+      - key recovery
+      summary: Setup Recovery Keys
+      operationId: setup_recovery_keys_users_recovery_setup_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoverySetupRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /users/wrapped-key:
+    get:
+      tags:
+      - users
+      - key wrapping
+      summary: Get Wrapped Key
+      operationId: get_wrapped_key_users_wrapped_key_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+    put:
+      tags:
+      - users
+      - key wrapping
+      summary: Update Wrapped Key
+      operationId: update_wrapped_key_users_wrapped_key_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WrappedKeyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+    post:
+      tags:
+      - users
+      - key wrapping
+      summary: Store Wrapped Key
+      operationId: store_wrapped_key_users_wrapped_key_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WrappedKeyRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+components:
+  schemas:
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    RecoveryBlobItem:
+      properties:
+        method:
+          type: string
+          title: Method
+        wrapped_blob:
+          type: string
+          title: Wrapped Blob
+        metadata:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Metadata
+      type: object
+      required:
+      - method
+      - wrapped_blob
+      title: RecoveryBlobItem
+    RecoverySetupRequest:
+      properties:
+        blobs:
+          items:
+            $ref: '#/components/schemas/RecoveryBlobItem'
+          type: array
+          title: Blobs
+      type: object
+      required:
+      - blobs
+      title: RecoverySetupRequest
+    RegisterKeyRequest:
+      properties:
+        ecdh_public_key:
+          type: string
+          title: Ecdh Public Key
+      type: object
+      required:
+      - ecdh_public_key
+      title: RegisterKeyRequest
+    SignedCredential:
+      properties:
+        peer_id:
+          type: string
+          title: Peer Id
+        ecdh_public_key:
+          type: string
+          title: Ecdh Public Key
+        issued_at:
+          type: string
+          title: Issued At
+        expires_at:
+          type: string
+          title: Expires At
+        signature:
+          type: string
+          title: Signature
+      type: object
+      required:
+      - peer_id
+      - ecdh_public_key
+      - issued_at
+      - expires_at
+      - signature
+      title: SignedCredential
+    UpsertContactKeyRequest:
+      properties:
+        encrypted_public_key:
+          type: string
+          title: Encrypted Public Key
+      type: object
+      required:
+      - encrypted_public_key
+      title: UpsertContactKeyRequest
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    WrappedKeyRequest:
+      properties:
+        wrapped_blob:
+          type: string
+          title: Wrapped Blob
+      type: object
+      required:
+      - wrapped_blob
+      title: WrappedKeyRequest
+  securitySchemes:
+    OAuth2PasswordBearer:
+      type: oauth2
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: auth/token
