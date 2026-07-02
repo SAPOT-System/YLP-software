@@ -1,0 +1,51 @@
+# git-cliff configuration (https://git-cliff.org)
+#
+# Regenerates CHANGELOG.md from Conventional Commits. This repo versions
+# mobile and server independently (see VERSIONING.md), so each component's
+# changelog must be generated separately using its own tag pattern, e.g.:
+#
+#   git-cliff --tag-pattern '^mobile/v' --include-path 'mobile-app/**' -o mobile-app/CHANGELOG.md
+#   git-cliff --tag-pattern '^server/v'  --include-path 'server/**'     -o server/CHANGELOG.md
+#
+# The root CHANGELOG.md is a manually curated summary until per-component
+# changelogs are split out.
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are documented here, grouped by release tag.
+Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+"""
+body = """
+{% if version %}\
+    ## {{ version }} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## Unreleased
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}
+    {% endfor %}
+{% endfor %}\n
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+commit_parsers = [
+    { message = "^feat", group = "Features" },
+    { message = "^fix", group = "Bug Fixes" },
+    { message = "^perf", group = "Performance" },
+    { message = "^refactor", group = "Refactor" },
+    { message = "^docs", group = "Documentation" },
+    { message = "^test", group = "Testing" },
+    { message = "^chore\\(release\\)", skip = true },
+    { message = "^chore", group = "Miscellaneous" },
+    { message = "^ci", group = "CI" },
+]
+filter_commits = false
+tag_pattern = "^(mobile|server)/v.*"
+sort_commits = "oldest"

@@ -1,0 +1,653 @@
+openapi: 3.1.0
+info:
+  title: SAPOT Server — Gsm Sms
+  version: 0.0.2-beta.1
+paths:
+  /gsm/contact-unknown-user:
+    post:
+      tags:
+      - gsm
+      summary: Contact Unknown User
+      description: |-
+        this is an endpoint for contacting unknown users. Use this to create
+        the conversation between an authenticated user and a user without an account.
+        This does not send any message to the target user.
+      operationId: contact_unknown_user_gsm_contact_unknown_user_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: target_phone_number
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^\+639\d{9}$
+          title: Target Phone Number
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/health:
+    get:
+      tags:
+      - gsm
+      summary: Gsm Health
+      operationId: gsm_health_gsm_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/health/detailed:
+    get:
+      tags:
+      - gsm
+      summary: Gsm Health Detailed
+      description: Admin only
+      operationId: gsm_health_detailed_gsm_health_detailed_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/inbound:
+    post:
+      tags:
+      - gsm
+      summary: Inbound Sms
+      description: 'Internal endpoint: receives an inbound SMS from the GSM-API and delivers it to the target user via WebSocket.'
+      operationId: inbound_sms_gsm_inbound_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InboundSMSPayload'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/migrate-phone-user:
+    post:
+      tags:
+      - gsm
+      summary: Migrate Phone User
+      description: |-
+        After a user verifies their phone number, call this endpoint to migrate any
+        ghost/unknown user that was previously created for that phone number into the
+        real account. Reassigns conversation participants and messages, upgrades or
+        merges SMS conversations, then deletes the ghost user.
+      operationId: migrate_phone_user_gsm_migrate_phone_user_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/mock/contact-unknown-user:
+    post:
+      tags:
+      - gsm
+      summary: Mock Contact Unknown User
+      description: |-
+        this is an endpoint for contacting unknown users. Use this to create
+        the conversation between an authenticated user and a user without an account.
+        This does not send any message to the target user.
+      operationId: MOCK_contact_unknown_user_gsm_mock_contact_unknown_user_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: target_phone_number
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^\+639\d{9}$
+          title: Target Phone Number
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/mock/health:
+    get:
+      tags:
+      - gsm
+      summary: Mock Gsm Health
+      operationId: MOCK_gsm_health_gsm_mock_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/mock/health/detailed:
+    get:
+      tags:
+      - gsm
+      summary: Mock Gsm Health Detailed
+      description: Admin only
+      operationId: MOCK_gsm_health_detailed_gsm_mock_health_detailed_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/mock/migrate-phone-user:
+    post:
+      tags:
+      - gsm
+      summary: Mock Migrate Phone User
+      operationId: MOCK_migrate_phone_user_gsm_mock_migrate_phone_user_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/mock/phone-is-verified:
+    get:
+      tags:
+      - gsm
+      summary: Mock Check If Verified
+      operationId: MOCK_check_if_verified_gsm_mock_phone_is_verified_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/mock/request:
+    post:
+      tags:
+      - gsm
+      summary: Mock Request Phone Verification
+      description: Send a 6-digit verification code to user phone.
+      operationId: MOCK_request_phone_verification_gsm_mock_request_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestPhoneVerification'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/mock/resend:
+    post:
+      tags:
+      - gsm
+      summary: Mock Resend Phone Code
+      description: Resend verification code.
+      operationId: MOCK_resend_phone_code_gsm_mock_resend_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/mock/sms/messages:
+    get:
+      tags:
+      - gsm
+      summary: Mock Gsm Messages
+      description: Admin only
+      operationId: MOCK_gsm_messages_gsm_mock_sms_messages_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          default: 50
+          title: Limit
+      - name: direction
+        in: query
+        required: false
+        schema:
+          title: Direction
+      - name: phone
+        in: query
+        required: false
+        schema:
+          title: Phone
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/mock/sms/send:
+    post:
+      tags:
+      - gsm
+      summary: Mock Send Sms
+      operationId: MOCK_send_sms_gsm_mock_sms_send_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: message
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Message
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/mock/verify:
+    post:
+      tags:
+      - gsm
+      summary: Mock Verify Phone Code
+      description: Verify submitted OTP code.
+      operationId: MOCK_verify_phone_code_gsm_mock_verify_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPhoneCode'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/phone-is-verified:
+    get:
+      tags:
+      - gsm
+      summary: Check If Verified
+      operationId: check_if_verified_gsm_phone_is_verified_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/request:
+    post:
+      tags:
+      - gsm
+      summary: Request Phone Verification
+      description: Send a 6-digit verification code to user phone.
+      operationId: request_phone_verification_gsm_request_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestPhoneVerification'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/resend:
+    post:
+      tags:
+      - gsm
+      summary: Resend Phone Code
+      description: Resend verification code.
+      operationId: resend_phone_code_gsm_resend_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+      security:
+      - OAuth2PasswordBearer: []
+  /gsm/sms/messages:
+    get:
+      tags:
+      - gsm
+      summary: Gsm Messages
+      description: Admin only
+      operationId: gsm_messages_gsm_sms_messages_get
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      - name: direction
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Direction
+      - name: phone
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/sms/send:
+    post:
+      tags:
+      - gsm
+      summary: Send Sms
+      operationId: send_sms_gsm_sms_send_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: message
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Message
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/users/by-phone/{phone}:
+    get:
+      tags:
+      - gsm
+      summary: User By Phone
+      description: Internal endpoint for GSM-API to look up a registered user by phone number.
+      operationId: user_by_phone_gsm_users_by_phone__phone__get
+      parameters:
+      - name: phone
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Phone
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /gsm/verify:
+    post:
+      tags:
+      - gsm
+      summary: Verify Phone Code
+      description: Verify submitted OTP code.
+      operationId: verify_phone_code_gsm_verify_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPhoneCode'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
+components:
+  schemas:
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    InboundSMSPayload:
+      properties:
+        sender_phone:
+          type: string
+          title: Sender Phone
+        target_phone:
+          type: string
+          title: Target Phone
+        body:
+          type: string
+          title: Body
+      type: object
+      required:
+      - sender_phone
+      - target_phone
+      - body
+      title: InboundSMSPayload
+    RequestPhoneVerification:
+      properties:
+        phone_number:
+          type: string
+          title: Phone Number
+      type: object
+      required:
+      - phone_number
+      title: RequestPhoneVerification
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VerifyPhoneCode:
+      properties:
+        code:
+          type: string
+          title: Code
+      type: object
+      required:
+      - code
+      title: VerifyPhoneCode
+  securitySchemes:
+    OAuth2PasswordBearer:
+      type: oauth2
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: auth/token

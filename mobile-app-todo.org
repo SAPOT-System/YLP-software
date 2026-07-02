@@ -86,7 +86,7 @@ of the mobile application:
 - [ ] what is a STUN server
 - [ ] what is a TURN server
 - [ ] what is feature branch workflow (GIT) (read
-  [[./collaboration-guide.org][the collaboration guide]])
+  [[./CONTRIBUTING.md][the contributing guide]])
 
 ** Build the Decentralized version
 - [ ] add an option to switch to:
