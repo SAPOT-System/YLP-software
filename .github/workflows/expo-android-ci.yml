@@ -9,6 +9,7 @@ jobs:
   pr-checks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +30,8 @@ jobs:
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Unit tests
-        run: npm test -- --runInBand
-        if: hashFiles('**/*.test.*') != ''  
+        run: npm test -- --runInBand --forceExit
+        if: hashFiles('**/*.test.*') != ''
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Expo Doctor
