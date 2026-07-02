@@ -41,9 +41,10 @@ For any change touching shared code or spanning more than one feature: list ever
    the user asked for a new module.
 4. **Audit before refactoring.** Before changing shared code, find every caller and
    list them. Do not change a shared signature without accounting for all consumers.
-5. **Server boundary.** `server/` is read-only reference. If a mobile change requires
-   a backend change, STOP and surface it — do not edit `server/` unless the user
-   explicitly approves a backend change.
+5. **Cross-component changes.** If a mobile change requires a backend change, treat
+   it as a two-component change: implement both together (see `server/CLAUDE.md`
+   for backend-specific rules) and call out the cross-component impact in your
+   summary — don't silently leave the backend half undone.
 6. **Scope discipline.** Make the change requested and nothing more. No drive-by
    refactors, renames, or dependency bumps unless asked.
 
@@ -63,7 +64,7 @@ For any change touching shared code or spanning more than one feature: list ever
 ## Repository Structure
 
 - **`mobile-app/sapot-mobile-app/`** — React Native / Expo mobile app (primary working directory)
-- **`server/`** — Python FastAPI backend (read-only reference)
+- **`server/`** — Python FastAPI backend (see `server/CLAUDE.md` for backend-specific rules)
 
 ---
 
@@ -163,7 +164,7 @@ Global mocks for WatermelonDB, TCP sockets, WebRTC, Zeroconf, Expo modules, and 
 
 ---
 
-## Server Reference (read-only)
+## Server Reference
 
 The FastAPI server (`server/app/`) provides:
 - REST endpoints: auth, user management, GPS, peer connections, profile pictures, sync, admin
