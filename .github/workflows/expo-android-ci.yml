@@ -32,7 +32,7 @@ jobs:
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Typecheck
-        run: pnpm run typecheck --if-present
+        run: pnpm run --if-present typecheck
         working-directory: mobile-app/sapot-mobile-app
 
       - name: Unit tests
