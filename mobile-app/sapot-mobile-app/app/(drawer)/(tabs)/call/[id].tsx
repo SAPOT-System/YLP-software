@@ -7,6 +7,7 @@ import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  BackHandler,
   Image,
   Pressable,
   StyleSheet,
@@ -109,6 +110,31 @@ export default function CallRoom() {
   const { onPress: onEndCall, busy: ending } = useThrottledPress(handleEndCall);
   const { onPress: onCallAgain, busy: callingAgain } =
     useThrottledPress(handleCallAgain);
+
+  // ─────────────────────────────────────────────
+  // Hardware back handling
+  // While a call is live, hardware back must minimize (not pop the screen
+  // and leave the call dangling); the on-screen chevron does the same.
+  // ─────────────────────────────────────────────
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (
+          callState === "calling" ||
+          callState === "connected" ||
+          callState === "reconnecting"
+        ) {
+          minimize();
+          return true;
+        }
+        return false;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [callState, minimize]);
 
   // ─────────────────────────────────────────────
   //  CONTROL ROW ANIMATION
