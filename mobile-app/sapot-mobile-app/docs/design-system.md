@@ -86,7 +86,7 @@ export const PageLoader = ({ skeleton, style }: PageLoaderProps) => (
 
 | Concept | Convention | Example |
 |---------|-----------|---------|
-| Components | `PascalCase` | `CallBanner`, `PageLoader`, `PinEntryGate` |
+| Components | `PascalCase` | `CallBanner`, `PageLoader` |
 | Hooks | `camelCase` + `use` prefix | `useCallService`, `useThrottledPress` |
 | Feature context | `PascalCase` + `Context` suffix | `CallContext`, `GpsPreferenceContext` |
 
