@@ -1,4 +1,8 @@
 export { useCallLifecycle, type CallState } from "./use-call-lifecycle";
+export {
+  useIncomingCallLifecycle,
+  type IncomingCallInfo,
+} from "./use-incoming-call-lifecycle";
 export { useCallTimer } from "./use-call-timer";
 export { useAudioRoute } from "./use-audio-route";
 export { usePeerInfo } from "./use-peer-info";
