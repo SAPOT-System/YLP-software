@@ -124,4 +124,4 @@ Before writing any new file, read `docs/ARCHITECTURE.md` (service/adapter landsc
 - Touching `features/shared/connection/` or `features/shared/crypto/`: these are the highest-blast-radius directories — audit all consumers, and prefer the `crypto-architecture` skill's file map over re-deriving the crypto flow from scratch.
 - Touching the WatermelonDB schema (`features/shared/database/schema.ts`): add a migration in `migrations.ts`, and update `docs/DATABASE.md` and the root-level `../../docs/database/tables.md` (server + mobile schema overview) together.
 - Touching call/connection message types: update `docs/CONNECTION_MESSAGES.md` and `docs/CALL_FLOW.md` — other clients/tests parse these message shapes.
-- Run `npm run typecheck`, `npm test` for affected areas (`npm run testAll` for cross-cutting changes), and `npm run lint` before reporting a change complete; if any did not pass, say so explicitly rather than reporting done.
+- Run `pnpm run typecheck`, `pnpm test` for affected areas (`pnpm run testAll` for cross-cutting changes), and `pnpm run lint` before reporting a change complete; if any did not pass, say so explicitly rather than reporting done.
