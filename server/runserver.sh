@@ -5,6 +5,11 @@ APP_VENV=/home/sapot/YLP-software/server/app/venv
 uv venv "$APP_VENV"
 uv pip install --python "$APP_VENV/bin/python" \
   -r /home/sapot/YLP-software/server/app/requirements.txt
+
+# Apply any pending schema migrations before the app starts. Schema is owned
+# by Alembic (server/alembic.ini) — do not fall back to create_all.
+"$APP_VENV/bin/alembic" upgrade head
+
 uv run "$APP_VENV/bin/gunicorn" app.main:app \
   -k uvicorn.workers.UvicornWorker \
   -w 5 \
