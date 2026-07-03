@@ -47,7 +47,7 @@ export default function GpsScreen() {
   const userStore = useUserStore();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const locationGranted = useLocationPermission();
+  const locationPermission = useLocationPermission();
   const {
     data: rawLocations = [],
     isLoading,
@@ -74,7 +74,7 @@ export default function GpsScreen() {
   );
   const isInitialLoading = isLoading && rawLocations.length === 0;
   const showEmptyState =
-    locationGranted === true &&
+    locationPermission === "granted" &&
     !isLoading &&
     !isError &&
     userLocations.length === 0;
@@ -161,7 +161,7 @@ export default function GpsScreen() {
     return <Redirect href="/(drawer)/(tabs)" />;
   }
 
-  if (locationGranted === null) {
+  if (locationPermission === "not-asked") {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -174,7 +174,7 @@ export default function GpsScreen() {
     );
   }
 
-  if (locationGranted === false) {
+  if (locationPermission === "denied") {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
