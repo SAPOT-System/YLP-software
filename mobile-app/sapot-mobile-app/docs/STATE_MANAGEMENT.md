@@ -217,7 +217,7 @@ setResetRequestedCallback(() => {
 });
 ```
 
-Similarly for PIN unlock (`setPendingPIN`) and password recovery (`setPendingPassword`). This is **implicit, mutable, global coupling** — non-obvious to trace.
+Similarly for password recovery (`setPendingPassword`). This is **implicit, mutable, global coupling** — non-obvious to trace.
 
 ---
 
@@ -360,7 +360,7 @@ UserStore now has:
 
 ### 4. Replace module-level reset callbacks with an event or context method
 - Add a `useMainContainerReset()` hook or `resetMainContainer()` method on the context
-- Call it from `AuthProvider` when `needsReloginForServer` or PIN is unlocked
+- Call it from `AuthProvider` when `needsReloginForServer`
 - Makes the dependency explicit and traceable
 - Fixes: implicit global coupling, hard-to-trace resets
 
