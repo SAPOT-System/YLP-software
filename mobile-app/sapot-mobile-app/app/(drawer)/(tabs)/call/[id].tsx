@@ -224,6 +224,7 @@ export default function CallRoom() {
           {callState === "connected" && formatDuration(elapsed)}
           {callState === "reconnecting" && "Reconnecting…"}
           {callState === "ended" && "Call ended"}
+          {callState === "rejected" && "Call rejected"}
           {callState === "no-answer" && "Did not answer"}
           {callState === "busy" && `${peerDisplayName} is in another call`}
         </Text>
@@ -370,8 +371,8 @@ export default function CallRoom() {
           </View>
         )}
 
-        {/* Ended actions */}
-        {callState === "ended" && (
+        {/* Ended / rejected actions */}
+        {(callState === "ended" || callState === "rejected") && (
           <View style={styles.controls}>
             <View style={styles.actionRow}>
               <View style={styles.actionItem}>

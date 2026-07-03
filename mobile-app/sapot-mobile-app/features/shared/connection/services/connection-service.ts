@@ -68,6 +68,13 @@ export type CallEndedEventPayload = {
   conversationId?: string;
 };
 
+export type CallRejectedEventPayload = {
+  peerId: string;
+  callId?: string;
+  conversationId?: string;
+  callType?: "audio" | "video";
+};
+
 export type ConnectionServiceEvents = {
   "audio-call": [
     { peerId: string; callerName: string; conversationId?: string; callId?: string }
@@ -76,6 +83,7 @@ export type ConnectionServiceEvents = {
     { peerId: string; callerName: string; conversationId?: string; callId?: string }
   ];
   "call-ended": [payload: CallEndedEventPayload];
+  "call-rejected": [payload: CallRejectedEventPayload];
   "call-ready": [peerId: string];
   "call-busy": [
     peerId: string,
@@ -429,6 +437,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           this.emit("call-busy", peerId, { callId, conversationId, messageId, callType });
         } else if (result.eventName === "call-ended") {
           this.emit("call-ended", result.payload);
+        } else if (result.eventName === "call-rejected") {
+          this.emit("call-rejected", result.payload);
         } else if (result.eventName === "call-ready") {
           this.emit("call-ready", result.payload);
         } else {
