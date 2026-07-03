@@ -255,6 +255,7 @@ export class ChatReceiveService {
       allowPlaintext: true,
       messageType: data.messageType,
       linkedMessageId: data.linkedMessageId,
+      sentAt: data.sentAt,
     });
     const preparedStatus =
       this.messageStatusRepository.prepareMessageStatusCreate({
