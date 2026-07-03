@@ -8,16 +8,20 @@ Next.js 16 (App Router) admin/rescuer dashboard for SAPOT — maps, dashboards, 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Package Manager
+
+Use `pnpm`, not `npm`, for all package management and script commands in this project (`pnpm install`, `pnpm add`, `pnpm run <script>`, etc.). The lockfile of record is `pnpm-lock.yaml`; ignore the stale `package-lock.json`.
+
 ## Development Workflow
 
-- Package manager: npm (`package-lock.json`). Install: `npm install`.
-- Dev server: `npm run dev` — sets `NODE_EXTRA_CA_CERTS` to trust the self-signed cert at `./certs/server.crt` so the app can talk to the server over HTTPS locally.
+- Package manager: pnpm (`pnpm-lock.yaml`). Install: `pnpm install`.
+- Dev server: `pnpm run dev` — sets `NODE_EXTRA_CA_CERTS` to trust the self-signed cert at `./certs/server.crt` so the app can talk to the server over HTTPS locally.
 - `app/api/*` route handlers act as thin proxies to `server/` endpoints — keep new proxy routes thin (auth/forwarding only), don't add business logic on the client side of the proxy.
 
 ## Build
 
-- `npm run build` — production Next.js build.
-- `npm run start` — serve the production build.
+- `pnpm run build` — production Next.js build.
+- `pnpm run start` — serve the production build.
 
 ## Test
 
@@ -25,7 +29,7 @@ No test framework is configured in this project (no test script in `package.json
 
 ## Lint / Format
 
-- `npm run lint` — ESLint (`eslint.config.mjs`, flat config, `eslint-config-next`).
+- `pnpm run lint` — ESLint (`eslint.config.mjs`, flat config, `eslint-config-next`).
 - No formatter (Prettier or otherwise) is configured — match surrounding style by hand.
 
 ## Framework Expectations
@@ -37,18 +41,19 @@ No test framework is configured in this project (no test script in `package.json
 
 ## Do Not Edit Manually
 
-- `package-lock.json` — regenerate via `npm install`, don't hand-edit.
+- `pnpm-lock.yaml` — regenerate via `pnpm install`, don't hand-edit.
+- `package-lock.json` — stale artifact from a prior npm setup; don't regenerate or rely on it.
 - `.next/` build output (gitignored) — never hand-edit generated build artifacts.
 
 ## Common Pitfalls
 
-- Forgetting `NODE_EXTRA_CA_CERTS` when running the server outside `npm run dev` — API calls to `server/` will fail TLS verification against the self-signed cert.
+- Forgetting `NODE_EXTRA_CA_CERTS` when running the server outside `pnpm run dev` — API calls to `server/` will fail TLS verification against the self-signed cert.
 - Adding business logic inside an `app/api/*` proxy route instead of keeping it a thin forwarder to the real `server/` endpoint.
 - Assuming a test suite exists — it doesn't; verify manually or add one explicitly if the task calls for it.
 
 ## Validation Checklist
 
-- [ ] `npm run build` succeeds
-- [ ] `npm run lint` is clean
+- [ ] `pnpm run build` succeeds
+- [ ] `pnpm run lint` is clean
 - [ ] Manually verified in the browser against a running `server/` instance (no automated test suite to fall back on)
 - [ ] New Next.js 16 API usage checked against `node_modules/next/dist/docs/`, not assumed from prior Next.js versions

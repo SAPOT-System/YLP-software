@@ -45,7 +45,7 @@ Neither validates the token's signature or expiry — actual verification is per
 
 - Route handlers (`app/api/*/route.ts`) should stay thin — call `secureFetch` and shape the response; put actual logic in `lib/` or `actions/`, not in `route.ts`.
 - Match the existing Tailwind + hand-rolled component style in `ui/dashboard/` — don't introduce a component library.
-- **`next.config.ts` sets `typescript.ignoreBuildErrors: true` and `eslint.ignoreDuringBuilds: true`** — `npm run build` succeeding does **not** mean types or lint are clean. Always run `npm run lint` and check types explicitly; don't rely on a successful build as a correctness signal.
+- **`next.config.ts` sets `typescript.ignoreBuildErrors: true` and `eslint.ignoreDuringBuilds: true`** — `pnpm run build` succeeding does **not** mean types or lint are clean. Always run `pnpm run lint` and check types explicitly; don't rely on a successful build as a correctness signal.
 - New backend calls: add a `lib/actions/*` helper or `app/api/*/route.ts` following the `secureFetch()` pattern, matching `../../docs/api/conventions.md` for response/error shape.
 
 ## Important Files
