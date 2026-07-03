@@ -56,13 +56,13 @@ Covers OTP flows, password reset, JWT blacklist, and login rate-limiting.
 
 ### 3. Messaging
 
-Conversations hold messages between participants. Messages can reference each other (reply thread), carry attachments, and be tracked per-recipient.
+Conversations hold messages between participants, which carry attachments and are tracked per-recipient.
 
 | Table | Class | Purpose |
 |-------|-------|---------|
 | `conversation` | `Conversation` | Chat channel; types: `direct`, `solo`, `sms` |
 | `conversationparticipant` | `ConversationParticipant` | Join table linking users to conversations |
-| `message` | `Message` | Individual message; supports reply via `linked_message_id` |
+| `message` | `Message` | Individual message |
 | `messagereceipt` | `MessageReceipt` | Per-(message, user) delivery/read status |
 | `attachment` | `Attachment` | File attachment metadata for a message |
 | `queue` | `Queue` | Server-side delivery queue for offline users |
@@ -147,7 +147,6 @@ conversation 1──* call
 conversation 1──* callparticipant
 message 1──1 attachment
 message 1──1 messagereceipt
-message 0──1 message        (self-ref reply via linked_message_id)
 ```
 
 ---
@@ -171,7 +170,7 @@ The mobile schema is deliberately narrower than the server's: it holds only what
 |-------|---------|
 | `conversations` | Local mirror of a chat channel (`type`, `title`) |
 | `conversation_participants` | Join table linking `peers` to `conversations` |
-| `messages` | Individual message; `is_encrypted` flag (added v9) marks NaCl-box-encrypted content; `linked_message_id` (added v8) supports reply threads |
+| `messages` | Individual message; `is_encrypted` flag (added v9) marks NaCl-box-encrypted content; `linked_message_id` (added v8, paired a P2P message with its SMS duplicate) is retained unused since the dual-send UX was removed — see [migrations.md](migrations.md#version-by-version-history-v4--v11) |
 | `message_receipts` | Per-(message, peer) delivery/read status |
 
 ### 3. Calls

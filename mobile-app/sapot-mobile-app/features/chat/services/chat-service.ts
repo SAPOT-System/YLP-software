@@ -313,17 +313,6 @@ export class ChatService {
   }
 
   /**
-   * Sends a message via P2P and SMS simultaneously.
-   */
-  sendChatMessageWithSms(message: string): Promise<{
-    conversationId: string;
-    p2pMessageId: string;
-    smsMessageId: string;
-  }> {
-    return this.messageService.sendChatMessageWithSms(message);
-  }
-
-  /**
    * Ensures the conversation property is initialized for sending a message. Creates a new conversation if needed.
    * @returns Promise<Conversation>
    */
@@ -511,10 +500,6 @@ export class ChatService {
       captureAppError(appErr);
       throw appErr;
     }
-  }
-
-  linkMessages(p2pMessageId: string, smsMessageId: string): Promise<void> {
-    return this.messageService.linkMessages(p2pMessageId, smsMessageId);
   }
 
   updateMessageStatus(messageId: string, status: MessageStatusType): Promise<void> {

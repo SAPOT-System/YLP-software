@@ -219,7 +219,6 @@ erDiagram
         VARCHAR message_type
         VARCHAR content
         BOOLEAN is_deleted
-        CHAR linked_message_id FK
         CHAR conversation_id FK
         CHAR sender_id FK
     }
@@ -356,7 +355,6 @@ erDiagram
 
 - `callparticipant.call_id` is a FK to `conversation.id`, not `call.id` — see
   [schema-overview.md](schema-overview.md) for details.
-- `message.linked_message_id` is a self-referential FK for reply threads (omitted above).
 - Router metric tables (`routerhealth`, `interfacetraffic`) and `guest_sessions` have no FK to
   `user` and appear above with no edges.
 - `mobile app` (WatermelonDB) tables are not part of this diagram — see

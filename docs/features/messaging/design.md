@@ -75,18 +75,12 @@ Messages created locally are pushed to the server via `POST /sync/push`. The ser
 
 ```
 conversations       id, type, created_at, updated_at, is_deleted
-  └── messages      id, conversation_id, sender_id, content (encrypted blob), linked_message_id
+  └── messages      id, conversation_id, sender_id, content (encrypted blob)
         └── message_receipts  id, message_id, user_id, status
         └── attachments       id, message_id, filename, mime_type
 ```
 
 Messages are keyed by UUID generated on the mobile device. The same UUID is used when pushing to the server, enabling idempotent upserts.
-
----
-
-## Reply threading
-
-`message.linked_message_id` is a self-referential FK. The mobile app reads this field to group messages into reply threads in the UI. No server-side thread aggregation — threading is a presentation concern only.
 
 ---
 
@@ -127,5 +121,4 @@ For users without the app, a rescuer can use `POST /gsm/send` to send an SMS via
 
 - A message sent while the recipient is offline (server mode) is delivered once they reconnect, without duplication.
 - A message sent via LAN P2P never appears in server-side storage in decryptable form — only ciphertext, if it appears at all.
-- Reply-thread grouping (`linked_message_id`) renders correctly regardless of which transport delivered the messages in the thread.
 - SMS-fallback messages are clearly distinguished in the UI from E2E-encrypted app messages, so users understand the confidentiality difference.

@@ -254,7 +254,6 @@ export class ChatReceiveService {
       // discarding; the onKeySet observer re-derives the key for subsequent reads.
       allowPlaintext: true,
       messageType: data.messageType,
-      linkedMessageId: data.linkedMessageId,
       sentAt: data.sentAt,
     });
     const preparedStatus =

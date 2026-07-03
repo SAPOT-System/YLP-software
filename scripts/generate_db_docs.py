@@ -205,7 +205,7 @@ All tables use WatermelonDB's implicit `id` primary key (framework-managed, not 
 | `created_at` | number | ms epoch |
 | `updated_at` | number | ms epoch |
 | `is_deleted` | boolean | soft-delete |
-| `linked_message_id` | string | optional (added v8) — reply-thread self-reference |
+| `linked_message_id` | string | optional (added v8) — formerly paired a P2P message with its SMS duplicate for the dual-send UX (removed); column retained unused, no longer read or written |
 | `is_encrypted` | boolean | optional (added v9) |
 
 ### `calls`
@@ -283,7 +283,6 @@ ERD_FOOTER = """
 
 - `callparticipant.call_id` is a FK to `conversation.id`, not `call.id` — see
   [schema-overview.md](schema-overview.md) for details.
-- `message.linked_message_id` is a self-referential FK for reply threads (omitted above).
 - Router metric tables (`routerhealth`, `interfacetraffic`) and `guest_sessions` have no FK to
   `user` and appear above with no edges.
 - `mobile app` (WatermelonDB) tables are not part of this diagram — see

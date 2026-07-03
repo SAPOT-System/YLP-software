@@ -178,8 +178,7 @@ def cast_to_uuids(model, datum: dict):
     elif model is Message:
         if "sender_id" in datum: datum["sender_id"] = UUID(datum["sender_id"])
         if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
-        if "linked_message_id" in datum and datum["linked_message_id"]: datum["linked_message_id"] = UUID(datum["linked_message_id"])
-        
+
     elif model is Call:
         if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
         if "initiator_id" in datum: datum["initiator_id"] = UUID(datum["initiator_id"])

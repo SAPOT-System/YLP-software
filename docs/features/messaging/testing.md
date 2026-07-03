@@ -14,7 +14,6 @@ Messaging tests cover the full delivery pipeline: local creation, transport rout
 | Send message when peer connected via WebSocket only | Message encrypted and sent via WsSignalingAdapter |
 | Send message when peer offline | Message stored locally; server queues it |
 | Inbound message received | Decrypted and persisted to WatermelonDB `messages` table |
-| Reply message has `linked_message_id` set | WatermelonDB record has correct FK to parent message |
 
 ---
 
