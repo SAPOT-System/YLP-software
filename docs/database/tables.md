@@ -304,7 +304,7 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `updated_at` | BIGINT | indexed, not null, has default |
 | `id` | CHAR(32) | PK, indexed, has default |
 | `message_type` | VARCHAR(8) | not null, has default |
-| `content` | VARCHAR(2000) | not null |
+| `content` | TEXT | not null |
 | `is_deleted` | BOOLEAN | not null, has default |
 | `linked_message_id` | CHAR(32) | FK -> message.id |
 | `conversation_id` | CHAR(32) | FK -> conversation.id, indexed |
