@@ -49,7 +49,7 @@ class Message(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
 
     message_type : MessageType = Field(default=MessageType.text)
-    content : str = Field(max_length=255, min_length=1)
+    content : str = Field(max_length=2000, min_length=1)
     is_deleted : bool = Field(default=False)
 
     linked_message_id: UUID | None = Field(default=None, foreign_key='message.id', ondelete="SET NULL", nullable=True)
