@@ -33,8 +33,6 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 
 ### `device_key`
 
-> **Orphaned model:** not imported anywhere `app.main` reaches at import time — this table is not created by `create_all()` in production unless something else imports its module first. See the model's docstring/usage.
-
 | Column | Type | Notes |
 |---|---|---|
 | `id` | CHAR(32) | PK, has default |
