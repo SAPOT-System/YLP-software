@@ -147,9 +147,10 @@ export default function CallRoom() {
   }, [hideControls, controlsAnim]);
 
   useEffect(() => {
-    if (callState === "calling") {
+    if (callState === "calling" || callState === "reconnecting") {
       // Reset visibility without starting an auto-hide timer — the end call
-      // button must stay visible for the full duration of the outgoing ring.
+      // button must stay visible for the full duration of the outgoing ring,
+      // and reachable while reconnecting since the overlay blocks tap-to-reveal.
       if (hideTimer.current) clearTimeout(hideTimer.current);
       setControlsVisible(true);
       Animated.timing(controlsAnim, {
@@ -157,7 +158,7 @@ export default function CallRoom() {
         duration: 250,
         useNativeDriver: true,
       }).start();
-    } else if (callState === "connected" || callState === "reconnecting") {
+    } else if (callState === "connected") {
       showControls();
     }
 
@@ -272,7 +273,7 @@ export default function CallRoom() {
             )}
 
             {callState === "reconnecting" && (
-              <View style={styles.reconnectingOverlay}>
+              <View style={styles.reconnectingOverlay} pointerEvents="none">
                 <Text style={styles.reconnectingOverlayText}>Reconnecting…</Text>
               </View>
             )}
