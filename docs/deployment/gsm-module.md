@@ -10,6 +10,21 @@ The GSM module (`GSM-module/GSM-fastapi/`) is a FastAPI application that bridges
 - USB-to-serial connection from Arduino to the Linux host
 - Default serial port: `/dev/ttyACM0` (configurable via `SERIAL_PORT`)
 
+### Identifying the correct serial port
+
+`/dev/ttyACM0` is a default, not a guarantee — the actual device node depends on what else is plugged into the host and the order devices were connected. Before setting `SERIAL_PORT`:
+
+```bash
+# 1. List candidate serial devices before and after plugging in the modem
+ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
+
+# 2. Plug in the Arduino/GSM modem, then check kernel messages for the new device
+dmesg | tail -20
+# look for a line like: "cdc_acm 1-1:1.0: ttyACM0: USB ACM device"
+```
+
+If multiple `ttyACM*`/`ttyUSB*` devices are present (e.g. another USB-serial peripheral on the same host), unplug the modem, re-run step 1, plug it back in, and diff the device list to find which node appeared. Set `SERIAL_PORT` to that device.
+
 ---
 
 ## Development / startup

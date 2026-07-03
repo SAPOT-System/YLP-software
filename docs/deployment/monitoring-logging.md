@@ -60,14 +60,30 @@ The GSM module logs to `GSM-module/GSM-fastapi/sapot.log`. Rotate or clear this 
 
 ## Health checks
 
-No dedicated health-check endpoints are documented. The Nginx proxy (port 443 → Gunicorn :8000) can be used as a liveness check:
+The server exposes an unauthenticated liveness endpoint:
 
 ```bash
-curl -k https://localhost/auth/exists?email=probe@example.com
+curl -k https://localhost/
+# {"state": "running"}
 ```
 
-A 200 or 404 response confirms the stack is reachable.
+`GET /version` is also unauthenticated and additionally confirms the deployed build (`{"version": "<server-version>"}`, see [VERSIONING.md](../../VERSIONING.md)). Neither endpoint touches the database — a `200` only confirms the FastAPI process and Nginx/Gunicorn are up, not that MariaDB is reachable. For a DB-inclusive check, use an authenticated endpoint like `/auth/exists?email=probe@example.com` (200/404 both indicate the stack including the DB is reachable; a 5xx or timeout does not).
 
 ---
 
-> **TODO (human input required):** Document whether an uptime monitor (e.g. UptimeRobot, Prometheus, or a simple cron ping) is in use, and whether Sentry alerts are configured for the server component.
+## Uptime monitoring
+
+No uptime monitor ships with the server today — this section documents the recommended setup, consistent with the LAN-first design ([ADR 0005](../adr/0005-lan-first-design.md)): the incident-site deployment cannot assume internet access, so the primary monitor must work fully offline, with an internet-facing option layered on top when available.
+
+**LAN / offline deployments (primary):** a local cron job (or systemd timer) polling `GET /` and alerting on failure — no external service required:
+
+```bash
+# /etc/cron.d/sapot-uptime — every minute, log failures
+* * * * * root curl -sf -k https://localhost/ >/dev/null || logger -t sapot-uptime "server unreachable"
+```
+
+Route `sapot-uptime` log lines to whatever the on-site team already watches (e.g. `journalctl -t sapot-uptime`, or forward to a Prometheus `node_exporter` textfile collector if Prometheus is already part of the deployment).
+
+**Internet-facing deployments (optional):** if the server is additionally reachable from the internet (not the default LAN-first case), point an external service such as [UptimeRobot](https://uptimerobot.com/) at `GET /` on the public endpoint for off-site alerting.
+
+**Sentry:** the mobile app has Sentry configured (see above); the server does **not** — `sentry-sdk` is listed in `server/app/requirements.txt` but no `sentry_sdk.init(...)` call exists in `server/app/main.py`. Server-side error alerting currently depends on `journalctl`/log monitoring only.

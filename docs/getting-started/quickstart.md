@@ -8,7 +8,7 @@ This quickstart covers the **minimum golden path**: server + mobile app. GSM/SMS
 
 ## 1. Prerequisites checklist
 
-- Python 3.13, Node ≥ 18, npm 10.8.2
+- Python 3.13, Node ≥ 18, pnpm 9.15.9 (pinned via `packageManager` in `mobile-app/sapot-mobile-app/package.json`)
 - A running MariaDB instance reachable from your machine
 - Android device or emulator, on the **same Wi-Fi network** as the machine running the server
 - [Nix](https://nixos.org/) (used to pin the mobile app's dev toolchain)
@@ -44,7 +44,7 @@ Full detail: [server-setup.md](server-setup.md).
 bash configure_nix.sh
 nix develop -L
 cd sapot-mobile-app
-npm install
+pnpm install
 ```
 
 Point the app at your server's LAN IP:
@@ -55,7 +55,7 @@ EXPO_PUBLIC_DEV_HOST=192.168.1.x   # same host from step 2
 ```
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open the app on your device/emulator (same Wi-Fi network as the server), go to the getting-started screen, tap **Server Mode**, and enter the same LAN IP in settings.

@@ -142,3 +142,5 @@ flowchart TD
 4. Mobile devices with cached credentials will resume syncing automatically once the server is reachable at the expected address; devices requiring fresh login need the new server reachable first.
 
 > **TODO (human input required):** Confirm whether a pre-staged spare host/image is part of the standard field kit, and document the expected recovery time objective (RTO) for an incident deployment.
+
+See [operating-constraints.md](operating-constraints.md) for the broader set of power/connectivity/degraded-mode assumptions this recovery procedure operates under.

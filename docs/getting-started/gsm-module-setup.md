@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - Python 3.13 (a `flake.nix` dev shell is provided: `GSM-module/GSM-fastapi/flake.nix`)
-- A GSM modem attached via USB serial (default expected at `/dev/ttyACM0`, matches the `SERIAL_PORT` default in `config.py`)
+- A GSM modem attached via USB serial (default expected at `/dev/ttyACM0`, matches the `SERIAL_PORT` default in `config.py`) — see [gsm-module.md](../deployment/gsm-module.md#identifying-the-correct-serial-port) if the modem enumerates at a different device node
 - Access to the same MariaDB instance the server uses (`DB_PATH`)
 
 ## Install

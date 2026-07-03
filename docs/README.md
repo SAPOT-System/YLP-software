@@ -90,6 +90,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [deployment/secrets-management.md](deployment/secrets-management.md) | Secret storage and rotation |
 | [deployment/monitoring-logging.md](deployment/monitoring-logging.md) | Monitoring and logging setup |
 | [deployment/runbooks.md](deployment/runbooks.md) | Backup/restore, manual DB DDL application, TLS rotation, rollback, disaster recovery |
+| [deployment/operating-constraints.md](deployment/operating-constraints.md) | Disaster-scenario operating constraints — power, connectivity, degraded modes, scale/range assumptions |
 | [deployment/mobile-eas.md](deployment/mobile-eas.md) | Mobile app EAS build/deploy |
 | [deployment/admin-frontend.md](deployment/admin-frontend.md) | Admin dashboard deployment |
 | [deployment/gsm-module.md](deployment/gsm-module.md) | GSM module deployment |

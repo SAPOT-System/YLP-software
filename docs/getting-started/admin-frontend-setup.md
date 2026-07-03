@@ -4,14 +4,14 @@ Source: `admin-frontend/sapot-admin/package.json`.
 
 ## Prerequisites
 
-- Node.js and npm (or yarn/pnpm/bun)
+- Node.js and pnpm — the lockfile of record is `pnpm-lock.yaml`; ignore the stale `package-lock.json`.
 
 ## Install and run
 
 ```bash
 cd admin-frontend/sapot-admin
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 This runs `NODE_EXTRA_CA_CERTS=$(pwd)/certs/server.crt next dev` — the extra CA cert env var lets the dev server trust the SAPOT server's TLS certificate (place your dev cert at `admin-frontend/sapot-admin/certs/server.crt`).
@@ -34,9 +34,9 @@ See [environment-config.md](../deployment/environment-config.md#admin-frontend-a
 
 | Command | Description |
 |---|---|
-| `npm run build` | Production build |
-| `npm run start` | Serve production build |
-| `npm run lint` | ESLint |
+| `pnpm run build` | Production build |
+| `pnpm run start` | Serve production build |
+| `pnpm run lint` | ESLint |
 
 ## Next
 

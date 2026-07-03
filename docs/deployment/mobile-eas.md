@@ -95,8 +95,8 @@ Declared in `app.config.ts` `android.permissions`:
 
 ```bash
 cd mobile-app/sapot-mobile-app/
-npm install
-npx expo run:android
+pnpm install
+pnpm exec expo run:android
 ```
 
 For EAS local build:

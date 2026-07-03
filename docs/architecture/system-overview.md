@@ -165,4 +165,4 @@ See [threat-model.md](threat-model.md) for attack surfaces in scope, trust bound
 
 See [deployment/runbooks.md](../deployment/runbooks.md#disaster-recovery-server-hardware-fails-at-incident-site) for the fallback procedure if the server hardware fails at an incident site.
 
-> **TODO (human input required):** Document disaster-scenario operating constraints not yet captured elsewhere — expected number of concurrent users and expected geographic area / radio range assumptions.
+See [deployment/operating-constraints.md](../deployment/operating-constraints.md) for consolidated disaster-scenario operating constraints — power, connectivity, degraded modes, and scale/radio-range assumptions.
