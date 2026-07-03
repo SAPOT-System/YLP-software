@@ -48,6 +48,43 @@ describe("MessageRepository", () => {
     expect(mockDb.write).toHaveBeenCalled();
   });
 
+  it("uses the provided sentAt as createdAt when preparing a message", () => {
+    keyStore.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
+    const sentAt = new Date("2026-01-01T00:00:00.000Z");
+
+    const prepared = repository.prepareMessageCreate({
+      sender: {
+        ...createTestPeer({ id: "user-1", username: "Alice" }),
+      } as unknown as Partial<Peer> as jest.Mocked<Peer>,
+      content: "Hello",
+      conversation: {
+        ...createTestConversation({ id: "conv-1" }),
+      } as unknown as Partial<Conversation> as jest.Mocked<Conversation>,
+      messageId: "msg-1",
+      sentAt,
+    });
+
+    expect(prepared.createdAt).toEqual(sentAt);
+  });
+
+  it("falls back to the current time when sentAt is not provided", () => {
+    keyStore.setConversationKey("conv-1", nacl.randomBytes(nacl.secretbox.keyLength));
+    const before = Date.now();
+
+    const prepared = repository.prepareMessageCreate({
+      sender: {
+        ...createTestPeer({ id: "user-1", username: "Alice" }),
+      } as unknown as Partial<Peer> as jest.Mocked<Peer>,
+      content: "Hello",
+      conversation: {
+        ...createTestConversation({ id: "conv-1" }),
+      } as unknown as Partial<Conversation> as jest.Mocked<Conversation>,
+      messageId: "msg-1",
+    });
+
+    expect(prepared.createdAt.getTime()).toBeGreaterThanOrEqual(before);
+  });
+
   it("saves a new message sent by a guest user", async () => {
     mockDb.write.mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
