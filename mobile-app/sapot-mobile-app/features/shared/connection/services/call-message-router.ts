@@ -10,12 +10,14 @@ export interface CallMessageRouterDeps {
 
 type IncomingCallPayload = { peerId: string; callerName: string; conversationId?: string; callId?: string };
 type CallBusyPayload = { peerId: string; callId: string; conversationId: string; messageId?: string; callType: "audio" | "video" };
+type CallRejectedPayload = { peerId: string; callId?: string; conversationId?: string; callType?: "audio" | "video" };
 
 export type CallRouterResult =
   | { action: "emit"; eventName: "audio-call" | "video-call"; payload: IncomingCallPayload }
   | { action: "emit"; eventName: "call-ended"; payload: CallEndedEventPayload }
   | { action: "emit"; eventName: "call-ready"; payload: string }
   | { action: "emit"; eventName: "call-busy"; payload: CallBusyPayload }
+  | { action: "emit"; eventName: "call-rejected"; payload: CallRejectedPayload }
   | { action: "busy-reject"; peerId: string; callType: "audio" | "video"; callId?: string }
   | { action: "glare"; peerId: string; eventName: "audio-call" | "video-call"; eventPayload: IncomingCallPayload }
   | { action: "noop" };
@@ -51,15 +53,25 @@ export class CallMessageRouter {
       return { action: "emit", eventName: "call-ready", payload: message.data.from };
     }
 
-    if (message.type === "call-rejected" && message.data.reason === "busy") {
-      const payload = {
+    if (message.type === "call-rejected") {
+      if (message.data.reason === "busy") {
+        const payload = {
+          peerId: message.data.from,
+          callId: message.data.callId ?? "",
+          conversationId: message.data.conversationId ?? "",
+          messageId: message.data.messageId,
+          callType: message.data.callType ?? ("audio" as const),
+        };
+        return { action: "emit", eventName: "call-busy", payload };
+      }
+
+      const payload: CallRejectedPayload = {
         peerId: message.data.from,
-        callId: message.data.callId ?? "",
-        conversationId: message.data.conversationId ?? "",
-        messageId: message.data.messageId,
-        callType: message.data.callType ?? ("audio" as const),
+        callId: message.data.callId,
+        conversationId: message.data.conversationId,
+        callType: message.data.callType,
       };
-      return { action: "emit", eventName: "call-busy", payload };
+      return { action: "emit", eventName: "call-rejected", payload };
     }
 
     return { action: "noop" };

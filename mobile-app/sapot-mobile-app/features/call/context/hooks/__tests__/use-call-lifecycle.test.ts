@@ -67,6 +67,24 @@ describe("useCallLifecycle", () => {
     expect(result.current.callState).toBe("ended");
   });
 
+  test("call-rejected sets state to 'rejected'", async () => {
+    const { result, connectionService, rerender } = setup();
+    act(() => captureHandler(connectionService, "call-rejected")({ peerId: "p1" }));
+    rerender();
+    expect(result.current.callState).toBe("rejected");
+  });
+
+  test("call-rejected followed by call-ended keeps state 'rejected' but still finalizes", async () => {
+    const { result, connectionService, callService, rerender } = setup();
+    act(() => captureHandler(connectionService, "call-rejected")({ peerId: "p1" }));
+    await act(async () => {
+      await captureHandler(connectionService, "call-ended")({ peerId: "p1", status: "rejected" });
+    });
+    rerender();
+    expect(callService.handleRemoteCallEnded).toHaveBeenCalled();
+    expect(result.current.callState).toBe("rejected");
+  });
+
   test("stale call-ended (mismatched callId) is ignored", async () => {
     const { connectionService, callService } = setup({
       callService: { getActiveCallId: jest.fn().mockReturnValue("current") },
@@ -75,6 +93,16 @@ describe("useCallLifecycle", () => {
       await captureHandler(connectionService, "call-ended")({ peerId: "p1", callId: "old", status: "completed" });
     });
     expect(callService.handleRemoteCallEnded).not.toHaveBeenCalled();
+  });
+
+  test("peer-disconnected racing after call-rejected does not override 'rejected'", () => {
+    const { result, callService, connectionService, rerender } = setup();
+    act(() => captureHandler(connectionService, "call-rejected")({ peerId: "p1" }));
+    act(() => captureHandler(connectionService, "peer-disconnected")("p1"));
+    act(() => jest.advanceTimersByTime(1500));
+    rerender();
+    expect(callService.terminateCallConnection).not.toHaveBeenCalledWith("p1", "missed");
+    expect(result.current.callState).toBe("rejected");
   });
 
   test("peer-disconnected → after 1.5s terminates missed if no call-ended", () => {
