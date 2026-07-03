@@ -119,6 +119,15 @@ Caller (no answer timeout)      Server / Direct                  Callee
   |     reason: "no-answer" }          |                            |
 ```
 
+When the callee declines, `CallService.rejectIncomingCall()` sends both `call-rejected`
+(`reason: "declined"`) and, via `terminateCallConnection`, a follow-up `call-ended`
+(`status: "rejected"`) — the latter carries the finalization metadata (`messageId`,
+`durationSeconds`, etc.) the caller needs to close out its own call log entry. On the
+caller's side, `CallMessageRouter` emits a dedicated `call-rejected` UI event for the
+first message, and `useCallLifecycle` sets `callState` to `"rejected"` (shown as
+"Call rejected"); the subsequent `call-ended` event still runs finalization but no
+longer overwrites the UI state to the generic `"ended"` ("Call ended").
+
 ---
 
 ## Call Log Messages
