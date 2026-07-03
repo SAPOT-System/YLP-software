@@ -1,11 +1,9 @@
 import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
-import { PinEntryGate } from "@/features/auth/components/pin-entry-gate";
 import React, { createContext, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { Button, Text } from "react-native-paper";
 import { PageLoader } from "@/features/shared/components/page-loader";
-import { MainContainer, setPendingPIN, setResetRequestedCallback } from "../../main-container";
-import { getPinEnabled } from "../stores/secure-config";
+import { MainContainer, setResetRequestedCallback } from "../../main-container";
 import { appLog } from "../utils/logger";
 import { useAppModeStore } from "./app-mode-context";
 
@@ -22,14 +20,11 @@ export function MainContainerProvider({
   const appModeStore = useAppModeStore();
   const [container, setContainer] = useState<MainContainer | null>(null);
   const [initFailed, setInitFailed] = useState(false);
-  const [needsPin, setNeedsPin] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const pendingContainerRef = useRef<MainContainer | null>(null);
   const containerRef = useRef<MainContainer | null>(null);
 
   useEffect(() => {
     setInitFailed(false);
-    setNeedsPin(false);
 
     const init = async () => {
       try {
@@ -50,13 +45,6 @@ export function MainContainerProvider({
           appLog.info("app › container reset requested for relogin");
         });
 
-        const pinEnabled = await getPinEnabled();
-        if (pinEnabled && !userContainer.userStore.isGuest) {
-          pendingContainerRef.current = c;
-          setNeedsPin(true);
-          return;
-        }
-
         await c.initialize();
         setContainer(c);
         appLog.info("app › container init complete");
@@ -71,7 +59,6 @@ export function MainContainerProvider({
     return () => {
       containerRef.current?.cleanup();
       containerRef.current = null;
-      pendingContainerRef.current = null;
     };
   // appModeStore intentionally omitted: services hold a direct reference and read mode
   // reactively at call time, so no container rebuild is needed on mode changes. Including
@@ -80,23 +67,6 @@ export function MainContainerProvider({
   // trigger a rebuild.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userContainer, retryCount]);
-
-  const handlePinSubmit = async (pin: string): Promise<boolean> => {
-    const c = pendingContainerRef.current;
-    if (!c) return false;
-    try {
-      setPendingPIN(pin);
-      await c.initialize();
-      setNeedsPin(false);
-      setContainer(c);
-      pendingContainerRef.current = null;
-      appLog.info("app › container init complete (PIN unlocked)");
-      return true;
-    } catch {
-      appLog.warn("app › PIN unlock failed");
-      return false;
-    }
-  };
 
   if (initFailed) {
     appLog.error("app › container failed to initialize");
@@ -119,10 +89,6 @@ export function MainContainerProvider({
         </Button>
       </View>
     );
-  }
-
-  if (needsPin) {
-    return <PinEntryGate onSubmit={handlePinSubmit} />;
   }
 
   if (!container) {
