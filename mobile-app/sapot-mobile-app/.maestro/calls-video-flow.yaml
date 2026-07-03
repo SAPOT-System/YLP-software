@@ -1,0 +1,33 @@
+appId: com.devamt.sapotmobileapp.dev
+name: "Calls - Video call: start -> accept -> active -> end"
+tags:
+  - calls
+  - e2e
+---
+# Run this flow on the INITIATOR device. On the PEER device, manually tap
+# "Accept" on the incoming call screen while this flow is waiting - see
+# docs/TESTING.md for the two-simulator setup.
+- launchApp:
+    clearState: false
+    permissions:
+      microphone: allow
+      camera: allow
+      notifications: allow
+
+- tapOn: "Chats"
+- tapOn:
+    id: "video-call-button"
+
+- assertVisible: "Calling..."
+
+- extendedWaitUntil:
+    visible:
+      id: "end-call-button"
+    timeout: 30000
+
+- assertVisible: "End Call"
+
+- tapOn:
+    id: "end-call-button"
+
+- assertVisible: "Call ended"

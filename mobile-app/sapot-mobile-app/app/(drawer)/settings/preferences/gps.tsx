@@ -37,7 +37,11 @@ export default function GpsSettings() {
             Send your GPS coordinates to rescuers in real time
           </Text>
         </View>
-        <Switch value={sharingEnabled} onValueChange={setSharingEnabled} />
+        <Switch
+          value={sharingEnabled}
+          onValueChange={setSharingEnabled}
+          testID="share-location-switch"
+        />
       </View>
     </View>
   );

@@ -598,6 +598,7 @@ const ChatRoom = () => {
             disabled={isSelfChat || callingAudio || isSmsConversation}
             onPress={onAudioCall}
             style={styles.headerActionButton}
+            testID="voice-call-button"
           />
           <IconButton
             icon="video"
@@ -605,6 +606,7 @@ const ChatRoom = () => {
             disabled={isSelfChat || callingVideo || isSmsConversation}
             onPress={onVideoCall}
             style={styles.headerActionButton}
+            testID="video-call-button"
           />
           <IconButton
             icon="dots-vertical"

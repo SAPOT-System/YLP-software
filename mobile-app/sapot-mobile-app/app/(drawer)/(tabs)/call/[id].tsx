@@ -355,6 +355,7 @@ export default function CallRoom() {
                       style={styles.endCallBtn}
                       onPress={onEndCall}
                       disabled={ending}
+                      testID="end-call-button"
                     >
                       <Feather
                         name="phone-off"

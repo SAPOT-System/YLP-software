@@ -1,0 +1,34 @@
+appId: com.devamt.sapotmobileapp.dev
+name: "GPS - Stream location -> map marker appears"
+tags:
+  - gps
+  - e2e
+---
+# Run this flow on the STREAMER device (a regular, non-rescuer account). On
+# the RESCUER device, manually open the "Map" tab and confirm the streamer's
+# marker/username appears while this flow is running - see docs/TESTING.md
+# for the two-simulator setup.
+- launchApp:
+    clearState: false
+    permissions:
+      location: allow
+      notifications: allow
+
+- tapOn: "Settings"
+- tapOn: "GPS"
+- assertVisible: "Share Location"
+
+- tapOn:
+    id: "share-location-switch"
+
+# Spoof movement so the rescuer's map receives location updates.
+- travel:
+    points:
+      - "14.5995,120.9842"
+      - "14.6010,120.9855"
+      - "14.6025,120.9868"
+    speed: 10
+
+- assertVisible:
+    id: "share-location-switch"
+    checked: true

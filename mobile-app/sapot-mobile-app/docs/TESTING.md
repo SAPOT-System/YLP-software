@@ -54,6 +54,26 @@ Test timeout: **10 seconds** per test (configured in `package.json`).
 
 ---
 
+## E2E Tests (Maestro)
+
+Flows live in `.maestro/` (`calls-voice-flow.yaml`, `calls-video-flow.yaml`, `gps-stream-flow.yaml`). They drive the real app via [Maestro](https://maestro.mobile.dev) against a running Android emulator/device — install the Maestro CLI first (`curl -Ls "https://get.maestro.mobile.dev" | bash`).
+
+Calls and GPS streaming are two-party flows, so most scenarios need **two simulators/emulators** running the dev build (`npm run android`) simultaneously, each signed in as a different user:
+
+1. Boot two Android emulators (or one emulator + one physical device), e.g. `emulator -avd <name1>` and `emulator -avd <name2>`.
+2. Install and launch the dev build on both (`npm run android` targets whichever device `adb` currently sees; use `adb -s <serial> ...`/`ANDROID_SERIAL` to target a specific one, or `expo run:android --device` to pick interactively).
+3. Sign in as a different user on each device — for calls, both must already be paired peers; for GPS, the streamer must be a regular user and the viewer a rescuer account.
+4. Run a single flow against the initiating/streaming device:
+   ```bash
+   maestro test .maestro/calls-voice-flow.yaml   # or calls-video-flow.yaml / gps-stream-flow.yaml
+   ```
+   Target a specific device with `maestro --device <serial> test .maestro/<flow>.yaml` if more than one is connected.
+5. On the second device, perform the manual peer step called out in the flow's header comment (accept the incoming call, or open the "Map" tab to confirm the streamer's marker appears).
+
+Run everything in `.maestro/` with `npm run e2e`.
+
+---
+
 ## What Is Mocked
 
 Global mocks are set up in `jest-setup.js`. These run before every test file.

@@ -93,21 +93,13 @@ Tests are split across three layers:
 
 ## E2E Scenarios (Maestro)
 
-```yaml
-# calls-voice-flow.yaml
-appId: com.ylpsapot.mobile
----
-- launchApp
-- tapOn: "Conversations"
-- tapOn: "Peer Alpha"
-- tapOn: "Voice call button"
-- assertVisible: "Calling…"
-- # On second simulator: accept call
-- assertVisible: "Call active"
-- tapOn: "End call"
-- assertVisible: "Call ended"
-- assertNotVisible: "Call active"
-```
+Flows: `mobile-app/sapot-mobile-app/.maestro/calls-voice-flow.yaml` and
+`calls-video-flow.yaml`. `appId: com.devamt.sapotmobileapp.dev` (the local
+dev bundle id, per `app.config.ts`). Each flow opens a conversation, starts
+a call, waits for the peer to accept (accepted manually on a second
+simulator), then ends the call. See
+`mobile-app/sapot-mobile-app/docs/TESTING.md` for the two-simulator run
+steps.
 
 Run against two simulators: one as initiator, one as peer.
 
@@ -125,7 +117,7 @@ mobile-app/sapot-mobile-app/
         CallMediaService.test.ts
         SignalingService.test.ts
         callPersistence.integration.test.ts
-  e2e/
+  .maestro/
     calls-voice-flow.yaml
     calls-video-flow.yaml
 ```

@@ -12,6 +12,7 @@
     "prebuild": "APP_VARIANT=development npx expo prebuild -p android --clean && node scripts/setup-android-signing.js",
     "android": "npx expo run:android --app-id com.devamt.sapotmobileapp.dev",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "e2e": "maestro test .maestro/",
     "android:dev": "eas build --platform android --profile development",
     "android:prev": "eas build --platform android --profile preview",
     "android:prod": "eas build --platform android --profile production",
