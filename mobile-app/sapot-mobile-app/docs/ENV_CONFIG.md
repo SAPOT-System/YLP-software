@@ -11,6 +11,7 @@
 | `EXPO_PUBLIC_LOG_TO_FILE` | Optional | Set to `1` to write logs to a daily on-device file in development. On-device file logging is always on in production builds. |
 | `EXPO_PUBLIC_LOG_TO_LAPTOP` | Optional | In development, ship logs to the laptop log collector. On by default in dev; set to `0` to disable. |
 | `EXPO_PUBLIC_LOG_SERVER_PORT` | Optional | Port the laptop log collector listens on (default `19000`). Must match `LOG_SERVER_PORT` used by `npm run log-server`. |
+| `EXPO_PUBLIC_DEBUG_MENU` | Optional | Set to `1` to opt a non-dev build (e.g. `preview`/QA) into the developer debug menu (`config/debug.ts`). Always on in `__DEV__` regardless of this flag; the `production` EAS profile must never set it, since debug code is gated behind this flag and dead-code-eliminated by Metro when it's unset. |
 
 ### Setting up local env
 
