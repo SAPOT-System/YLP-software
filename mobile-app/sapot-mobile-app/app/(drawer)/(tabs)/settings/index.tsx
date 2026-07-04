@@ -212,6 +212,15 @@ export default function Settings() {
             marginBottom: 16,
           }}
         >
+          <Link href={SETTINGS_ROUTES.ABOUT_US}>
+            <View style={styles.item}>
+              <View style={styles.itemContainer}>
+                <Icon source="information-outline" size={24} color={itemColor} />
+                <Text style={{ color: itemColor }}>About Us</Text>
+              </View>
+              <Icon source="arrow-right" size={24} color={itemColor} />
+            </View>
+          </Link>
           <Pressable onPress={handleLogout}>
             <View style={styles.item}>
               <View style={styles.itemContainer}>
