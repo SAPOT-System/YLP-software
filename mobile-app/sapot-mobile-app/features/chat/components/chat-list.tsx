@@ -16,11 +16,17 @@ import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
 import React, { memo, useEffect, useReducer } from "react";
 import { FlatList, Pressable, RefreshControl, View } from "react-native";
+import Animated, { Easing, LinearTransition, ZoomIn } from "react-native-reanimated";
 import { Avatar, Badge, Text, useTheme } from "react-native-paper";
 import { catchError, map, of, switchMap } from "rxjs";
 
+import motion from "@/constants/motion";
 import { ChatRoomSource } from "@/features/chat/types";
-import { useMainContainer, useProfilePhoto } from "@/features/shared/hooks";
+import {
+  useMainContainer,
+  useProfilePhoto,
+  useReducedMotion,
+} from "@/features/shared/hooks";
 import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { toLocalPhone } from "@/features/auth/utils/validation";
@@ -46,6 +52,7 @@ const ChatList = enhanceChats(
   }) => {
     const userStore = useUserStore();
     const currentUserId = userStore.user?.id ?? "";
+    const reducedMotion = useReducedMotion();
     return (
       <View style={{ flex: 1 }}>
         <FlatList
@@ -53,7 +60,17 @@ const ChatList = enhanceChats(
           style={{ flex: 1 }}
           ListHeaderComponent={userStore.isGuest ? null : AnnouncementListRow}
           renderItem={({ item }) => (
-            <ChatListItem chat={item} currentUserId={currentUserId} />
+            <Animated.View
+              layout={
+                reducedMotion
+                  ? undefined
+                  : LinearTransition.duration(motion.duration.base).easing(
+                      Easing.bezier(...motion.easing.standard)
+                    )
+              }
+            >
+              <ChatListItem chat={item} currentUserId={currentUserId} />
+            </Animated.View>
           )}
           keyExtractor={(chat) => chat.id}
           maxToRenderPerBatch={10}
@@ -215,6 +232,7 @@ const ChatListItemInner = enhanceChatPeer(
       : "Unknown peer";
 
     const peerRole = peer instanceof Peer ? peer.role : undefined;
+    const reducedMotion = useReducedMotion();
 
     return (
       <Pressable
@@ -277,7 +295,17 @@ const ChatListItemInner = enhanceChatPeer(
               {formatDate(latestMessage?.createdAt ?? chat.createdAt)}
             </Text>
             {unreadCount > 0 && (
-              <Badge size={20}>{unreadCount > 99 ? "99+" : unreadCount}</Badge>
+              <Animated.View
+                entering={
+                  reducedMotion
+                    ? undefined
+                    : ZoomIn.duration(motion.duration.fast).easing(
+                        Easing.bezier(...motion.easing.emphasized)
+                      )
+                }
+              >
+                <Badge size={20}>{unreadCount > 99 ? "99+" : unreadCount}</Badge>
+              </Animated.View>
             )}
           </View>
         </View>

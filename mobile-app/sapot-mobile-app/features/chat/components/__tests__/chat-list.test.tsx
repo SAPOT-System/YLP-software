@@ -95,6 +95,7 @@ jest.mock("@/features/shared/hooks", () => ({
       decryptMessage: jest.fn().mockReturnValue(""),
     },
   }),
+  useReducedMotion: () => false,
 }));
 
 jest.mock("@/features/shared/hooks/use-user-store", () => ({

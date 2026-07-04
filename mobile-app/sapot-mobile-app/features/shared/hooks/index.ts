@@ -17,6 +17,7 @@ export * from "./use-peer-service";
 export { default as usePeers } from "./use-peers";
 export * from "./use-ping";
 export * from "./use-profile-photo";
+export * from "./use-reduced-motion";
 export * from "./use-server-action";
 export * from "./use-throttled-press";
 export * from "./use-toast";

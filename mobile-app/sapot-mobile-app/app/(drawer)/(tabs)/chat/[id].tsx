@@ -32,6 +32,8 @@ import {
 } from "react-native";
 import { Appbar, Avatar, Chip, IconButton, useTheme } from "react-native-paper";
 import { PageLoader } from "@/features/shared/components/page-loader";
+import { ChatMessageSkeleton } from "@/features/chat/components/chat-message-skeleton";
+import { Crossfade } from "@/features/shared/components/crossfade";
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   admin: { bg: "#7C3AED", text: "#FFFFFF" },
@@ -495,7 +497,7 @@ const ChatRoom = () => {
   const { onPress: onVideoCall, busy: callingVideo } =
     useThrottledPress(handleVideoCall);
 
-  if (!isRendered) return <PageLoader />;
+  if (!isRendered) return <PageLoader skeleton={<ChatMessageSkeleton />} />;
 
   const peerDisplayName = isSmsConversation && peer?.phoneNumber
     ? toLocalPhone(peer.phoneNumber)
@@ -567,23 +569,27 @@ const ChatRoom = () => {
             </View>
             {!isSmsConversation && (
               <View style={styles.statusRow}>
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: theme.dark ? "#E6ECF5" : "#6B7280" },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {connectionStatusLabel}
-                </Text>
-                {showRetry && (
+                <Crossfade activeKey={connectionStatusLabel}>
                   <Text
-                    onPress={reconnectNow}
-                    style={styles.retryText}
+                    style={[
+                      styles.statusText,
+                      { color: theme.dark ? "#E6ECF5" : "#6B7280" },
+                    ]}
                     numberOfLines={1}
                   >
-                    Tap to retry
+                    {connectionStatusLabel}
                   </Text>
+                </Crossfade>
+                {showRetry && (
+                  <Crossfade activeKey="retry-visible">
+                    <Text
+                      onPress={reconnectNow}
+                      style={styles.retryText}
+                      numberOfLines={1}
+                    >
+                      Tap to retry
+                    </Text>
+                  </Crossfade>
                 )}
               </View>
             )}

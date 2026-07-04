@@ -11,6 +11,8 @@ import { Button, Icon, IconButton, Text, useTheme } from "react-native-paper";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useRef, useState } from "react";
+import motion from "@/constants/motion";
+import { useReducedMotion } from "@/features/shared/hooks";
 
 export type SelectedUser = {
   user_id: string;
@@ -28,8 +30,6 @@ interface UserMarkerSheetProps {
   onClearPath: () => void;
   pathMode: boolean;
 }
-
-const SLIDE_CONFIG = { duration: 220, easing: Easing.out(Easing.cubic) };
 
 const SHEET_HEIGHT = 240;
 // Height of the handle strip that stays visible when hidden
@@ -51,6 +51,11 @@ export function UserMarkerSheet({
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(SHEET_HEIGHT);
   const backdropOpacity = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
+  const transitionConfig = {
+    duration: reducedMotion ? 0 : motion.duration.base,
+    easing: Easing.bezier(...motion.easing.standard),
+  };
 
   const [isHidden, setIsHidden] = useState(false);
   // Ref so gesture callbacks (which close over a stale closure) read fresh value
@@ -81,21 +86,21 @@ export function UserMarkerSheet({
         snapTo(true);
       } else {
         setHidden(false);
-        translateY.value = withTiming(0, SLIDE_CONFIG);
-        backdropOpacity.value = withTiming(1, { duration: 200 });
+        translateY.value = withTiming(0, transitionConfig);
+        backdropOpacity.value = withTiming(1, transitionConfig);
       }
     } else {
       setHidden(false);
-      translateY.value = withTiming(SHEET_HEIGHT, SLIDE_CONFIG);
-      backdropOpacity.value = withTiming(0, { duration: 200 });
+      translateY.value = withTiming(SHEET_HEIGHT, transitionConfig);
+      backdropOpacity.value = withTiming(0, transitionConfig);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUser, pathMode]);
 
   const snapTo = (hidden: boolean) => {
     const targetY = hidden ? HIDDEN_TRANSLATE : 0;
-    translateY.value = withTiming(targetY, SLIDE_CONFIG);
-    backdropOpacity.value = withTiming(hidden ? 0 : 1, { duration: 200 });
+    translateY.value = withTiming(targetY, transitionConfig);
+    backdropOpacity.value = withTiming(hidden ? 0 : 1, transitionConfig);
   };
 
   const panGesture = Gesture.Pan()

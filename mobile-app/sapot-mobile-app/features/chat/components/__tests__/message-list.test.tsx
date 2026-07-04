@@ -48,6 +48,7 @@ jest.mock("@/features/shared/hooks", () => ({
       queryByConversation: jest.fn().mockResolvedValue([]),
     },
   }),
+  useReducedMotion: () => false,
 }));
 
 jest.mock("@/features/shared/hooks/use-user-store", () => ({
