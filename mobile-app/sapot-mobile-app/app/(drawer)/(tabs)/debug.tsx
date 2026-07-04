@@ -1,6 +1,8 @@
+import { IS_DEBUG_ENABLED } from "@/config/debug";
 import { useChatService } from "@/features/chat";
 import { useDatabase } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/core/utils/logger";
+import { Redirect } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
@@ -15,6 +17,10 @@ export default function Debug() {
       uiLog.info("[Debug] unmounted");
     };
   }, []);
+
+  if (!IS_DEBUG_ENABLED) {
+    return <Redirect href="/(drawer)/(tabs)" />;
+  }
 
   return (
     <View style={styles.container}>
