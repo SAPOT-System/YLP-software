@@ -60,13 +60,18 @@ jest.mock("react-native-paper", () => ({
   useTheme: () => ({ dark: false }),
 }));
 
+// Track query args so tests can assert the newest-first + pagination fix
+// for issue #142 (chat only showed the oldest 100 messages).
+const messagesQueryCalls: unknown[][] = [];
+
 jest.mock("@/features/shared", () => {
   const { of } = require("rxjs");
-  const message = {
-    id: "msg-1",
+
+  const makeMessage = (id: string, createdAt: string) => ({
+    id,
     messageType: "text",
-    content: "Hello",
-    createdAt: new Date("2024-01-01T00:00:00Z"),
+    content: `Content ${id}`,
+    createdAt: new Date(createdAt),
     conversation: {
       id: "conversation-1",
     },
@@ -82,18 +87,27 @@ jest.mock("@/features/shared", () => {
     _raw: {
       sender: null,
     },
-  };
+  });
+
+  // Newest-first order, matching a `Q.sortBy("created_at", Q.desc)` query.
+  const messagesNewestFirst = [
+    makeMessage("msg-2", "2024-01-02T00:00:00Z"),
+    makeMessage("msg-1", "2024-01-01T00:00:00Z"),
+  ];
 
   return {
     database: {
       get: (table: string) => {
         return {
-          query: () => ({
-            // Return RxJS observables for observes so the
-            // withObservables HOC receives expected observable inputs.
-            observe: () => (table === "messages" ? of([message]) : of([])),
-            observeWithColumns: () => of([{ status: "sent" }]),
-          }),
+          query: (...args: unknown[]) => {
+            if (table === "messages") messagesQueryCalls.push(args);
+            return {
+              // Return RxJS observables for observes so the
+              // withObservables HOC receives expected observable inputs.
+              observe: () => (table === "messages" ? of(messagesNewestFirst) : of([])),
+              observeWithColumns: () => of([{ status: "sent" }]),
+            };
+          },
         };
       },
     },
@@ -105,6 +119,10 @@ jest.mock("@/features/shared", () => {
 });
 
 describe("MessageList", () => {
+  beforeEach(() => {
+    messagesQueryCalls.length = 0;
+  });
+
   it("renders messages", async () => {
     // Require the component after mocks are defined so mocked modules are used.
     const MessageList = require("../message-list").default;
@@ -113,6 +131,33 @@ describe("MessageList", () => {
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
 
-    expect(await findByText(/Hello/)).toBeTruthy();
+    expect(await findByText(/Content msg-1/)).toBeTruthy();
+  });
+
+  it("queries messages newest-first so recent messages are never excluded (issue #142)", async () => {
+    const { Q } = require("@nozbe/watermelondb");
+    const MessageList = require("../message-list").default;
+
+    const { findByText } = render(
+      <MessageList conversationId="conversation-1" peerId="peer-1" />
+    );
+    await findByText(/Content msg-1/);
+
+    expect(messagesQueryCalls.length).toBeGreaterThan(0);
+    const [, sortClause] = messagesQueryCalls[0];
+    expect(sortClause).toEqual(Q.sortBy("created_at", Q.desc));
+  });
+
+  it("renders newest-first query results in chronological (oldest-first) order", async () => {
+    const MessageList = require("../message-list").default;
+
+    const { findByText, getAllByText } = render(
+      <MessageList conversationId="conversation-1" peerId="peer-1" />
+    );
+    await findByText(/Content msg-1/);
+
+    const rendered = getAllByText(/Content msg-/);
+    expect(rendered[0].props.children).toContain("msg-1");
+    expect(rendered[1].props.children).toContain("msg-2");
   });
 });

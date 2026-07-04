@@ -1,7 +1,15 @@
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Feather } from "@expo/vector-icons";
-import React, { memo, useEffect, useReducer, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
 import { catchError, map, of } from "rxjs";
 
@@ -28,37 +36,57 @@ import { sendSmsToUser } from "@/features/shared/core/api/gsm.api";
 import { toLocalPhone } from "@/features/auth/utils/validation";
 uiLog.debug("[message-list] module loaded");
 
+const MESSAGE_PAGE_SIZE = 100;
+
 const enhanceMessages = withObservables(
-  ["conversationId"],
-  ({ conversationId }: { conversationId: string }) => ({
+  ["conversationId", "messageLimit"],
+  ({
+    conversationId,
+    messageLimit,
+  }: {
+    conversationId: string;
+    messageLimit: number;
+  }) => ({
     messages: database
       .get<Message>(Message.table)
       .query(
         Q.where("conversation", conversationId),
-        Q.sortBy("created_at", Q.asc),
-        Q.take(100)
+        Q.sortBy("created_at", Q.desc),
+        Q.take(messageLimit)
       )
       .observe(),
   })
 );
 
-const MessageList = enhanceMessages(
-  ({ messages, peerId }: { messages: Message[]; peerId: string }) => {
+const MessageListWithData = enhanceMessages(
+  ({
+    messages,
+    peerId,
+    onLoadOlderMessages,
+  }: {
+    messages: Message[];
+    peerId: string;
+    onLoadOlderMessages: () => void;
+  }) => {
     const listRef = useRef<FlatList<Message>>(null);
     const prevLengthRef = useRef(0);
 
+    // `messages` is newest-first (desc, take(messageLimit)); reverse to
+    // oldest-first for chronological display.
+    const orderedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
     useEffect(() => {
-      if (messages.length === 0) return;
+      if (orderedMessages.length === 0) return;
       const isInitialLoad = prevLengthRef.current === 0;
-      prevLengthRef.current = messages.length;
+      prevLengthRef.current = orderedMessages.length;
       listRef.current?.scrollToEnd({ animated: !isInitialLoad });
-    }, [messages.length]);
+    }, [orderedMessages.length]);
 
     return (
       <View style={{ flex: 1 }}>
         <FlatList
           ref={listRef}
-          data={messages}
+          data={orderedMessages}
           renderItem={({ item }) => (
             <MessageListItem message={item} peerId={peerId} />
           )}
@@ -68,11 +96,40 @@ const MessageList = enhanceMessages(
           initialNumToRender={20}
           windowSize={5}
           removeClippedSubviews
+          onStartReached={onLoadOlderMessages}
+          onStartReachedThreshold={0.5}
         />
       </View>
     );
   }
 );
+
+const MessageList = ({
+  conversationId,
+  peerId,
+}: {
+  conversationId: string;
+  peerId: string;
+}) => {
+  const [messageLimit, setMessageLimit] = useState(MESSAGE_PAGE_SIZE);
+
+  useEffect(() => {
+    setMessageLimit(MESSAGE_PAGE_SIZE);
+  }, [conversationId]);
+
+  const handleLoadOlderMessages = useCallback(() => {
+    setMessageLimit((prev) => prev + MESSAGE_PAGE_SIZE);
+  }, []);
+
+  return (
+    <MessageListWithData
+      conversationId={conversationId}
+      peerId={peerId}
+      messageLimit={messageLimit}
+      onLoadOlderMessages={handleLoadOlderMessages}
+    />
+  );
+};
 
 const enhanceMessage = withObservables(
   ["message"],
