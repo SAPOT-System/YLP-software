@@ -415,7 +415,10 @@ const ChatRoom = () => {
     return () => subscription.unsubscribe();
   }, [conversationId]);
 
-  // Notify the sender that messages have been seen when connected and viewing a conversation
+  // Notify the sender that messages have been seen when connected and viewing a conversation.
+  // Admin messages arrive via the server without a live P2P data channel, so they're
+  // exempted from the link-health check the same way self-chat and SMS conversations are.
+  const isAdminConversation = peer?.role === "admin";
   useFocusEffect(
     useCallback(() => {
       uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
@@ -424,12 +427,17 @@ const ChatRoom = () => {
       });
 
       if (!incomingMessageCount) return;
-      if ((!isConnected && !isSelfChat && !isSmsConversation) || !conversationId) return;
+      if (
+        (!isConnected && !isSelfChat && !isSmsConversation && !isAdminConversation) ||
+        !conversationId
+      )
+        return;
       void chatService.markConversationAsRead(conversationId);
     }, [
       isConnected,
       isSelfChat,
       isSmsConversation,
+      isAdminConversation,
       conversationId,
       chatService,
       incomingMessageCount,
