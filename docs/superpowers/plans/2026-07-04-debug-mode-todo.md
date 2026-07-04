@@ -22,8 +22,22 @@ Each deliverable below is scoped to land as its own PR (branched off `feature/mo
       that requires editing `.github/workflows/*.yml`, which root CLAUDE.md reserves for an
       explicit ask. `EXPO_PUBLIC_DEBUG_MENU` documented in `docs/ENV_CONFIG.md` + `.env.example`.
       Full suite green: `tsc --noEmit`, `eslint .`, `jest` (100 suites / 833 tests).
-- [ ] **1. DebugPanel shell** (Medium, 1.5d, deps: 0) — bottom-sheet/modal mounted once at root;
+- [x] **1. DebugPanel shell** (Medium, 1.5d, deps: 0) — bottom-sheet/modal mounted once at root;
       FAB + 5-tap-in-About + shake openers; header (variant/version/peerId/transport/online).
+      **Done:** new `features/debug/` — `debug-panel-store.ts` (subscribe/emit, mirrors
+      `UserStore`/`AppModeStore`), `use-debug-panel.ts`, `DebugPanel` (react-native-paper
+      `Portal`+`Modal`, header shows variant/version/peerId/mode/online via `useAppMode`,
+      `useServerStatus`, `useUserStore`; 16-section list with in-modal placeholder navigation;
+      quick-action buttons rendered disabled — real wiring lands with their owning deliverables),
+      `DebugFab` (draggable via `PanResponder`, primary opener). Mounted in
+      `app/(drawer)/_layout.tsx` (inside `MainContainerProvider`/`HealthProvider`, not the true
+      app root, since the panel's hooks require that context — matches where the existing
+      `debug.tsx` tab already lives). 5-tap-on-version opener added to
+      `app/(drawer)/settings/support/about-us.tsx` (this screen previously had no version
+      display at all). **Deferred to a later pass:** shake gesture and emulator dev-menu
+      shortcut — both need a new dependency (`expo-sensors`) or native dev-menu wiring,
+      out of scope for the shell per explicit user decision.
+      Full suite green: `tsc --noEmit`, `eslint .`, `jest` (108 suites / 853 tests).
 - [ ] **2. DebugDbService** (Medium, 2d, deps: 1) — table browser/seeder, absorb `useDatabase`
       (`unsafeResetDatabase` etc.), export/import JSON.
 - [ ] **3. Auth/User section** (Medium, 2d, deps: 1,2) — seed test users, role/mode switch, JWT
