@@ -16,7 +16,9 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useDebugPanel } from "../hooks/use-debug-panel";
+import { debugDbService } from "../services/debug-db-service";
 import { DEBUG_SECTIONS, DebugSectionKey } from "../types";
+import { DatabaseSection } from "./database-section";
 import { DebugSectionPlaceholder } from "./debug-section-placeholder";
 
 const QUICK_ACTIONS = [
@@ -26,6 +28,12 @@ const QUICK_ACTIONS = [
   "Toggle mode",
   "Clear logs",
 ] as const;
+
+const QUICK_ACTION_HANDLERS: Partial<Record<(typeof QUICK_ACTIONS)[number], () => void>> = {
+  "Reset DB": () => {
+    debugDbService.resetDatabase();
+  },
+};
 
 export function DebugPanel() {
   if (!IS_DEBUG_ENABLED) return null;
@@ -77,18 +85,31 @@ function DebugPanelContent() {
         <Divider />
 
         {selectedSection ? (
-          <DebugSectionPlaceholder
-            section={selectedSection}
-            onBack={() => setSelectedSection(null)}
-          />
+          selectedSection === "database" ? (
+            <DatabaseSection onBack={() => setSelectedSection(null)} />
+          ) : (
+            <DebugSectionPlaceholder
+              section={selectedSection}
+              onBack={() => setSelectedSection(null)}
+            />
+          )
         ) : (
           <>
             <View style={styles.quickActions}>
-              {QUICK_ACTIONS.map((action) => (
-                <Button key={action} mode="outlined" disabled compact>
-                  {action}
-                </Button>
-              ))}
+              {QUICK_ACTIONS.map((action) => {
+                const handler = QUICK_ACTION_HANDLERS[action];
+                return (
+                  <Button
+                    key={action}
+                    mode="outlined"
+                    disabled={!handler}
+                    onPress={handler}
+                    compact
+                  >
+                    {action}
+                  </Button>
+                );
+              })}
             </View>
 
             <Divider />
