@@ -229,7 +229,7 @@ features/<name>/
 | `settings/` | ~0.6 k | 5 | User preferences |
 | `announcements/` | ~0.4 k | 9 | Server-fetched announcement board |
 | `getting-started/` | ~0.4 k | 8 | Onboarding screens |
-| `debug/` | ~0.3 k | 8 | Developer debug panel (dev/QA-only, gated by `config/debug.ts`) |
+| `debug/` | ~0.7 k | 10 | Developer debug panel (dev/QA-only, gated by `config/debug.ts`); `DebugDbService` provides a WatermelonDB table browser/seeder/reset + JSON export-import over the shared `database` instance |
 
 `features/shared/` is ~50 % of all production code. It is a layered engine, not a utility bucket. See the sub-domain layout below and `features/shared/README.md` for the one-page map.
 
