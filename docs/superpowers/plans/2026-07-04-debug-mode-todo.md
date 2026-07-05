@@ -85,8 +85,96 @@ Each deliverable below is scoped to land as its own PR (branched off `feature/mo
       tested, still part of the deliverable-2 spec — they're just not wired to a UI affordance
       right now (same as `importFromJson`, which never had one either).
       Full suite green: `tsc --noEmit`, `eslint features/debug`, `jest` (110 suites / 895 tests).
-- [ ] **3. Auth/User section** (Medium, 2d, deps: 1,2) — seed test users, role/mode switch, JWT
+- [x] **3. Auth/User section** (Medium, 2d, deps: 1,2) — seed test users, role/mode switch, JWT
       inject/clear, force logout/reset.
+      **Done:** `features/debug/services/debug-auth-service.ts` — `DebugAuthService` over live
+      per-`AuthContainer` instances (`UserService`, `UserStore`; not module singletons like
+      `debugDbService`, so it's constructed in the hook rather than imported bare):
+      `seedTestUser(role)` reuses `UserService.syncAuthenticatedUser` to create a fixture peer
+      (`debug_<role>_<suffix>`) then sets the role flags; `setRole(role)` switches
+      `UserStore.isRescuer`/`isAdmin` on the current user without reseeding; `forceLogout` →
+      `UserService.logout()`; `resetAuthState` → `UserService.wipeDatabase()` (existing
+      pre-relogin reset path, doesn't stop connection services); `getSnapshot()` reports
+      current user id/username/isGuest/isRescuer/isAdmin/hasAccessToken. Added
+      `saveAccessToken`/`clearAccessToken` to `features/shared/core/stores/secure-config.ts`
+      (only a reader existed before) for JWT inject/clear — `injectFakeAccessToken()` writes a
+      `debug.<uuid>.token` placeholder, never a real credential. `use-debug-auth.ts` hook wraps
+      the service (obtained via `useUserService()`/`useUserStore()`, memoized with `useMemo`) in
+      the same load/refresh-snapshot pattern as `use-debug-db.ts`. New `AuthSection` component
+      wired into `DebugPanel` for **both** the `auth` and `users` `DEBUG_SECTIONS` keys (one
+      component covers "Auth" + "User management" per the spec's single roadmap line) —
+      `debug-panel.tsx`'s placeholder branch gained an `auth`/`users` case. "Mode switch" (from
+      the roadmap title) is **not** included — that's `AppModeStore`/transport mode, which
+      belongs to deliverable 4 (Offline/Network); this deliverable only covers role switch.
+      "User management ... via DebugDbService" (peers.role/is_online row editing) is also
+      deferred — the existing table browser (deliverable 2) only supports view/delete, not
+      edit, and adding row-level editing was judged out of scope for this ticket.
+      **Follow-up (same session):** `seedTestUser` now calls `UserService.wipeDatabase()`
+      before creating the new fixture user, so the previous user's local data (peers, messages,
+      conversations) is wiped rather than left behind alongside the new one; it also still
+      restarts the app afterward (prior fix) so every in-memory service re-initializes clean.
+      Fixed `forceLogout`/`resetAuthState` appearing to do nothing: `UserService.logout()`/
+      `wipeDatabase()` only reset `isRescuer` and the session/userUUID keys, never `isAdmin` or
+      the injected JWT, so the Auth section kept showing the old identity/token after either
+      action — both `DebugAuthService` methods now also call `userStore.setIsAdmin(false)` and
+      clear the stored access token. Added visible feedback for every action per user request:
+      `AuthSection` now uses the existing `useToast`/`AppSnackbar` pattern (already used in
+      `custom-drawer-content.tsx`) to show a success/error snackbar after each button press, and
+      Force logout / Reset auth state now go through an `Alert.alert` confirm step first
+      (mirroring `DatabaseSection`'s destructive-action pattern) before running.
+      **Follow-up 2 (same session):** `forceLogout`/`resetAuthState` now restart the app after
+      running (same `use-debug-auth.ts` `restartApp()` helper `seedTestUser` already used),
+      and their underlying `DebugAuthService` behavior was rewritten to match the real
+      `AuthProvider` bootstrap flow (`features/auth/context/auth-context.tsx`) instead of
+      hand-patching in-memory state: `forceLogout` now mirrors production `AuthContext.logout`
+      — deletes `refresh_token` (new, via `expo-secure-store`, matching the existing raw-key
+      convention `user-service.ts`/`auth-context.tsx` already use for this key) and calls
+      `clearConnectionConfig()` (also clears `userUUID`/`access_token`) on top of
+      `UserService.logout()`, so a restart finds no local session and lands on the login
+      screen. `resetAuthState` was simplified to *only* `clearAccessToken()` — no more
+      `wipeDatabase()`/manual `isAdmin` patch — so a restart's bootstrap finds the existing
+      local user record, stays signed in, and silently re-authenticates via the still-present
+      `refresh_token` (`AuthProvider`'s `refreshSession()`), never showing the login screen.
+      **Follow-up 3 (same session):** added `DebugAuthService.seedLanUser()` — same
+      wipe-then-restart pattern as `seedTestUser`, but calls `UserService.syncGuestUser()`
+      (the same identity path as the real "LAN Login" guest flow) instead of
+      `syncAuthenticatedUser`, using the existing `generateGuestUsername` util
+      (`features/auth/utils/guest-username-generator.ts`) rather than hand-rolling a username.
+      Guests never get role flags, so it skips `setIsRescuer`/`setIsAdmin`. `AuthSection`'s
+      "Seed user" button (the role-less `seedTestUser("user")` variant) is relabeled
+      "Seed auth user" to disambiguate it from the new "Seed LAN user" button.
+      **Follow-up 4 (same session):** `seedTestUser` now registers a *real* account through the
+      server's `/auth/` endpoint (`register` from `features/auth/api/auth.api.ts` — the same API
+      the sign-up screen uses, aliased `register as registerApi` matching the existing
+      `auth-context.tsx` import convention) instead of fabricating a local-only peer row; the
+      response's genuine `access_token`/`refresh_token` are stored (`saveAccessToken` +
+      raw `setItemAsync("refresh_token", …)`, matching the `use-register.ts` pattern), then the
+      returned server user is synced locally via `syncAuthenticatedUser` before `setRole` applies
+      the debug-only role override (registration itself has no role field). Password is generated
+      to satisfy the real backend's complexity rule (`features/auth/utils/validation.ts`:
+      8–128 chars, upper+lower+digit). `seedLanUser` now also deletes `refresh_token` and clears
+      the access token before creating the guest (guests never hold a session, so any leftover
+      tokens from a previously seeded auth user are dropped), and its first name is now picked
+      randomly from a fixed name pool instead of the hardcoded "Debug", so repeated LAN seeds
+      don't all look identical.
+      **Follow-up 5 (same session):** fixed a real bootstrap bug in
+      `features/auth/context/auth-context.tsx` (not `features/debug/`) that "Seed LAN user"
+      exposed: `UserService.syncGuestUser()` writes `userUUID` too (so the background task can
+      find it), so on the post-seed restart, `AuthProvider`'s bootstrap `useEffect` saw a
+      truthy `userUUID` and took the *authenticated*-user branch — `initialize({isGuest:false})`
+      — instead of the guest-restore branch, which only ran in the `else` when `userUUID` was
+      absent. That branch looks up the id in the `peers` table (empty for a guest), fails,
+      finds no `refresh_token` (guests never have one, and `seedLanUser` explicitly clears it),
+      and gives up — leaving `isAuthenticated=false`/`isGuest=false`, which routes to the
+      getting-started screen instead of the guest chat UI (confirmed via user-supplied logs:
+      `initialize complete {isGuest:false, hasUser:false}` → `no local record, attempting
+      server refresh` → `missing refresh token`). Fix: bootstrap now checks
+      `userService.isCurrentUserGuest()` (a `guest_user` table lookup, independent of the
+      `userUUID` key) *before* the `userUUID` branch, since guest status is the more specific
+      signal. This is a real production fix, not debug-only — it also corrects the same failure
+      for any real guest ("LAN Login") user whose app was ever restarted. Added a regression
+      test in `features/auth/context/__tests__/auth-context.test.tsx`.
+      Full suite green: `tsc --noEmit`, `eslint .`, `jest` (114 suites / 951 tests).
 - [ ] **4. FaultInjector + Offline/Network sections** (High, 3d, deps: 1) — no-internet,
       LAN/server/Redis/auth/sync-down toggles; adapter-level latency/loss/dup/corruption.
 - [ ] **5. MockPeerTransport + Messaging/Peers sim** (High, 3d, deps: 1,4).
