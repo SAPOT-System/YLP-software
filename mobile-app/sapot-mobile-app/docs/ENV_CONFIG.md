@@ -156,8 +156,11 @@ Managed in `features/shared/stores/secure-config.ts`:
 | `tcpHost` | Peer TCP host |
 | `tcpPort` | Peer TCP port |
 | `localIp` | Device's current LAN IP |
+| `access_token` | Current session's JWT (read via `getStoredAccessToken`; written via `saveAccessToken`/cleared via `clearAccessToken`) |
 
 This config is also read by the background task (`task/signaling-task.ts`) on Android when the app is killed.
+
+`saveAccessToken`/`clearAccessToken` are also used by the gated Auth debug section (`features/debug/services/debug-auth-service.ts`) to inject/clear a fake JWT for testing — see `docs/TESTING.md`.
 
 ---
 

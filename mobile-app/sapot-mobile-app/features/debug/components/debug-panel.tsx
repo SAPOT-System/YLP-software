@@ -18,6 +18,7 @@ import {
 import { useDebugPanel } from "../hooks/use-debug-panel";
 import { debugDbService } from "../services/debug-db-service";
 import { DEBUG_SECTIONS, DebugSectionKey } from "../types";
+import { AuthSection } from "./auth-section";
 import { DatabaseSection } from "./database-section";
 import { DebugSectionPlaceholder } from "./debug-section-placeholder";
 
@@ -87,6 +88,8 @@ function DebugPanelContent() {
         {selectedSection ? (
           selectedSection === "database" ? (
             <DatabaseSection onBack={() => setSelectedSection(null)} />
+          ) : selectedSection === "auth" || selectedSection === "users" ? (
+            <AuthSection onBack={() => setSelectedSection(null)} />
           ) : (
             <DebugSectionPlaceholder
               section={selectedSection}
