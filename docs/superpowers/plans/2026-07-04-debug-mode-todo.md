@@ -57,8 +57,34 @@ Each deliverable below is scoped to land as its own PR (branched off `feature/mo
       that only that tab used), the `useDatabase` barrel export in
       `features/shared/hooks/index.ts`, and the screen's two tests
       (`debug-{enabled,disabled}.test.tsx`).
-      Full suite green: `tsc --noEmit`, `eslint features/debug`, `jest` (112 suites / 886 tests,
-      up from 108/853).
+      **Follow-up 2 (same session):** row data is now rendered as a real table
+      (`react-native-paper` `DataTable`) instead of `JSON.stringify`'d `List.Item` rows, and only
+      schema-defined columns are shown (new `DebugDbService.getTableColumns()`, backed by
+      `database.schema.tables[name].columns`) — internal WatermelonDB bookkeeping fields
+      (`_status`, `_changed`) are no longer displayed. `id` is kept as its own leading column since
+      it's needed to identify/delete a row, even though it isn't a schema column. Per-row delete
+      moved from "tap the row" to a dedicated delete icon-button cell.
+      **Follow-up 3 (same session):** fixed header/cell misalignment in the `DataTable` (each
+      column's `Title`/`Cell` now shares a fixed `width` + `flex: 0` from a `StyleSheet`, so header
+      and body cells no longer drift apart based on differing content length) and added
+      pagination for performance — `getRows(tableName, { limit, offset })` (`Q.skip`/`Q.take`) so
+      the browser no longer fetches an entire table at once; `getTableSummaries()` now uses
+      `fetchCount()` instead of fetching every row just to count them; `deleteRow` now queries by
+      `Q.where("id", id)` instead of fetching the whole table to find one row. `useDebugDb` pages
+      in 25 rows at a time (`hasMore` + `loadMoreRows()`), with a "Load more" button in
+      `DatabaseSection`; `deleteRow` now updates `rows` locally instead of refetching.
+      `exportToJson`/`importFromJson` are unaffected — export intentionally still fetches every
+      row per table (it's a full-DB dump, not a browse operation).
+      **Follow-up 4 (same session):** cell values past a per-column character threshold
+      (`ID_CELL_MAX_CHARS`=20, `DATA_CELL_MAX_CHARS`=18 in `database-section.tsx`) are now
+      truncated with a literal `truncateCellValue()` helper (slice + `"..."`) rather than relying
+      on RN `Text` `numberOfLines`/layout-based ellipsis — per explicit user preference.
+      **Follow-up 5 (same session):** removed the "Export JSON" button + inline JSON dump from
+      `DatabaseSection` per explicit user instruction (along with the now-unused `useTheme` import
+      and `useState`). `DebugDbService.exportToJson`/`importFromJson` are untouched — still
+      tested, still part of the deliverable-2 spec — they're just not wired to a UI affordance
+      right now (same as `importFromJson`, which never had one either).
+      Full suite green: `tsc --noEmit`, `eslint features/debug`, `jest` (110 suites / 895 tests).
 - [ ] **3. Auth/User section** (Medium, 2d, deps: 1,2) — seed test users, role/mode switch, JWT
       inject/clear, force logout/reset.
 - [ ] **4. FaultInjector + Offline/Network sections** (High, 3d, deps: 1) — no-internet,

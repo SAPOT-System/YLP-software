@@ -1,27 +1,37 @@
-import { useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
-import { Button, IconButton, List, Text, useTheme } from "react-native-paper";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Button, DataTable, IconButton, List, Text } from "react-native-paper";
 import { useDebugDb } from "../hooks/use-debug-db";
+
+const ID_COLUMN_WIDTH = 160;
+const DATA_COLUMN_WIDTH = 140;
+const ACTIONS_COLUMN_WIDTH = 64;
+const ID_CELL_MAX_CHARS = 20;
+const DATA_CELL_MAX_CHARS = 18;
+
+function truncateCellValue(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 3)}...`;
+}
 
 interface DatabaseSectionProps {
   onBack: () => void;
 }
 
 export function DatabaseSection({ onBack }: DatabaseSectionProps) {
-  const theme = useTheme();
   const {
     tables,
     selectedTable,
     rows,
+    columns,
+    hasMore,
     loading,
     selectTable,
+    loadMoreRows,
     clearSelection,
     deleteRow,
     resetDatabase,
     seedPeers,
-    exportToJson,
   } = useDebugDb();
-  const [exportedJson, setExportedJson] = useState<string | null>(null);
 
   const handleReset = () => {
     Alert.alert(
@@ -32,10 +42,6 @@ export function DatabaseSection({ onBack }: DatabaseSectionProps) {
         { text: "Reset", style: "destructive", onPress: () => resetDatabase() },
       ]
     );
-  };
-
-  const handleExport = async () => {
-    setExportedJson(await exportToJson());
   };
 
   return (
@@ -59,17 +65,59 @@ export function DatabaseSection({ onBack }: DatabaseSectionProps) {
       {loading && <Text>Loading…</Text>}
 
       {selectedTable ? (
-        <ScrollView>
-          {rows.length === 0 && <Text>No rows.</Text>}
-          {rows.map((row) => (
-            <List.Item
-              key={row.id}
-              title={row.id}
-              description={JSON.stringify(row.fields)}
-              onPress={() => deleteRow(row.id)}
-            />
-          ))}
-        </ScrollView>
+        rows.length === 0 ? (
+          <Text>No rows.</Text>
+        ) : (
+          <ScrollView horizontal>
+            <View>
+              <DataTable.Header>
+                <DataTable.Title style={styles.idColumn}>id</DataTable.Title>
+                {columns.map((column) => (
+                  <DataTable.Title key={column} style={styles.dataColumn}>
+                    {column}
+                  </DataTable.Title>
+                ))}
+                <DataTable.Title style={styles.actionsColumn}>
+                  Actions
+                </DataTable.Title>
+              </DataTable.Header>
+
+              <ScrollView>
+                {rows.map((row) => (
+                  <DataTable.Row key={row.id}>
+                    <DataTable.Cell style={styles.idColumn}>
+                      {truncateCellValue(row.id, ID_CELL_MAX_CHARS)}
+                    </DataTable.Cell>
+                    {columns.map((column) => (
+                      <DataTable.Cell key={column} style={styles.dataColumn}>
+                        {truncateCellValue(
+                          String(row.fields[column] ?? ""),
+                          DATA_CELL_MAX_CHARS
+                        )}
+                      </DataTable.Cell>
+                    ))}
+                    <DataTable.Cell style={styles.actionsColumn}>
+                      <IconButton
+                        icon="delete"
+                        onPress={() => deleteRow(row.id)}
+                      />
+                    </DataTable.Cell>
+                  </DataTable.Row>
+                ))}
+                {hasMore && (
+                  <Button
+                    mode="text"
+                    loading={loading}
+                    disabled={loading}
+                    onPress={loadMoreRows}
+                  >
+                    Load more
+                  </Button>
+                )}
+              </ScrollView>
+            </View>
+          </ScrollView>
+        )
       ) : (
         <>
           <View
@@ -86,16 +134,7 @@ export function DatabaseSection({ onBack }: DatabaseSectionProps) {
             <Button mode="outlined" compact onPress={handleReset}>
               Reset database
             </Button>
-            <Button mode="outlined" compact onPress={handleExport}>
-              Export JSON
-            </Button>
           </View>
-
-          {exportedJson !== null && (
-            <Text style={{ color: theme.colors.onSurfaceVariant }}>
-              {exportedJson}
-            </Text>
-          )}
 
           <ScrollView>
             {tables.map((table) => (
@@ -112,3 +151,18 @@ export function DatabaseSection({ onBack }: DatabaseSectionProps) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  idColumn: {
+    flex: 0,
+    width: ID_COLUMN_WIDTH,
+  },
+  dataColumn: {
+    flex: 0,
+    width: DATA_COLUMN_WIDTH,
+  },
+  actionsColumn: {
+    flex: 0,
+    width: ACTIONS_COLUMN_WIDTH,
+  },
+});

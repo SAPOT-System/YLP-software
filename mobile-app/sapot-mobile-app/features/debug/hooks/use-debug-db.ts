@@ -5,10 +5,14 @@ import {
   debugDbService,
 } from "../services/debug-db-service";
 
+const PAGE_SIZE = 25;
+
 export function useDebugDb() {
   const [tables, setTables] = useState<DebugTableSummary[]>([]);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [rows, setRows] = useState<DebugTableRow[]>([]);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const refreshTables = useCallback(async () => {
@@ -24,11 +28,32 @@ export function useDebugDb() {
     setLoading(true);
     try {
       setSelectedTable(tableName);
-      setRows(await debugDbService.getRows(tableName));
+      setColumns(debugDbService.getTableColumns(tableName));
+      const firstPage = await debugDbService.getRows(tableName, {
+        limit: PAGE_SIZE,
+        offset: 0,
+      });
+      setRows(firstPage);
+      setHasMore(firstPage.length === PAGE_SIZE);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadMoreRows = useCallback(async () => {
+    if (!selectedTable || !hasMore || loading) return;
+    setLoading(true);
+    try {
+      const nextPage = await debugDbService.getRows(selectedTable, {
+        limit: PAGE_SIZE,
+        offset: rows.length,
+      });
+      setRows((prev) => [...prev, ...nextPage]);
+      setHasMore(nextPage.length === PAGE_SIZE);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedTable, hasMore, loading, rows.length]);
 
   const deleteRow = useCallback(
     async (id: string) => {
@@ -36,7 +61,7 @@ export function useDebugDb() {
       setLoading(true);
       try {
         await debugDbService.deleteRow(selectedTable, id);
-        setRows(await debugDbService.getRows(selectedTable));
+        setRows((prev) => prev.filter((row) => row.id !== id));
         await refreshTables();
       } finally {
         setLoading(false);
@@ -51,6 +76,8 @@ export function useDebugDb() {
       await debugDbService.resetDatabase();
       setSelectedTable(null);
       setRows([]);
+      setColumns([]);
+      setHasMore(false);
       await refreshTables();
     } finally {
       setLoading(false);
@@ -74,6 +101,8 @@ export function useDebugDb() {
   const clearSelection = useCallback(() => {
     setSelectedTable(null);
     setRows([]);
+    setColumns([]);
+    setHasMore(false);
   }, []);
 
   const exportToJson = useCallback(() => debugDbService.exportToJson(), []);
@@ -99,9 +128,12 @@ export function useDebugDb() {
     tables,
     selectedTable,
     rows,
+    columns,
+    hasMore,
     loading,
     refreshTables,
     selectTable,
+    loadMoreRows,
     clearSelection,
     deleteRow,
     resetDatabase,
