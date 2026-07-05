@@ -14,6 +14,27 @@ jest.mock("@/features/shared/hooks", () => ({
   useUserStore: () => ({ user: { id: "peer-123" } }),
 }));
 
+const mockResetDatabase = jest.fn();
+jest.mock("../../services/debug-db-service", () => ({
+  debugDbService: { resetDatabase: () => mockResetDatabase() },
+}));
+
+jest.mock("../../hooks/use-debug-db", () => ({
+  useDebugDb: () => ({
+    tables: [],
+    selectedTable: null,
+    rows: [],
+    loading: false,
+    selectTable: jest.fn(),
+    clearSelection: jest.fn(),
+    deleteRow: jest.fn(),
+    resetDatabase: jest.fn(),
+    seedPeers: jest.fn(),
+    exportToJson: jest.fn().mockResolvedValue("{}"),
+    importFromJson: jest.fn(),
+  }),
+}));
+
 jest.mock("react-native-paper", () => {
   const { Pressable, Text: RNText, View } = require("react-native");
 
@@ -51,11 +72,19 @@ jest.mock("react-native-paper", () => {
     Button: ({
       children,
       disabled,
+      onPress,
     }: {
       children: React.ReactNode;
       disabled?: boolean;
+      onPress?: () => void;
     }) => (
-      <RNText accessibilityState={{ disabled }}>{children}</RNText>
+      <Pressable
+        disabled={disabled}
+        accessibilityState={{ disabled }}
+        onPress={onPress}
+      >
+        <RNText>{children}</RNText>
+      </Pressable>
     ),
     List: MockList,
     Text: RNText,
@@ -66,6 +95,7 @@ jest.mock("react-native-paper", () => {
 describe("DebugPanel when debug mode is enabled", () => {
   afterEach(() => {
     debugPanelStore.close();
+    mockResetDatabase.mockClear();
   });
 
   it("renders nothing while closed", () => {
@@ -91,9 +121,40 @@ describe("DebugPanel when debug mode is enabled", () => {
 
     const { getByText, queryByText } = render(<DebugPanel />);
 
-    fireEvent.press(getByText("Database"));
+    fireEvent.press(getByText("WebRTC"));
     expect(getByText("Coming soon.")).toBeTruthy();
+    expect(queryByText("Database")).toBeNull();
+  });
+
+  it("navigates into the Database section instead of the placeholder", () => {
+    debugPanelStore.open();
+
+    const { getByText, queryByText } = render(<DebugPanel />);
+
+    fireEvent.press(getByText("Database"));
+
+    expect(queryByText("Coming soon.")).toBeNull();
     expect(queryByText("WebRTC")).toBeNull();
+  });
+
+  it("enables the Reset DB quick action and wires it to debugDbService", () => {
+    debugPanelStore.open();
+
+    const { getByText } = render(<DebugPanel />);
+
+    fireEvent.press(getByText("Reset DB"));
+
+    expect(mockResetDatabase).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves other quick actions disabled", () => {
+    debugPanelStore.open();
+
+    const { getByText } = render(<DebugPanel />);
+
+    fireEvent.press(getByText("Skip login"));
+
+    expect(mockResetDatabase).not.toHaveBeenCalled();
   });
 
   it("closes when the close button is pressed", () => {
