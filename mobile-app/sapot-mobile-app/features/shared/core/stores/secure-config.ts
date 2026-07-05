@@ -136,6 +136,25 @@ export const getStoredAccessToken = async () => {
   }
 };
 
+export const saveAccessToken = async (token: string): Promise<void> => {
+  try {
+    await setItemAsync(KEYS.ACCESS_TOKEN, token);
+    backgroundLog.info("secure-config › access token saved");
+  } catch (error) {
+    backgroundLog.error("secure-config › access token save failed", { error });
+    throw error;
+  }
+};
+
+export const clearAccessToken = async (): Promise<void> => {
+  try {
+    await deleteItemAsync(KEYS.ACCESS_TOKEN);
+    backgroundLog.info("secure-config › access token cleared");
+  } catch (error) {
+    backgroundLog.error("secure-config › access token clear failed", { error });
+  }
+};
+
 export const saveAppAlive = async (alive: boolean) => {
   try {
     await setItemAsync(KEYS.APP_ALIVE, alive ? "1" : "0");
