@@ -12,6 +12,18 @@ jest.mock("@/features/shared/core/context", () => ({
 
 jest.mock("@/features/shared/hooks", () => ({
   useUserStore: () => ({ user: { id: "peer-123" } }),
+  useToast: () => ({
+    visible: false,
+    message: "",
+    variant: "neutral",
+    showToast: jest.fn(),
+    showError: jest.fn(),
+    hideToast: jest.fn(),
+  }),
+}));
+
+jest.mock("@/features/shared/components/app-snackbar", () => ({
+  AppSnackbar: () => null,
 }));
 
 const mockResetDatabase = jest.fn();
@@ -32,6 +44,26 @@ jest.mock("../../hooks/use-debug-db", () => ({
     seedPeers: jest.fn(),
     exportToJson: jest.fn().mockResolvedValue("{}"),
     importFromJson: jest.fn(),
+  }),
+}));
+
+jest.mock("../../hooks/use-debug-auth", () => ({
+  useDebugAuth: () => ({
+    snapshot: {
+      userId: "peer-123",
+      username: "alice",
+      isGuest: false,
+      isRescuer: false,
+      isAdmin: false,
+      hasAccessToken: false,
+    },
+    loading: false,
+    seedTestUser: jest.fn(),
+    setRole: jest.fn(),
+    injectFakeAccessToken: jest.fn(),
+    clearAccessToken: jest.fn(),
+    forceLogout: jest.fn(),
+    resetAuthState: jest.fn(),
   }),
 }));
 
@@ -135,6 +167,28 @@ describe("DebugPanel when debug mode is enabled", () => {
 
     expect(queryByText("Coming soon.")).toBeNull();
     expect(queryByText("WebRTC")).toBeNull();
+  });
+
+  it("navigates into the Auth section instead of the placeholder", () => {
+    debugPanelStore.open();
+
+    const { getByText, queryByText } = render(<DebugPanel />);
+
+    fireEvent.press(getByText("Auth"));
+
+    expect(queryByText("Coming soon.")).toBeNull();
+    expect(getByText(/alice/)).toBeTruthy();
+  });
+
+  it("navigates into the Auth section from the Users entry too", () => {
+    debugPanelStore.open();
+
+    const { getByText, queryByText } = render(<DebugPanel />);
+
+    fireEvent.press(getByText("Users"));
+
+    expect(queryByText("Coming soon.")).toBeNull();
+    expect(getByText(/alice/)).toBeTruthy();
   });
 
   it("enables the Reset DB quick action and wires it to debugDbService", () => {
