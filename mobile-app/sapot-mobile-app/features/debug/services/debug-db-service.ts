@@ -1,6 +1,7 @@
 import { toAppError } from "@/features/shared/core/errors";
 import { database as sharedDatabase } from "@/features/shared/core/database";
 import { dbLog } from "@/features/shared/core/utils/logger";
+import { Q } from "@nozbe/watermelondb";
 import type { Database, Model } from "@nozbe/watermelondb";
 
 export interface DebugTableSummary {
@@ -11,6 +12,11 @@ export interface DebugTableSummary {
 export interface DebugTableRow {
   id: string;
   fields: Record<string, unknown>;
+}
+
+export interface GetRowsOptions {
+  limit?: number;
+  offset?: number;
 }
 
 interface DebugDatabaseExport {
@@ -27,17 +33,29 @@ export class DebugDbService {
     return Object.keys(this.db.schema.tables);
   }
 
+  getTableColumns(tableName: string): string[] {
+    const table = this.db.schema.tables[tableName];
+    return table ? Object.keys(table.columns) : [];
+  }
+
   async getTableSummaries(): Promise<DebugTableSummary[]> {
     return Promise.all(
-      this.listTableNames().map(async (name) => {
-        const records = await this.db.get(name).query().fetch();
-        return { name, rowCount: records.length };
-      })
+      this.listTableNames().map(async (name) => ({
+        name,
+        rowCount: await this.db.get(name).query().fetchCount(),
+      }))
     );
   }
 
-  async getRows(tableName: string): Promise<DebugTableRow[]> {
-    const records = await this.db.get(tableName).query().fetch();
+  async getRows(
+    tableName: string,
+    options: GetRowsOptions = {}
+  ): Promise<DebugTableRow[]> {
+    const clauses = [];
+    if (options.offset !== undefined) clauses.push(Q.skip(options.offset));
+    if (options.limit !== undefined) clauses.push(Q.take(options.limit));
+
+    const records = await this.db.get(tableName).query(...clauses).fetch();
     return records.map((record: Model) => ({
       id: record.id,
       fields: record._raw as unknown as Record<string, unknown>,
@@ -47,8 +65,11 @@ export class DebugDbService {
   async deleteRow(tableName: string, id: string): Promise<void> {
     try {
       await this.db.write(async () => {
-        const records = await this.db.get(tableName).query().fetch();
-        const record = records.find((r: Model) => r.id === id);
+        const records = await this.db
+          .get(tableName)
+          .query(Q.where("id", id))
+          .fetch();
+        const record = records[0];
         if (!record) return;
         await this.db.batch(record.prepareDestroyPermanently());
       });

@@ -1,3 +1,4 @@
+import { Q } from "@nozbe/watermelondb";
 import { DebugDbService } from "../debug-db-service";
 
 interface FakeRecord {
@@ -15,18 +16,25 @@ const createFakeRecord = (
   prepareDestroyPermanently: jest.fn().mockReturnValue({ op: "destroy", id }),
 });
 
-const createFakeCollection = (records: FakeRecord[]) => ({
-  query: jest.fn(() => ({ fetch: jest.fn().mockResolvedValue(records) })),
-  prepareCreate: jest.fn((builder: (record: FakeRecord) => void) => {
-    const record = createFakeRecord("new-id");
-    builder(record);
-    return { op: "create", id: record.id, raw: record._raw };
-  }),
-});
+const createFakeCollection = (records: FakeRecord[]) => {
+  const fetch = jest.fn().mockResolvedValue(records);
+  const fetchCount = jest.fn().mockResolvedValue(records.length);
+  return {
+    fetch,
+    fetchCount,
+    query: jest.fn(() => ({ fetch, fetchCount })),
+    prepareCreate: jest.fn((builder: (record: FakeRecord) => void) => {
+      const record = createFakeRecord("new-id");
+      builder(record);
+      return { op: "create", id: record.id, raw: record._raw };
+    }),
+  };
+};
 
 describe("DebugDbService", () => {
   let peers: FakeRecord[];
   let messages: FakeRecord[];
+  let collections: Record<string, ReturnType<typeof createFakeCollection>>;
   let db: {
     schema: { tables: Record<string, unknown> };
     get: jest.Mock;
@@ -37,19 +45,25 @@ describe("DebugDbService", () => {
   let service: DebugDbService;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     peers = [createFakeRecord("peer-1", { username: "alice" })];
     messages = [
       createFakeRecord("msg-1", { content: "hi" }),
       createFakeRecord("msg-2", { content: "there" }),
     ];
 
-    const collections: Record<string, ReturnType<typeof createFakeCollection>> = {
+    collections = {
       peers: createFakeCollection(peers),
       messages: createFakeCollection(messages),
     };
 
     db = {
-      schema: { tables: { peers: {}, messages: {} } },
+      schema: {
+        tables: {
+          peers: { columns: { username: {}, is_online: {} } },
+          messages: { columns: { content: {} } },
+        },
+      },
       get: jest.fn((tableName: string) => collections[tableName]),
       write: jest.fn((fn: () => Promise<void>) => fn()),
       batch: jest.fn().mockResolvedValue(undefined),
@@ -65,13 +79,26 @@ describe("DebugDbService", () => {
     });
   });
 
+  describe("getTableColumns", () => {
+    it("returns the schema-defined column names for a table", () => {
+      expect(service.getTableColumns("peers")).toEqual(["username", "is_online"]);
+      expect(service.getTableColumns("messages")).toEqual(["content"]);
+    });
+
+    it("returns an empty array for an unknown table", () => {
+      expect(service.getTableColumns("unknown")).toEqual([]);
+    });
+  });
+
   describe("getTableSummaries", () => {
-    it("returns a row count per table", async () => {
+    it("returns a row count per table using fetchCount (not a full fetch)", async () => {
       const summaries = await service.getTableSummaries();
       expect(summaries).toEqual([
         { name: "peers", rowCount: 1 },
         { name: "messages", rowCount: 2 },
       ]);
+      expect(collections.peers.fetchCount).toHaveBeenCalled();
+      expect(collections.messages.fetchCount).toHaveBeenCalled();
     });
   });
 
@@ -80,19 +107,38 @@ describe("DebugDbService", () => {
       const rows = await service.getRows("peers");
       expect(rows).toEqual([{ id: "peer-1", fields: { id: "peer-1", username: "alice" } }]);
     });
+
+    it("fetches everything (no skip/take) when no options are given", async () => {
+      await service.getRows("peers");
+      expect(Q.skip).not.toHaveBeenCalled();
+      expect(Q.take).not.toHaveBeenCalled();
+    });
+
+    it("applies skip/take clauses when pagination options are given", async () => {
+      await service.getRows("peers", { limit: 10, offset: 20 });
+      expect(Q.skip).toHaveBeenCalledWith(20);
+      expect(Q.take).toHaveBeenCalledWith(10);
+    });
   });
 
   describe("deleteRow", () => {
-    it("destroys the matching record inside a writer", async () => {
+    it("queries by id and destroys the matching record inside a writer", async () => {
       await service.deleteRow("messages", "msg-1");
 
+      expect(Q.where).toHaveBeenCalledWith("id", "msg-1");
       expect(db.write).toHaveBeenCalled();
       expect(messages[0].prepareDestroyPermanently).toHaveBeenCalled();
       expect(db.batch).toHaveBeenCalledWith({ op: "destroy", id: "msg-1" });
     });
 
-    it("is a no-op when the id does not exist", async () => {
+    it("is a no-op when the query returns no matching record", async () => {
+      collections.messages.query.mockReturnValueOnce({
+        fetch: jest.fn().mockResolvedValue([]),
+        fetchCount: jest.fn().mockResolvedValue(0),
+      });
+
       await service.deleteRow("messages", "missing-id");
+
       expect(db.batch).not.toHaveBeenCalled();
     });
 
