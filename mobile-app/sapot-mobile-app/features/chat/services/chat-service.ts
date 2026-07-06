@@ -1,5 +1,5 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-  ConnectionService,
   Conversation,
   ConversationType,
   database,
@@ -8,9 +8,9 @@ import {
   MessageStatusType,
   MessageType,
   Peer,
-  PeerService,
-  UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { PeerService } from "@/features/shared/peer";
+import { UserStore } from "@/features/shared/core/stores";
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
 import { chatLog } from "@/features/shared/core/utils/logger";
