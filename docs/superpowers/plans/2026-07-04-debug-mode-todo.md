@@ -175,8 +175,64 @@ Each deliverable below is scoped to land as its own PR (branched off `feature/mo
       for any real guest ("LAN Login") user whose app was ever restarted. Added a regression
       test in `features/auth/context/__tests__/auth-context.test.tsx`.
       Full suite green: `tsc --noEmit`, `eslint .`, `jest` (114 suites / 951 tests).
-- [ ] **4. FaultInjector + Offline/Network sections** (High, 3d, deps: 1) — no-internet,
+- [x] **4. FaultInjector + Offline/Network sections** (High, 3d, deps: 1) — no-internet,
       LAN/server/Redis/auth/sync-down toggles; adapter-level latency/loss/dup/corruption.
+      **Done:** `features/debug/services/fault-injector.ts` — `FaultInjector` singleton with two
+      independent state groups: 6 boolean offline flags (`noInternet`, `lanDown`, `serverDown`,
+      `redisDown`, `authDown`, `syncDown`) and per-transport (`tcp`/`ws`) `NetworkFaultConfig`
+      (`latencyMs`/`lossRate`/`dupRate`/`corruptRate`), both exposed via cached-reference
+      snapshots (immutable, replaced only on change) so `useSyncExternalStore` consumers don't
+      re-render spuriously. `wrapAdapter(adapter, transport)` monkey-patches a constructed
+      adapter *instance's* `.emit` (intercepting only `"data"`) and `.sendMessage` (if present)
+      to route through the fault pipeline before delegating to the original bound methods — a
+      true no-op (same instance, untouched, confirmed by a reference-equality test) whenever
+      `IS_DEBUG_ENABLED` is false, and defensively guarded per-method (`typeof adapter.emit ===
+      "function"`) so it's also safe against test doubles that aren't full `EventEmitter`s.
+      Wired at all 3 existing construction sites for wrappable adapters:
+      `ConnectionService.getTcpClientAdapter()` (`"tcp"`) and `MainContainer`'s constructor for
+      `WsSignalingAdapter` (`"ws"`) and `TcpServerAdapter` (`"tcp"`) — `ZeroconfAdapter` is
+      intentionally **not** wrapped (its `serviceResolved`/`serviceRemoved` event shape doesn't
+      match the `"data"`/`sendMessage` contract, and per spec §3 the Network row only covers
+      "Same fault layer at Tcp*/Ws*Adapter"; discovery-level fault toggles are deliverable 5's
+      "Peer discovery" row, not this one). `lanDown` drops 100% of `tcp` traffic; `serverDown`
+      drops 100% of `ws` traffic; `noInternet` drops both — implemented as a same-mechanism
+      special case of the loss pipeline, not a separate code path. `redisDown`/`authDown` are
+      symptom-only per explicit user decision: the flags exist and are shown in the Offline
+      section UI but don't block any real traffic (real HTTP-level auth faulting is deliverable
+      10's Error simulator). Two more non-adapter integration points, both one-line
+      debug-gated guards: `features/shared/core/context/health-context.tsx`'s `online`
+      computation now forces `false` when `noInternet`/`serverDown` is set (reactive via a
+      `useSyncExternalStore` subscription to the injector); `SyncService.syncNow()` returns
+      immediately when `syncDown` is set. New `use-fault-injector.ts` hook (three
+      `useSyncExternalStore` subscriptions: offline flags, tcp faults, ws faults) backs two new
+      components wired into `DebugPanel` in place of the `offline`/`network` placeholders:
+      `OfflineSection` (6 toggle switches) and `NetworkSection` (per-transport
+      latency/loss/dup/corrupt number fields + a reset button per transport).
+      **Real bug caught by the tests, fixed before commit:** `corrupt()`'s first implementation
+      picked the first string-typed key by object insertion order, which for a typical
+      `{ type, content }` message corrupted the `type` field (breaks message routing) instead of
+      the payload — fixed to prefer a `content` key when present, falling back to the first
+      string field otherwise.
+      **Real regression caught and fixed:** the initial `wrapAdapter` unconditionally did
+      `adapter.emit.bind(adapter)`, which crashed on `connection-service.test.ts`'s
+      `TcpClientAdapter` mock (a plain object with only `sendMessage: jest.fn()`, no `.emit`) —
+      added the `typeof adapter.emit === "function"` guard alongside the pre-existing
+      `sendMessage` guard.
+      **Test-only fixes to keep existing suites accurate, not behavior changes:** since `__DEV__`
+      defaults true under this Jest setup (so `IS_DEBUG_ENABLED` is true by default, same as every
+      other debug-panel test in this codebase), `connection-service.test.ts` and
+      `sync-service.test.ts` needed `jest.mock("@/config/debug", ...)` — `false` for
+      connection-routing tests (out of scope for fault injection, and wrapping had been replacing
+      `mockTcpClientAdapter.sendMessage` with a non-mock closure, breaking `toHaveBeenCalledWith`
+      assertions on it), `true` for `sync-service.test.ts` (needed to exercise the new guard).
+      `fault-injector.ts`'s `sendMessage?(message: unknown): void` had to use method-shorthand
+      syntax rather than a property-typed function (`sendMessage?: (message: unknown) => void`)
+      — the latter is checked contravariantly under `strictFunctionTypes`, which rejected
+      `TcpClientAdapter`'s narrower `sendMessage(message: Message): void` at the `wrapAdapter`
+      call site in `connection-service.ts`.
+      `docs/ARCHITECTURE.md`'s `debug/` row updated; no new env vars, so `docs/ENV_CONFIG.md`
+      unchanged.
+      Full suite green: `tsc --noEmit`, `eslint .`, `jest` (120 suites / 1004 tests).
 - [ ] **5. MockPeerTransport + Messaging/Peers sim** (High, 3d, deps: 1,4).
 - [ ] **6. WebRTC scenario runner** (High, 3d, deps: 4,5).
 - [ ] **7. DebugLocationProvider GPS section** (Medium, 2d, deps: 1).

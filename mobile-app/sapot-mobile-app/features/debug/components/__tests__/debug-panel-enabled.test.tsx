@@ -67,8 +67,33 @@ jest.mock("../../hooks/use-debug-auth", () => ({
   }),
 }));
 
+jest.mock("../../hooks/use-fault-injector", () => ({
+  useFaultInjector: () => ({
+    offlineFlags: {
+      noInternet: false,
+      lanDown: false,
+      serverDown: false,
+      redisDown: false,
+      authDown: false,
+      syncDown: false,
+    },
+    networkFaults: {
+      tcp: { latencyMs: 0, lossRate: 0, dupRate: 0, corruptRate: 0 },
+      ws: { latencyMs: 0, lossRate: 0, dupRate: 0, corruptRate: 0 },
+    },
+    setOfflineFlag: jest.fn(),
+    setNetworkFaults: jest.fn(),
+    resetNetworkFaults: jest.fn(),
+  }),
+}));
+
 jest.mock("react-native-paper", () => {
-  const { Pressable, Text: RNText, View } = require("react-native");
+  const {
+    Pressable,
+    Text: RNText,
+    TextInput: RNTextInput,
+    View,
+  } = require("react-native");
 
   const MockModal = ({
     visible,
@@ -120,6 +145,28 @@ jest.mock("react-native-paper", () => {
     ),
     List: MockList,
     Text: RNText,
+    Switch: ({
+      value,
+      onValueChange,
+      testID,
+    }: {
+      value: boolean;
+      onValueChange: (value: boolean) => void;
+      testID?: string;
+    }) => (
+      <Pressable testID={testID} onPress={() => onValueChange(!value)}>
+        <RNText>{value ? "on" : "off"}</RNText>
+      </Pressable>
+    ),
+    TextInput: ({
+      testID,
+      value,
+      onChangeText,
+    }: {
+      testID?: string;
+      value: string;
+      onChangeText: (text: string) => void;
+    }) => <RNTextInput testID={testID} value={value} onChangeText={onChangeText} />,
     useTheme: () => ({ colors: { surface: "#fff", onSurfaceVariant: "#888" } }),
   };
 });
@@ -189,6 +236,28 @@ describe("DebugPanel when debug mode is enabled", () => {
 
     expect(queryByText("Coming soon.")).toBeNull();
     expect(getByText(/alice/)).toBeTruthy();
+  });
+
+  it("navigates into the Offline section instead of the placeholder", () => {
+    debugPanelStore.open();
+
+    const { getByText, getByTestId, queryByText } = render(<DebugPanel />);
+
+    fireEvent.press(getByText("Offline"));
+
+    expect(queryByText("Coming soon.")).toBeNull();
+    expect(getByTestId("toggle-noInternet")).toBeTruthy();
+  });
+
+  it("navigates into the Network section instead of the placeholder", () => {
+    debugPanelStore.open();
+
+    const { getByText, getByTestId, queryByText } = render(<DebugPanel />);
+
+    fireEvent.press(getByText("Network"));
+
+    expect(queryByText("Coming soon.")).toBeNull();
+    expect(getByTestId("tcp-latencyMs")).toBeTruthy();
   });
 
   it("enables the Reset DB quick action and wires it to debugDbService", () => {

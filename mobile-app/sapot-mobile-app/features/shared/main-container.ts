@@ -24,6 +24,7 @@ import { PeerKeyStore } from "./crypto/peer-key-store";
 import { WsEncryptionContext } from "./crypto/ws-encryption";
 import { KeyRecoveryService } from "./crypto/key-recovery-service";
 import { AppModeStore, NetworkConfig } from "./core/stores";
+import { faultInjector } from "@/features/debug/services/fault-injector";
 
 import { CallService } from "@/features/call/services/call-service";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
@@ -153,11 +154,14 @@ export class MainContainer {
       this.appModeStore
     );
 
-    this.wsSignalingAdapter = new WsSignalingAdapter();
+    this.wsSignalingAdapter = faultInjector.wrapAdapter(
+      new WsSignalingAdapter(),
+      "ws"
+    );
     this.activeUsersService = new ActiveUsersService(this.wsSignalingAdapter);
-    this.tcpServerAdapter = new TcpServerAdapter(
-      this.peerKeyService,
-      this.peerKeyStore
+    this.tcpServerAdapter = faultInjector.wrapAdapter(
+      new TcpServerAdapter(this.peerKeyService, this.peerKeyStore),
+      "tcp"
     );
 
     // Construction order: WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService

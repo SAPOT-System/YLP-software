@@ -11,6 +11,7 @@ import {
   WsSignalingAdapter,
 } from "../adapters";
 import { WebrtcAdapter } from "../adapters/webrtc-adapter";
+import { faultInjector } from "@/features/debug/services/fault-injector";
 import { NotificationService } from "./notification-service";
 import { AppModeStore, NetworkConfig, UserStore } from "../../core/stores";
 import {
@@ -567,7 +568,10 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     try {
       let adapter = this.tcpClientAdapters.get(peerId);
       if (!adapter) {
-        adapter = new TcpClientAdapter(peerId, this.peerKeyService, this.peerKeyStore, this.userStore.user.id);
+        adapter = faultInjector.wrapAdapter(
+          new TcpClientAdapter(peerId, this.peerKeyService, this.peerKeyStore, this.userStore.user.id),
+          "tcp"
+        );
         this.tcpClientAdapters.set(peerId, adapter);
         connectionLog.debug("connection › tcp client created", { peerId });
       }

@@ -2,6 +2,8 @@ import { Database } from "@nozbe/watermelondb";
 import { synchronize } from "@nozbe/watermelondb/sync";
 import SyncLogger from "@nozbe/watermelondb/sync/SyncLogger";
 import { isAxiosError } from "axios";
+import { IS_DEBUG_ENABLED } from "@/config/debug";
+import { faultInjector } from "@/features/debug/services/fault-injector";
 import { toAppError } from "@/features/shared/core/errors";
 import { CallStatus } from "@/features/shared/core/database/model/Call";
 import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
@@ -237,6 +239,10 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
   }
 
   async syncNow() {
+    if (IS_DEBUG_ENABLED && faultInjector.getOfflineFlags().syncDown) {
+      syncLog.debug("sync › skipped (debug syncDown fault active)");
+      return;
+    }
     if (this.isSyncing) return;
     this.isSyncing = true;
 

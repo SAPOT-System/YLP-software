@@ -41,6 +41,10 @@ const mockIceCandidate: RTCIceCandidate = {
   sdpMLineIndex: 0,
 } as RTCIceCandidate;
 
+// Debug fault injection is out of scope for these connection-routing tests —
+// keep faultInjector.wrapAdapter() a true no-op here (see fault-injector.ts).
+jest.mock("@/config/debug", () => ({ IS_DEBUG_ENABLED: false }));
+
 // Mock the adapters
 jest.mock("../../adapters", () => ({
   TcpClientAdapter: jest.fn(),

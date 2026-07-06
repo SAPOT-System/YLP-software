@@ -1,5 +1,8 @@
 import { Database } from "@nozbe/watermelondb";
+import { faultInjector } from "@/features/debug/services/fault-injector";
 import { SyncService } from "../sync-service";
+
+jest.mock("@/config/debug", () => ({ IS_DEBUG_ENABLED: true }));
 import type { MessageRepository } from "@/features/chat/repositories/message-repository";
 import type { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
 
@@ -113,6 +116,29 @@ describe("SyncService", () => {
       await service.syncNow();
 
       // Assert
+      expect(mockSynchronize).toHaveBeenCalled();
+    });
+  });
+
+  describe("debug fault injection", () => {
+    afterEach(() => {
+      faultInjector.setOfflineFlag("syncDown", false);
+    });
+
+    it("skips syncNow when the syncDown fault is set", async () => {
+      faultInjector.setOfflineFlag("syncDown", true);
+
+      await service.syncNow();
+
+      expect(mockSynchronize).not.toHaveBeenCalled();
+    });
+
+    it("runs syncNow normally once syncDown is cleared", async () => {
+      faultInjector.setOfflineFlag("syncDown", true);
+      faultInjector.setOfflineFlag("syncDown", false);
+
+      await service.syncNow();
+
       expect(mockSynchronize).toHaveBeenCalled();
     });
   });

@@ -1,8 +1,16 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
 import { useAuthContainer } from "@/features/auth/hooks/use-auth-container";
+import { IS_DEBUG_ENABLED } from "@/config/debug";
+import { faultInjector } from "@/features/debug/services/fault-injector";
 import { checkBackEndHealth } from "../api/connection.api";
 import { usePing } from "../../hooks/use-ping";
 import { useAppMode } from "./app-mode-context";
+
+function getDebugForcedOffline(): boolean {
+  if (!IS_DEBUG_ENABLED) return false;
+  const flags = faultInjector.getOfflineFlags();
+  return flags.noInternet || flags.serverDown;
+}
 
 export type ServerStatus = {
   online: boolean;
@@ -35,7 +43,19 @@ export const HealthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const { online: pingOnline, latency } = usePing({ enabled: !isLan });
 
-  const online = isLan ? true : initialChecked ? pingOnline : initialOnline;
+  const debugForcedOffline = useSyncExternalStore(
+    (listener) => faultInjector.subscribe(listener),
+    getDebugForcedOffline,
+    () => false
+  );
+
+  const online = debugForcedOffline
+    ? false
+    : isLan
+      ? true
+      : initialChecked
+        ? pingOnline
+        : initialOnline;
   const isServerMode = effectiveMode === "server" || effectiveMode === "auto";
   const shouldWarn = isServerMode && !online;
 

@@ -21,6 +21,8 @@ import { DEBUG_SECTIONS, DebugSectionKey } from "../types";
 import { AuthSection } from "./auth-section";
 import { DatabaseSection } from "./database-section";
 import { DebugSectionPlaceholder } from "./debug-section-placeholder";
+import { NetworkSection } from "./network-section";
+import { OfflineSection } from "./offline-section";
 
 const QUICK_ACTIONS = [
   "Skip login",
@@ -90,6 +92,10 @@ function DebugPanelContent() {
             <DatabaseSection onBack={() => setSelectedSection(null)} />
           ) : selectedSection === "auth" || selectedSection === "users" ? (
             <AuthSection onBack={() => setSelectedSection(null)} />
+          ) : selectedSection === "offline" ? (
+            <OfflineSection onBack={() => setSelectedSection(null)} />
+          ) : selectedSection === "network" ? (
+            <NetworkSection onBack={() => setSelectedSection(null)} />
           ) : (
             <DebugSectionPlaceholder
               section={selectedSection}
