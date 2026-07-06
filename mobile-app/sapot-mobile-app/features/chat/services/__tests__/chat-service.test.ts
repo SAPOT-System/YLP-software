@@ -1,5 +1,5 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-    ConnectionService,
     Conversation,
     ConversationParticipant,
     ConversationType,
@@ -8,9 +8,9 @@ import {
     MessageStatus,
     MessageStatusType,
     Peer,
-    PeerService,
-    UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { PeerService } from "@/features/shared/peer";
+import { UserStore } from "@/features/shared/core/stores";
 import {
     createTestConversation,
     createTestMessage,
@@ -40,8 +40,10 @@ enum MessageType {
 }
 
 // Mock shared dependencies
-jest.mock("@/features/shared", () => ({
+jest.mock("@/features/shared/connection", () => ({
   ConnectionService: jest.fn(),
+}));
+jest.mock("@/features/shared/core/database", () => ({
   Conversation: jest.fn(),
   ConversationType: {
     DIRECT: "direct",
@@ -68,7 +70,11 @@ jest.mock("@/features/shared", () => ({
     NOT_SENT: "not_sent",
   },
   Peer: jest.fn(),
+}));
+jest.mock("@/features/shared/peer", () => ({
   PeerService: jest.fn(),
+}));
+jest.mock("@/features/shared/core/stores", () => ({
   UserStore: jest.fn(),
 }));
 
