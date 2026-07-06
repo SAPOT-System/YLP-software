@@ -1,14 +1,14 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-  ConnectionService,
   Conversation,
   ConversationType,
   database,
   MessageStatusType,
   MessageType,
   Peer,
-  PeerService,
-  UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { PeerService } from "@/features/shared/peer";
+import { UserStore } from "@/features/shared/core/stores";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import * as Notifications from "expo-notifications";

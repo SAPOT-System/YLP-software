@@ -4,7 +4,7 @@ import {
   Message,
   MessageType,
   Peer,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import nacl from "tweetnacl";
