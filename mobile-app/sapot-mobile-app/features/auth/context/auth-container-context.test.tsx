@@ -22,7 +22,7 @@ jest.mock("@/config/runtime", () => ({
   getApiUrl: mockGetApiUrl,
 }));
 
-jest.mock("@/features/shared", () => ({
+jest.mock("@/features/shared/core/api", () => ({
   apiClient: mockApiClient,
 }));
 

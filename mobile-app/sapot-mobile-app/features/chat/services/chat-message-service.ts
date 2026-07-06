@@ -1,5 +1,5 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-  ConnectionService,
   Conversation,
   ConversationType,
   database,
@@ -9,8 +9,8 @@ import {
   MessageStatusType,
   MessageType,
   Peer,
-  UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { UserStore } from "@/features/shared/core/stores";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { ECDH_PREFIX } from "../repositories/message-repository";
