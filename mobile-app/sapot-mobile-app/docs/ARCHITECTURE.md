@@ -41,13 +41,11 @@ WebrtcSessionManager → SignalingService → CallMediaService → ConnectionSer
 
 TODO: the distinction between these two patterns is implied by the circular dependency constraint but is not documented. It is not always obvious which pattern applies to a new dependency.
 
-PIN-gated initialization: the container is held in `pendingContainerRef` and `PinEntryGate` is shown before `initialize()` is called.
-
 **`initialize()` phase decomposition** — the public `initialize()` delegates to three typed private phases:
 
 | Phase | Method | Role |
 |---|---|---|
-| 1 | `initializeKeys(): Promise<KeysReady>` | Loads all crypto keys (local encryption, ECDH, peer keys, conversation keys). Clears pending password/PIN. |
+| 1 | `initializeKeys(): Promise<KeysReady>` | Loads all crypto keys (local encryption, ECDH, peer keys, conversation keys). Clears pending password. |
 | 2 | `handleMigration(keys): Promise<MigrationOk>` | Detects and runs migration recovery re-encrypt; computes `migrationPushPending` flag. |
 | 3 | `startNetworkServices(migOk): Promise<void>` | Starts sync, NetInfo listener, periodic timer, AppState listener, network config watching. |
 
@@ -224,7 +222,7 @@ features/<name>/
 |---|---|---|---|
 | `shared/` | ~22 k | 166 | **Engine** — P2P runtime, encryption, DI, database |
 | `chat/` | ~7.5 k | 45 | Message threads, sync, conversation key management |
-| `auth/` | ~6.2 k | 68 | Registration, login, PIN gate, guest flow |
+| `auth/` | ~6.2 k | 68 | Registration, login, guest flow |
 | `call/` | ~4.1 k | 35 | Audio/video call UI and lifecycle |
 | `sync/` | ~3.2 k | 16 | Background data sync with server |
 | `gps/` | ~0.7 k | 10 | Live location sharing (rescuers only) |

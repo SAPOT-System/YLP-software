@@ -134,10 +134,6 @@ The table below is a quick-reference for precondition states. Full setup procedu
 | TC-071 | Change PW | Wrong current password rejected | Logged in | 1. Enter wrong current password | Error; password unchanged | P0 | Critical | RNTL |
 | TC-072 | Recovery Key | Generate downloads key file | Logged in, not in cooldown | 1. Enter password 2. Tap Generate | Key file downloaded; old key invalidated | P0 | Critical | Maestro |
 | TC-073 | Recovery Key | Blocked during cooldown | Key generated recently | 1. Navigate to Generate Recovery Key | Cooldown message with days remaining | P0 | Critical | RNTL |
-| TC-074 | Encryption PIN | Enable PIN | Logged in, PIN off | 1. Enter password 2. Enter 6-digit PIN 3. Confirm | PIN enabled; badge shows "On" | P0 | Critical | Maestro |
-| TC-075 | Encryption PIN | PIN mismatch rejected | | 1. Enter mismatched PINs | "PINs don't match" error | P1 | High | RNTL |
-| TC-076 | Encryption PIN | Wrong password blocks PIN setup | | 1. Enter wrong password | Auth error; blocked | P0 | Critical | RNTL |
-| TC-077 | Encryption PIN | Disable PIN | PIN enabled | 1. Enter password + current PIN | PIN disabled; badge "Off" | P0 | Critical | Maestro |
 
 ---
 
