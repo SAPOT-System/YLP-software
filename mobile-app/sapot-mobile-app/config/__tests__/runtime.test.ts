@@ -30,17 +30,17 @@ describe("getApiUrl", () => {
     jest.doMock("expo-updates", () => ({
       channel: "preview",
     }));
-    
+
     jest.resetModules();
-    
+
     // Set __DEV__ to false to bypass development check
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = false;
-    
+
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://192.168.0.100");
+    expect(result).toBe("https://server.sapot.lan");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -50,16 +50,16 @@ describe("getApiUrl", () => {
     jest.doMock("expo-updates", () => ({
       channel: "production",
     }));
-    
+
     jest.resetModules();
-    
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = false;
-    
+
     const { getApiUrl } = require("../runtime");
     const result = getApiUrl();
 
-    expect(result).toBe("https://192.168.0.100");
+    expect(result).toBe("https://server.sapot.lan");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -110,7 +110,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://192.168.0.100");
+    expect(result).toBe("wss://server.sapot.lan");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
@@ -129,7 +129,7 @@ describe("getWsUrl", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();
 
-    expect(result).toBe("wss://192.168.0.100");
+    expect(result).toBe("wss://server.sapot.lan");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).__DEV__ = true;
