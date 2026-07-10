@@ -1,6 +1,6 @@
 import { registerWebModule, NativeModule } from 'expo';
 
-import { SapotTrustModuleEvents } from './Sapot-trust.types';
+import { SapotTrustModuleEvents } from './SapotTrust.types';
 
 class SapotTrustModule extends NativeModule<SapotTrustModuleEvents> {
   PI = Math.PI;
@@ -12,4 +12,4 @@ class SapotTrustModule extends NativeModule<SapotTrustModuleEvents> {
   }
 }
 
-export default registerWebModule(SapotTrustModule, 'Sapot-trustModule');
+export default registerWebModule(SapotTrustModule, 'SapotTrustModule');

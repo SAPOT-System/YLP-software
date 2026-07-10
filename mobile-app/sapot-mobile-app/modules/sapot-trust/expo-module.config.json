@@ -1,9 +1,9 @@
 {
   "platforms": ["apple", "android", "web"],
   "apple": {
-    "modules": ["Sapot-trustModule"]
+    "modules": ["SapotTrustModule"]
   },
   "android": {
-    "modules": ["expo.modules.sapottrust.Sapot-trustModule"]
+    "modules": ["expo.modules.sapottrust.SapotTrustModule"]
   }
 }

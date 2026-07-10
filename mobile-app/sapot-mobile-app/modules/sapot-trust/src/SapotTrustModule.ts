@@ -1,6 +1,6 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
-import { SapotTrustModuleEvents } from './Sapot-trust.types';
+import { SapotTrustModuleEvents } from './SapotTrust.types';
 
 declare class SapotTrustModule extends NativeModule<SapotTrustModuleEvents> {
   PI: number;
@@ -9,4 +9,4 @@ declare class SapotTrustModule extends NativeModule<SapotTrustModuleEvents> {
 }
 
 // This call loads the native module object from the JSI.
-export default requireNativeModule<SapotTrustModule>('Sapot-trust');
+export default requireNativeModule<SapotTrustModule>('SapotTrust');
