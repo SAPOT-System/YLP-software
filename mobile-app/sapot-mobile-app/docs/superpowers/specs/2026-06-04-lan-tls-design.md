@@ -184,3 +184,61 @@ export const getTileServerUrl = () => {
 | MITM with bundled cert | N/A | Not possible (private key on server only) |
 | Offline operation | Works | Works (cert check is local) |
 | Dev build impact | None | None |
+
+## Phase 0: Evolution to CA-Pinning (TLS Trust Migration)
+
+**Status:** In development (feat/tls-trust-migration)
+
+The self-signed approach above works but requires rebuilding and re-distributing the mobile app whenever the server certificate is rotated. Phase 0 migrates to a private CA model where:
+
+- A private root CA (`server_ca.key`, `server_ca.pem`) is created once and kept offline
+- Server leaf certificates are issued from that CA and can be rotated **without rebuilding the mobile app**
+- The mobile app pins the CA certificate (not the leaf), so new leaves validate automatically
+
+### CA Setup (one-time, offline)
+
+**See:** `docs/deployment/runbooks.md` → [Offline CA Setup](../../deployment/runbooks.md#offline-ca-setup)
+
+```bash
+# On an offline machine
+openssl req -x509 -newkey rsa:4096 -nodes -days 3650 \
+  -keyout server_ca.key -out server_ca.pem \
+  -subj "/CN=SAPOT LAN Root CA"
+```
+
+- `server_ca.key` stays offline in a physically secure location
+- `server_ca.pem` is distributed to the mobile app as the new trust anchor
+
+### Server Leaf Issuance
+
+**See:** `docs/deployment/runbooks.md` → [TLS Certificate Rotation (CA-pinned server leaf)](../../deployment/runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf)
+
+```bash
+# On the offline machine, issue a new leaf
+openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr \
+  -subj "/CN=server.sapot.lan"
+openssl x509 -req -in server.csr -CA server_ca.pem -CAkey server_ca.key \
+  -CAcreateserial -days 825 \
+  -extfile <(printf "subjectAltName=DNS:server.sapot.lan,IP:%s" "$SERVER_LAN_IP") \
+  -out server.crt
+```
+
+The new `server.crt` and `server.key` are deployed to the server host; old app builds continue to work because they pin the CA, not the leaf.
+
+### Migration Tasks
+
+| Phase | Task | Description |
+|-------|------|-------------|
+| 0 | [Offline CA + leaf issuance docs](docs/deployment/runbooks.md) | Document CA setup and rotation procedures (this document) |
+| 1 | Static CA-pin swap | Update `android-network-security-config.xml` to pin `server_ca.pem` instead of the leaf |
+| 2 | Rotate prod server leaf | Re-issue current prod leaf from the CA (not described in this design doc) |
+
+### Benefits Over Self-Signed Approach
+
+| Scenario | Self-Signed (This Doc) | CA-Pinned (Phase 0+) |
+|----------|---|---|
+| Server cert rotation | Requires new app build/deploy | No app changes needed |
+| CA rotation | N/A | Rare; requires new app build when CA nears expiry |
+| Offline operation | Works (cert bundled) | Works (CA bundled) |
+| Cert chain trust | Single cert | Issuer + leaf (standard PKI) |
+| Revocation | Not supported | Not currently supported (could add CRL in future phases) |
