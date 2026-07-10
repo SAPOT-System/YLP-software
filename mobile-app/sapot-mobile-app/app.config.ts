@@ -45,15 +45,6 @@ const withServerCa: ConfigPlugin = (config) =>
     },
   ]);
 
-const certPath = path.join(__dirname, "server_cert.pem");
-
-if (process.env.SERVER_CERT) {
-  fs.writeFileSync(
-    certPath,
-    Buffer.from(process.env.SERVER_CERT, "base64").toString("utf-8")
-  );
-}
-
 const caPath = path.join(__dirname, "server_ca.pem");
 
 if (process.env.SERVER_CA) {
