@@ -37,6 +37,9 @@ android {
     versionCode 1
     versionName ""
   }
+  buildFeatures {
+    buildConfig true
+  }
   lintOptions {
     abortOnError false
   }

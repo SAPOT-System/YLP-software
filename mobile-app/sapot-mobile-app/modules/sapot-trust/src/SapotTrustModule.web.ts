@@ -1,14 +1,28 @@
 import { registerWebModule, NativeModule } from 'expo';
 
-import { SapotTrustModuleEvents } from './SapotTrust.types';
+import { SapotServerAddress } from './SapotTrust.types';
 
-class SapotTrustModule extends NativeModule<SapotTrustModuleEvents> {
-  PI = Math.PI;
-  async setValueAsync(value: string): Promise<void> {
-    this.emit('onChange', { value });
+class SapotTrustModule extends NativeModule {
+  isReleaseBuild = false;
+
+  async setServerAddress(_hostname: string, _ip: string): Promise<void> {
+    throw new Error('SapotTrust.setServerAddress is not supported on web');
   }
-  hello() {
-    return 'Hello world! 👋';
+
+  async getServerAddress(): Promise<SapotServerAddress | null> {
+    return null;
+  }
+
+  async setCaPem(_pem: string): Promise<void> {
+    throw new Error('SapotTrust.setCaPem is not supported on web');
+  }
+
+  async clearCaPem(): Promise<void> {
+    // no-op on web: no runtime CA store exists
+  }
+
+  async getActiveFingerprint(): Promise<string | null> {
+    return null;
   }
 }
 
