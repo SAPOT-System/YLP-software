@@ -28,7 +28,7 @@ const withArmOnlyAbi: ConfigPlugin = (config) =>
     return mod;
   });
 
-const withServerCert: ConfigPlugin = (config) =>
+const withServerCa: ConfigPlugin = (config) =>
   withDangerousMod(config, [
     "android",
     (mod) => {
@@ -38,8 +38,8 @@ const withServerCert: ConfigPlugin = (config) =>
       );
       fs.mkdirSync(rawDir, { recursive: true });
       fs.copyFileSync(
-        path.join(mod.modRequest.projectRoot, "server_cert.pem"),
-        path.join(rawDir, "server_cert.pem")
+        path.join(mod.modRequest.projectRoot, "server_ca.pem"),
+        path.join(rawDir, "server_ca.pem")
       );
       return mod;
     },
@@ -54,6 +54,15 @@ if (process.env.SERVER_CERT) {
   );
 }
 
+const caPath = path.join(__dirname, "server_ca.pem");
+
+if (process.env.SERVER_CA) {
+  fs.writeFileSync(
+    caPath,
+    Buffer.from(process.env.SERVER_CA, "base64").toString("utf-8")
+  );
+}
+
 const withNetworkSecurityConfig: ConfigPlugin = (config) => {
   // Dev builds allow cleartext so the Expo dev client can reach Metro (HTTP).
   // Prod builds lock down to HTTPS-only with the bundled self-signed cert.
@@ -64,16 +73,16 @@ const withNetworkSecurityConfig: ConfigPlugin = (config) => {
     <trust-anchors>
       <certificates src="system"/>
       <certificates src="user"/>
-      <certificates src="@raw/server_cert"/>
+      <certificates src="@raw/server_ca"/>
     </trust-anchors>
   </base-config>
 </network-security-config>`
     : `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
   <domain-config cleartextTrafficPermitted="false">
-    <domain includeSubdomains="false">192.168.0.100</domain>
+    <domain includeSubdomains="false">server.sapot.lan</domain>
     <trust-anchors>
-      <certificates src="@raw/server_cert"/>
+      <certificates src="@raw/server_ca"/>
     </trust-anchors>
   </domain-config>
 </network-security-config>`;
@@ -264,7 +273,7 @@ export default ({ config }: ConfigContext) => ({
       },
     ],
     withBackgroundActionsForegroundService,
-    withServerCert,
+    withServerCa,
     withNetworkSecurityConfig,
     "expo-router",
     "expo-secure-store",
