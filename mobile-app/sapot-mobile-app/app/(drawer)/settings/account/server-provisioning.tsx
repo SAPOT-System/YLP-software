@@ -1,4 +1,5 @@
 import { IS_DEBUG_ENABLED } from "@/config/debug";
+import { ProvisioningQrScanner } from "@/features/settings/components/provisioning-qr-scanner";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { useCertProvisioningService, useToast } from "@/features/shared/hooks";
@@ -10,7 +11,7 @@ import {
 } from "@react-native-documents/picker";
 import { File } from "expo-file-system";
 import { useEffect, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Modal, ScrollView, View } from "react-native";
 import { Button, Text, TextInput, useTheme } from "react-native-paper";
 
 // Dev/QA-only screen — never rendered in a release build. Gated at the
@@ -30,6 +31,7 @@ function ServerProvisioningForm() {
   const [ip, setIp] = useState("");
   const [savingIp, setSavingIp] = useState(false);
   const [importingCa, setImportingCa] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   useEffect(() => {
     uiLog.info("[ServerProvisioning] mounted");
@@ -121,6 +123,15 @@ function ServerProvisioningForm() {
         </Button>
       </View>
 
+      <Button
+        mode="outlined"
+        onPress={() => setShowQrScanner(true)}
+        style={{ marginBottom: 24 }}
+        accessibilityLabel="Scan provisioning QR code"
+      >
+        Scan QR
+      </Button>
+
       <Text
         variant="titleMedium"
         style={{ color: theme.colors.onSurface, marginBottom: 8 }}
@@ -140,6 +151,29 @@ function ServerProvisioningForm() {
       <AppSnackbar visible={visible} onDismiss={hideToast} variant={variant}>
         {message}
       </AppSnackbar>
+
+      <Modal
+        visible={showQrScanner}
+        animationType="slide"
+        onRequestClose={() => setShowQrScanner(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: theme.colors.background,
+            paddingTop: 48,
+          }}
+        >
+          <Button
+            mode="text"
+            onPress={() => setShowQrScanner(false)}
+            style={{ alignSelf: "flex-start", marginLeft: 8 }}
+          >
+            Close
+          </Button>
+          <ProvisioningQrScanner onDone={() => setShowQrScanner(false)} />
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
