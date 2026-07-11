@@ -5,6 +5,7 @@ import {
   withGradleProperties,
 } from "@expo/config-plugins";
 import { ConfigContext } from "expo/config";
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -63,6 +64,26 @@ if (process.env.SERVER_CA) {
     caPath,
     Buffer.from(process.env.SERVER_CA, "base64").toString("utf-8")
   );
+}
+
+// Guard against shipping the committed placeholder CA (short-lived, CN
+// "SAPOT LAN Root CA (placeholder)") to a real EAS build. `EAS_BUILD` is set
+// by the EAS CLI itself during an actual build, so this never fires for
+// local tooling (expo config, expo-doctor, typecheck) that evaluates this
+// file without producing an artifact.
+const IS_REAL_EAS_BUILD = process.env.EAS_BUILD === "true";
+const IS_DEV_BUILD = process.env.APP_VARIANT === "development";
+if (IS_REAL_EAS_BUILD && !IS_DEV_BUILD && fs.existsSync(caPath)) {
+  const cert = new crypto.X509Certificate(fs.readFileSync(caPath));
+  const isPlaceholder = /placeholder/i.test(cert.subject);
+  const isExpired = new Date(cert.validTo).getTime() <= Date.now();
+  if (isPlaceholder || isExpired) {
+    throw new Error(
+      `Refusing to build a field (non-dev) variant with the placeholder/expired CA ` +
+        `(subject: "${cert.subject}", validTo: ${cert.validTo}). Set the SERVER_CA ` +
+        `EAS secret to a real CA before building preview/production.`
+    );
+  }
 }
 
 const withNetworkSecurityConfig: ConfigPlugin = (config) => {
