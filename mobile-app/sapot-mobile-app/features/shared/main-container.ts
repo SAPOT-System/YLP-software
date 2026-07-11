@@ -1,5 +1,6 @@
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { decodeBase64 } from "tweetnacl-util";
+import * as sapotTrust from "@/modules/sapot-trust";
 import { getApiUrl, getWsUrl, getServerVerifyKey } from "@/config/runtime";
 import {
   TcpServerAdapter,
@@ -36,6 +37,7 @@ import { ChatService } from "@/features/chat/services/chat-service";
 import { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
 import { PublicChatService } from "@/features/chat/services/public-chat-service";
 import { setAppAlive } from "@/task/signaling-task";
+import { CertProvisioningService } from "@/features/settings/services/cert-provisioning-service";
 import { AuthContainer } from "../auth/auth-container";
 import { CallParticipantRepository } from "../call/repositories/call-participant-repository";
 import { CallRepository } from "../call/repositories/call-repository";
@@ -107,6 +109,7 @@ export class MainContainer {
   readonly peerKeyStore: PeerKeyStore;
   readonly keyRecoveryService: KeyRecoveryService;
   readonly conversationKeyManager: ConversationKeyManager;
+  readonly certProvisioning: CertProvisioningService;
 
   private initPromise?: Promise<void>;
   private unsubscribeNetInfo?: () => void;
@@ -137,6 +140,7 @@ export class MainContainer {
     this.peerKeyService = new PeerKeyService();
     this.peerKeyStore = new PeerKeyStore();
     this.keyRecoveryService = new KeyRecoveryService();
+    this.certProvisioning = new CertProvisioningService({ trust: sapotTrust });
     this.zeroconfAdapter = new ZeroconfAdapter();
     this.discoveryService = new DiscoveryService(
       this.zeroconfAdapter,
