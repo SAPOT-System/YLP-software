@@ -109,6 +109,7 @@ Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `r
 | `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service idempotently and only marks it active after `ZeroconfAdapter` confirms publication. |
 | `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
 | `CleanUpService` | Cleanup of stale data and connections |
+| `CertProvisioningService` (`features/settings/services/cert-provisioning-service.ts`) | Dev/QA runtime TLS provisioning: validates and imports a PEM CA cert and sets the server's IP address, delegating to the native `sapot-trust` module (`@/modules/sapot-trust`) for trust-anchor/DNS storage and to `saveServerHostOverride` for host-override persistence. Injected into `MainContainer` as `certProvisioning`; exposed via `use-cert-provisioning-service.ts`. |
 
 ---
 
