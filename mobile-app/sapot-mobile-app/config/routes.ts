@@ -30,6 +30,7 @@ export const SETTINGS_ROUTES = {
   CONTACTS: "/(drawer)/settings/account/contacts",
   QR_CODE: "/(drawer)/settings/account/qr-code",
   SWITCH_MODE: "/(drawer)/settings/account/switch-mode",
+  SERVER_PROVISIONING: "/(drawer)/settings/account/server-provisioning",
   // Account email
   UPDATE_EMAIL: "/(drawer)/settings/account/email/update-email",
   VERIFY_EMAIL: "/(drawer)/settings/account/email/verify-email",

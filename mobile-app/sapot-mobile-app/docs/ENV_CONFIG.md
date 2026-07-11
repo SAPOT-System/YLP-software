@@ -11,6 +11,7 @@
 | `EXPO_PUBLIC_LOG_TO_FILE` | Optional | Set to `1` to write logs to a daily on-device file in development. On-device file logging is always on in production builds. |
 | `EXPO_PUBLIC_LOG_TO_LAPTOP` | Optional | In development, ship logs to the laptop log collector. On by default in dev; set to `0` to disable. |
 | `EXPO_PUBLIC_LOG_SERVER_PORT` | Optional | Port the laptop log collector listens on (default `19000`). Must match `LOG_SERVER_PORT` used by `npm run log-server`. |
+| `EXPO_PUBLIC_DEBUG_MENU` | Optional | Set to `1` to enable dev/QA-only screens (e.g. the manual server-provisioning screen at `SETTINGS_ROUTES.SERVER_PROVISIONING`) in a non-`__DEV__` (preview) build. Never set in production builds — see `config/debug.ts`'s `IS_DEBUG_ENABLED`. |
 
 ### Setting up local env
 
