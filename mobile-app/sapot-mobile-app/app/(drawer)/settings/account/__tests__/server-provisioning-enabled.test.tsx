@@ -15,6 +15,15 @@ jest.mock("@/features/shared/hooks", () => ({
     currentFingerprint: jest.fn(),
     reset: jest.fn(),
   }),
+  useMainContainer: () => ({
+    zeroconfAdapter: {
+      on: jest.fn(),
+      removeListener: jest.fn(),
+      isScanning: jest.fn().mockReturnValue(false),
+      scan: jest.fn(),
+      restartScan: jest.fn(),
+    },
+  }),
   useToast: () => ({
     visible: false,
     message: "",

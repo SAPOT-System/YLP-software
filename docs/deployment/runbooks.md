@@ -166,6 +166,40 @@ echo | openssl s_client -connect <sapot-server-host>:8000 2>/dev/null | openssl 
 
 ---
 
+## mDNS server-discovery advertisement (avahi)
+
+**When:** One time, on the server host, so the mobile app's "Auto-detect" server-provisioning flow can find the server's LAN IP without manual entry. This complements — does not replace — manual IP entry and QR provisioning; if avahi/mDNS is unavailable on the network, those fallbacks still work.
+
+1. On the server host, create `/etc/avahi/services/sapot-server.service`:
+   ```xml
+   <?xml version="1.0" standalone='no'?>
+   <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+   <service-group>
+     <name>SAPOT Server</name>
+     <service>
+       <type>_sapot-server._tcp</type>
+       <port>443</port>
+       <txt-record>caFp=&lt;SHA256_OF_server_ca.pem&gt;</txt-record>
+     </service>
+   </service-group>
+   ```
+   Replace `<SHA256_OF_server_ca.pem>` with the current CA fingerprint (same value the mobile app shows as `currentFingerprint()` after import — see [Offline CA Setup](#offline-ca-setup)). Re-run this step whenever the CA is rotated so the advertised fingerprint stays current.
+
+2. Restart avahi to pick up the new service file:
+   ```bash
+   sudo systemctl restart avahi-daemon
+   ```
+
+3. Verify the advertisement is visible on the LAN:
+   ```bash
+   avahi-browse -r _sapot-server._tcp
+   # expect: hostname/address/port matching this server, and a caFp TXT record
+   ```
+
+**Mobile app behavior:** The "Auto-detect" button on the dev/QA server-provisioning screen browses `_sapot-server._tcp.local.` for a bounded timeout. On resolve it reads the advertised IP and `caFp` TXT record, applies the IP, and surfaces the fingerprint for the user to compare against the currently trusted CA (mismatch warns, does not block — the operator must still import/confirm the correct CA). On timeout, it shows a "not found" message rather than a silent or indefinite spinner.
+
+---
+
 ## Rollback (server code deploy)
 
 **When:** A server deploy introduces a regression and needs to be reverted.
