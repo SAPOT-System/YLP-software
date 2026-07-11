@@ -99,7 +99,6 @@ export function ProvisioningQrScanner({ onDone }: ProvisioningQrScannerProps) {
         ip: payload.ip,
         fingerprint: activeFingerprint,
       });
-      onDone?.();
     } catch (error) {
       uiLog.error("[ProvisioningQrScanner] failed to apply server IP", {
         error,
@@ -190,14 +189,20 @@ export function ProvisioningQrScanner({ onDone }: ProvisioningQrScannerProps) {
           </View>
         )}
 
-        <Button
-          mode="outlined"
-          onPress={handleScanAgain}
-          disabled={isScanning}
-          style={styles.button}
-        >
-          Scan Again
-        </Button>
+        {result.status === "match" ? (
+          <Button mode="contained" onPress={onDone} style={styles.button}>
+            Done
+          </Button>
+        ) : (
+          <Button
+            mode="outlined"
+            onPress={handleScanAgain}
+            disabled={isScanning}
+            style={styles.button}
+          >
+            Scan Again
+          </Button>
+        )}
       </View>
     </View>
   );

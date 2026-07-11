@@ -85,7 +85,7 @@ describe("ProvisioningQrScanner", () => {
     expect(await findByTestId("camera-view")).toBeTruthy();
   });
 
-  it("sets the server IP and shows success on a matching fingerprint", async () => {
+  it("sets the server IP and shows success on a matching fingerprint, requiring an explicit Done tap before dismissing", async () => {
     mockSetServerIp.mockResolvedValue(undefined);
     mockCurrentFingerprint.mockResolvedValue("aa:bb:cc");
     const onDone = jest.fn();
@@ -99,6 +99,13 @@ describe("ProvisioningQrScanner", () => {
 
     await waitFor(() => expect(mockSetServerIp).toHaveBeenCalledWith("192.168.1.55"));
     await findByText(/Scanned fingerprint matches the active CA/);
+
+    // The success confirmation must stay visible until the user explicitly
+    // dismisses it — onDone must NOT fire automatically on a match, or the
+    // caller (a modal) could close before the user reads the confirmation.
+    expect(onDone).not.toHaveBeenCalled();
+
+    fireEvent.press(await findByText("Done"));
     expect(onDone).toHaveBeenCalled();
   });
 
