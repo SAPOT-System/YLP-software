@@ -37,7 +37,11 @@ export const initRuntimeOverrides = async () => {
   });
 
   if (!__DEV__ && _hostOverride) {
-    await SapotTrust.setServerAddress(SERVER_NAME, _hostOverride);
+    try {
+      await SapotTrust.setServerAddress(SERVER_NAME, _hostOverride);
+    } catch (error) {
+      configLog.error("config › failed to set native server address", { error });
+    }
   }
 };
 
