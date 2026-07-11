@@ -104,30 +104,29 @@ Logic in `config/runtime.ts`:
 | Condition | API Base URL | WS Base URL |
 |---|---|---|
 | `__DEV__ === true` | `http://<DEV_HOST>:8000` | `ws://<DEV_HOST>:8000` |
-| EAS channel `preview` | `https://192.168.0.100:8000` | `wss://192.168.0.100:8000` |
-| EAS channel `production` | `https://192.168.0.100:8000` | `wss://192.168.0.100:8000` |
+| EAS channel `preview` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
+| EAS channel `production` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
 
-To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`.
+`server.sapot.lan` is a stable, build-time-fixed hostname (`config/runtime.ts`'s `SERVER_NAME` constant) — the server's actual IP is resolved at runtime by the native `sapot-trust` module's OkHttp `Dns` (see below), not baked into the app. To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`.
 
 ---
 
-## TLS Certificate
+## TLS Trust (CA-pinned, runtime-provisioned)
 
-Preview and production builds connect to the LAN server over TLS using a self-signed certificate pinned in the APK.
+Preview and production builds connect to the server over TLS using a **private CA** pinned via Android network-security-config, plus a runtime `X509TrustManager`/`Dns` pair (local Expo module `modules/sapot-trust/`) that decouples cert identity from the server's IP. Full design: `docs/superpowers/plans/2026-07-10-tls-trust-migration.md`; architecture: `docs/ARCHITECTURE.md`.
 
 | File | Location | Notes |
 |---|---|---|
-| Public cert | `android/app/src/main/res/raw/server_cert.pem` | Committed to repo — safe to share |
-| Private key | `/home/sapot/certs/server.key` on server only | Never committed |
+| Default CA (public) | `mobile-app/sapot-mobile-app/server_ca.pem` (repo root); also bundled at `modules/sapot-trust/android/src/main/assets/server_ca.pem` and copied into `res/raw/server_ca.pem` / `android/app/src/main/assets/server_ca.pem` at prebuild | Committed to repo — safe to share (public cert, not the CA private key) |
+| CA private key | Kept offline per `docs/deployment/runbooks.md`'s CA runbook | Never committed |
+| `SERVER_CA` (EAS secret) | Base64-encoded CA PEM, materialized into `server_ca.pem` at prebuild time by `app.config.ts` | Set via `eas secret:create` for the relevant build profile |
+| Runtime CA (dev/QA only) | Imported at runtime via the server-provisioning screen (`SETTINGS_ROUTES.SERVER_PROVISIONING`, gated by `EXPO_PUBLIC_DEBUG_MENU`) | Stored in app-private storage; **never honored in release builds** (`SapotTrustModule.setCaPem` throws when `!BuildConfig.DEBUG`) |
 
-Check expiry: `openssl x509 -in android/app/src/main/res/raw/server_cert.pem -noout -enddate`
+Trust precedence: bundled default CA (always trusted) plus the runtime CA (only when `BuildConfig.DEBUG`, i.e. dev/QA builds). Check the active anchor's fingerprint: `SapotTrust.getActiveFingerprint()` (JS) or `openssl x509 -in server_ca.pem -noout -fingerprint -sha256` (offline).
 
-**Renewing the cert:**
-1. Re-run the openssl command from `server/.env.example`
-2. Copy new `server.crt` to `android/app/src/main/res/raw/server_cert.pem`
-3. Update `android-network-security-config.xml` if the server IP changed
-4. Restart the server (`pkill -f gunicorn && bash runserver.sh &`)
-5. Ship a new app build — existing installs reject the new cert until updated (OTA cannot update `res/raw/`)
+**Rotating the CA** (rare — invalidates all existing installs' trust until updated): see the "CA rotation" runbook in `docs/deployment/runbooks.md`.
+
+**Rotating the server leaf** (routine — no app change needed, since the app trusts the CA, not the leaf): re-issue a CA-signed leaf on the server; existing app installs keep working with zero changes, per the same runbook.
 
 ---
 
@@ -140,6 +139,8 @@ Defined in `eas.json`.
 | `development` | `npm run android:dev` | Local dev with dev client |
 | `preview` | `npm run android:prev` | Internal testing / QA |
 | `production` | `npm run android:prod` | Play Store release |
+
+The `SERVER_CA` EAS secret (base64-encoded CA PEM) must be set for `preview` and `production` builds — see the "TLS Trust" section above. `EXPO_PUBLIC_DEBUG_MENU` should only ever be set for the `preview` profile, never `production`.
 
 ---
 

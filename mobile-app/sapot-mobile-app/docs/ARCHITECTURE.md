@@ -110,6 +110,7 @@ Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `r
 | `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
 | `CleanUpService` | Cleanup of stale data and connections |
 | `CertProvisioningService` (`features/settings/services/cert-provisioning-service.ts`) | Dev/QA runtime TLS provisioning: validates and imports a PEM CA cert and sets the server's IP address, delegating to the native `sapot-trust` module (`@/modules/sapot-trust`) for trust-anchor/DNS storage and to `saveServerHostOverride` for host-override persistence. Injected into `MainContainer` as `certProvisioning`; exposed via `use-cert-provisioning-service.ts`. |
+| `discoverServerIp` (`features/settings/services/server-discovery-service.ts`) | One-off mDNS lookup of the server's IP + advertised CA fingerprint, browsing `_sapot-server._tcp.local.` via the SAME shared `ZeroconfAdapter` instance `DiscoveryService` already uses (no second Zeroconf instance) — resolves `{ip, caFp?}` or `null` on timeout. Wired into the server-provisioning screen's "Auto-detect" button. |
 
 ---
 
@@ -200,6 +201,16 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 | `LivenessMonitor` | Application-level data-channel ping/pong probe, extracted from `WebrtcAdapter`. Detects half-open links and triggers ICE restart via closures. |
 | `IceRestartController` | ICE-restart scheduling and exponential-backoff logic, extracted from `WebrtcAdapter`. Drives `createOffer({ iceRestart: true })` and emits `signal-offer`/`ice-restarting`/`connection-failed` via closures. |
 | `ZeroconfAdapter` | `react-native-zeroconf`. Tracks the active published service name, exposes publish confirmation via the native `published` event, and serializes scan/publish cleanup. |
+
+---
+
+## Local Expo Modules
+
+| Module | Purpose |
+|---|---|
+| `sapot-trust` (`modules/sapot-trust/`) | Local (unpublished) Expo module registering a custom Android `OkHttpClientFactory` at `OnCreate` — installs a runtime `X509TrustManager` (bundled default CA, plus an optional dev/QA-only runtime CA gated on `BuildConfig.DEBUG`) and an OkHttp `Dns` that maps the stable hostname `server.sapot.lan` to a runtime-configured IP. Covers all app HTTPS/WSS traffic (axios REST via the OkHttp-backed XHR adapter, RN WebSocket, map tiles) with one factory. JS API: `isReleaseBuild()`, `setServerAddress()`, `getServerAddress()`, `setCaPem()`, `clearCaPem()`, `getActiveFingerprint()`. Never overrides `hostnameVerifier` — default Android hostname verification is preserved. |
+
+`app.config.ts`'s `withServerCa` and `withSapotTrust` config plugins copy the CA (materialized from the `SERVER_CA` EAS secret) into `res/raw/server_ca.pem` (for the network-security-config XML) and `android/app/src/main/assets/server_ca.pem` (for the app-level asset) respectively at prebuild time — see `docs/ENV_CONFIG.md`'s "TLS Trust" section.
 
 ---
 
