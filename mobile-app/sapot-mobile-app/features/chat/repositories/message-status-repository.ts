@@ -4,7 +4,7 @@ import {
   MessageStatus,
   MessageStatusType,
   Peer,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { messageStatusId } from "@/features/chat/utils/message-status-id";

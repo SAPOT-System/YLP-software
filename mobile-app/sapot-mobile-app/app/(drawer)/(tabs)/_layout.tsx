@@ -3,7 +3,6 @@ import { useConnectionService } from "@/features/shared/hooks";
 import { navLog } from "@/features/shared/core/utils/logger";
 import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
 import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
 import { router, Tabs, usePathname } from "expo-router";
 import React, { useEffect } from "react";
@@ -98,14 +97,6 @@ function IncomingCallListener() {
   return null;
 }
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>["name"];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
-}
-
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
@@ -175,14 +166,6 @@ export default function TabLayout() {
               <Entypo name="chat" size={24} color={color} />
             ),
             headerShown: false,
-          }}
-        />
-        <Tabs.Screen
-          name="debug"
-          options={{
-            title: "Debugger",
-            tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-            href: null,
           }}
         />
         <Tabs.Screen

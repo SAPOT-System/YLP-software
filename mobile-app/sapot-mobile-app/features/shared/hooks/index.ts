@@ -6,7 +6,6 @@ export * from "./use-active-users";
 export * from "./use-cert-provisioning-service";
 export * from "./use-check-connection";
 export * from "./use-connection-service";
-export { default as useDatabase } from "./use-database";
 export * from "./use-dialog-visibility";
 export * from "./use-discovery-service";
 export * from "./use-foreground-sync";

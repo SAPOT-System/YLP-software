@@ -1,92 +1,51 @@
-# CLAUDE.md
+# CLAUDE.md — mobile-app/sapot-mobile-app
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Instructions for Claude Code working in the SAPOT mobile app. See root `../../CLAUDE.md` for repo-wide rules; this file is project-specific. Repo-wide git/commit conventions live in root `CLAUDE.md` / `CONTRIBUTING.md` — not repeated here.
 
-## Important
+## Project Overview
 
-**Keep documentation in sync.** When adding or updating features, APIs, messages, database tables, or services, update the relevant file in `docs/`:
-- `docs/ARCHITECTURE.md` — new services, adapters, stores, DI wiring, transport changes
-- `docs/CALL_FLOW.md` — new call message types or lifecycle changes
-- `docs/API.md` — new or changed REST endpoints
-- `docs/DATABASE.md` — schema changes (new tables, columns, enums)
-- `docs/SYNC.md` — sync strategy, triggers, and `lastPulledAt` tracking
-- `docs/ENV_CONFIG.md` — new env vars, build variants, or secure storage keys
-- `docs/TESTING.md` — new test utilities, mock patterns, or testing conventions
-- `docs/CONNECTION_MESSAGES.md` — new WebSocket, TCP, or WebRTC data channel messages
-- `docs/LAN_MESSENGER.md` — LAN-only messaging behavior and constraints
-- `docs/diagrams/` — sequence/architecture diagrams
+React Native / Expo (Expo Router) Android app — the primary client of the SAPOT platform. Provides LAN-first messaging (P2P + WebSocket relay fallback), voice/video calls (WebRTC), live GPS sharing, announcements, and offline-first local storage, so the app keeps working when internet/server connectivity is unavailable.
 
-Before writing any new file, read these to ensure consistency with established patterns:
-- `docs/ARCHITECTURE.md` — service and adapter landscape, DI wiring
-- `docs/design-system.md` — component patterns, theming, spacing
-- `docs/conventions.md` — naming, error handling, coding style
-- `docs/system-boundaries.md` — service interface and feature boundary rules
+Stack: Expo, React Native, TypeScript, WatermelonDB (SQLite), WebRTC, `react-native-tcp-socket`, `tweetnacl` (E2E crypto), `expo-background-task`.
 
-If any conflict with CLAUDE.md, CLAUDE.md wins.
-
-## Large Changes
-
-For any change touching shared code or spanning more than one feature: list every affected file and caller, provide a written plan, wait for explicit user approval, then implement and verify. Never begin implementation before the user approves the plan.
-
----
-
-## Decision Rules (precedence: top wins)
-
-1. A direct user instruction in the current task overrides any rule below.
-2. **One pattern per problem.** When two code patterns exist for the same concern,
-   prefer the one used in `features/shared/` and the most recently merged on `main`.
-   If still ambiguous, STOP and ask — never introduce a third pattern.
-3. **Reuse before creating.** Search (`Grep`/`Glob`) for an existing service,
-   adapter, hook, or util before writing a new one. Extend the existing one unless
-   the user asked for a new module.
-4. **Audit before refactoring.** Before changing shared code, find every caller and
-   list them. Do not change a shared signature without accounting for all consumers.
-5. **Server boundary.** `server/` is read-only reference. If a mobile change requires
-   a backend change, STOP and surface it — do not edit `server/` unless the user
-   explicitly approves a backend change.
-6. **Scope discipline.** Make the change requested and nothing more. No drive-by
-   refactors, renames, or dependency bumps unless asked.
-
----
-
-## Definition of Done (all required before reporting complete)
-
-- [ ] `npm run typecheck` passes.
-- [ ] `npm test` passes for affected areas (`npm run testAll` for cross-cutting changes).
-- [ ] `npm run lint` is clean.
-- [ ] The relevant `docs/` file is updated per the doc-sync list above.
-- [ ] No new file exceeds 800 lines; no new function exceeds ~50 lines.
-- [ ] If tests, typecheck, or lint did not pass, say so explicitly — do not report done.
-
----
-
-## Repository Structure
-
-- **`mobile-app/sapot-mobile-app/`** — React Native / Expo mobile app (primary working directory)
-- **`server/`** — Python FastAPI backend (read-only reference)
-
----
-
-## Mobile App Commands
-
-Use the `app-commands` skill for the full CLI reference. Core quality checks: `npm run typecheck`, `npm test`, `npm run testAll`.
-
----
+Use the `app-commands` skill for the full CLI reference beyond the quality-gate commands listed in "When Modifying This Project" below.
 
 ## Architecture
 
-### Dependency Injection Containers
+### Dependency Injection
 
-The app uses manual DI via two container classes:
+Manual DI via two container classes, not a framework:
+- **`AuthContainer`** (`features/auth/auth-container.ts`) — owns auth state: `sessionStore`, `userStore`, `peerService`, `peerRepository`, `userService`.
+- **`MainContainer`** (`features/shared/main-container.ts`) — constructed with an `AuthContainer`; the single point of initialization for the app, wiring every runtime service/repository. Passed down via React context (`features/shared/context/main-container-context.tsx`). Services are instantiated once, not singletons.
 
-- **`AuthContainer`** (`features/auth/auth-container.ts`) — owns auth state: `sessionStore`, `userStore`, `peerService`, `peerRepository`, `userService`
-- **`MainContainer`** (`features/shared/main-container.ts`) — constructed with an `AuthContainer`, wires together all runtime services and repositories. This is the single point of initialization for the app.
+**Construction order matters:** `ConnectionService` is constructed last because it wires sub-services in its constructor via callbacks (`.setTcpCallbacks()`, `.setSignalingSender()`). Callbacks use closures instead of `.bind()` so `jest.spyOn` replacements on the instance are respected in tests — don't "simplify" this to `.bind()`.
 
-Services are not singletons — instantiated once in `MainContainer` and passed down via React context (`features/shared/context/main-container-context.tsx`).
+### Connection layer (`features/shared/connection/services/`)
 
-**Construction order matters.** `ConnectionService` is constructed last because it wires sub-services in its constructor via callbacks (`.setTcpCallbacks()`, `.setSignalingSender()`). Callbacks use closures instead of `.bind()` so `jest.spyOn` replacements on the instance are respected in tests.
+- **`ConnectionService`** — central P2P facade; manages `TcpClientAdapter` per peer, orchestrates `WebrtcSessionManager`, `SignalingService`, `CallMediaService`. Extends `TypedEventEmitter<ConnectionServiceEvents>`. Three transport modes, selected via `AppModeStore`: `auto` (WS first, TCP fallback), `server` (WS only), `lan` (TCP only).
+- **`WebrtcSessionManager`** — one `WebrtcAdapter` (RTCPeerConnection) per peer; forwards `remoteStream`/`peer-reconnected`/`camera-on` etc. up to `ConnectionService`.
+- **`SignalingService`** — routes WebRTC SDP/ICE via TCP (direct) or WS (relay), enforcing the active transport mode.
+- **`CallMediaService`** — local mic/camera stream lifecycle.
+- **`DiscoveryService`** — mDNS (Zeroconf) peer discovery on the LAN.
+- **`ChatService`** — message send/receive, persisted to WatermelonDB via data channels.
+- **`CallService`** — call lifecycle, audio routing (earpiece/speaker/Bluetooth) via `react-native-incall-manager`.
+- **`SyncService`** — periodic sync against the server REST API.
+- **`CleanUpService`** — purges stale peers/messages/conversations; wired into `UserService` so cleanup runs on logout.
+- **`ActiveUsersService`** — tracks peer presence via the WS signaling adapter.
 
-### Feature Structure
+### Adapters (`features/shared/connection/adapters/`)
+
+Thin injectable wrappers around native modules, for testability: `TcpServerAdapter`/`TcpClientAdapter` (`react-native-tcp-socket`), `WsSignalingAdapter` (WebSocket + auto-reconnect/heartbeat, relay via server), `ZeroconfAdapter` (`react-native-zeroconf`), `WebrtcAdapter` (`react-native-webrtc`).
+
+### Background connectivity
+
+`expo-background-task` + `expo-task-manager` (`task/signaling-task.ts`). Two coordination mechanisms:
+1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down; `setAppAlive(false)` on cleanup lets it resume.
+2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, local IP via `expo-secure-store`. `NetworkConfig` writes the updated IP immediately on WiFi change so the background task reads current config on wake.
+
+The task wakes every 15 minutes (Android minimum) using stored config to maintain connectivity when the app is killed.
+
+## Directory Guide
 
 ```
 features/<name>/
@@ -97,100 +56,72 @@ features/<name>/
   types.ts
   index.ts        # Public API
 ```
+Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`.
 
-Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`
+- `app/` — Expo Router file-based routing (screens).
+- `features/shared/` — cross-feature services, DI containers, connection/crypto/database infrastructure. Check here first before writing a new util/service.
+- `docs/` — project-specific architecture docs (see Development Conventions — keep in sync).
+- `test/` — test utilities (builders, factories, mocks); `jest-setup.js` has global mocks for WatermelonDB, TCP sockets, WebRTC, Zeroconf, Expo modules, react-native-paper.
+- `task/` — background task registration (`signaling-task.ts`).
 
-### Core Services (`features/shared/connection/services/`)
+## Key Concepts
 
-- **`ConnectionService`** — central P2P facade. Manages `TcpClientAdapter` per peer, orchestrates `WebrtcSessionManager`, `SignalingService`, and `CallMediaService`. Extends `TypedEventEmitter<ConnectionServiceEvents>`, emitting typed call/stream/connection events. Three transport modes: `auto` (WS first, TCP fallback), `server` (WS only), `lan` (TCP only). Mode is driven by `AppModeStore`.
-- **`WebrtcSessionManager`** — manages one `WebrtcAdapter` (RTCPeerConnection) per peer. Forwards events (`remoteStream`, `peer-reconnected`, `camera-on`, etc.) up to `ConnectionService`.
-- **`SignalingService`** — routes WebRTC SDP/ICE messages. Sends via TCP (direct) or WS (relay), enforcing mode constraints.
-- **`CallMediaService`** — initializes and manages local media streams (mic/camera).
-- **`DiscoveryService`** — Zeroconf (mDNS) peer discovery on the local network.
-- **`ChatService`** — message send/receive and persistence to WatermelonDB via data channels.
-- **`CallService`** — audio/video call lifecycle. Manages audio routes (earpiece/speaker/Bluetooth) via `react-native-incall-manager`.
-- **`SyncService`** — periodic sync of local data with the server REST API.
-- **`CleanUpService`** — purges stale peers, messages, and conversations. Wired into `UserService` so cleanup runs on logout.
-- **`ActiveUsersService`** — tracks which peers are currently online via the WS signaling adapter and notifies listeners of presence changes.
+- **Transport modes** (`auto`/`server`/`lan`, `AppModeStore`) — determine whether P2P (TCP), server-relayed (WS), or both are used for signaling/chat. Most connection bugs trace back to which mode was active.
+- **Encryption / key management** (`features/shared/crypto/`) — NaCl box (`tweetnacl`) E2E encryption over both TCP and WS transports, plus at-rest encryption. Key files: `tcp-encryption.ts`, `ws-encryption.ts`, `local-encryption-service.ts`, `peer-key-service.ts`, `key-derivation.ts`, `key-recovery-service.ts`. Use the `crypto-architecture` skill for the full file map and decision rules — don't re-derive this from scratch.
+- **GPS** (`features/gps/`) — live location sharing via a dedicated WebSocket (`/gps/ws/<userId>`), independent of `ConnectionService`. Key hooks: `useGpsStreaming`, `useLatestLocations`. Gated by `UserStore.isRescuer`. Use the `gps-architecture` skill for hook details.
+- **Local database** — WatermelonDB/SQLite. Schema (`features/shared/database/schema.ts`, version 10): `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Notable columns: `peers.role`, `peers.is_guest`, `messages.is_encrypted`. Migrations in `features/shared/database/migrations.ts`.
+- **Environment/config** — `config/runtime.ts` resolves API/WS base URLs: `__DEV__` → `http://<DEV_HOST>:8000` (update `DEV_HOST` for local dev); EAS channels `preview`/`production` → `https://sapot.online`.
+- **Logging** — scope-based logger (`features/shared/core/utils/logger.ts`); enable scopes via `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,...` (unset = all). Daily log file via `getLogFilePath()`. Use the `dev-logging` skill for log retrieval.
 
-### Encryption / Key Management (`features/shared/crypto/`)
+## Development Conventions
 
-NaCl box (`tweetnacl`) E2E encryption over both TCP and WS transports, plus at-rest encryption. Key files: `tcp-encryption.ts`, `ws-encryption.ts`, `local-encryption-service.ts`, `peer-key-service.ts`, `key-derivation.ts`, `key-recovery-service.ts`. Crypto stack: `tweetnacl`, `@noble/hashes`, `expo-crypto`, `react-native-quick-crypto`. Use the `crypto-architecture` skill for the full file map and decision rules.
+**Decision rules (precedence: top wins):**
+1. A direct user instruction in the current task overrides any rule below.
+2. **One pattern per problem.** When two code patterns exist for the same concern, prefer the one used in `features/shared/` and the most recently merged on `main`. If still ambiguous, STOP and ask — never introduce a third pattern.
+3. **Reuse before creating.** Search (`Grep`/`Glob`) for an existing service, adapter, hook, or util before writing a new one. Extend the existing one unless the user asked for a new module.
+4. **Audit before refactoring.** Before changing shared code, find every caller and list them. Do not change a shared signature without accounting for all consumers.
+5. **Cross-component changes.** If a mobile change requires a backend change, treat it as a two-component change: implement both together (see `../../server/CLAUDE.md` for backend-specific rules) and call out the cross-component impact in your summary — don't silently leave the backend half undone.
+6. **Scope discipline.** Make the change requested and nothing more. No drive-by refactors, renames, or dependency bumps unless asked.
 
-### Adapters (`features/shared/connection/adapters/`)
+**Large changes:** for any change touching shared code or spanning more than one feature — list every affected file and caller, provide a written plan, wait for explicit user approval, then implement and verify. Never begin implementation before approval.
 
-Thin injectable wrappers around native modules for testability:
+**Keep documentation in sync.** When adding/updating features, APIs, messages, DB tables, or services, update the relevant `docs/` file:
+- `docs/ARCHITECTURE.md` — new services, adapters, stores, DI wiring, transport changes
+- `docs/CALL_FLOW.md` — new call message types or lifecycle changes
+- `docs/API.md` — new/changed REST endpoints
+- `docs/DATABASE.md` — schema changes (tables, columns, enums)
+- `docs/SYNC.md` — sync strategy, triggers, `lastPulledAt` tracking
+- `docs/ENV_CONFIG.md` — new env vars, build variants, secure-storage keys
+- `docs/TESTING.md` — new test utilities, mock patterns, testing conventions
+- `docs/CONNECTION_MESSAGES.md` — new WebSocket/TCP/WebRTC data-channel messages
+- `docs/LAN_MESSENGER.md` — LAN-only messaging behavior/constraints
+- `docs/diagrams/` — sequence/architecture diagrams
 
-| Adapter | Wraps |
-|---|---|
-| `TcpServerAdapter` / `TcpClientAdapter` | `react-native-tcp-socket` |
-| `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat (signaling relay via server) |
-| `ZeroconfAdapter` | `react-native-zeroconf` |
-| `WebrtcAdapter` | `react-native-webrtc` |
+Before writing any new file, read `docs/ARCHITECTURE.md` (service/adapter landscape, DI wiring), `docs/design-system.md` (component patterns, theming, spacing), `docs/conventions.md` (naming, error handling, coding style), `docs/system-boundaries.md` (service/feature boundary rules). If any of those conflict with this file, this file wins.
 
-### GPS Feature (`features/gps/`)
+**Screens:** `app/` using Expo Router file-based routing. **Theming:** use `useTheme()` — never hardcode colors. **Permission states:** every flow touching camera/mic/location/notifications must render distinct UI for `not-asked`, `denied`, `granted` — never assume `granted`. **Offline:** every network call must catch failure and surface a user-visible state — never leave an indefinite spinner or swallow the error silently. **Safe-area insets** on all screens. **TypeScript:** prefer precise types; `any` is banned except in test mocks with an inline `// eslint-disable` justification; `unknown` is correct at trust boundaries (catch clauses, JSON/`fetch` parsing, external responses) — narrow before use, don't use it to dodge typing a known shape.
 
-Live location sharing via a dedicated WebSocket (`/gps/ws/<userId>`) — independent of `ConnectionService`. Key hooks: `useGpsStreaming`, `useLatestLocations`. Map: `@maplibre/maplibre-react-native`. Gated by `UserStore.isRescuer`. Use the `gps-architecture` skill for hook details and data flow.
+## Important Files
 
-### Background Task Integration
+- `features/shared/main-container.ts` — single initialization point for the app; read before touching service wiring.
+- `features/auth/auth-container.ts` — auth state container, constructed before `MainContainer`.
+- `features/shared/connection/services/ConnectionService.ts` — central P2P/transport facade.
+- `features/shared/database/schema.ts` — WatermelonDB schema (version 10) and column reference.
+- `features/shared/database/migrations.ts` — schema migration history.
+- `config/runtime.ts` — API/WS base URL resolution per build variant.
+- `task/signaling-task.ts` — background connectivity task.
 
-The app supports Android background connectivity via `expo-background-task` + `expo-task-manager` (`task/signaling-task.ts`).
+## Common Pitfalls
 
-Two mechanisms coordinate foreground and background:
+- Changing `ConnectionService`'s callback wiring to `.bind()` instead of closures — breaks `jest.spyOn` instance replacement in tests.
+- Editing a shared service/hook without auditing all `features/<name>/` consumers first (see Decision Rule 4) — this codebase has many features sharing `features/shared/`.
+- Introducing a second pattern for something `features/shared/` already solves (a second HTTP client, a second logger, a second encryption helper) instead of extending the existing one.
+- Forgetting the background task depends on `secure-config.ts` being written *before* the app is backgrounded — stale secure storage means the background task reconnects to an old IP/peerId.
+- Assuming `server/` changes propagate automatically — the mobile app has its own API client; a backend contract change must be applied here too (see Decision Rule 5).
 
-1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down. On cleanup, `setAppAlive(false)` lets the task resume.
-2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes updated IP immediately on WiFi change so the background task always reads the latest config on wake.
+## When Modifying This Project
 
-The background task wakes every 15 minutes (Android minimum) and uses the stored config to maintain connectivity when the app is killed.
-
-### Local Database
-
-WatermelonDB with SQLite. Schema (`features/shared/database/schema.ts`, version 10) tables: `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Notable columns: `peers.role`, `peers.is_guest`, `messages.is_encrypted`. Migrations in `features/shared/database/migrations.ts`.
-
-### Logging
-
-Scope-based logger (`features/shared/core/utils/logger.ts`). Enable specific scopes via `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,...` (unset = all). Daily log file — retrieve via `getLogFilePath()`. Use the `dev-logging` skill for log file access and the dev laptop collector.
-
-### Environment / Config
-
-`config/runtime.ts` resolves API and WebSocket base URLs:
-- `__DEV__` → `http://<DEV_HOST>:8000` — update `DEV_HOST` here for local development
-- EAS channels `preview` / `production` → `https://sapot.online`
-
-### Testing
-
-Global mocks for WatermelonDB, TCP sockets, WebRTC, Zeroconf, Expo modules, and react-native-paper are configured in `jest-setup.js`. Test utilities (builders, factories, mocks) live in `test/`. Path alias `@/` maps to the project root.
-
----
-
-## Server Reference (read-only)
-
-The FastAPI server (`server/app/`) provides:
-- REST endpoints: auth, user management, GPS, peer connections, profile pictures, sync, admin
-- WebSocket signaling endpoint (`/ws`) — relays WebRTC `offer`/`answer`/`ICE` messages between peers via `connection_manager.py`
-- Static file serving from `static/profile_pictures/`
-
-## Git & Commits
-
-- Never commit directly to `main` or `develop` — create a branch first.
-- Commit only when the user asks. Do not push unless asked.
-- Analyze the full diff (`git diff <base>...HEAD`), not just the latest commit, before writing a PR summary.
-- **Always use `git mv` when moving or renaming files** — never `mv` + re-add. `git mv` preserves rename history so `git log --follow` works and diffs show renames instead of delete+add.
-
----
-
-## Conventions
-- Screens in `app/` using Expo Router file-based routing.
-- Use `useTheme()` for dark mode — never hardcode colors.
-- **Permission states:** every flow touching camera/mic/location/notifications must render distinct UI for `not-asked`, `denied`, and `granted`. Never assume `granted`.
-- **Offline:** every network call must catch failure and surface a user-visible state. Never leave an indefinite spinner or swallow the error silently.
-- Safe-area insets on all screens.
-- Run `npm run typecheck` after any TypeScript change before reporting the result as done.
-- When fixing bugs, provide the fix directly and concisely. Avoid lengthy investigation narratives before showing the solution.
-- **TypeScript types:** prefer precise types. `any` is banned except in test mocks with an inline `// eslint-disable` justification. `unknown` is correct at trust boundaries (catch clauses, JSON/`fetch` parsing, external API responses) — narrow it before use; do not use it to avoid typing a value whose shape is known.
-
-
-## Don'ts
-- Don't eject from Expo managed workflow
-- Don't use AsyncStorage for sensitive data (use expo-secure-store)
-- Don't hardcode dimensions — use flex layouts
+- Touching `features/shared/connection/` or `features/shared/crypto/`: these are the highest-blast-radius directories — audit all consumers, and prefer the `crypto-architecture` skill's file map over re-deriving the crypto flow from scratch.
+- Touching the WatermelonDB schema (`features/shared/database/schema.ts`): add a migration in `migrations.ts`, and update `docs/DATABASE.md` and the root-level `../../docs/database/tables.md` (server + mobile schema overview) together.
+- Touching call/connection message types: update `docs/CONNECTION_MESSAGES.md` and `docs/CALL_FLOW.md` — other clients/tests parse these message shapes.
+- Run `pnpm run typecheck`, `pnpm test` for affected areas (`pnpm run testAll` for cross-cutting changes), and `pnpm run lint` before reporting a change complete; if any did not pass, say so explicitly rather than reporting done.
