@@ -85,6 +85,37 @@ describe("getApiUrl", () => {
   });
 });
 
+describe("setRuntimeHostOverride (field builds)", () => {
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  it("feeds the override IP to the native Dns and keeps the API URL on SERVER_NAME", () => {
+    jest.doMock("expo-updates", () => ({
+      channel: "production",
+    }));
+
+    jest.resetModules();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = false;
+
+    const { setRuntimeHostOverride, getApiUrl } = require("../runtime");
+    const SapotTrust = require("@/modules/sapot-trust");
+
+    setRuntimeHostOverride("192.168.1.55");
+
+    expect(SapotTrust.setServerAddress).toHaveBeenCalledWith(
+      "server.sapot.lan",
+      "192.168.1.55"
+    );
+    expect(getApiUrl()).toBe("https://server.sapot.lan");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = true;
+  });
+});
+
 describe("getWsUrl", () => {
   beforeEach(() => {
     jest.resetModules();
