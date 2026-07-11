@@ -103,11 +103,13 @@ Logic in `config/runtime.ts`:
 
 | Condition | API Base URL | WS Base URL |
 |---|---|---|
-| `__DEV__ === true` | `http://<DEV_HOST>:8000` | `ws://<DEV_HOST>:8000` |
+| `__DEV__ === true` | `https://<DEV_HOST or host override>` | `wss://<DEV_HOST or host override>` |
 | EAS channel `preview` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
 | EAS channel `production` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
 
 `server.sapot.lan` is a stable, build-time-fixed hostname (`config/runtime.ts`'s `SERVER_NAME` constant) — the server's actual IP is resolved at runtime by the native `sapot-trust` module's OkHttp `Dns` (see below), not baked into the app. To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`.
+
+The app always speaks HTTPS/WSS, including in `__DEV__` — there is no plaintext HTTP fallback. Your local dev server must terminate TLS with a cert the dev build's network-security-config trusts (system/user CA store, the bundled default CA, or a CA imported at runtime via the server-provisioning screen); see `docs/getting-started/mobile-app-setup.md`'s "Configure TLS trust for local development" section.
 
 ---
 
