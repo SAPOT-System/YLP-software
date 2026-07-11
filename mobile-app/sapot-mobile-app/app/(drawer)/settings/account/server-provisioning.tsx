@@ -244,7 +244,7 @@ function ServerProvisioningForm() {
           style={{
             padding: 12,
             borderRadius: 12,
-            backgroundColor: "rgba(0, 0, 0, 0.05)",
+            backgroundColor: theme.colors.surfaceVariant,
             marginBottom: 24,
           }}
         >
