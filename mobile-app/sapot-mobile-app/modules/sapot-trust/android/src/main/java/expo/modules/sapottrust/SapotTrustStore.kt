@@ -62,22 +62,46 @@ object SapotTrustStore {
   }
 
   fun trustManager(ctx: Context): X509TrustManager {
-    val ks = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+    val systemTmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+    systemTmf.init(null as KeyStore?)
+    val systemTm = systemTmf.trustManagers.first { it is javax.net.ssl.X509ExtendedTrustManager } as javax.net.ssl.X509ExtendedTrustManager
+
+    val customKs = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
       load(null)
       anchors(ctx).forEachIndexed { i, c -> setCertificateEntry("sapot-$i", c) }
     }
-    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-    tmf.init(ks)
-    return tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
+    val customTmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+    customTmf.init(customKs)
+    val customTm = customTmf.trustManagers.first { it is javax.net.ssl.X509ExtendedTrustManager } as javax.net.ssl.X509ExtendedTrustManager
+
+    return object : javax.net.ssl.X509ExtendedTrustManager() {
+      override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = systemTm.checkClientTrusted(chain, authType)
+      override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: java.net.Socket?) = systemTm.checkClientTrusted(chain, authType, socket)
+      override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: javax.net.ssl.SSLEngine?) = systemTm.checkClientTrusted(chain, authType, engine)
+
+      override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+        try { customTm.checkServerTrusted(chain, authType) } catch (e: java.security.cert.CertificateException) { systemTm.checkServerTrusted(chain, authType) }
+      }
+      override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: java.net.Socket?) {
+        try { customTm.checkServerTrusted(chain, authType, socket) } catch (e: java.security.cert.CertificateException) { systemTm.checkServerTrusted(chain, authType, socket) }
+      }
+      override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: javax.net.ssl.SSLEngine?) {
+        try { customTm.checkServerTrusted(chain, authType, engine) } catch (e: java.security.cert.CertificateException) { systemTm.checkServerTrusted(chain, authType, engine) }
+      }
+
+      override fun getAcceptedIssuers(): Array<X509Certificate> = systemTm.acceptedIssuers + customTm.acceptedIssuers
+    }
   }
 
   fun sslSocketFactory(ctx: Context): SSLSocketFactory =
     SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustManager(ctx)), null) }.socketFactory
 
-  fun dns(): Dns = Dns { hostname ->
-    val a = addr
-    if (a != null && hostname == a.first) InetAddress.getAllByName(a.second).toList()
-    else Dns.SYSTEM.lookup(hostname)
+  fun dns(): Dns = object : Dns {
+    override fun lookup(hostname: String): List<InetAddress> {
+      val a = addr
+      if (a != null && hostname == a.first) return InetAddress.getAllByName(a.second).toList()
+      else return Dns.SYSTEM.lookup(hostname)
+    }
   }
 
   fun activeFingerprintHex(ctx: Context): String? = anchors(ctx).lastOrNull()?.let {

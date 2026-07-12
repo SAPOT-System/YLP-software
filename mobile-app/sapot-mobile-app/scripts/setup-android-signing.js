@@ -157,14 +157,20 @@ if (buildGradle.includes("signingConfig signingConfigs.debug")) {
 }
 
 // ---- Step 3: Add optimization properties to debug buildType if missing ----
-if (buildGradle.includes("debug {") && !buildGradle.includes("debug {\n            signingConfig signingConfigs.release\n            def enableShrinkResources")) {
+if (buildGradle.includes("debug {") && !buildGradle.includes("debug {\n            signingConfig signingConfigs.release\n            shrinkResources false")) {
   log("Adding optimization properties to debug buildType...");
   
+  // minifyEnabled/shrinkResources are hardcoded false (not the
+  // enableMinifyInReleaseBuilds/enableShrinkResourcesInReleaseBuilds properties,
+  // which are also used for release builds) because reusing them here would let R8
+  // minify debug builds too, which renames private RN fields (e.g.
+  // DevSupportManagerBase.redBoxHandler) that expo-dev-launcher reads via reflection
+  // to inject the Metro host — breaking the dev client's connection to Metro.
+  // (Resource shrinking requires code shrinking to be on, so both must be false.)
   const debugWithProps = `debug {
             signingConfig signingConfigs.release
-            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
-            shrinkResources enableShrinkResources.toBoolean()
-            minifyEnabled enableMinifyInReleaseBuilds
+            shrinkResources false
+            minifyEnabled false
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
@@ -173,7 +179,7 @@ if (buildGradle.includes("debug {") && !buildGradle.includes("debug {\n         
   buildGradle = buildGradle.replace(
     /buildTypes\s*\{[\s\S]*?(debug\s*\{[\s\S]*?\n\s*\})/,
     (match) => {
-      if (match.includes("debug {") && !match.includes("enableShrinkResources")) {
+      if (match.includes("debug {") && !match.includes("shrinkResources false")) {
         return match.replace(
           /debug\s*\{[\s\S]*?\n\s*\}/,
           debugWithProps

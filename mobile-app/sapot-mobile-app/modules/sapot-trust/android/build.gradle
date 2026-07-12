@@ -44,3 +44,8 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  implementation("com.facebook.react:react-android")
+  implementation("com.squareup.okhttp3:okhttp:4.11.0") // explicitly adding okhttp as well
+}

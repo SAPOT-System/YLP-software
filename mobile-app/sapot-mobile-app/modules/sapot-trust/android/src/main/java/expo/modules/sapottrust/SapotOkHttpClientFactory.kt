@@ -10,9 +10,9 @@ import okhttp3.OkHttpClient
  * SapotTrust's pinned [okhttp3.Dns] resolution and [javax.net.ssl.X509TrustManager]/
  * [javax.net.ssl.SSLSocketFactory]. Default hostname verification is left untouched.
  */
-class SapotOkHttpClientFactory(private val ctx: Context) : OkHttpClientFactory {
+class SapotOkHttpClientFactory(private val ctx: Context, private val baseClient: OkHttpClient) : OkHttpClientFactory {
   override fun createNewNetworkModuleClient(): OkHttpClient =
-    OkHttpClientProvider.createClientBuilder()
+    baseClient.newBuilder()
       .sslSocketFactory(SapotTrustStore.sslSocketFactory(ctx), SapotTrustStore.trustManager(ctx))
       .dns(SapotTrustStore.dns())
       .build()

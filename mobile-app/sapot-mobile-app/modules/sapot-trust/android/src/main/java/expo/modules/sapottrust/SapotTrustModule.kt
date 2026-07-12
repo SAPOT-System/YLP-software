@@ -13,7 +13,16 @@ class SapotTrustModule : Module() {
 
     OnCreate {
       SapotTrustStore.init(ctx)
-      OkHttpClientProvider.setOkHttpClientFactory(SapotOkHttpClientFactory(ctx.applicationContext))
+      // Only install the pinned networking stack in field/release builds. In debug
+      // builds this replaces React Native's global OkHttpClientProvider factory, which
+      // the Expo dev client also uses to reach Metro — breaking the dev-server
+      // connection. It is also unnecessary in debug: the custom Dns is inert there
+      // (setServerAddress is only called when !__DEV__) and backend CA trust is already
+      // provided app-wide by the debug network_security_config (@raw/server_ca anchor).
+      if (!BuildConfig.DEBUG) {
+        val baseClient = OkHttpClientProvider.getOkHttpClient()
+        OkHttpClientProvider.setOkHttpClientFactory(SapotOkHttpClientFactory(ctx.applicationContext, baseClient))
+      }
     }
 
     Constant("isReleaseBuild") { !BuildConfig.DEBUG }
