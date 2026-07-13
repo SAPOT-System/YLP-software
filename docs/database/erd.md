@@ -207,6 +207,14 @@ erDiagram
         INTEGER id PK
         DATETIME created_at
     }
+    fcmdevicetoken {
+        CHAR id PK
+        CHAR user_id FK
+        VARCHAR token
+        VARCHAR platform
+        DATETIME created_at
+        DATETIME updated_at
+    }
     guest {
         CHAR id PK
         CHAR user_id FK
@@ -331,6 +339,7 @@ erDiagram
     conversation ||--o{ conversationparticipant : "conversation_id"
     user ||--o{ conversationparticipant : "user_id"
     user ||--o{ email_verifications : "user_id"
+    user ||--o{ fcmdevicetoken : "user_id"
     user ||--o{ guest : "user_id"
     conversation ||--o{ message : "conversation_id"
     user ||--o{ message : "sender_id"

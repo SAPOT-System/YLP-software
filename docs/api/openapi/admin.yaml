@@ -281,6 +281,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /admin/device-token:
+    post:
+      tags:
+      - admin
+      summary: Register Device Token
+      description: |-
+        Register the caller's FCM device token for push alerts.
+
+        Idempotent: re-registering an existing token re-points it to the current
+        admin/platform. Many tokens may belong to one admin (fan-out to all
+        devices).
+      operationId: register_device_token_admin_device_token_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FcmTokenCreate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
   /admin/edit/user:
     post:
       tags:
@@ -778,6 +812,21 @@ components:
       - username
       - password
       title: Body_login_for_access_token_admin_login_post
+    FcmTokenCreate:
+      properties:
+        token:
+          type: string
+          minLength: 1
+          title: Token
+        platform:
+          type: string
+          title: Platform
+          default: android
+      type: object
+      required:
+      - token
+      title: FcmTokenCreate
+      description: Request body schema for POST /admin/device-token.
     HTTPValidationError:
       properties:
         detail:

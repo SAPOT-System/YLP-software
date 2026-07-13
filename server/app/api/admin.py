@@ -45,6 +45,8 @@ from app.db_operations.token import (
 )
 from app.models.rescuer import Rescuer
 from app.models.token import Token
+from app.models.fcm_device_token import FcmTokenCreate
+from app.db_operations.fcm import upsert_device_token
 from app.models.users import (
     User,
     UserCreate,
@@ -155,6 +157,28 @@ async def logout_user(
     if not token_to_be_invalidated:
         raise HTTPException(500)
     return logout(token, session)
+
+
+@router.post("/device-token")
+def register_device_token(
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    body: FcmTokenCreate,
+    session: SessionDep,
+):
+    """Register the caller's FCM device token for push alerts.
+
+    Idempotent: re-registering an existing token re-points it to the current
+    admin/platform. Many tokens may belong to one admin (fan-out to all
+    devices).
+    """
+    try:
+        upsert_device_token(session, current_user, body.token, body.platform)
+    except Exception:
+        session.rollback()
+        raise HTTPException(
+            status_code=500, detail="Failed to register device token"
+        )
+    return {"status": "ok"}
 
 
 @router.get("/get-active-users")

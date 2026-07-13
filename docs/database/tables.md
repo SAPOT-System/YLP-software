@@ -288,6 +288,17 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `id` | INTEGER | PK |
 | `created_at` | DATETIME | not null, has default |
 
+### `fcmdevicetoken`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | CHAR(32) | PK, indexed, has default |
+| `user_id` | CHAR(32) | FK -> user.id, indexed, not null |
+| `token` | VARCHAR | unique, indexed, not null |
+| `platform` | VARCHAR | not null, has default |
+| `created_at` | DATETIME | not null, has default |
+| `updated_at` | DATETIME | not null, has default |
+
 ### `guest`
 
 | Column | Type | Notes |
