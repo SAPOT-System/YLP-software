@@ -466,22 +466,6 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
-  /admin/me:
-    get:
-      tags:
-      - admin
-      summary: Get My Admin Info
-      operationId: get_my_admin_info_admin_me_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: Not Found
-      security:
-      - OAuth2PasswordBearer: []
   /admin/network/interfaces:
     get:
       tags:
