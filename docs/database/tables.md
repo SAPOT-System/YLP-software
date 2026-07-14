@@ -205,6 +205,17 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `user_id` | CHAR(32) | FK -> user.id, unique, indexed, not null |
 | `created_at` | DATETIME | indexed, not null, has default |
 
+### `adminpushtoken`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INTEGER | PK |
+| `admin_user_id` | CHAR(32) | FK -> user.id, indexed, not null |
+| `token` | VARCHAR | unique, indexed, not null |
+| `platform` | VARCHAR | not null |
+| `created_at` | DATETIME | not null, has default |
+| `last_seen` | DATETIME | not null, has default |
+
 ### `announcement`
 
 | Column | Type | Notes |
