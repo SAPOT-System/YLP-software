@@ -21,6 +21,51 @@ nix develop    # installs Python deps via flake.nix
 
 ---
 
+## Run with Docker
+
+A `docker compose` stack (`server/docker-compose.yml`) gives a turnkey dev/test
+environment — MariaDB, Redis, the API, and an Nginx TLS terminator — without
+installing MariaDB/Redis locally or trusting the fail-fast env-var checks to
+dummy shell exports.
+
+```bash
+cd server/
+cp .env.docker.example .env    # edit placeholder secrets before anything but local dev
+docker compose up --build
+```
+
+This starts, in dependency order (via healthchecks): `db` (MariaDB) → `redis`
+→ `certgen` (one-shot self-signed cert generation into a shared `certs`
+volume) → `api` (Gunicorn/Uvicorn, internal-only) → `nginx` (TLS termination,
+reverse-proxies to `api`, publishes `443`/`80`). `create_db_and_tables()`
+still runs at API startup, so a fresh `db` volume just works — no manual
+schema step.
+
+`docker-compose.override.yml` is auto-loaded alongside the base file for
+local dev: it bind-mounts `app/` for live edits and runs a single reloading
+`uvicorn` process instead of the 5-worker Gunicorn command the `Dockerfile`
+uses by default. Omit it for a prod-parity run: `docker compose -f
+docker-compose.yml up --build`.
+
+Reach the API through Nginx's self-signed cert:
+```bash
+curl -k https://localhost/  # -k: cert is self-signed, not CA-trusted
+```
+
+**Tests** run in-container against the same image, with no live DB/Redis
+needed (the suite uses in-memory SQLite — see `app/tests/conftest.py`):
+```bash
+docker compose run --rm api pytest
+```
+
+**Cert-pinning caveat:** the cert `certgen` generates (`docker/gen-certs.sh`)
+is self-signed and regenerated per fresh `certs` volume — it will **not**
+match a mobile build with `server_cert.pem` already pinned to a different
+cert. Only useful for local API/server testing, not for testing against a
+pinned mobile build without also updating its pinned cert.
+
+---
+
 ## Production setup
 
 1. Place TLS certificates at `/home/sapot/certs/server.crt` and `server.key`.

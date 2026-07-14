@@ -1,0 +1,51 @@
+# Virtual environments
+.venv/
+app/venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Logs and runtime data
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets and env files
+.env
+.env.*
+!.env.docker.example
+.envrc
+
+# TLS certs and keys — never bake into the image
+*.key
+*.pem
+*.crt
+*.csr
+certs/
+docker/certs/
+
+# User-uploaded content (bind-mounted at runtime, not baked in)
+static/profile_pictures/*
+
+# Editor / OS
+.DS_Store
+.idea
+.vscode/
+
+# Git / docs
+.git/
+.gitignore
+
+# Docker itself
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile

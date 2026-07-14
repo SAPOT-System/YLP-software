@@ -1,0 +1,17 @@
+# Auto-loaded by `docker compose` alongside docker-compose.yml for local
+# dev: bind-mounts the app source for live edits and swaps gunicorn for a
+# single reloading uvicorn worker. Not used in CI (`docker compose run --rm
+# api pytest` doesn't need this file) — omit it in prod-parity checks with
+# `docker compose -f docker-compose.yml ...`.
+services:
+  api:
+    volumes:
+      - ./app:/home/app/server/app
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
