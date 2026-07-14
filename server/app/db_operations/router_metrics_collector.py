@@ -4,6 +4,7 @@ from sqlmodel import Session
 from app.db_operations.router_client import MikroTikClient
 from app.models import RouterHealth, InterfaceTraffic
 from app.db_operations.auth import engine
+from app.db_operations.alerting import alerter
 
 ROUTER_CONFIG = {
     "host": "192.168.0.1",
@@ -23,29 +24,50 @@ def collect_metrics():
 
                 # ---- SYSTEM ----
                 sys = client.system_resource()
+                cpu_load = float(sys["cpu-load"])
+                free_memory = int(sys["free-memory"])
+                total_memory = int(sys["total-memory"])
+                uptime = sys["uptime"]
 
                 session.add(
                     RouterHealth(
-                        cpu_load=float(sys["cpu-load"]),
-                        free_memory=int(sys["free-memory"]),
-                        total_memory=int(sys["total-memory"]),
-                        uptime=sys["uptime"],
+                        cpu_load=cpu_load,
+                        free_memory=free_memory,
+                        total_memory=total_memory,
+                        uptime=uptime,
                     )
                 )
 
                 # ---- TRAFFIC ----
+                traffic_samples = []
                 for iface in interfaces:
                     t = client.traffic(iface)
+                    rx_bps = int(t["rx-bits-per-second"])
+                    tx_bps = int(t["tx-bits-per-second"])
+                    traffic_samples.append((iface, rx_bps, tx_bps))
 
                     session.add(
                         InterfaceTraffic(
                             interface=iface,
-                            rx_bps=int(t["rx-bits-per-second"]),
-                            tx_bps=int(t["tx-bits-per-second"]),
+                            rx_bps=rx_bps,
+                            tx_bps=tx_bps,
                         )
                     )
 
                 session.commit()
+
+            # Evaluate AFTER a successful commit; never let alerting break collection.
+            try:
+                alerter.evaluate_router_health(
+                    cpu_load=cpu_load,
+                    free_memory=free_memory,
+                    total_memory=total_memory,
+                    uptime=uptime,
+                )
+                for iface, rx_bps, tx_bps in traffic_samples:
+                    alerter.evaluate_traffic(iface, rx_bps, tx_bps)
+            except Exception:
+                pass
 
             time.sleep(5)
 
@@ -55,6 +77,7 @@ def collect_metrics():
 
 def collect_metrics_loop():
     backoff = 2  # start retry delay
+    last_success = time.time()
 
     while True:
         try:
@@ -62,6 +85,7 @@ def collect_metrics_loop():
             collect_metrics()
 
             # reset backoff after success
+            last_success = time.time()
             backoff = 2
 
             # normal polling interval
@@ -69,6 +93,10 @@ def collect_metrics_loop():
 
         except Exception as e:
             # logger.error(f"MikroTik collector error: {e}")
+            try:
+                alerter.evaluate_router_offline(time.time() - last_success)
+            except Exception:
+                pass
 
             # exponential backoff (max 60s)
             time.sleep(backoff)
