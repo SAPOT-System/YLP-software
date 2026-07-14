@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field as PydField
 
 from app.models.admin_push_token import AdminPushToken
+from app.db_operations.alerting import alerter
 from app.models.announcement import Announcement, PriorityType, AnnouncementStatusType, AudienceType
 from app.models.users import User
 from datetime import datetime, timedelta, timezone
@@ -264,6 +265,20 @@ def perform_ping_probe():
         ping_history.append(result.returncode == 0)
     except Exception:
         ping_history.append(False)
+
+
+def ping_probe_loop():
+    """Continuously probe connectivity and evaluate packet-loss alerts."""
+    while True:
+        try:
+            perform_ping_probe()
+            total = len(ping_history)
+            if total:
+                loss_percent = (ping_history.count(False) / total) * 100
+                alerter.evaluate_packet_loss(loss_percent)
+        except Exception:
+            pass
+        time.sleep(5)
 
 
 @router.get("/network/usage")
