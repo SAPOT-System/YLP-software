@@ -1,3 +1,6 @@
+from pydantic import BaseModel, Field as PydField
+
+from app.models.admin_push_token import AdminPushToken
 from app.models.announcement import Announcement, PriorityType, AnnouncementStatusType, AudienceType
 from app.models.users import User
 from datetime import datetime, timedelta, timezone
@@ -61,6 +64,40 @@ router = APIRouter(
 
 @router.get("")
 def test_if_admin(current_user: Annotated[User, Depends(get_current_user_admin)]):
+    return {"status": "ok"}
+
+
+class DeviceTokenRequest(BaseModel):
+    token: str = PydField(min_length=1)
+    platform: str = PydField(min_length=1)
+
+
+@router.post("/device-token")
+def register_device_token(
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+    payload: DeviceTokenRequest,
+    session: SessionDep,
+):
+    now = datetime.now(timezone.utc)
+    existing = session.exec(
+        select(AdminPushToken).where(AdminPushToken.token == payload.token)
+    ).first()
+    if existing:
+        existing.admin_user_id = current_user.id
+        existing.platform = payload.platform
+        existing.last_seen = now
+        session.add(existing)
+    else:
+        session.add(
+            AdminPushToken(
+                admin_user_id=current_user.id,
+                token=payload.token,
+                platform=payload.platform,
+                created_at=now,
+                last_seen=now,
+            )
+        )
+    session.commit()
     return {"status": "ok"}
 
 
