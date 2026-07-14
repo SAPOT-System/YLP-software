@@ -3,6 +3,12 @@ import os
 
 import firebase_admin
 from firebase_admin import credentials
+from firebase_admin import exceptions as fb_exceptions
+from firebase_admin import messaging
+from sqlmodel import Session, col, select
+
+from app.db_operations.auth import engine
+from app.models.admin_push_token import AdminPushToken
 
 logger = logging.getLogger("app")
 
@@ -18,3 +24,42 @@ def init_firebase() -> None:
         )
     firebase_admin.initialize_app(credentials.Certificate(cred_path))
     logger.info("Firebase Admin SDK initialized")
+
+
+def send_admin_alert(title: str, body: str) -> None:
+    """Multicast an FCM alert to every registered admin device. Never raises."""
+    admin_web_url = os.environ.get("ADMIN_WEB_URL", "")
+    try:
+        with Session(engine) as session:
+            tokens = [row.token for row in session.exec(select(AdminPushToken)).all()]
+            if not tokens:
+                return
+
+            message = messaging.MulticastMessage(
+                tokens=tokens,
+                notification=messaging.Notification(title=title, body=body),
+                data={"url": admin_web_url},
+            )
+            batch = messaging.send_each_for_multicast(message)
+            _delete_dead_tokens(session, tokens, batch)
+    except Exception as exc:  # noqa: BLE001 — boundary: nothing may escape into loops
+        logger.error("send_admin_alert failed: %s", exc)
+
+
+def _delete_dead_tokens(session: Session, tokens: list[str], batch) -> None:
+    dead = [
+        token
+        for token, resp in zip(tokens, batch.responses)
+        if not resp.success
+        and isinstance(
+            resp.exception,
+            (messaging.UnregisteredError, fb_exceptions.InvalidArgumentError),
+        )
+    ]
+    if not dead:
+        return
+    for row in session.exec(
+        select(AdminPushToken).where(col(AdminPushToken.token).in_(dead))
+    ).all():
+        session.delete(row)
+    session.commit()
