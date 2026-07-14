@@ -3,7 +3,6 @@ hookLog.debug("[shared/hooks] module loaded");
 
 export * from "./use-active-user-service";
 export * from "./use-active-users";
-export * from "./use-cert-provisioning-service";
 export * from "./use-check-connection";
 export * from "./use-connection-service";
 export * from "./use-dialog-visibility";

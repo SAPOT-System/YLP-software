@@ -122,41 +122,6 @@ export class ZeroconfAdapter extends EventEmitter {
   }
 
   /**
-   * Reports whether the standing peer-discovery scan (started via
-   * `startScan()`/`restartScan()`) is currently active. Callers that
-   * temporarily repurpose this adapter for a one-off `scan()` of a different
-   * service type (see below) can use this to know whether they need to
-   * restore peer discovery afterward.
-   */
-  isScanning(): boolean {
-    return this.scanning;
-  }
-
-  /**
-   * Performs a one-off browse for an arbitrary mDNS service type/protocol/domain,
-   * reusing this adapter's single underlying `Zeroconf` instance — it does
-   * NOT create a second native Zeroconf instance. Resolved services are
-   * emitted via the same `serviceResolved` event used by the standing
-   * peer-discovery scan.
-   *
-   * The underlying native `scan()` call stops any scan currently in
-   * progress, including the standing "lanchat" peer-discovery browse. Callers
-   * that need to preserve peer discovery should check `isScanning()` before
-   * calling this, and call `restartScan()` afterward to resume it.
-   * @throws Error if starting the scan fails
-   */
-  scan(type: string, protocol: string, domain: string): void {
-    try {
-      this.attachScanListeners();
-      this.zeroconf.scan(type, protocol, domain);
-      zeroconfLog.info("zeroconf › one-off scan started", { type, protocol, domain });
-    } catch (error) {
-      zeroconfLog.error("zeroconf › one-off scan failed", { error, type });
-      throw error;
-    }
-  }
-
-  /**
    * Stops scanning for network services.
    * @throws Error if stopping scan fails
    */

@@ -21,7 +21,6 @@ export default function SettingsLayout() {
     removeRouteGroups(SETTINGS_ROUTES.CONTACTS),
     removeRouteGroups(SETTINGS_ROUTES.QR_CODE),
     removeRouteGroups(SETTINGS_ROUTES.SWITCH_MODE),
-    removeRouteGroups(SETTINGS_ROUTES.SERVER_PROVISIONING),
     removeRouteGroups(SETTINGS_ROUTES.GPS),
     removeRouteGroups(SETTINGS_ROUTES.NOTIFICATIONS),
     removeRouteGroups(SETTINGS_ROUTES.ABOUT_US),
@@ -162,12 +161,6 @@ export default function SettingsLayout() {
         name="account/switch-mode"
         options={{
           title: "Switch Mode",
-        }}
-      />
-      <Stack.Screen
-        name="account/server-provisioning"
-        options={{
-          title: "Server Provisioning",
         }}
       />
       <Stack.Screen

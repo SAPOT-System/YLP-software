@@ -11,7 +11,7 @@
 | `EXPO_PUBLIC_LOG_TO_FILE` | Optional | Set to `1` to write logs to a daily on-device file in development. On-device file logging is always on in production builds. |
 | `EXPO_PUBLIC_LOG_TO_LAPTOP` | Optional | In development, ship logs to the laptop log collector. On by default in dev; set to `0` to disable. |
 | `EXPO_PUBLIC_LOG_SERVER_PORT` | Optional | Port the laptop log collector listens on (default `19000`). Must match `LOG_SERVER_PORT` used by `npm run log-server`. |
-| `EXPO_PUBLIC_DEBUG_MENU` | Optional | Set to `1` to enable dev/QA-only screens (e.g. the manual server-provisioning screen at `SETTINGS_ROUTES.SERVER_PROVISIONING`) in a non-`__DEV__` (preview) build. Never set in production builds — see `config/debug.ts`'s `IS_DEBUG_ENABLED`. |
+| `EXPO_PUBLIC_DEBUG_MENU` | Optional | Set to `1` to opt a non-dev build (e.g. `preview`/QA) into the developer debug menu (`config/debug.ts`). Always on in `__DEV__` regardless of this flag; the `production` EAS profile must never set it, since debug code is gated behind this flag and dead-code-eliminated by Metro when it's unset. |
 
 ### Setting up local env
 
@@ -107,24 +107,23 @@ Logic in `config/runtime.ts`:
 | EAS channel `preview` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
 | EAS channel `production` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
 
-`server.sapot.lan` is a stable, build-time-fixed hostname (`config/runtime.ts`'s `SERVER_NAME` constant) — the server's actual IP is resolved at runtime by the native `sapot-trust` module's OkHttp `Dns` (see below), not baked into the app. To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`.
+`server.sapot.lan` is a stable, build-time-fixed hostname (`config/runtime.ts`'s `SERVER_NAME` constant), resolved via normal DNS/hosts on the network — it is not baked to a literal IP, so the server's IP can change without a mobile rebuild as long as `server.sapot.lan` still resolves to it (see the cert-rotation runbook's SAN, which includes both the DNS name and the LAN IP). To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`, or use the dev/QA host override (`setRuntimeHostOverride`, persisted via `secure-config.ts`).
 
-The app always speaks HTTPS/WSS, including in `__DEV__` — there is no plaintext HTTP fallback. Your local dev server must terminate TLS with a cert the dev build's network-security-config trusts (system/user CA store, the bundled default CA, or a CA imported at runtime via the server-provisioning screen); see `docs/getting-started/mobile-app-setup.md`'s "Configure TLS trust for local development" section.
+The app always speaks HTTPS/WSS, including in `__DEV__` — there is no plaintext HTTP fallback. Your local dev server must terminate TLS with a cert the dev build's network-security-config trusts (system/user CA store, or the bundled default CA); see `docs/getting-started/mobile-app-setup.md`'s "Configure TLS trust for local development" section.
 
 ---
 
-## TLS Trust (CA-pinned, runtime-provisioned)
+## TLS Trust (CA-pinned)
 
-Preview and production builds connect to the server over TLS using a **private CA** pinned via Android network-security-config, plus a runtime `X509TrustManager`/`Dns` pair (local Expo module `modules/sapot-trust/`) that decouples cert identity from the server's IP. Full design: `docs/superpowers/plans/2026-07-10-tls-trust-migration.md`; architecture: `docs/ARCHITECTURE.md`.
+Preview and production builds connect to the server over TLS using a **private CA** pinned via Android's network-security-config (`app.config.ts`'s `withServerCa`/`withNetworkSecurityConfig`) — the app trusts the CA, not the leaf, so the server can rotate its leaf certificate without a mobile rebuild; only a CA rotation requires one. Architecture: `docs/ARCHITECTURE.md`.
 
 | File | Location | Notes |
 |---|---|---|
-| Default CA (public) | `mobile-app/sapot-mobile-app/server_ca.pem` (repo root); also bundled at `modules/sapot-trust/android/src/main/assets/server_ca.pem` and copied into `res/raw/server_ca.pem` / `android/app/src/main/assets/server_ca.pem` at prebuild | Committed to repo — safe to share (public cert, not the CA private key) |
+| Default CA (public) | `mobile-app/sapot-mobile-app/server_ca.pem` (repo root), copied into `res/raw/server_ca.pem` at prebuild | Committed to repo — safe to share (public cert, not the CA private key) |
 | CA private key | Kept offline per `docs/deployment/runbooks.md`'s CA runbook | Never committed |
 | `SERVER_CA` (EAS secret) | Base64-encoded CA PEM, materialized into `server_ca.pem` at prebuild time by `app.config.ts` | Set via `eas secret:create` for the relevant build profile |
-| Runtime CA (dev/QA only) | Imported at runtime via the server-provisioning screen (`SETTINGS_ROUTES.SERVER_PROVISIONING`, gated by `EXPO_PUBLIC_DEBUG_MENU`) | Stored in app-private storage; **never honored in release builds** (`SapotTrustModule.setCaPem` throws when `!BuildConfig.DEBUG`) |
 
-Trust precedence: bundled default CA (always trusted) plus the runtime CA (only when `BuildConfig.DEBUG`, i.e. dev/QA builds). Check the active anchor's fingerprint: `SapotTrust.getActiveFingerprint()` (JS) or `openssl x509 -in server_ca.pem -noout -fingerprint -sha256` (offline).
+`app.config.ts` refuses to produce a real (non-dev) EAS build if `server_ca.pem` is still the placeholder or has expired — see the `IS_REAL_EAS_BUILD` guard. Check the pinned CA's fingerprint offline: `openssl x509 -in server_ca.pem -noout -fingerprint -sha256`.
 
 **Rotating the CA** (rare — invalidates all existing installs' trust until updated): see the "CA rotation" runbook in `docs/deployment/runbooks.md`.
 
@@ -142,7 +141,7 @@ Defined in `eas.json`.
 | `preview` | `npm run android:prev` | Internal testing / QA |
 | `production` | `npm run android:prod` | Play Store release |
 
-The `SERVER_CA` EAS secret (base64-encoded CA PEM) must be set for `preview` and `production` builds — see the "TLS Trust" section above. `EXPO_PUBLIC_DEBUG_MENU` should only ever be set for the `preview` profile, never `production`.
+The `SERVER_CA` EAS secret (base64-encoded CA PEM) must be set for `preview` and `production` builds — see the "TLS Trust" section above.
 
 ---
 

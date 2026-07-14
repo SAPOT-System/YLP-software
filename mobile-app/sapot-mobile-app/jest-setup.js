@@ -125,16 +125,6 @@ jest.mock('react-native-incall-manager', () => ({
   getAudioRoutes: jest.fn().mockResolvedValue([]),
 }));
 
-// Mock sapot-trust native module (TLS trust / DNS pinning)
-jest.mock("@/modules/sapot-trust", () => ({
-  isReleaseBuild: () => false,
-  setServerAddress: jest.fn().mockResolvedValue(undefined),
-  getServerAddress: jest.fn().mockResolvedValue(null),
-  setCaPem: jest.fn().mockResolvedValue(undefined),
-  clearCaPem: jest.fn().mockResolvedValue(undefined),
-  getActiveFingerprint: jest.fn().mockResolvedValue(null),
-}));
-
 // Mock reanimated for components
 jest.mock('react-native-reanimated', () => {
   const Reanimated = require('react-native-reanimated/mock');

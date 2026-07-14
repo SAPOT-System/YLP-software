@@ -46,17 +46,6 @@ const withServerCa: ConfigPlugin = (config) =>
     },
   ]);
 
-const withSapotTrust: ConfigPlugin = (config) =>
-  withDangerousMod(config, ["android", (mod) => {
-    const dir = path.join(mod.modRequest.platformProjectRoot, "app/src/main/assets");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.copyFileSync(
-      path.join(mod.modRequest.projectRoot, "server_ca.pem"),
-      path.join(dir, "server_ca.pem")
-    );
-    return mod;
-  }]);
-
 const caPath = path.join(__dirname, "server_ca.pem");
 
 if (process.env.SERVER_CA) {
@@ -298,7 +287,6 @@ export default ({ config }: ConfigContext) => ({
     withBackgroundActionsForegroundService,
     withServerCa,
     withNetworkSecurityConfig,
-    withSapotTrust,
     "expo-router",
     "expo-secure-store",
     [
