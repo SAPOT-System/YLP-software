@@ -12,6 +12,12 @@ ROUTER_CONFIG = {
     "password": "sapot"
 }
 
+# Timestamp of the last successful metrics commit. collect_metrics() runs its
+# own internal `while True` and only exits by raising, so collect_metrics_loop()
+# cannot rely on a normal return to know when a cycle succeeded — it reads this
+# instead.
+_last_success_time = time.time()
+
 
 def collect_metrics():
     client = MikroTikClient(**ROUTER_CONFIG)
@@ -56,6 +62,9 @@ def collect_metrics():
 
                 session.commit()
 
+            global _last_success_time
+            _last_success_time = time.time()
+
             # Evaluate AFTER a successful commit; never let alerting break collection.
             try:
                 alerter.evaluate_router_health(
@@ -77,15 +86,15 @@ def collect_metrics():
 
 def collect_metrics_loop():
     backoff = 2  # start retry delay
-    last_success = time.time()
 
     while True:
         try:
-            # 👇 your actual collector function (ONE cycle only)
+            # 👇 your actual collector function (loops internally; only
+            # returns by raising, so success is tracked via
+            # _last_success_time rather than a normal return here)
             collect_metrics()
 
-            # reset backoff after success
-            last_success = time.time()
+            # reset backoff (unreachable in practice, kept for safety)
             backoff = 2
 
             # normal polling interval
@@ -94,7 +103,7 @@ def collect_metrics_loop():
         except Exception as e:
             # logger.error(f"MikroTik collector error: {e}")
             try:
-                alerter.evaluate_router_offline(time.time() - last_success)
+                alerter.evaluate_router_offline(time.time() - _last_success_time)
             except Exception:
                 pass
 
