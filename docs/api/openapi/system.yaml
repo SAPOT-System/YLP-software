@@ -102,6 +102,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /testing/test-push-notification:
+    post:
+      tags:
+      - testing endpoint
+      summary: Test Push Notification
+      operationId: test_push_notification_testing_test_push_notification_post
+      security:
+      - OAuth2PasswordBearer: []
+      parameters:
+      - name: title
+        in: query
+        required: false
+        schema:
+          type: string
+          default: Test Alert
+          title: Title
+      - name: body
+        in: query
+        required: false
+        schema:
+          type: string
+          default: This is a test notification from the testing endpoint.
+          title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /update/profile/:
     post:
       tags:
