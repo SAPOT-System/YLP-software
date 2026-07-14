@@ -296,11 +296,8 @@ export class MainContainer {
       this.initPromise = (async () => {
         appLog.info("app › init start");
         const keysReady = await this.initializeKeys();
-        console.log("init done2");
         const migOk = await this.handleMigration(keysReady);
-        console.log("init done1");
         await this.startNetworkServices(migOk);
-        console.log("init done");
       })();
 
       return this.initPromise;
