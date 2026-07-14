@@ -12,6 +12,18 @@ from app.models.admin_push_token import AdminPushToken
 
 logger = logging.getLogger("app")
 
+# The "app" logger's handlers (app/main.py) format every record with
+# %(user_id)s/%(action)s/%(entity_id)s/%(metadata_json)s; calls without
+# these `extra` keys raise inside the formatter (caught and printed by
+# the logging module, not by us, but noisy). This module logs outside any
+# HTTP request, so there's no real user/action to report — use placeholders.
+_LOG_EXTRA = {
+    "user_id": "-",
+    "action": "-",
+    "entity_id": "-",
+    "metadata_json": {},
+}
+
 
 def init_firebase() -> None:
     """Initialize the default Firebase app exactly once (idempotent)."""
@@ -23,7 +35,7 @@ def init_firebase() -> None:
             "FIREBASE_ADMIN_CREDENTIALS_PATH environment variable is not set"
         )
     firebase_admin.initialize_app(credentials.Certificate(cred_path))
-    logger.info("Firebase Admin SDK initialized")
+    logger.info("Firebase Admin SDK initialized", extra=_LOG_EXTRA)
 
 
 def send_admin_alert(title: str, body: str) -> None:
@@ -43,7 +55,7 @@ def send_admin_alert(title: str, body: str) -> None:
             batch = messaging.send_each_for_multicast(message)
             _delete_dead_tokens(session, tokens, batch)
     except Exception as exc:  # noqa: BLE001 — boundary: nothing may escape into loops
-        logger.error("send_admin_alert failed: %s", exc)
+        logger.error("send_admin_alert failed: %s", exc, extra=_LOG_EXTRA)
 
 
 def _delete_dead_tokens(session: Session, tokens: list[str], batch) -> None:
