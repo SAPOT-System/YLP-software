@@ -103,31 +103,31 @@ Logic in `config/runtime.ts`:
 
 | Condition | API Base URL | WS Base URL |
 |---|---|---|
-| `__DEV__ === true` | `http://<DEV_HOST>:8000` | `ws://<DEV_HOST>:8000` |
-| EAS channel `preview` | `https://192.168.0.100:8000` | `wss://192.168.0.100:8000` |
-| EAS channel `production` | `https://192.168.0.100:8000` | `wss://192.168.0.100:8000` |
+| `__DEV__ === true` | `https://<DEV_HOST or host override>` | `wss://<DEV_HOST or host override>` |
+| EAS channel `preview` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
+| EAS channel `production` | `https://server.sapot.lan` | `wss://server.sapot.lan` |
 
-To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`.
+`server.sapot.lan` is a stable, build-time-fixed hostname (`config/runtime.ts`'s `SERVER_NAME` constant), resolved via normal DNS/hosts on the network — it is not baked to a literal IP, so the server's IP can change without a mobile rebuild as long as `server.sapot.lan` still resolves to it (see the cert-rotation runbook's SAN, which includes both the DNS name and the LAN IP). To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`, or use the dev/QA host override (`setRuntimeHostOverride`, persisted via `secure-config.ts`).
+
+The app always speaks HTTPS/WSS, including in `__DEV__` — there is no plaintext HTTP fallback. Your local dev server must terminate TLS with a cert the dev build's network-security-config trusts (system/user CA store, or the bundled default CA); see `docs/getting-started/mobile-app-setup.md`'s "Configure TLS trust for local development" section.
 
 ---
 
-## TLS Certificate
+## TLS Trust (CA-pinned)
 
-Preview and production builds connect to the LAN server over TLS using a self-signed certificate pinned in the APK.
+Preview and production builds connect to the server over TLS using a **private CA** pinned via Android's network-security-config (`app.config.ts`'s `withServerCa`/`withNetworkSecurityConfig`) — the app trusts the CA, not the leaf, so the server can rotate its leaf certificate without a mobile rebuild; only a CA rotation requires one. Architecture: `docs/ARCHITECTURE.md`.
 
 | File | Location | Notes |
 |---|---|---|
-| Public cert | `android/app/src/main/res/raw/server_cert.pem` | Committed to repo — safe to share |
-| Private key | `/home/sapot/certs/server.key` on server only | Never committed |
+| Default CA (public) | `mobile-app/sapot-mobile-app/server_ca.pem` (repo root), copied into `res/raw/server_ca.pem` at prebuild | Committed to repo — safe to share (public cert, not the CA private key) |
+| CA private key | Kept offline per `docs/deployment/runbooks.md`'s CA runbook | Never committed |
+| `SERVER_CA` (EAS secret) | Base64-encoded CA PEM, materialized into `server_ca.pem` at prebuild time by `app.config.ts` | Set via `eas secret:create` for the relevant build profile |
 
-Check expiry: `openssl x509 -in android/app/src/main/res/raw/server_cert.pem -noout -enddate`
+`app.config.ts` refuses to produce a real (non-dev) EAS build if `server_ca.pem` is still the placeholder or has expired — see the `IS_REAL_EAS_BUILD` guard. Check the pinned CA's fingerprint offline: `openssl x509 -in server_ca.pem -noout -fingerprint -sha256`.
 
-**Renewing the cert:**
-1. Re-run the openssl command from `server/.env.example`
-2. Copy new `server.crt` to `android/app/src/main/res/raw/server_cert.pem`
-3. Update `android-network-security-config.xml` if the server IP changed
-4. Restart the server (`pkill -f gunicorn && bash runserver.sh &`)
-5. Ship a new app build — existing installs reject the new cert until updated (OTA cannot update `res/raw/`)
+**Rotating the CA** (rare — invalidates all existing installs' trust until updated): see the "CA rotation" runbook in `docs/deployment/runbooks.md`.
+
+**Rotating the server leaf** (routine — no app change needed, since the app trusts the CA, not the leaf): re-issue a CA-signed leaf on the server; existing app installs keep working with zero changes, per the same runbook.
 
 ---
 
@@ -140,6 +140,8 @@ Defined in `eas.json`.
 | `development` | `npm run android:dev` | Local dev with dev client |
 | `preview` | `npm run android:prev` | Internal testing / QA |
 | `production` | `npm run android:prod` | Play Store release |
+
+The `SERVER_CA` EAS secret (base64-encoded CA PEM) must be set for `preview` and `production` builds — see the "TLS Trust" section above.
 
 ---
 

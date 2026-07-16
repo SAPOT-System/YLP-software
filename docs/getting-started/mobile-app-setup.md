@@ -35,6 +35,17 @@ EXPO_PUBLIC_DEV_HOST=192.168.1.x
 
 See [environment-config.md](../deployment/environment-config.md) for the full mobile app env var list.
 
+**The app always talks HTTPS, including in development** (`config/runtime.ts`'s `getApiUrl`/`getWsUrl` return `https://`/`wss://` for every build variant, dev included) — see [Configure TLS trust for local development](#configure-tls-trust-for-local-development) below before running `server-setup.md`'s dev server, or the app will fail to connect.
+
+## Configure TLS trust for local development
+
+The mobile app pins the server's CA certificate via Android's network-security-config (`app.config.ts`'s `withServerCa`/`withNetworkSecurityConfig`, using `mobile-app/sapot-mobile-app/server_ca.pem`), so your local FastAPI dev server needs to terminate TLS with a certificate the app will trust. The dev build's network-security-config trusts two anchors, so pick whichever is least friction:
+
+- **System/user CA store** — install your own CA on the emulator/device as a user-trusted certificate, then issue a server leaf from it. Trusted automatically in dev builds (`<certificates src="system"/>` / `<certificates src="user"/>`).
+- **Bundled default CA** (`mobile-app/sapot-mobile-app/server_ca.pem`) — issue a leaf signed by this CA for your dev server. Same `openssl` steps as "Issue a new server leaf from the CA" in [runbooks.md](../deployment/runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf), but point the SAN at your dev machine's LAN IP instead of the prod server's.
+
+Point your dev FastAPI server at the resulting cert/key (e.g. `uvicorn --ssl-certfile server.crt --ssl-keyfile server.key`).
+
 ## Run
 
 ```bash
