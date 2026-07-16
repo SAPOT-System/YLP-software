@@ -2,9 +2,12 @@
 set -eu
 
 # Wrapper around `docker compose` that auto-detects this machine's LAN IP
-# (via detect-ip.sh) and adds it to CERT_SAN, so the self-signed dev cert
-# (gen-certs.sh) validates when a client (mobile app, admin frontend)
-# connects via LAN IP instead of localhost.
+# (via detect-ip.sh) and adds it to CERT_SAN, so the dev cert (gen-certs.sh)
+# validates when a client (mobile app, admin frontend) connects via LAN IP
+# instead of localhost. gen-certs.sh issues a CA-signed leaf from the
+# shared dev CA (../dev-ca/) when present, or a plain self-signed cert
+# otherwise — either way, this script's job is just getting the right SAN
+# to it.
 #
 # Respects an already-set CERT_SAN (exported in the shell, or passed
 # inline: `CERT_SAN=... docker/up.sh up`) rather than overriding it, so
