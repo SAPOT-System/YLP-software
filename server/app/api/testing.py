@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.admin import makeAdmin, makeRescuer
 from app.db_operations.auth import SessionDep, get_user_by_username
-from app.db_operations.token import get_current_user
+from app.db_operations.token import get_current_user, get_current_user_admin
+from app.db_operations.push_notifications import send_admin_alert
 from app.models.users import User
 
 router = APIRouter(
@@ -34,3 +35,13 @@ def make_user_rescuer(
         raise HTTPException(404, "User not found")
     makeRescuer(user, session)
     return {"status": "ok"}
+
+
+@router.post("/test-push-notification")
+def test_push_notification(
+    _: Annotated[User, Depends(get_current_user_admin)],
+    title: str = "Test Alert",
+    body: str = "This is a test notification from the testing endpoint.",
+):
+    send_admin_alert(title, body)
+    return {"status": "ok", "message": "Alert sent"}

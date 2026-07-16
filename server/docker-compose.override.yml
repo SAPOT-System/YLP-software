@@ -7,6 +7,7 @@ services:
   api:
     volumes:
       - ./app:/home/app/server/app
+      - ${FIREBASE_ADMIN_CREDENTIALS_HOST_PATH}:${FIREBASE_ADMIN_CREDENTIALS_PATH}:ro
     command:
       - uvicorn
       - app.main:app

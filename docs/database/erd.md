@@ -145,6 +145,14 @@ erDiagram
         CHAR user_id FK
         DATETIME created_at
     }
+    adminpushtoken {
+        INTEGER id PK
+        CHAR admin_user_id FK
+        VARCHAR token
+        VARCHAR platform
+        DATETIME created_at
+        DATETIME last_seen
+    }
     announcement {
         CHAR id PK
         CHAR user_id FK
@@ -321,6 +329,7 @@ erDiagram
     }
     user ||--o{ activity_logs : "user_id"
     user ||--o{ admin : "user_id"
+    user ||--o{ adminpushtoken : "admin_user_id"
     user ||--o{ announcement : "user_id"
     user ||--o{ banneduser : "user_id"
     conversation ||--o{ call : "conversation_id"

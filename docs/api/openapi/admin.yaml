@@ -281,6 +281,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /admin/device-token:
+    post:
+      tags:
+      - admin
+      summary: Register Device Token
+      operationId: register_device_token_admin_device_token_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceTokenRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - OAuth2PasswordBearer: []
   /admin/edit/user:
     post:
       tags:
@@ -794,6 +822,21 @@ components:
       - username
       - password
       title: Body_login_for_access_token_admin_login_post
+    DeviceTokenRequest:
+      properties:
+        token:
+          type: string
+          minLength: 1
+          title: Token
+        platform:
+          type: string
+          minLength: 1
+          title: Platform
+      type: object
+      required:
+      - token
+      - platform
+      title: DeviceTokenRequest
     HTTPValidationError:
       properties:
         detail:

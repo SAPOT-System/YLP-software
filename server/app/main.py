@@ -42,6 +42,8 @@ import time
 from app.db_operations.auth import SessionDep, engine
 from app.db_operations.expire_announcements import expire_announcements_loop
 from app.db_operations.router_metrics_collector import collect_metrics, collect_metrics_loop
+from app.db_operations.push_notifications import init_firebase
+from app.api.admin import ping_probe_loop
 from app.models.activity import ActivityLog
 from app.db_operations.token import get_user_id_from_header
 
@@ -54,6 +56,8 @@ async def lifespan(app: FastAPI):
 
     create_db_and_tables()
 
+    init_firebase()
+
     # existing worker
     threading.Thread(
         target=collect_metrics_loop,
@@ -63,6 +67,12 @@ async def lifespan(app: FastAPI):
     # NEW worker (announcement expiry)
     threading.Thread(
         target=expire_announcements_loop,
+        daemon=True
+    ).start()
+
+    # NEW worker (continuous ping probe -> packet-loss alerts)
+    threading.Thread(
+        target=ping_probe_loop,
         daemon=True
     ).start()
 

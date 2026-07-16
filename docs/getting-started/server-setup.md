@@ -36,5 +36,6 @@ With the server running, `GET http://<host>:8000/docs` serves the interactive Sw
 
 ## Next
 
+- [Run via Docker instead](server-docker-setup.md) for the full stack (db, redis, nginx, TLS) in containers.
 - [Mobile app setup](mobile-app-setup.md) to connect a client.
 - [environment-config.md](../deployment/environment-config.md) for the full list of server environment variables (`JWT_SECRET_KEY`, `GSM_SECRET`, etc.) to set before anything beyond local dev.
