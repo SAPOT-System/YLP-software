@@ -7,6 +7,15 @@ Alternative to [server-setup.md](server-setup.md) (bare-metal) — runs the full
 - Docker + Docker Compose v2
 - Your own `age` keypair added to `server/secrets/age-recipients.txt`, so you can decrypt the shared Firebase Admin credential (ask whoever manages `server/secrets/` to add your public key if you don't have access yet)
 
+If you don't have an `age` keypair yet, generate one:
+
+```bash
+mkdir -p ~/.age
+age-keygen -o ~/.age/keys.txt
+```
+
+This prints your public key (`Public key: age1...`) and saves the private key to `~/.age/keys.txt` — keep that file secret, never commit or share it. Message the developer who manages `server/secrets/` with your public key and ask them to add it to `server/secrets/age-recipients.txt` before continuing.
+
 ## Configure
 
 ```bash
