@@ -34,6 +34,7 @@ Add to `.env` (not yet in `.env.docker.example` — add manually until that's fi
 ```dotenv
 FIREBASE_ADMIN_CREDENTIALS_PATH=/home/app/server/certs/firebase-admin.json
 FIREBASE_ADMIN_CREDENTIALS_HOST_PATH=/home/<you>/firebase-admin.json
+ADMIN_WEB_URL=https://<ip>:3000 # For admin website
 ```
 
 See [SECURITY.md](../../SECURITY.md) for why these (and `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`) are required at import time.
