@@ -16,6 +16,17 @@ age-keygen -o ~/.age/keys.txt
 
 This prints your public key (`Public key: age1...`) and saves the private key to `~/.age/keys.txt` — keep that file secret, never commit or share it. Message the developer who manages `server/secrets/` with your public key and ask them to add it to `server/secrets/age-recipients.txt` before continuing.
 
+## Running under WSL
+
+Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.sh` (not `up.ps1`, which is for plain PowerShell). Set up in this order:
+
+1. **Install Docker Engine inside the distro** — use the [official Docker Engine install steps](https://docs.docker.com/engine/install/) for your distro (e.g. Ubuntu), not Docker Desktop. A fresh WSL install has no `docker` command otherwise.
+2. **Start the Docker daemon** — `sudo service docker start` (or enable it via systemd if your distro has it enabled: `sudo systemctl enable --now docker`).
+3. **Confirm `age` and `python3` are installed** in the distro — the steps above assume both are already present.
+4. **Before connecting a mobile client, check WSL2's networking mode** — `docker/up.sh` auto-detects a LAN IP for the dev TLS cert's SAN, but under WSL2's default NAT networking it detects the WSL2 virtual adapter's IP, not the Windows host's real LAN IP. `curl https://localhost/version` from WSL or Windows still works either way, but a phone running the [mobile app](mobile-app-setup.md) on the same network won't be able to reach the server at that IP unless you do one of:
+   - Enable WSL2 **mirrored networking** (Windows 11): add `networkingMode=mirrored` under `[wsl2]` in `%UserProfile%\.wslconfig`, then `wsl --shutdown` and restart.
+   - Set `CERT_SAN` manually to the Windows host's real LAN IP and add a `netsh interface portproxy` rule to forward it into WSL2.
+
 ## Configure
 
 ```bash
