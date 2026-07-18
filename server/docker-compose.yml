@@ -39,6 +39,12 @@ services:
         condition: service_healthy
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/version', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
 
   certgen:
     image: alpine/openssl:latest
@@ -59,7 +65,7 @@ services:
       certgen:
         condition: service_completed_successfully
       api:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "443:443"
       - "80:80"
