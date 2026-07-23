@@ -87,6 +87,15 @@ const config: Config = {
           'https://github.com/Emman-pip/YLP-software/edit/develop/mobile-app/sapot-mobile-app/docs/',
       },
     ],
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        indexDocs: true,
+        indexPages: false,
+        docsRouteBasePath: ['/docs', '/mobile-docs'],
+      },
+    ],
   ],
 
   themes: ['@docusaurus/theme-mermaid'],
