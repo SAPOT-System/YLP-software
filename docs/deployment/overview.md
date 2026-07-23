@@ -62,3 +62,5 @@ SAPOT is a multi-component system deployed as independent services on a LAN.
 - [secrets-management.md](secrets-management.md)
 - [monitoring-logging.md](monitoring-logging.md)
 - [runbooks.md](runbooks.md) — backup/restore, manual DDL application, TLS rotation, rollback, disaster recovery
+- [incident-response.md](incident-response.md) — severity levels, roles, and communication process during a live incident
+- [maintenance.md](maintenance.md) — recurring backup/cert/log/dependency upkeep schedule

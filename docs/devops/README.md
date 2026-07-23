@@ -32,6 +32,8 @@ Entry point for deploying, operating, and maintaining SAPOT in a live environmen
 |---|---|
 | [deployment/monitoring-logging.md](../deployment/monitoring-logging.md) | Monitoring and logging setup |
 | [deployment/runbooks.md](../deployment/runbooks.md) | Backup/restore, manual DB DDL application (no migration tooling — [ADR 0002](../adr/0002-no-server-migration-tooling.md)), TLS rotation, rollback, disaster recovery |
+| [deployment/incident-response.md](../deployment/incident-response.md) | Severity levels, roles, and communication process during a live incident |
+| [deployment/maintenance.md](../deployment/maintenance.md) | Recurring backup/cert/log/dependency upkeep schedule |
 
 ## Architecture context before making infra changes
 
@@ -46,7 +48,7 @@ Entry point for deploying, operating, and maintaining SAPOT in a live environmen
 
 ## When something breaks
 
-[TROUBLESHOOTING.md](../TROUBLESHOOTING.md) covers common setup/connectivity failures. For production incidents not covered there, start from [deployment/runbooks.md](../deployment/runbooks.md) and the relevant per-component deployment guide above.
+[TROUBLESHOOTING.md](../TROUBLESHOOTING.md) covers common setup/connectivity failures. For a live production incident, follow [deployment/incident-response.md](../deployment/incident-response.md) for the process (severity, comms, escalation) and [deployment/runbooks.md](../deployment/runbooks.md) for the technical fix.
 
 ## Known gap
 

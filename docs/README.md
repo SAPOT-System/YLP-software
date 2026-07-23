@@ -103,6 +103,8 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [deployment/secrets-management.md](deployment/secrets-management.md) | Secret storage and rotation |
 | [deployment/monitoring-logging.md](deployment/monitoring-logging.md) | Monitoring and logging setup |
 | [deployment/runbooks.md](deployment/runbooks.md) | Backup/restore, manual DB DDL application, TLS rotation, rollback, disaster recovery |
+| [deployment/incident-response.md](deployment/incident-response.md) | Severity levels, roles, and communication process during a live incident |
+| [deployment/maintenance.md](deployment/maintenance.md) | Recurring backup/cert/log/dependency upkeep schedule |
 | [deployment/mobile-eas.md](deployment/mobile-eas.md) | Mobile app EAS build/deploy |
 | [deployment/admin-frontend.md](deployment/admin-frontend.md) | Admin dashboard deployment |
 | [deployment/gsm-module.md](deployment/gsm-module.md) | GSM module deployment |
