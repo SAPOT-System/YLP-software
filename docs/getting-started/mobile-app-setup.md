@@ -1,6 +1,6 @@
 # Mobile App Setup
 
-Source: `mobile-app/README.org` and `mobile-app/sapot-mobile-app/README.md`.
+This is the canonical setup guide. `mobile-app/README.org` and `mobile-app/sapot-mobile-app/README.md` point here for full instructions and cover only content not duplicated here (WSL/Android troubleshooting, command quick-reference).
 
 ## Prerequisites
 

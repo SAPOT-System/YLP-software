@@ -49,6 +49,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 
 | Document | Contents |
 |---|---|
+| [ONBOARDING.md](../mobile-app/sapot-mobile-app/docs/ONBOARDING.md) | Developer onboarding — where complexity lives and how to navigate the codebase |
 | [ARCHITECTURE.md](../mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md) | Service map, DI containers, transport modes, encryption, adapters |
 | [SYNC.md](../mobile-app/sapot-mobile-app/docs/SYNC.md) | Pull/push sync cycle, trigger points, entity list, field normalization |
 | [API.md](../mobile-app/sapot-mobile-app/docs/API.md) | REST endpoint reference |
@@ -58,6 +59,14 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [CONNECTION_MESSAGES.md](../mobile-app/sapot-mobile-app/docs/CONNECTION_MESSAGES.md) | WebSocket, TCP, and WebRTC data-channel message catalogue |
 | [ENV_CONFIG.md](../mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md) | Environment variables, build variants, secure-storage keys |
 | [TESTING.md](../mobile-app/sapot-mobile-app/docs/TESTING.md) | Test utilities, mock patterns, conventions |
+| [STATE_MANAGEMENT.md](../mobile-app/sapot-mobile-app/docs/STATE_MANAGEMENT.md) | The app's seven state mechanisms, sources of truth, debugging pain points |
+| [system-boundaries.md](../mobile-app/sapot-mobile-app/docs/system-boundaries.md) | UI/hooks/service layer boundaries |
+| [design-system.md](../mobile-app/sapot-mobile-app/docs/design-system.md) | Material Design 3 theming via `react-native-paper` |
+| [conventions.md](../mobile-app/sapot-mobile-app/docs/conventions.md) | Code style and TypeScript conventions |
+| [READABILITY_AUDIT.md](../mobile-app/sapot-mobile-app/docs/READABILITY_AUDIT.md) | Codebase readability/maintainability audit |
+| [adr/](../mobile-app/sapot-mobile-app/docs/adr/) | Mobile-specific Architecture Decision Records (WebRTC reconnect/rebuild behaviour) |
+| [diagrams/](../mobile-app/sapot-mobile-app/docs/diagrams/) | Mermaid sequence diagrams for startup, LAN messaging, calls, GPS, SMS, guest user, security, encryption |
+| [audits/](../mobile-app/sapot-mobile-app/docs/audits/) | QA test cases, regression suite, automation plan |
 
 ### CI/CD
 
@@ -137,7 +146,6 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 | [../LICENSE](../LICENSE) | MIT license |
 | [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile/server independent) |
 | [../CHANGELOG.md](../CHANGELOG.md) | Notable changes per release |
-| [../sequence-diagrams.md](../sequence-diagrams.md) | Cross-component sequence diagrams |
 | [docs-todo.md](docs-todo.md) | Documentation audit remediation tracker |
 | [mobile-app-todo.org](mobile-app-todo.org) | Mobile app feature brief and TODOs |
 
