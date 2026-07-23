@@ -28,7 +28,7 @@ sudo systemctl start server-main-api
 **Verification:**
 ```bash
 mysql -u sapot -p -e "SELECT COUNT(*) FROM sapot_db.peer;"
-curl -k https://localhost/auth/exists?email=probe@example.com   # expect 200 or 404, not 500
+curl -k https://localhost/auth/exists?identifier=probe@example.com   # expect 200 with {"exists": true/false}, not 500
 sudo journalctl -u server-main-api -n 50 --no-pager   # confirm no startup errors
 ```
 
