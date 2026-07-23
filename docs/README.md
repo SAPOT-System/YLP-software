@@ -1,6 +1,6 @@
 # SAPOT — Documentation Index
 
-SAPOT (Search and Patrol Operations Technology) is a local-first disaster-response communications platform. It provides messaging, voice/video calls, GPS tracking, and announcements over a local-area network (LAN) when internet connectivity is unavailable. All core functions — messaging, peer discovery, and calls — operate without an internet connection. The server coordinates authentication, sync, and signalling but does not relay chat messages.
+SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response communications platform. It provides messaging, voice/video calls, GPS tracking, and announcements over a local-area network (LAN) when internet connectivity is unavailable. All core functions — messaging, peer discovery, and calls — operate without an internet connection. The server coordinates authentication, sync, and signalling but does not relay chat messages.
 
 ---
 

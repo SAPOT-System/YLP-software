@@ -4,7 +4,7 @@ SAPOT is made of four independently-runnable components. Set up only the ones yo
 
 | Component | Path | Language / Stack | Purpose |
 |---|---|---|---|
-| Server | `server/` | Python / FastAPI | REST API, WebSocket signaling relay, GPS streaming, MariaDB storage |
+| Server | `server/` | Python / FastAPI | REST API, WebSocket signalling relay, GPS streaming, MariaDB storage |
 | Mobile app | `mobile-app/sapot-mobile-app/` | React Native / Expo | The SAPOT client — P2P LAN messenger + server-relayed fallback |
 | GSM module | `GSM-module/GSM-fastapi/` | Python / FastAPI | SMS gateway bridging the server to a serial-attached GSM modem |
 | Admin frontend | `admin-frontend/sapot-admin/` | Next.js | Admin dashboard (announcements, user/router management) |

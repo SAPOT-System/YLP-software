@@ -80,7 +80,7 @@ Voice and video calls are modelled as records on a conversation. Call participan
 
 ### 5. Keys and Encryption
 
-ECDH-based end-to-end encryption for peer-to-peer channels. The server stores opaque encrypted blobs and public keys.
+ECDH-based E2E encryption for peer-to-peer channels. The server stores opaque encrypted blobs and public keys.
 
 | Table | Class | Purpose |
 |-------|-------|---------|

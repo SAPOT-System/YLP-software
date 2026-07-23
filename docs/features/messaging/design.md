@@ -52,7 +52,7 @@ flowchart TD
 In `lan` mode, messages travel entirely over a direct WebRTC data channel between peers on the same local network — the server is never involved in message delivery:
 
 1. **Discovery** — `DiscoveryService` publishes this device and scans for peers via mDNS/Zeroconf (`ZeroconfAdapter`, wrapping `react-native-zeroconf`). Each peer is published with its TCP listen port and peer ID in the Zeroconf TXT record.
-2. **TCP signaling** — Once a peer is discovered, `ConnectionService` opens a `TcpClientAdapter` connection to the peer's advertised IP/port and exchanges a handshake, then a WebRTC offer/answer, then ICE candidates — all over TCP.
+2. **TCP signalling** — Once a peer is discovered, `ConnectionService` opens a `TcpClientAdapter` connection to the peer's advertised IP/port and exchanges a handshake, then a WebRTC offer/answer, then ICE candidates — all over TCP.
 3. **Data channel** — Once the WebRTC connection is established, messages are sent over the resulting `RTCDataChannel`. `lan` mode has no WebSocket fallback: if the data channel is not open, sending fails outright.
 
 See `mobile-app/sapot-mobile-app/docs/LAN_MESSENGER.md` for the full discovery → TCP → WebRTC → data channel sequence, and `mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md` ("Transport Modes") for the mode table.
@@ -68,7 +68,7 @@ sequenceDiagram
     A->>Z: scan for peers
     Z-->>A: resolve B's LAN address:port
 
-    Note over A,B: TCP signaling channel
+    Note over A,B: TCP signalling channel
     A->>B: TCP connect (TcpClientAdapter)
     A->>B: handshake
     A->>B: WebRTC offer

@@ -1,15 +1,15 @@
 # System Overview
 
-SAPOT is a local-first disaster-response communications platform. It is designed to operate entirely on a local-area network (LAN) managed by a MikroTik router, with no dependency on internet connectivity for its core functions.
+SAPOT is a LAN-first disaster-response communications platform. It is designed to operate entirely on a local-area network (LAN) managed by a MikroTik router, with no dependency on internet connectivity for its core functions.
 
 ---
 
 ## Design Principles
 
-- **Offline-first.** Messaging, calls, peer discovery, and GPS sharing all function on the LAN without internet. See [ADR 0005](../adr/0005-lan-first-design.md).
+- **LAN-first.** Messaging, calls, peer discovery, and GPS sharing all function on the LAN without internet. See [ADR 0005](../adr/0005-lan-first-design.md).
 - **Local database.** The mobile app maintains a full local copy of relevant data in WatermelonDB (SQLite). Sync with the server is incremental and resumable. See [ADR 0003](../adr/0003-watermelondb-for-mobile-local-database.md).
 - **P2P media.** Voice and video calls are WebRTC peer-to-peer. The server relays only the SDP and ICE signalling messages; it never carries call media. See [ADR 0004](../adr/0004-p2p-calls-with-signalling-relay.md).
-- **End-to-end encryption.** Messages are encrypted at rest and in transit using NaCl box (ECDH key agreement, per-conversation keys). The server cannot read message content. See [ADR 0001](../adr/0001-nacl-box-for-e2e-encryption.md).
+- **E2E encryption.** Messages are encrypted at rest and in transit using NaCl box (ECDH key agreement, per-conversation keys). The server cannot read message content. See [ADR 0001](../adr/0001-nacl-box-for-e2e-encryption.md).
 - **SMS fallback.** If a recipient is not reachable on the LAN, the GSM module sends an SMS via an Arduino-controlled modem.
 
 ---
@@ -27,7 +27,7 @@ The primary user-facing component. An Expo/React Native Android app.
 - Live GPS location sharing (rescuers only; streamed over a dedicated WebSocket to the server)
 - Server-fetched announcements (role-filtered, expiry-aware)
 - Local database (WatermelonDB/SQLite) with incremental pull/push sync
-- End-to-end encryption (NaCl box, per-conversation ECDH keys, at-rest encryption)
+- E2E encryption (NaCl box, per-conversation ECDH keys, at-rest encryption)
 - Guest-to-authenticated account migration
 - Background WebSocket connectivity maintenance (Android background task)
 
@@ -63,7 +63,7 @@ The FastAPI backend. Deployed as a Gunicorn process behind an Nginx reverse prox
 
 API routers: `admin`, `auth`, `captive_portal`, `download`, `forgot_password`, `gps`, `gsm`, `keys`, `mikrotik`, `peer_connection`, `ping`, `profile_picture`, `public_chat`, `sync`, `testing` (dev only), `update_info`, `user_keys`, `user_utils`, `verify_email`, `wrapped_key`.
 
-> Note: The `testing` router is included in production builds as of the current codebase (`# delete when going to production` comment in `main.py`). It should be removed before a public deployment.
+> Note: The `testing` router is only mounted when `ENVIRONMENT=development` (see `app/main.py`); it is excluded from production builds by default. See [SECURITY.md](../../SECURITY.md) for the fix history.
 
 ---
 
