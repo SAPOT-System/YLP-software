@@ -71,7 +71,7 @@ If the change is release-relevant (server), `server/app/version.py` must match t
 - Never remove a test without stating why in the commit.
 - No repo-wide reformatting or unrelated-file changes bundled into a task's diff.
 - `.env` files are per-component and gitignored — never commit real secrets; use the sibling `.env.example` as the template.
-- Commits never go directly to `main`; all work happens on `feature/`, `bugfix/`, or `chore/` branches (`CONTRIBUTING.md`). This repo's commit format includes a scope — `type(scope): summary` — not generic conventional commits; see `CONTRIBUTING.md` for the full convention rather than restating it here.
+- Commits never go directly to `main`; all work happens on `feature/`, `bugfix/`, or `chore/` branches (`CONTRIBUTING.md`). This repo's commit format includes a scope — `type(scope): summary` — not generic conventional commits. The scope is component-prefixed (`server-*`, `mobile-*`, `admin-*`, `gsm-*`, `portal-*`, `tileserver-*`, `docs-*`), e.g. `feat(server-auth)`, `fix(mobile-sync)` — see `CONTRIBUTING.md` for the full convention rather than restating it here.
 
 ## Preferred Process
 
