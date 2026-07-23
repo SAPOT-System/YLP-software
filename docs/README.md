@@ -35,6 +35,7 @@ SAPOT (Search and Patrol Operations Technology) is a local-first disaster-respon
 | Document | Contents |
 |---|---|
 | [architecture/system-overview.md](architecture/system-overview.md) | Component responsibilities, system boundaries, communication matrix, roles |
+| [architecture/assumptions-and-constraints.md](architecture/assumptions-and-constraints.md) | Consolidated deployment assumptions and technical constraints, with links to the ADRs/threat model they come from |
 | [architecture/component-map.md](architecture/component-map.md) | Process/service topology, ports, deployment units, what talks to what |
 | [architecture/data-flow.md](architecture/data-flow.md) | Sync flow, message delivery (WS relay, LAN P2P, SMS fallback), call signalling, GPS streaming — with Mermaid diagrams |
 | [architecture/networking-lan-model.md](architecture/networking-lan-model.md) | LAN topology, MikroTik router role, mDNS discovery, client isolation considerations |
