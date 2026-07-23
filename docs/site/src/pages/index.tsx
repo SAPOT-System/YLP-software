@@ -1,43 +1,32 @@
 import type {ReactNode} from 'react';
-import clsx from 'clsx';
 import Link from '@docusaurus/Link';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
-import HomepageFeatures from '@site/src/components/HomepageFeatures';
 import Heading from '@theme/Heading';
 
-import styles from './index.module.css';
-
-function HomepageHeader() {
-  const {siteConfig} = useDocusaurusContext();
-  return (
-    <header className={clsx('hero hero--primary', styles.heroBanner)}>
-      <div className="container">
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
-        <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <div className={styles.buttons}>
-          <Link
-            className="button button--secondary button--lg"
-            to="/docs">
-            Read the Documentation
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
-
 export default function Home(): ReactNode {
-  const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />">
-      <HomepageHeader />
-      <main>
-        <HomepageFeatures />
+      title="SAPOT Documentation"
+      description="LAN-first disaster-response communications platform documentation">
+      <main style={{padding: '3rem 2rem', maxWidth: 960, margin: '0 auto'}}>
+        <Heading as="h1">SAPOT Documentation</Heading>
+        <p>
+          SAPOT is a LAN-first disaster-response communications platform:
+          messaging, voice/video calls, GPS tracking, and announcements over
+          a local-area network when internet connectivity is unavailable.
+        </p>
+        <div style={{display: 'flex', gap: '1.5rem', marginTop: '2rem', flexWrap: 'wrap'}}>
+          <Link
+            className="button button--primary button--lg"
+            to="/docs/getting-started/overview">
+            Platform Docs
+          </Link>
+          <Link
+            className="button button--secondary button--lg"
+            to="/mobile-docs/ONBOARDING">
+            Mobile App Docs
+          </Link>
+        </div>
       </main>
     </Layout>
   );
