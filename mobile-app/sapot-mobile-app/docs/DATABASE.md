@@ -82,6 +82,10 @@ Individual chat messages within a conversation.
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
 | `is_deleted` | boolean | No | Soft delete |
+| `linked_message_id` | string | Yes | Added schema v8. Self-referencing FK → `messages.id` for reply threads |
+| `is_encrypted` | boolean | Yes | Added schema v9. Marks NaCl-box-encrypted content |
+
+Both columns were present in `schema.ts` but missing from this table in a prior version of this doc.
 
 ---
 
@@ -166,4 +170,4 @@ WatermelonDB uses a **pull/push sync** pattern with the server:
 
 All synced tables use `is_deleted` (soft delete) and `updated_at` for conflict resolution.
 
-Schema and migrations: `features/shared/database/schema.ts`, `features/shared/database/migrations.ts`
+Schema and migrations: `features/shared/core/database/schema.ts`, `features/shared/core/database/migrations.ts` (previously documented without the `core/` path segment)

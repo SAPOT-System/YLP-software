@@ -38,7 +38,7 @@ If this fails, check MariaDB is running (`sudo systemctl status mariadb`) and th
 1. Confirm the server's LAN IP: `ip addr` (Linux) or `ifconfig` (macOS) on the server machine — look for the Wi-Fi/Ethernet interface IP, not `127.0.0.1`.
 2. Confirm the phone is on the **same** Wi-Fi network as that machine (not a guest network, not cellular data).
 3. Confirm `EXPO_PUBLIC_DEV_HOST` in `mobile-app/sapot-mobile-app/.env.local` matches that IP exactly, and that the app's in-app server settings (getting-started screen → Server Mode → settings icon) match too — both must agree.
-4. Confirm the server is bound to `0.0.0.0`, not `127.0.0.1` — `uvicorn app.main:app --host 0.0.0.0 --port 8000` (see [server-setup.md](getting-started/server-setup.md)); binding to `127.0.0.1` makes it unreachable from any other device.
+4. Confirm the server is reachable from other devices, not just `localhost` — the [Docker setup](getting-started/server-docker-setup.md)'s Nginx publishes on every host interface by default; if running bare-metal instead (`uvicorn app.main:app --host 0.0.0.0 --port 8000`, see [server-setup.md](getting-started/server-setup.md)), binding to `127.0.0.1` makes it unreachable from any other device.
 
 ---
 
@@ -86,9 +86,9 @@ If this fails, check MariaDB is running (`sudo systemctl status mariadb`) and th
 
 **Symptom:** GSM module fails to bind, or one of the two services silently doesn't respond, when both run on the same host.
 
-**Cause:** Both default to port `8000` (`server`'s uvicorn and the GSM module's `config.py` default). See [environment-config.md](deployment/environment-config.md#gsm-module-gsm-modulegsm-fastapi).
+**Cause:** The GSM module's `config.py` documents a `PORT` default of `8000`, matching the server's default — but `PORT` is not actually read: `GSM-fastapi/main.py` hardcodes `uvicorn.run(..., port=8001, ...)` regardless of the variable. In practice the two services don't collide because the GSM module always binds `8001`. See [environment-config.md](deployment/environment-config.md#gsm-module-gsm-modulegsm-fastapi).
 
-**Fix:** Set `PORT=8001` for the GSM module (or another free port) when co-located with the server on one host, and ensure the server's `_gsm_http_client` base URL matches.
+**Fix:** No action needed for the port itself — the GSM module always listens on `8001`. If you still see a collision, confirm nothing else on the host is bound to `8001`, and ensure the server's `_gsm_http_client` base URL points at `8001`.
 
 ---
 

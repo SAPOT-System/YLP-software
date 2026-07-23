@@ -8,8 +8,7 @@ This quickstart covers the **minimum golden path**: server + mobile app. GSM/SMS
 
 ## 1. Prerequisites checklist
 
-- Python 3.13, Node ≥ 18, npm 10.8.2
-- A running MariaDB instance reachable from your machine
+- Docker + Docker Compose v2, Node ≥ 18, npm 10.8.2
 - Android device or emulator, on the **same Wi-Fi network** as the machine running the server
 - [Nix](https://nixos.org/) (used to pin the mobile app's dev toolchain)
 
@@ -17,25 +16,15 @@ This quickstart covers the **minimum golden path**: server + mobile app. GSM/SMS
 
 ```bash
 cd server
-source app/venv/bin/activate && pip install -r app/requirements.txt
+cp .env.docker.example .env    # edit placeholder secrets before anything but local dev
+docker/up.sh up --build -d
 ```
 
-Copy `server/.env.example` to `server/.env` and set the three required variables (the server raises `RuntimeError` at import time if any are missing):
+This brings up MariaDB, Redis, the API, and an Nginx TLS terminator together — no local MariaDB/Redis install, and no manual cert setup — and auto-detects this machine's LAN IP for the dev TLS certificate's SAN.
 
-```dotenv
-DATABASE_URL=mysql+pymysql://<user>:<password>@127.0.0.1:3306/sapot_db
-JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
-CORS_ALLOWED_ORIGINS=http://192.168.1.x:3000
-ENVIRONMENT=development
-```
+**Checkpoint:** `curl -sk https://<your-lan-ip>/version` (or `https://localhost/version` from the same machine) returns a JSON version payload. If not, see [Troubleshooting: server won't start](../TROUBLESHOOTING.md#server-wont-start-or-crashes-on-import).
 
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Checkpoint:** `curl http://<your-lan-ip>:8000/docs` returns the Swagger UI HTML. If not, see [Troubleshooting: server won't start](../TROUBLESHOOTING.md#server-wont-start-or-crashes-on-import).
-
-Full detail: [server-setup.md](server-setup.md).
+Full detail: [server-docker-setup.md](server-docker-setup.md). Prefer to run the API directly without Docker? See [server-setup.md](server-setup.md) (bare-metal, requires installing MariaDB/Redis yourself).
 
 ## 3. Start the mobile app
 

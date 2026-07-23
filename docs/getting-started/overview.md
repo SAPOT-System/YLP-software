@@ -15,7 +15,7 @@ For a single "clone → run the whole stack" walkthrough (server + mobile app, w
 
 ## Typical setup order
 
-1. [Server setup](server-setup.md) — needed by every other component.
+1. [Server setup (Docker)](server-docker-setup.md) — needed by every other component. Prefer running the API directly without Docker? See [server-setup.md](server-setup.md) (bare-metal).
 2. [Mobile app setup](mobile-app-setup.md) — the primary client; requires the server running and reachable on the same LAN for local dev.
 3. [GSM module setup](gsm-module-setup.md) — only needed if testing SMS fallback.
 4. [Admin frontend setup](admin-frontend-setup.md) — only needed for admin dashboard work.

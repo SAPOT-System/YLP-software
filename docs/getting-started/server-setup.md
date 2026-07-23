@@ -1,4 +1,6 @@
-# Server Setup
+# Server Setup (bare-metal)
+
+> **Recommended: [server-docker-setup.md](server-docker-setup.md)** — provisions MariaDB, Redis, and a TLS-terminating Nginx for you in one command, which this bare-metal path requires you to do by hand. Use this doc only if you specifically need to run the API outside Docker.
 
 Source: `mobile-app/sapot-mobile-app/README.md` (Tester Guide section) — the server's own `README.org` has no run instructions today.
 
@@ -20,6 +22,8 @@ ENVIRONMENT=development
 ```
 
 See [environment-config.md](../deployment/environment-config.md) for the full variable list and [SECURITY.md](../../SECURITY.md) for why these are required.
+
+> Don't want to install MariaDB/Redis locally? [deployment/server.md#run-with-docker](../deployment/server.md#run-with-docker) documents a `docker compose` stack that provides both plus a TLS-terminating Nginx, without hand-managing local services.
 
 ## Run
 

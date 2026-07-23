@@ -1,5 +1,7 @@
 # Four-tier roles model: guest, user, rescuer, admin
 
+**Status:** Accepted
+
 ## Context
 
 SAPOT serves several distinct populations at an incident site: unregistered civilians who just joined the network, registered end users, professional rescuers who need situational awareness (live GPS of everyone), and administrators who manage the deployment itself. A permissions model was needed that lets civilians communicate immediately (registration is friction at a disaster scene) while still gating sensitive capabilities like live location tracking of all users and admin operations.

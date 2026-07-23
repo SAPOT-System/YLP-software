@@ -1,5 +1,7 @@
 # Server schema uses SQLModel `create_all()`, not a migration tool
 
+**Status:** Accepted — expected to be superseded if/when the project adopts Alembic (see Consequences below); flip this line to `Superseded by <link>` when that happens.
+
 ## Context
 
 The FastAPI server uses SQLModel/SQLAlchemy models as the schema source of truth. Schema changes need some mechanism to reach the running database. Options considered: adopt Alembic (SQLAlchemy's standard migration tool, with autogenerate, versioning, and up/down migrations) now, or defer it and apply schema changes by hand.

@@ -1,5 +1,7 @@
 # Calls are P2P WebRTC media with a server-relayed signalling channel only
 
+**Status:** Accepted
+
 ## Context
 
 Voice/video calls need a way for two devices to discover each other's network path and exchange SDP/ICE candidates (signalling) before media can flow. The server could either relay the call media itself (a TURN-like or SFU-like architecture) or relay only the small signalling messages and let media flow directly between devices.

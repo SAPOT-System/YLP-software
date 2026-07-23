@@ -119,6 +119,8 @@ Paginated endpoints use `fastapi-pagination`. Response shape:
 
 Query params: `page` (default 1), `size` (default 20).
 
+This envelope applies to standard REST list endpoints only. A few endpoints use a different shape for their own protocol reasons: [sync.md](sync.md) uses cursor-based pagination (`next_cursor`/`has_more`), [messaging-and-websocket.md](messaging-and-websocket.md) uses `limit`/`before`/`oldest_created_at`, and [mikrotik-telemetry.md](mikrotik-telemetry.md) returns plain `limit`-bounded arrays with no envelope. Check the endpoint's own doc before assuming this shape.
+
 ---
 
 ## Timestamps

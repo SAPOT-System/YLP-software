@@ -40,4 +40,4 @@ See [environment-config.md](../deployment/environment-config.md#admin-frontend-a
 
 ## Next
 
-- [environment-config.md](../deployment/environment-config.md) for how `NEXT_PUBLIC_API_URL` relates to the other components' env vars.
+- [environment-config.md](../deployment/environment-config.md) for how `API_DOMAIN` relates to the other components' env vars.

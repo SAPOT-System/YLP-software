@@ -28,7 +28,7 @@ Or use the helper script:
 bash run-api.sh
 ```
 
-`main.py` starts FastAPI using host/port from `config.py` (default `127.0.0.1:8000`). Override with environment variables.
+`main.py` starts FastAPI on `settings.host` (from `config.py`, default `127.0.0.1`) — **but the port is hardcoded to `8001`** in the `uvicorn.run(...)` call, not read from `settings.port`/`PORT`. Setting `PORT` has no effect on the bound port (it only affects the startup log line, which will report the wrong port — see `GSM-module/CLAUDE.md`'s "Common Pitfalls"). `HOST` is honored via `config.py`.
 
 ---
 
@@ -40,7 +40,7 @@ bash run-api.sh
 | `SERIAL_BAUD` | `9600` | Serial baud rate |
 | `DB_PATH` | `mysql+pymysql://sapot:sapot@localhost:3306/sapot_db` | Database connection (hardcoded default — override in production) |
 | `HOST` | `127.0.0.1` | FastAPI bind host |
-| `PORT` | `8000` | FastAPI bind port |
+| `PORT` | `8000` in `config.py`, but **not actually used** — `main.py` hardcodes port `8001` regardless of this variable | Documented for completeness only; do not rely on it to change the bound port |
 
 > **Security note:** `DB_PATH` has a hardcoded default with plaintext credentials. Always set it explicitly in production. See [secrets-management.md](secrets-management.md).
 

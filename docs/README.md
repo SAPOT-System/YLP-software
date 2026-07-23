@@ -71,7 +71,8 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 |---|---|
 | [getting-started/overview.md](getting-started/overview.md) | Component map and setup order |
 | [getting-started/quickstart.md](getting-started/quickstart.md) | Full-stack "clone → run everything" happy path |
-| [getting-started/server-setup.md](getting-started/server-setup.md) | Run the FastAPI server locally |
+| [getting-started/server-docker-setup.md](getting-started/server-docker-setup.md) | Run the FastAPI server via Docker Compose (recommended) |
+| [getting-started/server-setup.md](getting-started/server-setup.md) | Run the FastAPI server bare-metal (no Docker) |
 | [getting-started/mobile-app-setup.md](getting-started/mobile-app-setup.md) | Nix + Expo dev environment setup |
 | [getting-started/gsm-module-setup.md](getting-started/gsm-module-setup.md) | SMS gateway setup |
 | [getting-started/admin-frontend-setup.md](getting-started/admin-frontend-setup.md) | Next.js admin dashboard setup |
