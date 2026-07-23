@@ -12,10 +12,10 @@ These endpoints manage the ECDH public keys and wrapped master keys used for E2E
 |---|---|---|---|
 | POST | `/keys/register` | JWT Bearer (rate-limited 3/min) | Register/replace the current user's ECDH public key; server signs it and returns a `SignedCredential`. |
 | GET | `/keys/server-public-key` | None | Retrieve the server's Ed25519 verify key (used to check credential signatures). |
-| POST | `/keys/contacts/&lbrace;peer_id&rbrace;` | JWT Bearer (rate-limited 30/min) | Upsert a backup of a guest peer's ECDH public key, pre-encrypted client-side under the caller's master key. |
+| POST | `/keys/contacts/{peer_id}` | JWT Bearer (rate-limited 30/min) | Upsert a backup of a guest peer's ECDH public key, pre-encrypted client-side under the caller's master key. |
 | GET | `/keys/contacts` | JWT Bearer (rate-limited 10/min) | List all backed-up contact key blobs for the current user (opaque to the server). |
-| GET | `/keys/&lbrace;peer_id&rbrace;/type` | JWT Bearer | Returns `{"is_guest": bool}` — whether `peer_id` has a server-registered `PeerKey`. |
-| GET | `/keys/&lbrace;peer_id&rbrace;` | JWT Bearer | Retrieve a peer's signed public-key credential. `404` if the peer has no registered key. |
+| GET | `/keys/{peer_id}/type` | JWT Bearer | Returns `{"is_guest": bool}` — whether `peer_id` has a server-registered `PeerKey`. |
+| GET | `/keys/{peer_id}` | JWT Bearer | Retrieve a peer's signed public-key credential. `404` if the peer has no registered key. |
 | POST | `/users/wrapped-key` | JWT Bearer (rate-limited 3/min) | Store the current user's wrapped master key (`201`; replaces any existing row). |
 | GET | `/users/wrapped-key` | JWT Bearer (rate-limited 10/min) | Retrieve the current user's wrapped master key. `404` if none exists. |
 | PUT | `/users/wrapped-key` | JWT Bearer (rate-limited 5/min) | Update the current user's wrapped master key blob. `404` if none exists. |
@@ -31,7 +31,7 @@ Registers/replaces the current user's ECDH public key (`SignedCredential` reques
 
 ---
 
-## POST /keys/contacts/&lbrace;peer_id&rbrace;
+## POST /keys/contacts/{peer_id}
 
 Used for guest peers who are not server-registered and whose keys are otherwise only available from a local TCP handshake. Upserts on conflict (owner_id, peer_id) — also not visible in the schema.
 

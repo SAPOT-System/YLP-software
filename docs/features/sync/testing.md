@@ -69,7 +69,7 @@
 | Scenario | Expected result |
 |----------|-----------------|
 | App receives 409 on push | App re-pulls with current `lastPulledAt`; conflicting row fetched |
-| After re-pull, app retries push | Server `updated_at` now &lt;= `last_pulled_at`; push succeeds; 200 |
+| After re-pull, app retries push | Server `updated_at` now <= `last_pulled_at`; push succeeds; 200 |
 | Concurrent pushes from two devices for same row | Second device gets 409; after pull it sees first device's version; no data loss |
 
 ### Mobile SyncService — Unit (Jest)
