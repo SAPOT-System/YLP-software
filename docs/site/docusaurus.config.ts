@@ -30,6 +30,7 @@ const config: Config = {
 
   markdown: {
     format: 'md',
+    mermaid: true,
   },
 
   // Even if you don't use internationalization, you can use this field to set
@@ -87,6 +88,8 @@ const config: Config = {
       },
     ],
   ],
+
+  themes: ['@docusaurus/theme-mermaid'],
 
   themeConfig: {
     // Replace with your project's social card
