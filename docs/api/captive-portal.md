@@ -13,8 +13,8 @@ The captive portal endpoints handle guest session tracking for the MikroTik hots
 | POST | `/portal/api/v1/guests` | None (internal — called from the MikroTik-hosted static portal page) | Record a new guest login. Idempotent on `session_id` (returns the existing record instead of erroring on double-submit). |
 | GET | `/portal/api/v1/guests` | None (internal) | List all guest sessions. Filterable by `status` (`active`/`disconnected`), `search` (name substring), with `limit`/`offset` pagination. |
 | GET | `/portal/api/v1/guests/stats` | None (internal) | Aggregate session counts: total, active, disconnected. |
-| GET | `/portal/api/v1/guests/&lbrace;session_id&rbrace;` | None (internal) | Retrieve a single guest session by its client-generated `session_id`. |
-| PATCH | `/portal/api/v1/guests/&lbrace;session_id&rbrace;/disconnect` | None (internal) | Mark a session as disconnected (sets `status=disconnected`, `disconnect_at=now`). Intended to be idempotent. |
+| GET | `/portal/api/v1/guests/{session_id}` | None (internal) | Retrieve a single guest session by its client-generated `session_id`. |
+| PATCH | `/portal/api/v1/guests/{session_id}/disconnect` | None (internal) | Mark a session as disconnected (sets `status=disconnected`, `disconnect_at=now`). Intended to be idempotent. |
 
 ---
 
@@ -24,7 +24,7 @@ Idempotent on `session_id` — a double-submit returns the existing record rathe
 
 ---
 
-## PATCH /portal/api/v1/guests/&lbrace;session_id&rbrace;/disconnect
+## PATCH /portal/api/v1/guests/{session_id}/disconnect
 
 Called by the portal's logout page when the guest clicks Disconnect.
 

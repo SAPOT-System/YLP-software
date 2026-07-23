@@ -8,14 +8,14 @@ GPS endpoints stream and query user location data (router in `server/app/api/gps
 
 | Method | Path | Auth | Summary |
 |---|---|---|---|
-| WS | `/gps/ws/&lbrace;user_id&rbrace;` | `token` query param (JWT) | Stream live GPS coordinates from a user's device; server persists and fans out to monitoring rescuers. |
-| WS | `/gps/ws/monitor/rescuers/&lbrace;rescuer_id&rbrace;` | `token` query param (JWT, rescuer role) | Live feed of every user's GPS updates, for rescuers. |
+| WS | `/gps/ws/{user_id}` | `token` query param (JWT) | Stream live GPS coordinates from a user's device; server persists and fans out to monitoring rescuers. |
+| WS | `/gps/ws/monitor/rescuers/{rescuer_id}` | `token` query param (JWT, rescuer role) | Live feed of every user's GPS updates, for rescuers. |
 | GET | `/gps/latest` | JWT Bearer (rescuer role) | Most recent location for every user who has sent at least one ping. |
-| GET | `/gps/history/&lbrace;user_id&rbrace;` | JWT Bearer (rescuer role) | Location history for a specific user, most recent first. |
+| GET | `/gps/history/{user_id}` | JWT Bearer (rescuer role) | Location history for a specific user, most recent first. |
 
 ---
 
-## WebSocket /gps/ws/&lbrace;user_id&rbrace;
+## WebSocket /gps/ws/{user_id}
 
 Stream live GPS coordinates from a user's device to the server. The server persists each ping and fans out to all monitoring rescuers in real time.
 
@@ -58,7 +58,7 @@ users based on this field.
 
 ---
 
-## WebSocket /gps/ws/monitor/rescuers/&lbrace;rescuer_id&rbrace;
+## WebSocket /gps/ws/monitor/rescuers/{rescuer_id}
 
 Open a live feed of all users' GPS updates. Rescuers only.
 
@@ -104,7 +104,7 @@ Return the most recent location for every user who has sent at least one GPS pin
 
 ---
 
-## GET /gps/history/&lbrace;user_id&rbrace;
+## GET /gps/history/{user_id}
 
 Return the location history for a specific user, most recent first.
 
