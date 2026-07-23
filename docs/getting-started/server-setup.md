@@ -21,6 +21,8 @@ CORS_ALLOWED_ORIGINS=http://192.168.1.x:3000
 ENVIRONMENT=development
 ```
 
+> **`.env.example`'s shipped `DATABASE_URL`/`REDIS_URL` point at the Docker Compose service names (`db`/`redis`)** — they only resolve inside the Docker network. Change both to `127.0.0.1`/`localhost` (as above) for this bare-metal path.
+
 See [environment-config.md](../deployment/environment-config.md) for the full variable list and [SECURITY.md](../../SECURITY.md) for why these are required.
 
 > Don't want to install MariaDB/Redis locally? [deployment/server.md#run-with-docker](../deployment/server.md#run-with-docker) documents a `docker compose` stack that provides both plus a TLS-terminating Nginx, without hand-managing local services.

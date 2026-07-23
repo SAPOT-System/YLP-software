@@ -33,7 +33,7 @@ Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.
 
 ```bash
 cd server
-cp .env.docker.example .env
+cp .env.example .env
 ```
 
 Place the Firebase Admin service-account JSON you received onto this machine, at a path your user can read (e.g. your home directory in the WSL distro — not the Windows filesystem, since the container reads it through a Linux bind mount):
@@ -46,7 +46,7 @@ chmod 600 ~/firebase-admin.json
 
 Then point `.env` at it.
 
-Add to `.env` (not yet in `.env.docker.example` — add manually until that's fixed):
+Add to `.env` (not yet in `.env.example` — add manually until that's fixed):
 
 ```dotenv
 FIREBASE_ADMIN_CREDENTIALS_PATH=/home/app/server/certs/firebase-admin.json

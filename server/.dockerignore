@@ -22,7 +22,7 @@ logs/
 # Secrets and env files
 .env
 .env.*
-!.env.docker.example
+!.env.example
 .envrc
 
 # TLS certs and keys — never bake into the image

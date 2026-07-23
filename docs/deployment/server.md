@@ -30,7 +30,7 @@ dummy shell exports.
 
 ```bash
 cd server/
-cp .env.docker.example .env    # edit placeholder secrets before anything but local dev
+cp .env.example .env    # edit placeholder secrets before anything but local dev
 docker/up.sh up --build
 ```
 
@@ -38,7 +38,7 @@ On Windows, use the PowerShell equivalent instead (works in plain
 PowerShell — no WSL or Git Bash required):
 ```powershell
 cd server
-copy .env.docker.example .env
+copy .env.example .env
 docker\up.ps1 up --build
 ```
 

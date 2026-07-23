@@ -16,7 +16,7 @@ This quickstart covers the **minimum golden path**: server + mobile app. GSM/SMS
 
 ```bash
 cd server
-cp .env.docker.example .env    # edit placeholder secrets before anything but local dev
+cp .env.example .env    # edit placeholder secrets before anything but local dev
 docker/up.sh up --build -d
 ```
 
