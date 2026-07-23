@@ -1,6 +1,7 @@
 {
   "label": "Architecture Decision Records",
   "link": {
-    "type": "generated-index"
+    "type": "generated-index",
+    "slug": "/adr"
   }
 }

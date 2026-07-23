@@ -1,6 +1,7 @@
 {
   "label": "End-to-End Encryption",
   "link": {
-    "type": "generated-index"
+    "type": "generated-index",
+    "slug": "/features/e2e-encryption"
   }
 }

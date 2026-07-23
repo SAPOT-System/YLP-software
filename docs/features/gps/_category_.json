@@ -1,6 +1,7 @@
 {
   "label": "GPS",
   "link": {
-    "type": "generated-index"
+    "type": "generated-index",
+    "slug": "/features/gps"
   }
 }

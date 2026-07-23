@@ -1,6 +1,7 @@
 {
   "label": "Authentication",
   "link": {
-    "type": "generated-index"
+    "type": "generated-index",
+    "slug": "/features/authentication"
   }
 }

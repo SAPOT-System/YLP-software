@@ -1,6 +1,7 @@
 {
   "label": "Messaging",
   "link": {
-    "type": "generated-index"
+    "type": "generated-index",
+    "slug": "/features/messaging"
   }
 }
