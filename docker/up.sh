@@ -16,10 +16,11 @@ set -eu
 # case unless you export CERT_SAN in the shell first.
 #
 # Passes --env-file server/.env explicitly: docker-compose.yml's
-# ${MYSQL_*} substitutions are read from this file. Compose only
-# auto-loads a .env next to the compose file (repo root) by default,
-# and there isn't one there — server/.env is the single source of
-# truth for these values, shared with the api service's own env_file.
+# ${MYSQL_*} substitutions are read from this file. Passing --env-file at
+# all disables Compose's default auto-load of a root-level .env, so we
+# also pass repo-root .env (port overrides, see .env.example) when present
+# — --env-file can be repeated, later ones win on overlapping keys, and
+# there's no overlap between the two files' variables anyway.
 #
 # Usage: docker/up.sh up --build
 #        docker/up.sh run --rm api pytest
@@ -39,4 +40,9 @@ if [ -z "${CERT_SAN:-}" ]; then
     export CERT_SAN
 fi
 
-exec docker compose --env-file server/.env "$@"
+ENV_FILE_ARGS="--env-file server/.env"
+if [ -f .env ]; then
+    ENV_FILE_ARGS="--env-file .env $ENV_FILE_ARGS"
+fi
+
+exec docker compose $ENV_FILE_ARGS "$@"

@@ -34,6 +34,16 @@ Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.
 cp server/.env.example server/.env
 ```
 
+Optional — override the stack's host-side ports (default: `nginx` 443/80, `admin` 3000,
+`tileserver` 8080, `gsm-fastapi` 8001) by copying the repo-root env file too:
+
+```bash
+cp .env.example .env
+```
+
+Only needed if you want to change a port (e.g. running a second stack concurrently — see
+[Running from a git worktree](#running-from-a-git-worktree) below). Skip it and the defaults apply.
+
 To also bring up the admin dashboard and SMS gateway, configure their env files too:
 
 ```bash
@@ -123,6 +133,40 @@ docker compose up -d db redis api certgen nginx admin tileserver   # skips gsm-f
 ```bash
 docker compose up -d --force-recreate nginx admin
 ```
+
+## Running from a git worktree
+
+Running `docker/up.sh` (or plain `docker compose`) from inside a git worktree checkout works
+correctly and is isolated from the main checkout's stack, with one thing to configure if you want
+both running at once:
+
+- **Isolation is automatic.** `docker/up.sh` `cd`s to its own script's directory before calling
+  `docker compose`, so every relative path in `docker-compose.yml` — build contexts, the
+  `./server/app` live-reload bind mount, `./docker/nginx.docker.conf`, etc. — resolves inside
+  *that* worktree, not the main checkout. Compose also derives the project name from the checkout's
+  directory name, so a worktree gets its own containers, network, and `db-data` volume automatically
+  — no shared state with the main checkout's stack.
+- **Host ports are not automatically isolated.** Two stacks (main checkout + a worktree, or two
+  worktrees) both bind `443`/`80`/`3000`/`8080`/`8001` on the host by default, so bringing up a
+  second stack while the first is still running fails with "port is already allocated". If you want
+  them running concurrently, give the worktree its own `.env` (root-level, copied from
+  `.env.example`) with different port values, e.g.:
+  ```dotenv
+  NGINX_HTTPS_PORT=8443
+  NGINX_HTTP_PORT=8080
+  ADMIN_PORT=13000
+  TILESERVER_PORT=18080
+  GSM_FASTAPI_PORT=18001
+  ```
+  If you only ever run one stack at a time — the more common workflow, matching how you'd run
+  bare-metal dev servers — you can skip this and leave every worktree's ports at their defaults.
+- **`gsm-fastapi` has no live bind mount** — its code is baked into the image at `docker compose
+  build` time from that worktree's `./GSM-module/GSM-fastapi`. Editing GSM code in a worktree and
+  running `up` without rebuilding will still run whatever was baked in last. Rebuild after pulling
+  or editing GSM code there: `docker/up.sh up --build -d gsm-fastapi`.
+- **The modem device (`/dev/ttyACM0`) is physical hardware** — it can't be attached to two
+  containers at once, so don't run `gsm-fastapi` from more than one stack simultaneously regardless
+  of port configuration.
 
 ## Next
 
