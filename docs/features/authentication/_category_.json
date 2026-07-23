@@ -1,3 +1,6 @@
 {
-  "label": "Authentication"
+  "label": "Authentication",
+  "link": {
+    "type": "generated-index"
+  }
 }

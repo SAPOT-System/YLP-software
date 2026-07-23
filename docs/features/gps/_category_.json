@@ -1,3 +1,6 @@
 {
-  "label": "GPS"
+  "label": "GPS",
+  "link": {
+    "type": "generated-index"
+  }
 }

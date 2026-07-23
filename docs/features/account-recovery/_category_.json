@@ -1,3 +1,6 @@
 {
-  "label": "Account Recovery"
+  "label": "Account Recovery",
+  "link": {
+    "type": "generated-index"
+  }
 }

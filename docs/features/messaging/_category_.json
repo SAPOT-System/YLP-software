@@ -1,3 +1,6 @@
 {
-  "label": "Messaging"
+  "label": "Messaging",
+  "link": {
+    "type": "generated-index"
+  }
 }

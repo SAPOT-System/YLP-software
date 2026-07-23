@@ -1,3 +1,6 @@
 {
-  "label": "Calls"
+  "label": "Calls",
+  "link": {
+    "type": "generated-index"
+  }
 }
