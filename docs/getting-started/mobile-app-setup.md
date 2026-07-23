@@ -27,7 +27,7 @@ cp .env.example .env
 
 ## Configure the dev server host
 
-Point the app at your server's LAN IP (the machine running [server setup (Docker)](server-docker-setup.md)):
+Point the app at your server's LAN IP (the machine running [the Docker setup](docker-setup.md)):
 
 ```bash
 # .env.local (mobile-app/sapot-mobile-app/)
@@ -36,7 +36,7 @@ EXPO_PUBLIC_DEV_HOST=192.168.1.x
 
 See [environment-config.md](../deployment/environment-config.md) for the full mobile app env var list.
 
-**The app always talks HTTPS, including in development** (`config/runtime.ts`'s `getApiUrl`/`getWsUrl` return `https://`/`wss://` for every build variant, dev included). [server-docker-setup.md](server-docker-setup.md)'s Nginx TLS terminator handles this for you automatically. Running the server bare-metal instead (`server-setup.md`)? See [Configure TLS trust for local development](#configure-tls-trust-for-local-development) below before starting it, or the app will fail to connect.
+**The app always talks HTTPS, including in development** (`config/runtime.ts`'s `getApiUrl`/`getWsUrl` return `https://`/`wss://` for every build variant, dev included). [docker-setup.md](docker-setup.md)'s Nginx TLS terminator handles this for you automatically. Running the server bare-metal instead (`server-setup.md`)? See [Configure TLS trust for local development](#configure-tls-trust-for-local-development) below before starting it, or the app will fail to connect.
 
 ## Configure TLS trust for local development
 

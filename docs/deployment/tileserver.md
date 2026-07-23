@@ -33,6 +33,14 @@ docker run --name tileserver \
 
 The tile server listens on port **8080** on the host. Tile requests from the mobile app go to `http://<LAN-IP>:8080`.
 
+### Docker Compose (dev/test alternative)
+
+The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md))
+includes a `tileserver` service using the same image, volume mount, and `--mbtiles` argument as the
+deploy script above, expressed as a compose service instead of a standalone `docker run`. Prefer the
+standalone scripts on this page for the production host; use the compose service when bringing up the
+full stack for local dev.
+
 ---
 
 ## MBTiles file

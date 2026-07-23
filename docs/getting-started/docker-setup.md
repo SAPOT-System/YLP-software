@@ -1,6 +1,6 @@
-# Server Setup (Docker)
+# Docker Setup (Full Stack)
 
-Alternative to [server-setup.md](server-setup.md) (bare-metal) — runs the full stack (`db`, `redis`, `api`, `certgen`, `nginx`) via `server/docker-compose.yml`.
+Runs the whole SAPOT stack — server (`db`, `redis`, `api`, `certgen`, `nginx`), `admin` (admin dashboard), `tileserver`, and `gsm-fastapi` (SMS gateway) — via the root `docker-compose.yml`. Alternative to setting up each component individually by hand: [server-setup.md](server-setup.md) (bare-metal server), [admin-frontend setup](../deployment/admin-frontend.md), [tileserver setup](../deployment/tileserver.md), [gsm-module setup](gsm-module-setup.md). All commands below run from the **repo root**, not `server/`.
 
 ## Prerequisites
 
@@ -31,9 +31,30 @@ Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.
 ## Configure
 
 ```bash
-cd server
+cp server/.env.example server/.env
+```
+
+Optional — override the stack's host-side ports (default: `nginx` 443/80, `admin` 3000,
+`tileserver` 8080, `gsm-fastapi` 8001) by copying the repo-root env file too:
+
+```bash
 cp .env.example .env
 ```
+
+Only needed if you want to change a port (e.g. running a second stack concurrently — see
+[Running from a git worktree](#running-from-a-git-worktree) below). Skip it and the defaults apply.
+
+To also bring up the admin dashboard and SMS gateway, configure their env files too:
+
+```bash
+cp admin-frontend/sapot-admin/.env.example admin-frontend/sapot-admin/.env
+cp GSM-module/GSM-fastapi/.env.example GSM-module/GSM-fastapi/.env
+```
+
+`gsm-fastapi`'s `GSM_SECRET` must match `server/.env`'s `GSM_SECRET` — they authenticate the
+webhook calls between the two services (see [environment-config.md](../deployment/environment-config.md)).
+The `gsm-fastapi` container requires the modem attached at `/dev/ttyACM0` on the Docker host — omit
+`gsm-fastapi` from `docker compose up` if you don't have the hardware.
 
 Add to `.env` (not yet in `.env.example` — add manually until that's fixed):
 
@@ -50,6 +71,19 @@ See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, a
 ```
 
 (`docker/up.sh` wraps `docker compose`, auto-detecting this machine's LAN IP for the dev TLS cert's SAN — use it instead of calling `docker compose` directly. Windows: `docker/up.ps1`.)
+
+This brings up every service in `docker-compose.yml`. Besides `db`/`redis`/`api`/`certgen`/`nginx`,
+that includes:
+
+- `admin` — the Next.js admin dashboard, `http://localhost:3000`
+- `tileserver` — offline map tiles, `http://localhost:8080`
+- `gsm-fastapi` — the SMS gateway, `http://localhost:8001` (needs the modem at `/dev/ttyACM0`)
+
+To bring up only the core backend (skip the admin/tileserver/GSM services), name them explicitly:
+
+```bash
+./docker/up.sh up --build -d db redis api certgen nginx
+```
 
 ## Verify
 
@@ -82,6 +116,57 @@ docker compose logs api --tail=50    # look for a traceback right before "Applic
 2. Windows Firewall inbound rule — see step 5 under the same section. Even with (1) solved, Windows blocks unsolicited inbound by default; this is the one that's easy to miss because the WSL2-networking docs don't mention it. Diagnostic: if even the docker host itself can't reach its own real LAN IP (as opposed to `localhost`), that's this, not (1).
 
 **`https://0.0.0.0/...` doesn't work.** Expected — `0.0.0.0` is a wildcard *bind* address (Docker publishes nginx's port on every host interface), not a real address a client can connect *to*. Use `https://localhost/...` from the host or `https://<host-LAN-IP>/...` from any machine on the LAN.
+
+**Port `80`/`443` already allocated — `nginx` (and anything depending on it, like `admin`) never starts.** If you ran the old `server/docker-compose.yml` stack (from before it moved to the repo root) and never tore it down, it's still running under the Compose project name `server`, holding those ports:
+```bash
+docker ps -a --filter "name=server-"   # confirms the old stack is still up
+docker compose -p server down          # stops and removes it
+```
+The new stack runs under a different project name (derived from the repo root directory), so Docker treats them as two independent stacks that happen to fight over the same host ports.
+
+**`admin` (or any other service) stays stuck in `Created` and never actually starts.** `docker compose up` (no service names) starts every service in dependency order; if one fails partway — e.g. `gsm-fastapi`'s `/dev/ttyACM0` device passthrough failing because the modem isn't attached — services later in the batch can be left created but never started. Bring up the specific services you need directly instead of relying on the full batch:
+```bash
+docker compose up -d db redis api certgen nginx admin tileserver   # skips gsm-fastapi
+```
+
+**`nginx` logs `host not found in upstream "api"` even though `api` is running.** The `nginx` container was created against a stale image/config and never recreated (Compose reuses an existing container if it thinks nothing relevant changed). Force it:
+```bash
+docker compose up -d --force-recreate nginx admin
+```
+
+## Running from a git worktree
+
+Running `docker/up.sh` (or plain `docker compose`) from inside a git worktree checkout works
+correctly and is isolated from the main checkout's stack, with one thing to configure if you want
+both running at once:
+
+- **Isolation is automatic.** `docker/up.sh` `cd`s to its own script's directory before calling
+  `docker compose`, so every relative path in `docker-compose.yml` — build contexts, the
+  `./server/app` live-reload bind mount, `./docker/nginx.docker.conf`, etc. — resolves inside
+  *that* worktree, not the main checkout. Compose also derives the project name from the checkout's
+  directory name, so a worktree gets its own containers, network, and `db-data` volume automatically
+  — no shared state with the main checkout's stack.
+- **Host ports are not automatically isolated.** Two stacks (main checkout + a worktree, or two
+  worktrees) both bind `443`/`80`/`3000`/`8080`/`8001` on the host by default, so bringing up a
+  second stack while the first is still running fails with "port is already allocated". If you want
+  them running concurrently, give the worktree its own `.env` (root-level, copied from
+  `.env.example`) with different port values, e.g.:
+  ```dotenv
+  NGINX_HTTPS_PORT=8443
+  NGINX_HTTP_PORT=8080
+  ADMIN_PORT=13000
+  TILESERVER_PORT=18080
+  GSM_FASTAPI_PORT=18001
+  ```
+  If you only ever run one stack at a time — the more common workflow, matching how you'd run
+  bare-metal dev servers — you can skip this and leave every worktree's ports at their defaults.
+- **`gsm-fastapi` has no live bind mount** — its code is baked into the image at `docker compose
+  build` time from that worktree's `./GSM-module/GSM-fastapi`. Editing GSM code in a worktree and
+  running `up` without rebuilding will still run whatever was baked in last. Rebuild after pulling
+  or editing GSM code there: `docker/up.sh up --build -d gsm-fastapi`.
+- **The modem device (`/dev/ttyACM0`) is physical hardware** — it can't be attached to two
+  containers at once, so don't run `gsm-fastapi` from more than one stack simultaneously regardless
+  of port configuration.
 
 ## Next
 

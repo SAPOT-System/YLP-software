@@ -47,5 +47,5 @@ This binds `HOST=127.0.0.1` on port `8001` — `main.py` hardcodes port `8001` i
 
 ## Next
 
-- [server-docker-setup.md](server-docker-setup.md) — the server must have a matching `GSM_SECRET` set for inbound/outbound SMS to authenticate.
+- [docker-setup.md](docker-setup.md) — the server must have a matching `GSM_SECRET` set for inbound/outbound SMS to authenticate.
 - [data-flow.md](../architecture/data-flow.md#sms-fallback) — the end-to-end SMS fallback flow diagram.

@@ -23,22 +23,22 @@ nix develop    # installs Python deps via flake.nix
 
 ## Run with Docker
 
-A `docker compose` stack (`server/docker-compose.yml`) gives a turnkey dev/test
-environment — MariaDB, Redis, the API, and an Nginx TLS terminator — without
-installing MariaDB/Redis locally or trusting the fail-fast env-var checks to
-dummy shell exports.
+A `docker compose` stack (root `docker-compose.yml`) gives a turnkey dev/test
+environment — MariaDB, Redis, the API, an Nginx TLS terminator, plus the admin
+dashboard, tileserver, and SMS gateway — without installing MariaDB/Redis
+locally or trusting the fail-fast env-var checks to dummy shell exports. See
+[docker-setup.md](../getting-started/docker-setup.md) for the
+full walkthrough. All commands below run from the **repo root**.
 
 ```bash
-cd server/
-cp .env.example .env    # edit placeholder secrets before anything but local dev
+cp server/.env.example server/.env    # edit placeholder secrets before anything but local dev
 docker/up.sh up --build
 ```
 
 On Windows, use the PowerShell equivalent instead (works in plain
 PowerShell — no WSL or Git Bash required):
 ```powershell
-cd server
-copy .env.example .env
+copy server\.env.example server\.env
 docker\up.ps1 up --build
 ```
 

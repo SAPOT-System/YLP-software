@@ -41,7 +41,7 @@ See [`docs/`](docs/) for the full documentation set, or the indexed table in the
 
 ## Tester Guide
 
-For manual testing, start the backend first — see [`docs/getting-started/server-docker-setup.md`](../../docs/getting-started/server-docker-setup.md) (recommended) or [`server-setup.md`](../../docs/getting-started/server-setup.md) (bare-metal).
+For manual testing, start the backend first — see [`docs/getting-started/docker-setup.md`](../../docs/getting-started/docker-setup.md) (recommended) or [`server-setup.md`](../../docs/getting-started/server-setup.md) (bare-metal).
 
 > **Important:** The laptop and cellphone must be connected to the same WiFi network.
 
