@@ -5,7 +5,6 @@ Alternative to [server-setup.md](server-setup.md) (bare-metal) — runs the full
 ## Prerequisites
 
 - Docker + Docker Compose v2
-- The Firebase Admin service-account JSON credential, sent to you directly by whoever manages `server/secrets/` — ask for it if you don't have it yet.
 
 ## Running under WSL
 
@@ -36,27 +35,13 @@ cd server
 cp .env.example .env
 ```
 
-Place the Firebase Admin service-account JSON you received onto this machine, at a path your user can read (e.g. your home directory in the WSL distro — not the Windows filesystem, since the container reads it through a Linux bind mount):
-
-```bash
-# copy/move the file you were sent to, e.g.:
-mv /path/to/received/firebase-admin.json ~/firebase-admin.json
-chmod 600 ~/firebase-admin.json
-```
-
-Then point `.env` at it.
-
 Add to `.env` (not yet in `.env.example` — add manually until that's fixed):
 
 ```dotenv
-FIREBASE_ADMIN_CREDENTIALS_PATH=/home/app/server/certs/firebase-admin.json
-FIREBASE_ADMIN_CREDENTIALS_HOST_PATH=/home/<you>/firebase-admin.json
 ADMIN_WEB_URL=https://<ip>:3000 # For admin website
 ```
 
-See [SECURITY.md](../../SECURITY.md) for why these (and `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`) are required at import time.
-
-**Save the credential file before running `up.sh`.** `docker-compose.override.yml` bind-mounts `FIREBASE_ADMIN_CREDENTIALS_HOST_PATH` into the container. If that host path doesn't exist yet when you start the stack (forgot to save the file above, or `FIREBASE_ADMIN_CREDENTIALS_HOST_PATH` doesn't match where you actually saved it), Docker silently creates an empty *directory* at that path instead of erroring. `api` then crash-loops with a buried `IsADirectoryError` from the Firebase SDK, and `nginx` returns `502 Bad Gateway` for every request with no indication why. See [Troubleshooting](#troubleshooting) below if you hit this.
+See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` are required at import time.
 
 ## Run
 
@@ -71,7 +56,7 @@ See [SECURITY.md](../../SECURITY.md) for why these (and `DATABASE_URL`, `JWT_SEC
 ```bash
 docker compose ps
 ```
-Expect `db`/`redis`/`api` **healthy**, `certgen` exited (0), `nginx` running. `nginx`'s `depends_on` waits for `api`'s own healthcheck (a request to `/version` inside the container), not just the process launching — so a slow first boot (image build, Firebase init, table creation) no longer races `nginx` into serving 502s before `api` is actually ready. If `api` sits at `starting`/`unhealthy` instead of turning `healthy`, go straight to its logs below rather than assuming it's a networking issue.
+Expect `db`/`redis`/`api` **healthy**, `certgen` exited (0), `nginx` running. `nginx`'s `depends_on` waits for `api`'s own healthcheck (a request to `/version` inside the container), not just the process launching — so a slow first boot (image build, table creation) no longer races `nginx` into serving 502s before `api` is actually ready. If `api` sits at `starting`/`unhealthy` instead of turning `healthy`, go straight to its logs below rather than assuming it's a networking issue.
 
 ```bash
 docker compose logs -f api
@@ -90,12 +75,6 @@ Expect a JSON version payload. A connection/TLS error means `nginx`/`certgen` is
 docker compose ps                    # is api "healthy", "unhealthy", or restarting?
 docker compose logs api --tail=50    # look for a traceback right before "Application startup failed"
 ```
-- `IsADirectoryError: ... firebase-admin.json` — the Firebase credential bind-mount gotcha above. Fix:
-  ```bash
-  rmdir ~/firebase-admin.json   # remove the phantom empty dir Docker auto-created; match your actual FIREBASE_ADMIN_CREDENTIALS_HOST_PATH
-  # re-save the Firebase Admin JSON you were sent to that same path
-  docker compose up -d --force-recreate api
-  ```
 - `api` is `healthy` and `nginx` still 502s intermittently right after `up --build -d` — retry once; this was a startup race in older versions of `docker-compose.yml` (`nginx` didn't wait for `api`'s healthcheck) and shouldn't recur, but a very slow first build can still occasionally outrun the `start_period`.
 
 **Another machine on the LAN can't reach `https://<host-LAN-IP>/...` at all (times out, not a TLS or refused error).** Two independent requirements, both needed:
