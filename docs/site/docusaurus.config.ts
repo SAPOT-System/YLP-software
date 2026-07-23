@@ -74,6 +74,20 @@ const config: Config = {
     ],
   ],
 
+  plugins: [
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'mobile',
+        path: '../../mobile-app/sapot-mobile-app/docs',
+        routeBasePath: 'mobile-docs',
+        sidebarPath: './sidebarsMobile.ts',
+        editUrl:
+          'https://github.com/Emman-pip/YLP-software/edit/develop/mobile-app/sapot-mobile-app/docs/',
+      },
+    ],
+  ],
+
   themeConfig: {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
