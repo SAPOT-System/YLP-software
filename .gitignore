@@ -11,3 +11,4 @@ reports/
 captive-portal/config.js
 .bundle-build.*
 dist/
+docs/superpowers/
