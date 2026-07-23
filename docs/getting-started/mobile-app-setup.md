@@ -22,6 +22,7 @@ bash configure_nix.sh   # configures Nix to process flakes
 nix develop -L           # enters the pinned dev shell
 cd sapot-mobile-app
 pnpm install
+cp .env.example .env
 ```
 
 ## Configure the dev server host
