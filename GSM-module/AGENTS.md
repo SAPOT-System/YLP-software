@@ -13,7 +13,7 @@ Match the layout and conventions of whichever of `GSM-fastapi/`/`GSM-API/` you'r
 ## Development Workflow
 
 - Both `GSM-fastapi/` and `GSM-API/` are Nix-flake managed (`flake.nix`/`flake.lock` in each).
-- `GSM-fastapi/`: `pip install -r requirements.txt`, run via `run-api.sh` (activates `venv/`, runs `python3 main.py`).
+- `GSM-fastapi/`: `uv pip install --python venv/bin/python -r requirements.txt`, run via `run-api.sh` (`uv run venv/bin/python3 main.py`).
 - `GSM-API/`: no `requirements.txt` found — dependencies are presumably installed manually into a venv per `flake.nix`'s `shellHook` (`source ./venv/bin/activate`). TODO: confirm the actual install command with a maintainer.
 
 ## Build

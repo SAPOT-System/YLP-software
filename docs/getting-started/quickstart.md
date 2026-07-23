@@ -8,7 +8,7 @@ This quickstart covers the **minimum golden path**: server + mobile app. GSM/SMS
 
 ## 1. Prerequisites checklist
 
-- Docker + Docker Compose v2, Node ≥ 18, npm 10.8.2
+- Docker + Docker Compose v2, Node ≥ 18, [pnpm](https://pnpm.io/) (mobile app's declared package manager — see `mobile-app/sapot-mobile-app/package.json`'s `packageManager` field)
 - Android device or emulator, on the **same Wi-Fi network** as the machine running the server
 - [Nix](https://nixos.org/) (used to pin the mobile app's dev toolchain)
 
@@ -33,7 +33,7 @@ Full detail: [server-docker-setup.md](server-docker-setup.md). Prefer to run the
 bash configure_nix.sh
 nix develop -L
 cd sapot-mobile-app
-npm install
+pnpm install
 ```
 
 Point the app at your server's LAN IP:
@@ -44,7 +44,7 @@ EXPO_PUBLIC_DEV_HOST=192.168.1.x   # same host from step 2
 ```
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open the app on your device/emulator (same Wi-Fi network as the server), go to the getting-started screen, tap **Server Mode**, and enter the same LAN IP in settings.

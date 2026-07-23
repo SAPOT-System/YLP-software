@@ -10,7 +10,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Package Manager
 
-Use `pnpm`, not `npm`, for all package management and script commands in this project (`pnpm install`, `pnpm add`, `pnpm run <script>`, etc.). The lockfile of record is `pnpm-lock.yaml`; ignore the stale `package-lock.json`.
+Use `pnpm`, not `npm`, for all package management and script commands in this project (`pnpm install`, `pnpm add`, `pnpm run <script>`, etc.). The lockfile of record is `pnpm-lock.yaml`.
 
 ## Development Workflow
 
@@ -42,7 +42,6 @@ No test framework is configured in this project (no test script in `package.json
 ## Do Not Edit Manually
 
 - `pnpm-lock.yaml` — regenerate via `pnpm install`, don't hand-edit.
-- `package-lock.json` — stale artifact from a prior npm setup; don't regenerate or rely on it.
 - `.next/` build output (gitignored) — never hand-edit generated build artifacts.
 
 ## Common Pitfalls

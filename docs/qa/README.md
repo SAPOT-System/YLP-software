@@ -13,8 +13,8 @@ QA needs a running stack (server + mobile app, same as development). Follow [get
 | Component | Command | Notes |
 |---|---|---|
 | `server/app/` | `pytest` (run from `server/app/`) | |
-| `mobile-app/sapot-mobile-app/` | `npm run testAll` | Runs test + typecheck + lint + expo-doctor together; or run `npm test` / `npm run typecheck` / `npm run lint` individually |
-| `admin-frontend/sapot-admin/` | `npm run lint && npm run build` | No test script exists in this component — don't expect test coverage here |
+| `mobile-app/sapot-mobile-app/` | `pnpm run testAll` | Runs test + typecheck + lint + expo-doctor together; or run `pnpm test` / `pnpm run typecheck` / `pnpm run lint` individually |
+| `admin-frontend/sapot-admin/` | `pnpm run lint && pnpm run build` | No test script exists in this component — don't expect test coverage here |
 | `GSM-module/` | — | No automated tests exist; verify manually per [gsm-module-setup.md](../getting-started/gsm-module-setup.md) |
 
 ## Per-feature test plans

@@ -4,7 +4,7 @@ FastAPI backend for SAPOT: the central API, database, auth, and integration hub 
 
 ## Development Workflow
 
-- Environment: Nix flake (`flake.nix`/`flake.lock`) is the primary way to get a matching toolchain, or `pip install -r app/requirements.txt` directly.
+- Environment: Nix flake (`flake.nix`/`flake.lock`) is the primary way to get a matching toolchain, or `uv pip install --python app/venv/bin/python -r app/requirements.txt` directly.
 - Required env vars must be set before the app will start — it raises `RuntimeError` at import time otherwise: `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`. See `docs/deployment/environment-config.md`.
 - Prod entry point: `runserver.sh` — creates a `uv` venv, installs `app/requirements.txt`, runs `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 5 -b 127.0.0.1:8000`.
 - TODO: no documented local dev-server command (e.g. `uvicorn app.main:app --reload`) was found in this directory — confirm with a maintainer before assuming one.

@@ -7,7 +7,7 @@ Guidance for AI coding assistants working in this repository. Read this before m
 **SAPOT** is a local-first, LAN-based disaster-response communications platform: offline-capable messaging, voice/video calls, GPS tracking, and SMS fallback via a GSM gateway, plus an admin/rescuer web dashboard. It is designed to run entirely on a local network (e.g. via a MikroTik router) without internet dependency.
 
 **Monorepo tool: none.** This is a **polyrepo-in-one-repo** — multiple independently managed projects living under one git root, coordinated by convention (docs, `CONTRIBUTING.md`, `VERSIONING.md`) and by network APIs (REST/WebSocket), not by any JS workspace tool. There is no `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, `turbo.json`, `rush.json`, or `workspaces` field anywhere in the repo (verified). There is no root `package.json` — `scripts/release-notes.mjs` runs on Node builtins only (shells out to the `claude` CLI directly) and needs no `node_modules`. Each JS/TS project has its own `node_modules` and lockfile:
-- `admin-frontend/sapot-admin` — npm (`package-lock.json`)
+- `admin-frontend/sapot-admin` — pnpm (`pnpm-lock.yaml`)
 - `mobile-app/sapot-mobile-app` — **pnpm** (`pnpm-lock.yaml`)
 
 High-level architecture: `server/` (Python/FastAPI) is the integration hub. `mobile-app/` and `admin-frontend/` are clients that talk to it over REST/WS. `GSM-module/` is a separate FastAPI service that the server calls over HTTP to send/receive SMS via a GSM modem. `captive-portal/` is static HTML served directly by the MikroTik router (not by any app server). `tileserver/` is a standalone Docker-based map-tile server consumed by both frontends.
@@ -36,7 +36,7 @@ High-level architecture: `server/` (Python/FastAPI) is the integration hub. `mob
 
 **`mobile-app/sapot-mobile-app/`** — Expo SDK ~54, React Native + TypeScript, pnpm. Feature-based structure: `features/<name>/{services,repositories,hooks,components,types.ts,index.ts}` for `announcements, auth, call, chat, getting-started, gps, settings, shared, sync`. Local persistence: WatermelonDB (SQLite, schema v10). E2E crypto via `tweetnacl`/`@noble/hashes`/`expo-crypto`. Talks to `server/` over REST+WS with three transport modes (auto/server/LAN) and to `tileserver/` for offline tiles. **Has its own detailed `CLAUDE.md`** — read it before touching this directory; it covers DI containers, service map, doc-sync obligations, and a Definition-of-Done checklist, and is authoritative over anything more general stated here. Note: that file references several named "skills" (`app-commands`, `crypto-architecture`, `gps-architecture`, `dev-logging`) — these may not be available in every AI coding harness; if yours doesn't have them, fall back to reading the corresponding `docs/*.md` file directly instead of treating their absence as an error.
 
-**`admin-frontend/sapot-admin/`** — Next.js 16 (App Router), React 19, TypeScript, npm. Uses `maplibre-gl`, `recharts`, Dexie (IndexedDB), `tweetnacl` for client crypto. `app/api/*` route handlers proxy roughly 25 `server/` endpoints. Has its own narrow `AGENTS.md` (a Next.js-16 breaking-changes warning: read `node_modules/next/dist/docs/` before coding) and a `CLAUDE.md` that imports it — follow that file when working here.
+**`admin-frontend/sapot-admin/`** — Next.js 16 (App Router), React 19, TypeScript, pnpm. Uses `maplibre-gl`, `recharts`, Dexie (IndexedDB), `tweetnacl` for client crypto. `app/api/*` route handlers proxy roughly 25 `server/` endpoints. Has its own narrow `AGENTS.md` (a Next.js-16 breaking-changes warning: read `node_modules/next/dist/docs/` before coding) and a `CLAUDE.md` that imports it — follow that file when working here.
 
 **`GSM-module/`** — Two parallel FastAPI services implementing the SMS path: phone → GSM modem → Arduino bridge → USB serial → GSM FastAPI service → `server/`.
 - `GSM-fastapi/` is the **currently deployed** service (per `deployment-scripts/server-GSM-api.service`, which runs `GSM-fastapi/run-api.sh`). Flat script layout, nix flake, `requirements.txt`.
@@ -69,7 +69,7 @@ Different workspaces use genuinely different stacks — there is no unified stac
 |---|---|
 | `server/` | Python, FastAPI, SQLModel/SQLAlchemy, MariaDB, Redis, PyJWT, argon2, RouterOS-api, Nix flake |
 | `mobile-app/` | TypeScript, React Native, Expo SDK ~54, WatermelonDB (SQLite), pnpm |
-| `admin-frontend/` | TypeScript, Next.js 16 (App Router), React 19, Dexie, npm |
+| `admin-frontend/` | TypeScript, Next.js 16 (App Router), React 19, Dexie, pnpm |
 | `GSM-module/` | Python, FastAPI, pyserial, SQLModel, Nix flake; plus Arduino C/C++ firmware |
 | `captive-portal/` | Static HTML/CSS/JS, RouterOS template syntax |
 | `tileserver/` | Shell scripts + Docker (`maptiler/tileserver-gl`) |
@@ -87,7 +87,7 @@ There is **no repo-level install/build/test command** that spans all projects �
 - Do not add a shared `libs/`/`packages/` directory speculatively; none exists today, and cross-project communication is deliberately network-based, not code-shared.
 - Do not create cross-project relative imports (e.g. `mobile-app` importing from `server`) — this repo's architecture intentionally avoids that.
 - Treat `server/` as read-only from `mobile-app/` and `admin-frontend/` unless the task is explicitly a server change — the mobile app's `CLAUDE.md` states this boundary explicitly.
-- Respect each project's own package manager: npm for root and `admin-frontend`, pnpm for `mobile-app`. Don't mix lockfiles or run the wrong install command in the wrong directory.
+- Respect each project's own package manager: pnpm for both `admin-frontend` and `mobile-app`. There is no root `package.json`. Don't mix lockfiles or run the wrong install command in the wrong directory.
 - When a task touches an API contract (e.g. a `server/app/api/*` route), update the calling code in `mobile-app`/`admin-frontend` in the same change, and check whether `docs/api/openapi/` or `docs/database/*.md` need regeneration (`scripts/generate_openapi_docs.py`, `scripts/generate_db_docs.py`) — CI (`openapi-docs-check.yml`) checks these for drift.
 - Check for and read a project-local `AGENTS.md`/`CLAUDE.md` before working in `admin-frontend/sapot-admin/` or `mobile-app/sapot-mobile-app/` — both exist and take precedence over the general guidance in this file for their subtree.
 - Do not edit `app.config.ts` version fields in `mobile-app/` by hand — they're synced by `set-version.js` per `VERSIONING.md`.
@@ -131,7 +131,7 @@ No single repo-wide test command exists; each project is tested independently.
 - **Root**: `cliff.toml` (changelog generation config for `scripts/release.sh`); no root `package.json` (see Project Overview).
 - **`server/`**: `flake.nix`/`flake.lock` (Nix env), `requirements.txt`, `nginx.conf`/`mysqld.cnf` (deployment reference), `app/pytest.ini`. Required env vars (per `SECURITY.md`): `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, `ENVIRONMENT` (gates the testing router) — server fails fast if these are unset in production.
 - **`mobile-app/sapot-mobile-app/`**: `pnpm-lock.yaml`, `tsconfig.json`, ESLint config, `app.config.ts` (version fields auto-synced — don't hand-edit), extensive `docs/` (ARCHITECTURE.md, API.md, DATABASE.md, SYNC.md, ENV_CONFIG.md, TESTING.md, etc.) plus `CLAUDE.md` — all project-specific, not shared with other projects.
-- **`admin-frontend/sapot-admin/`**: `package-lock.json`, `tsconfig.json` (`@/*` alias), `eslint.config.mjs`, `next.config.ts`, `postcss.config.mjs`, `middleware.ts`, `.env.example` (`API_DOMAIN`, `NEXT_PUBLIC_WEBSOCKET_DOMAIN`, `NEXT_PUBLIC_MAP_STYLE`).
+- **`admin-frontend/sapot-admin/`**: `pnpm-lock.yaml`, `tsconfig.json` (`@/*` alias), `eslint.config.mjs`, `next.config.ts`, `postcss.config.mjs`, `middleware.ts`, `.env.example` (`API_DOMAIN`, `NEXT_PUBLIC_WEBSOCKET_DOMAIN`, `NEXT_PUBLIC_MAP_STYLE`).
 - **`GSM-module/GSM-fastapi/`**: `flake.nix`/`.envrc`, `requirements.txt`, `config.py` (has a known hardcoded default DB path — see Security note below; don't assume this is intentional/safe to copy elsewhere).
 - **`GSM-module/GSM-API/`**: `flake.nix`, `pyrightconfig.json` — WIP, not deployed.
 - **`.github/workflows/`**: `expo-android-ci.yml` (mobile PR checks/build, uses `pnpm/action-setup`), `openapi-docs-check.yml` (fails on doc drift for `server/app/**` changes), `release-mobile.yml` / `release-server.yml` (tag-triggered releases, assert version-file/tag match).
@@ -140,7 +140,7 @@ No single repo-wide test command exists; each project is tested independently.
 ## Files to Avoid Editing
 
 - `GSM-module/GSM-fastapi/sapot.db` — a checked-in SQLite database file; treat as generated/environment data, not source.
-- `mobile-app/sapot-mobile-app/pnpm-lock.yaml`, `admin-frontend/sapot-admin/package-lock.json` — regenerate via the package manager, don't hand-edit.
+- `mobile-app/sapot-mobile-app/pnpm-lock.yaml`, `admin-frontend/sapot-admin/pnpm-lock.yaml` — regenerate via the package manager, don't hand-edit.
 - `mobile-app/sapot-mobile-app/app.config.ts` version fields — synced automatically by `set-version.js`; hand-editing will be overwritten or cause a version mismatch.
 - `docs/api/openapi/*` and `docs/database/{tables,erd}.md` — generated by `scripts/generate_openapi_docs.py` / `scripts/generate_db_docs.py`; edit the source (server routes/models) and regenerate, don't hand-edit the generated docs.
 - `.github/worflows/` (typo'd directory) — not live CI; don't add new workflows here expecting them to run, and treat existing content as a cleanup candidate rather than something to extend.
@@ -173,7 +173,7 @@ Entry points and per-project pitfalls now live in each project's own `AGENTS.md`
 ## Pull Request Checklist
 
 - [ ] Tests updated/added for the affected project (`pytest` for `server/`; `pnpm test`/`pnpm testAll` for `mobile-app/`; note `admin-frontend/` has no test framework — don't fabricate one silently)
-- [ ] Lint passes for the affected project (`npm run lint` in `admin-frontend/`, `pnpm lint` in `mobile-app/`)
+- [ ] Lint passes for the affected project (`pnpm run lint` in `admin-frontend/`, `pnpm lint` in `mobile-app/`)
 - [ ] Type checking passes where applicable (`pnpm typecheck` in `mobile-app/`; TypeScript build in `admin-frontend/`)
 - [ ] `docs/` updated if the change affects architecture, API surface, database schema, or a documented feature — check `docs/README.md` for the right subdoc; OpenAPI/DB docs may need regeneration (`scripts/generate_openapi_docs.py`, `scripts/generate_db_docs.py`) if `server/app/**` changed (CI checks this)
 - [ ] No new cross-project relative imports or shared-code shortcuts introduced — project boundaries (`server/`, `mobile-app/`, `admin-frontend/`, `GSM-module/`) respected

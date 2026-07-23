@@ -4,7 +4,7 @@ Source: `mobile-app/README.org` and `mobile-app/sapot-mobile-app/README.md`.
 
 ## Prerequisites
 
-- Node >= 18, npm 10.8.2
+- Node >= 18, [pnpm](https://pnpm.io/) (this project's declared package manager, pinned via `package.json`'s `packageManager` field — Corepack will fetch the exact version automatically if enabled)
 - [Nix](https://nixos.org/) (used to pin the dev toolchain via flakes)
 - Android SDK (for device/emulator builds) — see the WSL2/Android Studio tips in `mobile-app/README.org` if you're on WSL
 - EAS CLI (`npm install -g eas-cli`) for cloud builds
@@ -21,7 +21,7 @@ source /etc/profile.d/nix.sh
 bash configure_nix.sh   # configures Nix to process flakes
 nix develop -L           # enters the pinned dev shell
 cd sapot-mobile-app
-npm install
+pnpm install
 ```
 
 ## Configure the dev server host
@@ -49,10 +49,10 @@ Point your dev FastAPI server at the resulting cert/key (e.g. `uvicorn --ssl-cer
 ## Run
 
 ```bash
-npm run dev            # Expo dev server
+pnpm dev                # Expo dev server
 # or, for a native Android build:
-npm run prebuild         # expo prebuild --clean (development variant)
-npm run android           # build and install on device/emulator
+pnpm run prebuild        # expo prebuild --clean (development variant)
+pnpm run android         # build and install on device/emulator
 ```
 
 Then open the app's getting-started screen, tap **Server Mode**, open the settings icon, and enter your laptop's LAN IP address (must match `EXPO_PUBLIC_DEV_HOST` and be on the same WiFi network as the server).
@@ -63,7 +63,7 @@ If testing the GPS map, download the `.mbtiles` file (see `mobile-app/sapot-mobi
 
 ## Verify
 
-- `npm run typecheck`, `npm run lint`, `npm test` — see [`mobile-app/sapot-mobile-app/docs/TESTING.md`](../../mobile-app/sapot-mobile-app/docs/TESTING.md).
+- `pnpm run typecheck`, `pnpm run lint`, `pnpm test` — see [`mobile-app/sapot-mobile-app/docs/TESTING.md`](../../mobile-app/sapot-mobile-app/docs/TESTING.md).
 
 ## Next
 

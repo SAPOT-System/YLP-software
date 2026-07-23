@@ -28,7 +28,7 @@ Install these on the host before starting any component; the Nix flake per compo
 - Linux host (tested Debian/Ubuntu)
 - Nix package manager (optional — `flake.nix` per component)
 - Python 3.11+ with venv
-- Node.js + npm (admin frontend)
+- Node.js + pnpm (admin frontend)
 - MariaDB server
 - Redis server
 - Nginx

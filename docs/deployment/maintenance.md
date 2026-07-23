@@ -26,8 +26,8 @@ Each component owns its own dependency file — there is no repo-wide update mec
 | Component | File | Notes |
 |---|---|---|
 | `server/` | `requirements.txt` | No migration tooling ([ADR 0002](../adr/0002-no-server-migration-tooling.md)) — a dependency bump that changes SQLModel/DB-driver behavior still needs the manual DDL discipline in [runbooks.md](runbooks.md#manual-db-ddl-application-no-alembic) if it touches schema |
-| `mobile-app/sapot-mobile-app/` | `package.json` | Expo SDK bumps need `expo-doctor` (`npm run testAll` includes it) — do not hand-edit `package-lock.json` |
-| `admin-frontend/sapot-admin/` | `package.json` | `npm run lint && npm run build` after any bump — no test script exists in this component |
+| `mobile-app/sapot-mobile-app/` | `package.json` | Expo SDK bumps need `expo-doctor` (`pnpm run testAll` includes it) — do not hand-edit `pnpm-lock.yaml` |
+| `admin-frontend/sapot-admin/` | `package.json` | `pnpm run lint && pnpm run build` after any bump — no test script exists in this component |
 | `GSM-module/GSM-fastapi/` | `requirements.txt` | No automated tests — verify manually per [gsm-module-setup.md](../getting-started/gsm-module-setup.md) after any bump |
 | Nix flakes (per component) | `flake.lock` | Never hand-edit; only `nix flake update` should touch it |
 

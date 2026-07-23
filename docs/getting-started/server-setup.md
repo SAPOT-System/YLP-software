@@ -6,9 +6,19 @@ Source: `mobile-app/sapot-mobile-app/README.md` (Tester Guide section) — the s
 
 ## Prerequisites
 
-- Python 3.13 (a `venv` is already committed at `server/app/venv/` in this repo checkout)
+- Python 3.13
+- [`uv`](https://docs.astral.sh/uv/) (Astral's Python package/venv manager — already used by production's `runserver.sh`; `pip install uv` or see the install docs)
 - A running MariaDB instance
 - Redis (optional — used for rate limiting; see `REDIS_URL`)
+
+## Create the virtualenv
+
+`server/app/venv/` is gitignored — it isn't part of a fresh clone, so create it before the first run:
+
+```bash
+cd server
+uv venv app/venv
+```
 
 ## Configure
 
@@ -31,7 +41,8 @@ See [environment-config.md](../deployment/environment-config.md) for the full va
 
 ```bash
 cd server
-source app/venv/bin/activate && pip install -r app/requirements.txt && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv pip install --python app/venv/bin/python -r app/requirements.txt
+uv run app/venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 > **Important:** For mobile app testing over LAN, the laptop running the server and the phone running the app must be on the same WiFi network.
