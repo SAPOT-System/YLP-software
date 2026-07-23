@@ -107,21 +107,24 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'My Site',
+      title: 'SAPOT Docs',
       logo: {
-        alt: 'My Site Logo',
+        alt: 'SAPOT Logo',
         src: 'img/logo.svg',
       },
       items: [
         {
-          type: 'docSidebar',
-          sidebarId: 'docsSidebar',
+          to: '/docs/getting-started/overview',
+          label: 'Platform Docs',
           position: 'left',
-          label: 'Tutorial',
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/facebook/docusaurus',
+          to: '/mobile-docs/ONBOARDING',
+          label: 'Mobile App Docs',
+          position: 'left',
+        },
+        {
+          href: 'https://github.com/Emman-pip/YLP-software',
           label: 'GitHub',
           position: 'right',
         },
