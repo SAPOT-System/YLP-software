@@ -140,7 +140,7 @@ sequenceDiagram
     Peer->>Server: ICE candidate
     Server->>Initiator: relay ICE
 
-    Note over Initiator,Peer: Once ICE completes — direct P2P media<br/>(WebRTC DataChannel / RTP); server carries no further media
+    Note over Initiator,Peer: Once ICE completes — direct P2P media<br/>(WebRTC DataChannel / RTP), server carries no further media
 ```
 
 1. Initiator calls `CallService.startCall(peerId, type)`.

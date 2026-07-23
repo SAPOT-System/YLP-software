@@ -28,7 +28,7 @@ sequenceDiagram
 
     Mobile->>Server: GET /sync/pull?last_pulled_at&cursor
     Server-->>Mobile: { changes, pulled_at, next_cursor, guest_hints }
-    Mobile->>Mobile: applyGuestHints(); merge changes into WatermelonDB
+    Mobile->>Mobile: applyGuestHints(), merge changes into WatermelonDB
     Mobile->>Mobile: advance lastPulledAt (only after full page merged)
 
     Mobile->>Server: POST /sync/push { changes }
