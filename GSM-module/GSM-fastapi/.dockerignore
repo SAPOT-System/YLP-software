@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.envrc
+flake.nix
+flake.lock
+sapot.db
+sapot.log
+.env

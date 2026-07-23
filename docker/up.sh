@@ -5,7 +5,7 @@ set -eu
 # (via detect-ip.sh) and adds it to CERT_SAN, so the dev cert (gen-certs.sh)
 # validates when a client (mobile app, admin frontend) connects via LAN IP
 # instead of localhost. gen-certs.sh issues a CA-signed leaf from the
-# shared dev CA (../dev-ca/) when present, or a plain self-signed cert
+# shared dev CA (../server/dev-ca/) when present, or a plain self-signed cert
 # otherwise — either way, this script's job is just getting the right SAN
 # to it.
 #
@@ -14,6 +14,12 @@ set -eu
 # manual control still works. A CERT_SAN set only in .env is not visible
 # here (docker compose reads .env itself) — auto-detection wins in that
 # case unless you export CERT_SAN in the shell first.
+#
+# Passes --env-file server/.env explicitly: docker-compose.yml's
+# ${MYSQL_*} substitutions are read from this file. Compose only
+# auto-loads a .env next to the compose file (repo root) by default,
+# and there isn't one there — server/.env is the single source of
+# truth for these values, shared with the api service's own env_file.
 #
 # Usage: docker/up.sh up --build
 #        docker/up.sh run --rm api pytest
@@ -33,4 +39,4 @@ if [ -z "${CERT_SAN:-}" ]; then
     export CERT_SAN
 fi
 
-exec docker compose "$@"
+exec docker compose --env-file server/.env "$@"

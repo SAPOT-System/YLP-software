@@ -2,6 +2,7 @@
   "name": "sapot-admin",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.34.1",
   "scripts": {
     "dev": "NODE_EXTRA_CA_CERTS=$(pwd)/certs/server.crt next dev",
     "build": "next build",
@@ -37,5 +38,11 @@
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }

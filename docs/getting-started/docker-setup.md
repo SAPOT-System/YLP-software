@@ -1,6 +1,6 @@
-# Server Setup (Docker)
+# Docker Setup (Full Stack)
 
-Alternative to [server-setup.md](server-setup.md) (bare-metal) — runs the full stack (`db`, `redis`, `api`, `certgen`, `nginx`) via `server/docker-compose.yml`.
+Runs the whole SAPOT stack — server (`db`, `redis`, `api`, `certgen`, `nginx`), `admin` (admin dashboard), `tileserver`, and `gsm-fastapi` (SMS gateway) — via the root `docker-compose.yml`. Alternative to setting up each component individually by hand: [server-setup.md](server-setup.md) (bare-metal server), [admin-frontend setup](../deployment/admin-frontend.md), [tileserver setup](../deployment/tileserver.md), [gsm-module setup](gsm-module-setup.md). All commands below run from the **repo root**, not `server/`.
 
 ## Prerequisites
 
@@ -31,9 +31,20 @@ Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.
 ## Configure
 
 ```bash
-cd server
-cp .env.example .env
+cp server/.env.example server/.env
 ```
+
+To also bring up the admin dashboard and SMS gateway, configure their env files too:
+
+```bash
+cp admin-frontend/sapot-admin/.env.example admin-frontend/sapot-admin/.env
+cp GSM-module/GSM-fastapi/.env.example GSM-module/GSM-fastapi/.env
+```
+
+`gsm-fastapi`'s `GSM_SECRET` must match `server/.env`'s `GSM_SECRET` — they authenticate the
+webhook calls between the two services (see [environment-config.md](../deployment/environment-config.md)).
+The `gsm-fastapi` container requires the modem attached at `/dev/ttyACM0` on the Docker host — omit
+`gsm-fastapi` from `docker compose up` if you don't have the hardware.
 
 Add to `.env` (not yet in `.env.example` — add manually until that's fixed):
 
@@ -50,6 +61,19 @@ See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, a
 ```
 
 (`docker/up.sh` wraps `docker compose`, auto-detecting this machine's LAN IP for the dev TLS cert's SAN — use it instead of calling `docker compose` directly. Windows: `docker/up.ps1`.)
+
+This brings up every service in `docker-compose.yml`. Besides `db`/`redis`/`api`/`certgen`/`nginx`,
+that includes:
+
+- `admin` — the Next.js admin dashboard, `http://localhost:3000`
+- `tileserver` — offline map tiles, `http://localhost:8080`
+- `gsm-fastapi` — the SMS gateway, `http://localhost:8001` (needs the modem at `/dev/ttyACM0`)
+
+To bring up only the core backend (skip the admin/tileserver/GSM services), name them explicitly:
+
+```bash
+./docker/up.sh up --build -d db redis api certgen nginx
+```
 
 ## Verify
 
@@ -82,6 +106,23 @@ docker compose logs api --tail=50    # look for a traceback right before "Applic
 2. Windows Firewall inbound rule — see step 5 under the same section. Even with (1) solved, Windows blocks unsolicited inbound by default; this is the one that's easy to miss because the WSL2-networking docs don't mention it. Diagnostic: if even the docker host itself can't reach its own real LAN IP (as opposed to `localhost`), that's this, not (1).
 
 **`https://0.0.0.0/...` doesn't work.** Expected — `0.0.0.0` is a wildcard *bind* address (Docker publishes nginx's port on every host interface), not a real address a client can connect *to*. Use `https://localhost/...` from the host or `https://<host-LAN-IP>/...` from any machine on the LAN.
+
+**Port `80`/`443` already allocated — `nginx` (and anything depending on it, like `admin`) never starts.** If you ran the old `server/docker-compose.yml` stack (from before it moved to the repo root) and never tore it down, it's still running under the Compose project name `server`, holding those ports:
+```bash
+docker ps -a --filter "name=server-"   # confirms the old stack is still up
+docker compose -p server down          # stops and removes it
+```
+The new stack runs under a different project name (derived from the repo root directory), so Docker treats them as two independent stacks that happen to fight over the same host ports.
+
+**`admin` (or any other service) stays stuck in `Created` and never actually starts.** `docker compose up` (no service names) starts every service in dependency order; if one fails partway — e.g. `gsm-fastapi`'s `/dev/ttyACM0` device passthrough failing because the modem isn't attached — services later in the batch can be left created but never started. Bring up the specific services you need directly instead of relying on the full batch:
+```bash
+docker compose up -d db redis api certgen nginx admin tileserver   # skips gsm-fastapi
+```
+
+**`nginx` logs `host not found in upstream "api"` even though `api` is running.** The `nginx` container was created against a stale image/config and never recreated (Compose reuses an existing container if it thinks nothing relevant changed). Force it:
+```bash
+docker compose up -d --force-recreate nginx admin
+```
 
 ## Next
 

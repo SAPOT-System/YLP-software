@@ -14,6 +14,15 @@ pnpm dev
 
 The dev server starts on `http://localhost:3000`. Allowed dev origins (configured in `next.config.ts`): `192.168.0.99`, `192.168.0.100`.
 
+### Docker (dev/test alternative)
+
+The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md))
+includes an `admin` service running `pnpm dev` with the source bind-mounted for hot reload, alongside
+the rest of the stack. It shares the backend's dev TLS cert (mounted read-only) so `NODE_EXTRA_CA_CERTS`
+resolves without a separate cert. `API_DOMAIN` is set to the in-network `nginx` service name (server-side
+only); `NEXT_PUBLIC_*` variables still need a host-reachable value (LAN IP/`localhost`) in this service's
+own `.env`, since they run in the browser, not the container.
+
 ---
 
 ## Production build

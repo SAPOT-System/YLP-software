@@ -6,9 +6,9 @@ set -eu
 #
 # If a dev CA (CA_DIR/server_ca.pem + server_ca.key) is mounted in, issues
 # a CA-signed leaf instead of self-signing — required for a mobile build
-# that pins the CA (see ../../docs/deployment/runbooks.md, Offline CA
+# that pins the CA (see ../docs/deployment/runbooks.md, Offline CA
 # Setup) to trust this server. Otherwise falls back to a plain self-signed
-# cert, same as before. See ../dev-ca/README.md for the dev-CA workflow;
+# cert, same as before. See ../server/dev-ca/README.md for the dev-CA workflow;
 # this is dev-only — never reuse a CA generated this way for production
 # (docs/deployment/runbooks.md's Offline CA Setup covers that separately).
 

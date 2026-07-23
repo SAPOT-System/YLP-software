@@ -6,7 +6,7 @@
 services:
   api:
     volumes:
-      - ./app:/home/app/server/app
+      - ./server/app:/home/app/server/app
     command:
       - uvicorn
       - app.main:app

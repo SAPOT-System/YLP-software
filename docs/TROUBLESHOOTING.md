@@ -38,7 +38,7 @@ If this fails, check MariaDB is running (`sudo systemctl status mariadb`) and th
 1. Confirm the server's LAN IP: `ip addr` (Linux) or `ifconfig` (macOS) on the server machine — look for the Wi-Fi/Ethernet interface IP, not `127.0.0.1`.
 2. Confirm the phone is on the **same** Wi-Fi network as that machine (not a guest network, not cellular data).
 3. Confirm `EXPO_PUBLIC_DEV_HOST` in `mobile-app/sapot-mobile-app/.env.local` matches that IP exactly, and that the app's in-app server settings (getting-started screen → Server Mode → settings icon) match too — both must agree.
-4. Confirm the server is reachable from other devices, not just `localhost` — the [Docker setup](getting-started/server-docker-setup.md)'s Nginx publishes on every host interface by default; if running bare-metal instead (`uvicorn app.main:app --host 0.0.0.0 --port 8000`, see [server-setup.md](getting-started/server-setup.md)), binding to `127.0.0.1` makes it unreachable from any other device.
+4. Confirm the server is reachable from other devices, not just `localhost` — the [Docker setup](getting-started/docker-setup.md)'s Nginx publishes on every host interface by default; if running bare-metal instead (`uvicorn app.main:app --host 0.0.0.0 --port 8000`, see [server-setup.md](getting-started/server-setup.md)), binding to `127.0.0.1` makes it unreachable from any other device.
 
 ---
 
