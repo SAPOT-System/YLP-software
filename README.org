@@ -30,11 +30,7 @@ SAPOT. The deliverables of this repository are the following:
 ** NOTE
 Always use the flake.nix for downloading the dependencies during development
 ** Mobile app
-[[./mobile-app-todo.org][MOBILE APP TODOs]]
-** Server
-[[./server-todo.org][SERVER TODOs]]
-** Web portal
-[[./web-portal-todo.org][WEB PORTAL TODOs]]
+[[./docs/mobile-app-todo.org][MOBILE APP TODOs]]
 ** Sequence diagram
 [[./sequence-diagrams.md][SEQUENCE DIAGRAMS]]
 ** Expo Android CI/CD workflow

@@ -138,7 +138,8 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 | [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile/server independent) |
 | [../CHANGELOG.md](../CHANGELOG.md) | Notable changes per release |
 | [../sequence-diagrams.md](../sequence-diagrams.md) | Cross-component sequence diagrams |
-| [../docs-todo.md](../docs-todo.md) | Documentation audit remediation tracker |
+| [docs-todo.md](docs-todo.md) | Documentation audit remediation tracker |
+| [mobile-app-todo.org](mobile-app-todo.org) | Mobile app feature brief and TODOs |
 
 ---
 
