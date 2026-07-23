@@ -1,6 +1,7 @@
 {
   "label": "Admin Management",
   "link": {
-    "type": "generated-index"
+    "type": "generated-index",
+    "slug": "/features/admin-management"
   }
 }

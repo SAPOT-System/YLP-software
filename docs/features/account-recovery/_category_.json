@@ -1,6 +1,7 @@
 {
   "label": "Account Recovery",
   "link": {
-    "type": "generated-index"
+    "type": "generated-index",
+    "slug": "/features/account-recovery"
   }
 }
