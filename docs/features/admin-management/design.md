@@ -50,16 +50,16 @@ Returns: { access_token: str, token_type: "bearer", expires_in: 3600 }
 |--------|-----------------------------|---------------------------|
 | GET    | /admin/users                | list_users (paginated)    |
 | POST   | /admin/users                | create_user               |
-| PATCH  | /admin/users/{user_id}      | update_user               |
-| DELETE | /admin/users/{user_id}      | soft_delete_user          |
+| PATCH  | /admin/users/&lbrace;user_id&rbrace;      | update_user               |
+| DELETE | /admin/users/&lbrace;user_id&rbrace;      | soft_delete_user          |
 
 `soft_delete_user` sets `users.is_active = false`; the record is not removed from the database.
 
 ### Role Management
 
 ```
-PATCH /admin/users/{user_id}/role
-Body: { role: "user" | "rescuer" }
+PATCH /admin/users/&lbrace;user_id&rbrace;/role
+Body: &lbrace; role: "user" | "rescuer" &rbrace;
 ```
 
 Updates `users.role`. Does not allow admin to change their own role (validated against `current_admin.id == user_id`).
@@ -67,9 +67,9 @@ Updates `users.role`. Does not allow admin to change their own role (validated a
 ### Ban Management
 
 ```
-POST   /admin/users/{user_id}/ban     → create banneduser row
-DELETE /admin/users/{user_id}/ban     → set banneduser.until = now() (early lift)
-GET    /admin/users/{user_id}/bans    → list ban history
+POST   /admin/users/&lbrace;user_id&rbrace;/ban     → create banneduser row
+DELETE /admin/users/&lbrace;user_id&rbrace;/ban     → set banneduser.until = now() (early lift)
+GET    /admin/users/&lbrace;user_id&rbrace;/bans    → list ban history
 ```
 
 Ban check on user login (in `auth.py`):
@@ -88,8 +88,8 @@ if active_ban:
 ```
 GET    /admin/announcements           → list all (including expired)
 POST   /admin/announcements           → create
-PATCH  /admin/announcements/{id}      → update title/body/priority/audience/expires_at
-DELETE /admin/announcements/{id}      → hard delete
+PATCH  /admin/announcements/&lbrace;id&rbrace;      → update title/body/priority/audience/expires_at
+DELETE /admin/announcements/&lbrace;id&rbrace;      → hard delete
 GET    /announcements                 → public endpoint; returns non-expired rows scoped to audience
 ```
 
