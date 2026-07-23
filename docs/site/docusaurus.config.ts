@@ -25,7 +25,7 @@ const config: Config = {
   organizationName: 'Emman-pip', // Usually your GitHub org/user name.
   projectName: 'YLP-software', // Usually your repo name.
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
@@ -104,8 +104,8 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/docs/intro',
+              label: 'Documentation',
+              to: '/docs',
             },
           ],
         },
