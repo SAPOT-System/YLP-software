@@ -1,3 +1,6 @@
 {
-  "label": "SMS Gateway"
+  "label": "SMS Gateway",
+  "link": {
+    "type": "generated-index"
+  }
 }

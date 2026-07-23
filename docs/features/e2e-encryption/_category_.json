@@ -1,3 +1,6 @@
 {
-  "label": "End-to-End Encryption"
+  "label": "End-to-End Encryption",
+  "link": {
+    "type": "generated-index"
+  }
 }

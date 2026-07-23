@@ -1,3 +1,6 @@
 {
-  "label": "Admin Management"
+  "label": "Admin Management",
+  "link": {
+    "type": "generated-index"
+  }
 }
