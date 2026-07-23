@@ -17,6 +17,17 @@ SAPOT (Search and Patrol Operations Technology) is a local-first disaster-respon
 
 ---
 
+## By Role
+
+| Role | Start here |
+|---|---|
+| New developer / contributor | [getting-started/](getting-started/) |
+| QA | [qa/README.md](qa/README.md) |
+| DevOps | [devops/README.md](devops/README.md) |
+| Architect | [architecture/](architecture/) and [adr/](adr/) |
+
+---
+
 ## Documentation Index
 
 ### Architecture
@@ -26,6 +37,7 @@ SAPOT (Search and Patrol Operations Technology) is a local-first disaster-respon
 | [architecture/system-overview.md](architecture/system-overview.md) | Component responsibilities, system boundaries, communication matrix, roles |
 | [architecture/component-map.md](architecture/component-map.md) | Process/service topology, ports, deployment units, what talks to what |
 | [architecture/data-flow.md](architecture/data-flow.md) | Sync flow, message delivery (WS relay, LAN P2P, SMS fallback), call signalling, GPS streaming — with Mermaid diagrams |
+| [architecture/networking-lan-model.md](architecture/networking-lan-model.md) | LAN topology, MikroTik router role, mDNS discovery, client isolation considerations |
 | [architecture/security-architecture.md](architecture/security-architecture.md) | Auth, password hashing, E2E encryption key hierarchy and flows, rate limiting, LAN transport security |
 | [architecture/threat-model.md](architecture/threat-model.md) | Trust boundaries, in-scope attack surfaces, device theft / router compromise / insider threat scenarios, known risks |
 | [adr/](adr/) | Architecture Decision Records — NaCl box, no server migration tooling, WatermelonDB, P2P calls, LAN-first design, roles model |
@@ -126,4 +138,6 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 
 ---
 
-See [getting-started/](getting-started/) for developer environment setup. Physical deployment steps (router configuration, APK distribution, onboarding rescuers at an incident site) are not yet documented.
+## Known Gap
+
+Physical deployment steps — MikroTik router configuration for a real site, APK distribution to rescuer devices, onboarding rescuers at an incident site — are not yet documented. See [devops/README.md](devops/README.md) and [qa/README.md](qa/README.md) for what *is* covered for those workflows.
