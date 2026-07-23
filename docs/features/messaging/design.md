@@ -28,6 +28,25 @@ Messaging spans two layers:
 
 Guards in `ConnectionService` — `isWebSocketAllowed()` and `isTcpAllowed()` — check `AppModeStore` plus guest status before selecting a transport.
 
+```mermaid
+flowchart TD
+    Start([Send message]) --> Mode{AppModeStore mode}
+
+    Mode -->|server| WsOnly["isWebSocketAllowed()?"]
+    WsOnly -->|Yes| WsSend["Send via WsSignalingAdapter (server relay)"]
+    WsOnly -->|No| ServerFail["Send fails — server mode has no fallback"]
+
+    Mode -->|lan| TcpOnly["isTcpAllowed()?"]
+    TcpOnly -->|Yes, data channel open| TcpSend["Send via RTCDataChannel (direct P2P)"]
+    TcpOnly -->|No data channel open| LanFail["Send fails outright — no WebSocket fallback in lan mode"]
+
+    Mode -->|auto| AutoWs["Try WebSocket first"]
+    AutoWs -->|Available| WsSend
+    AutoWs -->|Unavailable| AutoTcp["Fall back to LAN TCP / data channel"]
+    AutoTcp -->|Available| TcpSend
+    AutoTcp -->|Unavailable| AutoFail["Send fails — no transport available"]
+```
+
 #### `lan` mode: peer discovery and transport
 
 In `lan` mode, messages travel entirely over a direct WebRTC data channel between peers on the same local network — the server is never involved in message delivery:
@@ -37,6 +56,29 @@ In `lan` mode, messages travel entirely over a direct WebRTC data channel betwee
 3. **Data channel** — Once the WebRTC connection is established, messages are sent over the resulting `RTCDataChannel`. `lan` mode has no WebSocket fallback: if the data channel is not open, sending fails outright.
 
 See `mobile-app/sapot-mobile-app/docs/LAN_MESSENGER.md` for the full discovery → TCP → WebRTC → data channel sequence, and `mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md` ("Transport Modes") for the mode table.
+
+```mermaid
+sequenceDiagram
+    participant A as Mobile A (DiscoveryService)
+    participant Z as mDNS / Zeroconf
+    participant B as Mobile B (DiscoveryService)
+
+    A->>Z: publish self (peer id, TCP port)
+    B->>Z: publish self (peer id, TCP port)
+    A->>Z: scan for peers
+    Z-->>A: resolve B's LAN address:port
+
+    Note over A,B: TCP signaling channel
+    A->>B: TCP connect (TcpClientAdapter)
+    A->>B: handshake
+    A->>B: WebRTC offer
+    B-->>A: WebRTC answer
+    A->>B: ICE candidates
+    B-->>A: ICE candidates
+
+    Note over A,B: RTCDataChannel open — messages flow directly, no server involved
+    A->>B: message (over data channel)
+```
 
 ---
 
@@ -56,6 +98,27 @@ When a user establishes a WebSocket connection:
 2. Sends each payload to the now-connected client.
 3. Waits for `{ type: "ack", id: <queue_id> }`.
 4. On ack: deletes the queue row.
+
+```mermaid
+sequenceDiagram
+    participant A as Sender
+    participant S as Server (peer_connection.py)
+    participant B as Recipient
+
+    A->>S: { type: "message", to: B, data: <encrypted_blob> }
+
+    alt Recipient online
+        S->>B: forward immediately
+        B-->>S: { type: "ack", id }
+    else Recipient offline
+        S->>S: store in queue table (to, data, payload_type="message")
+        Note over B: later...
+        B->>S: WS connect
+        S->>B: drain queue (send each payload)
+        B-->>S: { type: "ack", id: queue_id }
+        S->>S: delete queue row
+    end
+```
 
 ### Public chat
 

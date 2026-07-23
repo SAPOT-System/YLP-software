@@ -10,6 +10,17 @@ SAPOT's server is not provisioned as a media relay (no TURN server, no SFU) and 
 
 Calls use WebRTC peer-to-peer for media. The server's `/ws/` WebSocket relays only SDP offer/answer and ICE candidate messages between the two peers (`SignalingService`, `peer_connection.py`) — it never touches audio/video streams.
 
+```mermaid
+flowchart LR
+    subgraph Signalling path — via server
+        A1[Caller] -->|SDP offer/answer, ICE candidates| S[Server /ws/]
+        S -->|relay| A2[Callee]
+    end
+    subgraph Media path — direct P2P, never touches server
+        A1 -.->|WebRTC audio/video RTP| A2
+    end
+```
+
 ## Consequences
 
 - **Server load stays low regardless of call volume or duration** — the server's cost is a handful of small signalling messages per call, not a proportional share of media bandwidth. This matters at incident-site scale where the server host may be modest hardware.

@@ -21,6 +21,25 @@ SyncService
                ◄── 200 OK | 409 Conflict ─────────────────────────────────────┘
 ```
 
+```mermaid
+sequenceDiagram
+    participant Mobile as Mobile (SyncService)
+    participant Server as Server (sync.py)
+
+    Mobile->>Server: GET /sync/pull?last_pulled_at&cursor
+    Server-->>Mobile: { changes, pulled_at, next_cursor, guest_hints }
+    Mobile->>Mobile: applyGuestHints(); merge changes into WatermelonDB
+    Mobile->>Mobile: advance lastPulledAt (only after full page merged)
+
+    Mobile->>Server: POST /sync/push { changes }
+    alt no conflicts
+        Server-->>Mobile: 200 OK
+    else server row newer than last_pulled_at
+        Server-->>Mobile: 409 Conflict { table, id }
+        Note over Mobile: entire push rolled back — re-pull, then retry push
+    end
+```
+
 ### Mobile — SyncService
 
 Responsibilities:
@@ -128,6 +147,24 @@ Orphaned receipts are discarded with a 422 and logged. This prevents referential
 ### Call Participant FK Guard
 
 Same pattern: `call_participant.call_id` must reference an existing `call` row before upsert.
+
+```mermaid
+flowchart TD
+    Start([POST /sync/push]) --> Order["Process tables in FK order:<br/>peers → conversations → conversation_participants →<br/>messages → message_receipts → calls → call_participants"]
+
+    Order --> RowCheck{"For each row:<br/>server_row.updated_at > last_pulled_at?"}
+    RowCheck -->|Yes| Conflict["409 Conflict { table, id }<br/>entire push rolled back"]
+    RowCheck -->|No| FKGuard{"Row is message_receipt or<br/>call_participant — parent exists?"}
+
+    FKGuard -->|No| Orphan["422 — discard orphan row, log warning<br/>rest of push continues"]
+    FKGuard -->|Yes| Upsert["Upsert row"]
+
+    Upsert --> More{More rows?}
+    More -->|Yes| RowCheck
+    More -->|No| Done([200 OK])
+
+    Conflict --> Retry["Client re-pulls conflicting rows,<br/>retries full push"]
+```
 
 ---
 

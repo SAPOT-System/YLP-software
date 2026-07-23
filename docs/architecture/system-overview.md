@@ -136,6 +136,33 @@ An offline map tile server.
 | GSM module | Arduino / modem | Serial (pyserial, AT commands) | AT command execution for SMS |
 | MikroTik router | Captive portal | HTTP (internal) | Login page serving and hotspot auth |
 
+```mermaid
+flowchart LR
+    MobileA["Mobile app A"]
+    MobileB["Mobile app B"]
+    Server["Server"]
+    Admin["Admin frontend"]
+    Router["MikroTik router"]
+    GSM["GSM module"]
+    Arduino["Arduino / modem"]
+    Portal["Captive portal"]
+
+    MobileA -->|HTTPS REST: auth, sync, keys, admin| Server
+    MobileA <-->|WSS /ws/: signalling, presence| Server
+    MobileA -->|WSS /gps/ws/&lt;id&gt;: location stream| Server
+    MobileA <-.->|WebRTC P2P: data channel, media| MobileB
+    MobileA <-.->|LAN TCP+TLS: fallback signalling| MobileB
+    MobileA <-.->|mDNS: peer discovery| MobileB
+
+    Admin -->|HTTPS BFF: all dashboard ops| Server
+    Server -->|RouterOS API: telemetry| Router
+    Server -->|HTTP API: SMS dispatch| GSM
+    GSM -->|Serial/AT commands| Arduino
+    Router -->|HTTP: login + hotspot auth| Portal
+```
+
+> This diagram is a protocol-level view (who talks to whom, over what channel, and why). For the physical/deployment topology (hosts, ports, processes), see [component-map.md](component-map.md).
+
 ---
 
 ## Roles

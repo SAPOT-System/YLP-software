@@ -8,6 +8,26 @@ SAPOT serves several distinct populations at an incident site: unregistered civi
 
 Use a flat four-role model — `guest`, `user`, `rescuer`, `admin` — stored in `peers.role` (mobile WatermelonDB, schema v9+) and resolved server-side from the JWT via the `_resolve_role` helper (see [system-overview.md](../architecture/system-overview.md#roles)). No custom/per-permission role system; role grants a fixed bundle of capabilities.
 
+```mermaid
+flowchart TD
+    Req(["Request arrives with JWT (or none, for guest)"]) --> Resolve["_resolve_role() — server-side, never trusts client-asserted role"]
+
+    Resolve --> Guest["guest"]
+    Resolve --> User["user"]
+    Resolve --> Rescuer["rescuer"]
+    Resolve --> Admin["admin"]
+
+    Guest --> GuestCaps["LAN messaging + calls only<br/>no GPS sharing, no server-dependent features"]
+    User --> UserCaps["Messaging, calls, GPS sharing (as subject),<br/>view announcements"]
+    Rescuer --> RescuerCaps["All user capabilities +<br/>live GPS map of ALL users, announcements"]
+    Admin --> AdminCaps["Full admin dashboard: user management,<br/>announcements, network config"]
+
+    RescuerCaps -.->|"client-visible badge ≠ security boundary"| Note["Enforcement always server-side via _resolve_role"]
+    AdminCaps -.-> Note
+```
+
+Client-visible role badges (chat lists, message bubbles) are a UX/trust signal only — every capability above is re-checked server-side per request, never inferred from what the client displays.
+
 ## Consequences
 
 - **Guests get full LAN messaging and calls with zero registration friction** — this is deliberate: at a disaster scene, requiring account creation before someone can call for help is unacceptable. The cost is that guests cannot be identified or held accountable, and cannot share GPS or access server-dependent features (see the role table in [system-overview.md](../architecture/system-overview.md#roles)).

@@ -21,9 +21,56 @@ User → POST /auth/forgot-password/<method>
      → Server validates token, resets password, deletes session
 ```
 
+```mermaid
+sequenceDiagram
+    participant User
+    participant Server
+
+    User->>Server: POST /auth/forgot-password/<method>
+    Server->>Server: validate identity via chosen method
+    Server->>Server: create recovery_session record
+    Server-->>User: recovery_token
+    User->>Server: POST /auth/reset-password { recovery_token, new_password }
+    Server->>Server: validate token, reset password, delete session
+    Server-->>User: 200 OK
+```
+
 ---
 
 ## Verification methods
+
+All four methods are independent ways to prove identity, but converge on the same outcome — an issued `recovery_token` — and the same final step (`POST /auth/reset-password`):
+
+```mermaid
+flowchart TD
+    Start([User starts recovery]) --> Choice{Choose method}
+
+    Choice -->|Email OTP| E1["Submit email"]
+    E1 --> E2["Server generates 6-digit OTP<br/>hashed in email_verifications, 10 min expiry"]
+    E2 --> E3["User submits OTP"]
+
+    Choice -->|Phone OTP| P1["Submit phone number"]
+    P1 --> P2["Server requests GSM module send SMS OTP<br/>(phone_verification table)"]
+    P2 --> P3["User submits OTP"]
+
+    Choice -->|Security question| S1["Server returns stored question text<br/>(usersecurityquestion.question)"]
+    S1 --> S2["User submits answer"]
+    S2 --> S3["Server computes Argon2 hash, compares to<br/>usersecurityquestion.hashed_answer"]
+
+    Choice -->|Recovery key file| R1["User uploads/pastes recovery key file"]
+    R1 --> R2["Server compares content hash to<br/>wrapped_key_recovery (method = recovery_key)"]
+
+    E3 --> Match{Match?}
+    P3 --> Match
+    S3 --> Match
+    R2 --> Match
+
+    Match -->|Yes| Token["Issue recovery_token"]
+    Match -->|No| Reject["Reject — generic error,<br/>no enumeration of valid identifiers"]
+
+    Token --> Reset["POST /auth/reset-password<br/>{ recovery_token, new_password }"]
+    Reset --> Done([Password reset, session deleted])
+```
 
 ### Email OTP
 
@@ -65,6 +112,15 @@ User → POST /auth/forgot-password/<method>
 | `method` | VARCHAR | `email_otp`, `phone_otp`, `security_question`, or `recovery_key` |
 
 The plaintext `recovery_token` is returned to the client once and never stored. After a successful password reset, the session row is deleted (token consumed).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Issued: verification succeeds
+    Issued --> Consumed: POST /auth/reset-password (valid token)
+    Issued --> Expired: expires_at passes before use
+    Consumed --> [*]: session row deleted
+    Expired --> [*]: token unusable, session must restart
+```
 
 ---
 
