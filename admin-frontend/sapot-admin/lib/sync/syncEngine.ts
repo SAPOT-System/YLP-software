@@ -30,18 +30,31 @@ export async function pull(limit = 100) {
     /* =========================
        PAGINATION CHECK
     ========================= */
-    const tables = Object.values(changes);
+    const tables = Object.values(changes) as {
+      has_more?: boolean;
+      next_cursor?: number;
+    }[];
 
-    const hasMore = tables.some(
-      (table: any) => table?.has_more && table?.next_cursor
-    );
+    const hasMore = tables.some((table) => table?.has_more && table?.next_cursor);
 
     if (hasMore) {
-      // Find the NEXT cursor (usually messages, but future-proof)
+      // Find the NEXT cursor (usually messages, but future-proof).
+      // Only tables that actually have more rows may move the cursor — a
+      // drained table still reports its last updated_at, and taking that as
+      // the minimum would drag the cursor backwards and refetch for ever.
       const nextCursor = tables
-        .map((t: any) => t?.next_cursor)
-        .filter(Boolean)
-        .sort((a: number, b: number) => a - b)[0]; // smallest cursor first
+        .filter((t) => t?.has_more && t?.next_cursor)
+        .map((t) => t.next_cursor as number)
+        .sort((a, b) => a - b)[0]; // smallest cursor first
+
+      // The server pages with `updated_at > last_pulled_at`, so a cursor that
+      // does not advance would replay the same page indefinitely. Stop instead
+      // of hanging the caller.
+      if (!(nextCursor > lastPulledAt)) {
+        shouldContinue = false;
+        lastPulledAt = timestamp;
+        break;
+      }
 
       lastPulledAt = nextCursor;
     } else {
