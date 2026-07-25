@@ -1,5 +1,11 @@
 # Sync — Requirements
 
+## Overview
+
+Sync keeps the mobile app's local WatermelonDB consistent with the server's MariaDB via a pull/push protocol: the app pulls server changes since its last sync timestamp, then pushes its own local changes, with conflicts detected server-side.
+
+---
+
 ## User Stories
 
 | ID    | As a…       | I want to…                                               | So that…                                              |

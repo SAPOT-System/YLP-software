@@ -1,5 +1,7 @@
 # Design SAPOT as LAN-first, not internet-first-with-offline-fallback
 
+**Status:** Accepted
+
 ## Context
 
 SAPOT's core use case is disaster response, where internet connectivity at the incident site is often unavailable or unreliable, but a local network can be stood up quickly (a MikroTik router creating an ad-hoc Wi-Fi network). The architecture had to pick a primary assumption: build for the cloud/internet case and treat offline as a degraded fallback mode, or build for the LAN case and treat internet connectivity as an optional enhancement.

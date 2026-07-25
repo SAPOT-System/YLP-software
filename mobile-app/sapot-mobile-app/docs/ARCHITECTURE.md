@@ -41,19 +41,17 @@ WebrtcSessionManager → SignalingService → CallMediaService → ConnectionSer
 
 TODO: the distinction between these two patterns is implied by the circular dependency constraint but is not documented. It is not always obvious which pattern applies to a new dependency.
 
-PIN-gated initialization: the container is held in `pendingContainerRef` and `PinEntryGate` is shown before `initialize()` is called.
-
 **`initialize()` phase decomposition** — the public `initialize()` delegates to three typed private phases:
 
 | Phase | Method | Role |
 |---|---|---|
-| 1 | `initializeKeys(): Promise<KeysReady>` | Loads all crypto keys (local encryption, ECDH, peer keys, conversation keys). Clears pending password/PIN. |
+| 1 | `initializeKeys(): Promise<KeysReady>` | Loads all crypto keys (local encryption, ECDH, peer keys, conversation keys). Clears pending password. |
 | 2 | `handleMigration(keys): Promise<MigrationOk>` | Detects and runs migration recovery re-encrypt; computes `migrationPushPending` flag. |
 | 3 | `startNetworkServices(migOk): Promise<void>` | Starts sync, NetInfo listener, periodic timer, AppState listener, network config watching. |
 
 Branded token types (`KeysReady`, `MigrationOk`) make phase ordering a TypeScript compile-time constraint — phase 2 cannot be called without a `KeysReady` token, and phase 3 cannot be called without a `MigrationOk` token.
 
-React context provider: `features/shared/context/main-container-context.tsx`
+React context provider: `features/shared/core/context/main-container-context.tsx`
 
 
 ---
@@ -169,7 +167,7 @@ network-regained and exposes a manual "Tap to retry" once the bounded reconnect 
 
 ## Server Status
 
-**Single source of truth:** `HealthProvider` (`features/shared/context/health-context.tsx`) mounts inside `app/(drawer)/_layout.tsx` and continuously tracks server reachability.
+**Single source of truth:** `HealthProvider` (`features/shared/core/context/health-context.tsx`) mounts inside `app/(drawer)/_layout.tsx` and continuously tracks server reachability.
 
 - Runs an immediate check via `checkBackEndHealth()` on mount, then polls `/ping` every 5s via `usePing()`
 - Exposes `useServerStatus()` → `{ online: boolean; latency: number | null; shouldWarn: boolean }`
@@ -224,13 +222,14 @@ features/<name>/
 |---|---|---|---|
 | `shared/` | ~22 k | 166 | **Engine** — P2P runtime, encryption, DI, database |
 | `chat/` | ~7.5 k | 45 | Message threads, sync, conversation key management |
-| `auth/` | ~6.2 k | 68 | Registration, login, PIN gate, guest flow |
+| `auth/` | ~6.2 k | 68 | Registration, login, guest flow |
 | `call/` | ~4.1 k | 35 | Audio/video call UI and lifecycle |
 | `sync/` | ~3.2 k | 16 | Background data sync with server |
 | `gps/` | ~0.7 k | 10 | Live location sharing (rescuers only) |
 | `settings/` | ~0.6 k | 5 | User preferences |
 | `announcements/` | ~0.4 k | 9 | Server-fetched announcement board |
 | `getting-started/` | ~0.4 k | 8 | Onboarding screens |
+| `debug/` | ~0.7 k | 10 | Developer debug panel (dev/QA-only, gated by `config/debug.ts`); `DebugDbService` provides a WatermelonDB table browser/seeder/reset + JSON export-import over the shared `database` instance; `DebugAuthService` (Auth/Users section) seeds test users and switches roles via `UserService`/`UserStore`, injects/clears a fake JWT via `secure-config`, and drives force-logout/reset via `UserService.logout`/`wipeDatabase` |
 
 `features/shared/` is ~50 % of all production code. It is a layered engine, not a utility bucket. See the sub-domain layout below and `features/shared/README.md` for the one-page map.
 

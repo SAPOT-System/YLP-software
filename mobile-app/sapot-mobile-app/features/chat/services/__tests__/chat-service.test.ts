@@ -1,5 +1,5 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-    ConnectionService,
     Conversation,
     ConversationParticipant,
     ConversationType,
@@ -8,9 +8,9 @@ import {
     MessageStatus,
     MessageStatusType,
     Peer,
-    PeerService,
-    UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { PeerService } from "@/features/shared/peer";
+import { UserStore } from "@/features/shared/core/stores";
 import {
     createTestConversation,
     createTestMessage,
@@ -40,8 +40,10 @@ enum MessageType {
 }
 
 // Mock shared dependencies
-jest.mock("@/features/shared", () => ({
+jest.mock("@/features/shared/connection", () => ({
   ConnectionService: jest.fn(),
+}));
+jest.mock("@/features/shared/core/database", () => ({
   Conversation: jest.fn(),
   ConversationType: {
     DIRECT: "direct",
@@ -68,7 +70,11 @@ jest.mock("@/features/shared", () => ({
     NOT_SENT: "not_sent",
   },
   Peer: jest.fn(),
+}));
+jest.mock("@/features/shared/peer", () => ({
   PeerService: jest.fn(),
+}));
+jest.mock("@/features/shared/core/stores", () => ({
   UserStore: jest.fn(),
 }));
 
@@ -348,13 +354,14 @@ describe("ChatService", () => {
 
   describe("handleIncomingChatMessage", () => {
     it("should handle incoming message for existing conversation", async () => {
+      const sentAt = new Date("2026-01-01T00:00:00.000Z");
       const mockData: DataChatMessageI = {
         message: "Hello World",
         conversationId: "conv-1",
         messageId: "msg-1",
         from: "peer-1",
         to: "peer-2",
-        sentAt: new Date(),
+        sentAt,
         messageType: MessageType.TEXT,
         senderProfile: { username: "sender", firstName: "Sender" },
       };
@@ -395,6 +402,7 @@ describe("ChatService", () => {
           content: "Hello World",
           conversation: mockConversation,
           messageId: "msg-1",
+          sentAt,
         })
       );
       expect(

@@ -4,7 +4,7 @@ import React, { createContext, useEffect, useState } from "react";
 import { PageLoader } from "@/features/shared/components/page-loader";
 import { AuthContainer } from "../auth-container";
 import { getApiUrl, initRuntimeOverrides } from "@/config/runtime";
-import { apiClient } from "@/features/shared";
+import { apiClient } from "@/features/shared/core/api";
 
 export const AuthContainerContext = createContext<AuthContainer | null>(null);
 

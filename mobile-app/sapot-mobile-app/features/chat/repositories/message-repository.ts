@@ -4,7 +4,7 @@ import {
   Message,
   MessageType,
   Peer,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { Collection, Database, Q } from "@nozbe/watermelondb";
 import nacl from "tweetnacl";
@@ -217,6 +217,7 @@ export class MessageRepository {
     messageType?: MessageType;
     linkedMessageId?: string;
     allowPlaintext?: boolean;
+    sentAt?: Date;
   }): Message {
     const isSms = newMessage.messageType === MessageType.SMS;
     const { content, isEncrypted } = this.encryptContent(
@@ -234,7 +235,7 @@ export class MessageRepository {
       message.content = content;
       message.isEncrypted = isEncrypted;
       message.linkedMessageId = newMessage.linkedMessageId ?? null;
-      message.createdAt = new Date();
+      message.createdAt = newMessage.sentAt ?? new Date();
       message.updatedAt = new Date();
       message.isDeleted = false;
     });

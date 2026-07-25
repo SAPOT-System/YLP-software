@@ -261,6 +261,28 @@ describe("ConnectionService", () => {
       );
     });
 
+    it("should emit call-rejected for a declined call-rejected message", async () => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await callMessageHandler?.({
+        type: "call-rejected" as const,
+        data: { from: "peer-1", to: "test-user-id", reason: "declined" },
+      });
+
+      expect(emitSpy).toHaveBeenCalledWith(
+        "call-rejected",
+        expect.objectContaining({ peerId: "peer-1" })
+      );
+      expect(emitSpy).not.toHaveBeenCalledWith(
+        "call-ended",
+        expect.anything()
+      );
+    });
+
     it("should send busy reject when activeCallPeerId matches the caller", async () => {
       const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
         (call) => call[0] === "call-message"
