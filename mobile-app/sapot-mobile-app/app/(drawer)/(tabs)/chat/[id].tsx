@@ -183,7 +183,11 @@ const ChatRoom = () => {
         const chatId = await chatService.findChatByPeer(resolvedPeerId);
         if (signal.aborted) return;
 
-        if (chatId) setConversationId(chatId);
+        if (chatId) {
+          await chatService.setConversation(chatId);
+          if (signal.aborted) return;
+          setConversationId(chatId);
+        }
       } else if (source === ChatRoomSource.CHAT) {
         const foundPeerId = await chatService.findPeerIdByChatId(id as string);
         if (signal.aborted) return;
@@ -195,6 +199,8 @@ const ChatRoom = () => {
         });
         setIsSelfChat(isSelf);
         setPeerId(foundPeerId);
+        await chatService.setConversation(id as string);
+        if (signal.aborted) return;
         setConversationId(id as string);
       } else {
         throw Error("Error in passed source paramater");

@@ -826,6 +826,30 @@ describe("ConnectionService", () => {
         data: messageData,
       });
     });
+
+    it("forces an admin chat message through the WebSocket relay", () => {
+      const messageData: DataChatMessageI = {
+        message: "Hello admin",
+        conversationId: "conv-admin",
+        messageId: "msg-admin",
+        from: "test-user",
+        to: "admin-1",
+        sentAt: new Date(),
+        messageType: MessageType.TEXT,
+        senderProfile: { username: "testuser", firstName: "Test" },
+      };
+      const relaySpy = jest.spyOn(signalingService, "sendChatMessage").mockImplementation(() => {});
+
+      const transport = connectionService.sendChatMessage(
+        "admin-1",
+        messageData,
+        { forceWebSocket: true }
+      );
+
+      expect(transport).toBe("ws");
+      expect(relaySpy).toHaveBeenCalledWith("admin-1", messageData);
+      expect(mockWebrtcAdapter.sendDataMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe("sendAckMessage", () => {

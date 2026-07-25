@@ -556,7 +556,7 @@ export class ChatMessageService {
           newMessageStatus.id
         );
       }, 12000);
-      const transport = this.connectionService.sendChatMessage(peer.id, {
+      const messageData = {
         message: message,
         conversationId: conversation.id,
         messageId: newMessage.id,
@@ -570,7 +570,10 @@ export class ChatMessageService {
           lastName: this.userStore.user.lastName || undefined,
         },
         linkedMessageId: newMessage.linkedMessageId ?? undefined,
-      });
+      };
+      const transport = peer.role === "admin"
+        ? this.connectionService.sendChatMessage(peer.id, messageData, { forceWebSocket: true })
+        : this.connectionService.sendChatMessage(peer.id, messageData);
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusById(
           newMessageStatus.id,
