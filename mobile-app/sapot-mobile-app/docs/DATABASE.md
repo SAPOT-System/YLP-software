@@ -46,7 +46,7 @@ A conversation groups messages between participants.
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | `id` | string | — | UUID |
-| `type` | string | No | `"direct"` \| `"group"` (ConversationType) |
+| `type` | string | No | `"direct"` \| `"group"` \| `"solo"` (legacy admin direct conversation) |
 | `title` | string | Yes | Used for group conversations |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
@@ -144,7 +144,7 @@ Which users participated in each call.
 | `MessageStatusType` | `"sent"` \| `"delivered"` \| `"seen"` |
 | `CallType` | `"audio"` \| `"video"` |
 | `CallStatus` | `"completed"` \| `"missed"` \| `"rejected"` |
-| `ConversationType` | `"direct"` \| `"group"` |
+| `ConversationType` | `"direct"` \| `"group"` \| `"solo"` (legacy admin direct conversation) |
 
 ---
 

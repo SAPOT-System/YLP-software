@@ -249,7 +249,9 @@ Sent and received directly between peers after WebRTC connection is established.
 ---
 
 ### `seen` — read receipt
-**Transport:** WebRTC Data Channel &nbsp;|&nbsp; **Direction:** Sent & Received
+**Transport:** WebRTC Data Channel or WebSocket relay &nbsp;|&nbsp; **Direction:** Sent & Received
+
+> Admin conversations use the WebSocket relay and never establish WebRTC.
 
 ```json
 {
@@ -335,9 +337,9 @@ are intercepted inside the adapter and never propagate to chat handling.
 | `call-ready` | ✓ | ✓ | |
 | `call-rejected` | ✓ | ✓ | |
 | `call-missed` | ✓ | ✓ | |
-| `chat` | | | ✓ |
-| `ack` | | | ✓ |
-| `seen` | | | ✓ |
+| `chat` | ✓ | | ✓ |
+| `ack` | ✓ | | ✓ |
+| `seen` | ✓ | | ✓ |
 | `camera_toggle` | | | ✓ |
 | `mic_toggle` | | | ✓ |
 | `ping` | | | ✓ |
