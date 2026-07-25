@@ -1,4 +1,7 @@
 #!/bin/bash
+set -euo pipefail
 
-source venv/bin/activate
-python3 main.py
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+uv run venv/bin/python3 main.py

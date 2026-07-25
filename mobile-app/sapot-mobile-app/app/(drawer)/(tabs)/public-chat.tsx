@@ -1,6 +1,8 @@
 import { usePublicChat } from "@/features/chat/hooks/use-public-chat";
 import { MAX_MESSAGE_LENGTH, PublicChatMessage } from "@/features/chat/types";
+import motion from "@/constants/motion";
 import { formatDate } from "@/features/shared";
+import { useReducedMotion } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -13,8 +15,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, { Easing, FadeInUp } from "react-native-reanimated";
 import { IconButton, Text, useTheme } from "react-native-paper";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
+import { Crossfade } from "@/features/shared/components/crossfade";
 
 export default function PublicChat() {
   const theme = useTheme();
@@ -24,6 +28,14 @@ export default function PublicChat() {
   const userStore = useUserStore();
   const myId = userStore.user.id;
   const headerHeight = useHeaderHeight();
+  const reducedMotion = useReducedMotion();
+  const seenIdsRef = useRef<Set<string> | null>(null);
+
+  if (seenIdsRef.current === null) {
+    seenIdsRef.current = new Set(
+      messages.map((message, index) => message.id ?? String(index))
+    );
+  }
 
   useEffect(() => {
     uiLog.info("[PublicChat] mounted");
@@ -67,18 +79,20 @@ export default function PublicChat() {
     >
       {/* Connection status bar */}
       <View style={styles.statusBar}>
-        {isConnected ? (
-          <>
-            <View style={styles.dotConnected} />
-            <Text style={styles.statusTextConnected}>Connected</Text>
-          </>
-        ) : (
-          <>
-            <View style={styles.dotConnecting} />
-            <Text style={styles.statusTextConnecting}>Connecting…</Text>
-            <LoadingSpinner style={styles.statusSpinner} />
-          </>
-        )}
+        <Crossfade activeKey={isConnected ? "connected" : "connecting"}>
+          {isConnected ? (
+            <View style={styles.statusBar}>
+              <View style={styles.dotConnected} />
+              <Text style={styles.statusTextConnected}>Connected</Text>
+            </View>
+          ) : (
+            <View style={styles.statusBar}>
+              <View style={styles.dotConnecting} />
+              <Text style={styles.statusTextConnecting}>Connecting…</Text>
+              <LoadingSpinner style={styles.statusSpinner} />
+            </View>
+          )}
+        </Crossfade>
       </View>
 
       <View style={styles.body}>
@@ -117,22 +131,22 @@ export default function PublicChat() {
                 </View>
               ) : null
             }
-            renderItem={({ item }) => {
+            renderItem={({ item, index }) => {
               const isOutgoing = item.sender_id === myId;
               const senderLabel = item.sender_name ?? `${item.sender_id.slice(0, 8)}…`;
               const timeLabel = formatDate(item.received_at);
+              const itemId = item.id ?? String(index);
+              const isNewMessage = !seenIdsRef.current!.has(itemId);
+              seenIdsRef.current!.add(itemId);
 
-              if (isOutgoing) {
-                return (
-                  <View style={styles.outgoingBubble}>
-                    <Text style={styles.outgoingLabel}>
-                      You, {timeLabel}
-                    </Text>
-                    <Text style={styles.outgoingContent}>{item.content}</Text>
-                  </View>
-                );
-              }
-              return (
+              const bubble = isOutgoing ? (
+                <View style={styles.outgoingBubble}>
+                  <Text style={styles.outgoingLabel}>
+                    You, {timeLabel}
+                  </Text>
+                  <Text style={styles.outgoingContent}>{item.content}</Text>
+                </View>
+              ) : (
                 <View
                   style={[
                     styles.incomingBubble,
@@ -158,6 +172,20 @@ export default function PublicChat() {
                     {item.content}
                   </Text>
                 </View>
+              );
+
+              if (reducedMotion || !isNewMessage) {
+                return bubble;
+              }
+
+              return (
+                <Animated.View
+                  entering={FadeInUp.duration(motion.duration.base).easing(
+                    Easing.bezier(...motion.easing.standard)
+                  )}
+                >
+                  {bubble}
+                </Animated.View>
               );
             }}
             contentContainerStyle={styles.messageList}

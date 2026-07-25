@@ -1,5 +1,11 @@
 # GPS Location — Requirements
 
+## Overview
+
+GPS location sharing uses a dedicated, server-mediated WebSocket layer independent of the messaging connection service. Any authenticated user can stream their coordinates; only rescuers can view live locations and history for all users.
+
+---
+
 ## User Stories
 
 | ID     | As a…    | I want to…                                               | So that…                                                   |

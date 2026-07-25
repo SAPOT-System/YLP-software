@@ -10,7 +10,9 @@ import {
   CallMessage,
   ChatMessage,
   DataAckMessage,
+  DataSeenMessageI,
   Message,
+  SeenMessage,
   SignalingMessage,
 } from "../../types";
 import { PeerKeyService } from "../../crypto/peer-key-service";
@@ -368,6 +370,28 @@ export class SignalingService {
     } catch (error) {
       const appErr = toAppError(error, "signaling");
       signalingLog.error("signaling › ws ack relay failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  sendSeenMessage(peerId: string, seenData: DataSeenMessageI): void {
+    try {
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
+      if (!isWsConfigured || !this.wsSignalingAdapter.isConnected) {
+        throw new Error("WebSocket unavailable for seen notification");
+      }
+      const payload: SeenMessage = { type: "seen", data: seenData };
+      signalingLog.debug("signaling › ws seen relay", {
+        peerId,
+        conversationId: seenData.conversationId,
+      });
+      this.wsSignalingAdapter.sendMessage(payload);
+    } catch (error) {
+      const appErr = toAppError(error, "signaling");
+      signalingLog.error("signaling › ws seen relay failed", { peerId, ...appErr });
       captureAppError(appErr);
       throw appErr;
     }

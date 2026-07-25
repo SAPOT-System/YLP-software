@@ -68,6 +68,13 @@ export type CallEndedEventPayload = {
   conversationId?: string;
 };
 
+export type CallRejectedEventPayload = {
+  peerId: string;
+  callId?: string;
+  conversationId?: string;
+  callType?: "audio" | "video";
+};
+
 export type ConnectionServiceEvents = {
   "audio-call": [
     { peerId: string; callerName: string; conversationId?: string; callId?: string }
@@ -76,6 +83,7 @@ export type ConnectionServiceEvents = {
     { peerId: string; callerName: string; conversationId?: string; callId?: string }
   ];
   "call-ended": [payload: CallEndedEventPayload];
+  "call-rejected": [payload: CallRejectedEventPayload];
   "call-ready": [peerId: string];
   "call-busy": [
     peerId: string,
@@ -429,6 +437,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           this.emit("call-busy", peerId, { callId, conversationId, messageId, callType });
         } else if (result.eventName === "call-ended") {
           this.emit("call-ended", result.payload);
+        } else if (result.eventName === "call-rejected") {
+          this.emit("call-rejected", result.payload);
         } else if (result.eventName === "call-ready") {
           this.emit("call-ready", result.payload);
         } else {
@@ -796,14 +806,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   sendChatMessage(
     peerId: string,
-    messageData: DataChatMessageI
+    messageData: DataChatMessageI,
+    options: { forceWebSocket?: boolean } = {}
   ): "webrtc" | "ws" {
     let webrtcConnected = false;
-    try {
-      webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch (error) {
-      connectionLog.debug("connection › isWebrtcConnected error (sendChat)", { peerId, error });
-      webrtcConnected = false;
+    if (!options.forceWebSocket) {
+      try {
+        webrtcConnected = this.isWebrtcConnected(peerId);
+      } catch (error) {
+        connectionLog.debug("connection › isWebrtcConnected error (sendChat)", { peerId, error });
+        webrtcConnected = false;
+      }
     }
 
     if (webrtcConnected) {
@@ -827,13 +840,19 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     return "ws";
   }
 
-  sendAckMessage(peerId: string, ackData: DataAckMessage) {
+  sendAckMessage(
+    peerId: string,
+    ackData: DataAckMessage,
+    options: { forceWebSocket?: boolean } = {}
+  ) {
     let webrtcConnected = false;
-    try {
-      webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch (error) {
-      connectionLog.debug("connection › isWebrtcConnected error (sendAck)", { peerId, error });
-      webrtcConnected = false;
+    if (!options.forceWebSocket) {
+      try {
+        webrtcConnected = this.isWebrtcConnected(peerId);
+      } catch (error) {
+        connectionLog.debug("connection › isWebrtcConnected error (sendAck)", { peerId, error });
+        webrtcConnected = false;
+      }
     }
 
     if (webrtcConnected) {
@@ -856,12 +875,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.signalingService.sendAckMessage(peerId, ackData);
   }
 
-  sendSeenMessage(peerId: string, conversationId: string) {
-    this.webrtcSessionManager.sendSeenMessage(peerId, {
-      conversationId,
-      from: this.userStore.user.id,
-      to: peerId,
-    });
+  sendSeenMessage(
+    peerId: string,
+    conversationId: string,
+    options: { forceWebSocket?: boolean } = {}
+  ) {
+    const seenData = { conversationId, from: this.userStore.user.id, to: peerId };
+    if (options.forceWebSocket || !this.isWebrtcConnected(peerId)) {
+      this.signalingService.sendSeenMessage(peerId, seenData);
+      return;
+    }
+    this.webrtcSessionManager.sendSeenMessage(peerId, seenData);
   }
 
   sendCallControlMessage(

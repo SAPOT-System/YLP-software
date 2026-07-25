@@ -1,15 +1,15 @@
 # System Overview
 
-SAPOT is a local-first disaster-response communications platform. It is designed to operate entirely on a local-area network (LAN) managed by a MikroTik router, with no dependency on internet connectivity for its core functions.
+SAPOT is a LAN-first disaster-response communications platform. It is designed to operate entirely on a local-area network (LAN) managed by a MikroTik router, with no dependency on internet connectivity for its core functions.
 
 ---
 
 ## Design Principles
 
-- **Offline-first.** Messaging, calls, peer discovery, and GPS sharing all function on the LAN without internet. See [ADR 0005](../adr/0005-lan-first-design.md).
+- **LAN-first.** Messaging, calls, peer discovery, and GPS sharing all function on the LAN without internet. See [ADR 0005](../adr/0005-lan-first-design.md).
 - **Local database.** The mobile app maintains a full local copy of relevant data in WatermelonDB (SQLite). Sync with the server is incremental and resumable. See [ADR 0003](../adr/0003-watermelondb-for-mobile-local-database.md).
 - **P2P media.** Voice and video calls are WebRTC peer-to-peer. The server relays only the SDP and ICE signalling messages; it never carries call media. See [ADR 0004](../adr/0004-p2p-calls-with-signalling-relay.md).
-- **End-to-end encryption.** Messages are encrypted at rest and in transit using NaCl box (ECDH key agreement, per-conversation keys). The server cannot read message content. See [ADR 0001](../adr/0001-nacl-box-for-e2e-encryption.md).
+- **E2E encryption.** Messages are encrypted at rest and in transit using NaCl box (ECDH key agreement, per-conversation keys). The server cannot read message content. See [ADR 0001](../adr/0001-nacl-box-for-e2e-encryption.md).
 - **SMS fallback.** If a recipient is not reachable on the LAN, the GSM module sends an SMS via an Arduino-controlled modem.
 
 ---
@@ -27,7 +27,7 @@ The primary user-facing component. An Expo/React Native Android app.
 - Live GPS location sharing (rescuers only; streamed over a dedicated WebSocket to the server)
 - Server-fetched announcements (role-filtered, expiry-aware)
 - Local database (WatermelonDB/SQLite) with incremental pull/push sync
-- End-to-end encryption (NaCl box, per-conversation ECDH keys, at-rest encryption)
+- E2E encryption (NaCl box, per-conversation ECDH keys, at-rest encryption)
 - Guest-to-authenticated account migration
 - Background WebSocket connectivity maintenance (Android background task)
 
@@ -63,7 +63,7 @@ The FastAPI backend. Deployed as a Gunicorn process behind an Nginx reverse prox
 
 API routers: `admin`, `auth`, `captive_portal`, `download`, `forgot_password`, `gps`, `gsm`, `keys`, `mikrotik`, `peer_connection`, `ping`, `profile_picture`, `public_chat`, `sync`, `testing` (dev only), `update_info`, `user_keys`, `user_utils`, `verify_email`, `wrapped_key`.
 
-> Note: The `testing` router is included in production builds as of the current codebase (`# delete when going to production` comment in `main.py`). It should be removed before a public deployment.
+> Note: The `testing` router is only mounted when `ENVIRONMENT=development` (see `app/main.py`); it is excluded from production builds by default. See [SECURITY.md](../../SECURITY.md) for the fix history.
 
 ---
 
@@ -136,6 +136,33 @@ An offline map tile server.
 | GSM module | Arduino / modem | Serial (pyserial, AT commands) | AT command execution for SMS |
 | MikroTik router | Captive portal | HTTP (internal) | Login page serving and hotspot auth |
 
+```mermaid
+flowchart LR
+    MobileA["Mobile app A"]
+    MobileB["Mobile app B"]
+    Server["Server"]
+    Admin["Admin frontend"]
+    Router["MikroTik router"]
+    GSM["GSM module"]
+    Arduino["Arduino / modem"]
+    Portal["Captive portal"]
+
+    MobileA -->|HTTPS REST: auth, sync, keys, admin| Server
+    MobileA <-->|WSS /ws/: signalling, presence| Server
+    MobileA -->|WSS /gps/ws/&lt;id&gt;: location stream| Server
+    MobileA <-.->|WebRTC P2P: data channel, media| MobileB
+    MobileA <-.->|LAN TCP+TLS: fallback signalling| MobileB
+    MobileA <-.->|mDNS: peer discovery| MobileB
+
+    Admin -->|HTTPS BFF: all dashboard ops| Server
+    Server -->|RouterOS API: telemetry| Router
+    Server -->|HTTP API: SMS dispatch| GSM
+    GSM -->|Serial/AT commands| Arduino
+    Router -->|HTTP: login + hotspot auth| Portal
+```
+
+> This diagram is a protocol-level view (who talks to whom, over what channel, and why). For the physical/deployment topology (hosts, ports, processes), see [component-map.md](component-map.md).
+
 ---
 
 ## Roles
@@ -147,7 +174,12 @@ An offline map tile server.
 | `user` | Authenticated end user | Messaging, calls, GPS sharing with rescuers, view announcements |
 | `guest` | Unauthenticated user | LAN messaging and calls only; no GPS sharing; no server-dependent features |
 
-Role is stored in `peers.role` (WatermelonDB, schema v9+) and server-side. The server's `_resolve_role` helper resolves the effective role from the JWT. Role is displayed as a badge in chat lists and message bubbles. See [ADR 0006](../adr/0006-four-tier-roles-model.md) for why this flat four-role model was chosen over a fine-grained permission system.
+Role is stored in `peers.role` (WatermelonDB, added in schema v9; current schema is v11) and server-side. Role is displayed as a badge in chat lists and message bubbles. See [ADR 0006](../adr/0006-four-tier-roles-model.md) for why this flat four-role model was chosen over a fine-grained permission system.
+
+Resolution is split across two mechanisms — `_resolve_role` does **not** cover all four roles:
+
+- **`admin` / `rescuer` / `user`** — resolved by `_resolve_role` (`server/app/db_operations/user_search.py`) from the authenticated `User`'s satellite role rows: `admin` row → `admin`, else `rescuer` row → `rescuer`, else `user`. It never returns `guest`.
+- **`guest`** — not a JWT-bearing role. Guests are placeholder `user` rows with a matching `guest` row, created by `POST /sync/push` for unknown peer IDs and by the GSM phone-onboarding flow. Guest-ness is queried per peer via `GET /keys/{peer_id}/type` (`{"is_guest": bool}`), which reports whether the peer has a server-registered `PeerKey`.
 
 ---
 

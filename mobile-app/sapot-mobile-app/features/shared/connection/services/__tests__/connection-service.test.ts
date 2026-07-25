@@ -261,6 +261,28 @@ describe("ConnectionService", () => {
       );
     });
 
+    it("should emit call-rejected for a declined call-rejected message", async () => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+
+      const emitSpy = jest.spyOn(connectionService, "emit");
+
+      await callMessageHandler?.({
+        type: "call-rejected" as const,
+        data: { from: "peer-1", to: "test-user-id", reason: "declined" },
+      });
+
+      expect(emitSpy).toHaveBeenCalledWith(
+        "call-rejected",
+        expect.objectContaining({ peerId: "peer-1" })
+      );
+      expect(emitSpy).not.toHaveBeenCalledWith(
+        "call-ended",
+        expect.anything()
+      );
+    });
+
     it("should send busy reject when activeCallPeerId matches the caller", async () => {
       const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
         (call) => call[0] === "call-message"
@@ -803,6 +825,30 @@ describe("ConnectionService", () => {
         type: "chat",
         data: messageData,
       });
+    });
+
+    it("forces an admin chat message through the WebSocket relay", () => {
+      const messageData: DataChatMessageI = {
+        message: "Hello admin",
+        conversationId: "conv-admin",
+        messageId: "msg-admin",
+        from: "test-user",
+        to: "admin-1",
+        sentAt: new Date(),
+        messageType: MessageType.TEXT,
+        senderProfile: { username: "testuser", firstName: "Test" },
+      };
+      const relaySpy = jest.spyOn(signalingService, "sendChatMessage").mockImplementation(() => {});
+
+      const transport = connectionService.sendChatMessage(
+        "admin-1",
+        messageData,
+        { forceWebSocket: true }
+      );
+
+      expect(transport).toBe("ws");
+      expect(relaySpy).toHaveBeenCalledWith("admin-1", messageData);
+      expect(mockWebrtcAdapter.sendDataMessage).not.toHaveBeenCalled();
     });
   });
 

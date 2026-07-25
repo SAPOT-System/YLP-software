@@ -1,4 +1,3 @@
-import * as ExpoSecureStore from "expo-secure-store";
 import { LocalEncryptionService } from "../local-encryption-service";
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
@@ -24,10 +23,6 @@ jest.mock("../../core/stores/secure-config", () => ({
   saveMasterKey: jest.fn().mockResolvedValue(undefined),
   getSignalingSecretKey: jest.fn(),
   saveSignalingSecretKey: jest.fn().mockResolvedValue(undefined),
-  getPinEnabled: jest.fn().mockResolvedValue(false),
-  savePinEnabled: jest.fn().mockResolvedValue(undefined),
-  getPinWrappedBundle: jest.fn().mockResolvedValue(undefined),
-  savePinWrappedBundle: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../key-derivation", () => ({
@@ -44,7 +39,6 @@ jest.mock("@/features/shared", () => ({
 import * as SecureConfig from "../../core/stores/secure-config";
 
 function mockSecureConfigForGuestPath() {
-  (SecureConfig.getPinEnabled as jest.Mock).mockResolvedValue(false);
   (SecureConfig.getMasterKey as jest.Mock).mockResolvedValue(null);
   (SecureConfig.getSignalingSecretKey as jest.Mock).mockResolvedValue(null);
 }
@@ -94,7 +88,6 @@ describe("LocalEncryptionService", () => {
       // No password / userId → falls through to initDeviceKey
       service = new LocalEncryptionService({
         getPassword: () => null,
-        getPIN: () => null,
         userId: null,
       });
       await service.initialize();
@@ -172,7 +165,6 @@ describe("LocalEncryptionService", () => {
       const cachedMaster = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
       const cachedSignaling = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
 
-      (SecureConfig.getPinEnabled as jest.Mock).mockResolvedValue(false);
       (SecureConfig.getMasterKey as jest.Mock).mockResolvedValue(cachedMaster);
       (SecureConfig.getSignalingSecretKey as jest.Mock).mockResolvedValue(cachedSignaling);
 
@@ -181,7 +173,6 @@ describe("LocalEncryptionService", () => {
 
       const service = new LocalEncryptionService({
         getPassword: () => "password",
-        getPIN: () => null,
         userId: "user-1",
       });
       await service.initialize();
@@ -191,71 +182,23 @@ describe("LocalEncryptionService", () => {
     });
   });
 
-  // ── PIN management ─────────────────────────────────────────────────────────
+  // ── No-PIN cached path ───────────────────────────────────────────────────────
 
-  describe("PIN management", () => {
-    let service: LocalEncryptionService;
+  describe("no-PIN cached path", () => {
+    it("uses the plaintext SecureStore cache and never hits the server", async () => {
+      const cachedMaster = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      const cachedSignaling = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=";
+      (SecureConfig.getMasterKey as jest.Mock).mockResolvedValue(cachedMaster);
+      (SecureConfig.getSignalingSecretKey as jest.Mock).mockResolvedValue(cachedSignaling);
 
-    beforeEach(async () => {
-      mockSecureConfigForGuestPath();
-      service = new LocalEncryptionService({
-        getPassword: () => null,
-        getPIN: () => null,
-        userId: "user-123",
+      const service = new LocalEncryptionService({
+        getPassword: () => "password",
+        userId: "user-1",
       });
       await service.initialize();
-      jest.clearAllMocks();
-      (SecureConfig.savePinEnabled as jest.Mock).mockResolvedValue(undefined);
-      (SecureConfig.savePinWrappedBundle as jest.Mock).mockResolvedValue(undefined);
-      (SecureConfig.getPinWrappedBundle as jest.Mock).mockResolvedValue(undefined);
-    });
 
-    it("isPINEnabled() returns current value from SecureStore", async () => {
-      (SecureConfig.getPinEnabled as jest.Mock).mockResolvedValue(false);
-
-      const result = await service.isPINEnabled();
-
-      expect(result).toBe(false);
-    });
-
-    it("setupPIN() saves PIN-wrapped bundle and enables PIN flag", async () => {
-      await service.setupPIN("password", "1234");
-
-      expect(SecureConfig.savePinWrappedBundle).toHaveBeenCalledWith(expect.any(String));
-      expect(SecureConfig.savePinEnabled).toHaveBeenCalledWith(true);
-      expect(ExpoSecureStore.deleteItemAsync).toHaveBeenCalledWith("masterKey");
-      expect(ExpoSecureStore.deleteItemAsync).toHaveBeenCalledWith("signalingSecretKey");
-    });
-
-    it("setupPIN() throws when no userId is in context", async () => {
-      const serviceNoUser = new LocalEncryptionService({
-        getPassword: () => null,
-        getPIN: () => null,
-        userId: null,
-      });
-      await serviceNoUser.initialize();
-
-      await expect(serviceNoUser.setupPIN("pwd", "1234")).rejects.toThrow(
-        "setupPIN requires an authenticated user"
-      );
-    });
-
-    it("removePIN() returns true and disables PIN when no local blob exists", async () => {
-      (SecureConfig.getPinWrappedBundle as jest.Mock).mockResolvedValue(undefined);
-
-      const result = await service.removePIN("password", "1234");
-
-      expect(result).toBe(true);
-      expect(SecureConfig.savePinEnabled).toHaveBeenCalledWith(false);
-    });
-
-    it("changePIN() saves new PIN-wrapped bundle when no previous blob to verify", async () => {
-      (SecureConfig.getPinWrappedBundle as jest.Mock).mockResolvedValue(undefined);
-
-      const result = await service.changePIN("password", "0000", "5678");
-
-      expect(result).toBe(true);
-      expect(SecureConfig.savePinWrappedBundle).toHaveBeenCalled();
+      expect(service.getMasterKeyBytes()).toBeDefined();
+      expect(service.getSignalingSecretKey().length).toBe(32);
     });
   });
 });

@@ -90,7 +90,7 @@ features/<name>/
 
 ### AppError
 
-All errors are wrapped in `AppError` (`features/shared/errors/app-error.ts`) before being logged or rethrown:
+All errors are wrapped in `AppError` (`features/shared/core/errors/app-error.ts`) before being logged or rethrown:
 
 ```typescript
 export class AppError extends Error {
@@ -202,7 +202,7 @@ const chatLog       = logger.createLogger({ scope: "chat" });
 
 Runtime filter: `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background`
 
-Unset = all scopes enabled. File logging is always on in production; opt-in in dev via `EXPO_PUBLIC_LOG_TO_FILE=1`. Laptop collector runs via `npm run log-server` in dev.
+Unset = all scopes enabled. File logging is always on in production; opt-in in dev via `EXPO_PUBLIC_LOG_TO_FILE=1`. Laptop collector runs via `pnpm run log-server` in dev.
 
 ---
 

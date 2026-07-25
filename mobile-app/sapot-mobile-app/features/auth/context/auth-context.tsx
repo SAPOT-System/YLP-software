@@ -214,6 +214,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       authLog.debug("auth › bootstrap start");
       setLoading(true);
       try {
+        // Check guest status first: `syncGuestUser` also writes `userUUID`
+        // (so the background task can find it), so a persisted guest looks
+        // identical to an authenticated user by that key alone. Guest status
+        // is the more specific signal — a guest_user row only exists for
+        // guests — so it must be checked before falling into the
+        // authenticated-user branch below, or a restored guest would
+        // incorrectly initialize with `isGuest: false` (peer lookup fails,
+        // no refresh token exists, and the app bounces to the login/
+        // getting-started screen instead of the guest UI).
+        if (await userService.isCurrentUserGuest()) {
+          authLog.info("[AuthProvider] restoring guest session");
+          await userService.initialize({ isGuest: true });
+          return;
+        }
+
         const uuid = await getItemAsync("userUUID");
 
         if (uuid) {
@@ -247,9 +262,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             "[AuthProvider] no local record, attempting server refresh"
           );
           await refreshSession();
-        } else if (await userService.isCurrentUserGuest()) {
-          authLog.info("[AuthProvider] restoring guest session");
-          await userService.initialize({ isGuest: true });
         }
       } catch (err) {
         authLog.error("auth › bootstrap failed", { error: err });

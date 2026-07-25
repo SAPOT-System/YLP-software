@@ -32,6 +32,8 @@ import {
 } from "react-native";
 import { Appbar, Avatar, Chip, IconButton, useTheme } from "react-native-paper";
 import { PageLoader } from "@/features/shared/components/page-loader";
+import { ChatMessageSkeleton } from "@/features/chat/components/chat-message-skeleton";
+import { Crossfade } from "@/features/shared/components/crossfade";
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   admin: { bg: "#7C3AED", text: "#FFFFFF" },
@@ -183,7 +185,11 @@ const ChatRoom = () => {
         const chatId = await chatService.findChatByPeer(resolvedPeerId);
         if (signal.aborted) return;
 
-        if (chatId) setConversationId(chatId);
+        if (chatId) {
+          await chatService.setConversation(chatId);
+          if (signal.aborted) return;
+          setConversationId(chatId);
+        }
       } else if (source === ChatRoomSource.CHAT) {
         const foundPeerId = await chatService.findPeerIdByChatId(id as string);
         if (signal.aborted) return;
@@ -195,6 +201,8 @@ const ChatRoom = () => {
         });
         setIsSelfChat(isSelf);
         setPeerId(foundPeerId);
+        await chatService.setConversation(id as string);
+        if (signal.aborted) return;
         setConversationId(id as string);
       } else {
         throw Error("Error in passed source paramater");
@@ -415,7 +423,10 @@ const ChatRoom = () => {
     return () => subscription.unsubscribe();
   }, [conversationId]);
 
-  // Notify the sender that messages have been seen when connected and viewing a conversation
+  // Notify the sender that messages have been seen when connected and viewing a conversation.
+  // Admin messages arrive via the server without a live P2P data channel, so they're
+  // exempted from the link-health check the same way self-chat and SMS conversations are.
+  const isAdminConversation = peer?.role === "admin";
   useFocusEffect(
     useCallback(() => {
       uiLog.debug("[ChatRoom] useEffect triggered, deps:", {
@@ -424,12 +435,17 @@ const ChatRoom = () => {
       });
 
       if (!incomingMessageCount) return;
-      if ((!isConnected && !isSelfChat && !isSmsConversation) || !conversationId) return;
+      if (
+        (!isConnected && !isSelfChat && !isSmsConversation && !isAdminConversation) ||
+        !conversationId
+      )
+        return;
       void chatService.markConversationAsRead(conversationId);
     }, [
       isConnected,
       isSelfChat,
       isSmsConversation,
+      isAdminConversation,
       conversationId,
       chatService,
       incomingMessageCount,
@@ -495,7 +511,7 @@ const ChatRoom = () => {
   const { onPress: onVideoCall, busy: callingVideo } =
     useThrottledPress(handleVideoCall);
 
-  if (!isRendered) return <PageLoader />;
+  if (!isRendered) return <PageLoader skeleton={<ChatMessageSkeleton />} />;
 
   const peerDisplayName = isSmsConversation && peer?.phoneNumber
     ? toLocalPhone(peer.phoneNumber)
@@ -567,23 +583,27 @@ const ChatRoom = () => {
             </View>
             {!isSmsConversation && (
               <View style={styles.statusRow}>
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: theme.dark ? "#E6ECF5" : "#6B7280" },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {connectionStatusLabel}
-                </Text>
-                {showRetry && (
+                <Crossfade activeKey={connectionStatusLabel}>
                   <Text
-                    onPress={reconnectNow}
-                    style={styles.retryText}
+                    style={[
+                      styles.statusText,
+                      { color: theme.dark ? "#E6ECF5" : "#6B7280" },
+                    ]}
                     numberOfLines={1}
                   >
-                    Tap to retry
+                    {connectionStatusLabel}
                   </Text>
+                </Crossfade>
+                {showRetry && (
+                  <Crossfade activeKey="retry-visible">
+                    <Text
+                      onPress={reconnectNow}
+                      style={styles.retryText}
+                      numberOfLines={1}
+                    >
+                      Tap to retry
+                    </Text>
+                  </Crossfade>
                 )}
               </View>
             )}

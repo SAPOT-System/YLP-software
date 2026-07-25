@@ -1,7 +1,9 @@
 import { APP_ROUTES } from "@/config/routes";
 import { ChatRoomSource } from "@/features/chat/types";
+import motion from "@/constants/motion";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import {
+  useReducedMotion,
   usePeerService,
   useProfilePhoto,
   useToast,
@@ -9,8 +11,9 @@ import {
 } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
+import Animated, { Easing, FadeInUp } from "react-native-reanimated";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import {
   Appbar,
@@ -84,6 +87,8 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const peerService = usePeerService();
   const theme = useTheme();
+  const reducedMotion = useReducedMotion();
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
   // debounce the query
   const [debouncedQuery] = useDebounce(query, 400);
@@ -232,52 +237,71 @@ export default function SearchScreen() {
             <LoadingSpinner style={{ padding: 16 }} />
           ) : null
         }
-        renderItem={({ item }) => (
-          <SearchResultItem
-            item={item}
-            onPress={async (selected) => {
-              uiLog.debug("[SearchScreen] onPress triggered", {
-                peerId: selected.id,
-                phoneNumberIsVerified: selected.phone_is_verified
-              });
-              try {
-                const existingPeer = await peerService.findPeerById(
-                  selected.id
-                );
+        renderItem={({ item }) => {
+          const isNewResult = !seenIdsRef.current.has(item.id);
+          seenIdsRef.current.add(item.id);
 
-                if (!existingPeer) {
-                  await peerService.createUser(
-                    selected.id,
-                    selected.username,
-                    selected.first_name,
-                    selected.last_name,
-                    undefined,
-                    undefined,
-                    undefined,
-                    selected.phone_is_verified
+          const resultItem = (
+            <SearchResultItem
+              item={item}
+              onPress={async (selected) => {
+                uiLog.debug("[SearchScreen] onPress triggered", {
+                  peerId: selected.id,
+                  phoneNumberIsVerified: selected.phone_is_verified
+                });
+                try {
+                  const existingPeer = await peerService.findPeerById(
+                    selected.id
                   );
-                  // refresh local peers after creating
-                  await loadLocalPeers(debouncedQuery);
-                }
 
-                uiLog.info("[Navigation] Navigating to ChatRoom", {
-                  screen: "/(drawer)/(tabs)/chat/[id]",
-                  peerId: selected.id,
-                });
-                router.push({
-                  pathname: "/(drawer)/(tabs)/chat/[id]",
-                  params: { id: selected.id, source: ChatRoomSource.PEER },
-                });
-              } catch (error) {
-                uiLog.error("search › open chat failed", {
-                  peerId: selected.id,
-                  error,
-                });
-                showError("Unable to open chat");
-              }
-            }}
-          />
-        )}
+                  if (!existingPeer) {
+                    await peerService.createUser(
+                      selected.id,
+                      selected.username,
+                      selected.first_name,
+                      selected.last_name,
+                      undefined,
+                      undefined,
+                      undefined,
+                      selected.phone_is_verified
+                    );
+                    // refresh local peers after creating
+                    await loadLocalPeers(debouncedQuery);
+                  }
+
+                  uiLog.info("[Navigation] Navigating to ChatRoom", {
+                    screen: "/(drawer)/(tabs)/chat/[id]",
+                    peerId: selected.id,
+                  });
+                  router.push({
+                    pathname: "/(drawer)/(tabs)/chat/[id]",
+                    params: { id: selected.id, source: ChatRoomSource.PEER },
+                  });
+                } catch (error) {
+                  uiLog.error("search › open chat failed", {
+                    peerId: selected.id,
+                    error,
+                  });
+                  showError("Unable to open chat");
+                }
+              }}
+            />
+          );
+
+          if (reducedMotion || !isNewResult) {
+            return resultItem;
+          }
+
+          return (
+            <Animated.View
+              entering={FadeInUp.duration(motion.duration.base).easing(
+                Easing.bezier(...motion.easing.standard)
+              )}
+            >
+              {resultItem}
+            </Animated.View>
+          );
+        }}
         ListEmptyComponent={
           !isLoading &&
           mergedResults.length === 0 &&
