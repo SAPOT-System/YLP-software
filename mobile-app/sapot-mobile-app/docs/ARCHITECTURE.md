@@ -51,7 +51,7 @@ TODO: the distinction between these two patterns is implied by the circular depe
 
 Branded token types (`KeysReady`, `MigrationOk`) make phase ordering a TypeScript compile-time constraint — phase 2 cannot be called without a `KeysReady` token, and phase 3 cannot be called without a `MigrationOk` token.
 
-React context provider: `features/shared/context/main-container-context.tsx`
+React context provider: `features/shared/core/context/main-container-context.tsx`
 
 
 ---
@@ -167,7 +167,7 @@ network-regained and exposes a manual "Tap to retry" once the bounded reconnect 
 
 ## Server Status
 
-**Single source of truth:** `HealthProvider` (`features/shared/context/health-context.tsx`) mounts inside `app/(drawer)/_layout.tsx` and continuously tracks server reachability.
+**Single source of truth:** `HealthProvider` (`features/shared/core/context/health-context.tsx`) mounts inside `app/(drawer)/_layout.tsx` and continuously tracks server reachability.
 
 - Runs an immediate check via `checkBackEndHealth()` on mount, then polls `/ping` every 5s via `usePing()`
 - Exposes `useServerStatus()` → `{ online: boolean; latency: number | null; shouldWarn: boolean }`

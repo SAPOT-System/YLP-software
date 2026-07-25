@@ -83,7 +83,15 @@ Request body is `PushSyncRequest` — see [`openapi/sync.yaml`](openapi/sync.yam
 
 **Soft deletes:** Deleted IDs set `is_deleted = true` rather than hard-deleting.
 
-**MessageReceipt guard:** Receipts whose parent message does not exist on the server are silently skipped (handles receipts for P2P-only messages delivered via TCP/WebRTC). They are retried on the next sync once the parent message is pushed.
+**FK guards (silently skipped, not errors):** Records whose parent row doesn't exist on the server are skipped rather than rejected, because P2P-only records (delivered via TCP/WebRTC) may never have been pushed. Each is retried on the next sync once its parent arrives.
+
+| Record | Skipped when |
+|---|---|
+| `messages` (`message_receipts`) | The referenced `message_id` doesn't exist on the server |
+| `calls` | The referenced `conversation_id` doesn't exist on the server |
+| `call_participants` | The referenced `call_id` doesn't exist on the server |
+
+**Unknown users are created, not skipped:** a `sender_id` / `user_id` / `initiator_id` that doesn't resolve to an existing user causes a placeholder guest `user` + `guest` row to be inserted, named from the `guest_users` hints when supplied (see above) and `guest_<uuid>` / "Guest User" otherwise.
 
 **Response 200:**
 

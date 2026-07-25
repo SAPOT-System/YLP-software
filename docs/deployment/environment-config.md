@@ -81,8 +81,7 @@ Set in EAS project secrets or a local `.env` file (not committed).
 | Variable | Purpose | When needed |
 |---|---|---|
 | `APP_VARIANT` | Build variant: `development`, `preview`, or unset for production | EAS build |
-| `SERVER_CERT` | Base64-encoded server TLS certificate PEM | EAS cloud builds only |
-| `EXPO_PUBLIC_API_URL` | Server base URL (e.g. `https://192.168.0.100`) | All builds |
+| `SERVER_CA` | Base64-encoded **private CA** PEM, materialized into `server_ca.pem` at prebuild by `app.config.ts`'s `withServerCa` | EAS cloud builds only |
 | `EXPO_PUBLIC_DEV_HOST` | Dev-only server hostname/IP used by `config/runtime.ts` to build the API/WS/tile-server URLs (`https://<DEV_HOST>`, `wss://<DEV_HOST>`) | `__DEV__` builds only |
 | `EXPO_PUBLIC_SERVER_VERIFY_KEY` | Public key used to verify the server's identity/signature (`config/runtime.ts` → `getServerVerifyKey()`) | All builds, if server signing is enabled |
 | `EXPO_PUBLIC_ENABLED_LOG_MODULES` | Comma-separated log scopes; unset = all | Development only |
@@ -94,14 +93,16 @@ Set in EAS project secrets or a local `.env` file (not committed).
 | `SENTRY_AUTH_TOKEN` | Uploads source maps/debug symbols to Sentry during build | EAS builds with Sentry integration |
 | `EXPO_PUBLIC_DEBUG_MENU` | Set to `1` to opt a non-dev build (e.g. `preview`/QA) into the developer debug menu (`config/debug.ts`). Always on in `__DEV__` regardless of this flag; must never be set on the `production` EAS profile | Preview/QA builds only |
 
-> `mobile-app/sapot-mobile-app/.env.example` has since been synced to add `EXPO_PUBLIC_API_URL`,
-> `EXPO_PUBLIC_SERVER_VERIFY_KEY`, `APP_VARIANT`, and `SERVER_CERT` (previously flagged here as missing),
-> plus an `EXPO_PUBLIC_DEBUG_MENU` entry not previously documented in this table (added above).
-> `EXPO_PUBLIC_ENABLED_LOG_MODULES` is still absent from this file — it instead ships in the separate
-> `.env.development.local.example`, which is the file `mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md`
-> (the component's own, more detailed env doc) documents it against. This repo-root table is a
-> cross-component summary; for full mobile env-var detail and per-file breakdown, see
-> [ENV_CONFIG.md](../../mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md).
+> Every variable above except `LOG_SERVER_PORT` (laptop-side only) is present in
+> `mobile-app/sapot-mobile-app/.env.example`. `EXPO_PUBLIC_ENABLED_LOG_MODULES` additionally
+> ships in the separate `.env.development.local.example`, which is the only variable that file
+> carries. This repo-root table is a cross-component summary; for full mobile env-var detail and
+> per-file breakdown, see [ENV_CONFIG.md](../../mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md).
+>
+> There is no `EXPO_PUBLIC_API_URL` in this app — the API base URL is not env-configurable at
+> runtime. It is derived in `config/runtime.ts` from `EXPO_PUBLIC_DEV_HOST` (dev) or the
+> build-time `SERVER_NAME` constant `server.sapot.lan` (preview/production), with an optional
+> persisted host override. The TLS variable is `SERVER_CA` (a CA, not a leaf cert).
 
 ---
 

@@ -149,4 +149,4 @@ See `docs/API.md` — **Sync** section (`GET /sync/pull`, `POST /sync/push`).
 
 ## Secure Storage
 
-See `features/shared/stores/secure-config.ts` — `getSyncLastPulledAt` / `saveSyncLastPulledAt`.
+See `features/shared/core/stores/secure-config.ts` — `getSyncLastPulledAt` / `saveSyncLastPulledAt`.

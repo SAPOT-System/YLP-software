@@ -93,12 +93,15 @@ a CA (see `runbooks.md`, "Offline CA Setup"), a self-signed cert from
 `certgen` issues a CA-signed leaf for your machine's LAN IP automatically
 instead. Dev-only — never reuse that CA for a production deployment.
 
-**Cert-pinning caveat:** the cert `certgen` generates (`docker/gen-certs.sh`)
-is regenerated whenever `server/certs/` is empty — a self-signed cert
-(default, no dev CA present) will **not** match a mobile build with
-`server_cert.pem` already pinned to a different
-cert. Only useful for local API/server testing, not for testing against a
-pinned mobile build without also updating its pinned cert.
+**CA-pinning caveat:** the cert `certgen` generates (`docker/gen-certs.sh`) is regenerated
+whenever `server/certs/` is empty. The mobile app pins a **CA**, not a leaf
+(`server_ca.pem`, see [mobile-eas.md](mobile-eas.md#tls-ca-pinning)), so:
+
+- **No dev CA present** → `certgen` emits a *self-signed* cert, which chains to nothing the
+  app trusts. A CA-pinning build will reject it. Useful for local API/server testing only.
+- **Dev CA present** (`server/dev-ca/`) → `certgen` issues a leaf signed by that CA, which a
+  mobile build pinning the *same* CA accepts — and you can regenerate the leaf as often as you
+  like without touching the app.
 
 ---
 

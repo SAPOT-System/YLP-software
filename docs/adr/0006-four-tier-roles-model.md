@@ -8,11 +8,13 @@ SAPOT serves several distinct populations at an incident site: unregistered civi
 
 ## Decision
 
-Use a flat four-role model — `guest`, `user`, `rescuer`, `admin` — stored in `peers.role` (mobile WatermelonDB, schema v9+) and resolved server-side from the JWT via the `_resolve_role` helper (see [system-overview.md](../architecture/system-overview.md#roles)). No custom/per-permission role system; role grants a fixed bundle of capabilities.
+Use a flat four-role model — `guest`, `user`, `rescuer`, `admin` — stored in `peers.role` (mobile WatermelonDB, added in schema v9) and resolved server-side, never from a client-asserted value. No custom/per-permission role system; role grants a fixed bundle of capabilities.
+
+As implemented, resolution is split: the `_resolve_role` helper covers `admin`/`rescuer`/`user` (from the authenticated user's satellite role rows) and never returns `guest`; guest-ness is a separate server-side determination (a `guest` table row, surfaced per peer by `GET /keys/{peer_id}/type`). See [system-overview.md](../architecture/system-overview.md#roles) for the current mechanism.
 
 ```mermaid
 flowchart TD
-    Req(["Request arrives with JWT (or none, for guest)"]) --> Resolve["_resolve_role() — server-side, never trusts client-asserted role"]
+    Req(["Request arrives with JWT (or none, for guest)"]) --> Resolve["Server-side role resolution — never trusts client-asserted role<br/>(_resolve_role for admin/rescuer/user; guest-table lookup for guest)"]
 
     Resolve --> Guest["guest"]
     Resolve --> User["user"]

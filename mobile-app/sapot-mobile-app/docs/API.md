@@ -4,8 +4,13 @@
 
 | Environment | URL |
 |---|---|
-| Development | `http://<EXPO_PUBLIC_DEV_HOST>:8000` |
-| Preview / Production | `https://sapot.online` |
+| Development (`__DEV__`) | `https://<EXPO_PUBLIC_DEV_HOST>` |
+| Preview / Production | `https://server.sapot.lan` |
+
+Resolved by `config/runtime.ts` (`getApiUrl()`). The app always speaks HTTPS — there is
+no plaintext HTTP fallback and no explicit port in the base URL. A dev/QA host override
+(`setRuntimeHostOverride`, persisted via `features/shared/core/stores/secure-config.ts`)
+takes precedence over both rows when set. See [ENV_CONFIG.md](ENV_CONFIG.md#api--websocket-url-resolution).
 
 ## Authentication
 
