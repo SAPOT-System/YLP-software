@@ -1,12 +1,15 @@
 import { ChatRoomSource } from "@/features/chat/types";
+import motion from "@/constants/motion";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { useRouter } from "expo-router";
 import React from "react";
 import { FlatList, Pressable, View } from "react-native";
+import Animated, { Easing, ZoomIn } from "react-native-reanimated";
 import { Avatar, Text, useTheme } from "react-native-paper";
 import { Peer } from "../core/database";
 import { PeerListEntry, usePeerListData } from "../hooks/use-peer-list-data";
 import { useProfilePhoto } from "../hooks/use-profile-photo";
+import { useReducedMotion } from "../hooks";
 import { uiLog } from "../core/utils/logger";
 
 uiLog.debug("[peer-list] module loaded");
@@ -44,6 +47,7 @@ const PeerListItemInner = ({
   const router = useRouter();
   const theme = useTheme();
   const { url: profilePicUrl } = useProfilePhoto(peer.id);
+  const reducedMotion = useReducedMotion();
 
   const handlePress = () => {
     uiLog.info("peer-list › open chat", { peerId: peer.id });
@@ -72,7 +76,14 @@ const PeerListItemInner = ({
           />
         )}
         {isOnline && (
-          <View
+          <Animated.View
+            entering={
+              reducedMotion
+                ? undefined
+                : ZoomIn.duration(motion.duration.fast).easing(
+                    Easing.bezier(...motion.easing.emphasized)
+                  )
+            }
             style={{
               position: "absolute",
               bottom: 2,

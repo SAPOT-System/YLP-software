@@ -10,8 +10,10 @@ import React, {
   useState,
 } from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
+import Animated, { Easing, FadeInUp } from "react-native-reanimated";
 import { catchError, map, of } from "rxjs";
 
+import motion from "@/constants/motion";
 import {
   GuestUser,
   Message,
@@ -22,7 +24,7 @@ import {
 } from "@/features/shared";
 import { MessageType } from "@/features/shared/core/database/model/Message";
 import { CallType } from "@/features/shared/core/database/model/Call";
-import { useMainContainer } from "@/features/shared/hooks";
+import { useMainContainer, useReducedMotion } from "@/features/shared/hooks";
 import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
@@ -68,6 +70,12 @@ const MessageListWithData = enhanceMessages(
     onLoadOlderMessages: () => void;
   }) => {
     const hasUserScrolledRef = useRef(false);
+    const seenIdsRef = useRef<Set<string> | null>(null);
+    const reducedMotion = useReducedMotion();
+
+    if (seenIdsRef.current === null) {
+      seenIdsRef.current = new Set(messages.map((message) => message.id));
+    }
 
     if (messages.length === 0) {
       return <View style={{ flex: 1 }} />;
@@ -78,9 +86,24 @@ const MessageListWithData = enhanceMessages(
         <FlatList
           data={messages}
           inverted
-          renderItem={({ item }) => (
-            <MessageListItem message={item} peerId={peerId} />
-          )}
+          renderItem={({ item }) => {
+            const isNewMessage = !seenIdsRef.current!.has(item.id);
+            seenIdsRef.current!.add(item.id);
+
+            if (reducedMotion || !isNewMessage) {
+              return <MessageListItem message={item} peerId={peerId} />;
+            }
+
+            return (
+              <Animated.View
+                entering={FadeInUp.duration(motion.duration.base).easing(
+                  Easing.bezier(...motion.easing.standard)
+                )}
+              >
+                <MessageListItem message={item} peerId={peerId} />
+              </Animated.View>
+            );
+          }}
           keyExtractor={(message) => message.id}
           ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
           maxToRenderPerBatch={10}
