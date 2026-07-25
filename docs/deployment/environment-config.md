@@ -116,7 +116,7 @@ Set in EAS project secrets or a local `.env` file (not committed).
 | `NODE_ENV` | Toggles the `secure` flag on auth cookies (production vs dev) | Set by the Node runtime; not usually hand-set |
 
 Set in `.env.local` (not committed) or the host service manager. `admin-frontend/sapot-admin/.env.example`
-also lists `NODE_EXTRA_CA_CERTS`, a path to the server's self-signed cert — this is consumed by Node's
+also lists `NODE_EXTRA_CA_CERTS`, a path to the server's CA certificate — this is consumed by Node's
 own TLS stack (so the app trusts it without disabling verification), not read via `process.env` in
 app code.
 
