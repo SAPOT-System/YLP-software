@@ -131,7 +131,7 @@ describe("MessageList", () => {
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
 
-    expect(await findByText(/Content msg-1/)).toBeTruthy();
+    expect(await findByText(/Content msg-2/)).toBeTruthy();
   });
 
   it("queries messages newest-first so recent messages are never excluded (issue #142)", async () => {
@@ -141,23 +141,24 @@ describe("MessageList", () => {
     const { findByText } = render(
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
-    await findByText(/Content msg-1/);
+    await findByText(/Content msg-2/);
 
     expect(messagesQueryCalls.length).toBeGreaterThan(0);
     const [, sortClause] = messagesQueryCalls[0];
     expect(sortClause).toEqual(Q.sortBy("created_at", Q.desc));
   });
 
-  it("renders newest-first query results in chronological (oldest-first) order", async () => {
+  it("opens a conversation on the newest message", async () => {
     const MessageList = require("../message-list").default;
 
     const { findByText, getAllByText } = render(
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
-    await findByText(/Content msg-1/);
+    await findByText(/Content msg-2/);
 
     const rendered = getAllByText(/Content msg-/);
-    expect(rendered[0].props.children).toContain("msg-1");
-    expect(rendered[1].props.children).toContain("msg-2");
+    expect(rendered).toHaveLength(2);
+    expect(rendered[0].props.children).toContain("msg-2");
+    expect(rendered[1].props.children).toContain("msg-1");
   });
 });

@@ -5,7 +5,6 @@ import React, {
   memo,
   useCallback,
   useEffect,
-  useMemo,
   useReducer,
   useRef,
   useState,
@@ -68,36 +67,36 @@ const MessageListWithData = enhanceMessages(
     peerId: string;
     onLoadOlderMessages: () => void;
   }) => {
-    const listRef = useRef<FlatList<Message>>(null);
-    const prevLengthRef = useRef(0);
+    const hasUserScrolledRef = useRef(false);
 
-    // `messages` is newest-first (desc, take(messageLimit)); reverse to
-    // oldest-first for chronological display.
-    const orderedMessages = useMemo(() => [...messages].reverse(), [messages]);
-
-    useEffect(() => {
-      if (orderedMessages.length === 0) return;
-      const isInitialLoad = prevLengthRef.current === 0;
-      prevLengthRef.current = orderedMessages.length;
-      listRef.current?.scrollToEnd({ animated: !isInitialLoad });
-    }, [orderedMessages.length]);
+    if (messages.length === 0) {
+      return <View style={{ flex: 1 }} />;
+    }
 
     return (
       <View style={{ flex: 1 }}>
         <FlatList
-          ref={listRef}
-          data={orderedMessages}
+          data={messages}
+          inverted
           renderItem={({ item }) => (
             <MessageListItem message={item} peerId={peerId} />
           )}
           keyExtractor={(message) => message.id}
           ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
           maxToRenderPerBatch={10}
-          initialNumToRender={20}
+          initialNumToRender={MESSAGE_PAGE_SIZE}
           windowSize={5}
           removeClippedSubviews
-          onStartReached={onLoadOlderMessages}
-          onStartReachedThreshold={0.5}
+          onScrollBeginDrag={() => {
+            hasUserScrolledRef.current = true;
+          }}
+          onEndReached={() => {
+            if (hasUserScrolledRef.current) {
+              hasUserScrolledRef.current = false;
+              onLoadOlderMessages();
+            }
+          }}
+          onEndReachedThreshold={0.5}
         />
       </View>
     );
@@ -123,6 +122,7 @@ const MessageList = ({
 
   return (
     <MessageListWithData
+      key={conversationId}
       conversationId={conversationId}
       peerId={peerId}
       messageLimit={messageLimit}
