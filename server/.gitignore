@@ -79,4 +79,12 @@ apks/*
 *.key
 *.pem
 *.crt
+*.csr
+*.srl
 certs/
+
+# Exception: the shared dev-only CA is intentionally committed so the team
+# can self-service leaf issuance without an out-of-band share step. See
+# dev-ca/README.md — never reuse this CA for production.
+!dev-ca/server_ca.pem
+!dev-ca/server_ca.key

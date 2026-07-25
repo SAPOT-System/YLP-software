@@ -4,7 +4,7 @@ SAPOT is made of four independently-runnable components. Set up only the ones yo
 
 | Component | Path | Language / Stack | Purpose |
 |---|---|---|---|
-| Server | `server/` | Python / FastAPI | REST API, WebSocket signaling relay, GPS streaming, MariaDB storage |
+| Server | `server/` | Python / FastAPI | REST API, WebSocket signalling relay, GPS streaming, MariaDB storage |
 | Mobile app | `mobile-app/sapot-mobile-app/` | React Native / Expo | The SAPOT client — P2P LAN messenger + server-relayed fallback |
 | GSM module | `GSM-module/GSM-fastapi/` | Python / FastAPI | SMS gateway bridging the server to a serial-attached GSM modem |
 | Admin frontend | `admin-frontend/sapot-admin/` | Next.js | Admin dashboard (announcements, user/router management) |
@@ -15,7 +15,7 @@ For a single "clone → run the whole stack" walkthrough (server + mobile app, w
 
 ## Typical setup order
 
-1. [Server setup](server-setup.md) — needed by every other component.
+1. [Docker setup (full stack)](docker-setup.md) — server needed by every other component; also brings up the admin dashboard, tileserver, and SMS gateway. Prefer running the API directly without Docker? See [server-setup.md](server-setup.md) (bare-metal).
 2. [Mobile app setup](mobile-app-setup.md) — the primary client; requires the server running and reachable on the same LAN for local dev.
 3. [GSM module setup](gsm-module-setup.md) — only needed if testing SMS fallback.
 4. [Admin frontend setup](admin-frontend-setup.md) — only needed for admin dashboard work.

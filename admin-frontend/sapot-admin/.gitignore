@@ -24,6 +24,7 @@
 .DS_Store
 *.pem
 *.crt
+!certs/server_ca.pem
 
 # debug
 npm-debug.log*

@@ -80,7 +80,7 @@ Voice and video calls are modelled as records on a conversation. Call participan
 
 ### 5. Keys and Encryption
 
-ECDH-based end-to-end encryption for peer-to-peer channels. The server stores opaque encrypted blobs and public keys.
+ECDH-based E2E encryption for peer-to-peer channels. The server stores opaque encrypted blobs and public keys.
 
 | Table | Class | Purpose |
 |-------|-------|---------|
@@ -117,11 +117,19 @@ Standalone table used by the MikroTik hotspot captive portal integration. It is 
 |-------|-------|---------|
 | `guest_sessions` | `GuestSession` | Walk-in guest login sessions from hotspot |
 
-### 9. Devices (Legacy / Partial)
+### 9. Devices (dead code — no table is created)
 
-| Table | Class | Notes |
-|-------|-------|-------|
-| `device` | `Device` | Public key and last-online per device; FK to `user.id` is nullable. The model declares no `primary_key=True` on its `id` field, which is anomalous and may indicate this table is not actively used. |
+`server/app/models/devices.py` declares a `Device` SQLModel with `table=True`, but it is
+**never imported** — not by `app/models/__init__.py`, not by any router. Because SQLModel only
+registers metadata for imported modules, `create_db_and_tables()` never creates a `device`
+table, and it correctly does not appear in the generated [tables.md](tables.md).
+
+Two further signs the model was abandoned mid-implementation: its `id` field has no
+`primary_key=True`, and its `Relationship(back_populates="devices")` points at a `User.devices`
+attribute that does not exist — so importing it as-is would likely fail to map.
+
+Treat `Device` as dead code, not as schema. Per-device public keys are handled by the
+`device_key` table (`DeviceKey`, see group 7) instead.
 
 ---
 

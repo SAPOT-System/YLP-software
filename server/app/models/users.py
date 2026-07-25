@@ -316,6 +316,10 @@ class UserPasswordUpdateNoOldPassword(SQLModel):
 
 
 class UserInfo(UserBase):
+    # Legacy rows can predate the current Philippine-phone validation rule.
+    # Keep validation strict on writes while allowing authenticated profile reads.
+    phone_number: str | None = None
+    email: str | None = None
     # (email, phone number, username, first name, last name, and id
     id: uuid.UUID
     email_verified: bool

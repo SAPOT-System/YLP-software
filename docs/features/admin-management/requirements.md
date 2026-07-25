@@ -1,5 +1,11 @@
 # Admin Management — Requirements
 
+## Overview
+
+Admin management covers the server-mediated `/admin/*` API consumed exclusively by the separate admin frontend: user management, role changes, bans, announcements, activity logs, and router telemetry. Regular mobile app users never interact with these endpoints.
+
+---
+
 ## User Stories
 
 | ID     | As an… | I want to…                                              | So that…                                                       |
@@ -115,4 +121,4 @@ Response for list includes: `id`, `username`, `display_name`, `role`, `created_a
 
 - Multi-admin role tiers (all admins have equivalent privileges in v1).
 - Real-time admin dashboard push (admin frontend polls; no WebSocket for admin).
-- Admin-side end-to-end encrypted message reading (E2E encryption protects message contents from all parties including admins).
+- Admin-side E2E encrypted message reading (E2E encryption protects message contents from all parties including admins).

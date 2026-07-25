@@ -4,6 +4,7 @@ import {
   AckMessage,
   CallMessage,
   ChatMessage,
+  SeenMessage,
   SignalingMessage,
 } from "../../types";
 import { wsLog } from "../../core/utils/logger";
@@ -233,6 +234,7 @@ export class WsSignalingAdapter extends EventEmitter {
       | SendPublicChatPayload
       | ChatMessage
       | AckMessage
+      | SeenMessage
   ) {
     if (
       this.encryptionCtx &&

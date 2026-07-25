@@ -276,6 +276,37 @@ export class MessageStatusRepository {
     }
   }
 
+  /** Marks supplied incoming statuses as read, matching the unread-badge query. */
+  async markMessagesRead(messageIds: string[]): Promise<void> {
+    if (messageIds.length === 0) return;
+    try {
+      await this.db.write(async () => {
+        const statuses = await this.messageStatusCollection
+          .query(
+            Q.where("message", Q.oneOf(messageIds)),
+            Q.where("status", Q.notEq(MessageStatusType.READ))
+          )
+          .fetch();
+        await this.db.batch(
+          ...statuses.map((status) =>
+            status.prepareUpdate((record) => {
+              record.status = MessageStatusType.READ;
+              record.updatedAt = new Date();
+            })
+          )
+        );
+      });
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      chatLog.error("chat › mark-read update failed", {
+        messageCount: messageIds.length,
+        ...appErr,
+      });
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
   async updateToNotSentIfStillPendingById(statusId: string): Promise<void> {
     try {
       await this.db.write(async () => {

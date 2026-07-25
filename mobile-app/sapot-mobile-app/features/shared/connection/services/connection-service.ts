@@ -806,14 +806,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   sendChatMessage(
     peerId: string,
-    messageData: DataChatMessageI
+    messageData: DataChatMessageI,
+    options: { forceWebSocket?: boolean } = {}
   ): "webrtc" | "ws" {
     let webrtcConnected = false;
-    try {
-      webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch (error) {
-      connectionLog.debug("connection › isWebrtcConnected error (sendChat)", { peerId, error });
-      webrtcConnected = false;
+    if (!options.forceWebSocket) {
+      try {
+        webrtcConnected = this.isWebrtcConnected(peerId);
+      } catch (error) {
+        connectionLog.debug("connection › isWebrtcConnected error (sendChat)", { peerId, error });
+        webrtcConnected = false;
+      }
     }
 
     if (webrtcConnected) {
@@ -837,13 +840,19 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     return "ws";
   }
 
-  sendAckMessage(peerId: string, ackData: DataAckMessage) {
+  sendAckMessage(
+    peerId: string,
+    ackData: DataAckMessage,
+    options: { forceWebSocket?: boolean } = {}
+  ) {
     let webrtcConnected = false;
-    try {
-      webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch (error) {
-      connectionLog.debug("connection › isWebrtcConnected error (sendAck)", { peerId, error });
-      webrtcConnected = false;
+    if (!options.forceWebSocket) {
+      try {
+        webrtcConnected = this.isWebrtcConnected(peerId);
+      } catch (error) {
+        connectionLog.debug("connection › isWebrtcConnected error (sendAck)", { peerId, error });
+        webrtcConnected = false;
+      }
     }
 
     if (webrtcConnected) {
@@ -866,12 +875,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.signalingService.sendAckMessage(peerId, ackData);
   }
 
-  sendSeenMessage(peerId: string, conversationId: string) {
-    this.webrtcSessionManager.sendSeenMessage(peerId, {
-      conversationId,
-      from: this.userStore.user.id,
-      to: peerId,
-    });
+  sendSeenMessage(
+    peerId: string,
+    conversationId: string,
+    options: { forceWebSocket?: boolean } = {}
+  ) {
+    const seenData = { conversationId, from: this.userStore.user.id, to: peerId };
+    if (options.forceWebSocket || !this.isWebrtcConnected(peerId)) {
+      this.signalingService.sendSeenMessage(peerId, seenData);
+      return;
+    }
+    this.webrtcSessionManager.sendSeenMessage(peerId, seenData);
   }
 
   sendCallControlMessage(

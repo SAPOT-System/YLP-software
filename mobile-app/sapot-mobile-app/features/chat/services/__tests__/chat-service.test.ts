@@ -21,6 +21,7 @@ import {
 import { createDestroyOps } from "@/test/factories/destroy-op.factory";
 import { createTestDiscoveredService } from "@/test/factories/peer-service.factory";
 import { createTestPeer } from "@/test/factories/user.factory";
+import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { createChatServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
 import {
     ConversationParticipantRepository,
@@ -211,6 +212,16 @@ describe("ChatService", () => {
       );
     });
 
+    it("does not establish WebRTC for an admin peer", async () => {
+      const peerId = "admin-1";
+      const adminPeer = { ...createTestPeer({ id: peerId, username: "admin" }), role: "admin" } as unknown as Peer;
+      mockPeerService.findPeerById.mockResolvedValue(adminPeer);
+
+      await chatService.connect(peerId);
+
+      expect(mockConnectionService.connectToPeer).not.toHaveBeenCalled();
+    });
+
     it("should throw error if peer not found", async () => {
       const peerId = "non-existent-peer";
       mockPeerService.findPeerById.mockResolvedValue(null as unknown as Peer);
@@ -308,6 +319,22 @@ describe("ChatService", () => {
       await chatService.setPeer(peerId);
 
       expect(chatService.hasPeer()).toBe(true);
+    });
+
+    it("retains the exact conversation selected by the chat screen", async () => {
+      const conversation = createTestConversation({
+        id: "admin-conversation",
+        type: ConversationType.SOLO,
+      }) as unknown as Conversation;
+      mockConversationRepository.queryConversationById.mockResolvedValue(
+        conversation
+      );
+
+      await chatService.setConversation(conversation.id);
+
+      expect(mockConversationRepository.queryConversationById).toHaveBeenCalledWith(
+        "admin-conversation"
+      );
     });
 
     it("returns false after disconnect", async () => {
@@ -785,9 +812,13 @@ describe("ChatService", () => {
       }) as Message;
       const mockMessageStatus = createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus;
 
+      mockPeerService.findPeerById.mockResolvedValue(
+        createTestPeer({ id: "peer-1", username: "peeruser" }) as unknown as Peer
+      );
       mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
         undefined
       );
+      mockConversationRepository.isConversationExist.mockResolvedValue(false);
       mockDatabase.write.mockImplementation(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async (fn: (writer: any) => Promise<any>) => await fn({} as any)
@@ -805,6 +836,43 @@ describe("ChatService", () => {
 
       expect(mockConversationRepository.saveConversation).toHaveBeenCalled();
       expect(result.conversationId).toBe("conv-1");
+    });
+
+    it("creates the first conversation with the deterministic id", async () => {
+      // A random-UUID conversation never converges with the id the peer (or the
+      // admin console) derives, so the pair ends up with two separate rooms.
+      const mockConversation = createTestConversation({
+        id: directConversationId("test-user-id", "peer-1"),
+        type: ConversationType.DIRECT,
+      }) as unknown as Conversation;
+
+      mockPeerService.findPeerById.mockResolvedValue(
+        createTestPeer({ id: "peer-1", username: "peeruser" }) as unknown as Peer
+      );
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        undefined
+      );
+      mockConversationRepository.isConversationExist.mockResolvedValue(false);
+      mockConversationRepository.saveConversation.mockResolvedValue(
+        mockConversation
+      );
+      mockConversationParticipantRepository.saveMultipleConversationParticipant.mockResolvedValue();
+      mockMessageRepository.prepareMessageCreate.mockReturnValue(
+        createTestMessage({ id: "msg-1" }) as unknown as Message
+      );
+      mockMessageStatusRepository.prepareMessageStatusCreate.mockReturnValue(
+        createTestMessageStatus({ id: "status-1" }) as unknown as MessageStatus
+      );
+
+      await chatService.sendChatMessage("Hello World");
+
+      expect(mockConversationRepository.saveConversation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: directConversationId("test-user-id", "peer-1"),
+          type: ConversationType.DIRECT,
+        }),
+        true
+      );
     });
 
     it("should handle send failure and update status to not sent", async () => {
@@ -891,6 +959,25 @@ describe("ChatService", () => {
         mockConversationParticipantRepository.isDirectConversationExists
       ).toHaveBeenCalledWith([peerId, "test-user-id"]);
       expect(result).toBe("conv-1");
+    });
+
+    it("resolves the deterministic conversation when participant rows are missing", async () => {
+      // The chat list only needs the conversation row to show an entry, but the
+      // peer list resolved it from participant rows only — so a conversation
+      // synced by deterministic id opened as an empty room.
+      const peerId = "peer-1";
+      const expectedId = directConversationId("test-user-id", peerId);
+
+      mockConversationParticipantRepository.isDirectConversationExists.mockResolvedValue(
+        undefined
+      );
+      mockConversationRepository.isConversationExist.mockImplementation(
+        async (id: string) => id === expectedId
+      );
+
+      const result = await chatService.findChatByPeer(peerId);
+
+      expect(result).toBe(expectedId);
     });
 
     it("should return undefined if no conversation found", async () => {
