@@ -5,6 +5,7 @@
 ## Prerequisites
 
 - Python 3.13 (a `flake.nix` dev shell is provided: `GSM-module/GSM-fastapi/flake.nix`)
+- [`uv`](https://docs.astral.sh/uv/) (Astral's Python package/venv manager — same tool the server's `runserver.sh` uses in production)
 - A GSM modem attached via USB serial (default expected at `/dev/ttyACM0`, matches the `SERIAL_PORT` default in `config.py`)
 - Access to the same MariaDB instance the server uses (`DB_PATH`)
 
@@ -16,10 +17,9 @@ cd GSM-module/GSM-fastapi
 # Option A: Nix dev shell (pinned Python 3.13 + venv tooling)
 nix develop -L
 
-# Option B: manual venv
-python3.13 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# Option B: manual venv via uv
+uv venv venv
+uv pip install --python venv/bin/python -r requirements.txt
 ```
 
 ## Configure
@@ -40,12 +40,12 @@ SAPOT_API_URL=https://<sapot-server-host>
 ```bash
 ./run-api.sh
 # equivalent to:
-source venv/bin/activate && python3 main.py
+uv run venv/bin/python3 main.py
 ```
 
-By default this binds `HOST=127.0.0.1`, `PORT=8000` — since the server also defaults to port 8000, run the GSM module on a different port (e.g. `PORT=8001`, matching the server's `_gsm_http_client` base URL of `http://localhost:8001` in `server/app/api/gsm.py`) when co-located with the server on the same host.
+This binds `HOST=127.0.0.1` on port `8001` — `main.py` hardcodes port `8001` in its `uvicorn.run(...)` call regardless of `PORT`/`config.py`'s default (which is `8000`, matching the main server). That hardcoded `8001` is what already avoids colliding with the main SAPOT server on port `8000`; setting `PORT` yourself has no effect on the bound port (see `GSM-module/CLAUDE.md`'s "Common Pitfalls"). This does match the server's `_gsm_http_client` base URL of `http://localhost:8001` in `server/app/api/gsm.py`.
 
 ## Next
 
-- [server-setup.md](server-setup.md) — the server must have a matching `GSM_SECRET` set for inbound/outbound SMS to authenticate.
+- [docker-setup.md](docker-setup.md) — the server must have a matching `GSM_SECRET` set for inbound/outbound SMS to authenticate.
 - [data-flow.md](../architecture/data-flow.md#sms-fallback) — the end-to-end SMS fallback flow diagram.

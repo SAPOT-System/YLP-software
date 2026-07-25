@@ -35,6 +35,24 @@ When a model changes:
 
 No record of which `ALTER TABLE` statements have been applied is maintained.
 
+```mermaid
+flowchart LR
+    subgraph Server["Server — manual, untracked"]
+        S1["Change SQLModel class"] --> S2["Hand-write ALTER TABLE SQL"]
+        S2 --> S3["Apply to production DB<br/>(no version record kept)"]
+        S3 --> S4["Deploy updated server code"]
+        S4 -.->|"code/DB out of sync until both steps done"| S3
+    end
+
+    subgraph Mobile["Mobile (WatermelonDB) — versioned, automatic"]
+        M1["Bump version in schema.ts"] --> M2["Add migration step in migrations.ts<br/>(addColumns / createTable, additive only)"]
+        M2 --> M3["App start: compare on-device version<br/>to schema.ts version"]
+        M3 --> M4["Replay all migrations with<br/>toVersion > stored version, in order"]
+    end
+```
+
+The asymmetry is the point: the server has no analog of `M3`/`M4` — there is nothing that detects or replays pending schema changes, which is exactly what [adopting Alembic](#recommendation-adopt-alembic) below would add.
+
 ---
 
 ## GSM-module database note

@@ -77,7 +77,7 @@ sequenceDiagram
     A->>Z: scan for "lanchat" peers
     Z-->>A: resolve B's LAN address:port
 
-    Note over A,B: TCP connection (signaling channel)
+    Note over A,B: TCP connection (signalling channel)
     A->>B: TCP connect (TcpClientAdapter)
     A->>B: WebRTC offer (relayed over TCP)
     B-->>A: WebRTC answer (relayed over TCP)

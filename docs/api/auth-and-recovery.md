@@ -19,6 +19,22 @@ Two parallel token systems exist:
 - **Reset token** (`PasswordResetToken`, `LINK_TTL_SECONDS` = 30 min) — required by `POST /reset-password`.
 - **Recovery session token** (`RecoverySession`, 15 min) — returned alongside the reset token by most verify endpoints; passed as `recovery_token` in the final reset call and burned atomically with the password update.
 
+```mermaid
+sequenceDiagram
+    participant User
+    participant Server
+
+    User->>Server: verify factor (phone-code / email-code /<br/>security-question/answer / recovery-with-recovery-key / otp/verify)
+    Server-->>User: reset_token (PasswordResetToken, 30 min TTL)<br/>+ recovery_token (RecoverySession, 15 min TTL)
+
+    User->>Server: POST /reset-password?token=&lt;reset_token&gt;<br/>{ new_password, recovery_token?, wrapped_blob? }
+    Server->>Server: validate reset_token
+    Server->>Server: reset password (Argon2 hash)
+    Server->>Server: if recovery_token present: validate + mark RecoverySession used<br/>(best-effort — failure here does not block the reset)
+    Server->>Server: if wrapped_blob present: upsert WrappedKey row
+    Server-->>User: 200 OK
+```
+
 Per-(user, device/IP, method) attempt gating is enforced via `RecoveryAttempt`/`check_and_increment_attempt` (429 with `locked_until` on lockout) for the phone-code, recovery-key, email-code, and security-question verify flows.
 
 ---

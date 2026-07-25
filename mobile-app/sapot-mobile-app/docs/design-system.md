@@ -17,7 +17,7 @@ const CombinedDarkTheme    = merge(DarkTheme,  customDarkTheme);
 
 `Colors.dark` / `Colors.light` are the only place where color values are defined.
 
-### ThemePreferenceProvider (`features/shared/context/theme-preference-context.tsx`)
+### ThemePreferenceProvider (`features/shared/core/context/theme-preference-context.tsx`)
 
 Exposes:
 - `themeChoice` — `"light" | "dark" | "system"` (user-persisted preference)

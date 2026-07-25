@@ -18,12 +18,11 @@ All SAPOT components are configured via environment variables. This document lis
 
 See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` became required.
 
-> **Drift note:** `server/.env.example` currently does not list `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`,
-> `ENVIRONMENT`, or `REDIS_URL` — they were added as required/used env vars after the file was last
-> updated (see the C1 fix in `docs-todo.md`). It also lists `TLS_CERT`/`TLS_KEY`, which are **not**
-> read anywhere in `server/app/*.py` (verified via grep for `os.environ`/`os.getenv`) and are not
-> referenced by `server/runserver.sh`'s gunicorn invocation — they're stale/aspirational, kept for a
-> future reverse-proxy/TLS-termination setup. Pending manual sync of the example file.
+> **Note:** `server/.env.example` has since been synced to include `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`,
+> `ENVIRONMENT`, and `REDIS_URL` (previously flagged here as missing). It still lists `TLS_CERT`/`TLS_KEY`,
+> which are **not** read anywhere in `server/app/*.py` (verified via grep for `os.environ`/`os.getenv`)
+> and are not referenced by `server/runserver.sh`'s gunicorn invocation — they remain stale/aspirational,
+> kept for a future reverse-proxy/TLS-termination setup.
 
 ### Recommended production `server.env`
 
@@ -53,7 +52,7 @@ GSM_SECRET=<shared secret with GSM module>
 | `SERIAL_BAUD` | `9600` | Serial baud rate |
 | `DB_PATH` | `mysql+pymysql://sapot:sapot@localhost:3306/sapot_db` (hardcoded default in `config.py`) | MariaDB connection string |
 | `HOST` | `127.0.0.1` | FastAPI bind host |
-| `PORT` | `8000` (code default in `config.py`) — **recommend `8001`** to avoid colliding with the main SAPOT server, which also binds `127.0.0.1:8000` | FastAPI bind port |
+| `PORT` | `8000` (code default in `config.py`), but **not actually read** — `GSM-fastapi/main.py` hardcodes `uvicorn.run(..., port=8001, ...)` regardless of this variable. The service always listens on `8001` in practice, which is what avoids colliding with the main SAPOT server on `127.0.0.1:8000` — not the `PORT` variable. | Not a real configuration knob today — see `GSM-module/CLAUDE.md`'s "Common Pitfalls" |
 | `LOG_LEVEL` | `INFO` | Python logging level (`config.py`) |
 | `SAPOT_API_URL` | `http://localhost:8000` | Base URL the GSM module uses to call back into the SAPOT server (`database.py`) — must match wherever the server actually listens |
 | `GSM_SECRET` | `""` (empty — webhook auth disabled) | Shared secret sent as `X-GSM-Secret` on both directions of the server↔GSM webhook calls (`database.py`). **Must match the server's `GSM_SECRET`** (see above) |
@@ -66,7 +65,7 @@ SERIAL_PORT=/dev/ttyACM0
 SERIAL_BAUD=9600
 DB_PATH=mysql+pymysql://<user>:<password>@127.0.0.1:3306/sapot_db
 HOST=127.0.0.1
-PORT=8001
+PORT=8001  # harmless to set, but has no real effect — main.py always binds 8001
 LOG_LEVEL=INFO
 SAPOT_API_URL=https://<sapot-server-host>
 GSM_SECRET=<same shared secret as server's GSM_SECRET>
@@ -82,8 +81,7 @@ Set in EAS project secrets or a local `.env` file (not committed).
 | Variable | Purpose | When needed |
 |---|---|---|
 | `APP_VARIANT` | Build variant: `development`, `preview`, or unset for production | EAS build |
-| `SERVER_CERT` | Base64-encoded server TLS certificate PEM | EAS cloud builds only |
-| `EXPO_PUBLIC_API_URL` | Server base URL (e.g. `https://192.168.0.100`) | All builds |
+| `SERVER_CA` | Base64-encoded **private CA** PEM, materialized into `server_ca.pem` at prebuild by `app.config.ts`'s `withServerCa` | EAS cloud builds only |
 | `EXPO_PUBLIC_DEV_HOST` | Dev-only server hostname/IP used by `config/runtime.ts` to build the API/WS/tile-server URLs (`https://<DEV_HOST>`, `wss://<DEV_HOST>`) | `__DEV__` builds only |
 | `EXPO_PUBLIC_SERVER_VERIFY_KEY` | Public key used to verify the server's identity/signature (`config/runtime.ts` → `getServerVerifyKey()`) | All builds, if server signing is enabled |
 | `EXPO_PUBLIC_ENABLED_LOG_MODULES` | Comma-separated log scopes; unset = all | Development only |
@@ -93,12 +91,18 @@ Set in EAS project secrets or a local `.env` file (not committed).
 | `LOG_SERVER_PORT` | Port `scripts/dev-log-server.js` (the laptop-side log collector) listens on; default `19000` | Development only, laptop-side |
 | `ANDROID_KEYSTORE_PATH` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD` | Android release-signing keystore credentials | EAS production builds only |
 | `SENTRY_AUTH_TOKEN` | Uploads source maps/debug symbols to Sentry during build | EAS builds with Sentry integration |
+| `EXPO_PUBLIC_DEBUG_MENU` | Set to `1` to opt a non-dev build (e.g. `preview`/QA) into the developer debug menu (`config/debug.ts`). Always on in `__DEV__` regardless of this flag; must never be set on the `production` EAS profile | Preview/QA builds only |
 
-> `mobile-app/sapot-mobile-app/.env.example` currently only lists `EXPO_PUBLIC_DEV_HOST`, the Android
-> keystore vars, `SENTRY_AUTH_TOKEN`, and the log-related vars above — it's missing
-> `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SERVER_VERIFY_KEY`, `EXPO_PUBLIC_ENABLED_LOG_MODULES`,
-> `APP_VARIANT`, and `SERVER_CERT`, all of which are read in code (`app.config.ts`,
-> `config/runtime.ts`, `features/shared/core/utils/logger.ts`). Pending manual sync of the example file.
+> Every variable above except `LOG_SERVER_PORT` (laptop-side only) is present in
+> `mobile-app/sapot-mobile-app/.env.example`. `EXPO_PUBLIC_ENABLED_LOG_MODULES` additionally
+> ships in the separate `.env.development.local.example`, which is the only variable that file
+> carries. This repo-root table is a cross-component summary; for full mobile env-var detail and
+> per-file breakdown, see [ENV_CONFIG.md](../../mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md).
+>
+> There is no `EXPO_PUBLIC_API_URL` in this app — the API base URL is not env-configurable at
+> runtime. It is derived in `config/runtime.ts` from `EXPO_PUBLIC_DEV_HOST` (dev) or the
+> build-time `SERVER_NAME` constant `server.sapot.lan` (preview/production), with an optional
+> persisted host override. The TLS variable is `SERVER_CA` (a CA, not a leaf cert).
 
 ---
 
