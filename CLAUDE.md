@@ -56,13 +56,8 @@ Run for each component actually touched — don't assume one component's green b
 |---|---|
 | `server/app/` | `pytest` (from `server/app/`) |
 | `server/app/` API/DB surface changed | `python3 scripts/generate_openapi_docs.py --check` and `python3 scripts/generate_db_docs.py --check` — **run from repo root**, not `server/app/` |
-<<<<<<< HEAD
-| `mobile-app/sapot-mobile-app/` | `npm run testAll` (= test + typecheck + lint + expo-doctor), or the individual `npm test` / `npm run typecheck` / `npm run lint` |
-| `admin-frontend/sapot-admin/` | `npm run lint && npm run build` — **no test script exists in this component**; don't claim test coverage that isn't there |
-=======
 | `mobile-app/sapot-mobile-app/` | `pnpm run testAll` (= test + typecheck + lint + expo-doctor), or the individual `pnpm test` / `pnpm run typecheck` / `pnpm run lint` |
 | `admin-frontend/sapot-admin/` | `pnpm run lint && pnpm run build` — **no test script exists in this component**; don't claim test coverage that isn't there |
->>>>>>> develop
 | `GSM-module/` | No automated tests exist — verify manually per `docs/getting-started/gsm-module-setup.md` |
 
 If the change is release-relevant (server), `server/app/version.py` must match the git tag per `VERSIONING.md` before tagging — not typically a per-commit concern, but relevant if asked to prepare a release.
@@ -76,11 +71,7 @@ If the change is release-relevant (server), `server/app/version.py` must match t
 - Never remove a test without stating why in the commit.
 - No repo-wide reformatting or unrelated-file changes bundled into a task's diff.
 - `.env` files are per-component and gitignored — never commit real secrets; use the sibling `.env.example` as the template.
-<<<<<<< HEAD
-- Commits never go directly to `main`; all work happens on `feature/`, `bugfix/`, or `chore/` branches (`CONTRIBUTING.md`). This repo's commit format includes a scope — `type(scope): summary` — not generic conventional commits; see `CONTRIBUTING.md` for the full convention rather than restating it here.
-=======
 - Commits never go directly to `main`; all work happens on `feature/`, `bugfix/`, or `chore/` branches (`CONTRIBUTING.md`). This repo's commit format includes a scope — `type(scope): summary` — not generic conventional commits. The scope is component-prefixed (`server-*`, `mobile-*`, `admin-*`, `gsm-*`, `portal-*`, `tileserver-*`, `docs-*`), e.g. `feat(server-auth)`, `fix(mobile-sync)` — see `CONTRIBUTING.md` for the full convention rather than restating it here.
->>>>>>> develop
 
 ## Preferred Process
 
