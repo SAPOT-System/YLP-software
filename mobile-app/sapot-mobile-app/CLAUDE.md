@@ -69,8 +69,13 @@ Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `se
 - **Transport modes** (`auto`/`server`/`lan`, `AppModeStore`) — determine whether P2P (TCP), server-relayed (WS), or both are used for signaling/chat. Most connection bugs trace back to which mode was active.
 - **Encryption / key management** (`features/shared/crypto/`) — NaCl box (`tweetnacl`) E2E encryption over both TCP and WS transports, plus at-rest encryption. Key files: `tcp-encryption.ts`, `ws-encryption.ts`, `local-encryption-service.ts`, `peer-key-service.ts`, `key-derivation.ts`, `key-recovery-service.ts`. Use the `crypto-architecture` skill for the full file map and decision rules — don't re-derive this from scratch.
 - **GPS** (`features/gps/`) — live location sharing via a dedicated WebSocket (`/gps/ws/<userId>`), independent of `ConnectionService`. Key hooks: `useGpsStreaming`, `useLatestLocations`. Gated by `UserStore.isRescuer`. Use the `gps-architecture` skill for hook details.
+<<<<<<< HEAD
+- **Local database** — WatermelonDB/SQLite. Schema (`features/shared/database/schema.ts`, version 10): `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Notable columns: `peers.role`, `peers.is_guest`, `messages.is_encrypted`. Migrations in `features/shared/database/migrations.ts`.
+- **Environment/config** — `config/runtime.ts` resolves API/WS base URLs: `__DEV__` → `http://<DEV_HOST>:8000` (update `DEV_HOST` for local dev); EAS channels `preview`/`production` → `https://sapot.online`.
+=======
 - **Local database** — WatermelonDB/SQLite. Schema (`features/shared/core/database/schema.ts`, version 11): `guest_user`, `peers`, `messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants`. Notable columns: `peers.role`, `peers.is_guest`, `messages.is_encrypted`. Migrations in `features/shared/core/database/migrations.ts`.
 - **Environment/config** — `config/runtime.ts` resolves API/WS base URLs: `__DEV__` → `https://<DEV_HOST>` (from `EXPO_PUBLIC_DEV_HOST`); EAS channels `preview`/`production` → `https://server.sapot.lan` (the `SERVER_NAME` constant). HTTPS/WSS only — no plaintext fallback, no explicit port. A persisted host override (`setRuntimeHostOverride`) wins over both.
+>>>>>>> develop
 - **Logging** — scope-based logger (`features/shared/core/utils/logger.ts`); enable scopes via `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,...` (unset = all). Daily log file via `getLogFilePath()`. Use the `dev-logging` skill for log retrieval.
 
 ## Development Conventions
@@ -105,9 +110,15 @@ Before writing any new file, read `docs/ARCHITECTURE.md` (service/adapter landsc
 
 - `features/shared/main-container.ts` — single initialization point for the app; read before touching service wiring.
 - `features/auth/auth-container.ts` — auth state container, constructed before `MainContainer`.
+<<<<<<< HEAD
+- `features/shared/connection/services/ConnectionService.ts` — central P2P/transport facade.
+- `features/shared/database/schema.ts` — WatermelonDB schema (version 10) and column reference.
+- `features/shared/database/migrations.ts` — schema migration history.
+=======
 - `features/shared/connection/services/connection-service.ts` — central P2P/transport facade.
 - `features/shared/core/database/schema.ts` — WatermelonDB schema (version 11) and column reference.
 - `features/shared/core/database/migrations.ts` — schema migration history.
+>>>>>>> develop
 - `config/runtime.ts` — API/WS base URL resolution per build variant.
 - `task/signaling-task.ts` — background connectivity task.
 
@@ -122,6 +133,10 @@ Before writing any new file, read `docs/ARCHITECTURE.md` (service/adapter landsc
 ## When Modifying This Project
 
 - Touching `features/shared/connection/` or `features/shared/crypto/`: these are the highest-blast-radius directories — audit all consumers, and prefer the `crypto-architecture` skill's file map over re-deriving the crypto flow from scratch.
+<<<<<<< HEAD
+- Touching the WatermelonDB schema (`features/shared/database/schema.ts`): add a migration in `migrations.ts`, and update `docs/DATABASE.md` and the root-level `../../docs/database/tables.md` (server + mobile schema overview) together.
+=======
 - Touching the WatermelonDB schema (`features/shared/core/database/schema.ts`): add a migration in `migrations.ts`, and update `docs/DATABASE.md` and the root-level `../../docs/database/tables.md` (server + mobile schema overview) together.
+>>>>>>> develop
 - Touching call/connection message types: update `docs/CONNECTION_MESSAGES.md` and `docs/CALL_FLOW.md` — other clients/tests parse these message shapes.
 - Run `pnpm run typecheck`, `pnpm test` for affected areas (`pnpm run testAll` for cross-cutting changes), and `pnpm run lint` before reporting a change complete; if any did not pass, say so explicitly rather than reporting done.

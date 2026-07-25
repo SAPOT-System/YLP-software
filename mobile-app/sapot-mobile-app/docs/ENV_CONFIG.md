@@ -10,7 +10,11 @@
 | `EXPO_PUBLIC_ENABLED_LOG_MODULES` | Optional | Comma-separated log scope names to enable. Leave unset to enable all. |
 | `EXPO_PUBLIC_LOG_TO_FILE` | Optional | Set to `1` to write logs to a daily on-device file in development. On-device file logging is always on in production builds. |
 | `EXPO_PUBLIC_LOG_TO_LAPTOP` | Optional | In development, ship logs to the laptop log collector. On by default in dev; set to `0` to disable. |
+<<<<<<< HEAD
+| `EXPO_PUBLIC_LOG_SERVER_PORT` | Optional | Port the laptop log collector listens on (default `19000`). Must match `LOG_SERVER_PORT` used by `npm run log-server`. |
+=======
 | `EXPO_PUBLIC_LOG_SERVER_PORT` | Optional | Port the laptop log collector listens on (default `19000`). Must match `LOG_SERVER_PORT` used by `pnpm run log-server`. |
+>>>>>>> develop
 | `EXPO_PUBLIC_DEBUG_MENU` | Optional | Set to `1` to opt a non-dev build (e.g. `preview`/QA) into the developer debug menu (`config/debug.ts`). Always on in `__DEV__` regardless of this flag; the `production` EAS profile must never set it, since debug code is gated behind this flag and dead-code-eliminated by Metro when it's unset. |
 
 ### Setting up local env
@@ -161,6 +165,8 @@ All 18 keys are declared in that file's `KEYS` constant:
 | `tcpPort` | Peer TCP port |
 | `localIp` | Device's current LAN IP |
 | `access_token` | Current session's JWT (read via `getStoredAccessToken`; written via `saveAccessToken`/cleared via `clearAccessToken`) |
+<<<<<<< HEAD
+=======
 | `appAlive` | App-alive flag the background task checks to decide whether to stand down |
 | `username` | Cached profile username |
 | `firstName` | Cached profile first name |
@@ -173,6 +179,7 @@ All 18 keys are declared in that file's `KEYS` constant:
 | `signalingSecretKey` | Secret key used for signalling-channel encryption |
 | `recoveryTokenHex` | Recovery session token, hex-encoded |
 | `guestMigrationState` | Guest→registered-account migration progress state |
+>>>>>>> develop
 
 This config is also read by the background task (`task/signaling-task.ts`) on Android when the app is killed.
 
