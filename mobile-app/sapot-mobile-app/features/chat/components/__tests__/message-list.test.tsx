@@ -61,6 +61,17 @@ jest.mock("react-native-paper", () => ({
   useTheme: () => ({ dark: false }),
 }));
 
+// The `@/features/call` barrel re-exports the whole call feature (WebRTC
+// adapters, connection services). Requiring it here costs seconds of module
+// load and times out the first test on CI, so stub the one hook we use.
+jest.mock("@/features/call", () => ({
+  useInformCall: () => jest.fn(),
+}));
+
+jest.mock("@/features/shared/core/api/gsm.api", () => ({
+  sendSmsToUser: jest.fn().mockResolvedValue({ ok: true }),
+}));
+
 // Track query args so tests can assert the newest-first + pagination fix
 // for issue #142 (chat only showed the oldest 100 messages).
 const messagesQueryCalls: unknown[][] = [];
@@ -120,14 +131,22 @@ jest.mock("@/features/shared", () => {
 });
 
 describe("MessageList", () => {
+  let MessageList: any;
+
+  // Requiring the component pulls in the React Native / Expo module graph,
+  // which costs over a second locally and far more on a loaded CI runner.
+  // Do it once in setup, with its own budget, so each test keeps the default
+  // per-test timeout instead of the first one absorbing the module load.
+  beforeAll(() => {
+    // Require the component after mocks are defined so mocked modules are used.
+    MessageList = require("../message-list").default;
+  }, 60000);
+
   beforeEach(() => {
     messagesQueryCalls.length = 0;
   });
 
   it("renders messages", async () => {
-    // Require the component after mocks are defined so mocked modules are used.
-    const MessageList = require("../message-list").default;
-
     const { findByText } = render(
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
@@ -137,7 +156,6 @@ describe("MessageList", () => {
 
   it("queries messages newest-first so recent messages are never excluded (issue #142)", async () => {
     const { Q } = require("@nozbe/watermelondb");
-    const MessageList = require("../message-list").default;
 
     const { findByText } = render(
       <MessageList conversationId="conversation-1" peerId="peer-1" />
@@ -150,8 +168,6 @@ describe("MessageList", () => {
   });
 
   it("opens a conversation on the newest message", async () => {
-    const MessageList = require("../message-list").default;
-
     const { findByText, getAllByText } = render(
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
