@@ -67,6 +67,7 @@ const baseHookValue = {
   },
   loading: false,
   seedTestUser: jest.fn().mockResolvedValue(undefined),
+  loginAs: jest.fn().mockResolvedValue(undefined),
   seedLanUser: jest.fn().mockResolvedValue(undefined),
   setRole: jest.fn().mockResolvedValue(undefined),
   injectFakeAccessToken: jest.fn().mockResolvedValue(undefined),
@@ -152,6 +153,26 @@ describe("AuthSection", () => {
       expect(baseHookValue.seedTestUser).toHaveBeenCalledWith("rescuer")
     );
     await waitFor(() => expect(baseToastValue.showToast).toHaveBeenCalled());
+  });
+
+  it("logs in as a fixture handle and confirms with a toast", async () => {
+    const { getByText } = render(<AuthSection onBack={jest.fn()} />);
+
+    fireEvent.press(getByText("qa_rescuer"));
+
+    await waitFor(() =>
+      expect(baseHookValue.loginAs).toHaveBeenCalledWith("qa_rescuer")
+    );
+    await waitFor(() => expect(baseToastValue.showToast).toHaveBeenCalled());
+  });
+
+  it("shows an error toast when logging in as a fixture fails", async () => {
+    baseHookValue.loginAs.mockRejectedValueOnce(new Error("boom"));
+    const { getByText } = render(<AuthSection onBack={jest.fn()} />);
+
+    fireEvent.press(getByText("qa_admin"));
+
+    await waitFor(() => expect(baseToastValue.showError).toHaveBeenCalled());
   });
 
   it("seeds a LAN (guest) user and confirms with a toast", async () => {

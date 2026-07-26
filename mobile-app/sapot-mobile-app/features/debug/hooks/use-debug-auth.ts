@@ -7,6 +7,7 @@ import {
   DebugAuthService,
   DebugAuthSnapshot,
   DebugUserRole,
+  FixtureHandle,
 } from "../services/debug-auth-service";
 
 export function useDebugAuth() {
@@ -45,6 +46,19 @@ export function useDebugAuth() {
       setLoading(true);
       try {
         await debugAuthService.seedTestUser(role);
+        await restartApp();
+      } finally {
+        setLoading(false);
+      }
+    },
+    [debugAuthService, restartApp]
+  );
+
+  const loginAs = useCallback(
+    async (handle: FixtureHandle) => {
+      setLoading(true);
+      try {
+        await debugAuthService.loginAs(handle);
         await restartApp();
       } finally {
         setLoading(false);
@@ -120,6 +134,7 @@ export function useDebugAuth() {
     loading,
     refreshSnapshot,
     seedTestUser,
+    loginAs,
     seedLanUser,
     setRole,
     injectFakeAccessToken,

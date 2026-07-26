@@ -1,4 +1,7 @@
-import { register as registerApi } from "@/features/auth/api/auth.api";
+import {
+  loginAsFixtureApi,
+  register as registerApi,
+} from "@/features/auth/api/auth.api";
 import { generateGuestUsername } from "@/features/auth/utils/guest-username-generator";
 import { UserService } from "@/features/shared/connection/services/user-service";
 import {
@@ -23,6 +26,21 @@ const LAN_USER_FIRST_NAMES = [
 ];
 
 export type DebugUserRole = "user" | "rescuer" | "admin";
+
+/**
+ * Handles the server's `/testing/seed/roles` scenario is known to create
+ * (see `server/app/db_operations/qa_scenarios.py`) — the only handles
+ * `/testing/login-as/{handle}` will ever mint tokens for.
+ */
+export const FIXTURE_HANDLES = [
+  "qa_baseline",
+  "qa_baseline_b",
+  "qa_rescuer",
+  "qa_admin",
+  "qa_guest",
+] as const;
+
+export type FixtureHandle = (typeof FIXTURE_HANDLES)[number];
 
 export interface DebugAuthSnapshot {
   userId: string | null;
@@ -76,6 +94,34 @@ export class DebugAuthService {
       phone_number: data.phone_number,
     });
     this.setRole(role);
+  }
+
+  /**
+   * Logs in as a seeded server fixture account (`/testing/seed/roles`) instead of
+   * registering a new one, so testers land on the same known identity every time
+   * rather than a fresh `debug_<role>_<suffix>` account (GH #274). Same
+   * token-storage/sync path as `seedTestUser`, minus registration.
+   */
+  async loginAs(handle: FixtureHandle): Promise<void> {
+    await this.userService.wipeDatabase();
+
+    const { data } = await loginAsFixtureApi(handle);
+
+    await saveAccessToken(data.access_token);
+    await setItemAsync("refresh_token", data.refresh_token);
+
+    await this.userService.syncAuthenticatedUser({
+      id: data.id,
+      username: data.username,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email,
+      phone_number: data.phone_number,
+    });
+
+    if (handle === "qa_rescuer") this.setRole("rescuer");
+    else if (handle === "qa_admin") this.setRole("admin");
+    else this.setRole("user");
   }
 
   /**

@@ -3,7 +3,11 @@ import { useToast } from "@/features/shared/hooks";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { Button, Divider, IconButton, Text, useTheme } from "react-native-paper";
 import { useDebugAuth } from "../hooks/use-debug-auth";
-import { DebugUserRole } from "../services/debug-auth-service";
+import {
+  DebugUserRole,
+  FIXTURE_HANDLES,
+  FixtureHandle,
+} from "../services/debug-auth-service";
 
 interface AuthSectionProps {
   onBack: () => void;
@@ -15,6 +19,7 @@ export function AuthSection({ onBack }: AuthSectionProps) {
     snapshot,
     loading,
     seedTestUser,
+    loginAs,
     seedLanUser,
     setRole,
     injectFakeAccessToken,
@@ -49,6 +54,13 @@ export function AuthSection({ onBack }: AuthSectionProps) {
       () => seedTestUser(role),
       `Seeded ${role} test user`,
       `Failed to seed ${role} test user`
+    );
+
+  const handleLoginAs = (handle: FixtureHandle) =>
+    runAction(
+      () => loginAs(handle),
+      `Logged in as ${handle}`,
+      `Failed to log in as ${handle}`
     );
 
   const handleSeedLanUser = () =>
@@ -116,6 +128,30 @@ export function AuthSection({ onBack }: AuthSectionProps) {
           <Text>
             {snapshot?.hasAccessToken ? "Token present" : "No token stored"}
           </Text>
+        </View>
+
+        <Divider />
+
+        <View style={styles.section}>
+          <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+            Login as fixture
+          </Text>
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+            Logs in as a server-seeded qa_* account (POST /testing/seed/roles first).
+          </Text>
+          <View style={styles.buttonRow}>
+            {FIXTURE_HANDLES.map((handle) => (
+              <Button
+                key={handle}
+                mode="outlined"
+                compact
+                disabled={loading}
+                onPress={() => handleLoginAs(handle)}
+              >
+                {handle}
+              </Button>
+            ))}
+          </View>
         </View>
 
         <Divider />

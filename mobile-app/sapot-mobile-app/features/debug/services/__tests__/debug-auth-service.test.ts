@@ -1,4 +1,4 @@
-import { register } from "@/features/auth/api/auth.api";
+import { loginAsFixtureApi, register } from "@/features/auth/api/auth.api";
 import {
   clearAccessToken,
   clearConnectionConfig,
@@ -10,6 +10,7 @@ import { DebugAuthService } from "../debug-auth-service";
 
 jest.mock("@/features/auth/api/auth.api", () => ({
   register: jest.fn(),
+  loginAsFixtureApi: jest.fn(),
 }));
 
 jest.mock("@/features/shared/core/stores/secure-config", () => ({
@@ -25,6 +26,7 @@ jest.mock("expo-secure-store", () => ({
 }));
 
 const mockedRegister = register as jest.Mock;
+const mockedLoginAsFixtureApi = loginAsFixtureApi as jest.Mock;
 const mockedSaveAccessToken = saveAccessToken as jest.Mock;
 const mockedClearAccessToken = clearAccessToken as jest.Mock;
 const mockedClearConnectionConfig = clearConnectionConfig as jest.Mock;
@@ -82,6 +84,20 @@ describe("DebugAuthService", () => {
         detail: "ok",
         access_token: "server-access-token",
         refresh_token: "server-refresh-token",
+      },
+    });
+
+    mockedLoginAsFixtureApi.mockResolvedValue({
+      data: {
+        id: "fixture-user-1",
+        first_name: "QA",
+        last_name: "Admin",
+        phone_number: "",
+        email: "",
+        username: "qa_admin",
+        detail: "Logged in as fixture account",
+        access_token: "fixture-access-token",
+        refresh_token: "fixture-refresh-token",
       },
     });
   });
@@ -161,6 +177,87 @@ describe("DebugAuthService", () => {
 
       expect(userStore.setIsRescuer).toHaveBeenCalledWith(false);
       expect(userStore.setIsAdmin).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe("loginAs", () => {
+    it("wipes the previous user's data before logging in as the fixture", async () => {
+      const callOrder: string[] = [];
+      userService.wipeDatabase.mockImplementation(async () => {
+        callOrder.push("wipeDatabase");
+      });
+      mockedLoginAsFixtureApi.mockImplementation(async () => {
+        callOrder.push("loginAsFixtureApi");
+        return {
+          data: {
+            id: "fixture-user-1",
+            first_name: "QA",
+            last_name: "Admin",
+            phone_number: "",
+            email: "",
+            username: "qa_admin",
+            detail: "ok",
+            access_token: "fixture-access-token",
+            refresh_token: "fixture-refresh-token",
+          },
+        };
+      });
+
+      await service.loginAs("qa_admin");
+
+      expect(userService.wipeDatabase).toHaveBeenCalledTimes(1);
+      expect(callOrder).toEqual(["wipeDatabase", "loginAsFixtureApi"]);
+    });
+
+    it("calls /testing/login-as with the given handle", async () => {
+      await service.loginAs("qa_rescuer");
+
+      expect(mockedLoginAsFixtureApi).toHaveBeenCalledWith("qa_rescuer");
+    });
+
+    it("stores the server-issued access and refresh tokens", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(mockedSaveAccessToken).toHaveBeenCalledWith("fixture-access-token");
+      expect(mockedSetItemAsync).toHaveBeenCalledWith(
+        "refresh_token",
+        "fixture-refresh-token"
+      );
+    });
+
+    it("syncs the fixture user locally", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(userService.syncAuthenticatedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "fixture-user-1", username: "qa_admin" })
+      );
+    });
+
+    it("sets the rescuer role flag when logging in as qa_rescuer", async () => {
+      await service.loginAs("qa_rescuer");
+
+      expect(userStore.setIsRescuer).toHaveBeenCalledWith(true);
+      expect(userStore.setIsAdmin).toHaveBeenCalledWith(false);
+    });
+
+    it("sets the admin role flag when logging in as qa_admin", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(userStore.setIsRescuer).toHaveBeenCalledWith(false);
+      expect(userStore.setIsAdmin).toHaveBeenCalledWith(true);
+    });
+
+    it("sets neither role flag for the plain qa_baseline handles", async () => {
+      await service.loginAs("qa_baseline");
+
+      expect(userStore.setIsRescuer).toHaveBeenCalledWith(false);
+      expect(userStore.setIsAdmin).toHaveBeenCalledWith(false);
+    });
+
+    it("does not call register", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(mockedRegister).not.toHaveBeenCalled();
     });
   });
 
