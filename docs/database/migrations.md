@@ -33,7 +33,26 @@ When a model changes:
 3. Apply it to the production database.
 4. Deploy the updated server code.
 
-No record of which `ALTER TABLE` statements have been applied is maintained.
+Historically, no record of which `ALTER TABLE` statements have been applied was
+maintained. New changes are logged in [Pending server DDL](#pending-server-ddl)
+below until Alembic is adopted.
+
+### Pending server DDL
+
+`create_db_and_tables()` only creates missing tables — it never alters an
+existing one. Any database created before the change below still has the old
+column type, and **must** have this applied by hand before the matching server
+code is deployed.
+
+| Date | Change | MariaDB DDL |
+|---|---|---|
+| 2026-07-26 | `message.content`: `VARCHAR(255)` → `TEXT`. A 2000-char plaintext message (the client-side cap, `MAX_MESSAGE_LENGTH`) and E2E-encrypted base64 ciphertext both overflow 255 chars, so `/sync/push` failed with a generic 500 `Internal Sync Error`. | `ALTER TABLE message MODIFY COLUMN content TEXT NOT NULL;` |
+
+Verify after applying:
+
+```sql
+SHOW COLUMNS FROM message LIKE 'content';   -- expect Type = text
+```
 
 ```mermaid
 flowchart LR
