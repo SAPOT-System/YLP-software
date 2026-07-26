@@ -12,6 +12,7 @@ All SAPOT components are configured via environment variables. This document lis
 | `JWT_SECRET_KEY` | None — required, raises `RuntimeError` at import if unset | **MUST** be set — generate a strong random secret |
 | `CORS_ALLOWED_ORIGINS` | None — required, raises `RuntimeError` at startup if unset | **MUST** be set — comma-separated explicit origin allowlist |
 | `ENVIRONMENT` | `production` | Set to `development` to enable the `/testing/*` router; never set to `development` in production |
+| `QA_API_TOKEN` | None — required, raises `RuntimeError` at import if unset **when `ENVIRONMENT=development`** | Only relevant in development; the `X-QA-Token` header value `/testing/reset` and `/testing/login-as/{handle}` require |
 | `REDIS_URL` | `redis://localhost:6379` | Set if Redis is on a non-default host/port |
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
 | `GSM_SECRET` | `""` (empty — webhook auth disabled) | Set to a shared secret to authenticate GSM module webhooks |

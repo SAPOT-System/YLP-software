@@ -52,6 +52,8 @@ os.environ.setdefault("SERVER_ED25519_SEED", "00" * 32)
 # fragments already document /testing/* (useful for engineers running the
 # server locally with ENVIRONMENT=development), so we match that.
 os.environ.setdefault("ENVIRONMENT", "development")
+# Required at import time by app/api/testing.py whenever ENVIRONMENT=development.
+os.environ.setdefault("QA_API_TOKEN", "dummy-qa-token-for-doc-generation-only")
 
 sys.path.insert(0, str(SERVER_DIR))
 
