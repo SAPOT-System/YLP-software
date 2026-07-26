@@ -2,7 +2,7 @@ import { APP_ROUTES } from "@/config/routes";
 import { useInformCall } from "@/features/call";
 import { MessageList, useChatService, useObservedPeer } from "@/features/chat";
 import { useSendMessage } from "@/features/chat/hooks/use-send-message";
-import { ChatRoomSource } from "@/features/chat/types";
+import { ChatRoomSource, MAX_MESSAGE_LENGTH } from "@/features/chat/types";
 import { Conversation, ConversationType, Message, Peer, database } from "@/features/shared";
 import { Q } from "@nozbe/watermelondb";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
@@ -696,19 +696,28 @@ const ChatRoom = () => {
       )}
 
       <View style={styles.composerContainer}>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
-              color: theme.dark ? "#FFF" : "#000",
-            },
-          ]}
-          onChangeText={setMessage}
-          value={message}
-          placeholder="Message..."
-          placeholderTextColor="#696969"
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
+                color: theme.dark ? "#FFF" : "#000",
+              },
+            ]}
+            onChangeText={setMessage}
+            value={message}
+            placeholder="Message..."
+            placeholderTextColor="#696969"
+            multiline
+            maxLength={MAX_MESSAGE_LENGTH}
+          />
+          {message.length > MAX_MESSAGE_LENGTH * 0.8 && (
+            <Text style={styles.charCounter}>
+              {message.length}/{MAX_MESSAGE_LENGTH}
+            </Text>
+          )}
+        </View>
         <IconButton
           icon="send"
           size={30}
@@ -846,13 +855,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  input: {
+  inputWrapper: {
     flex: 1,
+  },
+  input: {
     minHeight: 60,
     maxHeight: 120,
     borderRadius: 40,
     paddingHorizontal: 28,
     paddingVertical: 20,
+  },
+  charCounter: {
+    position: "absolute",
+    right: 16,
+    bottom: 4,
+    fontSize: 11,
+    color: "#696969",
   },
 });
 

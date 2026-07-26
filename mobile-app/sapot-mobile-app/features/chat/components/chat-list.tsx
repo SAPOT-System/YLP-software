@@ -152,7 +152,7 @@ const getMessagePreview = (msg: Message | null, decryptedContent: string): strin
   if (!msg) return "No messages yet";
   if (msg.messageType === MessageType.CALL_LOG) return "📞 Call";
   if (msg.messageType === MessageType.FILE) return "📎 File";
-  const c = decryptedContent ?? "";
+  const c = (decryptedContent ?? "").replace(/\s+/g, " ").trim();
   return c.length > 40 ? c.slice(0, 40) + "…" : c;
 };
 
@@ -278,6 +278,8 @@ const ChatListItemInner = enhanceChatPeer(
               <RoleBadge role={peerRole} />
             </View>
             <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
               style={{
                 fontSize: 17,
                 color: theme.dark ? "#6E7891" : "#6B7280",

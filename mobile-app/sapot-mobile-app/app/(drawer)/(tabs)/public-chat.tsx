@@ -1,5 +1,5 @@
 import { usePublicChat } from "@/features/chat/hooks/use-public-chat";
-import { PublicChatMessage } from "@/features/chat/types";
+import { MAX_MESSAGE_LENGTH, PublicChatMessage } from "@/features/chat/types";
 import motion from "@/constants/motion";
 import { formatDate } from "@/features/shared";
 import { useReducedMotion } from "@/features/shared/hooks";
@@ -201,23 +201,31 @@ export default function PublicChat() {
           },
         ]}
       >
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
-              color: theme.dark ? "#FFF" : "#000",
-            },
-          ]}
-          onChangeText={setMessage}
-          value={message}
-          placeholder="Message..."
-          placeholderTextColor="#696969"
-          onSubmitEditing={handleSend}
-          returnKeyType="send"
-          editable={isConnected}
-          multiline
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.dark ? "#1A233A" : "#C9C9C9",
+                color: theme.dark ? "#FFF" : "#000",
+              },
+            ]}
+            onChangeText={setMessage}
+            value={message}
+            placeholder="Message..."
+            placeholderTextColor="#696969"
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+            editable={isConnected}
+            multiline
+            maxLength={MAX_MESSAGE_LENGTH}
+          />
+          {message.length > MAX_MESSAGE_LENGTH * 0.8 && (
+            <Text style={styles.charCounter}>
+              {message.length}/{MAX_MESSAGE_LENGTH}
+            </Text>
+          )}
+        </View>
         <IconButton
           icon="send"
           size={30}
@@ -268,13 +276,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  input: {
+  inputWrapper: {
     flex: 1,
+  },
+  input: {
     minHeight: 60,
     maxHeight: 120,
     borderRadius: 40,
     paddingHorizontal: 28,
     paddingVertical: 20,
+  },
+  charCounter: {
+    position: "absolute",
+    right: 16,
+    bottom: 4,
+    fontSize: 11,
+    color: "#696969",
   },
   body: {
     flex: 1,

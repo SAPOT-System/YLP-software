@@ -217,7 +217,7 @@ erDiagram
         BIGINT updated_at
         CHAR id PK
         VARCHAR message_type
-        VARCHAR content
+        TEXT content
         BOOLEAN is_deleted
         CHAR linked_message_id FK
         CHAR conversation_id FK
