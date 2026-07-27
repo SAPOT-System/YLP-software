@@ -109,6 +109,11 @@ type RemoteCallEndedPayload = {
  */
 export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private connectedStateByPeer: Map<string, "connected" | "disconnected"> = new Map();
+  // Last remote stream forwarded to the UI. The `remoteStream` event is
+  // edge-triggered and never replayed, but the UI can mount (or reset) after it
+  // fired — the callee answers before navigating to the call room. Held from the
+  // start of a call until it ends so the UI can re-read it at any point.
+  private remoteStream: MediaStream | null = null;
   private audioService: CallAudioService;
   private callSessions: Map<string, CallSession> = new Map();
   private callLog!: CallLogService;
@@ -133,6 +138,14 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
   private setConnectedState(peerId: string, state: "connected" | "disconnected"): void {
     this.connectedStateByPeer.set(peerId, state);
+  }
+
+  /**
+   * The remote stream of the call currently under way, if one has arrived.
+   * @returns MediaStream | null
+   */
+  getRemoteStream(): MediaStream | null {
+    return this.remoteStream;
   }
 
   /**
@@ -172,6 +185,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     // Register once so remoteStream/switch-cam forwarding never stacks up
     this.connectionService.on("remoteStream", (stream) => {
       callLog.debug("call › remote stream received");
+      this.remoteStream = stream;
       this.emit("remoteStream", stream);
     });
     this.connectionService.on("switch-cam", (stream) => {
@@ -651,6 +665,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       this.setConnectedState(peerId, "disconnected");
       this.connectedStateByPeer.delete(peerId);
+      this.remoteStream = null;
       this.audioService.clearInitialRouteFor(peerId);
       this.connectionService.setActiveCall(null);
 
@@ -744,6 +759,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     } finally {
       this.setConnectedState(peerId, "disconnected");
       this.connectedStateByPeer.delete(peerId);
+      this.remoteStream = null;
       this.audioService.clearInitialRouteFor(peerId);
       this.connectionService.setActiveCall(null);
     }
@@ -871,6 +887,11 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     if (existingSession && !existingSession.finalized) {
       return existingSession;
     }
+
+    // A new call starts with no remote media. Clearing here (as well as on
+    // terminate) means getRemoteStream() can only ever hand back a stream that
+    // arrived during the call now under way.
+    this.remoteStream = null;
 
     const peer = await this.peerService.getOrCreatePeerById(
       peerId,

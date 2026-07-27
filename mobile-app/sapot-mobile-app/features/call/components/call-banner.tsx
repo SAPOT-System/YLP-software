@@ -122,6 +122,8 @@ export function CallBanner() {
     maximize,
     peerId,
     callType,
+    incomingCall,
+    maximizeIncoming,
   } = useCallContext();
 
   // Slide-in animation
@@ -129,14 +131,16 @@ export function CallBanner() {
     new Animated.Value(-(BANNER_HEIGHT + STATUS_BAR_HEIGHT))
   ).current;
 
+  const isRinging = isMinimized && !!incomingCall;
   const isVisible =
-    isMinimized && (callState === "connected" || callState === "calling");
+    isRinging || (isMinimized && (callState === "connected" || callState === "calling"));
 
   useEffect(() => {
     uiLog.debug("[CallBanner] visibility changed", {
       isVisible,
       callState,
       isMinimized,
+      isRinging,
     });
 
     const targetY = isVisible ? 0 : -(BANNER_HEIGHT + STATUS_BAR_HEIGHT);
@@ -152,9 +156,16 @@ export function CallBanner() {
       damping: motion.spring.gentle.damping,
       stiffness: motion.spring.gentle.stiffness,
     }).start();
-  }, [isVisible, translateY, callState, isMinimized, reducedMotion]);
+  }, [isVisible, translateY, callState, isMinimized, reducedMotion, isRinging]);
 
   const handleTapBanner = () => {
+    if (isRinging) {
+      uiLog.info("[CallBanner] tapped — maximizing incoming call", {
+        peerId: incomingCall?.peerId,
+      });
+      maximizeIncoming();
+      return;
+    }
     uiLog.info("[CallBanner] tapped — maximizing call", { peerId, callType });
     maximize();
     router.push(
@@ -183,16 +194,16 @@ export function CallBanner() {
         {/* Left — avatar + pulse */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrap}>
-            {peerPhotoUrl ? (
+            {!isRinging && peerPhotoUrl ? (
               <Image source={{ uri: peerPhotoUrl }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.avatarFallback]}>
                 <Text style={styles.avatarInitial}>
-                  {peerDisplayName ? peerDisplayName[0].toUpperCase() : "?"}
+                  {(isRinging ? incomingCall?.callerName : peerDisplayName)?.[0]?.toUpperCase() ?? "?"}
                 </Text>
               </View>
             )}
-            {callState === "connected" && (
+            {!isRinging && callState === "connected" && (
               <View style={styles.pulseContainer}>
                 <PulseDot />
               </View>
@@ -203,22 +214,28 @@ export function CallBanner() {
         {/* Center — name + status */}
         <View style={styles.info}>
           <Text style={styles.name} numberOfLines={1}>
-            {peerDisplayName || "Unknown"}
+            {(isRinging ? incomingCall?.callerName : peerDisplayName) || "Unknown"}
           </Text>
           <Text style={styles.status}>
-            {callState === "calling" ? "Calling..." : formatDuration(elapsed)}
+            {isRinging
+              ? "Incoming call…"
+              : callState === "calling"
+                ? "Calling..."
+                : formatDuration(elapsed)}
           </Text>
         </View>
 
-        {/* Right — end call */}
-        <TouchableOpacity
-          style={styles.endBtn}
-          onPress={onTapEnd}
-          disabled={endingFromBanner}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Feather name="phone-off" size={17} color={COLORS.endRed} />
-        </TouchableOpacity>
+        {/* Right — end call (active calls only; ringing has no accept/reject here) */}
+        {!isRinging && (
+          <TouchableOpacity
+            style={styles.endBtn}
+            onPress={onTapEnd}
+            disabled={endingFromBanner}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Feather name="phone-off" size={17} color={COLORS.endRed} />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );

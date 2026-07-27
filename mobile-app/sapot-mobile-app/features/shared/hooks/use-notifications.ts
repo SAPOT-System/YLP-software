@@ -61,7 +61,7 @@ export const useNotifications = (
             callerId: String(data.id ?? ""),
             callType: String(data["call_type"] ?? ""),
             notificationId: notification.request.identifier,
-            callerName: String(data.callerName),
+            callerName: String(data["caller_name"] ?? ""),
             conversationId: data.conversation_id
               ? String(data.conversation_id)
               : undefined,
@@ -94,7 +94,7 @@ export const useNotifications = (
             callerId: String(data.id ?? ""),
             callType: String(data["call_type"] ?? ""),
             notificationId: response.notification.request.identifier,
-            callerName: String(data.callerName),
+            callerName: String(data["caller_name"] ?? ""),
             conversationId: data.conversation_id
               ? String(data.conversation_id)
               : undefined,

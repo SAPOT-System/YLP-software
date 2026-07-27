@@ -136,6 +136,86 @@ longer overwrites the UI state to the generic `"ended"` ("Call ended").
 
 ---
 
+## 6b. Minimizing
+
+Both the active call room and the incoming (ringing) call screen can be minimized instead
+of torn down — either via the on-screen chevron or the Android hardware back button.
+
+**Active call room** (`app/(drawer)/(tabs)/call/[id].tsx`): a `BackHandler` intercepts
+hardware back and calls the same `minimize()` used by the on-screen chevron whenever
+`callState` is `"calling"`, `"connected"`, or `"reconnecting"` — i.e. whenever a call is
+live or being established. In every other (terminal) state, back falls through to the
+default screen pop since there is no live call to strand.
+
+**Incoming (ringing) call** (`app/(drawer)/(tabs)/call/incoming.tsx`): previously had no
+minimize path — the 30s no-answer timeout and the caller-cancel listener lived in the
+screen's own `useFocusEffect`/`useEffect`, so navigating away tore them down and silently
+dropped the ring. That lifecycle now lives in `CallContext` via
+`useIncomingCallLifecycle`, keyed off `incomingCall` state (`peerId`, `callType`,
+`conversationId`, `callId`, `callerName`), so it survives the screen being minimized or
+unmounted — mirroring how `useCallLifecycle` already outlives the call room once a call is
+under way. The incoming-call screen registers itself into `incomingCall` on mount, exposes
+a minimize chevron, and routes hardware back through `minimizeIncoming()` unconditionally
+(no accept/reject state to guard against, unlike the active call room).
+
+In both cases, minimizing sets `isMinimized` and navigates back to the tab root;
+`CallBanner` renders a compact banner while minimized and un-minimizes on tap:
+
+- **Active call** — banner shows peer avatar/name, live duration or "Calling…", and an
+  end-call button. Tapping (outside the end-call button) calls `maximize()` and
+  re-navigates to the call room.
+- **Ringing call** (`isRinging = isMinimized && incomingCall != null`) — banner shows the
+  caller's name and "Incoming call…", with no avatar pulse and no accept/reject controls
+  (those only exist on the full incoming-call screen). Tapping calls `maximizeIncoming()`,
+  which re-navigates to `call/incoming` with the stored `incomingCall` params.
+
+The no-answer timeout and caller-cancel listener keep running regardless of whether the
+ringing call is minimized or foregrounded; both call `onIncomingCallEnded()` (clears
+`incomingCall` and navigates to the tab root) when they fire.
+
+### Ring registration is one-shot
+
+`call/incoming` lives in a bottom-tab navigator, which never unmounts a screen it has
+already rendered — answering, rejecting, or minimizing only blurs it. Its registration
+effect therefore keeps running for the rest of the session, and would re-fire the moment
+`clearIncomingCall()` sets `incomingCall` back to `null`. The screen guards against this
+with a ref keyed on the ring identity (`peerId` + `callId`), registering each ring at most
+once, so a ring that was accepted, rejected, or cancelled stays cleared. Without the guard
+the resurrected ring re-arms its 30s no-answer timeout, which fires
+`markMissedIncomingCall()` mid-conversation and tears down the *live* call, and flips
+`CallBanner` back to its "Incoming call…" variant (no end-call button, and tapping it
+returns to accept/reject instead of the call room). A genuinely new ring carries a new
+`callId`, so it still registers normally.
+
+### Entering the call room does not discard live media
+
+The call room runs `resetCallState()` on focus for `status=calling` and
+`status=answering`, which clears the lifecycle, timer and streams so state from a previous
+call cannot bleed into a new one. On the answering path the call is already under way by
+then — `handleAccept` awaits `answerCall()` (which negotiates WebRTC) *before* navigating —
+so the remote stream can arrive before the room ever mounts.
+
+`remoteStream` is edge-triggered and never replayed, so a reset that simply cleared it
+would strand a live call on `"calling"` with no video until the 30s no-answer timeout tore
+it down. `CallService` therefore retains the stream of the call under way
+(`getRemoteStream()`), cleared both when a call terminates and when a new session starts,
+and `useRemoteStream`'s reset re-reads it instead of discarding it — re-adopting it also
+re-fires `onConnected()`, so `callState` ends the batch on `"connected"`. This mirrors how
+local media already works: `useLocalStream` re-reads `callService.getLocalCam(peerId)`
+rather than depending on having caught an event.
+
+### Caller name on the notification path
+
+An incoming call reaches `call/incoming` from two places: the `audio-call`/`video-call`
+connection event (`IncomingCallListener` in `app/(drawer)/(tabs)/_layout.tsx`) and the
+incoming-call notification (`app/(drawer)/_layout.tsx`). With the app foregrounded both
+fire, and because navigating to an already-visited tab route *replaces* its params rather
+than merging them, the second one wins. Both paths must therefore carry `callerName` —
+which means `NotificationService.showCallAlert` has to put `caller_name` in the
+notification `data` payload for the notification path to have it at all.
+
+---
+
 ## 7. Reconnecting
 
 `ConnectionService` emits `call-reconnecting` from two places:

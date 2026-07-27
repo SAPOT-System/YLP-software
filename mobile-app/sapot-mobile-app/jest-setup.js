@@ -166,6 +166,15 @@ jest.mock('expo-background-task', () => ({
   },
 }));
 
+// Mock the Android foreground-service wrapper used by use-background-task.ts.
+// Its real module touches a native event emitter that doesn't exist in the
+// Node test environment.
+jest.mock('react-native-background-actions', () => ({
+  isRunning: jest.fn().mockReturnValue(false),
+  start: jest.fn().mockResolvedValue(undefined),
+  stop: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock expo-file-system (new API: File / Directory / Paths) used by the logger's
 // file transport. Keeps file writes as no-ops in the Node test environment.
 jest.mock('expo-file-system', () => {
