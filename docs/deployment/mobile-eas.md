@@ -28,19 +28,25 @@ All profiles produce **APK** files distributed internally (sideloaded). There is
 
 ---
 
-## TLS certificate pinning
+## TLS CA pinning
 
-The app pins the server's self-signed certificate at build time:
+The app pins a private **CA** (not the server's leaf certificate) at build time:
 
-1. Place the server's PEM certificate at `mobile-app/sapot-mobile-app/server_cert.pem`.
-2. The `withServerCert` config plugin copies it into `android/app/src/main/res/raw/server_cert.pem`.
+1. Place the CA's PEM at `mobile-app/sapot-mobile-app/server_ca.pem`.
+2. The `withServerCa` config plugin copies it into `android/app/src/main/res/raw/server_ca.pem`.
 3. The `withNetworkSecurityConfig` plugin writes `network_security_config.xml`:
-   - **Dev builds** — cleartext permitted, system + user + bundled cert trusted (for Metro HTTP).
-   - **Preview/Production builds** — HTTPS only; only the bundled cert is trusted for `192.168.0.100`.
+   - **Dev builds** — cleartext permitted; `system` + `user` + bundled `@raw/server_ca` trusted (so Metro and a locally-trusted dev cert both work).
+   - **Preview/Production builds** — `cleartextTrafficPermitted="false"`, scoped to the domain `server.sapot.lan` (`includeSubdomains="false"`), trusting only `@raw/server_ca`.
 
-> **Important:** The pinned IP `192.168.0.100` is hardcoded in `app.config.ts`. Update it to match the actual server LAN IP before building a production APK.
+Because the pin is on the CA, the server can rotate its leaf certificate with **no mobile rebuild**;
+only a CA rotation requires one. There is no hardcoded IP in the network-security config — the
+pin is scoped to the hostname `server.sapot.lan`, so the server's LAN IP can change freely as long
+as that name still resolves to it.
 
-For EAS cloud builds, set the `SERVER_CERT` environment variable to the base64-encoded PEM. `app.config.ts` decodes it to `server_cert.pem` at prebuild time.
+For EAS cloud builds, set the `SERVER_CA` environment variable (EAS secret) to the base64-encoded
+CA PEM. `app.config.ts` decodes it to `server_ca.pem` at prebuild time, and the `IS_REAL_EAS_BUILD`
+guard **refuses** a non-dev build if `server_ca.pem` is still the committed placeholder
+(subject matching `/placeholder/i`) or has expired.
 
 ---
 
@@ -95,7 +101,7 @@ Declared in `app.config.ts` `android.permissions`:
 
 ```bash
 cd mobile-app/sapot-mobile-app/
-npm install
+pnpm install
 npx expo run:android
 ```
 

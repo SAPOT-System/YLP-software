@@ -33,7 +33,7 @@ class MessageData(BaseModel):
 class PublicMessageData(BaseModel):
     id: Optional[UUID] = None
     type: Literal["public-chat"] = Field(default="public-chat", alias="type")
-    content : str = Field(max_length=255, min_length=1)
+    content : str = Field(max_length=2000, min_length=1)
     is_deleted: bool = Field(default=False)
     conversation_id: None = None
     sender_id : UUID = Field(alias="from")

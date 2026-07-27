@@ -6,8 +6,9 @@ import {
   AnnouncementFilter,
   AnnouncementPriority,
 } from "@/features/announcements/types";
+import motion from "@/constants/motion";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useToast } from "@/features/shared/hooks";
+import { useReducedMotion, useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +19,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import Animated, { Easing, FadeInUp } from "react-native-reanimated";
 import { Appbar, Chip, Text, useTheme } from "react-native-paper";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
@@ -42,6 +44,7 @@ export default function AnnouncementsScreen() {
     data?.announcements ?? []
   );
   const { visible, message, variant, showError, hideToast } = useToast();
+  const reducedMotion = useReducedMotion();
 
   const markedRef = useRef(false);
 
@@ -175,13 +178,23 @@ export default function AnnouncementsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <AnnouncementCard
-              id={item.id}
-              title={item.title}
-              content={item.content}
-              priority={item.priority}
-              created_at={item.created_at}
-            />
+            <Animated.View
+              entering={
+                reducedMotion
+                  ? undefined
+                  : FadeInUp.duration(motion.duration.base).easing(
+                      Easing.bezier(...motion.easing.standard)
+                    )
+              }
+            >
+              <AnnouncementCard
+                id={item.id}
+                title={item.title}
+                content={item.content}
+                priority={item.priority}
+                created_at={item.created_at}
+              />
+            </Animated.View>
           )}
           refreshControl={
             <RefreshControl refreshing={isLoading} onRefresh={refetch} />

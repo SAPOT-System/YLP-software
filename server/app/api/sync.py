@@ -1,6 +1,8 @@
 from typing import Annotated
+import logging
 import time
 from sqlalchemy import exists
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select, col
 from uuid import uuid4, UUID
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,6 +45,20 @@ router = APIRouter(
         404: {'description': 'Not Found'}
     }
 )
+
+# Reuses the "app" logger configured in main.py. Its formatters interpolate
+# user_id/action/entity_id/metadata_json, so every call must supply them or
+# the handler raises at format time and the record is dropped.
+logger = logging.getLogger("app")
+
+
+def _sync_log_extra(current_user: User, action: str) -> Dict[str, Any]:
+    return {
+        "user_id": str(current_user.id) if current_user else "ANONYMOUS",
+        "action": action,
+        "entity_id": None,
+        "metadata_json": {},
+    }
 
 
 
@@ -416,7 +432,23 @@ async def push_local_data(
     except HTTPException as he:
         session.rollback()
         raise he
+    except SQLAlchemyError as e:
+        session.rollback()
+        # DB-level rejections (column overflow, FK/unique violations) used to be
+        # swallowed into a bare 500 with no server-side trace, which made a
+        # `message.content` overflow undiagnosable from the logs alone.
+        # `orig` carries the driver's own message (e.g. MariaDB 1406 "Data too
+        # long for column 'content'") — the part that actually identifies the
+        # failing column.
+        logger.exception(
+            "Sync push failed: %s: %s", type(e).__name__, getattr(e, "orig", e),
+            extra=_sync_log_extra(current_user, "sync_push_db_error"),
+        )
+        raise HTTPException(status_code=500, detail="Internal Sync Error")
     except Exception as e:
         session.rollback()
-        print(f"Sync Error: {e}")
+        logger.exception(
+            "Sync push failed: %s: %s", type(e).__name__, e,
+            extra=_sync_log_extra(current_user, "sync_push_error"),
+        )
         raise HTTPException(status_code=500, detail="Internal Sync Error")

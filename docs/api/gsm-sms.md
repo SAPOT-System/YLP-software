@@ -41,6 +41,6 @@ Webhook endpoint the GSM hardware gateway calls when it receives an SMS. Protect
 
 ---
 
-The GSM module's own standalone hardware-facing API (separate service) is documented in `docs/deployment/gsm-module.md` if present.
+The GSM module's own standalone hardware-facing API (separate service) is documented in [`docs/deployment/gsm-module.md`](../deployment/gsm-module.md).
 
 See [gsm-sms.yaml](openapi/gsm-sms.yaml) for exact field-level request/response schemas, or the live server's `/docs` / `/openapi.json`.

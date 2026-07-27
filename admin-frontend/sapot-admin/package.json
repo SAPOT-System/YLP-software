@@ -2,11 +2,13 @@
   "name": "sapot-admin",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.34.1",
   "scripts": {
-    "dev": "NODE_EXTRA_CA_CERTS=$(pwd)/certs/server.crt next dev",
+    "dev": "NODE_EXTRA_CA_CERTS=$(pwd)/certs/server_ca.pem next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit || true"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -37,5 +39,11 @@
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }

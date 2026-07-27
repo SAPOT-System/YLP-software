@@ -1,12 +1,15 @@
 import { useCallContext } from "@/features/call/context/call-context";
-import { useThrottledPress } from "@/features/shared/hooks";
+import { useReducedMotion, useThrottledPress } from "@/features/shared/hooks";
+import { Crossfade } from "@/features/shared/components/crossfade";
 import { uiLog } from "@/features/shared/core/utils/logger";
+import motion from "@/constants/motion";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Easing,
   Image,
   Pressable,
   StyleSheet,
@@ -117,18 +120,23 @@ export default function CallRoom() {
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlsAnim = useRef(new Animated.Value(1)).current;
+  const reducedMotion = useReducedMotion();
+  const standardEasing = Easing.bezier(...motion.easing.standard);
+  const exitEasing = Easing.bezier(...motion.easing.exit);
 
   const hideControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
 
     Animated.timing(controlsAnim, {
       toValue: 0,
-      duration: 300,
+      duration: reducedMotion ? 0 : motion.duration.base,
+      easing: exitEasing,
       useNativeDriver: true,
     }).start(() => {
       setControlsVisible(false);
     });
-  }, [controlsAnim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlsAnim, reducedMotion]);
 
   const showControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -137,14 +145,16 @@ export default function CallRoom() {
 
     Animated.timing(controlsAnim, {
       toValue: 1,
-      duration: 250,
+      duration: reducedMotion ? 0 : motion.duration.base,
+      easing: standardEasing,
       useNativeDriver: true,
     }).start();
 
     hideTimer.current = setTimeout(() => {
       hideControls();
     }, 5000);
-  }, [hideControls, controlsAnim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hideControls, controlsAnim, reducedMotion]);
 
   useEffect(() => {
     if (callState === "calling" || callState === "reconnecting") {
@@ -155,7 +165,8 @@ export default function CallRoom() {
       setControlsVisible(true);
       Animated.timing(controlsAnim, {
         toValue: 1,
-        duration: 250,
+        duration: reducedMotion ? 0 : motion.duration.base,
+        easing: standardEasing,
         useNativeDriver: true,
       }).start();
     } else if (callState === "connected") {
@@ -165,7 +176,8 @@ export default function CallRoom() {
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [callState, showControls, controlsAnim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callState, showControls, controlsAnim, reducedMotion]);
 
   // ─────────────────────────────────────────────
   // Derived UI flags
@@ -252,11 +264,13 @@ export default function CallRoom() {
                   !remoteMic && styles.remoteMicBadgeMuted,
                 ]}
               >
-                <Feather
-                  name={remoteMic ? "mic" : "mic-off"}
-                  size={16}
-                  color="#FFFFFF"
-                />
+                <Crossfade activeKey={remoteMic ? "mic-on" : "mic-off"}>
+                  <Feather
+                    name={remoteMic ? "mic" : "mic-off"}
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                </Crossfade>
               </View>
             </View>
 
@@ -307,11 +321,13 @@ export default function CallRoom() {
                     ]}
                     onPress={handleToggleMic}
                   >
-                    <Feather
-                      name={localMic ? "mic" : "mic-off"}
-                      size={22}
-                      color={COLORS.primary}
-                    />
+                    <Crossfade activeKey={localMic ? "mic-on" : "mic-off"}>
+                      <Feather
+                        name={localMic ? "mic" : "mic-off"}
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    </Crossfade>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
@@ -320,11 +336,13 @@ export default function CallRoom() {
                     ]}
                     onPress={handleToggleCam}
                   >
-                    <Feather
-                      name={localCam ? "video" : "video-off"}
-                      size={22}
-                      color={COLORS.primary}
-                    />
+                    <Crossfade activeKey={localCam ? "cam-on" : "cam-off"}>
+                      <Feather
+                        name={localCam ? "video" : "video-off"}
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    </Crossfade>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.controlBtn}

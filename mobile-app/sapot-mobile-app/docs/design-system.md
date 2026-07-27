@@ -17,7 +17,7 @@ const CombinedDarkTheme    = merge(DarkTheme,  customDarkTheme);
 
 `Colors.dark` / `Colors.light` are the only place where color values are defined.
 
-### ThemePreferenceProvider (`features/shared/context/theme-preference-context.tsx`)
+### ThemePreferenceProvider (`features/shared/core/context/theme-preference-context.tsx`)
 
 Exposes:
 - `themeChoice` — `"light" | "dark" | "system"` (user-persisted preference)
@@ -86,7 +86,7 @@ export const PageLoader = ({ skeleton, style }: PageLoaderProps) => (
 
 | Concept | Convention | Example |
 |---------|-----------|---------|
-| Components | `PascalCase` | `CallBanner`, `PageLoader`, `PinEntryGate` |
+| Components | `PascalCase` | `CallBanner`, `PageLoader` |
 | Hooks | `camelCase` + `use` prefix | `useCallService`, `useThrottledPress` |
 | Feature context | `PascalCase` + `Context` suffix | `CallContext`, `GpsPreferenceContext` |
 
@@ -156,3 +156,52 @@ export const GpsPreferenceContext = createContext<GpsPreference | null>(null);
 ## Map Rendering
 
 GPS / map feature uses `@maplibre/maplibre-react-native`. `useLatestLocations` polls `GET /gps/latest` every 5 seconds via React Query and passes results to the map renderer.
+
+---
+
+## Motion
+
+Shared motion tokens live in `constants/motion.ts` — duration scale, easing curves, and spring presets. Easing curves are stored as raw cubic-bezier tuples (not `Easing.bezier(...)` instances) because the legacy `Animated` API and Reanimated's `Easing` are separate, incompatible modules; call sites wrap the tuple themselves: `Easing.bezier(...motion.easing.standard)`.
+
+```typescript
+motion.duration.fast   // 150 — micro-interactions: toggles, icon crossfades
+motion.duration.base   // 250 — general transitions: fades, list-item entrances
+motion.duration.slow   // 400 — deliberate/looping motion: skeleton shimmer
+
+motion.easing.standard   // general UI transitions
+motion.easing.emphasized // deliberate entrances: success states, pop-ins
+motion.easing.exit       // exits and fade-outs
+
+motion.spring.gentle    // { damping: 12, stiffness: 120 } — banners, success states
+```
+
+### Reduced Motion
+
+`useReducedMotion()` (`features/shared/hooks/use-reduced-motion.ts`) wraps `AccessibilityInfo.isReduceMotionEnabled()`. Every animated component must check it and either set the end value instantly or drop duration/entering animation to none — never skip the check.
+
+```typescript
+const reducedMotion = useReducedMotion();
+
+<Animated.View
+  entering={reducedMotion ? undefined : FadeInUp.duration(motion.duration.base)}
+>
+```
+
+### Shared Motion Components
+
+| Component | Use | Location |
+|-----------|-----|----------|
+| `Crossfade` | Fades content out/in when a keyed value changes (status text, icons) | `features/shared/components/crossfade.tsx` |
+| `Skeleton` | Pulsing placeholder box for skeleton loading layouts | `features/shared/components/skeleton.tsx` |
+
+`Crossfade` takes an `activeKey` (string/number/boolean) and re-fades its children whenever that key changes — used for connection-status labels (`chat/[id].tsx`, `public-chat.tsx`) and the Zeroconf status icon (`zeroconf-status-indicator.tsx`).
+
+`Skeleton` composes into feature-specific skeleton layouts (e.g. `features/chat/components/chat-message-skeleton.tsx`) passed to `PageLoader`'s `skeleton` prop.
+
+### Patterns in Use
+
+- **List item entrance**: track already-seen ids in a `useRef<Set<string>>`; wrap only genuinely new items in `Animated.View` with `entering={FadeInUp...}` (message list, public chat, announcements, search).
+- **List reorder**: `Animated.View` with `layout={LinearTransition...}` on each row (chat list).
+- **Pop-in badges/dots**: `Animated.View` with `entering={ZoomIn...}` and `motion.easing.emphasized` (unread badge, presence dot).
+- **Status crossfade**: wrap the swapped content in `Crossfade` keyed on the status value.
+- **Looping pulse**: `withRepeat(withSequence(withTiming(...), withTiming(...)), -1)` on a shared opacity value, frozen under reduced motion (skeleton shimmer, call banner pulse).

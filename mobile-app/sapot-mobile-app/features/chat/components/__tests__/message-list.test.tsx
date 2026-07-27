@@ -48,6 +48,7 @@ jest.mock("@/features/shared/hooks", () => ({
       queryByConversation: jest.fn().mockResolvedValue([]),
     },
   }),
+  useReducedMotion: () => false,
 }));
 
 jest.mock("@/features/shared/hooks/use-user-store", () => ({
@@ -60,13 +61,29 @@ jest.mock("react-native-paper", () => ({
   useTheme: () => ({ dark: false }),
 }));
 
+// The `@/features/call` barrel re-exports the whole call feature (WebRTC
+// adapters, connection services). Requiring it here costs seconds of module
+// load and times out the first test on CI, so stub the one hook we use.
+jest.mock("@/features/call", () => ({
+  useInformCall: () => jest.fn(),
+}));
+
+jest.mock("@/features/shared/core/api/gsm.api", () => ({
+  sendSmsToUser: jest.fn().mockResolvedValue({ ok: true }),
+}));
+
+// Track query args so tests can assert the newest-first + pagination fix
+// for issue #142 (chat only showed the oldest 100 messages).
+const messagesQueryCalls: unknown[][] = [];
+
 jest.mock("@/features/shared", () => {
   const { of } = require("rxjs");
-  const message = {
-    id: "msg-1",
+
+  const makeMessage = (id: string, createdAt: string) => ({
+    id,
     messageType: "text",
-    content: "Hello",
-    createdAt: new Date("2024-01-01T00:00:00Z"),
+    content: `Content ${id}`,
+    createdAt: new Date(createdAt),
     conversation: {
       id: "conversation-1",
     },
@@ -82,18 +99,27 @@ jest.mock("@/features/shared", () => {
     _raw: {
       sender: null,
     },
-  };
+  });
+
+  // Newest-first order, matching a `Q.sortBy("created_at", Q.desc)` query.
+  const messagesNewestFirst = [
+    makeMessage("msg-2", "2024-01-02T00:00:00Z"),
+    makeMessage("msg-1", "2024-01-01T00:00:00Z"),
+  ];
 
   return {
     database: {
       get: (table: string) => {
         return {
-          query: () => ({
-            // Return RxJS observables for observes so the
-            // withObservables HOC receives expected observable inputs.
-            observe: () => (table === "messages" ? of([message]) : of([])),
-            observeWithColumns: () => of([{ status: "sent" }]),
-          }),
+          query: (...args: unknown[]) => {
+            if (table === "messages") messagesQueryCalls.push(args);
+            return {
+              // Return RxJS observables for observes so the
+              // withObservables HOC receives expected observable inputs.
+              observe: () => (table === "messages" ? of(messagesNewestFirst) : of([])),
+              observeWithColumns: () => of([{ status: "sent" }]),
+            };
+          },
         };
       },
     },
@@ -105,14 +131,51 @@ jest.mock("@/features/shared", () => {
 });
 
 describe("MessageList", () => {
-  it("renders messages", async () => {
-    // Require the component after mocks are defined so mocked modules are used.
-    const MessageList = require("../message-list").default;
+  let MessageList: any;
 
+  // Requiring the component pulls in the React Native / Expo module graph,
+  // which costs over a second locally and far more on a loaded CI runner.
+  // Do it once in setup, with its own budget, so each test keeps the default
+  // per-test timeout instead of the first one absorbing the module load.
+  beforeAll(() => {
+    // Require the component after mocks are defined so mocked modules are used.
+    MessageList = require("../message-list").default;
+  }, 60000);
+
+  beforeEach(() => {
+    messagesQueryCalls.length = 0;
+  });
+
+  it("renders messages", async () => {
     const { findByText } = render(
       <MessageList conversationId="conversation-1" peerId="peer-1" />
     );
 
-    expect(await findByText(/Hello/)).toBeTruthy();
+    expect(await findByText(/Content msg-2/)).toBeTruthy();
+  });
+
+  it("queries messages newest-first so recent messages are never excluded (issue #142)", async () => {
+    const { Q } = require("@nozbe/watermelondb");
+
+    const { findByText } = render(
+      <MessageList conversationId="conversation-1" peerId="peer-1" />
+    );
+    await findByText(/Content msg-2/);
+
+    expect(messagesQueryCalls.length).toBeGreaterThan(0);
+    const [, sortClause] = messagesQueryCalls[0];
+    expect(sortClause).toEqual(Q.sortBy("created_at", Q.desc));
+  });
+
+  it("opens a conversation on the newest message", async () => {
+    const { findByText, getAllByText } = render(
+      <MessageList conversationId="conversation-1" peerId="peer-1" />
+    );
+    await findByText(/Content msg-2/);
+
+    const rendered = getAllByText(/Content msg-/);
+    expect(rendered).toHaveLength(2);
+    expect(rendered[0].props.children).toContain("msg-2");
+    expect(rendered[1].props.children).toContain("msg-1");
   });
 });

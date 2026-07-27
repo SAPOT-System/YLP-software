@@ -37,7 +37,7 @@ flowchart TB
         api["gunicorn :8000\n(SAPOT FastAPI)"]
         db[("MariaDB :3306")]
         redis[("Redis :6379\nWS pub-sub")]
-        gsmapi["GSM-API\n(FastAPI + pyserial)"]
+        gsmapi["GSM-fastapi\n(FastAPI + pyserial)"]
     end
 
     arduino["Arduino / serial modem"]
@@ -68,9 +68,9 @@ For the security trust boundaries overlaid on this same topology (which zones ar
 | Nginx reverse proxy | `nginx` | `0.0.0.0:443` (TLS), `:80` (redirect) | — |
 | MariaDB | `mysqld` | `127.0.0.1:3306` | — (server-internal) |
 | Redis | `redis-server` | `127.0.0.1:6379` | — (server-internal) |
-| GSM module API | `gunicorn` / `uvicorn` | Verify from GSM-module config | — |
-| Tileserver | — | Verify from tileserver config | Nginx or direct |
-| Admin frontend | `next start` | Verify from admin deployment | — |
+| GSM module API | `uvicorn` (`GSM-fastapi/main.py`) | `127.0.0.1:8001` (hardcoded, `PORT` var has no effect) | — (see [environment-config.md](../deployment/environment-config.md#gsm-module-gsm-modulegsm-fastapi)) |
+| Tileserver | — | `:8080` | Direct (see [tileserver.md](../deployment/tileserver.md)) |
+| Admin frontend | `next start` | `127.0.0.1:3000` | Nginx (see [admin-frontend.md](../deployment/admin-frontend.md)) |
 
 ---
 

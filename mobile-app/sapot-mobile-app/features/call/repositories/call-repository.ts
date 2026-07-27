@@ -1,4 +1,4 @@
-import { Call, CallStatus, CallType, Conversation, GuestUser, Peer } from "@/features/shared";
+import { Call, CallStatus, CallType, Conversation, GuestUser, Peer } from "@/features/shared/core/database";
 import { callLog } from "@/features/shared/core/utils/logger";
 import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { Collection, Database, Q } from "@nozbe/watermelondb";

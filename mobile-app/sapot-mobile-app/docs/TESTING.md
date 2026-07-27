@@ -38,7 +38,7 @@ Leave that terminal running while you test the mobile app.
 
 ```bash
 # Run all tests
-npm test
+pnpm test
 
 # Run a single file
 npx jest path/to/test.ts
@@ -156,5 +156,5 @@ config/__tests__/
 `@/` maps to the project root. Use it in tests the same as in source:
 
 ```typescript
-import { ConnectionService } from "@/features/shared/services/connection-service";
+import { ConnectionService } from "@/features/shared/connection/services/connection-service";
 ```
