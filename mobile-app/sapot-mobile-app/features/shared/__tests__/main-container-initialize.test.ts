@@ -118,6 +118,7 @@ jest.mock("../connection/adapters", () => ({
     on: jest.fn(),
     sendMessage: jest.fn(),
     setEncryptionContext: jest.fn(),
+    resetTransportForNetworkChange: jest.fn(),
     disconnect: jest.fn(),
     connect: jest.fn(),
   })),
@@ -135,6 +136,7 @@ jest.mock("../core/stores", () => ({
   NetworkConfig: jest.fn().mockImplementation(() => ({
     initialize: jest.fn().mockResolvedValue(undefined),
     setOnIpChange: jest.fn(),
+    setOnNetworkRegained: jest.fn(),
     startWatching: jest.fn(),
     stopWatching: jest.fn(),
     port: 8080,

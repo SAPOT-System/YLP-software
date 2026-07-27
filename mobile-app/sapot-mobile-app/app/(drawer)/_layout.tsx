@@ -127,6 +127,7 @@ export default function DrawerLayout() {
           id: incomingCallData.callerId,
           type: incomingCallData.callType,
           conversationId: incomingCallData.conversationId ?? "",
+          callId: incomingCallData.callId ?? "",
         },
       });
     },
@@ -180,9 +181,10 @@ export default function DrawerLayout() {
         router.push({
           pathname: "/(drawer)/(tabs)/call/incoming",
           params: {
-            id: String(data.callerId ?? ""),
-            type: String(data.callType ?? "audio"),
-            conversationId: String(data.conversationId ?? ""),
+            id: String(data.id ?? ""),
+            type: String(data.call_type ?? "audio"),
+            conversationId: String(data.conversation_id ?? ""),
+            callId: String(data.call_id ?? ""),
           },
         });
       }

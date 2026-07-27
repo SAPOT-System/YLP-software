@@ -155,14 +155,15 @@ Used to signal call lifecycle events between peers.
 ### `call-ready`
 **Transport:** WebSocket + TCP &nbsp;|&nbsp; **Direction:** Sent & Received
 
-> Sent by the callee to signal they are ready to begin WebRTC negotiation.
+> Sent by the callee after accepting. The caller begins WebRTC negotiation only when `callId` matches its active session.
 
 ```json
 {
   "type": "call-ready",
   "data": {
     "from_user / from": "string",
-    "to":               "string"
+    "to":               "string",
+    "callId":           "string  — active call session ID"
   }
 }
 ```
