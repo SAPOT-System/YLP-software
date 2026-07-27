@@ -28,6 +28,7 @@ describe("useDebugAuth", () => {
   let serviceInstance: {
     getSnapshot: jest.Mock;
     seedTestUser: jest.Mock;
+    loginAs: jest.Mock;
     seedLanUser: jest.Mock;
     setRole: jest.Mock;
     injectFakeAccessToken: jest.Mock;
@@ -53,6 +54,7 @@ describe("useDebugAuth", () => {
     serviceInstance = {
       getSnapshot: jest.fn().mockResolvedValue(baseSnapshot),
       seedTestUser: jest.fn().mockResolvedValue(undefined),
+      loginAs: jest.fn().mockResolvedValue(undefined),
       seedLanUser: jest.fn().mockResolvedValue(undefined),
       setRole: jest.fn(),
       injectFakeAccessToken: jest.fn().mockResolvedValue(undefined),
@@ -91,6 +93,32 @@ describe("useDebugAuth", () => {
 
     await act(async () => {
       await result.current.seedTestUser("admin");
+    });
+
+    expect(mockedReloadAsync).toHaveBeenCalledTimes(1);
+    expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("loginAs logs in as the fixture then restarts the app instead of refreshing the snapshot", async () => {
+    const { result } = renderHook(() => useDebugAuth());
+    await waitFor(() => expect(result.current.snapshot).toEqual(baseSnapshot));
+
+    await act(async () => {
+      await result.current.loginAs("qa_admin");
+    });
+
+    expect(serviceInstance.loginAs).toHaveBeenCalledWith("qa_admin");
+    expect(mockedReloadAsync).toHaveBeenCalledTimes(1);
+    expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("loginAs falls back to refreshing the snapshot if the restart fails", async () => {
+    mockedReloadAsync.mockRejectedValue(new Error("reload unsupported"));
+    const { result } = renderHook(() => useDebugAuth());
+    await waitFor(() => expect(result.current.snapshot).toEqual(baseSnapshot));
+
+    await act(async () => {
+      await result.current.loginAs("qa_admin");
     });
 
     expect(mockedReloadAsync).toHaveBeenCalledTimes(1);
