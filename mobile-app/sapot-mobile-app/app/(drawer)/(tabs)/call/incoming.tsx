@@ -12,7 +12,7 @@ import { uiLog } from "@/features/shared/core/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   BackHandler,
   Image,
@@ -44,6 +44,9 @@ export default function IncomingCall() {
   const peerDisplayName = peer
     ? [peer.firstName, peer.lastName].filter(Boolean).join(" ")
     : "";
+  // The peer row is loaded asynchronously and may not exist yet on a first
+  // contact, so fall back to the name the caller sent with the ring.
+  const displayName = peerDisplayName || callerName;
 
   useEffect(() => {
     uiLog.info("[IncomingCall] mounted");
@@ -55,8 +58,19 @@ export default function IncomingCall() {
   // Register (or reconnect to, if returning from minimized) the ringing call.
   // The 30s no-answer timeout and caller-cancel listener live in CallContext
   // via useIncomingCallLifecycle so they survive this screen minimizing.
+  //
+  // This screen sits in a bottom-tab navigator, which never unmounts a screen it
+  // has already rendered — answering only blurs it behind the call room. Register
+  // each ring at most once, keyed on its identity, so that `clearIncomingCall()`
+  // on accept/reject cannot be immediately undone from here. Resurrecting an
+  // answered ring re-arms its no-answer timeout, which tears the live call down
+  // 30s later, and flips CallBanner back to its "Incoming call…" variant.
+  const registeredRingRef = useRef<string | null>(null);
+  const ringKey = `${id}|${callId ?? ""}`;
+
   useEffect(() => {
-    if (incomingCall) return;
+    if (incomingCall || registeredRingRef.current === ringKey) return;
+    registeredRingRef.current = ringKey;
     setIncomingCall({
       peerId: id as string,
       callType: (type as "audio" | "video") ?? "audio",
@@ -64,7 +78,7 @@ export default function IncomingCall() {
       callId: callId || undefined,
       callerName,
     });
-  }, [incomingCall, setIncomingCall, id, type, conversationId, callId, callerName]);
+  }, [incomingCall, setIncomingCall, ringKey, id, type, conversationId, callId, callerName]);
 
   // Hardware back minimizes the ringing call instead of dropping it silently.
   useEffect(() => {
@@ -160,12 +174,12 @@ export default function IncomingCall() {
           ) : (
             <View style={[styles.avatar, styles.avatarFallback]}>
               <Text style={styles.avatarInitial}>
-                {peerDisplayName ? peerDisplayName[0].toUpperCase() : "?"}
+                {displayName ? displayName[0].toUpperCase() : "?"}
               </Text>
             </View>
           )}
         </View>
-        <Text style={styles.peerName}>{peerDisplayName ?? callerName}</Text>
+        <Text style={styles.peerName}>{displayName}</Text>
       </View>
 
       {/* Status */}

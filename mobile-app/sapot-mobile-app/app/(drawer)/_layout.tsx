@@ -128,6 +128,10 @@ export default function DrawerLayout() {
           type: incomingCallData.callType,
           conversationId: incomingCallData.conversationId ?? "",
           callId: incomingCallData.callId ?? "",
+          // Navigating to an already-visited tab route replaces its params
+          // rather than merging them, so dropping the name here strips it from
+          // a ring the connection-event listener already routed with it.
+          callerName: incomingCallData.callerName,
         },
       });
     },
@@ -185,6 +189,7 @@ export default function DrawerLayout() {
             type: String(data.call_type ?? "audio"),
             conversationId: String(data.conversation_id ?? ""),
             callId: String(data.call_id ?? ""),
+            callerName: String(data.caller_name ?? ""),
           },
         });
       }

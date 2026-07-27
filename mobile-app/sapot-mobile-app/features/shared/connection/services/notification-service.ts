@@ -23,6 +23,9 @@ export class NotificationService {
             type: "incoming_call",
             id: data.callerId,
             call_type: data.callType === "video-call" ? "video" : "audio",
+            // Carried so a notification-launched ring can name the caller; the
+            // screen it opens has no other source for it.
+            caller_name: data.callerName,
             conversation_id: data.conversationId ?? "",
             call_id: data.callId ?? "",
           },
