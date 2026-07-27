@@ -118,8 +118,12 @@ services:
     environment:
       HOST: 0.0.0.0
       SAPOT_API_URL: https://nginx
-    devices:
-      - "/dev/ttyACM0:/dev/ttyACM0"
+    # No /dev/ttyACM0 device passthrough here — the modem isn't present on
+    # most dev machines, and Compose has no "optional device" syntax, so
+    # declaring it here would abort the whole `docker compose up` (nginx/
+    # admin left stuck in "Created") whenever the hardware is missing. Add
+    # docker-compose.gsm-hardware.yml explicitly when the modem is attached:
+    # docker/up.sh -f docker-compose.yml -f docker-compose.gsm-hardware.yml up -d
     depends_on:
       db:
         condition: service_healthy

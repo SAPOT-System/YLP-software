@@ -53,8 +53,18 @@ cp GSM-module/GSM-fastapi/.env.example GSM-module/GSM-fastapi/.env
 
 `gsm-fastapi`'s `GSM_SECRET` must match `server/.env`'s `GSM_SECRET` — they authenticate the
 webhook calls between the two services (see [environment-config.md](../deployment/environment-config.md)).
-The `gsm-fastapi` container requires the modem attached at `/dev/ttyACM0` on the Docker host — omit
-`gsm-fastapi` from `docker compose up` if you don't have the hardware.
+The `gsm-fastapi` container passes through the GSM modem at `/dev/ttyACM0`, but only when
+`docker-compose.gsm-hardware.yml` is explicitly merged in (Compose has no "optional device" syntax,
+so this stays out of the base `docker-compose.yml`/`docker-compose.override.yml` — otherwise the
+whole `docker compose up` would abort on any machine without the GSM modem attached, leaving `nginx`/
+`admin` stuck in `Created`). On a machine with the GSM modem attached:
+
+```bash
+./docker/up.sh -f docker-compose.yml -f docker-compose.gsm-hardware.yml up --build -d
+```
+
+Without the GSM modem, just run the normal `./docker/up.sh up --build -d` below — `gsm-fastapi` still
+starts, it just won't have serial access.
 
 Add to `.env` (not yet in `.env.example` — add manually until that's fixed):
 
@@ -77,7 +87,8 @@ that includes:
 
 - `admin` — the Next.js admin dashboard, `http://localhost:3000`
 - `tileserver` — offline map tiles, `http://localhost:8080`
-- `gsm-fastapi` — the SMS gateway, `http://localhost:8001` (needs the modem at `/dev/ttyACM0`)
+- `gsm-fastapi` — the SMS gateway, `http://localhost:8001` (starts without the GSM modem; add
+  `docker-compose.gsm-hardware.yml` per the [Configure](#configure) section above for real SMS)
 
 To bring up only the core backend (skip the admin/tileserver/GSM services), name them explicitly:
 
@@ -124,7 +135,7 @@ docker compose -p server down          # stops and removes it
 ```
 The new stack runs under a different project name (derived from the repo root directory), so Docker treats them as two independent stacks that happen to fight over the same host ports.
 
-**`admin` (or any other service) stays stuck in `Created` and never actually starts.** `docker compose up` (no service names) starts every service in dependency order; if one fails partway — e.g. `gsm-fastapi`'s `/dev/ttyACM0` device passthrough failing because the modem isn't attached — services later in the batch can be left created but never started. Bring up the specific services you need directly instead of relying on the full batch:
+**`admin` (or any other service) stays stuck in `Created` and never actually starts.** `docker compose up` (no service names) starts every service in dependency order; if one fails partway, services later in the batch can be left created but never started. The most common cause used to be `gsm-fastapi`'s `/dev/ttyACM0` device passthrough failing on machines without the GSM modem — that's no longer in the base `docker-compose.yml` (see [Configure](#configure)), so this should only recur if you merged in `docker-compose.gsm-hardware.yml` without the GSM modem actually attached. Either way, bring up the specific services you need directly instead of relying on the full batch:
 ```bash
 docker compose up -d db redis api certgen nginx admin tileserver   # skips gsm-fastapi
 ```
@@ -164,7 +175,7 @@ both running at once:
   build` time from that worktree's `./GSM-module/GSM-fastapi`. Editing GSM code in a worktree and
   running `up` without rebuilding will still run whatever was baked in last. Rebuild after pulling
   or editing GSM code there: `docker/up.sh up --build -d gsm-fastapi`.
-- **The modem device (`/dev/ttyACM0`) is physical hardware** — it can't be attached to two
+- **The GSM modem device (`/dev/ttyACM0`) is physical hardware** — it can't be attached to two
   containers at once, so don't run `gsm-fastapi` from more than one stack simultaneously regardless
   of port configuration.
 
