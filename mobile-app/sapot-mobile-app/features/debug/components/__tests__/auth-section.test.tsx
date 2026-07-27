@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import axios from "axios";
 import React from "react";
 import { Alert } from "react-native";
 import { useToast } from "@/features/shared/hooks";
@@ -173,6 +174,32 @@ describe("AuthSection", () => {
     fireEvent.press(getByText("qa_admin"));
 
     await waitFor(() => expect(baseToastValue.showError).toHaveBeenCalled());
+  });
+
+  it("surfaces the server's reason when a fixture login fails", async () => {
+    // Arrange — the unseeded-fixture 404 from /testing/login-as. Without the
+    // reason this is indistinguishable from the missing-QA-token 404.
+    const error = new axios.AxiosError("Request failed with status code 404");
+    error.response = {
+      status: 404,
+      data: { detail: "User not found" },
+      statusText: "",
+      headers: {},
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test stub
+      config: {} as any,
+    };
+    baseHookValue.loginAs.mockRejectedValueOnce(error);
+    const { getByText } = render(<AuthSection onBack={jest.fn()} />);
+
+    // Act
+    fireEvent.press(getByText("qa_baseline"));
+
+    // Assert
+    await waitFor(() =>
+      expect(baseToastValue.showError).toHaveBeenCalledWith(
+        "Failed to log in as qa_baseline: HTTP 404 — User not found"
+      )
+    );
   });
 
   it("seeds a LAN (guest) user and confirms with a toast", async () => {

@@ -1,8 +1,10 @@
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { authLog } from "@/features/shared/core/utils/logger";
 import { useToast } from "@/features/shared/hooks";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { Button, Divider, IconButton, Text, useTheme } from "react-native-paper";
 import { useDebugAuth } from "../hooks/use-debug-auth";
+import { describeActionError } from "../utils/describe-action-error";
 import {
   DebugUserRole,
   FIXTURE_HANDLES,
@@ -44,8 +46,13 @@ export function AuthSection({ onBack }: AuthSectionProps) {
     try {
       await action();
       showToast(successMessage);
-    } catch {
-      showError(failureMessage);
+    } catch (error) {
+      // Surface the server's reason instead of swallowing it — the QA endpoints
+      // answer 404 for several unrelated causes (see describeActionError), and a
+      // bare "Failed to …" leaves a tester with nothing to act on.
+      const reason = describeActionError(error);
+      authLog.error("debug-auth › action failed", { failureMessage, reason, error });
+      showError(`${failureMessage}: ${reason}`);
     }
   };
 
@@ -137,7 +144,9 @@ export function AuthSection({ onBack }: AuthSectionProps) {
             Login as fixture
           </Text>
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            Logs in as a server-seeded qa_* account (POST /testing/seed/roles first).
+            Logs in as a server-seeded qa_* account (POST /testing/seed/roles
+            first). qa_guest is local-only — it signs in as a guest with no
+            server account or token.
           </Text>
           <View style={styles.buttonRow}>
             {FIXTURE_HANDLES.map((handle) => (

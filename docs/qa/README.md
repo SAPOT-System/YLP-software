@@ -33,6 +33,10 @@ Each feature under `docs/features/<name>/` has a `testing.md` with scenario tabl
 | SMS gateway | [features/sms-gateway/testing.md](../features/sms-gateway/testing.md) |
 | Sync | [features/sync/testing.md](../features/sync/testing.md) |
 
+## QA scenario/reset/login-as tooling
+
+Dev/staging-only server endpoints (`/testing/reset`, `/testing/seed/{scenario}`, `/testing/login-as/{handle}`) plus a one-tap "log in as fixture" button in the mobile debug panel let you reset the database to a known state and switch identities without registering throwaway accounts. See [scenario-tooling.md](scenario-tooling.md) for the full endpoint list, available scenarios, safety gating, and workflow.
+
 ## Manual / E2E verification
 
 There is no dedicated E2E test suite doc yet. For manual multi-device verification (the golden path a `testing.md` scenario table can't exercise — two physical devices over LAN), follow [getting-started/quickstart.md#4-register-a-user-and-verify-end-to-end-messaging](../getting-started/quickstart.md#4-register-a-user-and-verify-end-to-end-messaging).
