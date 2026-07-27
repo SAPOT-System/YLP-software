@@ -99,6 +99,16 @@ describe("CallService", () => {
     );
   });
 
+  // Drive the connection-service `remoteStream` event the service subscribes to
+  // in its constructor.
+  const emitRemoteStream = (stream: MediaStream) => {
+    const registration = mockConnectionService.on.mock.calls.find(
+      ([event]) => event === "remoteStream"
+    );
+    if (!registration) throw new Error("no remoteStream listener registered");
+    (registration[1] as (s: MediaStream) => void)(stream);
+  };
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -216,6 +226,37 @@ describe("CallService", () => {
         "switch-cam",
         expect.any(Function)
       );
+    });
+
+    // The event fires once and is never replayed, so the UI needs to be able to
+    // ask for the stream after the fact — it can mount or reset after the media
+    // has already landed.
+    it("retains the forwarded stream for later retrieval", () => {
+      const stream = createMockMediaStream();
+      emitRemoteStream(stream);
+
+      expect(callService.getRemoteStream()).toBe(stream);
+    });
+
+    it("holds no stream before any has arrived", () => {
+      expect(callService.getRemoteStream()).toBeNull();
+    });
+
+    it("drops the retained stream when the call is terminated", async () => {
+      await callService.startCall("audio", "peer-1");
+      emitRemoteStream(createMockMediaStream());
+
+      await callService.terminateCallConnection("peer-1");
+
+      expect(callService.getRemoteStream()).toBeNull();
+    });
+
+    it("drops a stream left over from a previous call when a new one starts", async () => {
+      emitRemoteStream(createMockMediaStream());
+
+      await callService.informPeerForIncomingCall("audio", "peer-1");
+
+      expect(callService.getRemoteStream()).toBeNull();
     });
   });
 

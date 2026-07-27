@@ -187,6 +187,23 @@ the resurrected ring re-arms its 30s no-answer timeout, which fires
 returns to accept/reject instead of the call room). A genuinely new ring carries a new
 `callId`, so it still registers normally.
 
+### Entering the call room does not discard live media
+
+The call room runs `resetCallState()` on focus for `status=calling` and
+`status=answering`, which clears the lifecycle, timer and streams so state from a previous
+call cannot bleed into a new one. On the answering path the call is already under way by
+then — `handleAccept` awaits `answerCall()` (which negotiates WebRTC) *before* navigating —
+so the remote stream can arrive before the room ever mounts.
+
+`remoteStream` is edge-triggered and never replayed, so a reset that simply cleared it
+would strand a live call on `"calling"` with no video until the 30s no-answer timeout tore
+it down. `CallService` therefore retains the stream of the call under way
+(`getRemoteStream()`), cleared both when a call terminates and when a new session starts,
+and `useRemoteStream`'s reset re-reads it instead of discarding it — re-adopting it also
+re-fires `onConnected()`, so `callState` ends the batch on `"connected"`. This mirrors how
+local media already works: `useLocalStream` re-reads `callService.getLocalCam(peerId)`
+rather than depending on having caught an event.
+
 ### Caller name on the notification path
 
 An incoming call reaches `call/incoming` from two places: the `audio-call`/`video-call`

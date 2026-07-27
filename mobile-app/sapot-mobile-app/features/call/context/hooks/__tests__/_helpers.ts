@@ -19,6 +19,7 @@ export function makeCallServiceMock(overrides: Record<string, any> = {}) {
     handleRemoteCallEnded: jest.fn().mockResolvedValue(undefined),
     syncMediaState: jest.fn(),
     getLocalCam: jest.fn().mockReturnValue(undefined),
+    getRemoteStream: jest.fn().mockReturnValue(null),
     toggleMic: jest.fn(),
     toggleCamera: jest.fn().mockResolvedValue(true),
     toggleSpeaker: jest.fn(),
