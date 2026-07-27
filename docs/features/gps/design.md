@@ -22,6 +22,31 @@ useGpsStreaming hook
                                        ◄── GET /gps/history/{id} ┤
 ```
 
+```mermaid
+flowchart LR
+    subgraph Mobile_Streamer["Mobile (any user)"]
+        H["useGpsStreaming hook<br/>expo-location"]
+    end
+    subgraph Server["Server (gps.py)"]
+        WS1["/gps/ws/{user_id}"]
+        DB[("UserLocation table")]
+        WS2["/gps/ws/monitor/rescuers/{id}"]
+        REST["GET /gps/latest<br/>GET /gps/history/{user_id}"]
+    end
+    subgraph Mobile_Rescuer["Mobile (rescuer)"]
+        L["useLatestLocations hook"]
+        Map["@maplibre map view"]
+    end
+
+    H -->|WS: lat, lng| WS1
+    WS1 -->|save| DB
+    WS1 -->|broadcast| WS2
+    WS2 --> L
+    L --> Map
+    L -.->|fallback / initial load| REST
+    REST -.-> DB
+```
+
 ---
 
 ## Mobile — Hooks
@@ -139,6 +164,22 @@ LIMIT 50;
 5. gps.py iterates monitor_connections; sends { user_id, lat, lng, timestamp }
 6. useLatestLocations receives frame; updates map marker state
 7. @maplibre map re-renders marker at new position
+```
+
+```mermaid
+sequenceDiagram
+    participant Streamer as Mobile (streamer)
+    participant Server as gps.py
+    participant DB as user_locations
+    participant Monitor as Mobile (rescuer monitor)
+
+    Streamer->>Streamer: watchPositionAsync callback fires
+    Streamer->>Server: WS /gps/ws/{user_id} { lat, lng }
+    Server->>Server: validate frame schema
+    Server->>DB: async INSERT
+    Server->>Monitor: broadcast to all monitor_connections<br/>{ user_id, lat, lng, timestamp }
+    Monitor->>Monitor: useLatestLocations updates marker state
+    Monitor->>Monitor: @maplibre re-renders marker
 ```
 
 ---

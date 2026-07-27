@@ -24,7 +24,6 @@ Neither validates the token's signature or expiry — actual verification is per
 
 **Chat UI state** is separate from persistence: `chatstore/Chatstore.ts` is a Zustand store (`useChatStore`) holding only in-memory `conversations`/`messages` for the UI — the source of truth is Dexie via the sync engine, not this store.
 
-**Real-time / crypto.** `lib/ws/client.ts` is a WebSocket client for live chat/call events. `lib/adminEncryption.ts` implements the same NaCl-box E2E scheme as the mobile app (see `../../mobile-app/sapot-mobile-app/CLAUDE.md` → Encryption, and ADR 0001) — do not implement a second crypto scheme here.
 
 ## Directory Guide
 
@@ -45,7 +44,7 @@ Neither validates the token's signature or expiry — actual verification is per
 
 - Route handlers (`app/api/*/route.ts`) should stay thin — call `secureFetch` and shape the response; put actual logic in `lib/` or `actions/`, not in `route.ts`.
 - Match the existing Tailwind + hand-rolled component style in `ui/dashboard/` — don't introduce a component library.
-- **`next.config.ts` sets `typescript.ignoreBuildErrors: true` and `eslint.ignoreDuringBuilds: true`** — `npm run build` succeeding does **not** mean types or lint are clean. Always run `npm run lint` and check types explicitly; don't rely on a successful build as a correctness signal.
+- **`next.config.ts` sets `typescript.ignoreBuildErrors: true` and `eslint.ignoreDuringBuilds: true`** — `pnpm run build` succeeding does **not** mean types or lint are clean. Always run `pnpm run lint` and check types explicitly; don't rely on a successful build as a correctness signal.
 - New backend calls: add a `lib/actions/*` helper or `app/api/*/route.ts` following the `secureFetch()` pattern, matching `../../docs/api/conventions.md` for response/error shape.
 
 ## Important Files
@@ -62,7 +61,6 @@ Neither validates the token's signature or expiry — actual verification is per
 - **Two divergent login implementations exist:** `actions/auth.ts`'s `loginAction` regex-parses the raw `Set-Cookie` header from the backend response and sets cookies manually; `api/login.ts` has a *second* `loginAction` that instead expects a JSON body (`data.access_token`) and also calls `db.open()`/`sync()`. Before changing login behavior, determine which one the login form actually calls — do not assume `actions/auth.ts` is canonical just because it's named more conventionally.
 - **`logout()` in `actions/auth.ts` deletes a cookie named `'auth_token'`**, but login sets `'access_token'`/`'refresh_token'` — this mismatch means logout likely does not clear the session cookie it thinks it does. Verify before relying on or "fixing" this without checking actual cookie names in use.
 - **Duplicate `collectChanges` logic** exists in `lib/sync/collectChanges.ts` and again inline inside `lib/sync/syncEngine.ts`, and they are not identical — changing sync behavior in one without the other will cause drift.
-- **`lib/ws/client.ts` hardcodes `ws://localhost:8000/ws`** — doesn't read `API_DOMAIN`, doesn't use `wss://`. Don't assume this works against any non-localhost/non-dev backend without checking this file first. It also has an unused, typo'd `handleCall` alongside the real `handleCallEvent` — don't confuse the two.
 - **Inconsistent `API_DOMAIN` fallback:** `api/fetch.ts` falls back to `https://127.0.0.1:8000`, `api/login.ts` falls back to `https://localhost:8000`. Don't assume both files agree on the default backend URL.
 - **Build success is not a correctness signal** — see Development Conventions; `ignoreBuildErrors`/`ignoreDuringBuilds` are set.
 
@@ -71,4 +69,3 @@ Neither validates the token's signature or expiry — actual verification is per
 - Any change to `lib/db.ts`'s Dexie schema must be checked against the mobile app's WatermelonDB schema (`../../mobile-app/sapot-mobile-app/features/shared/database/schema.ts`) and `../../docs/database/tables.md` — these two client schemas are expected to represent the same server data model.
 - Login/logout changes: reconcile `actions/auth.ts` and `api/login.ts` rather than editing just one (see Common Pitfalls).
 - Sync engine changes: update both `lib/sync/collectChanges.ts` and the inline copy in `lib/sync/syncEngine.ts`, or consolidate them as part of the change.
-- Real-time/WS changes: check `lib/ws/client.ts`'s hardcoded URL and `handleCall`/`handleCallEvent` naming before assuming existing behavior is correct.

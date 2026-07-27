@@ -14,6 +14,7 @@ All admin endpoints are under `/admin` (router in `server/app/api/admin.py`) and
 | POST | `/admin/login` | None | Admin-specific login (OAuth2 form: `username`/`password`); validates the user holds the `admin` role. |
 | POST | `/admin/refresh` | None | Exchange a refresh token for a new token pair (admin context). |
 | POST | `/admin/logout` | Admin | Blacklist the current admin access token. |
+| GET | `/admin/me` | Admin | Return the calling admin's own admin-facing info. |
 | GET | `/admin/get-active-users` | Admin | Return the latest known location for every currently-online user (GPS admin view). |
 | GET | `/admin/network/usage` | Admin | Live network throughput + interface details for the server host. |
 | GET | `/admin/network/interfaces` | Admin | List available network interfaces on the server host. |

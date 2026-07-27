@@ -54,6 +54,7 @@ export function createConnectionServiceDependencyMocks() {
 		on: jest.fn(),
 		sendMessage: jest.fn(),
 		disconnect: jest.fn(),
+		discardQueuedNegotiationFor: jest.fn(),
 		isConnected: false,
 	};
 
@@ -177,6 +178,7 @@ export function createCallServiceDependencyMocks() {
 		off: jest.fn(),
 		emit: jest.fn(),
 		connectToPeer: jest.fn(),
+		prepareCallSignaling: jest.fn().mockResolvedValue(undefined),
 		sendChatMessage: jest.fn(),
 		sendAckMessage: jest.fn(),
 		isWebSocketAllowed: jest.fn(() => true),

@@ -4,8 +4,13 @@
 
 | Environment | URL |
 |---|---|
-| Development | `http://<EXPO_PUBLIC_DEV_HOST>:8000` |
-| Preview / Production | `https://sapot.online` |
+| Development (`__DEV__`) | `https://<EXPO_PUBLIC_DEV_HOST>` |
+| Preview / Production | `https://server.sapot.lan` |
+
+Resolved by `config/runtime.ts` (`getApiUrl()`). The app always speaks HTTPS — there is
+no plaintext HTTP fallback and no explicit port in the base URL. A dev/QA host override
+(`setRuntimeHostOverride`, persisted via `features/shared/core/stores/secure-config.ts`)
+takes precedence over both rows when set. See [ENV_CONFIG.md](ENV_CONFIG.md#api--websocket-url-resolution).
 
 ## Authentication
 
@@ -36,7 +41,7 @@ The `apiClient` (axios instance) automatically attaches the token via an interce
 }
 ```
 
-**Response `200`:**
+**Response `201`:** (server sets `status_code=201`; previously documented here as `200`)
 ```json
 {
   "id":            "string",
@@ -96,6 +101,25 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 
 ---
 
+### `POST /auth/reauthenticate` — Re-authenticate (confirm password)
+**Auth:** Required · Rate limit: 5/minute
+
+Issues a short-lived (10 min) reauth token for sensitive actions, without invalidating the current session. Not previously documented here.
+
+**Request body:**
+```json
+{ "current_password": "string" }
+```
+
+**Response `200`:**
+```json
+{ "reauth_token": "string" }
+```
+
+**Errors:** `401` — wrong password.
+
+---
+
 ### `GET /auth/exists/` — Check Identifier Exists
 **Auth:** None  
 **Query params:** `identifier=<username|email|phone>`
@@ -108,8 +132,15 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 ---
 
 ### `POST /auth/change-password` — Change Password
-**Auth:** Required  
-**Query params:** `current_password=<string>&new_password=<string>`
+**Auth:** Required · Rate limit: 3/minute
+
+**Request body:** (was previously documented as query params — actual route takes a JSON body)
+```json
+{
+  "current_password": "string",
+  "new_password":      "string"
+}
+```
 
 ---
 
@@ -248,10 +279,12 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
   "last_name":      "string",
   "email":          "string",
   "phone_number":   "string",
-  "email_verified": "boolean",
+  "email_verified":  "boolean",
+  "phone_verified":  "boolean",
   "role":           "\"admin\" | \"rescuer\" | \"user\""
 }
 ```
+`phone_verified` was missing from this response body in the previous version of this doc.
 
 ---
 
@@ -271,7 +304,7 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 
 ### `POST /user-utils/search-user` — Search Users
 **Auth:** Required  
-**Query params:** `username=<string>`
+**Query params:** `identifier_string=<string>` (previously documented as `username`) `&limit=<number=20>&offset=<number=0>`
 
 **Response `200`:**
 ```json
@@ -285,7 +318,9 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
       "phone_is_verified": "boolean",
       "role":            "\"admin\" | \"rescuer\" | \"user\""
     }
-  ]
+  ],
+  "limit":  "number",
+  "offset": "number"
 }
 ```
 
@@ -309,6 +344,25 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 ```
 `last_active` / `status` come from `UserActivity`, stamped on WS connect/disconnect (and REST
 activity). The client uses `last_active` to render the "Last seen …" label for offline peers.
+
+---
+
+### `GET /user-utils/get-announcements` — Role-Filtered Announcements
+**Auth:** Required  
+**Query params:** `limit=<number=20>&offset=<number=0>`
+
+Not previously documented. Returns active, non-expired announcements filtered by the caller's role:
+admins see all; rescuers see `rescuer` + `user`-targeted announcements; regular users see only
+`user`-targeted announcements. Ordered newest first.
+
+**Response `200`:**
+```json
+{
+  "role":  "\"admin\" | \"rescuer\" | \"user\"",
+  "count": "number",
+  "announcements": [ "Announcement" ]
+}
+```
 
 ---
 
@@ -370,15 +424,26 @@ activity). The client uses `last_active` to render the "Last seen …" label for
 
 ### `GET /sync/pull` — Pull Changes from Server
 **Auth:** Required  
-**Query params:** `last_pulled_at=<number>&schema_version=<number>`
+**Query params:** `last_pulled_at=<number=0>&limit=<number=100>`
+
+`schema_version` is **not** an accepted param — it's commented out in `app/api/sync.py` (`# schema_version: int = Query(default=1)`) despite being documented here previously. Each table's change-set is paginated via `limit`; the response tells the client whether more pages remain.
 
 **Response `200`:**
 ```json
 {
-  "changes":   "<PushLocalDataRequestBody.changes>",
+  "changes": {
+    "conversations":            { "created": [], "updated": [], "deleted": [], "next_cursor": "number|null", "has_more": "boolean" },
+    "messages":                 { "created": [], "updated": [], "deleted": [], "next_cursor": "number|null", "has_more": "boolean" },
+    "conversation_participants":{ "created": [], "updated": [], "deleted": [], "next_cursor": "number|null", "has_more": "boolean" },
+    "calls":                    { "created": [], "updated": [], "deleted": [], "next_cursor": "number|null", "has_more": "boolean" },
+    "call_participants":        { "created": [], "updated": [], "deleted": [], "next_cursor": "number|null", "has_more": "boolean" },
+    "message_receipts":         { "created": [], "updated": [], "deleted": [], "next_cursor": "number|null", "has_more": "boolean" }
+  },
   "timestamp": "number — Unix timestamp (ms)"
 }
 ```
+`next_cursor`/`has_more` per table were not previously documented here — the client doesn't currently
+consume them (see the note below), but they're present on every response.
 
 ---
 
@@ -400,14 +465,22 @@ activity). The client uses `last_active` to render the "Last seen …" label for
     "calls": { "created": [], "updated": [], "deleted": [] },
     "call_participants": { "created": [], "updated": [], "deleted": [] },
     "message_receipts": { "created": [], "updated": [], "deleted": [] }
-  }
+  },
+  "guest_users": { "<user_id>": { "username": "string", "first_name": "string", "last_name": "string" } }
 }
 ```
+`guest_users` (not previously documented) lets the client supply display-name hints for
+not-yet-registered peers referenced by a pushed record (e.g. a P2P-only message from a guest). The
+server uses these to materialize a placeholder `User`+`Guest` row instead of failing the FK.
 
 **Response `200`:**
 ```json
 { "status": "ok" }
 ```
+
+**Errors** (not previously documented): `409` — a referenced record was modified on the server after
+the client's `last_pulled_at` (conflict; client should re-pull before retrying). `404` — the record
+was already soft-deleted on the server. `500` — unhandled sync error (transaction rolled back).
 
 ---
 

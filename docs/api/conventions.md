@@ -74,13 +74,21 @@ Some endpoints return structured detail objects:
 
 Rate limiting is implemented via `slowapi`. When a rate limit is exceeded the server returns HTTP **429** with a `Retry-After` header.
 
+Limits are keyed by **client IP** (`slowapi.util.get_remote_address`), not by user or token — so on a
+LAN where many clients share one NAT egress address, they also share these budgets. Counters are
+stored in Redis (`REDIS_URL`) so they're shared across Gunicorn workers; if Redis is unavailable
+the limiter silently falls back to per-process in-memory counters, which under multiple workers
+effectively multiplies each limit by the worker count. That fallback is acceptable for tests and
+single-worker dev, not for production (`server/app/limiter.py`).
+
 ```json
 {
   "detail": "Rate limit exceeded: 5 per 1 minute"
 }
 ```
 
-Per-endpoint limits:
+Limits are applied per-endpoint via `@limiter.limit(...)` decorators, not globally. The complete
+set (every decorated route in `server/app/api/`):
 
 | Endpoint | Limit |
 |---|---|
@@ -89,6 +97,25 @@ Per-endpoint limits:
 | `POST /auth/refresh` | 10/minute |
 | `POST /auth/reauthenticate` | 5/minute |
 | `POST /auth/change-password` | 3/minute |
+| `POST /auth/forgot-password/otp/send` | 3/minute |
+| `POST /auth/forgot-password/otp/verify` | 5/minute |
+| `POST /auth/forgot-password/email-code` | 10/minute |
+| `POST /auth/forgot-password/phone-code` | 10/minute |
+| `POST /auth/forgot-password/email-recovery/send` | 3/minute |
+| `GET /auth/forgot-password/email-recovery/verify` | 5/minute |
+| `POST /auth/forgot-password/security-question/answer` | 10/minute |
+| `POST /auth/forgot-password/recovery-with-recovery-key` | 10/minute |
+| `POST /keys/register` | 3/minute |
+| `POST /keys/contacts/{peer_id}` | 30/minute |
+| `GET /keys/contacts` | 10/minute |
+| `POST /users/wrapped-key` | 3/minute |
+| `GET /users/wrapped-key` | 10/minute |
+| `PUT /users/wrapped-key` | 5/minute |
+| `POST /users/recovery-setup` | 3/minute |
+| `GET /users/recovery-key` | 5/minute |
+| `PUT /users/recovery-keys` | 5/minute |
+
+Every other endpoint is unlimited by `slowapi`.
 
 Login attempts are also tracked per `(user, IP)` with progressive lockout. A locked account returns 429 with:
 
@@ -118,6 +145,8 @@ Paginated endpoints use `fastapi-pagination`. Response shape:
 ```
 
 Query params: `page` (default 1), `size` (default 20).
+
+This envelope applies to standard REST list endpoints only. A few endpoints use a different shape for their own protocol reasons: [sync.md](sync.md) uses cursor-based pagination (`next_cursor`/`has_more`), [messaging-and-websocket.md](messaging-and-websocket.md) uses `limit`/`before`/`oldest_created_at`, and [mikrotik-telemetry.md](mikrotik-telemetry.md) returns plain `limit`-bounded arrays with no envelope. Check the endpoint's own doc before assuming this shape.
 
 ---
 

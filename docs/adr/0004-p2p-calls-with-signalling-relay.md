@@ -1,5 +1,7 @@
 # Calls are P2P WebRTC media with a server-relayed signalling channel only
 
+**Status:** Accepted
+
 ## Context
 
 Voice/video calls need a way for two devices to discover each other's network path and exchange SDP/ICE candidates (signalling) before media can flow. The server could either relay the call media itself (a TURN-like or SFU-like architecture) or relay only the small signalling messages and let media flow directly between devices.
@@ -9,6 +11,17 @@ SAPOT's server is not provisioned as a media relay (no TURN server, no SFU) and 
 ## Decision
 
 Calls use WebRTC peer-to-peer for media. The server's `/ws/` WebSocket relays only SDP offer/answer and ICE candidate messages between the two peers (`SignalingService`, `peer_connection.py`) — it never touches audio/video streams.
+
+```mermaid
+flowchart LR
+    subgraph Signalling path — via server
+        A1[Caller] -->|SDP offer/answer, ICE candidates| S[Server /ws/]
+        S -->|relay| A2[Callee]
+    end
+    subgraph Media path — direct P2P, never touches server
+        A1 -.->|WebRTC audio/video RTP| A2
+    end
+```
 
 ## Consequences
 

@@ -36,6 +36,22 @@ Voice and video calls are established peer-to-peer over WebRTC. Server signallin
 └──────────────────────────────────────────────┘
 ```
 
+```mermaid
+flowchart TD
+    A["CallService<br/>(lifecycle owner)<br/>start / accept / decline / end / hold"]
+    B["WebrtcSessionManager<br/>(one per active call)<br/>holds one WebrtcAdapter per remote peer"]
+    C["SignalingService<br/>(routes control msgs)<br/>mode: auto | lan | server"]
+    C1["WsSignalingAdapter<br/>(server relay)"]
+    C2["TcpClientAdapter<br/>(LAN direct)"]
+    D["CallMediaService<br/>(camera / mic streams)<br/>getUserMedia, track management<br/>audio routing via react-native-incall-mgr"]
+
+    A -->|creates / tears down| B
+    B -->|SDP / ICE via| C
+    C --> C1
+    C --> C2
+    B -->|local media| D
+```
+
 ### CallService
 
 - Owns the call state machine: `idle → ringing → connecting → active → ended`.
@@ -43,6 +59,22 @@ Voice and video calls are established peer-to-peer over WebRTC. Server signallin
 - Persists call records to WatermelonDB (`call` table) and participant rows (`callparticipant` table).
 - Delegates audio-route decisions to `CallMediaService`.
 - Enqueues a sync push after call state changes via `SyncService.schedulePush()`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> ringing: startCall() / incoming offer
+    ringing --> connecting: accepted
+    ringing --> declined: user declines
+    ringing --> missed: no answer before timeout
+    connecting --> active: ICE completes, P2P media open
+    connecting --> ended: ICE negotiation fails (no TURN fallback)
+    active --> ended: hangup / peer ends
+    active --> active: unexpected offer from peer (evict adapter, answer fresh)
+    declined --> [*]
+    missed --> [*]
+    ended --> [*]
+```
 
 ### WebrtcSessionManager
 
@@ -88,6 +120,27 @@ Initiator                    Server                      Peer
    │◄── ICE candidate ──────────│◄── ICE candidate ────────│
    │                            │                          │
    │◄═══════════ P2P media (WebRTC DataChannel / RTP) ════►│
+```
+
+```mermaid
+sequenceDiagram
+    participant Initiator
+    participant Server
+    participant Peer
+
+    Initiator->>Initiator: createOffer()
+    Initiator->>Server: offer SDP (POST /calls/signal)
+    Server->>Peer: relay offer
+    Peer->>Peer: onIncomingCall → user accepts → createAnswer()
+    Peer->>Server: answer SDP
+    Server->>Initiator: relay answer
+
+    Initiator->>Server: ICE candidate
+    Server->>Peer: relay ICE
+    Peer->>Server: ICE candidate
+    Server->>Initiator: relay ICE
+
+    Note over Initiator,Peer: Once ICE completes — direct P2P media<br/>(WebRTC DataChannel / RTP), server carries no further media
 ```
 
 1. Initiator calls `CallService.startCall(peerId, type)`.

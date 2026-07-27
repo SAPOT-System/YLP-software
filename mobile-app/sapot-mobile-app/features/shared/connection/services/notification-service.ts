@@ -6,6 +6,7 @@ export type IncomingCallData = {
   callType: string;
   callerName: string;
   conversationId?: string;
+  callId?: string;
 };
 
 export class NotificationService {
@@ -23,6 +24,7 @@ export class NotificationService {
             id: data.callerId,
             call_type: data.callType === "video-call" ? "video" : "audio",
             conversation_id: data.conversationId ?? "",
+            call_id: data.callId ?? "",
           },
         } as Notifications.NotificationContentInput,
         trigger: {

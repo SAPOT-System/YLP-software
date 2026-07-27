@@ -155,14 +155,15 @@ Used to signal call lifecycle events between peers.
 ### `call-ready`
 **Transport:** WebSocket + TCP &nbsp;|&nbsp; **Direction:** Sent & Received
 
-> Sent by the callee to signal they are ready to begin WebRTC negotiation.
+> Sent by the callee after accepting. The caller begins WebRTC negotiation only when `callId` matches its active session.
 
 ```json
 {
   "type": "call-ready",
   "data": {
     "from_user / from": "string",
-    "to":               "string"
+    "to":               "string",
+    "callId":           "string  — active call session ID"
   }
 }
 ```
@@ -249,7 +250,9 @@ Sent and received directly between peers after WebRTC connection is established.
 ---
 
 ### `seen` — read receipt
-**Transport:** WebRTC Data Channel &nbsp;|&nbsp; **Direction:** Sent & Received
+**Transport:** WebRTC Data Channel or WebSocket relay &nbsp;|&nbsp; **Direction:** Sent & Received
+
+> Admin conversations use the WebSocket relay and never establish WebRTC.
 
 ```json
 {
@@ -335,9 +338,9 @@ are intercepted inside the adapter and never propagate to chat handling.
 | `call-ready` | ✓ | ✓ | |
 | `call-rejected` | ✓ | ✓ | |
 | `call-missed` | ✓ | ✓ | |
-| `chat` | | | ✓ |
-| `ack` | | | ✓ |
-| `seen` | | | ✓ |
+| `chat` | ✓ | | ✓ |
+| `ack` | ✓ | | ✓ |
+| `seen` | ✓ | | ✓ |
 | `camera_toggle` | | | ✓ |
 | `mic_toggle` | | | ✓ |
 | `ping` | | | ✓ |

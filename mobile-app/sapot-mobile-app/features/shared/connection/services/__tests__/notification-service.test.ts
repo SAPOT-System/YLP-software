@@ -52,6 +52,7 @@ describe("NotificationService", () => {
       await service.showCallAlert({
         callerId: "peer-1",
         callType: "video-call",
+        callId: "call-1",
         callerName: "Alice",
         conversationId: "conv-1",
       });
@@ -61,6 +62,7 @@ describe("NotificationService", () => {
           content: expect.objectContaining({
             data: expect.objectContaining({
               call_type: "video",
+              call_id: "call-1",
             }),
           }),
         })

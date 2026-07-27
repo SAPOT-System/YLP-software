@@ -42,7 +42,7 @@ function makeCallEnded(from = "peer-1"): CallEndedMessage {
 }
 
 function makeCallReady(from = "peer-1"): CallReadyMessage {
-  return { type: "call-ready", data: { from, to: "me" } };
+  return { type: "call-ready", data: { from, to: "me", callId: "call-abc" } };
 }
 
 function makeCallRejectedBusy(from = "peer-1"): CallRejectedMessage {
@@ -215,7 +215,10 @@ describe("CallMessageRouter", () => {
       expect(result.action).toBe("emit");
       if (result.action === "emit") {
         expect(result.eventName).toBe("call-ready");
-        expect(result.payload).toBe("peer-1");
+        expect(result.payload).toEqual({
+          peerId: "peer-1",
+          callId: "call-abc",
+        });
       }
     });
   });
@@ -234,13 +237,38 @@ describe("CallMessageRouter", () => {
       }
     });
 
-    it("returns noop when reason is not busy", async () => {
+    it("returns emit with call-rejected event when reason is declined", async () => {
       const deps = makeDeps();
       const router = new CallMessageRouter(deps);
 
       const result = await router.handle(makeCallRejectedDeclined("peer-1"));
 
-      expect(result.action).toBe("noop");
+      expect(result.action).toBe("emit");
+      if (result.action === "emit") {
+        expect(result.eventName).toBe("call-rejected");
+        expect(result.payload).toMatchObject({ peerId: "peer-1" });
+      }
+    });
+
+    it("passes callId and conversationId through to the call-rejected payload", async () => {
+      const deps = makeDeps();
+      const router = new CallMessageRouter(deps);
+      const message: CallRejectedMessage = {
+        type: "call-rejected",
+        data: { from: "peer-1", to: "me", reason: "declined", callId: "call-abc", conversationId: "conv-1", callType: "video" },
+      };
+
+      const result = await router.handle(message);
+
+      expect(result.action).toBe("emit");
+      if (result.action === "emit") {
+        expect(result.payload).toMatchObject({
+          peerId: "peer-1",
+          callId: "call-abc",
+          conversationId: "conv-1",
+          callType: "video",
+        });
+      }
     });
   });
 

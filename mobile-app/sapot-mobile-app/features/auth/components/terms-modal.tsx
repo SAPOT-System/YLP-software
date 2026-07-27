@@ -1,7 +1,7 @@
 import { fetchTermsContent } from "@/features/auth/api/auth.api";
 import { authLog } from "@/features/shared/core/utils/logger";
 import React, { useEffect, useState } from "react";
-import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import {
   Button,
   Divider,
@@ -76,7 +76,6 @@ export const TermsModal = ({ visible, onAccept, onDismiss }: TermsModalProps) =>
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
 
   const loadTerms = async () => {
     setLoading(true);
@@ -95,22 +94,11 @@ export const TermsModal = ({ visible, onAccept, onDismiss }: TermsModalProps) =>
   };
 
   useEffect(() => {
-    if (!visible) {
-      setHasScrolledToBottom(false);
-      return;
-    }
+    if (!visible) return;
     if (content !== null) return;
     loadTerms();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
-
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (hasScrolledToBottom) return;
-    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 20) {
-      setHasScrolledToBottom(true);
-    }
-  };
 
   return (
     <Portal>
@@ -150,20 +138,9 @@ export const TermsModal = ({ visible, onAccept, onDismiss }: TermsModalProps) =>
           <ScrollView
             style={{ flex: 1, marginBottom: 8 }}
             showsVerticalScrollIndicator
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
           >
             <TermsContent content={content} textColor={theme.colors.onBackground} />
           </ScrollView>
-        )}
-
-        {content && !hasScrolledToBottom && (
-          <Text
-            variant="labelSmall"
-            style={{ color: theme.colors.outline, textAlign: "center", marginBottom: 8 }}
-          >
-            Scroll to the bottom to accept
-          </Text>
         )}
 
         <Divider style={{ marginBottom: 12 }} />
@@ -174,7 +151,7 @@ export const TermsModal = ({ visible, onAccept, onDismiss }: TermsModalProps) =>
           <Button
             mode="contained"
             onPress={onAccept}
-            disabled={loading || !!error || !content || !hasScrolledToBottom}
+            disabled={loading || !!error || !content}
           >
             Accept
           </Button>

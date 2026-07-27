@@ -13,21 +13,10 @@ flowchart TD
     B -->|No — guest| C[Generate a random encryption key on the device]
     C --> Z([End])
 
-    B -->|Yes| D{PIN lock enabled?}
-
-    D -->|Yes| E[Load the PIN-protected key bundle from device storage]
-    E --> F{PIN bundle found and PIN entered?}
-    F -->|Yes| G[Decrypt bundle using PIN-derived key]
-    G --> H{Decryption successful?}
-    H -->|Yes| Z
-    H -->|No| I
-
-    F -->|No| I[Derive a key-encryption key from the user password]
-
-    D -->|No| J{Cached keys present in secure storage?}
+    B -->|Yes| J{Cached keys present in secure storage?}
     J -->|Yes| K[Load keys from secure storage]
     K --> Z
-    J -->|No| I
+    J -->|No| I[Derive a key-encryption key from the user password]
 
     I --> L[Request the wrapped key bundle from the server]
     L --> M{Bundle found on server?}

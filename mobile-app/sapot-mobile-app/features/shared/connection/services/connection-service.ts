@@ -68,6 +68,18 @@ export type CallEndedEventPayload = {
   conversationId?: string;
 };
 
+export type CallReadyEventPayload = {
+  peerId: string;
+  callId: string;
+};
+
+export type CallRejectedEventPayload = {
+  peerId: string;
+  callId?: string;
+  conversationId?: string;
+  callType?: "audio" | "video";
+};
+
 export type ConnectionServiceEvents = {
   "audio-call": [
     { peerId: string; callerName: string; conversationId?: string; callId?: string }
@@ -76,7 +88,8 @@ export type ConnectionServiceEvents = {
     { peerId: string; callerName: string; conversationId?: string; callId?: string }
   ];
   "call-ended": [payload: CallEndedEventPayload];
-  "call-ready": [peerId: string];
+  "call-rejected": [payload: CallRejectedEventPayload];
+  "call-ready": [payload: CallReadyEventPayload];
   "call-busy": [
     peerId: string,
     payload: {
@@ -429,6 +442,8 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
           this.emit("call-busy", peerId, { callId, conversationId, messageId, callType });
         } else if (result.eventName === "call-ended") {
           this.emit("call-ended", result.payload);
+        } else if (result.eventName === "call-rejected") {
+          this.emit("call-rejected", result.payload);
         } else if (result.eventName === "call-ready") {
           this.emit("call-ready", result.payload);
         } else {
@@ -625,6 +640,54 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
       throw error;
     }
   }
+  /**
+   * Makes the call-invitation transport available without creating a WebRTC
+   * peer connection. This keeps SDP negotiation behind the callee's explicit
+   * call-ready response while still supporting LAN mode, where the invitation
+   * itself must travel over TCP.
+   */
+  async prepareCallSignaling(
+    peerId: string,
+    ipAddress?: string,
+    port?: number,
+    addresses?: string[]
+  ): Promise<void> {
+    const effectiveMode = this.appModeStore.getEffectiveMode(
+      this.userStore.isGuest
+    );
+    const canUseWebsocket = this.isWebSocketAllowed();
+    const canUseTcp = this.isTcpAllowed();
+    const isWsConfigured = canUseWebsocket
+      ? this.signalingService.ensureWsSignaling()
+      : false;
+
+    if (effectiveMode === "server") {
+      if (!isWsConfigured) {
+        throw new Error("Websocket signaling is required in server mode");
+      }
+      return;
+    }
+
+    // In auto mode the adapter queues the invitation until the configured WS
+    // opens. Avoid dialing TCP or creating WebRTC before the callee answers.
+    if (effectiveMode === "auto" && isWsConfigured) return;
+
+    const tcpAdapter = this.getTcpClientAdapter(peerId);
+    const candidateAddresses = dedupeCandidateAddresses(ipAddress, addresses);
+    const isTcpConnected = await this.establishTcpForMode({
+      peerId,
+      mode: effectiveMode,
+      tcpAdapter,
+      candidateAddresses,
+      port,
+      canUseTcp,
+      isWsConfigured,
+    });
+
+    if (!isTcpConnected && !isWsConfigured) {
+      throw new Error("No call signaling transport available");
+    }
+  }
 
   /**
    * Initiates connection to a peer using TCP and WebRTC.
@@ -643,7 +706,15 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     }
     const run = this.connectToPeerImpl(peerId, ipAddress, port, addresses, _retryCount);
     if (_retryCount === 0) {
-      const tracked = run.finally(() => this.connectingPeers.delete(peerId));
+      // Clear our own registration only. `terminateCallConnection` drops the entry
+      // while the connect is still running, so by the time this settles the map may
+      // already hold a *newer* connect — deleting that one silently disables
+      // de-duplication and lets two connects race, each sending its own offer.
+      const tracked: Promise<void> = run.finally(() => {
+        if (this.connectingPeers.get(peerId) === tracked) {
+          this.connectingPeers.delete(peerId);
+        }
+      });
       this.connectingPeers.set(peerId, tracked);
       return tracked;
     }
@@ -796,14 +867,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
 
   sendChatMessage(
     peerId: string,
-    messageData: DataChatMessageI
+    messageData: DataChatMessageI,
+    options: { forceWebSocket?: boolean } = {}
   ): "webrtc" | "ws" {
     let webrtcConnected = false;
-    try {
-      webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch (error) {
-      connectionLog.debug("connection › isWebrtcConnected error (sendChat)", { peerId, error });
-      webrtcConnected = false;
+    if (!options.forceWebSocket) {
+      try {
+        webrtcConnected = this.isWebrtcConnected(peerId);
+      } catch (error) {
+        connectionLog.debug("connection › isWebrtcConnected error (sendChat)", { peerId, error });
+        webrtcConnected = false;
+      }
     }
 
     if (webrtcConnected) {
@@ -827,13 +901,19 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     return "ws";
   }
 
-  sendAckMessage(peerId: string, ackData: DataAckMessage) {
+  sendAckMessage(
+    peerId: string,
+    ackData: DataAckMessage,
+    options: { forceWebSocket?: boolean } = {}
+  ) {
     let webrtcConnected = false;
-    try {
-      webrtcConnected = this.isWebrtcConnected(peerId);
-    } catch (error) {
-      connectionLog.debug("connection › isWebrtcConnected error (sendAck)", { peerId, error });
-      webrtcConnected = false;
+    if (!options.forceWebSocket) {
+      try {
+        webrtcConnected = this.isWebrtcConnected(peerId);
+      } catch (error) {
+        connectionLog.debug("connection › isWebrtcConnected error (sendAck)", { peerId, error });
+        webrtcConnected = false;
+      }
     }
 
     if (webrtcConnected) {
@@ -856,12 +936,17 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.signalingService.sendAckMessage(peerId, ackData);
   }
 
-  sendSeenMessage(peerId: string, conversationId: string) {
-    this.webrtcSessionManager.sendSeenMessage(peerId, {
-      conversationId,
-      from: this.userStore.user.id,
-      to: peerId,
-    });
+  sendSeenMessage(
+    peerId: string,
+    conversationId: string,
+    options: { forceWebSocket?: boolean } = {}
+  ) {
+    const seenData = { conversationId, from: this.userStore.user.id, to: peerId };
+    if (options.forceWebSocket || !this.isWebrtcConnected(peerId)) {
+      this.signalingService.sendSeenMessage(peerId, seenData);
+      return;
+    }
+    this.webrtcSessionManager.sendSeenMessage(peerId, seenData);
   }
 
   sendCallControlMessage(
@@ -891,6 +976,12 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   terminateCallConnection(peerId: string) {
     this.callMediaService.terminateCallConnection(peerId);
     this.webrtcSessionManager.evictWebrtcAdapter(peerId);
+    // If the call is ending during an outage, this session's offers/ICE are still
+    // sitting in the WS outbound queue. Left there, the reconnect flush replays
+    // them at the peer and poisons the next call's negotiation — drop them now.
+    this.wsSignalingAdapter.discardQueuedNegotiationFor(peerId);
+    // Don't let the next call reuse this call's in-flight connect promise.
+    this.connectingPeers.delete(peerId);
   }
 
   toggleMic(peerId: string) {
@@ -986,6 +1077,23 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     retryCount: number
   ): Promise<void> {
     this.webrtcSessionManager.evictWebrtcAdapter(peerId, true);
+    // Rebuild the TCP leg too. `TcpClientAdapter` has no keepalive or heartbeat —
+    // `connectionState` only leaves "connected" on a socket close/error event, which
+    // a vanished Wi-Fi interface never delivers. So after an outage the cached
+    // adapter still reports `isConnected`, `establishTcpForMode` skips redialing,
+    // and the retry writes its offer straight back into the dead socket. Evicting
+    // forces the next attempt to dial a fresh one (falling back to WS in auto mode).
+    //
+    // Only when we still hold an address to redial, though: `retryConnect` replays
+    // the original argument list, and `CallService.connect` falls back to
+    // `connectToPeer(id)` with no ip/port whenever mDNS has not (re)discovered the
+    // peer. Evicting there trades a working session for one `establishTcpForMode`
+    // cannot rebuild, so it throws ("TCP connection requires ipAddress and port" in
+    // lan mode, "No signaling transport available" in auto without WS) and the
+    // connect rejects instead of retrying — the call never forms.
+    if (dedupeCandidateAddresses(ipAddress, addresses).length > 0 && port) {
+      this.evictTcpClientAdapter(peerId);
+    }
     return this.connectToPeer(peerId, ipAddress, port, addresses, retryCount + 1);
   }
 

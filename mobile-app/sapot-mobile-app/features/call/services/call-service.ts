@@ -3,7 +3,10 @@ import { CallStatus, CallType } from "@/features/shared/core/database/model/Call
 import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
 import { GuestUser } from "@/features/shared/core/database/model/guest-user";
 import { Peer } from "@/features/shared/core/database/model/Peer";
-import { ConnectionService } from "@/features/shared/connection/services/connection-service";
+import {
+  CallReadyEventPayload,
+  ConnectionService,
+} from "@/features/shared/connection/services/connection-service";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { PeerService } from "@/features/shared/peer/peer-service";
 import { UserStore } from "@/features/shared/core/stores/user-store";
@@ -44,8 +47,8 @@ type CallConnectionService = Pick<
   | "renegotiate"
   | "sendCallMessage"
   | "connectToPeer"
+  | "prepareCallSignaling"
   | "on"
-  | "once"
   | "off"
   | "terminateCallConnection"
   | "getWebrtcAdapter"
@@ -120,7 +123,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         }
       ) => void)
     | null = null;
-  private callReadyHandler: ((peerId: string) => void) | null = null;
+  private callReadyHandler:
+    | ((payload: CallReadyEventPayload) => void)
+    | null = null;
 
   private getConnectedState(peerId: string): "connected" | "disconnected" {
     return this.connectedStateByPeer.get(peerId) ?? "disconnected";
@@ -306,21 +311,23 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       // Set keep screen on during call
       InCallManager.setKeepScreenOn(true);
 
-      if (!this.connectionService.isWebrtcConnected(peerId)) {
-        await this.connectionService.waitForDataChannel(peerId);
-      }
-
-      // Initialize local audio and video before announcing readiness
-      await this.connectionService.initializeStream(type, peerId);
+      // Acquire media before accepting, but do not create or negotiate WebRTC
+      // until the caller receives this session's correlated readiness signal.
+      await this.connectionService.initializeStreamEarly(type, peerId);
 
       this.connectionService.sendCallMessage(peerId, {
         type: "call-ready",
         data: {
           from: this.userStore.user.id,
           to: peerId,
+          callId: session.callId,
         },
       });
 
+      if (!this.connectionService.isWebrtcConnected(peerId)) {
+        await this.connectionService.waitForDataChannel(peerId);
+      }
+      await this.connectionService.initializeStream(type, peerId);
       this.setConnectedState(peerId, "connected");
     } catch (error) {
       const appErr = toAppError(error, "media");
@@ -356,6 +363,27 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       captureAppError(appErr);
       throw appErr;
     }
+  }
+
+  private async prepareCallSignaling(id: string): Promise<void> {
+    const discoveredPeer = this.peerService.findDiscoveredPeerById(id);
+    if (discoveredPeer) {
+      callLog.info("call › prepare signaling with ip and port", {
+        peerId: id,
+      });
+      await this.connectionService.prepareCallSignaling(
+        discoveredPeer.id,
+        discoveredPeer.ipAddress,
+        discoveredPeer.port,
+        discoveredPeer.addresses
+      );
+      return;
+    }
+
+    callLog.info("call › prepare signaling without discovered address", {
+      peerId: id,
+    });
+    await this.connectionService.prepareCallSignaling(id);
   }
 
   private async handleIncomingBusyReject(
@@ -431,16 +459,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     const session = await this.ensureSession(peerId, type, false);
     this.connectionService.setActiveCall(peerId);
 
-    // Fire TCP/WebRTC attempt in background so sendCallMessage is not blocked.
-    // Non-fatal: sendCallMessage has its own WS fallback.
-    if (!this.connectionService.isWebrtcConnected(peerId)) {
-      this.connect(peerId).catch((connectError) => {
-        callLog.warn("call › connect failed, falling back to WS notify", {
-          peerId,
-          connectError,
-        });
-      });
-    }
+    await this.prepareCallSignaling(peerId);
 
     callLog.info("call › initializing media early", { peerId, type });
     try {
@@ -474,12 +493,36 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     if (this.callReadyHandler) {
       this.connectionService.off("call-ready", this.callReadyHandler);
     }
-    this.callReadyHandler = async (readyPeerId) => {
-      if (readyPeerId !== peerId) return;
-      this.callReadyHandler = null;
-      await this.handleCallReady(readyPeerId);
+    this.callReadyHandler = (ready) => {
+      if (ready.peerId !== peerId) return;
+
+      const activeSession = this.callSessions.get(peerId);
+      if (
+        !activeSession ||
+        activeSession.finalized ||
+        ready.callId !== activeSession.callId
+      ) {
+        callLog.warn("call › stale call-ready ignored", {
+          peerId,
+          readyCallId: ready.callId,
+          activeCallId: activeSession?.callId,
+        });
+        return;
+      }
+
+      if (this.callReadyHandler) {
+        this.connectionService.off("call-ready", this.callReadyHandler);
+        this.callReadyHandler = null;
+      }
+
+      void Promise.all([
+        this.handleCallReady(ready.peerId),
+        this.startCall(type, ready.peerId),
+      ]).catch((error) => {
+        callLog.error("call › call-ready handling failed", { peerId, error });
+      });
     };
-    this.connectionService.once("call-ready", this.callReadyHandler);
+    this.connectionService.on("call-ready", this.callReadyHandler);
 
     try {
       this.connectionService.sendCallMessage(peerId, {
@@ -556,14 +599,22 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     try {
       callLog.info("call › terminate", { peerId });
 
-      if (this.getConnectedState(peerId) === "connected") {
+      const session = this.callSessions.get(peerId);
+      const wasConnected = this.getConnectedState(peerId) === "connected";
+
+      // A ringing call still owns an in-flight WebRTC negotiation and queued
+      // signaling. Tear those down even if media never reached connected, or the
+      // next call can inherit the failed attempt after network recovery.
+      if ((session && !session.finalized) || wasConnected) {
         this.connectionService.terminateCallConnection(peerId);
+      }
+
+      if (wasConnected) {
         InCallManager.stop();
         InCallManager.setKeepScreenOn(false);
         this.audioService.removeAudioEventListeners();
       }
 
-      const session = this.callSessions.get(peerId);
       const status = this.callLog.resolveFinalStatus(reason, session);
       const endTime = new Date();
 
@@ -654,8 +705,13 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         return;
       }
 
-      if (this.getConnectedState(peerId) === "connected") {
-        this.connectionService.terminateCallConnection(peerId);
+      const wasConnected = this.getConnectedState(peerId) === "connected";
+
+      // The remote peer can end while this side is still negotiating. Clear that
+      // partial session too so a later call starts with fresh transport state.
+      this.connectionService.terminateCallConnection(peerId);
+
+      if (wasConnected) {
         InCallManager.stop();
         InCallManager.setKeepScreenOn(false);
         this.audioService.removeAudioEventListeners();

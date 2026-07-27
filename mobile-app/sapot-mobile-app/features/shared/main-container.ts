@@ -56,15 +56,10 @@ type MigrationOk = {
 };
 
 let _pendingRawPassword: string | null = null;
-let _pendingRawPIN: string | null = null;
 let _onResetRequested: (() => void) | null = null;
 
 export function setPendingPassword(password: string): void {
   _pendingRawPassword = password;
-}
-
-export function setPendingPIN(pin: string): void {
-  _pendingRawPIN = pin;
 }
 
 export function setResetRequestedCallback(cb: () => void): void {
@@ -135,7 +130,6 @@ export class MainContainer {
 
     this.localEncryptionService = new LocalEncryptionService({
       getPassword: () => _pendingRawPassword,
-      getPIN: () => _pendingRawPIN ?? "",
       userId: this.userContainer.userStore.isGuest
         ? null
         : this.userContainer.userStore.user.id,
@@ -316,7 +310,6 @@ export class MainContainer {
   private async initializeKeys(): Promise<KeysReady> {
     await this.localEncryptionService.initialize();
     _pendingRawPassword = null;
-    _pendingRawPIN = null;
 
     if (!this.userContainer.userStore.isGuest) {
       const token = await getStoredAccessToken();
@@ -534,6 +527,13 @@ export class MainContainer {
           appLog.error("app › ip change rebind failed", { error });
         }
       })();
+    });
+    this.networkConfig.setOnNetworkRegained(() => {
+      try {
+        this.signalingService.restartWsSignalingAfterNetworkRegain();
+      } catch (error) {
+        appLog.error("app › ws restart after network regain failed", { error });
+      }
     });
     this.networkConfig.startWatching();
 
