@@ -27,6 +27,7 @@ interface IncomingCallData {
   callerName: string;
   notificationId: string;
   conversationId?: string;
+  callId?: string;
 }
 
 interface IncomingMessageData {
@@ -64,6 +65,7 @@ export const useNotifications = (
             conversationId: data.conversation_id
               ? String(data.conversation_id)
               : undefined,
+            callId: data.call_id ? String(data.call_id) : undefined,
           });
         } else if (data?.type === "incoming_message") {
           backgroundLog.info("notifications › incoming message received (fg)");
@@ -96,6 +98,7 @@ export const useNotifications = (
             conversationId: data.conversation_id
               ? String(data.conversation_id)
               : undefined,
+            callId: data.call_id ? String(data.call_id) : undefined,
           });
         } else if (data?.type === "incoming_message") {
           backgroundLog.info(

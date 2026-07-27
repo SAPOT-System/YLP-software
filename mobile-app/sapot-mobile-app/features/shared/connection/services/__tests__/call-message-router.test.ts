@@ -42,7 +42,7 @@ function makeCallEnded(from = "peer-1"): CallEndedMessage {
 }
 
 function makeCallReady(from = "peer-1"): CallReadyMessage {
-  return { type: "call-ready", data: { from, to: "me" } };
+  return { type: "call-ready", data: { from, to: "me", callId: "call-abc" } };
 }
 
 function makeCallRejectedBusy(from = "peer-1"): CallRejectedMessage {
@@ -215,7 +215,10 @@ describe("CallMessageRouter", () => {
       expect(result.action).toBe("emit");
       if (result.action === "emit") {
         expect(result.eventName).toBe("call-ready");
-        expect(result.payload).toBe("peer-1");
+        expect(result.payload).toEqual({
+          peerId: "peer-1",
+          callId: "call-abc",
+        });
       }
     });
   });

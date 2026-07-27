@@ -27,12 +27,6 @@ describe("useCallLifecycle", () => {
     expect(setup().result.current.callState).toBe("calling");
   });
 
-  test("call-ready starts the call with (type, peerId)", () => {
-    const { connectionService, callService } = setup();
-    act(() => captureHandler(connectionService, "call-ready")("p1"));
-    expect(callService.startCall).toHaveBeenCalledWith("audio", "p1");
-  });
-
   test("call-busy sets state to 'busy'", () => {
     const { result, connectionService, rerender } = setup();
     act(() => captureHandler(connectionService, "call-busy")("p1", {}));
@@ -112,6 +106,49 @@ describe("useCallLifecycle", () => {
     rerender();
     expect(callService.terminateCallConnection).toHaveBeenCalledWith("p1", "missed");
     expect(result.current.callState).toBe("ended");
+  });
+
+  test("call-reconnecting after the call connected shows 'reconnecting'", () => {
+    const { result, connectionService, rerender } = setup();
+    act(() => result.current.setCallState("connected"));
+    act(() => captureHandler(connectionService, "call-reconnecting")("p1"));
+    rerender();
+    expect(result.current.callState).toBe("reconnecting");
+  });
+
+  test("call-reconnecting for a different peer is ignored", () => {
+    const { result, connectionService, rerender } = setup();
+    act(() => result.current.setCallState("connected"));
+    act(() => captureHandler(connectionService, "call-reconnecting")("other"));
+    rerender();
+    expect(result.current.callState).toBe("connected");
+  });
+
+  // A connect retry on a call that never connected must not be shown as
+  // "Reconnecting…" — there is nothing to reconnect to yet, and the state has no
+  // exit path, so the room would be pinned on the overlay forever.
+  test("call-reconnecting while still 'calling' keeps state 'calling'", () => {
+    const { result, connectionService, rerender } = setup();
+    act(() => captureHandler(connectionService, "call-reconnecting")("p1"));
+    rerender();
+    expect(result.current.callState).toBe("calling");
+  });
+
+  test("no-answer timeout still fires after a call-reconnecting during 'calling'", () => {
+    const { result, callService, connectionService, rerender } = setup();
+    act(() => captureHandler(connectionService, "call-reconnecting")("p1"));
+    act(() => jest.advanceTimersByTime(30_000));
+    rerender();
+    expect(result.current.callState).toBe("no-answer");
+    expect(callService.terminateCallConnection).toHaveBeenCalledWith("p1", "missed");
+  });
+
+  test("call-reconnecting does not resurrect a terminal state", () => {
+    const { result, connectionService, rerender } = setup();
+    act(() => captureHandler(connectionService, "call-rejected")({ peerId: "p1" }));
+    act(() => captureHandler(connectionService, "call-reconnecting")("p1"));
+    rerender();
+    expect(result.current.callState).toBe("rejected");
   });
 
   test("resetLifecycle returns state to 'calling'", () => {

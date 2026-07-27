@@ -528,6 +528,13 @@ export class MainContainer {
         }
       })();
     });
+    this.networkConfig.setOnNetworkRegained(() => {
+      try {
+        this.signalingService.restartWsSignalingAfterNetworkRegain();
+      } catch (error) {
+        appLog.error("app › ws restart after network regain failed", { error });
+      }
+    });
     this.networkConfig.startWatching();
 
     await saveConnectionConfig({

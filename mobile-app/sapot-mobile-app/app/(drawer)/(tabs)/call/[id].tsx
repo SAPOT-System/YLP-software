@@ -157,9 +157,10 @@ export default function CallRoom() {
   }, [hideControls, controlsAnim, reducedMotion]);
 
   useEffect(() => {
-    if (callState === "calling") {
+    if (callState === "calling" || callState === "reconnecting") {
       // Reset visibility without starting an auto-hide timer — the end call
-      // button must stay visible for the full duration of the outgoing ring.
+      // button must stay visible for the full duration of the outgoing ring,
+      // and reachable while reconnecting since the overlay blocks tap-to-reveal.
       if (hideTimer.current) clearTimeout(hideTimer.current);
       setControlsVisible(true);
       Animated.timing(controlsAnim, {
@@ -168,7 +169,7 @@ export default function CallRoom() {
         easing: standardEasing,
         useNativeDriver: true,
       }).start();
-    } else if (callState === "connected" || callState === "reconnecting") {
+    } else if (callState === "connected") {
       showControls();
     }
 
@@ -271,6 +272,19 @@ export default function CallRoom() {
                   />
                 </Crossfade>
               </View>
+
+              {/* Scoped to the remote feed only — must not dim the local
+                  preview or the call controls, which stay fully bright and
+                  interactive while reconnecting. */}
+              {callState === "reconnecting" && (
+                <View style={styles.reconnectingOverlay} pointerEvents="none">
+                  <View style={styles.reconnectingPill}>
+                    <Text style={styles.reconnectingOverlayText}>
+                      Reconnecting…
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             {localStream && localCam ? (
@@ -285,11 +299,6 @@ export default function CallRoom() {
               <View style={styles.localVideo} />
             )}
 
-            {callState === "reconnecting" && (
-              <View style={styles.reconnectingOverlay}>
-                <Text style={styles.reconnectingOverlayText}>Reconnecting…</Text>
-              </View>
-            )}
           </View>
         )}
 
@@ -633,10 +642,15 @@ const styles = StyleSheet.create({
   },
   reconnectingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 5,
+    zIndex: 1,
+  },
+  reconnectingPill: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
   },
   reconnectingOverlayText: {
     color: "#FFFFFF",
