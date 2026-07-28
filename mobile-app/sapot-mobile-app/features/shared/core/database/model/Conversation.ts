@@ -5,6 +5,8 @@ modelLog.debug("[model] Conversation loaded");
 
 export enum ConversationType {
   DIRECT = "direct",
+  // Legacy admin-created two-person conversations.
+  SOLO = "solo",
   GROUP = "group",
   SMS = "sms",
 }

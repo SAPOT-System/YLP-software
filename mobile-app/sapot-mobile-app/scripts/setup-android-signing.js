@@ -159,7 +159,7 @@ if (buildGradle.includes("signingConfig signingConfigs.debug")) {
 // ---- Step 3: Add optimization properties to debug buildType if missing ----
 if (buildGradle.includes("debug {") && !buildGradle.includes("debug {\n            signingConfig signingConfigs.release\n            def enableShrinkResources")) {
   log("Adding optimization properties to debug buildType...");
-  
+
   const debugWithProps = `debug {
             signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
@@ -169,7 +169,7 @@ if (buildGradle.includes("debug {") && !buildGradle.includes("debug {\n         
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
         }`;
-  
+
   buildGradle = buildGradle.replace(
     /buildTypes\s*\{[\s\S]*?(debug\s*\{[\s\S]*?\n\s*\})/,
     (match) => {

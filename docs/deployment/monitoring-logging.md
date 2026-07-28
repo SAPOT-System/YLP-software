@@ -63,10 +63,10 @@ The GSM module logs to `GSM-module/GSM-fastapi/sapot.log`. Rotate or clear this 
 No dedicated health-check endpoints are documented. The Nginx proxy (port 443 → Gunicorn :8000) can be used as a liveness check:
 
 ```bash
-curl -k https://localhost/auth/exists?email=probe@example.com
+curl -k https://localhost/auth/exists?identifier=probe@example.com
 ```
 
-A 200 or 404 response confirms the stack is reachable.
+A 200 response with `{"exists": true/false}` confirms the stack is reachable.
 
 ---
 

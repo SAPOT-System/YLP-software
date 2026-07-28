@@ -4,6 +4,7 @@ type QueryResult<T> = {
 
 export interface CollectionMock<T> {
   create: jest.Mock;
+  prepareCreate: jest.Mock;
   query: jest.Mock<QueryResult<T>, []>;
 }
 
@@ -19,6 +20,15 @@ export function createCollectionMock<T = unknown>(
   const fetch = jest.fn<Promise<T[]>, []>().mockResolvedValue(fetchResult);
   return {
     create: jest.fn(),
+    prepareCreate: jest.fn((builder: (record: T) => void) => {
+      const record = {
+        _raw: {},
+        sender: { set: jest.fn() },
+        conversation: { set: jest.fn() },
+      } as unknown as T;
+      builder(record);
+      return record;
+    }),
     query: jest.fn().mockReturnValue({ fetch }),
   };
 }

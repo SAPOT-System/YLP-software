@@ -53,6 +53,23 @@ When a new device joins the SAPOT Wi-Fi:
 3. MikroTik notifies the server: `POST /portal/api/v1/guests/`.
 4. The device gains full LAN access.
 
+```mermaid
+sequenceDiagram
+    participant Device as New device
+    participant MikroTik
+    participant Portal as captive-portal/
+    participant Server
+
+    Device->>MikroTik: any HTTP request (pre-auth)
+    MikroTik->>Portal: intercept, serve login page
+    Portal-->>Device: login page (login or guest option)
+    Device->>Portal: submit login / choose guest
+    Portal->>MikroTik: authenticate against hotspot user DB
+    MikroTik->>Server: POST /portal/api/v1/guests/
+    Server-->>MikroTik: acknowledge
+    MikroTik-->>Device: grant full LAN access
+```
+
 ---
 
 ## Server connectivity

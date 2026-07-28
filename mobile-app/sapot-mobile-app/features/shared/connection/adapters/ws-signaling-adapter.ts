@@ -4,6 +4,7 @@ import {
   AckMessage,
   CallMessage,
   ChatMessage,
+  SeenMessage,
   SignalingMessage,
 } from "../../types";
 import { wsLog } from "../../core/utils/logger";
@@ -63,7 +64,12 @@ interface QueuedSignalingMessage {
   payload: string;
   createdAt: number;
   type: string;
+  /** Recipient peer id, so a torn-down session's traffic can be dropped before flush. */
+  to?: string;
 }
+
+/** WebRTC negotiation traffic — meaningless once its session is gone. */
+const NEGOTIATION_TYPES = new Set(["offer", "answer", "ice-candidate"]);
 
 /**
  * WsSignalingAdapter handles websocket signaling for WebRTC negotiation.
@@ -233,6 +239,7 @@ export class WsSignalingAdapter extends EventEmitter {
       | SendPublicChatPayload
       | ChatMessage
       | AckMessage
+      | SeenMessage
   ) {
     if (
       this.encryptionCtx &&
@@ -283,7 +290,12 @@ export class WsSignalingAdapter extends EventEmitter {
         if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
           this.socket.send(serialized);
         } else {
-          this.enqueueMessage({ payload: serialized, createdAt: Date.now(), type: message.type });
+          this.enqueueMessage({
+            payload: serialized,
+            createdAt: Date.now(),
+            type: message.type,
+            to: toPeerId,
+          });
         }
         return;
       }
@@ -299,7 +311,34 @@ export class WsSignalingAdapter extends EventEmitter {
       payload,
       createdAt: Date.now(),
       type: message.type,
+      to: (message as { data?: { to?: string } }).data?.to,
     });
+  }
+
+  /**
+   * Drops queued WebRTC negotiation traffic (offer/answer/ICE) addressed to a
+   * peer, along with any ICE held back waiting for that peer's key.
+   *
+   * Called when a call is torn down. While the socket is down these frames pile
+   * up in the outbound queue; a reconnect within the queue TTL would replay the
+   * dead session's SDP at the peer, corrupting the negotiation of whatever call
+   * is running by then. Non-negotiation messages (call-ended, chat) are kept —
+   * those still need to be delivered.
+   */
+  discardQueuedNegotiationFor(peerId: string): void {
+    const before = this.outboundQueue.length;
+    this.outboundQueue = this.outboundQueue.filter(
+      (item) => !(item.to === peerId && NEGOTIATION_TYPES.has(item.type))
+    );
+    const hadPendingIce = this.pendingIce.delete(peerId);
+    const dropped = before - this.outboundQueue.length;
+    if (dropped > 0 || hadPendingIce) {
+      wsLog.info("ws › queued negotiation discarded", {
+        peerId,
+        dropped,
+        hadPendingIce,
+      });
+    }
   }
 
   private flushPendingIce(peerId: string): void {
@@ -328,7 +367,7 @@ export class WsSignalingAdapter extends EventEmitter {
       if (this.socket?.readyState === this.getWebSocketCtor().OPEN) {
         this.socket.send(payload);
       } else {
-        this.outboundQueue.push({ payload, createdAt: item.createdAt, type: 'ice-candidate' });
+        this.outboundQueue.push({ payload, createdAt: item.createdAt, type: 'ice-candidate', to: peerId });
       }
     }
     this.pendingIce.delete(peerId);
@@ -341,6 +380,49 @@ export class WsSignalingAdapter extends EventEmitter {
   sendGetActiveUsers() {
     if (this.socket?.readyState !== this.getWebSocketCtor().OPEN) return;
     this.socket.send(JSON.stringify({ type: "get-active-users" }));
+  }
+
+  /**
+   * Invalidates the native socket after the device regains network. Mobile
+   * platforms can leave readyState at OPEN (or a connect promise pending) even
+   * though the old interface is gone. Preserve the outbound queue so messages
+   * created around the transition flush through the replacement connection.
+   */
+  resetTransportForNetworkChange(): void {
+    wsLog.info("ws › transport reset after network regain", {
+      state: this.state,
+      hadSocket: Boolean(this.socket),
+      queuedMessages: this.outboundQueue.length,
+    });
+
+    this.manuallyClosed = true;
+    this.clearReconnectTimer();
+    this.clearHeartbeatTimer();
+    this.clearHeartbeatTimeoutTimer();
+
+    if (this.pendingConnectReject) {
+      this.pendingConnectReject(
+        new Error("[WsSignalingAdapter]: Network changed during connection")
+      );
+    }
+    this.pendingConnectReject = undefined;
+    this.connectPromise = undefined;
+
+    const staleSocket = this.socket;
+    this.socket = undefined;
+    this.state = "idle";
+    this.socketEpoch += 1;
+
+    if (staleSocket) {
+      try {
+        staleSocket.close(4001, "network_regained");
+      } catch (error) {
+        wsLog.warn("ws › stale socket close failed", { error });
+      }
+    }
+
+    this.reconnectAttempts = 0;
+    this.manuallyClosed = false;
   }
 
   /**

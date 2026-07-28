@@ -1,10 +1,12 @@
 import { AUTH_ROUTES } from "@/config/routes";
+import { IS_DEBUG_ENABLED } from "@/config/debug";
 import { useAuth } from "@/features/auth";
 import { AnnouncementSeenProvider } from "@/features/announcements/context/announcement-seen-context";
 import { CallBanner } from "@/features/call/components/call-banner";
 import { CallProvider } from "@/features/call/context/call-context";
 import { useGlobalCallEndedListener } from "@/features/call/hooks/use-global-call-ended-listener";
 import { ChatRoomSource } from "@/features/chat/types";
+import { DebugFab, DebugPanel } from "@/features/debug";
 import { GpsPreferenceProvider } from "@/features/gps/context/gps-preference-context";
 import { useGpsStreaming } from "@/features/gps/hooks/useGpsStreaming";
 import { CustomDrawerContent } from "@/features/shared/components/custom-drawer-content";
@@ -125,6 +127,7 @@ export default function DrawerLayout() {
           id: incomingCallData.callerId,
           type: incomingCallData.callType,
           conversationId: incomingCallData.conversationId ?? "",
+          callId: incomingCallData.callId ?? "",
         },
       });
     },
@@ -178,9 +181,10 @@ export default function DrawerLayout() {
         router.push({
           pathname: "/(drawer)/(tabs)/call/incoming",
           params: {
-            id: String(data.callerId ?? ""),
-            type: String(data.callType ?? "audio"),
-            conversationId: String(data.conversationId ?? ""),
+            id: String(data.id ?? ""),
+            type: String(data.call_type ?? "audio"),
+            conversationId: String(data.conversation_id ?? ""),
+            callId: String(data.call_id ?? ""),
           },
         });
       }
@@ -240,6 +244,12 @@ export default function DrawerLayout() {
             <AnnouncementSeenProvider>
             <CallProvider>
               <CallBanner />
+              {IS_DEBUG_ENABLED && (
+                <>
+                  <DebugFab />
+                  <DebugPanel />
+                </>
+              )}
               <Drawer
                 drawerContent={(props) => <CustomDrawerContent {...props} />}
                 screenOptions={{

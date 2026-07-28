@@ -1,11 +1,13 @@
 import { useCallContext } from "@/features/call/context/call-context";
-import { useThrottledPress } from "@/features/shared/hooks";
+import { useReducedMotion, useThrottledPress } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/core/utils/logger";
+import motion from "@/constants/motion";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
+  Easing,
   Image,
   Platform,
   StatusBar,
@@ -47,19 +49,28 @@ const formatDuration = (seconds: number) => {
 function PulseDot() {
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) {
+      opacity.setValue(0);
+      return;
+    }
+
+    const pulseEasing = Easing.bezier(...motion.easing.standard);
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.parallel([
           Animated.timing(scale, {
             toValue: 1.6,
-            duration: 700,
+            duration: motion.duration.slow,
+            easing: pulseEasing,
             useNativeDriver: true,
           }),
           Animated.timing(opacity, {
             toValue: 0,
-            duration: 700,
+            duration: motion.duration.slow,
+            easing: pulseEasing,
             useNativeDriver: true,
           }),
         ]),
@@ -79,7 +90,7 @@ function PulseDot() {
     );
     pulse.start();
     return () => pulse.stop();
-  }, [opacity, scale]);
+  }, [opacity, scale, reducedMotion]);
 
   return (
     <View style={styles.pulseWrap}>
@@ -99,6 +110,7 @@ function PulseDot() {
 
 export function CallBanner() {
   const router = useRouter();
+  const reducedMotion = useReducedMotion();
 
   const {
     callState,
@@ -127,13 +139,20 @@ export function CallBanner() {
       isMinimized,
     });
 
+    const targetY = isVisible ? 0 : -(BANNER_HEIGHT + STATUS_BAR_HEIGHT);
+
+    if (reducedMotion) {
+      translateY.setValue(targetY);
+      return;
+    }
+
     Animated.spring(translateY, {
-      toValue: isVisible ? 0 : -(BANNER_HEIGHT + STATUS_BAR_HEIGHT),
+      toValue: targetY,
       useNativeDriver: true,
-      bounciness: 4,
-      speed: 14,
+      damping: motion.spring.gentle.damping,
+      stiffness: motion.spring.gentle.stiffness,
     }).start();
-  }, [isVisible, translateY, callState, isMinimized]);
+  }, [isVisible, translateY, callState, isMinimized, reducedMotion]);
 
   const handleTapBanner = () => {
     uiLog.info("[CallBanner] tapped — maximizing call", { peerId, callType });

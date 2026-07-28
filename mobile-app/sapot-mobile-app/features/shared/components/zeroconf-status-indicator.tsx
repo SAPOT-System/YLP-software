@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "react-native-paper";
+import { Crossfade } from "@/features/shared/components/crossfade";
 
 interface ZeroconfStatusIndicatorProps {
   isPublished: boolean;
@@ -31,11 +32,13 @@ export function ZeroconfStatusIndicator({
 
   return (
     <View style={styles.container}>
-      <MaterialCommunityIcons
-        name={statusIcon}
-        size={16}
-        color={statusColor}
-      />
+      <Crossfade activeKey={statusIcon}>
+        <MaterialCommunityIcons
+          name={statusIcon}
+          size={16}
+          color={statusColor}
+        />
+      </Crossfade>
     </View>
   );
 }

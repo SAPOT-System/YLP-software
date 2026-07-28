@@ -179,10 +179,14 @@ export class ConversationParticipantRepository {
       const conversationsCollection = this.db.get<Conversation>(
         Conversation.table
       );
+      const conversationTypes =
+        type === ConversationType.DIRECT
+          ? Q.oneOf([ConversationType.DIRECT, ConversationType.SOLO])
+          : type;
       const directConversations = await conversationsCollection
         .query(
           Q.where("id", Q.oneOf(candidateIds)),
-          Q.where("type", type),
+          Q.where("type", conversationTypes),
           Q.where("is_deleted", false)
         )
         .fetch();

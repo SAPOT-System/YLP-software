@@ -1,11 +1,14 @@
 import { AUTH_ROUTES } from "@/config/routes";
+import motion from "@/constants/motion";
 import { PrimaryButton } from "@/features/auth";
+import { useReducedMotion } from "@/features/shared/hooks";
 import { authLog } from "@/features/shared/core/utils/logger";
 import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { View } from "react-native";
 import { Icon, Text, useTheme } from "react-native-paper";
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -19,11 +22,20 @@ const SuccessScreen = () => {
   const scale = useSharedValue(0);
   const opacity = useSharedValue(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     authLog.info("[SuccessScreen] mounted");
-    scale.value = withSpring(1, { damping: 12, stiffness: 120 });
-    opacity.value = withTiming(1, { duration: 400 });
+    if (reducedMotion) {
+      scale.value = 1;
+      opacity.value = 1;
+    } else {
+      scale.value = withSpring(1, motion.spring.gentle);
+      opacity.value = withTiming(1, {
+        duration: motion.duration.slow,
+        easing: Easing.bezier(...motion.easing.emphasized),
+      });
+    }
 
     timerRef.current = setTimeout(() => {
       authLog.info("[Navigation] Auto-redirect to ServerLogin from SuccessScreen");
@@ -34,7 +46,7 @@ const SuccessScreen = () => {
       authLog.info("[SuccessScreen] unmounted");
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [scale, opacity]);
+  }, [scale, opacity, reducedMotion]);
 
   const iconStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

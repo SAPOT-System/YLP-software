@@ -53,6 +53,7 @@ let socket: WebSocket | null = null;
 let currentUserId: string | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let isConnecting = false;
+let shouldReconnect = true;
 const messageHandlers = new Set<MessageHandler>();
 
 /* =========================
@@ -76,7 +77,6 @@ export async function getToken(): Promise<string> {
   const res = await fetch("/api/get-token");
   if (!res.ok) throw new Error("Failed to fetch WS token");
   const data = await res.json();
-  console.log('data', data)
   return data.token;
 }
 
@@ -215,11 +215,15 @@ export async function connectWebSocket(userId: string) {
   if (isConnecting || (socket && socket.readyState === WebSocket.OPEN)) return;
 
   isConnecting = true;
+  shouldReconnect = true;
   currentUserId = userId;
 
   try {
     const token = await getToken();
-    const raw = process.env.NEXT_PUBLIC_WEBSOCKET_DOMAIN!;
+    const raw = process.env.NEXT_PUBLIC_WEBSOCKET_DOMAIN;
+    if (!raw) {
+      throw new Error("NEXT_PUBLIC_WEBSOCKET_DOMAIN is not configured.");
+    }
     const wsDomain = raw
       .replace(/^http:\/\//, "ws://")
       .replace(/^https:\/\//, "wss://");
@@ -268,15 +272,18 @@ export async function connectWebSocket(userId: string) {
       console.warn("[WS] Disconnected:", event.code, event.reason, event.wasClean);
       isConnecting = false;
       socket = null;
-      // Auto-reconnect after 3 seconds
-      reconnectTimer = setTimeout(() => {
-        console.log("[WS] Reconnecting...");
-        connectWebSocket(userId);
-      }, 3000);
+      if (shouldReconnect) {
+        // Auto-reconnect after 3 seconds unless the page explicitly disconnected.
+        reconnectTimer = setTimeout(() => {
+          console.log("[WS] Reconnecting...");
+          connectWebSocket(userId);
+        }, 3000);
+      }
     };
 
-    socket.onerror = (err) => {
-      console.error("[WS] Error:", err);
+    socket.onerror = () => {
+      // Browser error events omit the network/TLS cause. Do not log the token.
+      console.error("[WS] Connection error:", new URL(url).origin);
       isConnecting = false;
       socket?.close();
     };
@@ -290,6 +297,7 @@ export async function connectWebSocket(userId: string) {
    DISCONNECT
 ========================= */
 export function disconnectWebSocket() {
+  shouldReconnect = false;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

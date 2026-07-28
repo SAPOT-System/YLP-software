@@ -1,11 +1,11 @@
+import { apiClient } from "@/features/shared/core/api";
 import {
-  apiClient,
   CallStatus,
   CallType,
   ConversationType,
   MessageStatusType,
   MessageType,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
 import { apiLog } from "@/features/shared/core/utils/logger";
 apiLog.debug("[sync-api] module loaded");
 

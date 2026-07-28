@@ -44,6 +44,112 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
+  /testing/login-as/{handle}:
+    post:
+      tags:
+      - testing endpoint
+      summary: Login As
+      operationId: login_as_testing_login_as__handle__post
+      parameters:
+      - name: handle
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Handle
+      - name: x-qa-token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Qa-Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /testing/reset:
+    post:
+      tags:
+      - testing endpoint
+      summary: Reset
+      operationId: reset_testing_reset_post
+      parameters:
+      - name: x-qa-token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Qa-Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /testing/scenarios:
+    get:
+      tags:
+      - testing endpoint
+      summary: List Scenarios
+      operationId: list_scenarios_testing_scenarios_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+  /testing/seed/{scenario}:
+    post:
+      tags:
+      - testing endpoint
+      summary: Seed Scenario
+      operationId: seed_scenario_testing_seed__scenario__post
+      parameters:
+      - name: scenario
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Scenario
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /testing/test-make-admin:
     post:
       tags:
@@ -330,13 +436,11 @@ components:
         phone_number:
           anyOf:
           - type: string
-            pattern: ^\+639\d{9}$
           - type: 'null'
           title: Phone Number
         email:
           anyOf:
           - type: string
-            format: email
           - type: 'null'
           title: Email
         id:
@@ -362,6 +466,58 @@ components:
       - phone_verified
       - role
       title: UserInfo
+    UserPublic:
+      properties:
+        username:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Username
+        first_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 50
+          minLength: 2
+          title: Last Name
+        phone_number:
+          anyOf:
+          - type: string
+            pattern: ^\+639\d{9}$
+          - type: 'null'
+          title: Phone Number
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+        id:
+          type: string
+          format: uuid
+          title: Id
+        detail:
+          type: string
+          title: Detail
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - username
+      - first_name
+      - last_name
+      - id
+      - detail
+      - access_token
+      - refresh_token
+      title: UserPublic
     UserUpdate:
       properties:
         username:

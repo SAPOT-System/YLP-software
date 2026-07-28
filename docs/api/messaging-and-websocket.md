@@ -39,6 +39,36 @@ wss://<host>/ws/?token=<access_token>&target_id=<uuid>
 1. A `status-update` broadcast (`offline`) is sent.
 2. Connection is removed from the Redis-backed connection manager.
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server as /ws/
+    participant Others as Other connected clients
+
+    Client->>Server: connect wss://host/ws/?token=<jwt>
+    alt token invalid
+        Server-->>Client: close (code 1008)
+    else token valid
+        Server->>Server: drain queued messages for this user
+        Server-->>Client: deliver queued messages
+        Server->>Others: broadcast status-update (online)
+        Note over Client,Server: connection stays open — ping/pong keepalive,<br/>message relay, WebRTC signalling, public chat
+        Client--)Server: disconnect
+        Server->>Others: broadcast status-update (offline)
+        Server->>Server: remove from Redis-backed connection manager
+    end
+```
+
+**Inbound message routing (online vs. offline target):**
+
+```mermaid
+flowchart TD
+    In(["inbound { type: message, data: { to, payload } }"]) --> Check{"to connected?"}
+    Check -->|Online| Relay["relay immediately to target connection"]
+    Check -->|Offline| Queue["store in queue table"]
+    Queue --> Later["delivered + ack'd on target's next connect"]
+```
+
 ---
 
 ### Inbound message types (client to server)
