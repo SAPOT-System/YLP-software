@@ -44,13 +44,11 @@ export const getApiUrl = () => {
   }
 };
 
-const TILE_PORT = "8080";
-
 export const getTileServerUrl = () => {
-  if (_hostOverride) return `https://${_hostOverride}:${TILE_PORT}`;
+  if (_hostOverride) return `https://${_hostOverride}/tiles`;
 
   if (__DEV__) {
-    return `https://${DEV_HOST}:${TILE_PORT}`;
+    return `https://${DEV_HOST}/tiles`;
   }
 
   const channel = Updates.channel;
@@ -58,9 +56,9 @@ export const getTileServerUrl = () => {
   switch (channel) {
     case "preview":
     case "production":
-      return `https://${SERVER_NAME}:${TILE_PORT}`;
+      return `https://${SERVER_NAME}/tiles`;
     default:
-      return `https://${DEV_HOST}:${TILE_PORT}`;
+      return `https://${DEV_HOST}/tiles`;
   }
 };
 

@@ -5,7 +5,7 @@
 ```
 Internet (optional — not required for core operation)
      |
-MikroTik Router (LAN gateway + captive portal + tileserver host)
+MikroTik Router (LAN gateway + captive portal)
      |
      +--- Wi-Fi / Ethernet LAN
               |
@@ -16,10 +16,12 @@ Android devices     Server host (Linux, systemd)
     |                    +-- [nginx :443] (TLS reverse proxy)
     |                    |        |
     |                    |        +-- [gunicorn :8000] (SAPOT FastAPI)
-    |                    |                  |
-    |                    |                  +-- [MariaDB :3306]
-    |                    |                  |
-    |                    |                  +-- [Redis :6379] (WS pub-sub)
+    |                    |        |          |
+    |                    |        |          +-- [MariaDB :3306]
+    |                    |        |          |
+    |                    |        |          +-- [Redis :6379] (WS pub-sub)
+    |                    |        |
+    |                    |        +-- [tileserver-gl :8080, 127.0.0.1 only]
     |                    |
     |                    +-- [GSM-API] (FastAPI + pyserial -> Arduino/modem)
     |
@@ -30,11 +32,12 @@ Android devices     Server host (Linux, systemd)
 ```mermaid
 flowchart TB
     internet(["Internet\n(optional)"])
-    router["MikroTik Router\n(LAN gateway, captive portal, tileserver host)"]
+    router["MikroTik Router\n(LAN gateway, captive portal)"]
 
     subgraph host["Server host (Linux, systemd)"]
         nginx["nginx :443\n(TLS reverse proxy)"]
         api["gunicorn :8000\n(SAPOT FastAPI)"]
+        tiles["tileserver-gl :8080\n(127.0.0.1 only)"]
         db[("MariaDB :3306")]
         redis[("Redis :6379\nWS pub-sub")]
         gsmapi["GSM-fastapi\n(FastAPI + pyserial)"]
@@ -47,6 +50,7 @@ flowchart TB
     internet -.optional uplink.-> router
     router --- host
     nginx --> api
+    nginx --> tiles
     api --- db
     api --- redis
     api --- gsmapi
@@ -69,7 +73,7 @@ For the security trust boundaries overlaid on this same topology (which zones ar
 | MariaDB | `mysqld` | `127.0.0.1:3306` | — (server-internal) |
 | Redis | `redis-server` | `127.0.0.1:6379` | — (server-internal) |
 | GSM module API | `uvicorn` (`GSM-fastapi/main.py`) | `127.0.0.1:8001` (hardcoded, `PORT` var has no effect) | — (see [environment-config.md](../deployment/environment-config.md#gsm-module-gsm-modulegsm-fastapi)) |
-| Tileserver | — | `:8080` | Direct (see [tileserver.md](../deployment/tileserver.md)) |
+| Tileserver | `tileserver-gl` | `127.0.0.1:8080` | Nginx `:443` at `/tiles/` (see [tileserver.md](../deployment/tileserver.md)) |
 | Admin frontend | `next start` | `127.0.0.1:3000` | Nginx (see [admin-frontend.md](../deployment/admin-frontend.md)) |
 
 ---
@@ -80,6 +84,7 @@ For the security trust boundaries overlaid on this same topology (which zones ar
 |---|---|---|
 | `/ws/` | `http://127.0.0.1:8000` | WebSocket — no proxy read timeout (86400 s) |
 | `/static/` | Filesystem | Served directly by Nginx; 30-day cache |
+| `/tiles/` | `http://127.0.0.1:8080` | Tileserver; prefix stripped by trailing `/` on `proxy_pass` |
 | `/` (all other) | `http://127.0.0.1:8000` | Standard proxy; 135 s read timeout |
 
 HTTP (port 80) redirects to HTTPS with 301.
