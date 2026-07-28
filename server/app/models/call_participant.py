@@ -10,7 +10,7 @@ from app.models.message import SyncableModel, now_ms
 
 if TYPE_CHECKING:
     from app.models.users import User
-    from app.models.conversation import Conversation
+    from app.models.call import Call
 
 
 
@@ -25,14 +25,14 @@ class CallParticipant(SyncableModel, table=True):
     left_at : int | None = None
 
     # foreign keys
-    call_id : UUID | None = Field(foreign_key='conversation.id', ondelete="CASCADE", index=True)
+    call_id : UUID | None = Field(foreign_key='call.id', ondelete="CASCADE", index=True)
     user_id : UUID | None = Field(foreign_key='user.id', ondelete="CASCADE", index=True)
 
     user: List["User"] = Relationship(
         back_populates="callparticipants"
     )
 
-    conversation: List["Conversation"] = Relationship(
+    call: List["Call"] = Relationship(
         back_populates="callparticipants"
     )
 
