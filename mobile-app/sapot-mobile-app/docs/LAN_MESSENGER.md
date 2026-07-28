@@ -694,39 +694,40 @@ Not all local records are synced to the server. Filtering rules:
 
 ##### Message Filtering
 
-A message is **excluded from push** if:
-- It only has **transient receipts** (SENDING, NOT_SENT, SENT — local-only statuses)
-- **Exception:** Messages from **self-conversations** (where the user messages themselves) are always pushed
+Messages are always pushed, independently of their receipt state. The server can
+store a message without a receipt, so an offline recipient no longer leaves the
+sender's WatermelonDB row as the only durable copy.
 
 ```typescript
-// From SyncService.buildPushPayload()
-const shouldPushMessage = (messageId, receiptsByMessage) => {
-  const receipts = receiptsByMessage.get(messageId);
-  if (!receipts) return true;  // no receipts, allow push
-  
-  // Allow if ANY receipt is non-transient (DELIVERED, READ, etc.)
-  return receipts.some((status) =>
-    this.messageReceiptManager.shouldPushReceipt(status)
-  );
-};
+messages: {
+  created: changes.messages.created.map(toServerPayload),
+  updated: changes.messages.updated.map(toServerPayload),
+  deleted: changes.messages.deleted
+}
 ```
 
-**Rationale:** Messages with only local (transient) receipts represent messages the sender hasn't shared with anyone yet. Self-conversation messages are special: they're always visible to the user, so they're always synced.
+**Rationale:** Delivery state and history durability are separate concerns. A message
+must survive logout or device loss even if the peer has not acknowledged it.
 
 ##### Receipt Filtering
 
-Transient statuses (SENDING, NOT_SENT, SENT) are **never pushed** to the server. Only user-visible statuses are synced:
+`SENDING` and `NOT_SENT` are local-only and are not pushed. `SENT`,
+`DELIVERED`, and `READ` are durable statuses and are synced:
 
 ```typescript
 const transientStatuses = new Set([
   MessageStatusType.SENDING,
-  MessageStatusType.NOT_SENT,
-  MessageStatusType.SENT
+  MessageStatusType.NOT_SENT
 ]);
 return !transientStatuses.has(status);
 ```
 
-For self-conversation messages, the status **SENT is converted to DELIVERED** before push (the server has no concept of SENT):
+Filtered receipts are returned to WatermelonDB via `experimentalRejectedIds`.
+This keeps them dirty so a later status transition is retried instead of being
+incorrectly marked clean.
+
+For self-conversation messages, **SENT** is converted to **DELIVERED** before
+push because local persistence completes delivery immediately:
 
 ```typescript
 if (selfMessageIds.has(msgId) && rec.status === MessageStatusType.SENT) {

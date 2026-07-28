@@ -195,7 +195,6 @@ jest.mock("@/features/chat/services/conversation-key-manager", () => ({
 jest.mock("@/features/chat/services/message-receipt-manager", () => ({
   MessageReceiptManager: jest.fn().mockImplementation(() => ({
     shouldPushReceipt: jest.fn().mockReturnValue(true),
-    shouldPushMessage: jest.fn().mockReturnValue(true),
     getTransientStatuses: jest.fn().mockReturnValue(new Set()),
   })),
 }));

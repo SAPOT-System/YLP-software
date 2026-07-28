@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 from app.models.conversation import Conversation, ConversationType, ConversationParticipant
 from app.models.message import Message, MessageType
+from app.models.message_receipt import MessageReceipt
 from app.models.call import Call, CallType, StatusType
 from app.models.users import User
 from fastapi.testclient import TestClient
@@ -55,6 +56,61 @@ def test_push_create_records(client: TestClient, auth_header, sample_ids, sessio
     response = client.post("/sync/push", json=payload, headers=auth_header)
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_push_persists_message_without_receipt(
+    client: TestClient,
+    auth_header,
+    sample_ids_with_test_user,
+    session: SessionDep,
+):
+    """An undelivered message is durable even before a receipt is synced."""
+    payload = {
+        "changes": {
+            "conversations": {
+                "created": [{
+                    "id": sample_ids_with_test_user["conv_id"],
+                    "title": "Offline recipient",
+                    "conversation_type": "solo",
+                    "created_at": 1712234500000,
+                    "updated_at": 1712234500000,
+                    "is_deleted": False,
+                }],
+                "updated": [],
+                "deleted": [],
+            },
+            "messages": {
+                "created": [{
+                    "id": sample_ids_with_test_user["msg_id"],
+                    "content": "Encrypted pending message",
+                    "conversation_id": sample_ids_with_test_user["conv_id"],
+                    "sender_id": sample_ids_with_test_user["user_id"],
+                    "created_at": 1712234500001,
+                    "updated_at": 1712234500001,
+                    "is_deleted": False,
+                }],
+                "updated": [],
+                "deleted": [],
+            },
+            "message_receipts": {
+                "created": [],
+                "updated": [],
+                "deleted": [],
+            },
+        },
+        "last_pulled_at": 1712234000000,
+    }
+
+    response = client.post("/sync/push", json=payload, headers=auth_header)
+
+    assert response.status_code == 200
+    assert session.get(Message, UUID(sample_ids_with_test_user["msg_id"])) is not None
+    receipt = session.exec(
+        select(MessageReceipt).where(
+            MessageReceipt.message_id == UUID(sample_ids_with_test_user["msg_id"])
+        )
+    ).first()
+    assert receipt is None
 
 
 def test_push_record_count_integrity(client: TestClient, auth_header, sample_ids, session: SessionDep):

@@ -276,10 +276,10 @@ async def push_local_data(
             """Returns False if the message doesn't exist — caller should skip the record.
 
             MessageReceipt has a hard FK on message.id (ON DELETE CASCADE). If the
-            parent message was never pushed to the server (e.g. a P2P-only message
-            delivered via TCP/WebRTC), inserting a receipt for it causes an
-            IntegrityError. Skipping is safe: the receipt will be re-tried on the
-            next sync once/if the parent message is pushed.
+            parent message has not reached the server yet, inserting its receipt
+            causes an IntegrityError. The mobile client keeps intentionally
+            withheld records dirty, so skipping remains safe: the receipt is
+            retried after the parent message is persisted.
             """
             if not message_id:
                 return False
@@ -360,10 +360,10 @@ async def push_local_data(
                     ensure_user_exists(datum.get("user_id"))
                 elif model is MessageReceipt:
                     ensure_user_exists(datum.get("user_id"))
-                    # Guard: skip receipts whose parent message doesn't exist on the
-                    # server. P2P-only messages (TCP/WebRTC) may never be pushed here,
-                    # so their receipts would violate the FK constraint.  The receipt
-                    # will be retried on the next sync once the message is pushed.
+                    # Guard against an out-of-order or legacy client push whose
+                    # parent message has not reached the server yet. The current
+                    # mobile client pushes message history independently of receipt
+                    # state and keeps withheld receipts dirty for a later retry.
                     if not ensure_message_exists(datum.get("message_id")):
                         continue
                 # --- END FK VALIDATION ---
