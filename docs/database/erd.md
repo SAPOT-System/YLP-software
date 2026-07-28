@@ -174,16 +174,6 @@ erDiagram
         CHAR conversation_id FK
         CHAR initiator_id FK
     }
-    callparticipant {
-        BIGINT created_at
-        BIGINT updated_at
-        BOOLEAN is_deleted
-        CHAR id PK
-        BIGINT joined_at
-        INTEGER left_at
-        CHAR call_id FK
-        CHAR user_id FK
-    }
     contact_key {
         INTEGER id PK
         CHAR owner_id FK
@@ -310,6 +300,16 @@ erDiagram
         INTEGER file_size
         VARCHAR mime_type
     }
+    callparticipant {
+        BIGINT created_at
+        BIGINT updated_at
+        BOOLEAN is_deleted
+        CHAR id PK
+        BIGINT joined_at
+        INTEGER left_at
+        CHAR call_id FK
+        CHAR user_id FK
+    }
     messagereceipt {
         BIGINT created_at
         BIGINT updated_at
@@ -325,8 +325,6 @@ erDiagram
     user ||--o{ banneduser : "user_id"
     conversation ||--o{ call : "conversation_id"
     user ||--o{ call : "initiator_id"
-    conversation ||--o{ callparticipant : "call_id"
-    user ||--o{ callparticipant : "user_id"
     user ||--o{ contact_key : "owner_id"
     conversation ||--o{ conversationparticipant : "conversation_id"
     user ||--o{ conversationparticipant : "user_id"
@@ -346,6 +344,8 @@ erDiagram
     user ||--o{ wrapped_key : "user_id"
     user ||--o{ wrapped_key_recovery : "user_id"
     message ||--o{ attachment : "message_id"
+    call ||--o{ callparticipant : "call_id"
+    user ||--o{ callparticipant : "user_id"
     message ||--o{ messagereceipt : "message_id"
     user ||--o{ messagereceipt : "user_id"
 ```

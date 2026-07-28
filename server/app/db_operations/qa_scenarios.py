@@ -22,6 +22,7 @@ from app.models.announcement import (
 )
 from app.models.banned_user import BannedUser
 from app.models.call import Call, CallType, StatusType as CallStatus
+from app.models.call_participant import CallParticipant
 from app.models.conversation import Conversation, ConversationParticipant, ConversationType
 from app.models.guest import Guest
 from app.models.location import UserLocation
@@ -252,11 +253,6 @@ def seed_call(
     initiator: User,
     status: CallStatus = CallStatus.completed,
 ) -> None:
-    # CallParticipant is intentionally not seeded here: its `call_id` field is
-    # declared with foreign_key='conversation.id' (server/app/models/call_participant.py),
-    # which looks like a copy-paste bug (it should reference call.id) — inserting through
-    # it would either violate the FK against a real MariaDB dev DB or silently store the
-    # wrong id. Flagging rather than seeding around it; worth a separate fix.
     existing = session.exec(
         select(Call).where(Call.conversation_id == conversation.id, Call.status == status)
     ).first()
@@ -268,17 +264,20 @@ def seed_call(
     # Call.end_time is declared NOT NULL despite its `| None` type hint (see
     # app/models/call.py) — a missed/rejected call still needs a real value.
     end = start + 5 * 60 * 1000 if status == CallStatus.completed else start
-    session.add(
-        Call(
-            call_type=CallType.audio,
-            status=status,
-            conversation_id=conversation.id,
-            initiator_id=initiator.id,
-            start_time=start,
-            end_time=end,
-            updated_at=start,
-        )
+    call = Call(
+        call_type=CallType.audio,
+        status=status,
+        conversation_id=conversation.id,
+        initiator_id=initiator.id,
+        start_time=start,
+        end_time=end,
+        updated_at=start,
     )
+    session.add(call)
+    session.commit()
+    session.refresh(call)
+
+    session.add(CallParticipant(call_id=call.id, user_id=initiator.id, joined_at=start))
     session.commit()
 
 
@@ -529,8 +528,8 @@ SCENARIOS: dict[str, Scenario] = {
         build_gps_track,
     ),
     "calls": Scenario(
-        "qa_calls_a/qa_calls_b with completed/missed/rejected Call rows on one "
-        "conversation (CallParticipant is skipped — see build_calls).",
+        "qa_calls_a/qa_calls_b with completed/missed/rejected Call rows (each with "
+        "a CallParticipant row for the initiator) on one conversation.",
         build_calls,
     ),
 }
