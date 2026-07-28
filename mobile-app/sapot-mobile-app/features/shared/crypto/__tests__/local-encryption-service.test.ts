@@ -282,6 +282,22 @@ describe("LocalEncryptionService", () => {
       });
     });
 
+    it("throws SECURE_STORE_READ_FAILED when SecureStore rejects a key read", async () => {
+      // Arrange
+      (SecureConfig.getMasterKey as jest.Mock).mockRejectedValue(
+        new Error("secure store unavailable")
+      );
+      const service = new LocalEncryptionService({
+        getPassword: () => null,
+        userId: "user-1",
+      });
+
+      // Act / Assert
+      await expect(service.initialize()).rejects.toMatchObject({
+        code: "SECURE_STORE_READ_FAILED",
+      });
+    });
+
     it("throws MASTER_KEY_UNWRAP_FAILED when the server blob cannot be unwrapped", async () => {
       // Arrange: blob present but the KEK does not open it (wrong password)
       apiClient.get.mockResolvedValue({

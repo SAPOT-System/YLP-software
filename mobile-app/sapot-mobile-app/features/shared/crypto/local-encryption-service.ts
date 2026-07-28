@@ -38,8 +38,19 @@ export class LocalEncryptionService {
     const userId = this.ctx?.userId ?? null;
 
     // Fast path: cached plain keys in SecureStore (OS keystore-protected).
-    const cachedMaster = await getMasterKey();
-    const cachedSignaling = await getSignalingSecretKey();
+    let cachedMaster: string | null | undefined;
+    let cachedSignaling: string | null | undefined;
+    try {
+      cachedMaster = await getMasterKey();
+      cachedSignaling = await getSignalingSecretKey();
+    } catch (error) {
+      throw new KeyInitError(
+        "cached key bundle could not be read",
+        "SECURE_STORE_READ_FAILED",
+        { cause: error }
+      );
+    }
+
     if (cachedMaster && cachedSignaling) {
       try {
         this.key = decodeBase64(cachedMaster);
