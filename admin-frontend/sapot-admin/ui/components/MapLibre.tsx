@@ -203,7 +203,7 @@ export default function MapLibre({ data }: Props) {
       try {
         const styleURL =
           process.env.NEXT_PUBLIC_MAP_STYLE ||
-            "http://localhost:8080/styles/basic-preview/style.json";
+            "https://localhost/tiles/styles/basic-preview/style.json";
 
         // ✅ wait until style server is ready
         const styleJSON = await waitForStyle(styleURL);

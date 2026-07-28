@@ -8,7 +8,7 @@ Runs `maptiler/tileserver-gl` in Docker to serve pre-downloaded OpenStreetMap ti
 
 ## Architecture
 
-Docker image `maptiler/tileserver-gl`, bind-mounting this directory (which must contain an `.mbtiles` file — not committed to git) to `/data` inside the container, exposing port 8080. Clients point `maplibre-gl` at a tile endpoint of the form `http://<tileserver-host>:8080/styles/basic-preview/{z}/{x}/{y}.png` (see `documentation.org` for the exact shape and an example Leaflet usage snippet).
+Docker image `maptiler/tileserver-gl`, bind-mounting this directory (which must contain an `.mbtiles` file — not committed to git) to `/data` inside the container, listening on `127.0.0.1:8080` (not exposed to the LAN directly). Deployed on the same host as the SAPOT server (`server/`); Nginx (`server/nginx.conf` bare-metal, `docker/nginx.docker.conf` for Compose) reverse-proxies `/tiles/` to it over the same TLS cert/port (443) as the API. Clients point `maplibre-gl` at `https://<server-host>/tiles/styles/basic-preview/{z}/{x}/{y}.png` — see `mobile-app/sapot-mobile-app/config/runtime.ts`'s `getTileServerUrl()` and `docs/deployment/tileserver.md` for the full routing detail.
 
 ## Directory Guide
 
@@ -36,4 +36,5 @@ Docker image `maptiler/tileserver-gl`, bind-mounting this directory (which must 
 ## When Modifying This Project
 
 - Changing the `.mbtiles` filename requires updating `deploy-tiling-server-detached.sh` (hardcoded) to match — the foreground script (`deploy-tiling-server.sh`) doesn't hardcode a filename since it doesn't pass `--mbtiles` explicitly.
-- Changing the exposed port or data path requires updating both deploy scripts and the tile endpoint URLs `mobile-app`/`admin-frontend` clients use — this is a cross-component change (see root `CLAUDE.md`).
+- Changing the exposed port or data path requires updating both deploy scripts, `server/nginx.conf` / `docker/nginx.docker.conf`'s `/tiles/` proxy target, and the tile endpoint URLs `mobile-app`/`admin-frontend` clients use — this is a cross-component change (see root `CLAUDE.md`).
+- `deploy-tiling-server-detached.sh` binds to `127.0.0.1:8080` intentionally — the container is only reachable through the Nginx TLS proxy, not directly on the LAN. Don't revert this to `0.0.0.0`/`:8080` without updating the client URL scheme back to a direct port too.
