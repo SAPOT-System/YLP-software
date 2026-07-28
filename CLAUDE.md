@@ -81,4 +81,5 @@ If the change is release-relevant (server), `server/app/version.py` must match t
 4. Make the smallest change that satisfies the request.
 5. Update tests and any `docs/` page the change makes stale.
 6. Run that component's verification commands (table above).
-7. Report what changed, which component(s), and what was run to verify.
+7. When an implementation, fix, or PR is complete, include concise smoke-test instructions; include two-device test instructions when the change involves device-to-device behavior.
+8. Report what changed, which component(s), and what was run to verify.
