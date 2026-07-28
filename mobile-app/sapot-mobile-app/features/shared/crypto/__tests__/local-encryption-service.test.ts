@@ -1,4 +1,5 @@
 import { LocalEncryptionService } from "../local-encryption-service";
+import { KeyInitError } from "@/features/shared/core/errors";
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -31,6 +32,10 @@ jest.mock("../key-derivation", () => ({
 
 // Stub the barrel import to avoid the api/client → @/config/runtime chain.
 jest.mock("@/features/shared", () => ({
+  apiClient: { get: jest.fn(), post: jest.fn() },
+}));
+
+jest.mock("@/features/shared/core/api", () => ({
   apiClient: { get: jest.fn(), post: jest.fn() },
 }));
 
@@ -199,6 +204,144 @@ describe("LocalEncryptionService", () => {
 
       expect(service.getMasterKeyBytes()).toBeDefined();
       expect(service.getSignalingSecretKey().length).toBe(32);
+    });
+  });
+
+  // ── Distinguishable key-load failures (issue #245) ──────────────────────────
+
+  describe("key-load failure classification", () => {
+    const validKeyB64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    const apiClient = jest.requireMock("@/features/shared/core/api")
+      .apiClient as { get: jest.Mock; post: jest.Mock };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      mockSecureConfigForGuestPath();
+    });
+
+    it("throws MASTER_KEY_UNAVAILABLE for an authenticated user when no password is in memory and no key is cached", async () => {
+      // Arrange: post-failure retry — the password was consumed, cache is empty
+      const service = new LocalEncryptionService({
+        getPassword: () => null,
+        userId: "user-1",
+      });
+
+      // Act / Assert
+      await expect(service.initialize()).rejects.toMatchObject({
+        code: "MASTER_KEY_UNAVAILABLE",
+        detail: "cache-absent",
+      });
+    });
+
+    it("never mints a random device key for an authenticated user", async () => {
+      // Arrange
+      const ExpoCrypto = jest.requireMock("expo-crypto");
+      const service = new LocalEncryptionService({
+        getPassword: () => null,
+        userId: "user-1",
+      });
+
+      // Act
+      await expect(service.initialize()).rejects.toBeInstanceOf(KeyInitError);
+
+      // Assert: silently generating a fresh master key would orphan every
+      // existing ciphertext, so it must not happen.
+      expect(ExpoCrypto.getRandomBytesAsync).not.toHaveBeenCalled();
+    });
+
+    it("reports a partially written cache separately from an absent one", async () => {
+      // Arrange: master key persisted but the signaling key write never landed
+      (SecureConfig.getMasterKey as jest.Mock).mockResolvedValue(validKeyB64);
+      (SecureConfig.getSignalingSecretKey as jest.Mock).mockResolvedValue(null);
+      const service = new LocalEncryptionService({
+        getPassword: () => null,
+        userId: "user-1",
+      });
+
+      // Act / Assert
+      await expect(service.initialize()).rejects.toMatchObject({
+        code: "MASTER_KEY_UNAVAILABLE",
+        detail: "cache-partial",
+      });
+    });
+
+    it("throws SECURE_STORE_READ_FAILED when the cached bundle cannot be decoded", async () => {
+      // Arrange
+      (SecureConfig.getMasterKey as jest.Mock).mockResolvedValue("not-base64!!");
+      (SecureConfig.getSignalingSecretKey as jest.Mock).mockResolvedValue(
+        "also-not-base64!!"
+      );
+      const service = new LocalEncryptionService({
+        getPassword: () => null,
+        userId: "user-1",
+      });
+
+      // Act / Assert
+      await expect(service.initialize()).rejects.toMatchObject({
+        code: "SECURE_STORE_READ_FAILED",
+      });
+    });
+
+    it("throws MASTER_KEY_UNWRAP_FAILED when the server blob cannot be unwrapped", async () => {
+      // Arrange: blob present but the KEK does not open it (wrong password)
+      apiClient.get.mockResolvedValue({
+        status: 200,
+        data: { wrapped_blob: validKeyB64 },
+      });
+      const service = new LocalEncryptionService({
+        getPassword: () => "wrong-password",
+        userId: "user-1",
+      });
+
+      // Act / Assert
+      await expect(service.initialize()).rejects.toMatchObject({
+        code: "MASTER_KEY_UNWRAP_FAILED",
+      });
+    });
+
+    it("throws KEY_SERVER_UNREACHABLE when the wrapped-key request fails with a non-404", async () => {
+      // Arrange
+      apiClient.get.mockRejectedValue({ response: { status: 503 } });
+      const service = new LocalEncryptionService({
+        getPassword: () => "password",
+        userId: "user-1",
+      });
+
+      // Act / Assert
+      await expect(service.initialize()).rejects.toMatchObject({
+        code: "KEY_SERVER_UNREACHABLE",
+      });
+    });
+
+    it("still generates a fresh bundle on 404 so first-time login works", async () => {
+      // Arrange
+      apiClient.get.mockRejectedValue({ response: { status: 404 } });
+      apiClient.post.mockResolvedValue({ status: 200 });
+      const service = new LocalEncryptionService({
+        getPassword: () => "password",
+        userId: "user-1",
+      });
+
+      // Act
+      await service.initialize();
+
+      // Assert
+      expect(service.getMasterKeyBytes().length).toBe(32);
+      expect(SecureConfig.saveMasterKey).toHaveBeenCalled();
+    });
+
+    it("still falls back to a device key for guests", async () => {
+      // Arrange
+      const service = new LocalEncryptionService({
+        getPassword: () => null,
+        userId: null,
+      });
+
+      // Act
+      await service.initialize();
+
+      // Assert
+      expect(service.getMasterKeyBytes().length).toBe(32);
     });
   });
 });

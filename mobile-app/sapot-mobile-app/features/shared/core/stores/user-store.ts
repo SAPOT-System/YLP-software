@@ -23,6 +23,15 @@ export class UserStore {
     return this._user;
   }
 
+  /**
+   * Whether `user` can be read without throwing. Lets callers that run right
+   * after login check for a settled auth state instead of using a throw as
+   * control flow.
+   */
+  get hasUser(): boolean {
+    return Boolean(this._user);
+  }
+
   get isGuest(): boolean {
     return this._isGuest;
   }

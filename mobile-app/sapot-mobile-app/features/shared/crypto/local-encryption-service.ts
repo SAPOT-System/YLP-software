@@ -8,6 +8,7 @@ import {
   saveSignalingSecretKey,
 } from "../core/stores/secure-config";
 import { apiClient } from "@/features/shared/core/api";
+import { KeyInitError } from "../core/errors/key-init-error";
 import { appLog } from "../core/utils/logger";
 import { deriveKey } from "./key-derivation";
 
@@ -40,18 +41,41 @@ export class LocalEncryptionService {
     const cachedMaster = await getMasterKey();
     const cachedSignaling = await getSignalingSecretKey();
     if (cachedMaster && cachedSignaling) {
-      this.key = decodeBase64(cachedMaster);
-      this.signalingKey = decodeBase64(cachedSignaling);
+      try {
+        this.key = decodeBase64(cachedMaster);
+        this.signalingKey = decodeBase64(cachedSignaling);
+      } catch (error) {
+        throw new KeyInitError(
+          "cached key bundle could not be decoded",
+          "SECURE_STORE_READ_FAILED",
+          { cause: error }
+        );
+      }
       return;
     }
 
-    if (password === null || userId === null) {
+    if (userId === null) {
       // Guest or unauthenticated — device-only key
       await this.initDeviceKey();
       return;
     }
 
-    await this.initFromServer(password, userId);
+    if (password !== null) {
+      await this.initFromServer(password, userId);
+      return;
+    }
+
+    // Authenticated, but the cache is unusable and the password is no longer in
+    // memory. Falling through to a device-only key here would silently mint a
+    // fresh master key and orphan every existing ciphertext, so fail with a
+    // reason the caller can surface instead.
+    const detail = cachedMaster || cachedSignaling ? "cache-partial" : "cache-absent";
+    appLog.error("enc › master key unavailable", { detail });
+    throw new KeyInitError(
+      "no cached key bundle and no password available to unwrap one",
+      "MASTER_KEY_UNAVAILABLE",
+      { detail }
+    );
   }
 
   private async initFromServer(password: string, userId: string): Promise<void> {
@@ -73,12 +97,13 @@ export class LocalEncryptionService {
           return;
         }
         // Decryption failed - wrong password or password changed without re-wrapping
-        throw new Error("MASTER_KEY_UNWRAP_FAILED");
+        throw new KeyInitError(
+          "wrapped key blob could not be unwrapped",
+          "MASTER_KEY_UNWRAP_FAILED"
+        );
       }
     } catch (err: unknown) {
-      if (err instanceof Error && err.message === "MASTER_KEY_UNWRAP_FAILED") {
-        throw err;
-      }
+      if (err instanceof KeyInitError) throw err;
 
       const is404 =
         err !== null &&
@@ -88,7 +113,11 @@ export class LocalEncryptionService {
 
       if (!is404) {
         // Network error or other API failure - do not generate fresh bundle
-        throw err;
+        throw new KeyInitError(
+          "wrapped key could not be fetched",
+          "KEY_SERVER_UNREACHABLE",
+          { cause: err }
+        );
       }
     }
 
