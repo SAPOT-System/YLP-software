@@ -183,6 +183,7 @@ export function createCallServiceDependencyMocks() {
 		sendAckMessage: jest.fn(),
 		isWebSocketAllowed: jest.fn(() => true),
 		setActiveCall: jest.fn(),
+		clearActiveCall: jest.fn(),
 		shouldIgnoreCallBusy: jest.fn(() => false),
 		getWebrtcAdapter: jest.fn(),
 		sendCallControlMessage: jest.fn(),

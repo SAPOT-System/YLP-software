@@ -1011,6 +1011,75 @@ describe("ConnectionService", () => {
 
       expect(mockWebrtcAdapter.terminateCall).not.toHaveBeenCalled();
     });
+
+    // Each teardown step frees a different per-call resource. `terminateCall()`
+    // has already disposed the adapter by the time it can throw, so skipping the
+    // eviction hands the *next* call an adapter with isDisposed=true, on which
+    // every negotiation silently no-ops (#304).
+    it("still evicts the webrtc adapter when media teardown throws", () => {
+      const evictSpy = jest.spyOn(webrtcSessionManager, "evictWebrtcAdapter");
+      mockWebrtcAdapter.terminateCall.mockImplementation(() => {
+        throw new Error("data channel already closed");
+      });
+
+      expect(() =>
+        connectionService.terminateCallConnection("peer-1")
+      ).not.toThrow();
+
+      expect(evictSpy).toHaveBeenCalledWith("peer-1");
+    });
+
+    it("still discards this peer's queued negotiation when media teardown throws", () => {
+      mockWebrtcAdapter.terminateCall.mockImplementation(() => {
+        throw new Error("data channel already closed");
+      });
+
+      connectionService.terminateCallConnection("peer-1");
+
+      expect(
+        mockWsSignalingAdapter.discardQueuedNegotiationFor
+      ).toHaveBeenCalledWith("peer-1");
+    });
+  });
+
+  // The busy marker is a single field, so a teardown for one peer must not clear
+  // the marker a live call with a different peer is holding.
+  describe("clearActiveCall", () => {
+    const ring = async (from: string) => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+      await callMessageHandler?.({
+        type: "audio-call" as const,
+        data: { from, to: "test-user-id", callId: "call-abc" },
+      });
+    };
+
+    it("stops busy-rejecting once the owning peer releases the marker", async () => {
+      connectionService.setActiveCall("peer-2");
+      connectionService.clearActiveCall("peer-2");
+      const sendCallMessageSpy = jest.spyOn(signalingService, "sendCallMessage");
+
+      await ring("peer-1");
+
+      expect(sendCallMessageSpy).not.toHaveBeenCalledWith(
+        "peer-1",
+        expect.objectContaining({ type: "call-rejected" })
+      );
+    });
+
+    it("keeps busy-rejecting when a different peer still owns the marker", async () => {
+      connectionService.setActiveCall("peer-2");
+      connectionService.clearActiveCall("peer-1");
+      const sendCallMessageSpy = jest.spyOn(signalingService, "sendCallMessage");
+
+      await ring("peer-1");
+
+      expect(sendCallMessageSpy).toHaveBeenCalledWith(
+        "peer-1",
+        expect.objectContaining({ type: "call-rejected" })
+      );
+    });
   });
 
   describe("toggleMic", () => {

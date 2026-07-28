@@ -58,6 +58,7 @@ type CallConnectionService = Pick<
   | "getLocalStream"
   | "isWebSocketAllowed"
   | "setActiveCall"
+  | "clearActiveCall"
   | "sendCallControlMessage"
   | "waitForDataChannel"
 >;
@@ -116,6 +117,11 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
   private remoteStream: MediaStream | null = null;
   private audioService: CallAudioService;
   private callSessions: Map<string, CallSession> = new Map();
+  // Peers whose call started an InCallManager audio session. The session starts
+  // during setup, well before the call reaches "connected", so "was connected"
+  // is not a safe proxy for "needs stopping" — a call that fails while ringing
+  // would leak its audio session and keep-screen-on for the rest of the process.
+  private audioSessionPeers: Set<string> = new Set();
   private callLog!: CallLogService;
   private busyRejectHandler:
     | ((
@@ -233,26 +239,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       callLog.info("call › connecting to peer");
 
-      // For audio-only calls, default to earpiece
-      // For video calls, default to speaker
-      InCallManager.start({
-        media: type,
-        auto: true,
-      });
-      this.audioService.setupAudioEventListeners();
-
-      // Force initial route based on call type (only once per call)
-      if (!this.audioService.hasInitialRouteFor(peerId)) {
-        if (type === "audio") {
-          this.audioService.setAudioRoute("earpiece");
-        } else {
-          this.audioService.setAudioRoute("speaker");
-        }
-        this.audioService.markInitialRouteSet(peerId);
-      }
-
-      // Set keep screen on during call
-      InCallManager.setKeepScreenOn(true);
+      this.startAudioSession(type, peerId);
 
       // Initialize local audio and video
       await this.connectionService.initializeStream(type, peerId);
@@ -304,26 +291,7 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
 
       callLog.info("call › start answer call", { peerId, type });
 
-      // For audio-only calls, default to earpiece
-      // For video calls, default to speaker
-      InCallManager.start({
-        media: type,
-        auto: true,
-      });
-      this.audioService.setupAudioEventListeners();
-
-      // Force initial route based on call type (only once per call)
-      if (!this.audioService.hasInitialRouteFor(peerId)) {
-        if (type === "audio") {
-          this.audioService.setAudioRoute("earpiece");
-        } else {
-          this.audioService.setAudioRoute("speaker");
-        }
-        this.audioService.markInitialRouteSet(peerId);
-      }
-
-      // Set keep screen on during call
-      InCallManager.setKeepScreenOn(true);
+      this.startAudioSession(type, peerId);
 
       // Acquire media before accepting, but do not create or negotiate WebRTC
       // until the caller receives this session's correlated readiness signal.
@@ -610,10 +578,10 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
     peerId: string,
     reason?: "completed" | "missed" | "rejected"
   ) {
+    const session = this.callSessions.get(peerId);
     try {
       callLog.info("call › terminate", { peerId });
 
-      const session = this.callSessions.get(peerId);
       const wasConnected = this.getConnectedState(peerId) === "connected";
 
       // A ringing call still owns an in-flight WebRTC negotiation and queued
@@ -621,12 +589,6 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       // next call can inherit the failed attempt after network recovery.
       if ((session && !session.finalized) || wasConnected) {
         this.connectionService.terminateCallConnection(peerId);
-      }
-
-      if (wasConnected) {
-        InCallManager.stop();
-        InCallManager.setKeepScreenOn(false);
-        this.audioService.removeAudioEventListeners();
       }
 
       const status = this.callLog.resolveFinalStatus(reason, session);
@@ -662,26 +624,13 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
           callType: session?.callType === CallType.VIDEO ? "video" : "audio",
         },
       });
-
-      this.setConnectedState(peerId, "disconnected");
-      this.connectedStateByPeer.delete(peerId);
-      this.remoteStream = null;
-      this.audioService.clearInitialRouteFor(peerId);
-      this.connectionService.setActiveCall(null);
-
-      if (this.busyRejectHandler) {
-        this.connectionService.off("call-busy", this.busyRejectHandler);
-        this.busyRejectHandler = null;
-      }
-      if (this.callReadyHandler) {
-        this.connectionService.off("call-ready", this.callReadyHandler);
-        this.callReadyHandler = null;
-      }
     } catch (error) {
       const appErr = toAppError(error, "media");
       callLog.error("call › terminate failed", { peerId, ...appErr });
       captureAppError(appErr);
       throw appErr;
+    } finally {
+      this.releasePerCallResources(peerId);
     }
   }
 
@@ -720,17 +669,9 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
         return;
       }
 
-      const wasConnected = this.getConnectedState(peerId) === "connected";
-
       // The remote peer can end while this side is still negotiating. Clear that
       // partial session too so a later call starts with fresh transport state.
       this.connectionService.terminateCallConnection(peerId);
-
-      if (wasConnected) {
-        InCallManager.stop();
-        InCallManager.setKeepScreenOn(false);
-        this.audioService.removeAudioEventListeners();
-      }
 
       const status = this.callLog.resolveFinalStatus(payload.status, session);
       const endTime =
@@ -757,11 +698,65 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       captureAppError(appErr);
       throw appErr;
     } finally {
-      this.setConnectedState(peerId, "disconnected");
-      this.connectedStateByPeer.delete(peerId);
-      this.remoteStream = null;
-      this.audioService.clearInitialRouteFor(peerId);
-      this.connectionService.setActiveCall(null);
+      this.releasePerCallResources(peerId);
+    }
+  }
+
+  /**
+   * Brings up the audio session for a call with `peerId`.
+   *
+   * Records that this peer owns a live InCallManager session so teardown can
+   * stop exactly the sessions that were started — see {@link audioSessionPeers}.
+   */
+  private startAudioSession(type: "video" | "audio", peerId: string): void {
+    InCallManager.start({ media: type, auto: true });
+    this.audioSessionPeers.add(peerId);
+    this.audioService.setupAudioEventListeners();
+
+    // Audio-only calls default to the earpiece, video calls to the speaker.
+    // Only forced once per call so a mid-call route change is not undone.
+    if (!this.audioService.hasInitialRouteFor(peerId)) {
+      this.audioService.setAudioRoute(type === "audio" ? "earpiece" : "speaker");
+      this.audioService.markInitialRouteSet(peerId);
+    }
+
+    InCallManager.setKeepScreenOn(true);
+  }
+
+  private stopAudioSession(peerId: string): void {
+    if (!this.audioSessionPeers.delete(peerId)) return;
+    InCallManager.stop();
+    InCallManager.setKeepScreenOn(false);
+    this.audioService.removeAudioEventListeners();
+  }
+
+  /**
+   * Releases everything a single call owns on this side.
+   *
+   * Runs from a `finally` on every teardown path. Persisting the call log or
+   * notifying the peer can fail — over a transport this teardown just tore down,
+   * among other reasons — and if that took the release path down with it, the
+   * busy marker would survive the call. The peer's next call is then auto-
+   * rejected as busy before this device ever rings (#298), and the audio session
+   * and signaling handlers pile up call after call (#304).
+   */
+  private releasePerCallResources(peerId: string): void {
+    this.stopAudioSession(peerId);
+    this.connectedStateByPeer.delete(peerId);
+    this.remoteStream = null;
+    this.audioService.clearInitialRouteFor(peerId);
+    this.connectionService.clearActiveCall(peerId);
+    this.clearCallSignalingHandlers();
+  }
+
+  private clearCallSignalingHandlers(): void {
+    if (this.busyRejectHandler) {
+      this.connectionService.off("call-busy", this.busyRejectHandler);
+      this.busyRejectHandler = null;
+    }
+    if (this.callReadyHandler) {
+      this.connectionService.off("call-ready", this.callReadyHandler);
+      this.callReadyHandler = null;
     }
   }
 
@@ -950,32 +945,47 @@ export class CallService extends TypedEventEmitter<CallServiceEvents> {
       return "";
     }
 
-    await this.callRepository.updateCallStatus(session.callId, status, endTime);
-    await this.callParticipantRepository.updateParticipantLeftAtByCallAndUser(
-      session.callId,
-      this.userStore.user.id,
-      endTime
-    );
+    // Persisting the outcome is best-effort; retiring the session is not. An
+    // unfinalized session is handed straight back by ensureSession(), so the
+    // next call to this peer would reuse the dead call's id and discard its own
+    // correlated call-ready as stale — leaving the caller stuck on "Calling…".
+    try {
+      await this.callRepository.updateCallStatus(session.callId, status, endTime);
+      await this.callParticipantRepository.updateParticipantLeftAtByCallAndUser(
+        session.callId,
+        this.userStore.user.id,
+        endTime
+      );
 
-    const callLogMessage = this.callLog.buildCallLogMessage(
-      session,
-      status,
-      endTime,
-      durationSecondsOverride
-    );
+      const callLogMessage = this.callLog.buildCallLogMessage(
+        session,
+        status,
+        endTime,
+        durationSecondsOverride
+      );
 
-    const messageIdR = await this.saveCallLogWithReceipts({
-      peerId,
-      messageId,
-      content: callLogMessage,
-      status: MessageStatusType.SENDING,
-      senderId: initiatorId,
-      conversationId: session.conversationId,
-    });
-
-    session.finalized = true;
-    this.callSessions.delete(peerId);
-    return messageIdR;
+      return await this.saveCallLogWithReceipts({
+        peerId,
+        messageId,
+        content: callLogMessage,
+        status: MessageStatusType.SENDING,
+        senderId: initiatorId,
+        conversationId: session.conversationId,
+      });
+    } catch (error) {
+      const appErr = toAppError(error, "database");
+      callLog.error("call › session outcome persist failed (non-fatal)", {
+        peerId,
+        callId: session.callId,
+        status,
+        ...appErr,
+      });
+      captureAppError(appErr);
+      return "";
+    } finally {
+      session.finalized = true;
+      this.callSessions.delete(peerId);
+    }
   }
 
 }

@@ -423,6 +423,25 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
     this.activeCallPeerId = peerId;
   }
 
+  /**
+   * Releases the busy marker on behalf of `peerId`.
+   *
+   * The marker is a single field shared by every peer, so an unconditional
+   * `setActiveCall(null)` from one peer's teardown would un-busy a call that is
+   * still live with another peer. Callers that are winding a specific call down
+   * should use this instead.
+   */
+  clearActiveCall(peerId: string) {
+    if (this.activeCallPeerId !== peerId) {
+      connectionLog.debug("connection › active call clear skipped — not owner", {
+        peerId,
+        activeCallPeerId: this.activeCallPeerId,
+      });
+      return;
+    }
+    this.setActiveCall(null);
+  }
+
   shouldIgnoreCallBusy(peerId: string): boolean {
     return this.glareAcceptedPeers.has(peerId);
   }
@@ -974,14 +993,42 @@ export class ConnectionService extends TypedEventEmitter<ConnectionServiceEvents
   }
 
   terminateCallConnection(peerId: string) {
-    this.callMediaService.terminateCallConnection(peerId);
-    this.webrtcSessionManager.evictWebrtcAdapter(peerId);
+    // Each step releases a different per-call resource, and each can fail on its
+    // own (a data channel closed under us, a native handle already gone). They
+    // are independent, so one failure must not strand the rest: `terminateCall()`
+    // has already disposed the adapter by the time it can throw, and an adapter
+    // left in the session map after disposal is handed straight to the next call,
+    // where every negotiation silently no-ops.
+    this.releaseCallResource("call media teardown", peerId, () =>
+      this.callMediaService.terminateCallConnection(peerId)
+    );
+    this.releaseCallResource("webrtc adapter eviction", peerId, () =>
+      this.webrtcSessionManager.evictWebrtcAdapter(peerId)
+    );
     // If the call is ending during an outage, this session's offers/ICE are still
     // sitting in the WS outbound queue. Left there, the reconnect flush replays
     // them at the peer and poisons the next call's negotiation — drop them now.
-    this.wsSignalingAdapter.discardQueuedNegotiationFor(peerId);
+    this.releaseCallResource("queued negotiation discard", peerId, () =>
+      this.wsSignalingAdapter.discardQueuedNegotiationFor(peerId)
+    );
     // Don't let the next call reuse this call's in-flight connect promise.
     this.connectingPeers.delete(peerId);
+  }
+
+  private releaseCallResource(
+    step: string,
+    peerId: string,
+    release: () => void
+  ): void {
+    try {
+      release();
+    } catch (error) {
+      connectionLog.warn("connection › call resource release failed", {
+        step,
+        peerId,
+        error,
+      });
+    }
   }
 
   toggleMic(peerId: string) {
