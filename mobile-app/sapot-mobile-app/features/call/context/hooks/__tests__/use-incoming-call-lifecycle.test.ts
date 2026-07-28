@@ -73,4 +73,35 @@ describe("useIncomingCallLifecycle", () => {
     });
     expect(onIncomingCallEnded).not.toHaveBeenCalled();
   });
+
+  // The busy marker set on ring must not outlive the ring. Left behind, the next
+  // call from the same peer is auto-rejected as busy before the callee ever
+  // rings (#298).
+  test("releases the busy marker when the ring clears unanswered", () => {
+    const { rerender, connectionService } = setup();
+
+    rerender({ incomingCall: null });
+
+    expect(connectionService.clearActiveCall).toHaveBeenCalledWith("p1");
+  });
+
+  test("releases the busy marker when the ringing screen goes away", () => {
+    const { unmount, connectionService } = setup();
+
+    unmount();
+
+    expect(connectionService.clearActiveCall).toHaveBeenCalledWith("p1");
+  });
+
+  // Accepting clears the ring but hands the call to CallService, which owns the
+  // marker for the live session — releasing it here would un-busy a call that is
+  // still up.
+  test("leaves the busy marker alone when the ring was answered", () => {
+    const { rerender, connectionService, callService } = setup();
+    callService.hasActiveSession.mockReturnValue(true);
+
+    rerender({ incomingCall: null });
+
+    expect(connectionService.clearActiveCall).not.toHaveBeenCalled();
+  });
 });

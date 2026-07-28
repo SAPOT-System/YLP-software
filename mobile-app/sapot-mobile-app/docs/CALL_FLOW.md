@@ -251,6 +251,28 @@ WebSocket. The adapter invalidates and closes the old native socket while preser
 outbound queue; messages created around the transition flush when the replacement socket
 opens. The initial online event at app startup does not trigger this reset.
 
+### Who owns the busy marker
+
+`ConnectionService.activeCallPeerId` is the single field every incoming call is checked
+against (`shouldBusyRejectIncomingCall`). While it is set, a call from any other peer is
+auto-rejected as busy before the device ever rings, so a marker that outlives its call
+silently blocks the next one.
+
+Ownership passes along the call: `useIncomingCallLifecycle` claims it while ringing and
+releases it when the ring ends, *unless* `CallService` has meanwhile opened a session for
+that peer — answering hands ownership to the session, which holds the marker until the
+call ends. `CallService` releases it from a `finally` on every teardown path, so a failure
+while persisting the call log or notifying the peer cannot take the release down with it.
+
+Release goes through `clearActiveCall(peerId)`, which is a no-op unless that peer still
+owns the marker. An unconditional `setActiveCall(null)` would let one peer's teardown
+un-busy a call that is still live with another peer.
+
+Retiring the `CallSession` is likewise unconditional: `finalizeSession` marks and deletes
+it in a `finally`, treating persistence as best-effort. A session left unfinalized is
+handed back by the next `ensureSession()`, so the following call would reuse the dead
+call's id and discard its own correlated `call-ready` as stale.
+
 ### Tearing down a call during an outage
 
 While the WebSocket is down, `WsSignalingAdapter` buffers outbound frames in
@@ -262,12 +284,20 @@ callee sits on an offer it can't complete while the caller retries into a broken
 
 `CallService` invokes transport teardown for every active call session, including a
 ringing attempt that never reached its internal `"connected"` state. Audio routing and
-`InCallManager` cleanup remain limited to calls that actually connected.
+`InCallManager` cleanup follow the peers recorded in `audioSessionPeers` — the audio
+session starts during setup, well before the call connects, so "reached connected" is not
+a safe proxy for "has a session to stop".
 
 `ConnectionService.terminateCallConnection()` therefore drops that peer's queued
 `offer`/`answer`/`ice-candidate` frames (`discardQueuedNegotiationFor`) along with the
 in-flight `connectingPeers` entry. `call-ended` and chat messages stay queued — those
 still need to be delivered so the peer's call log finalizes.
+
+Each of those release steps is independent and independently fallible, so one failure
+must not strand the rest. `terminateCall()` has already disposed the `WebrtcAdapter` by
+the time it can throw, and an adapter left in the session map after disposal is handed
+straight to the next call, where every negotiation silently no-ops against
+`isDisposed`.
 
 Dropping the `connectingPeers` entry leaves the abandoned connect still running, so its
 cleanup clears the entry **only if it is still its own**. Deleting unconditionally would

@@ -27,11 +27,21 @@ export function useIncomingCallLifecycle(params: {
   const onEndedRef = useRef(onIncomingCallEnded);
   onEndedRef.current = onIncomingCallEnded;
 
-  // Mark the peer as busy for concurrent callers while ringing.
+  // Mark the peer as busy for concurrent callers while ringing, and release that
+  // mark when the ring is over. Left set, it survives as a stale busy marker and
+  // the next call from this peer is auto-rejected before the device ever rings.
   useEffect(() => {
     if (!incomingCall) return;
-    connectionService.setActiveCall(incomingCall.peerId);
-  }, [incomingCall, connectionService]);
+    const { peerId } = incomingCall;
+    connectionService.setActiveCall(peerId);
+    return () => {
+      // Answering also clears the ring, but hands the call to CallService, which
+      // now holds a live session and owns the marker until that call ends —
+      // releasing it here would un-busy a call that is still up.
+      if (callService.hasActiveSession(peerId)) return;
+      connectionService.clearActiveCall(peerId);
+    };
+  }, [incomingCall, connectionService, callService]);
 
   // No-answer timeout (30s)
   useEffect(() => {

@@ -2,6 +2,7 @@ import { callLog } from "@/features/shared/core/utils/logger";
 import { createTestPeer } from "@/test/factories/user.factory";
 import { createMockMediaStream } from "@/test/mocks/adapter.mock-builders";
 import { createCallServiceDependencyMocks } from "@/test/mocks/service.mock-builders";
+import InCallManager from "react-native-incall-manager";
 import { MediaStream } from "react-native-webrtc";
 import { CallService } from "../call-service";
 
@@ -457,6 +458,105 @@ describe("CallService", () => {
     });
   });
 
+  // Teardown releases per-call resources: the busy marker the peer's next call
+  // is checked against, the signaling handlers, the audio session, and the call
+  // session itself. Any of these left behind poisons the *next* call between the
+  // same two peers, so each must survive a failure in the steps around it.
+  // Regression cover for #298 (false "peer is busy") and #304 (repeated-call
+  // resource accumulation).
+  describe("per-call teardown release", () => {
+    const peerId = "peer-1";
+
+    beforeEach(async () => {
+      mockConnectionService.isWebrtcConnected.mockReturnValue(false);
+      await callService.informPeerForIncomingCall("audio", peerId);
+      jest.clearAllMocks();
+    });
+
+    it("releases the busy marker when notifying the peer of the end fails", async () => {
+      mockConnectionService.sendCallMessage.mockImplementation(() => {
+        throw new Error("transport gone");
+      });
+
+      await expect(
+        callService.terminateCallConnection(peerId)
+      ).rejects.toThrow("transport gone");
+
+      expect(mockConnectionService.clearActiveCall).toHaveBeenCalledWith(peerId);
+    });
+
+    it("releases the busy marker when the call log write fails", async () => {
+      mockMessageRepository.saveMessage.mockRejectedValue(
+        new Error("database is locked")
+      );
+
+      await callService.terminateCallConnection(peerId);
+
+      expect(mockConnectionService.clearActiveCall).toHaveBeenCalledWith(peerId);
+    });
+
+    it("deregisters the call-busy and call-ready handlers when teardown fails", async () => {
+      mockConnectionService.sendCallMessage.mockImplementation(() => {
+        throw new Error("transport gone");
+      });
+
+      await expect(
+        callService.terminateCallConnection(peerId)
+      ).rejects.toThrow("transport gone");
+
+      expect(mockConnectionService.off).toHaveBeenCalledWith(
+        "call-busy",
+        expect.any(Function)
+      );
+      expect(mockConnectionService.off).toHaveBeenCalledWith(
+        "call-ready",
+        expect.any(Function)
+      );
+    });
+
+    // An unfinalized session is handed straight back by ensureSession(), so the
+    // next call reuses the dead call's id and its correlated call-ready is
+    // discarded as stale — the call never leaves "Calling…".
+    it("retires the session when the call log write fails so the next call gets a fresh id", async () => {
+      mockMessageRepository.saveMessage.mockRejectedValue(
+        new Error("database is locked")
+      );
+
+      await callService.terminateCallConnection(peerId);
+
+      expect(callService.hasActiveSession(peerId)).toBe(false);
+
+      mockCallRepository.saveCall.mockResolvedValue({ id: "call-2" });
+      mockMessageRepository.saveMessage.mockResolvedValue({ id: "msg-2" });
+      await callService.informPeerForIncomingCall("audio", peerId);
+
+      expect(callService.getActiveCallId(peerId)).toBe("call-2");
+    });
+
+    // InCallManager.start() runs during setup, before the call reaches
+    // "connected", so gating the stop on "was connected" leaks the audio session
+    // and keep-screen-on for every call that fails partway through setup.
+    it("stops the audio session of a call that failed before reaching connected", async () => {
+      mockConnectionService.initializeStream.mockRejectedValue(
+        new Error("microphone unavailable")
+      );
+
+      await expect(callService.startCall("audio", peerId)).rejects.toThrow(
+        "microphone unavailable"
+      );
+
+      expect(InCallManager.start).toHaveBeenCalled();
+      expect(InCallManager.stop).toHaveBeenCalled();
+      expect(InCallManager.setKeepScreenOn).toHaveBeenCalledWith(false);
+    });
+
+    it("does not stop the audio session when no call started one", async () => {
+      await callService.terminateCallConnection("peer-never-called");
+
+      expect(InCallManager.stop).not.toHaveBeenCalled();
+    });
+  });
+
   describe("toggleMic", () => {
     it("should toggle microphone for peer", () => {
       const peerId = "peer-1";
@@ -783,7 +883,11 @@ describe("CallService", () => {
         callType: "audio",
       });
 
-      expect(mockConnectionService.setActiveCall).toHaveBeenCalledWith(null);
+      // Released on this peer's behalf rather than blanket-cleared, so a call
+      // with a different peer keeps its own busy marker.
+      expect(mockConnectionService.clearActiveCall).toHaveBeenCalledWith(
+        "peer-1"
+      );
     });
 
     it("tears down an active call attempt when the peer ends it before connection", async () => {
