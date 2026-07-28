@@ -47,6 +47,7 @@ code is deployed.
 | Date | Change | MariaDB DDL |
 |---|---|---|
 | 2026-07-26 | `message.content`: `VARCHAR(255)` → `TEXT`. A 2000-char plaintext message (the client-side cap, `MAX_MESSAGE_LENGTH`) and E2E-encrypted base64 ciphertext both overflow 255 chars, so `/sync/push` failed with a generic 500 `Internal Sync Error`. | `ALTER TABLE message MODIFY COLUMN content TEXT NOT NULL;` |
+| 2026-07-28 | `call_participant.call_id`: FK target `conversation.id` → `call.id`. Copy-paste bug — inserting a `CallParticipant` row against a real MariaDB dev DB either violated the FK or silently stored the wrong id (issue #270). | `ALTER TABLE call_participant DROP FOREIGN KEY <existing_fk_name>; ALTER TABLE call_participant ADD CONSTRAINT call_participant_ibfk_call FOREIGN KEY (call_id) REFERENCES call(id) ON DELETE CASCADE;` (find `<existing_fk_name>` via `SHOW CREATE TABLE call_participant;`) |
 
 Verify after applying:
 
