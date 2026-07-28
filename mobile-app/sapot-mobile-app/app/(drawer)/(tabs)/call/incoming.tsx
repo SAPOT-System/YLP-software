@@ -105,34 +105,55 @@ export default function IncomingCall() {
       type,
       conversationId,
     });
+    const callType = (type as "audio" | "video") ?? "audio";
+    const incomingCallParams = {
+      id: id!,
+      type: callType,
+      conversationId: conversationId ?? "",
+      callId: callId ?? "",
+      callerName,
+    };
+
+    uiLog.info("[Navigation] Navigating to CallRoom", {
+      screen: "/(drawer)/(tabs)/call/[id]",
+      peerId: id,
+      type: callType,
+      status: "answering",
+    });
+    router.replace({
+      pathname: "/(drawer)/(tabs)/call/[id]" as never,
+      params: { id: id!, type: callType, status: "answering" },
+    });
+
     const granted = await requestMediaPermissions(
-      (type as "audio" | "video") ?? "audio"
+      callType
     );
-    if (!granted) return;
+    if (!granted) {
+      router.replace({
+        pathname: "/(drawer)/(tabs)/call/incoming" as never,
+        params: incomingCallParams,
+      });
+      return;
+    }
 
     await connectionService.dismissIncomingCallNotification();
     try {
       await callService.answerCall(
-        (type as "audio" | "video") ?? "audio",
+        callType,
         id as string,
         conversationId || undefined,
         callId || undefined
       );
     } catch (error) {
       uiLog.error("[IncomingCall] Error in start call", { error });
+      router.replace({
+        pathname: "/(drawer)/(tabs)/call/incoming" as never,
+        params: incomingCallParams,
+      });
+      return;
     }
-    uiLog.info("[Navigation] Navigating to CallRoom", {
-      screen: "/(drawer)/(tabs)/call/[id]",
-      peerId: id,
-      type: type ?? "audio",
-      status: "answering",
-    });
     clearIncomingCall();
-    router.replace({
-      pathname: "/(drawer)/(tabs)/call/[id]" as never,
-      params: { id: id!, type: type ?? "audio", status: "answering" },
-    });
-  }, [id, type, conversationId, callId, requestMediaPermissions, connectionService, callService, clearIncomingCall, router]);
+  }, [id, type, conversationId, callId, callerName, requestMediaPermissions, connectionService, callService, clearIncomingCall, router]);
 
   const handleReject = useCallback(async () => {
     uiLog.debug("[IncomingCall] handleReject called", { id });
@@ -192,6 +213,8 @@ export default function IncomingCall() {
             style={styles.actionBtn}
             onPress={onAccept}
             disabled={accepting || rejecting}
+            accessibilityRole="button"
+            accessibilityLabel="Accept call"
           >
             <Feather name="phone" size={28} color="#34A853" />
           </TouchableOpacity>
@@ -202,6 +225,8 @@ export default function IncomingCall() {
             style={styles.actionBtn}
             onPress={onReject}
             disabled={accepting || rejecting}
+            accessibilityRole="button"
+            accessibilityLabel="Reject call"
           >
             <Feather name="phone-off" size={28} color="#EA4335" />
           </TouchableOpacity>

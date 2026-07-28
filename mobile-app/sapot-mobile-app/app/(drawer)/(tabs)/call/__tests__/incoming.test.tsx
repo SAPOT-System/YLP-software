@@ -1,10 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- test mocks */
-import { render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 
 const mockSetIncomingCall = jest.fn();
 const mockClearIncomingCall = jest.fn();
 const mockMinimizeIncoming = jest.fn();
+const mockAnswerCall = jest.fn();
+const mockRejectIncomingCall = jest.fn();
+const mockDismissIncomingCallNotification = jest.fn();
+const mockRequestMediaPermissions = jest.fn();
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 
 let mockIncomingCall: any = null;
 let mockParams: any = {
@@ -26,27 +31,31 @@ jest.mock("@/features/call/context/call-context", () => ({
 
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams,
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useRouter: () => mockRouter,
 }));
 
 jest.mock("@/features/call", () => ({
-  useCallService: () => ({ answerCall: jest.fn(), rejectIncomingCall: jest.fn() }),
+  useCallService: () => ({ answerCall: mockAnswerCall, rejectIncomingCall: mockRejectIncomingCall }),
 }));
 
 jest.mock("@/features/shared/hooks", () => ({
-  useConnectionService: () => ({ dismissIncomingCallNotification: jest.fn() }),
+  useConnectionService: () => ({ dismissIncomingCallNotification: mockDismissIncomingCallNotification }),
   usePeerService: () => ({ findPeerById: jest.fn().mockResolvedValue(null) }),
   useProfilePhoto: () => ({ url: null }),
   useThrottledPress: (fn: () => void) => ({ onPress: fn, busy: false }),
 }));
 
 jest.mock("@/features/shared/hooks/use-media-permissions", () => ({
-  useMediaPermissions: () => ({ requestMediaPermissions: jest.fn().mockResolvedValue(true) }),
+  useMediaPermissions: () => ({ requestMediaPermissions: mockRequestMediaPermissions }),
 }));
 
 describe("IncomingCall ring registration", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAnswerCall.mockResolvedValue(undefined);
+    mockRejectIncomingCall.mockResolvedValue(undefined);
+    mockDismissIncomingCallNotification.mockResolvedValue(undefined);
+    mockRequestMediaPermissions.mockResolvedValue(true);
     mockIncomingCall = null;
     mockParams = {
       id: "peer-1",
@@ -115,5 +124,67 @@ describe("IncomingCall ring registration", () => {
     expect(mockSetIncomingCall).toHaveBeenLastCalledWith(
       expect.objectContaining({ peerId: "peer-2", callId: "call-2", callerName: "Ben Reyes" }),
     );
+  });
+
+  test("moves to the call room before the permission request resolves", async () => {
+    let resolvePermission: (granted: boolean) => void;
+    mockRequestMediaPermissions.mockImplementation(
+      () => new Promise<boolean>((resolve) => { resolvePermission = resolve; }),
+    );
+    const IncomingCall = require("../incoming").default;
+    const { getByLabelText } = render(<IncomingCall />);
+
+    fireEvent.press(getByLabelText("Accept call"));
+
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/(drawer)/(tabs)/call/[id]",
+      params: { id: "peer-1", type: "audio", status: "answering" },
+    });
+    expect(mockAnswerCall).not.toHaveBeenCalled();
+
+    resolvePermission!(true);
+    await waitFor(() => expect(mockAnswerCall).toHaveBeenCalledWith("audio", "peer-1", "conv-1", "call-1"));
+    expect(mockClearIncomingCall).toHaveBeenCalledTimes(1);
+  });
+
+  test("returns to the incoming screen without answering when permission is denied", async () => {
+    mockRequestMediaPermissions.mockResolvedValue(false);
+    const IncomingCall = require("../incoming").default;
+    const { getByLabelText } = render(<IncomingCall />);
+
+    fireEvent.press(getByLabelText("Accept call"));
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenLastCalledWith({
+      pathname: "/(drawer)/(tabs)/call/incoming",
+      params: {
+        id: "peer-1",
+        type: "audio",
+        conversationId: "conv-1",
+        callId: "call-1",
+        callerName: "Alice Cruz",
+      },
+    }));
+    expect(mockAnswerCall).not.toHaveBeenCalled();
+    expect(mockClearIncomingCall).not.toHaveBeenCalled();
+  });
+
+  test("returns to the incoming screen when answering fails", async () => {
+    mockAnswerCall.mockRejectedValue(new Error("answer failed"));
+    const IncomingCall = require("../incoming").default;
+    const { getByLabelText } = render(<IncomingCall />);
+
+    fireEvent.press(getByLabelText("Accept call"));
+
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenLastCalledWith({
+      pathname: "/(drawer)/(tabs)/call/incoming",
+      params: {
+        id: "peer-1",
+        type: "audio",
+        conversationId: "conv-1",
+        callId: "call-1",
+        callerName: "Alice Cruz",
+      },
+    }));
+    expect(mockClearIncomingCall).not.toHaveBeenCalled();
   });
 });
