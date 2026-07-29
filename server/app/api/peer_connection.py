@@ -179,7 +179,7 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
     try:
         user_id = await authenticate_websocket(websocket, token)
     except WebSocketAuthError:
-        logger.warning("WebSocket auth rejected: invalid or expired token")
+        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
         return
 
     await manager.connect(UUID(user_id), websocket)
