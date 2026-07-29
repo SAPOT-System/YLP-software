@@ -70,3 +70,32 @@ body {
 .custom-marker.inactive {
   background-color: #dc2626;
 }
+
+/*
+ * Role markers (issue #322). Role vocabulary matches the server's
+ * `_resolve_role` and the chat role badge: admin | rescuer | user.
+ *
+ * Shape carries the distinction alongside colour, so it survives greyscale
+ * screenshots and colour-blind viewing:
+ *   user    -> circle (default .custom-marker)
+ *   rescuer -> diamond
+ *   admin   -> square
+ * The rotate() must keep the translate() from .custom-marker, otherwise the
+ * dot stops being anchored to the marker's true coordinate.
+ */
+.custom-marker.rescuer {
+  background-color: #059669;
+  border-radius: 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.custom-marker.admin {
+  background-color: #7c3aed;
+  border-radius: 2px;
+}
+
+/* Inactive still wins on colour, but the role shape is retained. */
+.custom-marker.rescuer.inactive,
+.custom-marker.admin.inactive {
+  background-color: #dc2626;
+}

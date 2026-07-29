@@ -50,6 +50,8 @@ Only activates for rescuers (`UserStore.isRescuer === true`). Use this hook at t
 
 Polls `GET /gps/latest` every 5 seconds using React Query. Returns the most recent `{ lat, lng }` for all active rescuers. Used by the map screen to render peer location pins.
 
+Each entry also carries `role` (`admin` | `rescuer` | `user`). The map screen maps that to a marker icon and colour via `features/gps/utils/resolve-role-marker.ts` — use that resolver rather than branching on the role string inline, so the marker and the legend stay in sync.
+
 Do not call this hook in a component that unmounts frequently — the 5s interval is managed by React Query's `refetchInterval` and is shared across consumers.
 
 ### `GpsPreferenceContext` / `GpsPreferenceProvider`

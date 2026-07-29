@@ -12,6 +12,10 @@ import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { getGpsHistoryApi } from "@/features/gps/api/gps.api";
+import {
+  MAP_LEGEND_ROLES,
+  resolveRoleMarker,
+} from "@/features/gps/utils/resolve-role-marker";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Camera,
@@ -228,51 +232,54 @@ export default function GpsScreen() {
             <Layer id="tileserver-layer" type="raster" source="tileserver" />
           </RasterSource>
           <UserLocation animated />
-          {userLocations.map((loc) => (
-            <Marker
-              key={loc.user_id}
-              id={String(loc.user_id)}
-              lngLat={[loc.longitude, loc.latitude]}
-              anchor="bottom"
-              onPress={() => {
-                setFollowUser(false);
-                clearPath();
-                setSelectedUser({
-                  user_id: loc.user_id,
-                  username: loc.username,
-                  timestamp: loc.timestamp,
-                });
-                if (pathMode) {
-                  handleViewPath(loc.user_id);
-                }
-              }}
-            >
-              <View style={styles.marker}>
-                <Icon
-                  source="map-marker-account"
-                  size={32}
-                  color={theme.colors.primary}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.markerLabel,
-                    {
-                      backgroundColor: theme.dark
-                        ? "rgba(15,23,42,0.85)"
-                        : "rgba(255,255,255,0.95)",
-                      color: theme.dark
-                        ? theme.colors.onSurface
-                        : theme.colors.onSurface,
-                      borderColor: theme.colors.outlineVariant,
-                    },
-                  ]}
-                >
-                  {loc.username}
-                </Text>
-              </View>
-            </Marker>
-          ))}
+          {userLocations.map((loc) => {
+            const roleMarker = resolveRoleMarker(loc.role, theme);
+            return (
+              <Marker
+                key={loc.user_id}
+                id={String(loc.user_id)}
+                lngLat={[loc.longitude, loc.latitude]}
+                anchor="bottom"
+                onPress={() => {
+                  setFollowUser(false);
+                  clearPath();
+                  setSelectedUser({
+                    user_id: loc.user_id,
+                    username: loc.username,
+                    timestamp: loc.timestamp,
+                  });
+                  if (pathMode) {
+                    handleViewPath(loc.user_id);
+                  }
+                }}
+              >
+                <View style={styles.marker}>
+                  <Icon
+                    source={roleMarker.icon}
+                    size={32}
+                    color={roleMarker.color}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.markerLabel,
+                      {
+                        backgroundColor: theme.dark
+                          ? "rgba(15,23,42,0.85)"
+                          : "rgba(255,255,255,0.95)",
+                        color: theme.dark
+                          ? theme.colors.onSurface
+                          : theme.colors.onSurface,
+                        borderColor: theme.colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    {loc.username}
+                  </Text>
+                </View>
+              </Marker>
+            );
+          })}
           {showPath && pathGeoJSON && (
             <GeoJSONSource id="user-path-source" data={pathGeoJSON} lineMetrics>
               <Layer
@@ -434,6 +441,31 @@ export default function GpsScreen() {
                 }
               />
             </Pressable>
+          </View>
+        </View>
+        <View pointerEvents="none" style={styles.legend}>
+          <View
+            style={[
+              styles.legendCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+          >
+            {MAP_LEGEND_ROLES.map((role) => {
+              const legendMarker = resolveRoleMarker(role, theme);
+              return (
+                <View key={role} style={styles.legendRow}>
+                  <Icon
+                    source={legendMarker.icon}
+                    size={16}
+                    color={legendMarker.color}
+                  />
+                  <Text variant="labelSmall">{legendMarker.label}</Text>
+                </View>
+              );
+            })}
           </View>
         </View>
         {!followUser && (
@@ -632,6 +664,28 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
+  },
+  legend: {
+    position: "absolute",
+    top: 60,
+    left: 16,
+  },
+  legendCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 4,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+  },
+  legendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   marker: { alignItems: "center" },
   markerLabel: {
