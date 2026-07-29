@@ -1,8 +1,6 @@
 import { checkTileServerReachable } from "../tileserver.api";
 
-jest.mock("@/config/runtime", () => ({
-  getTileServerUrl: jest.fn(() => "https://server.test/tiles"),
-}));
+const TILE_SERVER_URL = "https://server.test/tiles";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -15,7 +13,7 @@ beforeEach(() => {
 describe("checkTileServerReachable", () => {
   it("probes the basemap style served by the tileserver", async () => {
     // Arrange / Act
-    await checkTileServerReachable();
+    await checkTileServerReachable(TILE_SERVER_URL);
 
     // Assert
     expect(mockFetch).toHaveBeenCalledWith(
@@ -24,22 +22,33 @@ describe("checkTileServerReachable", () => {
     );
   });
 
+  it("probes the base URL it is given rather than resolving one itself", async () => {
+    // The map screen freezes its tile URL at mount while the host override can
+    // change mid-session — the probe must follow the caller, not the override.
+    await checkTileServerReachable("https://other-host.test/tiles");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://other-host.test/tiles/styles/basic-preview/style.json",
+      expect.anything()
+    );
+  });
+
   it("returns true when the tileserver answers with a 2xx", async () => {
     mockFetch.mockResolvedValue({ ok: true, status: 200 });
 
-    await expect(checkTileServerReachable()).resolves.toBe(true);
+    await expect(checkTileServerReachable(TILE_SERVER_URL)).resolves.toBe(true);
   });
 
   it("returns false when the tileserver answers with an error status", async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 502 });
 
-    await expect(checkTileServerReachable()).resolves.toBe(false);
+    await expect(checkTileServerReachable(TILE_SERVER_URL)).resolves.toBe(false);
   });
 
   it("returns false instead of throwing when the request fails outright", async () => {
     mockFetch.mockRejectedValue(new Error("Network request failed"));
 
-    await expect(checkTileServerReachable()).resolves.toBe(false);
+    await expect(checkTileServerReachable(TILE_SERVER_URL)).resolves.toBe(false);
   });
 
   it("aborts the probe rather than hanging when the tileserver never answers", async () => {
@@ -53,7 +62,7 @@ describe("checkTileServerReachable", () => {
         })
     );
 
-    const pending = checkTileServerReachable();
+    const pending = checkTileServerReachable(TILE_SERVER_URL);
     jest.advanceTimersByTime(10_000);
 
     await expect(pending).resolves.toBe(false);

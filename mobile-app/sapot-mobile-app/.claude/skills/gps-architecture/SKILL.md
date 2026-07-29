@@ -58,6 +58,12 @@ Do not call this hook in a component that unmounts frequently — the 5s interva
 
 **File:** `features/gps/hooks/useTileServerStatus.ts` (probe in `features/gps/api/tileserver.api.ts`)
 
+Takes the tileserver base URL as an argument — the same value the map built its
+tile URL from. It does **not** call `getTileServerUrl()` itself: the map screen
+freezes its tile URL at mount, while the host override can be changed mid-session
+from the drawer, so resolving it inside the probe would let the banner report on
+a different host than the one being rendered.
+
 Polls the tileserver's basemap style every 30 seconds and reports `isUnavailable`.
 The tileserver is a **separate deployment** from the API (`tileserver/`), so it
 can be down while `/gps/latest` is healthy — and `@maplibre/maplibre-react-native`

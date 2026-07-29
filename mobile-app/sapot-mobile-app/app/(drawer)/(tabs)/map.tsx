@@ -52,9 +52,10 @@ export default function GpsScreen() {
   // after AuthContainerProvider unblocks rendering — see
   // features/auth/context/auth-container-context.tsx. A module-level
   // constant would snapshot the pre-override (often undefined) host.
+  const tileServerUrl = useMemo(() => getTileServerUrl(), []);
   const tileUrl = useMemo(
-    () => `${getTileServerUrl()}/styles/basic-preview/{z}/{x}/{y}.png`,
-    [],
+    () => `${tileServerUrl}/styles/basic-preview/{z}/{x}/{y}.png`,
+    [tileServerUrl],
   );
   const {
     data: rawLocations = [],
@@ -66,11 +67,13 @@ export default function GpsScreen() {
 
   // The tileserver is a separate deployment from the API, so it can be down
   // while `useLatestLocations()` above is perfectly healthy. MapLibre gives no
-  // error signal for failed tiles, hence the explicit probe.
+  // error signal for failed tiles, hence the explicit probe. Deliberately fed
+  // the same `tileServerUrl` the raster source renders from, so the banner can
+  // never report on a host other than the one on screen.
   const {
     isUnavailable: isTileServerUnavailable,
     recheck: recheckTileServer,
-  } = useTileServerStatus();
+  } = useTileServerStatus(tileServerUrl);
 
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);

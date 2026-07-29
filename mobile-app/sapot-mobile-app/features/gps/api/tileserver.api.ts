@@ -1,4 +1,3 @@
-import { getTileServerUrl } from "@/config/runtime";
 import { apiLog } from "@/features/shared/core/utils/logger";
 
 /**
@@ -22,9 +21,18 @@ const PROBE_TIMEOUT_MS = 5000;
  * basemap is missing is to ask the tileserver directly.
  *
  * Never throws — a failed probe is a `false`, not an error state.
+ *
+ * @param tileServerUrl Base URL from `getTileServerUrl()`. Passed in rather
+ * than resolved here so the probe can only ever check the host the map is
+ * actually rendering from: the map screen freezes its tile URL at mount, while
+ * `getTileServerUrl()` reflects the current host override, which the drawer can
+ * change mid-session. Resolving it here would let the banner describe one
+ * server while the canvas draws from another.
  */
-export const checkTileServerReachable = async (): Promise<boolean> => {
-  const url = `${getTileServerUrl()}${STYLE_PROBE_PATH}`;
+export const checkTileServerReachable = async (
+  tileServerUrl: string
+): Promise<boolean> => {
+  const url = `${tileServerUrl}${STYLE_PROBE_PATH}`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
 

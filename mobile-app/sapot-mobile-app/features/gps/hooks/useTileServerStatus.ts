@@ -14,13 +14,19 @@ const POLL_INTERVAL_MS = 30_000;
  * MapLibre renders a blank canvas when tiles fail and surfaces no error event
  * for it, so the map screen has no way to distinguish "no tiles" from "no
  * data" without asking the tileserver itself. See `tileserver.api.ts`.
+ *
+ * @param tileServerUrl Base URL of the tileserver the caller is rendering
+ * tiles from — pass the same value the map's tile URL was built from, so the
+ * status can never describe a different host than the one on screen.
  */
-export function useTileServerStatus() {
+export function useTileServerStatus(tileServerUrl: string) {
   gpsLog.debug("[useTileServerStatus] init");
 
   const { data, refetch } = useQuery({
-    queryKey: ["tileserver", "reachable"],
-    queryFn: checkTileServerReachable,
+    // Keyed by host so a changed override is tracked as its own status
+    // rather than inheriting the previous host's result.
+    queryKey: ["tileserver", "reachable", tileServerUrl],
+    queryFn: () => checkTileServerReachable(tileServerUrl),
     refetchInterval: POLL_INTERVAL_MS,
     staleTime: POLL_INTERVAL_MS,
     // The probe resolves to `false` rather than throwing, so react-query's
