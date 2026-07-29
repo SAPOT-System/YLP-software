@@ -10,9 +10,11 @@ Examples:
 """
 
 import os
+from dotenv import load_dotenv
 
 
 class Settings:
+    load_dotenv()
     # Serial port the Arduino is connected to
     serial_port: str = os.environ.get("SERIAL_PORT", "/dev/ttyACM0")
 
