@@ -8,6 +8,7 @@
 |---|---|---|
 | `EXPO_PUBLIC_DEV_HOST` | Dev only | Your machine's LAN IP for local API/WS (e.g. `192.168.1.16`) |
 | `EXPO_PUBLIC_ENABLED_LOG_MODULES` | Optional | Comma-separated log scope names to enable. Leave unset to enable all. |
+| `EXPO_PUBLIC_LOG_LEVEL` | Optional | Severity floor: `debug`\|`info`\|`warn`\|`error`. Composes with `EXPO_PUBLIC_ENABLED_LOG_MODULES` (module filter AND severity floor). Defaults to `debug` in dev / `error` in production. An unrecognised value falls back to the default with a console warning. |
 | `EXPO_PUBLIC_LOG_TO_FILE` | Optional | Set to `1` to write logs to a daily on-device file in development. On-device file logging is always on in production builds. |
 | `EXPO_PUBLIC_LOG_TO_LAPTOP` | Optional | In development, ship logs to the laptop log collector. On by default in dev; set to `0` to disable. |
 <<<<<<< HEAD
@@ -32,6 +33,14 @@ EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background
 ```
 
 Available scopes: `connection`, `network`, `background`, `config`, `auth`, `chat`, `signaling`, `webrtc`, `tcp`, `sync`, `call`, `api`, `schema`, `app`, `type`
+
+### Log severity floor
+
+```env
+EXPO_PUBLIC_LOG_LEVEL=warn
+```
+
+Only logs at or above this severity are emitted, regardless of which modules are enabled. Unset defaults to `debug` in dev and `error` in production (current behaviour).
 
 ### File logging
 
