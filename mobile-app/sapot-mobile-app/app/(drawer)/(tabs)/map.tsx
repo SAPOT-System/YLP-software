@@ -4,6 +4,7 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { useLatestLocations } from "@/features/gps/hooks/useLatestLocations";
 import { useLocationPermission } from "@/features/gps/hooks/useLocationPermission";
 import { useGpsHistory } from "@/features/gps/hooks/useGpsHistory";
+import { useTileServerStatus } from "@/features/gps/hooks/useTileServerStatus";
 import {
   SelectedUser,
   UserMarkerSheet,
@@ -62,6 +63,14 @@ export default function GpsScreen() {
     error,
     refetch,
   } = useLatestLocations();
+
+  // The tileserver is a separate deployment from the API, so it can be down
+  // while `useLatestLocations()` above is perfectly healthy. MapLibre gives no
+  // error signal for failed tiles, hence the explicit probe.
+  const {
+    isUnavailable: isTileServerUnavailable,
+    recheck: recheckTileServer,
+  } = useTileServerStatus();
 
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
@@ -457,8 +466,37 @@ export default function GpsScreen() {
             </View>
           </View>
         )}
-        {isInitialLoading && (
-          <View style={[styles.overlay, { bottom: overlayBottom }]}>
+        {/* One stack, because the tileserver banner is independent of the
+            location states below and can be shown alongside any of them. */}
+        <View
+          pointerEvents="box-none"
+          style={[styles.overlay, { bottom: overlayBottom }]}
+        >
+          {isTileServerUnavailable && (
+            <View
+              style={[
+                styles.overlayCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+            >
+              <Icon source="map-outline" size={20} color={theme.colors.error} />
+              <Text variant="bodySmall" style={{ textAlign: "center" }}>
+                Map tiles unavailable. The map server can&apos;t be reached —
+                locations below are still live.
+              </Text>
+              <Button
+                mode="contained"
+                onPress={() => recheckTileServer()}
+                compact
+              >
+                Retry
+              </Button>
+            </View>
+          )}
+          {isInitialLoading && (
             <View
               style={[
                 styles.overlayCard,
@@ -471,13 +509,8 @@ export default function GpsScreen() {
               <LoadingSpinner />
               <Text variant="bodySmall">Fetching live locations...</Text>
             </View>
-          </View>
-        )}
-        {isError && (
-          <View
-            pointerEvents="box-none"
-            style={[styles.overlay, { bottom: overlayBottom }]}
-          >
+          )}
+          {isError && (
             <View
               style={[
                 styles.overlayCard,
@@ -499,14 +532,10 @@ export default function GpsScreen() {
                 Retry
               </Button>
             </View>
-          </View>
-        )}
-        {showEmptyState && (
-          <View
-            pointerEvents="none"
-            style={[styles.overlay, { bottom: overlayBottom }]}
-          >
+          )}
+          {showEmptyState && (
             <View
+              pointerEvents="none"
               style={[
                 styles.overlayCard,
                 {
@@ -524,8 +553,8 @@ export default function GpsScreen() {
                 No other users are sharing their location right now.
               </Text>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </View>
       <UserMarkerSheet
         selectedUser={selectedUser}
@@ -565,6 +594,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     alignItems: "center",
+    gap: 8,
   },
   overlayCard: {
     width: "100%",
