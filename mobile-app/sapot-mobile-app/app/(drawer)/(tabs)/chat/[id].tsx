@@ -189,6 +189,18 @@ const ChatRoom = () => {
           await chatService.setConversation(chatId);
           if (signal.aborted) return;
           setConversationId(chatId);
+        } else if (!isSelf) {
+          // A peer-list entry can open a conversation before either device has
+          // sent a message. Persist the deterministic direct conversation now
+          // so MessageList subscribes to it before an incoming message lands.
+          const conversation =
+            await chatService.getOrCreateDirectConversationByPeer(
+              resolvedPeerId
+            );
+          if (signal.aborted) return;
+          await chatService.setConversation(conversation.id);
+          if (signal.aborted) return;
+          setConversationId(conversation.id);
         }
       } else if (source === ChatRoomSource.CHAT) {
         const foundPeerId = await chatService.findPeerIdByChatId(id as string);
