@@ -89,3 +89,54 @@ class SplitByFolderTest < Minitest::Test
     assert_equal %w[admin sync], result.keys.sort
   end
 end
+
+class BaselineTestsTest < Minitest::Test
+  def test_adds_a_test_listener_event_to_every_request
+    result = with_baseline_tests(sample_collection)
+
+    requests = result["item"].flat_map { |folder| folder["item"] }
+    assert_equal 3, requests.length
+
+    requests.each do |request|
+      events = request["event"]
+      refute_nil events, "#{request['name']} has no event array"
+
+      test_events = events.select { |e| e["listen"] == "test" }
+      assert_equal 1, test_events.length, "#{request['name']} should have exactly one test event"
+      assert_equal "text/javascript", test_events.first["script"]["type"]
+    end
+  end
+
+  def test_baseline_script_asserts_no_server_error_and_a_response_time_bound
+    result = with_baseline_tests(sample_collection)
+    script = result["item"].first["item"].first["event"].first["script"]["exec"].join("\n")
+
+    assert_includes script, "pm.expect(pm.response.code).to.be.below(500)"
+    assert_includes script, "pm.expect(pm.response.responseTime).to.be.below(5000)"
+  end
+
+  def test_script_exec_is_an_array_of_single_lines
+    result = with_baseline_tests(sample_collection)
+    exec = result["item"].first["item"].first["event"].first["script"]["exec"]
+
+    assert_kind_of Array, exec
+    exec.each { |line| refute_includes line, "\n" }
+  end
+
+  def test_does_not_mutate_the_input_collection
+    input = sample_collection
+    before = Marshal.dump(input)
+
+    with_baseline_tests(input)
+
+    assert_equal before, Marshal.dump(input)
+  end
+
+  def test_replaces_rather_than_duplicates_an_existing_baseline_event
+    once = with_baseline_tests(sample_collection)
+    twice = with_baseline_tests(once)
+
+    request = twice["item"].first["item"].first
+    assert_equal 1, request["event"].count { |e| e["listen"] == "test" }
+  end
+end
