@@ -112,7 +112,7 @@ Set in EAS project secrets or a local `.env` file (not committed).
 | Variable | Purpose | Required |
 |---|---|---|
 | `API_DOMAIN` | SAPOT server base URL, read server-side only (`api/fetch.ts`, `api/login.ts`, `app/api/**/route.ts`, `actions/auth.ts`) — **not** prefixed `NEXT_PUBLIC_`, so it never reaches the client bundle | Yes |
-| `NEXT_PUBLIC_MAP_STYLE` | MapLibre tile style URL (`ui/components/MapLibre.tsx`) | Yes |
+| `NEXT_PUBLIC_MAP_STYLE` | MapLibre tile style URL (`https://<server-host>/tiles/styles/basic-preview/style.json`); its host must match `TILESERVER_PUBLIC_URL` | Yes |
 | `NEXT_PUBLIC_WEBSOCKET_DOMAIN` | WebSocket server domain (`lib/ws/Websocketmanager.ts`, non-null asserted — required) | Yes |
 | `NODE_ENV` | Toggles the `secure` flag on auth cookies (production vs dev) | Set by the Node runtime; not usually hand-set |
 
@@ -120,6 +120,17 @@ Set in `.env.local` (not committed) or the host service manager. `admin-frontend
 also lists `NODE_EXTRA_CA_CERTS`, a path to the server's CA certificate — this is consumed by Node's
 own TLS stack (so the app trusts it without disabling verification), not read via `process.env` in
 app code.
+
+## TileServer (`tileserver/`)
+
+| Variable | Purpose | Required |
+|---|---|---|
+| `TILESERVER_PUBLIC_URL` | Canonical public HTTPS base URL used in generated styles, TileJSON, glyph, sprite, and tile URLs. Must end in `/tiles/`, for example `https://<server-host>/tiles/`. | Yes |
+
+Set this once in the repository root `.env`. Docker Compose reads it directly,
+and `deployment-scripts/tileserver.service` loads the same file for the
+bare-metal deployment. Its host must match the host in the admin frontend's
+`NEXT_PUBLIC_MAP_STYLE`.
 
 ---
 

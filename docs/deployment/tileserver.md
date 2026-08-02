@@ -19,6 +19,28 @@ Use the provided deploy script:
 bash tileserver/deploy-tiling-server-detached.sh
 ```
 
+Before running it, configure the canonical public URL in the repository root
+`.env`:
+
+```dotenv
+TILESERVER_PUBLIC_URL=https://<server-host>/tiles/
+```
+
+This is required. TileServer GL uses it when generating style, TileJSON, glyph,
+sprite, and tile links, so it must be the same HTTPS host used by the admin
+frontend's `NEXT_PUBLIC_MAP_STYLE`.
+
+When running the script manually, export the root deployment environment first:
+
+```bash
+set -a
+. ./.env
+set +a
+bash tileserver/deploy-tiling-server-detached.sh
+```
+
+The checked-in `tileserver.service` loads this same `.env` file automatically.
+
 This script:
 1. Removes any existing `tileserver` container (`docker rm -f tileserver`)
 2. Starts a fresh container:
@@ -28,7 +50,8 @@ docker run --name tileserver \
   -p 127.0.0.1:8080:8080 \
   -v /home/sapot/YLP-software/tileserver:/data \
   maptiler/tileserver-gl \
-  --mbtiles osm-2020-02-10-v3.11_asia_philippines.mbtiles
+  --mbtiles osm-2020-02-10-v3.11_asia_philippines.mbtiles \
+  --public_url https://<server-host>/tiles/
 ```
 
 The tile server listens on `127.0.0.1:8080` only — it is not reachable directly from the LAN. Nginx (the same reverse proxy in front of the SAPOT API, see `../../server/nginx.conf`) proxies `/tiles/` to it, terminating TLS with the server's existing cert. Tile requests from the mobile app and admin frontend go to `https://<server-host>/tiles/...` — see `getTileServerUrl()` in `mobile-app/sapot-mobile-app/config/runtime.ts`.
@@ -64,6 +87,7 @@ After=docker.service
 Requires=docker.service
 
 [Service]
+EnvironmentFile=/home/sapot/YLP-software/.env
 ExecStart=/home/sapot/YLP-software/tileserver/deploy-tiling-server-detached.sh
 ExecStop=/usr/bin/docker stop tileserver
 Restart=always
@@ -86,4 +110,6 @@ Tile requests are proxied through the same Nginx instance and TLS cert as the SA
 
 - No separate certificate to generate or pin — the mobile app's existing pinned server cert covers `/tiles/` too, since it's the same TLS endpoint.
 - `deploy-tiling-server-detached.sh` binds tileserver-gl to `127.0.0.1:8080`; do not change this to `0.0.0.0` without also removing the direct-access assumption from client code.
+- Port 8080 is private. Use `https://<server-host>/tiles/` from browsers and
+  clients; do not browse to or configure a client with port 8080.
 - Requires the tileserver container/service to run on the same host as the API server and Nginx — see `../architecture/component-map.md`.

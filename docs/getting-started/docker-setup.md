@@ -34,15 +34,16 @@ Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.
 cp server/.env.example server/.env
 ```
 
-Optional — override the stack's host-side ports (default: `nginx` 443/80, `admin` 3000,
-`tileserver` 8080, `gsm-fastapi` 8001) by copying the repo-root env file too:
+Copy the repo-root env file and set the canonical public TileServer URL:
 
 ```bash
 cp .env.example .env
 ```
 
-Only needed if you want to change a port (e.g. running a second stack concurrently — see
-[Running from a git worktree](#running-from-a-git-worktree) below). Skip it and the defaults apply.
+Set `TILESERVER_PUBLIC_URL` to the HTTPS Nginx endpoint clients use, ending in
+`/tiles/` (for example, `https://localhost/tiles/`). It must use the same host
+as the admin frontend's `NEXT_PUBLIC_MAP_STYLE`. The tileserver container has
+no host port: browsers access it only through Nginx at `/tiles/`.
 
 To also bring up the admin dashboard and SMS gateway, configure their env files too:
 
@@ -86,7 +87,8 @@ This brings up every service in `docker-compose.yml`. Besides `db`/`redis`/`api`
 that includes:
 
 - `admin` — the Next.js admin dashboard, `http://localhost:3000`
-- `tileserver` — offline map tiles, `http://localhost:8080`
+- `tileserver` — offline map tiles, available through Nginx at
+  `https://localhost/tiles/`
 - `gsm-fastapi` — the SMS gateway, `http://localhost:8001` (starts without the GSM modem; add
   `docker-compose.gsm-hardware.yml` per the [Configure](#configure) section above for real SMS)
 
@@ -158,7 +160,7 @@ both running at once:
   directory name, so a worktree gets its own containers, network, and `db-data` volume automatically
   — no shared state with the main checkout's stack.
 - **Host ports are not automatically isolated.** Two stacks (main checkout + a worktree, or two
-  worktrees) both bind `443`/`80`/`3000`/`8080`/`8001` on the host by default, so bringing up a
+  worktrees) both bind `443`/`80`/`3000`/`8001` on the host by default, so bringing up a
   second stack while the first is still running fails with "port is already allocated". If you want
   them running concurrently, give the worktree its own `.env` (root-level, copied from
   `.env.example`) with different port values, e.g.:
@@ -166,8 +168,8 @@ both running at once:
   NGINX_HTTPS_PORT=8443
   NGINX_HTTP_PORT=8080
   ADMIN_PORT=13000
-  TILESERVER_PORT=18080
   GSM_FASTAPI_PORT=18001
+  TILESERVER_PUBLIC_URL=https://localhost:8443/tiles/
   ```
   If you only ever run one stack at a time — the more common workflow, matching how you'd run
   bare-metal dev servers — you can skip this and leave every worktree's ports at their defaults.

@@ -9,7 +9,16 @@
 ** Running the server in detached mode
 1. download the ~.mbtiles~ file: [[https://drive.google.com/file/d/1UVakmRkrHaz2J1cgCIbkAHsHDW9SYwLq/view?usp=sharing][link to .mbtiles]]
 2. place it in the same directory as this documentation.org file
-3. run the script ~deploy-tiling-server-detached.sh~
+3. configure ~TILESERVER_PUBLIC_URL=https://<server-host>/tiles/~ in the
+   repository root ~.env~
+4. export that environment before running the detached script (the systemd
+   service does this automatically):
+   #+BEGIN_SRC sh
+     set -a
+     . ./.env
+     set +a
+     bash tileserver/deploy-tiling-server-detached.sh
+   #+END_SRC
 
 ** Example usage
 The code below shows the sample usage of the application
@@ -37,8 +46,9 @@ The code below shows the sample usage of the application
         // Center: Batangas / South Luzon
         const map = L.map('map').setView([13.646, 121.508], 8);
 
-        // IMPORTANT: this must be a TILE endpoint, NOT the # URL
-        const tiles = "http://localhost:8080/styles/basic-preview/{z}/{x}/{y}.png"; // or replace localhost with address of server
+        // IMPORTANT: this must be a TILE endpoint, NOT the # URL. Use the
+        // HTTPS Nginx route, never TileServer GL's private port 8080.
+        const tiles = "https://<server-host>/tiles/styles/basic-preview/{z}/{x}/{y}.png";
 
         L.tileLayer(tiles, {
         maxZoom: 18,

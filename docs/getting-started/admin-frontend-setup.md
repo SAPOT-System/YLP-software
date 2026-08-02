@@ -24,9 +24,13 @@ Set the SAPOT server base URL in `.env.local` (not committed). The variable is `
 
 ```dotenv
 API_DOMAIN=https://<sapot-server-host>
-NEXT_PUBLIC_MAP_STYLE=<maplibre tile style URL>
+NEXT_PUBLIC_MAP_STYLE=https://<sapot-server-host>/tiles/styles/basic-preview/style.json
 NEXT_PUBLIC_WEBSOCKET_DOMAIN=<sapot-server-host>
 ```
+
+`NEXT_PUBLIC_MAP_STYLE` and the TileServer deployment's `TILESERVER_PUBLIC_URL`
+must use the same public HTTPS host. The map must never point browsers at
+TileServer GL's private port 8080.
 
 See [environment-config.md](../deployment/environment-config.md#admin-frontend-admin-frontendsapot-admin) for the full reference.
 
