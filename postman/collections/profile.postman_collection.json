@@ -1,0 +1,636 @@
+{
+  "event": [
+
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "/"
+    }
+  ],
+  "info": {
+    "_postman_id": "4cd3a2378ac088213d0e36765a001b02",
+    "name": "SAPOT API - profile",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "",
+      "type": "text/plain"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "id": "2ae54e54bd56773e0db2fb9b77aa70ac",
+      "name": "Get My Photo",
+      "request": {
+        "name": "Get My Photo",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "profile-picture",
+            "me"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            {
+              "key": "accessTokenUrl",
+              "value": "auth/token"
+            },
+            {
+              "key": "grant_type",
+              "value": "password_credentials"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "6aebc00aa44dbd7c3a4756efe72e293f",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                "me"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "5655f6bcb34167199f54c5c246a46b2d",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                "me"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "514c2f8b1da65fe3ce3a5a2f3b165fd4",
+      "name": "Upload Photo",
+      "request": {
+        "name": "Upload Photo",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "profile-picture",
+            "me"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "multipart/form-data"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "file",
+              "type": "file"
+            }
+          ]
+        },
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            {
+              "key": "accessTokenUrl",
+              "value": "auth/token"
+            },
+            {
+              "key": "grant_type",
+              "value": "password_credentials"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "c75792b9319ace3481225f70ebbb0301",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                "me"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "file",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "a11507a55621287aed973a3390aaa2c4",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                "me"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "file",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "4fc21aadeb6cce563302232da6c02848",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                "me"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "file",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "d6886f92357f95a0a09ef091457d12a7",
+      "name": "Get User Photo",
+      "request": {
+        "name": "Get User Photo",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "profile-picture",
+            ":user_id"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+            {
+              "type": "any",
+              "value": "<uuid>",
+              "key": "user_id",
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              }
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "d426a6db50397b7c32942922e8c8ade1",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                ":user_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<uuid>",
+                  "key": "user_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "cb1ec1af7ec2c211ae8af45d5926c879",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                ":user_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<uuid>",
+                  "key": "user_id"
+                }
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "bc8c66ed5800c47497999ef1a36aa717",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "profile-picture",
+                ":user_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<uuid>",
+                  "key": "user_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    }
+  ]
+}

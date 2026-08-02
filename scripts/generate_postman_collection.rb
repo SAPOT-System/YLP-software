@@ -24,7 +24,7 @@ require "tmpdir"
 REPO_ROOT = File.expand_path("..", __dir__)
 OPENAPI_DIR = File.join(REPO_ROOT, "docs", "api", "openapi")
 POSTMAN_DIR = File.join(REPO_ROOT, "postman")
-COLLECTION_PATH = File.join(POSTMAN_DIR, "sapot-api.postman_collection.json")
+COLLECTIONS_DIR = File.join(POSTMAN_DIR, "collections")
 
 def merge_openapi_fragments
   merged = nil
@@ -80,22 +80,60 @@ def stabilize_ids!(node, path = "root")
   end
 end
 
+# Split the converted collection into one standalone collection per top-level
+# folder, so each OpenAPI fragment gets its own reviewable file instead of all
+# 121 requests landing in a single 766 KB blob.
+#
+# Returns a new Hash rather than mutating the input: `main` still needs the
+# merged collection intact, and a pure function is what the test can pin down.
+#
+# Call this AFTER stabilize_ids! -- that function derives IDs from each node's
+# path within the document, so splitting first would change every path and
+# churn all 121 request IDs for nothing.
+def split_by_folder(collection)
+  shared = collection.reject { |key, _| key == "item" }
+
+  collection["item"].each_with_object({}) do |folder, out|
+    # Top-level entries without a nested "item" are loose requests, not
+    # folders. folderStrategy: "Tags" shouldn't produce any, but an untagged
+    # operation slipping through shouldn't crash the generator.
+    next unless folder.key?("item")
+
+    category = folder["name"]
+
+    out[category] = shared.merge(
+      "info" => shared["info"].merge(
+        "name" => "SAPOT API - #{category}",
+        # Distinct per file, or Postman treats all 12 as the same collection
+        # on import and silently overwrites.
+        "_postman_id" => Digest::MD5.hexdigest("sapot-postman:collection:#{category}")
+      ),
+      "item" => folder["item"]
+    )
+  end
+end
+
 def main
-  FileUtils.mkdir_p(POSTMAN_DIR)
+  FileUtils.mkdir_p(COLLECTIONS_DIR)
 
   merged_spec = merge_openapi_fragments
   merged_json_path = File.join(Dir.tmpdir, "sapot-openapi-merged.json")
   File.write(merged_json_path, JSON.pretty_generate(merged_spec))
 
   # Group requests into folders by the fragment tag (matching docs/api/openapi/*.yaml
-  # groupings), not the default per-path-segment layout.
+  # groupings), not the default per-path-segment layout. Those folders become the
+  # split boundary below.
   options_config_path = File.join(Dir.tmpdir, "sapot-openapi-postman-options.json")
   File.write(options_config_path, JSON.generate({ folderStrategy: "Tags" }))
+
+  # Convert into a temp file, not into postman/: the merged collection is an
+  # intermediate now, and only the split files are committed.
+  converted_path = File.join(Dir.tmpdir, "sapot-postman-merged.json")
 
   stdout, stderr, status = Open3.capture3(
     "npx", "--yes", "openapi-to-postmanv2",
     "-s", merged_json_path,
-    "-o", COLLECTION_PATH,
+    "-o", converted_path,
     "-c", options_config_path,
     "-p"
   )
@@ -105,22 +143,25 @@ def main
     abort "openapi-to-postmanv2 failed"
   end
 
-  collection = JSON.parse(File.read(COLLECTION_PATH))
+  collection = JSON.parse(File.read(converted_path))
   stabilize_ids!(collection)
 
   # Let every request inherit a bearer token from the active environment instead
-  # of requiring per-request auth setup (token obtained via /auth/login, see README).
+  # of requiring per-request auth setup (token obtained via /auth/token, see README).
   collection["auth"] = {
     "type" => "bearer",
     "bearer" => [{ "key" => "token", "value" => "{{token}}", "type" => "string" }]
   }
 
-  File.write(COLLECTION_PATH, "#{JSON.pretty_generate(collection)}\n")
-
-  puts "Wrote #{COLLECTION_PATH}"
+  split_by_folder(collection).each do |category, sub_collection|
+    path = File.join(COLLECTIONS_DIR, "#{category}.postman_collection.json")
+    File.write(path, "#{JSON.pretty_generate(sub_collection)}\n")
+    puts "Wrote #{path}"
+  end
 ensure
-  File.delete(merged_json_path) if merged_json_path && File.exist?(merged_json_path)
-  File.delete(options_config_path) if options_config_path && File.exist?(options_config_path)
+  [merged_json_path, options_config_path, converted_path].each do |path|
+    File.delete(path) if path && File.exist?(path)
+  end
 end
 
 main if __FILE__ == $PROGRAM_NAME

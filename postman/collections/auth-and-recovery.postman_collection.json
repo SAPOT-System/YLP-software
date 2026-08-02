@@ -1,0 +1,3587 @@
+{
+  "event": [
+
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "/"
+    }
+  ],
+  "info": {
+    "_postman_id": "60befd2d8c7d4f978a5c665dc7972ea9",
+    "name": "SAPOT API - auth-and-recovery",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "",
+      "type": "text/plain"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "id": "dfb1d57192bea17078031e666598d2a9",
+      "name": "Send Reset",
+      "request": {
+        "name": "Send Reset",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "email"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "email",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "03f77019080a0d2fb0248d5c03f5963d",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "7d901902e2ae1e51fc1f82a9c4d70d26",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "f20b58e23b9f31bf095062682d6cbad3",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "89e5da21c1f3f3d617595c5a6f68e5ea",
+      "name": "Confirm Code",
+      "request": {
+        "name": "Confirm Code",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "email-code"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "email",
+              "value": "<string>"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "code",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "ee6a029436bdcac220ad180260b398d8",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-code"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "code",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "be2a3ae5ff8682811471d502460be588",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-code"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "code",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "83c93761a063f31af987688c2df81629",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-code"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "code",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "2dbb69f95dd16f2b21b43946d76ce4ee",
+      "name": "Send Email Recovery",
+      "request": {
+        "name": "Send Email Recovery",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "email-recovery",
+            "send"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "email",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "b88664a2453c7a349dc057c3a4abc9fb",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-recovery",
+                "send"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "47f7748736414af047bc9c5bfb0821a2",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-recovery",
+                "send"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "9d08efd5ea7ff4c7dad94f35c6f36978",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-recovery",
+                "send"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "email",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "194b019cadafb14367ff75906ab6c329",
+      "name": "Verify Email Recovery",
+      "request": {
+        "name": "Verify Email Recovery",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "email-recovery",
+            "verify"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "t",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "7767d93140b0ee3fa3897f853eb15b34",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-recovery",
+                "verify"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "t",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "71a0597beca62d30c7efc4df74dd91c8",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-recovery",
+                "verify"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "t",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "d1ee698d7b982198396cecc8f2c4d8d4",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "email-recovery",
+                "verify"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "t",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "327689f1e145c2b28818f9ab01374da8",
+      "name": "Get Recovery Key",
+      "request": {
+        "name": "Get Recovery Key",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "generate-new-recovery-key"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+        },
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            {
+              "key": "accessTokenUrl",
+              "value": "auth/token"
+            },
+            {
+              "key": "grant_type",
+              "value": "password_credentials"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "e9cb6dcd485d22c2ce4b96553b6f9349",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "generate-new-recovery-key"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "79bd17fcc87672b71936f9b31be4a618",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "generate-new-recovery-key"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "0d4957d16a2b1a7fda84f8772ab6e0b5",
+      "name": "Generate Security Question",
+      "request": {
+        "name": "Generate Security Question",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "generate-security-question"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            {
+              "key": "accessTokenUrl",
+              "value": "auth/token"
+            },
+            {
+              "key": "grant_type",
+              "value": "password_credentials"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "8e2a2b6cc9f88b04f4e91137646f20d6",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "generate-security-question"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "54925afec5741d43c57758e2b885bf04",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "generate-security-question"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "8b0e60b2bdb9a43738167af3e5d9ec35",
+      "name": "Send Recovery Otp",
+      "request": {
+        "name": "Send Recovery Otp",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "otp",
+            "send"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "df522f67574959c86c7766df762bf1df",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "otp",
+                "send"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "03bc134ad04ed1695867d44ece5d8fce",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "otp",
+                "send"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "9cafa353ed581e67108c4fb344462586",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "otp",
+                "send"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "70b1993c1d21d2e39a813970c613c9bc",
+      "name": "Verify Recovery Otp",
+      "request": {
+        "name": "Verify Recovery Otp",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "otp",
+            "verify"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "4171e30dd5291703d008558fed09ff48",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "otp",
+                "verify"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "6d95069e23ada3fa4129d6fc6926304c",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "otp",
+                "verify"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "acff280462233cc0cb3aefc2c774b8e7",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "otp",
+                "verify"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "98f091458c43318d835587c9713b5a2e",
+      "name": "Send Phone Reset",
+      "request": {
+        "name": "Send Phone Reset",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "phone"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "4cf2cad1ed0481fd7ea8cb6ecaf630bc",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "phone"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "f57bcaf52c8e52d040615110f5dab11b",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "phone"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "cdbd78ef38b3434bca5e4dc120a97824",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "phone"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "3a3920ba2ba331e78d010495b1997842",
+      "name": "Confirm Phone Code",
+      "request": {
+        "name": "Confirm Phone Code",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "phone-code"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "e0a2b024e6255e8eb6cce88b5e1016ba",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "phone-code"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "8e8f9b56e833578314122c2a53de9f29",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "phone-code"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "eb8102940d4852a15ec80d91922a372a",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "phone-code"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"<string>\",\n  \"code\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "9911c75d7f6a1a9ece9dbd8b5ca18e90",
+      "name": "Get Recovery Constraints",
+      "request": {
+        "name": "Get Recovery Constraints",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "recovery-constraints"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            {
+              "key": "accessTokenUrl",
+              "value": "auth/token"
+            },
+            {
+              "key": "grant_type",
+              "value": "password_credentials"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "851420ab77884a12fcc86e2a67d76ef9",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "recovery-constraints"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"recovery_key\": {\n    \"has_key\": \"<boolean>\",\n    \"can_change\": \"<boolean>\",\n    \"days_since_generated\": \"<integer>\",\n    \"days_until_changeable\": \"<integer>\"\n  },\n  \"security_question\": {\n    \"has_question\": \"<boolean>\",\n    \"can_change\": \"<boolean>\",\n    \"is_burned\": \"<boolean>\",\n    \"is_expired\": \"<boolean>\",\n    \"days_since_set\": \"<integer>\",\n    \"days_until_changeable\": \"<integer>\",\n    \"days_until_expiry\": \"<integer>\"\n  }\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "6376932c87db550136ff6675b122d30b",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "recovery-constraints"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "97c4b291f10965ee28e9b251e2ef2394",
+      "name": "Recover With Recovery Key",
+      "request": {
+        "name": "Recover With Recovery Key",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "recovery-with-recovery-key"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "user_identifier",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "multipart/form-data"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "key_file",
+              "type": "file"
+            }
+          ]
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "14a819dc60577f2e217a3b521033d7cc",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "recovery-with-recovery-key"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "user_identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "key_file",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "7d7ec61f57abc5ffd0c07c7771d6a2c6",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "recovery-with-recovery-key"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "user_identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "key_file",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "4b0eab518421b36764b84139bc573805",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "recovery-with-recovery-key"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "user_identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "key_file",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "087b29154a20904bfc71273809f8cbbe",
+      "name": "Can Reset Password",
+      "request": {
+        "name": "Can Reset Password",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "reset-password"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "token",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "8661655f4f035565088bb79c67573fce",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "reset-password"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "574e4b75a8ff5d5a49be07cf9c3888c1",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "reset-password"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "22c16afc60a9fbcfc48e97fae3013022",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "reset-password"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "7c5096fc3da51a9144cfa239c5a41a09",
+      "name": "Reset Password",
+      "request": {
+        "name": "Reset Password",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "reset-password"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "token",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"new_password\": \"<string>\",\n  \"wrapped_blob\": \"<string>\",\n  \"recovery_token\": \"<string>\"\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "12a0f75ff4d817e8d5216bf2b81ce27c",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "reset-password"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"<string>\",\n  \"wrapped_blob\": \"<string>\",\n  \"recovery_token\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "3c085b732e932ef4c3a030646b9ad082",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "reset-password"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"<string>\",\n  \"wrapped_blob\": \"<string>\",\n  \"recovery_token\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "ddbb1ae2f75b5f5c087b33c81a4aea57",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "reset-password"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"<string>\",\n  \"wrapped_blob\": \"<string>\",\n  \"recovery_token\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "cb6a477d3afe2b867549ad91760349f1",
+      "name": "Get Security Question",
+      "request": {
+        "name": "Get Security Question",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "security-question"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "identifier",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "fa79296c289d11fe38cf8941ab5d7e1a",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-question"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"question\": \"<string>\"\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "5d51b1d870d0d947870627cceb5cb273",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-question"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "b926f080dfab3af20f6ad51bb0817a01",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-question"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "5f690f8f374fadecb7c61dba765ab7bc",
+      "name": "Verify Security Answer",
+      "request": {
+        "name": "Verify Security Answer",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "security-question",
+            "answer"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "identifier",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"<string>\",\n  \"answer\": \"<string>\"\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "73bfff57937341ff0ce57931707147b2",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-question",
+                "answer"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"<string>\",\n  \"answer\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "674da12c0320502db3c5cce16686a76f",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-question",
+                "answer"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"<string>\",\n  \"answer\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "1e563239050c5596b60eacaab1c58fd9",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-question",
+                "answer"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "identifier",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"<string>\",\n  \"answer\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "8f46e639aff261a29f565a0776929c9f",
+      "name": "Add Security Questions",
+      "request": {
+        "name": "Add Security Questions",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "auth",
+            "forgot-password",
+            "security-questions"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"questions\": [\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    },\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            {
+              "key": "accessTokenUrl",
+              "value": "auth/token"
+            },
+            {
+              "key": "grant_type",
+              "value": "password_credentials"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "7f5f251af89608d6fb0155e8fd237a5e",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-questions"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    },\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "83ec2101b30519e2b566909c07a1b10d",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-questions"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    },\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "cc166f5f5a9f68c65e6fc0a4fe00f986",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "auth",
+                "forgot-password",
+                "security-questions"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    },\n    {\n      \"question\": \"<string>\",\n      \"answer\": \"<string>\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    }
+  ]
+}

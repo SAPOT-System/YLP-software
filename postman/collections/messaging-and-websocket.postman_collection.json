@@ -1,0 +1,560 @@
+{
+  "event": [
+
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "/"
+    }
+  ],
+  "info": {
+    "_postman_id": "261e09c13f0c56b7ee0d2e55a6f86f57",
+    "name": "SAPOT API - messaging-and-websocket",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "",
+      "type": "text/plain"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "id": "9694ab3b01497fe6fd8daf48a2ea2d39",
+      "name": "Get Public Chats",
+      "request": {
+        "name": "Get Public Chats",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "public-chat"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "",
+                "type": "text/plain"
+              },
+              "key": "limit",
+              "value": "100"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "",
+                "type": "text/plain"
+              },
+              "key": "before",
+              "value": "<integer>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            {
+              "key": "accessTokenUrl",
+              "value": "auth/token"
+            },
+            {
+              "key": "grant_type",
+              "value": "password_credentials"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "eada930814cd71469ee12955ee768b43",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "public-chat"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "before",
+                  "value": "<integer>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "6f9f6c2d2efa54aa2d4f88e3308945db",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "public-chat"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "before",
+                  "value": "<integer>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "926190c8f18e0122529b499e349fd977",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "public-chat"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "before",
+                  "value": "<integer>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "5a4f0b23c28fc98164b5e018bf7595ce",
+      "name": "Testing Area",
+      "request": {
+        "name": "Testing Area",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "ws",
+            ""
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "target_id",
+              "value": "<uuid>"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "my_id",
+              "value": "<uuid>"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              },
+              "key": "token",
+              "value": "<string>"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        },
+        "auth": null
+      },
+      "response": [
+        {
+          "id": "faef25f8636913b709009dc77c9c68db",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "ws",
+                ""
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "target_id",
+                  "value": "<uuid>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "my_id",
+                  "value": "<uuid>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "90f64c9b6e3f4e5697a29e09d666efbd",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "ws",
+                ""
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "target_id",
+                  "value": "<uuid>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "my_id",
+                  "value": "<uuid>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "56cba9d2f0be725b8908ff21900cbc24",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "ws",
+                ""
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "target_id",
+                  "value": "<uuid>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "my_id",
+                  "value": "<uuid>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "key": "token",
+                  "value": "<string>"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    }
+  ]
+}
