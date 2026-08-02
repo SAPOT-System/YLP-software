@@ -1,0 +1,290 @@
+{
+  "info": {
+    "_postman_id": "f1000000-0000-4000-8000-000000000002",
+    "name": "SAPOT flows - sync",
+    "description": "Hand-authored smoke flow. Unlike postman/collections/, this file is NOT generated - do not run scripts/generate_postman_collection.rb against it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost" },
+    { "key": "qaToken", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "pulledAt", "value": "0" }
+  ],
+  "item": [
+    {
+      "name": "Reset database",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
+        "url": { "raw": "{{baseUrl}}/testing/reset", "host": ["{{baseUrl}}"], "path": ["testing", "reset"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test(\"reset succeeds\", function () {", "    pm.response.to.have.status(200);", "});"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Seed baseline scenario",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/testing/seed/baseline",
+          "host": ["{{baseUrl}}"],
+          "path": ["testing", "seed", "baseline"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"seed succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().scenario).to.eql(\"baseline\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login as admin fixture",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/testing/login-as/admin",
+          "host": ["{{baseUrl}}"],
+          "path": ["testing", "login-as", "admin"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"mints an access token\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().access_token).to.be.a(\"string\").and.not.empty;",
+              "});",
+              "",
+              "// pm.environment.set, not pm.collectionVariables.set: the environment scope",
+              "// resolves before the collection scope, and the loaded environment file",
+              "// declares a blank \"token\" key, which would otherwise shadow a collection",
+              "// variable of the same name every time this flow runs with an environment",
+              "// loaded (scripts/run-postman-tests.sh always loads one).",
+              "pm.environment.set(\"token\", pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pull from zero returns the full change envelope",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/sync/pull?last_pulled_at=0&limit=100",
+          "host": ["{{baseUrl}}"],
+          "path": ["sync", "pull"],
+          "query": [
+            { "key": "last_pulled_at", "value": "0" },
+            { "key": "limit", "value": "100" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"envelope has changes and timestamp\", function () {",
+              "    pm.response.to.have.jsonBody(\"changes\");",
+              "    pm.response.to.have.jsonBody(\"timestamp\");",
+              "});",
+              "",
+              "pm.test(\"changes covers all six syncable tables\", function () {",
+              "    var changes = pm.response.json().changes;",
+              "    pm.expect(Object.keys(changes).sort()).to.eql([",
+              "        \"call_participants\",",
+              "        \"calls\",",
+              "        \"conversation_participants\",",
+              "        \"conversations\",",
+              "        \"message_receipts\",",
+              "        \"messages\"",
+              "    ]);",
+              "});",
+              "",
+              "pm.test(\"each table uses the created/updated/deleted shape\", function () {",
+              "    var changes = pm.response.json().changes;",
+              "    Object.keys(changes).forEach(function (table) {",
+              "        pm.expect(changes[table], table).to.include.all.keys(\"created\", \"updated\", \"deleted\");",
+              "        pm.expect(changes[table].created, table + \".created\").to.be.an(\"array\");",
+              "        pm.expect(changes[table].updated, table + \".updated\").to.be.an(\"array\");",
+              "        pm.expect(changes[table].deleted, table + \".deleted\").to.be.an(\"array\");",
+              "    });",
+              "});",
+              "",
+              "// Sync timestamps are epoch MILLISECONDS, not ISO-8601 (docs/api/conventions.md).",
+              "// A seconds-precision value would be ~1e10; ms is ~1e12.",
+              "pm.test(\"timestamp is epoch milliseconds\", function () {",
+              "    var timestamp = pm.response.json().timestamp;",
+              "    pm.expect(timestamp).to.be.a(\"number\");",
+              "    pm.expect(timestamp).to.be.above(1000000000000);",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"pulledAt\", String(pm.response.json().timestamp));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pull from the previous cursor returns nothing new",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/sync/pull?last_pulled_at={{pulledAt}}&limit=100",
+          "host": ["{{baseUrl}}"],
+          "path": ["sync", "pull"],
+          "query": [
+            { "key": "last_pulled_at", "value": "{{pulledAt}}" },
+            { "key": "limit", "value": "100" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"no rows created after the cursor\", function () {",
+              "    var changes = pm.response.json().changes;",
+              "    Object.keys(changes).forEach(function (table) {",
+              "        pm.expect(changes[table].created, table + \".created\").to.be.an(\"array\").that.is.empty;",
+              "    });",
+              "});",
+              "",
+              "pm.test(\"cursor advances\", function () {",
+              "    var previous = Number(pm.collectionVariables.get(\"pulledAt\"));",
+              "    pm.expect(pm.response.json().timestamp).to.be.at.least(previous);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pull respects the limit parameter",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/sync/pull?last_pulled_at=0&limit=5",
+          "host": ["{{baseUrl}}"],
+          "path": ["sync", "pull"],
+          "query": [
+            { "key": "last_pulled_at", "value": "0" },
+            { "key": "limit", "value": "5" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"no table returns more than the limit\", function () {",
+              "    var changes = pm.response.json().changes;",
+              "    Object.keys(changes).forEach(function (table) {",
+              "        pm.expect(changes[table].created.length, table).to.be.at.most(5);",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pull rejects an unauthenticated request",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/sync/pull?last_pulled_at=0",
+          "host": ["{{baseUrl}}"],
+          "path": ["sync", "pull"],
+          "query": [{ "key": "last_pulled_at", "value": "0" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"requires authentication\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Push rejects a malformed body with 422, not 500",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"not_a_real_field\": true}" },
+        "url": { "raw": "{{baseUrl}}/sync/push", "host": ["{{baseUrl}}"], "path": ["sync", "push"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"validation failure, not a crash\", function () {",
+              "    pm.expect(pm.response.code).to.eql(422);",
+              "});",
+              "",
+              "pm.test(\"does not leak a stack trace\", function () {",
+              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
