@@ -55,6 +55,18 @@ jobs:
           fi
           echo "Target branch '$TARGET'"
 
+      # `admin` and `gsm-fastapi` are deliberately excluded from `up -d api
+      # nginx` (their env_file paths don't exist in CI), but `docker compose
+      # down` -- unlike `up` -- operates on the whole project and resolves
+      # every service's env_file regardless of what was actually started, so
+      # the teardown step fails without these. Their contents don't matter --
+      # neither container is ever started -- only their existence does.
+      - name: Stub unused env_file paths so teardown can resolve the project
+        run: |
+          set -euo pipefail
+          cp admin-frontend/sapot-admin/.env.example admin-frontend/sapot-admin/.env
+          cp GSM-module/GSM-fastapi/.env.example GSM-module/GSM-fastapi/.env
+
       # Fresh per-run secrets rather than the values in server/.env.example.
       # SECURITY.md documents a history of committed credentials that had to be
       # rotated; CI must not normalize the example values. DB credentials are
