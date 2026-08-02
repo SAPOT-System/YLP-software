@@ -1,0 +1,61 @@
+# CI-only overlay for .github/workflows/postman-tests.yml. Layered on top of
+# docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait api nginx
+#
+# Passing -f explicitly also suppresses Compose's auto-load of
+# docker-compose.override.yml, so CI runs the image's gunicorn CMD rather than
+# the override's reloading uvicorn worker -- prod parity, as that file's header
+# comment asks for. Naming only `api nginx` pulls in db, redis, certgen and
+# tileserver via depends_on while excluding `admin` and `gsm-fastapi`, whose
+# env_file paths don't exist in CI.
+services:
+  # Load-bearing, not cosmetic. docker/nginx.docker.conf proxies /tiles/ to a
+  # static `tileserver:8080` upstream with no `resolver`, and nginx resolves
+  # static upstreams at config-load time -- it refuses to start if the name
+  # doesn't resolve. The real .mbtiles is gitignored (tileserver/.gitignore),
+  # so the real image would exit immediately. This container exists only to
+  # hold the DNS name.
+  tileserver:
+    image: alpine:3.20
+    command: ["sleep", "infinity"]
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # `docker compose up --wait` only waits on services that declare a
+  # healthcheck. Without these it returns before the API can serve a request
+  # and the first newman run races the boot.
+  #
+  # Probes /version, not /ping: /ping requires auth (server/app/api/ping.py)
+  # and 401s unauthenticated. The runtime image is python:3.13-slim with no
+  # curl, hence urllib.
+  #
+  # `image:` is set because docker-compose.yml's api service declares only
+  # `build:`, so Compose would name the image after the project and ignore
+  # anything the workflow pre-built. Naming it pins Compose to the tag the
+  # workflow's build step produces with the GHA layer cache.
+  api:
+    image: sapot-api:ci
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8000/version")
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+
+  # nginx:1.27-alpine ships busybox wget. --no-check-certificate is fine here:
+  # this probe only asks "is nginx serving", and the cert chain is verified for
+  # real by newman via NODE_EXTRA_CA_CERTS.
+  nginx:
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "-O", "-", "https://localhost/version"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
