@@ -75,3 +75,68 @@ describe("logger file logging", () => {
     }).not.toThrow();
   });
 });
+
+describe("EXPO_PUBLIC_LOG_LEVEL severity floor", () => {
+  const ORIGINAL_LEVEL = process.env.EXPO_PUBLIC_LOG_LEVEL;
+
+  afterEach(() => {
+    if (ORIGINAL_LEVEL === undefined) {
+      delete process.env.EXPO_PUBLIC_LOG_LEVEL;
+    } else {
+      process.env.EXPO_PUBLIC_LOG_LEVEL = ORIGINAL_LEVEL;
+    }
+    jest.resetModules();
+    jest.dontMock("react-native-logs");
+    jest.restoreAllMocks();
+  });
+
+  const capturedSeverity = (): string => {
+    let severity: string | undefined;
+    jest.resetModules();
+    jest.doMock("react-native-logs", () => {
+      const actual = jest.requireActual("react-native-logs");
+      return {
+        ...actual,
+        logger: {
+          ...actual.logger,
+          createLogger: (config: { severity: string }) => {
+            severity = config.severity;
+            return actual.logger.createLogger(config);
+          },
+        },
+      };
+    });
+    require("../logger");
+    return severity as string;
+  };
+
+  test("uses the explicit level when EXPO_PUBLIC_LOG_LEVEL is a valid value", () => {
+    process.env.EXPO_PUBLIC_LOG_LEVEL = "warn";
+
+    expect(capturedSeverity()).toBe("warn");
+  });
+
+  test("accepts error as a valid explicit level", () => {
+    process.env.EXPO_PUBLIC_LOG_LEVEL = "error";
+
+    expect(capturedSeverity()).toBe("error");
+  });
+
+  test("falls back to the default level and warns on an unrecognised value", () => {
+    process.env.EXPO_PUBLIC_LOG_LEVEL = "verbose";
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const severity = capturedSeverity();
+
+    expect(severity).toBe(__DEV__ ? "debug" : "error");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('invalid EXPO_PUBLIC_LOG_LEVEL "verbose"'),
+    );
+  });
+
+  test("defaults to debug/error per __DEV__ when EXPO_PUBLIC_LOG_LEVEL is unset", () => {
+    delete process.env.EXPO_PUBLIC_LOG_LEVEL;
+
+    expect(capturedSeverity()).toBe(__DEV__ ? "debug" : "error");
+  });
+});

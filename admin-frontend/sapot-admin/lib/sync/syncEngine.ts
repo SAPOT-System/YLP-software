@@ -1,10 +1,15 @@
 import { applyChanges } from "./applyChanges";
 import { getLastPulledAt, setLastPulledAt } from "./storage";
-import { getQueue, saveQueue } from "./mutationQueue";
+import { getQueue, saveQueue, clearMutations, type Mutation } from "./mutationQueue";
 
 
 export async function pull(limit = 100) {
   let lastPulledAt = getLastPulledAt();
+
+  // Only committed to storage once the whole pagination loop succeeds,
+  // so a mid-loop failure leaves the resume point at the pre-pull cursor
+  // instead of skipping over pages that were never fetched.
+  let finalTimestamp = lastPulledAt;
 
   let shouldContinue = true;
 
@@ -22,10 +27,7 @@ export async function pull(limit = 100) {
     const { changes, timestamp } = data;
     await applyChanges(changes);
 
-    /* =========================
-       GLOBAL CURSOR UPDATE
-    ========================= */
-    setLastPulledAt(timestamp);
+    finalTimestamp = timestamp;
 
     /* =========================
        PAGINATION CHECK
@@ -59,9 +61,13 @@ export async function pull(limit = 100) {
       lastPulledAt = nextCursor;
     } else {
       shouldContinue = false;
-      lastPulledAt = timestamp;
     }
   }
+
+  /* =========================
+     GLOBAL CURSOR UPDATE
+  ========================= */
+  setLastPulledAt(finalTimestamp);
 }
 
 /* =========================
@@ -74,9 +80,7 @@ const typeMap = {
   delete: "deleted",
 } as const;
 
-export async function collectChanges() {
-  const queue = getQueue();
-
+export async function collectChanges(queue: Mutation[] = getQueue()) {
   const grouped = {
     peers: { created: [], updated: [], deleted: [] },
     guest_user: { created: [], updated: [], deleted: [] },
@@ -108,7 +112,11 @@ export async function push() {
 
   if (queue.length === 0) return;
 
-  const changes = await collectChanges();
+  // Snapshot the ids being pushed so we only touch these mutations
+  // afterwards, not anything queued concurrently during the request.
+  const pushedIds = queue.map((m) => m.id);
+
+  const changes = await collectChanges(queue);
   const res = await fetch(`/api/sync/push`, {
     method: "POST",
     headers: {
@@ -128,11 +136,12 @@ export async function push() {
   }
 
   if (!res.ok) {
-    // increase retry count
-    const updatedQueue = queue.map((m) => ({
-      ...m,
-      retries: m.retries + 1,
-    }));
+    // increase retry count only for the mutations that were part of
+    // this batch, re-reading the queue so anything added mid-flight
+    // isn't clobbered
+    const updatedQueue = getQueue().map((m) =>
+      pushedIds.includes(m.id) ? { ...m, retries: m.retries + 1 } : m
+    );
 
     saveQueue(updatedQueue);
 
@@ -140,9 +149,9 @@ export async function push() {
   }
 
   /* =========================
-     SUCCESS → CLEAR QUEUE
+     SUCCESS → CLEAR ONLY PUSHED MUTATIONS
   ========================= */
-  saveQueue([]);
+  clearMutations(pushedIds);
 
   return res.json();
 }

@@ -28,7 +28,7 @@ These are decisions that constrain what future work can assume without a corresp
 
 | Constraint | Detail | Source |
 |---|---|---|
-| **No server schema migration tooling.** `SQLModel.metadata.create_all()` only creates missing tables; it never alters or drops existing ones. Schema changes to existing tables require hand-written `ALTER TABLE`, with no version tracking or rollback. | Deploy ordering (code vs. DDL) must be sequenced manually on every model change. | [ADR 0002](../adr/0002-no-server-migration-tooling.md), [migrations.md](../database/migrations.md) |
+| **Server schema is Alembic-managed.** Migrations in `server/app/alembic/versions/` are the source of truth; `alembic upgrade head` runs as a deploy step in `runserver.sh`, and the app no longer calls `create_all()` at startup. | A model change needs a matching migration or CI fails (`alembic check`). Databases created before Alembic need a one-time `alembic stamp`, not `upgrade`. | [ADR 0007](../adr/0007-alembic-for-server-migrations.md), [migrations.md](../database/migrations.md) |
 | **No TURN/STUN server.** WebRTC calls rely on host/LAN ICE candidates only (`iceServers: []`). | Calls fail across NATs — viable only because the primary deployment is one flat LAN. Cross-network calling (e.g. rescuer on cellular data) is unimplemented. | [ADR 0004](../adr/0004-p2p-calls-with-signalling-relay.md) |
 | **Flat four-role model** (`guest`/`user`/`rescuer`/`admin`), no per-permission system. | No way to grant a partial capability (e.g. "GPS visibility for one team") without promoting a user to `rescuer` outright. | [ADR 0006](../adr/0006-four-tier-roles-model.md) |
 | **Server-side `PeerKey` signing (`SERVER_ED25519_SEED`) is optional, not enforced.** | Without it, a compromised or malicious server can substitute a public key and MITM new conversations. Recommended (not required) to make mandatory in production. | [threat-model.md](threat-model.md#e2e-encryption-design-risks) |
@@ -58,7 +58,6 @@ See [threat-model.md](threat-model.md#attack-surfaces-explicitly-out-of-scope) f
 Risks the project has consciously decided to carry rather than fix, reproduced from the threat model's tradeoff table (see that document for status updates):
 
 - No LAN segmentation — requires router-level VLAN config not currently documented or automated.
-- No server migration tooling — tracked as a reliability gap, not primarily a security one.
 - `testing` router reachable when `ENVIRONMENT=development` — accepted; operational discipline (never deploy with this setting) is the control.
 - GSM module DB credentials hardcoded default in `config.py` — open, tracked in [SECURITY.md](../../SECURITY.md#other-known-gaps-not-yet-resolved).
 - No remote session/device revocation UI — open.
