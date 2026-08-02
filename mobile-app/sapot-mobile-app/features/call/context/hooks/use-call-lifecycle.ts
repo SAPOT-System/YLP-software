@@ -87,24 +87,6 @@ export function useCallLifecycle(params: {
     };
   }, [connectionService, peerId]);
 
-  // Remote call-rejected (declined) — dedicated UI state, distinct from generic call-ended
-  useEffect(() => {
-    if (!peerId) return;
-    const handler = (payload: { peerId: string }) => {
-      if (payload.peerId !== peerId) return;
-      callLog.info("[CallContext] call › rejected", { peerId });
-      wasRejected.current = true;
-      // Mark terminated so a connection drop racing the follow-up call-ended
-      // message (e.g. peer-disconnected) can't override this back to "ended".
-      hasTerminated.current = true;
-      setCallState("rejected");
-    };
-    connectionService.on("call-rejected", handler);
-    return () => {
-      connectionService.off("call-rejected", handler);
-    };
-  }, [connectionService, peerId]);
-
   // Remote call-ended (stale-callId guard + finalize)
   useEffect(() => {
     const handler = async (payload: CallEndedEventPayload) => {
