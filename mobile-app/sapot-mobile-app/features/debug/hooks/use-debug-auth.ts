@@ -1,6 +1,9 @@
 import { useUserService } from "@/features/auth/hooks/use-user-service";
+import { notifyAccessTokenChanged } from "@/features/shared/core/api/client";
+import { getStoredAccessToken } from "@/features/shared/core/stores/secure-config";
 import { authLog } from "@/features/shared/core/utils/logger";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
+import { requestMainContainerReset } from "@/features/shared/main-container";
 import * as Updates from "expo-updates";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -28,15 +31,21 @@ export function useDebugAuth() {
 
   // Restarts the app so every in-memory service/store re-initializes from
   // secure storage instead of holding onto stale state from before the
-  // action ran. Falls back to a snapshot refresh if the restart itself
-  // isn't available in this runtime.
+  // action ran. `Updates.reloadAsync()` throws in most dev/QA runtimes
+  // (Expo Go, dev client without EAS Update configured), so the fallback
+  // below reproduces what a reload would have picked up from SecureStore:
+  // pushing the fresh token into AuthContext (so the signaling WS handoff in
+  // app/(drawer)/(tabs)/index.tsx re-fires) and forcing MainContainer to
+  // rebuild against the new identity (GH #303).
   const restartApp = useCallback(async () => {
     try {
       await Updates.reloadAsync();
     } catch (error) {
-      authLog.warn("debug-auth › restart failed, refreshing snapshot instead", {
+      authLog.warn("debug-auth › restart failed, syncing auth state instead", {
         error,
       });
+      notifyAccessTokenChanged((await getStoredAccessToken()) ?? null);
+      requestMainContainerReset();
       await refreshSnapshot();
     }
   }, [refreshSnapshot]);
