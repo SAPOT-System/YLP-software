@@ -60,3 +60,17 @@ def test_get_my_admin_info_rejects_non_admin_user(client: TestClient, session: S
     )
 
     assert response.status_code == 401
+
+
+def test_logout_without_refresh_token_cookie_returns_401_not_500(client: TestClient, session: Session):
+    # Regression: the missing-cookie branch used to hardcode HTTPException(500),
+    # even though it's a routine client error (no cookie sent) -- the sibling
+    # /admin/refresh endpoint already treats the same condition as a 401.
+    access_token = _login_as_admin(client, session, "test", "test_password")
+
+    response = client.post(
+        "/admin/logout",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == 401
