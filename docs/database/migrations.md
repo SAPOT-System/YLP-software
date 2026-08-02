@@ -133,7 +133,7 @@ The mobile app uses its own versioned migration tool: WatermelonDB's `schemaMigr
 | v5 | Add `messages.updated_at`; add `conversations.updated_at`, `conversations.title`; create `message_receipts` (`message`, `user`, `status`, `updated_at`); create `calls` (`conversation`, `initiator`, `call_type`, `status`, `start_time`, `end_time`, `updated_at`); create `call_participants` (`call`, `user`, `joined_at`, `left_at`) |
 | v6 | Add `message_receipts.created_at`, `message_receipts.is_deleted`; add `calls.created_at`, `calls.is_deleted`; add `call_participants.updated_at`, `call_participants.created_at`, `call_participants.is_deleted`; add `conversations.is_deleted`; add `conversation_participants.created_at`, `conversation_participants.updated_at` |
 | v7 | Add `peers.phone_number_verified` (boolean, optional) |
-| v8 | Add `messages.linked_message_id` (string, optional — reply-thread FK) |
+| v8 | Add `messages.linked_message_id` (string, optional — paired a P2P message with its SMS duplicate for the dual-send UX; removed from all read/write paths, column retained unused per the additive-only convention above) |
 | v9 | Add `peers.role` (string, optional); add `messages.is_encrypted` (boolean, optional) |
 | v10 | Add `peers.is_guest` (boolean, optional) |
 | v11 | Add `peers.last_seen_at` (number, optional) |
