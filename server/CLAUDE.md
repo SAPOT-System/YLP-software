@@ -14,7 +14,7 @@ Entry point `app/main.py` (mounted as `app.main:app`). Request flow: Nginx (TLS)
 - `app/db_operations/*.py` holds DB-facing logic (auth/session handling, GPS manager, sync tokens, router client/metrics, key recovery, etc.) — route handlers call into these rather than querying models directly.
 - `app/models/*.py` — one SQLModel per file (users, messages, calls, keys, recovery, router, captive_portal, etc.).
 - Rate limiting is a cross-cutting concern via `slowapi` (`app/limiter.py`, `@limiter.limit(...)` decorators on individual routes) — not middleware-only, it's applied per-endpoint.
-- No migration tooling (ADR 0002 in `../docs/adr/`) — schema evolves by hand-editing `app/models/` and manually applying DDL; see `../docs/database/migrations.md`.
+- Schema is Alembic-managed (ADR 0007 in `../docs/adr/`) — editing `app/models/` requires a matching migration in `app/alembic/versions/`; see `../docs/database/migrations.md`.
 
 ## Directory Guide
 
@@ -32,7 +32,7 @@ Entry point `app/main.py` (mounted as `app.main:app`). Request flow: Nginx (TLS)
 - **JWT auth + role resolution.** Most endpoints require a Bearer JWT (obtained via `POST /auth/token`, OAuth2 password flow — the `username` field is actually the user's email). Role-gated endpoints require `rescuer` or `admin`, resolved server-side from the JWT `sub` claim (user UUID) — see `../docs/architecture/security-architecture.md`.
 - **Per-endpoint rate limits**, not global — auth and account-mutation endpoints carry specific `@limiter.limit(...)` decorators (documented per-endpoint in `../docs/api/conventions.md`). Login attempts are additionally tracked per `(user, IP)` with progressive lockout, independent of the slowapi decorator.
 - **Shared-secret webhook auth for GSM.** `app/api/gsm.py` proxies to the GSM-module service (see `../GSM-module/CLAUDE.md`) using an `X-GSM-Secret` header — a different auth model from the JWT scheme used everywhere else, because the caller there is a co-located service, not an end-user client.
-- **No migration tooling** (ADR 0002) — schema changes are manual; there is no `alembic`/equivalent to fall back on.
+- **Alembic-managed schema** (ADR 0007) — run `alembic` from `server/`, not `server/app/`; `alembic.ini` sets `prepend_sys_path = .`, so `app` is importable only from there. A new model file must be imported in `app/models/__init__.py` or autogenerate will omit its table. Always review autogenerate output before committing.
 
 ## Development Conventions
 
@@ -64,4 +64,4 @@ Entry point `app/main.py` (mounted as `app.main:app`). Request flow: Nginx (TLS)
 - Auth/token/session changes (`app/db_operations/auth.py`, `app/db_operations/token.py`) and CORS/rate-limit config changes: read `../SECURITY.md` in full first, and run `app/tests/test_security_regression.py`, `test_ip_lockout.py`, `test_recovery_ip_lockout.py` specifically — these encode past incidents.
 - Endpoint/schema changes: regenerate and check both doc sets (OpenAPI, DB docs) per Development Conventions, and flag the change as cross-component in your summary since mobile and admin clients are not updated automatically (see root `CLAUDE.md`).
 - Release prep: `app/version.py` must match the intended git tag (`server/vX.Y.Z`). **Use the repo-root entry point, `./scripts/release.sh server <X.Y.Z[-(alpha|beta|rc).N]>`** — it bumps the version, commits, drafts release notes, and creates the annotated tag in one step; see `../VERSIONING.md`. `scripts/set_version.py` (`server/scripts/`) is an internal step `release.sh` calls — running it standalone leaves the bump uncommitted and untagged. Not relevant to ordinary feature/bugfix work.
-- Run `pytest` (from `server/app/`) for any change; it's the only safety net given the lack of migration tooling and generated-doc drift checks.
+- Run `pytest` (from `server/app/`) for any change. If you touched `app/models/`, also run `alembic upgrade head && alembic check` from `server/` — `pytest` builds its schema via `SQLModel.metadata.create_all()` in `app/tests/conftest.py`, so it cannot detect a migration that has fallen behind the models.
