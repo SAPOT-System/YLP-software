@@ -28,6 +28,24 @@ with a real value — `token` is blank and marked `secret` so Postman masks it.
    environment in Postman's settings, or install the dev CA — otherwise
    requests will fail TLS verification.
 
+## Running with newman (CLI)
+
+```
+newman run postman/sapot-api.postman_collection.json \
+  -e postman/environments/local-docker.postman_environment.json \
+  --insecure
+```
+
+Both environments target self-signed certs (`https://localhost` for local
+Docker, `https://server.sapot.lan` for the LAN server), so newman fails with
+`unable to verify the first certificate` unless TLS verification is relaxed:
+
+- `--insecure` (or `-k`) skips certificate verification for the run —
+  simplest option for these known dev/LAN certs.
+- Alternatively, set `NODE_EXTRA_CA_CERTS=/path/to/dev-ca.pem` (dev CA per
+  `docker-setup.md`) before running newman to verify against the real chain
+  instead of disabling verification.
+
 ## Getting a token
 
 The collection sets a collection-level Bearer auth using `{{token}}`, inherited
