@@ -153,7 +153,7 @@ async def logout_user(
 ):
     token_to_be_invalidated = request.cookies.get("refresh_token")
     if not token_to_be_invalidated:
-        raise HTTPException(500)
+        raise HTTPException(status_code=401)
     return logout(token, session)
 
 

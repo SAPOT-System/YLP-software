@@ -1,6 +1,8 @@
 logs/*
 .worktrees/
 node_modules/
+reports/
+.pnpm-store/
 .env
 **/.env
 !*.env.example

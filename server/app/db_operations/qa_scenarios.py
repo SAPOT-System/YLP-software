@@ -99,7 +99,11 @@ ADMIN_ACCOUNT = {
     "first_name": "Admin",
     "last_name": "User",
     "phone_number": "+639300000001",
-    "email": "admin@sapot.local",
+    # "sapot.local" is a special-use TLD (RFC 6762); EmailStr rejects it, which
+    # 500'd every UserPublic response for this fixture (e.g. /testing/login-as/admin).
+    # "example.com" is RFC 2606-reserved for exactly this use, unlike a real
+    # registrable domain nobody here owns.
+    "email": "admin@example.com",
 }
 
 

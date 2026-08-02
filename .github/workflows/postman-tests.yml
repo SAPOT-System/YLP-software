@@ -1,0 +1,185 @@
+name: Postman API Tests
+
+# Path-filtered rather than running on every PR: the job boots a full Docker
+# stack (~4 min), which is wasted on a mobile-app-only or docs-only change.
+# Same filtering shape as openapi-docs-check.yml.
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "server/**"
+      - "postman/**"
+      - "docker/**"
+      - "docker-compose*.yml"
+      - "scripts/generate_postman_collection.rb"
+      - "scripts/run-postman-tests.sh"
+      - "scripts/newman-summary.mjs"
+      - ".github/workflows/postman-tests.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "server/**"
+      - "postman/**"
+      - "docker/**"
+      - "docker-compose*.yml"
+      - "scripts/generate_postman_collection.rb"
+      - "scripts/run-postman-tests.sh"
+      - "scripts/newman-summary.mjs"
+      - ".github/workflows/postman-tests.yml"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # develop gets the fast smoke suite (flows only); main gets the full
+      # 121-request sweep. On pull_request, base_ref is the target branch and
+      # ref_name is a useless merge ref (123/merge); on push it's the reverse,
+      # so the fallback covers both events.
+      #
+      # Anything that isn't main maps to smoke, so a long-lived branch added
+      # later gets the fast suite rather than silently inheriting the slow one.
+      - name: Select suite from target branch
+        run: |
+          set -euo pipefail
+          TARGET="${{ github.base_ref || github.ref_name }}"
+          if [ "$TARGET" = "main" ]; then
+            echo "SUITE=full" >> "$GITHUB_ENV"
+          else
+            echo "SUITE=smoke" >> "$GITHUB_ENV"
+          fi
+          echo "Target branch '$TARGET'"
+
+      # `admin` and `gsm-fastapi` are deliberately excluded from `up -d api
+      # nginx` (their env_file paths don't exist in CI), but `docker compose
+      # down` -- unlike `up` -- operates on the whole project and resolves
+      # every service's env_file regardless of what was actually started, so
+      # the teardown step fails without these. Their contents don't matter --
+      # neither container is ever started -- only their existence does.
+      - name: Stub unused env_file paths so teardown can resolve the project
+        run: |
+          set -euo pipefail
+          cp admin-frontend/sapot-admin/.env.example admin-frontend/sapot-admin/.env
+          cp GSM-module/GSM-fastapi/.env.example GSM-module/GSM-fastapi/.env
+
+      # Fresh per-run secrets rather than the values in server/.env.example.
+      # SECURITY.md documents a history of committed credentials that had to be
+      # rotated; CI must not normalize the example values. DB credentials are
+      # the exception -- throwaway container, never outlives the job.
+      #
+      # ENVIRONMENT=development is mandatory: server/app/main.py only mounts the
+      # /testing router under that value, and run-postman-tests.sh needs it to
+      # seed fixtures and mint a token.
+      - name: Synthesize server/.env
+        run: |
+          set -euo pipefail
+          cp server/.env.example server/.env
+
+          QA_API_TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$QA_API_TOKEN"
+          echo "QA_API_TOKEN=$QA_API_TOKEN" >> "$GITHUB_ENV"
+
+          python3 - "$QA_API_TOKEN" <<'PY'
+          import re, secrets, sys
+
+          overrides = {
+              "JWT_SECRET_KEY": secrets.token_hex(32),
+              "SERVER_ED25519_SEED": secrets.token_hex(32),
+              "GSM_SECRET": secrets.token_hex(32),
+              "QA_API_TOKEN": sys.argv[1],
+              "ENVIRONMENT": "development",
+              "CORS_ALLOWED_ORIGINS": "*",
+          }
+
+          with open("server/.env") as handle:
+              lines = handle.read().splitlines()
+
+          seen = set()
+          out = []
+          for line in lines:
+              match = re.match(r"^([A-Z0-9_]+)=", line)
+              if match and match.group(1) in overrides:
+                  key = match.group(1)
+                  out.append(f"{key}={overrides[key]}")
+                  seen.add(key)
+              else:
+                  out.append(line)
+
+          for key, value in overrides.items():
+              if key not in seen:
+                  out.append(f"{key}={value}")
+
+          with open("server/.env", "w") as handle:
+              handle.write("\n".join(out) + "\n")
+          PY
+
+      - uses: docker/setup-buildx-action@v3
+
+      # requirements.txt pins ~75 packages including cryptography; a cold pip
+      # install dominates boot time.
+      - name: Build the API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          load: true
+          tags: sapot-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Naming only `api nginx` pulls in db, redis, certgen and tileserver via
+      # depends_on while excluding admin and gsm-fastapi, whose env_file paths
+      # don't exist here. --wait relies on the healthchecks in
+      # docker-compose.ci.yml.
+      - name: Start the stack
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --wait api nginx
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install newman
+        run: pnpm install --frozen-lockfile
+        working-directory: postman
+
+      - name: Run the Postman suite
+        run: scripts/run-postman-tests.sh "$SUITE"
+
+      - name: Publish per-collection summary
+        if: always()
+        run: |
+          echo "### Postman suite: \`$SUITE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d reports ]; then
+            node scripts/newman-summary.mjs reports >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No reports/ directory -- the suite likely failed before any collection ran." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Dumped so a red run is diagnosable without re-running the job.
+      - name: Dump server logs
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs api nginx
+
+      - name: Upload newman reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-reports
+          path: reports/
+          if-no-files-found: warn
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v

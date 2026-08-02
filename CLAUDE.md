@@ -56,6 +56,7 @@ Run for each component actually touched — don't assume one component's green b
 |---|---|
 | `server/app/` | `pytest` (from `server/app/`) |
 | `server/app/` API/DB surface changed | `python3 scripts/generate_openapi_docs.py --check` and `python3 scripts/generate_db_docs.py --check` — **run from repo root**, not `server/app/` |
+| `server/app/**` API surface, `postman/**` | `docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait api nginx` then `scripts/run-postman-tests.sh` (add `smoke` for flows only) — **run from repo root**. Tear down with `docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v` |
 | `server/app/models/` changed | `alembic upgrade head && alembic check` — **run from `server/`** (not `server/app/`) with `DATABASE_URL` set. `alembic check` must report no new operations. Note `pytest` builds its schema with `create_all()` and cannot detect migration drift. |
 | `mobile-app/sapot-mobile-app/` | `pnpm run testAll` (= test + typecheck + lint + expo-doctor), or the individual `pnpm test` / `pnpm run typecheck` / `pnpm run lint` |
 | `admin-frontend/sapot-admin/` | `pnpm run lint && pnpm run build` — **no test script exists in this component**; don't claim test coverage that isn't there |

@@ -1,0 +1,9 @@
+{
+  "name": "sapot-postman",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pins the newman version used by scripts/run-postman-tests.sh and CI.",
+  "devDependencies": {
+    "newman": "^6.2.2"
+  }
+}

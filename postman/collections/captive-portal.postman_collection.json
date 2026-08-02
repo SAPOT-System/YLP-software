@@ -1,0 +1,1249 @@
+{
+  "event": [
+
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "/"
+    }
+  ],
+  "info": {
+    "_postman_id": "03be887346121eae3dfa582d48501a17",
+    "name": "SAPOT API - captive-portal",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "",
+      "type": "text/plain"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "id": "11bf4823a2415620c974b9c7c2792ccc",
+      "name": "Record a new guest login",
+      "request": {
+        "name": "Record a new guest login",
+        "description": {
+          "content": "Called by `login.html` immediately after the user submits their name.\n\n- Creates a new `GuestSession` row with `status=active`.\n- If the same `session_id` is sent twice (e.g. double-submit), returns the\n  existing record with HTTP 200 instead of raising a 409.",
+          "type": "text/plain"
+        },
+        "url": {
+          "path": [
+            "portal",
+            "api",
+            "v1",
+            "guests"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "id": "27d2a6664ba0442291dbd4d310e98c00",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"disconnected\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "12ed3663412de91ac63147e49b79dd47",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "2b1a97afe3d741f2ea24f2badaec24a5",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "c3c8d727cba904b099248f56165d73a2",
+      "name": "List all guest sessions",
+      "request": {
+        "name": "List all guest sessions",
+        "description": {
+          "content": "Retrieve all recorded guest sessions.\n\n**Query parameters**\n- `status=active` — only currently connected guests\n- `status=disconnected` — only past sessions\n- `search=Juan` — partial match on first or last name\n- `limit` / `offset` — standard pagination",
+          "type": "text/plain"
+        },
+        "url": {
+          "path": [
+            "portal",
+            "api",
+            "v1",
+            "guests"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "Filter by status: active | disconnected (This can only be one of active,disconnected)",
+                "type": "text/plain"
+              },
+              "key": "status",
+              "value": "disconnected"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "Search by first or last name (case-insensitive)",
+                "type": "text/plain"
+              },
+              "key": "search",
+              "value": "<string>"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "Max results per page",
+                "type": "text/plain"
+              },
+              "key": "limit",
+              "value": "50"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "Pagination offset",
+                "type": "text/plain"
+              },
+              "key": "offset",
+              "value": "0"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        }
+      },
+      "response": [
+        {
+          "id": "7bfd80c037507d0a2237fb74ec5166db",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Filter by status: active | disconnected (This can only be one of active,disconnected)",
+                    "type": "text/plain"
+                  },
+                  "key": "status",
+                  "value": "disconnected"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Search by first or last name (case-insensitive)",
+                    "type": "text/plain"
+                  },
+                  "key": "search",
+                  "value": "<string>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Max results per page",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Pagination offset",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"total\": \"<integer>\",\n  \"results\": [\n    {\n      \"session_id\": \"<string>\",\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"id\": \"<integer>\",\n      \"status\": \"active\",\n      \"login_at\": \"<dateTime>\",\n      \"disconnect_at\": \"<dateTime>\",\n      \"mac_address\": \"<string>\",\n      \"ip_address\": \"<string>\",\n      \"hotspot_name\": \"<string>\"\n    },\n    {\n      \"session_id\": \"<string>\",\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"id\": \"<integer>\",\n      \"status\": \"active\",\n      \"login_at\": \"<dateTime>\",\n      \"disconnect_at\": \"<dateTime>\",\n      \"mac_address\": \"<string>\",\n      \"ip_address\": \"<string>\",\n      \"hotspot_name\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "8f749751b98bd1f54316d9b8f8aeacf4",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Filter by status: active | disconnected (This can only be one of active,disconnected)",
+                    "type": "text/plain"
+                  },
+                  "key": "status",
+                  "value": "disconnected"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Search by first or last name (case-insensitive)",
+                    "type": "text/plain"
+                  },
+                  "key": "search",
+                  "value": "<string>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Max results per page",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Pagination offset",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "eb37169f4fb6a8149d04c9ff69879f29",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Filter by status: active | disconnected (This can only be one of active,disconnected)",
+                    "type": "text/plain"
+                  },
+                  "key": "status",
+                  "value": "disconnected"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Search by first or last name (case-insensitive)",
+                    "type": "text/plain"
+                  },
+                  "key": "search",
+                  "value": "<string>"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Max results per page",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Pagination offset",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "f6f8f47dfdbfe6017c58d6e288280ad8",
+      "name": "Aggregate session statistics",
+      "request": {
+        "name": "Aggregate session statistics",
+        "description": {
+          "content": "Returns total, active, and disconnected session counts.\nUseful for a future SAPOT admin dashboard.",
+          "type": "text/plain"
+        },
+        "url": {
+          "path": [
+            "portal",
+            "api",
+            "v1",
+            "guests",
+            "stats"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        }
+      },
+      "response": [
+        {
+          "id": "3ea7c5a9952de8830e447395349ea21e",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                "stats"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"total_sessions\": \"<integer>\",\n  \"active_sessions\": \"<integer>\",\n  \"disconnected_sessions\": \"<integer>\"\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "9482a65ef1cf3bbcf9e68bc76282bc24",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                "stats"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "26baac983cd5399ef0d2360a2e7cf871",
+      "name": "Retrieve a single guest session",
+      "request": {
+        "name": "Retrieve a single guest session",
+        "description": {
+          "content": "Fetch one session by its client-generated `session_id`.",
+          "type": "text/plain"
+        },
+        "url": {
+          "path": [
+            "portal",
+            "api",
+            "v1",
+            "guests",
+            ":session_id"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+            {
+              "type": "any",
+              "value": "<string>",
+              "key": "session_id",
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              }
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        }
+      },
+      "response": [
+        {
+          "id": "5f82187cf74e6253766a06cf3cca8c44",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                ":session_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<string>",
+                  "key": "session_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"disconnected\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "40d89002dd6f6c359dbefb850f5ed19e",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                ":session_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<string>",
+                  "key": "session_id"
+                }
+              ]
+            },
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "fd45ed981b0bd28036b77f19144bc03d",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                ":session_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<string>",
+                  "key": "session_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "3d5b4438c63ae92e1b7db2fcc24ea79b",
+      "name": "Mark a session as disconnected",
+      "request": {
+        "name": "Mark a session as disconnected",
+        "description": {
+          "content": "Called by `logout.html` when the user clicks Disconnect.\nSets `status=disconnected` and records `disconnect_at`.\nSafe to call multiple times (idempotent).",
+          "type": "text/plain"
+        },
+        "url": {
+          "path": [
+            "portal",
+            "api",
+            "v1",
+            "guests",
+            ":session_id",
+            "disconnect"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+            {
+              "type": "any",
+              "value": "<string>",
+              "key": "session_id",
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              }
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "PATCH",
+        "body": {
+        }
+      },
+      "response": [
+        {
+          "id": "d1ccd2b02ae3eaa41346f94d9eb95684",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                ":session_id",
+                "disconnect"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<string>",
+                  "key": "session_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PATCH",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"disconnected\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "c65b0179ea79f925a10ca719657c0dbc",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                ":session_id",
+                "disconnect"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<string>",
+                  "key": "session_id"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "87403d6d3f2ab6667e9831982b21d33d",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "portal",
+                "api",
+                "v1",
+                "guests",
+                ":session_id",
+                "disconnect"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<string>",
+                  "key": "session_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PATCH",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    }
+  ]
+}

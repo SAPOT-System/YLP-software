@@ -71,3 +71,17 @@ def test_login_as_mints_usable_tokens(client):
     )
     assert me.status_code == 200
     assert me.json()["username"] == "qa_admin"
+
+
+def test_login_as_admin_returns_a_valid_email(client):
+    # Regression: the "admin" fixture (built by the "baseline" scenario) used
+    # to hardcode "admin@sapot.local" -- ".local" is a special-use TLD that
+    # EmailStr rejects, so serializing UserPublic 500'd on every request.
+    client.post("/testing/reset", headers=QA_HEADERS)
+
+    response = client.post("/testing/login-as/admin", headers=QA_HEADERS)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["username"] == "admin"
+    assert body["email"] == "admin@example.com"
+    assert body["access_token"]
