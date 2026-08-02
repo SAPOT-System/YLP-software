@@ -57,19 +57,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -242,7 +229,7 @@
                 "type": "text/plain"
               },
               "key": "priority",
-              "value": "normal"
+              "value": "high"
             },
             {
               "disabled": false,
@@ -293,19 +280,6 @@
         ],
         "method": "PATCH",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -348,7 +322,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "normal"
+                  "value": "high"
                 },
                 {
                   "disabled": false,
@@ -462,7 +436,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "normal"
+                  "value": "high"
                 },
                 {
                   "disabled": false,
@@ -568,7 +542,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "normal"
+                  "value": "high"
                 },
                 {
                   "disabled": false,
@@ -718,19 +692,6 @@
         ],
         "method": "DELETE",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -992,19 +953,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -1278,26 +1226,13 @@
         "method": "POST",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639362823372\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639238980556\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
           "options": {
             "raw": {
               "headerFamily": "json",
               "language": "json"
             }
           }
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -1342,7 +1277,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639362823372\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639238980556\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -1402,7 +1337,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639362823372\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639238980556\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -1462,7 +1397,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639362823372\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639238980556\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -1560,19 +1495,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -1826,19 +1748,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2091,19 +2000,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2350,26 +2246,13 @@
         "method": "POST",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639357777557\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+          "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639110953826\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
           "options": {
             "raw": {
               "headerFamily": "json",
               "language": "json"
             }
           }
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2414,7 +2297,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639357777557\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639110953826\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2474,7 +2357,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639357777557\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639110953826\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2534,7 +2417,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639357777557\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639110953826\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2624,19 +2507,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2834,19 +2704,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -3191,19 +3048,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -3556,8 +3400,7 @@
               "value": "<string>"
             }
           ]
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -3929,19 +3772,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -4104,19 +3934,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -4280,19 +4097,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -4458,19 +4262,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -4646,7 +4437,7 @@
                 "type": "text/plain"
               },
               "key": "priority",
-              "value": "normal"
+              "value": "high"
             },
             {
               "disabled": false,
@@ -4679,19 +4470,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -4733,7 +4511,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "normal"
+                  "value": "high"
                 },
                 {
                   "disabled": false,
@@ -4828,7 +4606,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "normal"
+                  "value": "high"
                 },
                 {
                   "disabled": false,
@@ -4915,7 +4693,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "normal"
+                  "value": "high"
                 },
                 {
                   "disabled": false,
@@ -5037,8 +4815,7 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -5192,19 +4969,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -5458,19 +5222,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -5723,19 +5474,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -5984,19 +5722,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -6260,19 +5985,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [

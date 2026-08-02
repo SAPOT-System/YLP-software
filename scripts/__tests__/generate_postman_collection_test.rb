@@ -140,3 +140,24 @@ class BaselineTestsTest < Minitest::Test
     assert_equal 1, request["event"].count { |e| e["listen"] == "test" }
   end
 end
+
+class StripItemAuthTest < Minitest::Test
+  def test_removes_a_per_item_auth_block_so_collection_auth_can_take_over
+    collection = sample_collection
+    collection["item"].first["item"].first["request"]["auth"] = { "type" => "oauth2" }
+
+    strip_item_auth!(collection["item"])
+
+    refute collection["item"].first["item"].first["request"].key?("auth")
+  end
+
+  def test_leaves_requests_without_an_auth_block_untouched
+    collection = sample_collection
+
+    strip_item_auth!(collection["item"])
+
+    collection["item"].each do |folder|
+      folder["item"].each { |request| refute request["request"].key?("auth") }
+    end
+  end
+end

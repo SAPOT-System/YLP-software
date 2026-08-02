@@ -74,19 +74,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -374,8 +361,7 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {

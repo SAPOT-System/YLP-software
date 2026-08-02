@@ -75,19 +75,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -357,26 +344,13 @@
         "method": "POST",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_3\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+          "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
           "options": {
             "raw": {
               "headerFamily": "json",
               "language": "json"
             }
           }
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -420,7 +394,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_3\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -479,7 +453,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_3\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -538,7 +512,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_3\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_2\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",

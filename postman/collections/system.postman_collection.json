@@ -57,8 +57,7 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -168,8 +167,7 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -312,19 +310,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -504,8 +489,7 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -564,7 +548,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<uuid>\",\n  \"detail\": \"<string>\",\n  \"access_token\": \"<string>\",\n  \"refresh_token\": \"<string>\",\n  \"phone_number\": \"+639382118567\",\n  \"email\": \"<email>\"\n}",
+          "body": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<uuid>\",\n  \"detail\": \"<string>\",\n  \"access_token\": \"<string>\",\n  \"refresh_token\": \"<string>\",\n  \"phone_number\": \"+639166349988\",\n  \"email\": \"<email>\"\n}",
           "cookie": [
 
           ],
@@ -760,8 +744,7 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -977,8 +960,7 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -1132,8 +1114,7 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {
@@ -1358,19 +1339,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -1616,19 +1584,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -1872,26 +1827,13 @@
         "method": "POST",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639274976410\",\n  \"email\": \"<email>\"\n}",
+          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639246796148\",\n  \"email\": \"<email>\"\n}",
           "options": {
             "raw": {
               "headerFamily": "json",
               "language": "json"
             }
           }
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -1936,7 +1878,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639274976410\",\n  \"email\": \"<email>\"\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639246796148\",\n  \"email\": \"<email>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -1996,7 +1938,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639274976410\",\n  \"email\": \"<email>\"\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639246796148\",\n  \"email\": \"<email>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2056,7 +1998,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639274976410\",\n  \"email\": \"<email>\"\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639246796148\",\n  \"email\": \"<email>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2144,19 +2086,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2336,19 +2265,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2613,19 +2529,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2788,19 +2691,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -2989,19 +2879,6 @@
         ],
         "method": "POST",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -3305,19 +3182,6 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": {
-          "type": "oauth2",
-          "oauth2": [
-            {
-              "key": "accessTokenUrl",
-              "value": "auth/token"
-            },
-            {
-              "key": "grant_type",
-              "value": "password_credentials"
-            }
-          ]
         }
       },
       "response": [
@@ -3557,8 +3421,7 @@
         ],
         "method": "GET",
         "body": {
-        },
-        "auth": null
+        }
       },
       "response": [
         {

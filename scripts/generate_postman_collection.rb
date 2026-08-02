@@ -122,6 +122,26 @@ BASELINE_TEST_EVENT = {
   }
 }.freeze
 
+# openapi-to-postmanv2 emits a per-operation "auth" block on some requests
+# (derived from each OpenAPI operation's own security scheme). That overrides
+# the collection-level bearer auth set in `main` -- Postman only inherits
+# parent auth when the request has no "auth" key at all. Left in place, those
+# requests never receive the minted {{token}}, so most authenticated endpoints
+# in the generated collections would 401 instead of exercising real handler
+# logic, defeating the point of seeding fixtures and minting a token before a
+# full run. Strip it so every request falls back to the collection's bearer
+# auth.
+def strip_item_auth!(items)
+  items.each do |item|
+    if item.key?("item")
+      strip_item_auth!(item["item"])
+      next
+    end
+
+    item["request"].delete("auth") if item["request"].is_a?(Hash)
+  end
+end
+
 # Returns a deep copy of the collection with the baseline test event attached to
 # every request item. Marshal round-trip is the stdlib deep-copy idiom; the
 # collection is plain JSON-derived Hashes and Arrays, so it round-trips cleanly.
@@ -218,6 +238,7 @@ def main
     "bearer" => [{ "key" => "token", "value" => "{{token}}", "type" => "string" }]
   }
 
+  strip_item_auth!(collection["item"])
   collection = with_baseline_tests(collection)
 
   split_by_folder(collection).each do |category, sub_collection|
