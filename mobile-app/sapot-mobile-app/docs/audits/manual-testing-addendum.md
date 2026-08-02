@@ -258,7 +258,7 @@ All P0 manual tests must pass on all three tiers. P1 tests require at least mid-
 **Priority:** P1 | **Device:** Any
 
 1. Open a chat room with active messages
-2. Push an OTA update: `npm run update:dev`
+2. Push an OTA update: `pnpm run update:dev`
 3. Wait for bundle reload
 
 **Expected:** App reloads. Auth session survives (tokens intact in secure store). Chat history visible. Connection re-established.

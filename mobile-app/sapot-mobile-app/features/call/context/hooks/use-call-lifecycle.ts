@@ -53,27 +53,21 @@ export function useCallLifecycle(params: {
     [callService, peerId, isMinimized]
   );
 
-  // call-ready + call-busy
+  // The CallService owns call-ready so it cannot be lost while the screen is
+  // mounting. UI lifecycle only reacts to a busy response here.
   useEffect(() => {
     if (!peerId || !callType) return;
-    const callReadyHandler = (incomingPeerId: string) => {
-      if (incomingPeerId !== peerId) return;
-      callLog.info("[CallContext] Starting call");
-      callService.startCall(callType, peerId);
-    };
     const callBusyHandler = (incomingPeerId: string) => {
       if (incomingPeerId !== peerId) return;
       if (connectionService.shouldIgnoreCallBusy(incomingPeerId)) return;
       callLog.info("[CallContext] peer is busy", { peerId });
       setCallState("busy");
     };
-    connectionService.on("call-ready", callReadyHandler);
     connectionService.on("call-busy", callBusyHandler);
     return () => {
-      connectionService.off("call-ready", callReadyHandler);
       connectionService.off("call-busy", callBusyHandler);
     };
-  }, [callService, connectionService, peerId, callType]);
+  }, [connectionService, peerId, callType]);
 
   // Remote call-rejected (declined) — dedicated UI state, distinct from generic call-ended
   useEffect(() => {
@@ -134,8 +128,22 @@ export function useCallLifecycle(params: {
     if (!peerId) return;
     const onReconnecting = (id: string) => {
       if (id !== peerId) return;
-      callLog.info("[CallContext] call › reconnecting", { peerId });
-      setCallState("reconnecting");
+      // "Reconnecting" is only meaningful for a call that reached "connected".
+      // The connection layer also emits call-reconnecting for plain connect
+      // retries (adapter evicted for retry / initial ICE restart), which happen
+      // while we are still ringing. Entering "reconnecting" from "calling" is a
+      // dead end: it cancels the 30s no-answer timeout (armed only in "calling")
+      // and no further event resolves it once the retries are exhausted, so the
+      // room stays pinned on "Reconnecting…". Ignore it outside "connected" —
+      // that also stops it from resurrecting a terminal state.
+      setCallState((prev) => {
+        if (prev !== "connected" && prev !== "reconnecting") {
+          callLog.info("[CallContext] call › reconnect signal ignored", { peerId, callState: prev });
+          return prev;
+        }
+        callLog.info("[CallContext] call › reconnecting", { peerId });
+        return "reconnecting";
+      });
     };
     const onPeerReconnected = (id: string) => {
       if (id !== peerId) return;

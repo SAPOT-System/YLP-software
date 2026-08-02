@@ -126,7 +126,7 @@ export class ChatReceiveService {
           messageId: data.messageId,
           conversationId: data.conversationId,
         });
-        this.acknowledgeIncomingMessage(sender.id, data.messageId);
+        this.acknowledgeIncomingMessage(sender, data.messageId);
         return;
       }
       const conversation = await this.getOrCreateConversationForIncoming(
@@ -137,7 +137,7 @@ export class ChatReceiveService {
       await this.conversationKeyManager.deriveAndSetConversationKey(sender.id, conversation.id);
       await this.saveIncomingMessage(sender, conversation, data);
       void this.conversationRepository.touchConversation(conversation.id);
-      this.acknowledgeIncomingMessage(sender.id, data.messageId);
+      this.acknowledgeIncomingMessage(sender, data.messageId);
       const senderName =
         `${sender.firstName} ${sender.lastName ?? ""}`.trim() ||
         sender.username;
@@ -278,12 +278,14 @@ export class ChatReceiveService {
    * @param senderId The sender's peer id
    * @param messageId The message id to acknowledge
    */
-  acknowledgeIncomingMessage(senderId: string, messageId: string): void {
-    this.connectionService.sendAckMessage(senderId, {
-      messageId,
-      to: senderId,
-      from: this.userStore.user.id,
-    });
+  acknowledgeIncomingMessage(sender: Peer | string, messageId: string): void {
+    const peerId = typeof sender === "string" ? sender : sender.id;
+    const ackData = { messageId, to: peerId, from: this.userStore.user.id };
+    if (typeof sender !== "string" && sender.role === "admin") {
+      this.connectionService.sendAckMessage(peerId, ackData, { forceWebSocket: true });
+      return;
+    }
+    this.connectionService.sendAckMessage(peerId, ackData);
   }
 
   /**
@@ -301,9 +303,7 @@ export class ChatReceiveService {
           this.userStore.user.id
         );
       const messageIds = ourMessages.map((m) => m.id);
-      await this.messageStatusRepository.updateDeliveredMessagesToRead(
-        messageIds
-      );
+      await this.messageStatusRepository.updateDeliveredMessagesToRead(messageIds);
       chatLog.debug("chat › seen handled", {
         conversationId,
         updatedCount: messageIds.length,
@@ -332,7 +332,11 @@ export class ChatReceiveService {
       const conversation =
         await this.conversationRepository.queryConversationById(conversationId);
       if (conversation?.type !== ConversationType.SMS) {
-        this.connectionService.sendSeenMessage(peer.id, conversationId);
+        if (peer.role === "admin") {
+          this.connectionService.sendSeenMessage(peer.id, conversationId, { forceWebSocket: true });
+        } else {
+          this.connectionService.sendSeenMessage(peer.id, conversationId);
+        }
       }
       const peerMessages =
         await this.messageRepository.queryMessagesByConversationAndSender(
@@ -340,9 +344,7 @@ export class ChatReceiveService {
           peer.id
         );
       const messageIds = peerMessages.map((m) => m.id);
-      await this.messageStatusRepository.updateDeliveredMessagesToRead(
-        messageIds
-      );
+      await this.messageStatusRepository.markMessagesRead(messageIds);
     } catch (error) {
       const appErr = toAppError(error, "database");
       chatLog.warn("chat › mark as read failed", { conversationId, ...appErr });

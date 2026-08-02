@@ -1,7 +1,14 @@
 import { Database } from "@nozbe/watermelondb";
 import { SyncService } from "../sync-service";
+import {
+  CallStatus,
+  CallType,
+  MessageStatusType,
+  MessageType,
+} from "@/features/shared/core/database";
 import type { MessageRepository } from "@/features/chat/repositories/message-repository";
 import type { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
+import type { PushLocalDataRequestBody } from "../../api/sync.api";
 
 // Mock the sync API and dependencies
 jest.mock("../../api/sync.api");
@@ -114,6 +121,176 @@ describe("SyncService", () => {
 
       // Assert
       expect(mockSynchronize).toHaveBeenCalled();
+    });
+  });
+
+  describe("push filtering", () => {
+    it("pushes messages without SENDING or NOT_SENT receipts and keeps those receipts dirty", async () => {
+      // Arrange
+      mockReceiptManager.shouldPushReceipt.mockImplementation(
+        (status) =>
+          status !== MessageStatusType.SENDING &&
+          status !== MessageStatusType.NOT_SENT
+      );
+      const changes = {
+        conversations: { created: [], updated: [], deleted: [] },
+        conversation_participants: { created: [], updated: [], deleted: [] },
+        messages: {
+          created: [
+            {
+              id: "msg-1",
+              conversation: "conv-1",
+              sender: "user-1",
+              content: "durable ciphertext",
+              message_type: MessageType.TEXT,
+              is_deleted: false,
+              created_at: 1,
+              updated_at: 1,
+            },
+            {
+              id: "msg-2",
+              conversation: "conv-1",
+              sender: "user-1",
+              content: "accepted by transport",
+              message_type: MessageType.TEXT,
+              is_deleted: false,
+              created_at: 1,
+              updated_at: 1,
+            },
+          ],
+          updated: [],
+          deleted: [],
+        },
+        calls: { created: [], updated: [], deleted: [] },
+        call_participants: { created: [], updated: [], deleted: [] },
+        message_receipts: {
+          created: [
+            {
+              id: "receipt-sending",
+              message: "msg-1",
+              user: "user-1",
+              status: MessageStatusType.SENDING,
+              is_deleted: false,
+              created_at: 1,
+              updated_at: 1,
+            },
+            {
+              id: "receipt-not-sent",
+              message: "msg-1",
+              user: "user-1",
+              status: MessageStatusType.NOT_SENT,
+              is_deleted: false,
+              created_at: 1,
+              updated_at: 1,
+            },
+            {
+              id: "receipt-sent",
+              message: "msg-2",
+              user: "user-1",
+              status: MessageStatusType.SENT,
+              is_deleted: false,
+              created_at: 1,
+              updated_at: 1,
+            },
+          ],
+          updated: [],
+          deleted: [],
+        },
+      } as unknown as PushLocalDataRequestBody["changes"];
+
+      (mockSynchronize as jest.Mock).mockImplementationOnce(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async ({ pushChanges }: any) => {
+          const result = await pushChanges({ changes, lastPulledAt: 0 });
+          expect(result).toEqual({
+            experimentalRejectedIds: {
+              message_receipts: ["receipt-sending", "receipt-not-sent"],
+            },
+          });
+        }
+      );
+
+      // Act
+      await service.syncNow();
+
+      // Assert
+      expect(mockSyncApi.pushLocalDataApi).toHaveBeenCalledWith(
+        expect.objectContaining({
+          changes: expect.objectContaining({
+            messages: expect.objectContaining({
+              created: [
+                expect.objectContaining({
+                  id: "msg-1",
+                  content: "durable ciphertext",
+                }),
+                expect.objectContaining({
+                  id: "msg-2",
+                  content: "accepted by transport",
+                }),
+              ],
+            }),
+            message_receipts: expect.objectContaining({
+              created: [
+                expect.objectContaining({
+                  id: "receipt-sent",
+                  status: MessageStatusType.SENT,
+                }),
+              ],
+            }),
+          }),
+        })
+      );
+    });
+
+    it("keeps initiating calls and their participants dirty when they are filtered", async () => {
+      // Arrange
+      const changes = {
+        conversations: { created: [], updated: [], deleted: [] },
+        conversation_participants: { created: [], updated: [], deleted: [] },
+        messages: { created: [], updated: [], deleted: [] },
+        calls: {
+          created: [
+            {
+              id: "call-1",
+              call_type: CallType.AUDIO,
+              status: CallStatus.INITIATING,
+            },
+          ],
+          updated: [],
+          deleted: [],
+        },
+        call_participants: {
+          created: [
+            {
+              id: "participant-1",
+              call: "call-1",
+              user: "user-1",
+            },
+          ],
+          updated: [],
+          deleted: [],
+        },
+        message_receipts: { created: [], updated: [], deleted: [] },
+      } as unknown as PushLocalDataRequestBody["changes"];
+
+      (mockSynchronize as jest.Mock).mockImplementationOnce(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async ({ pushChanges }: any) => {
+          const result = await pushChanges({ changes, lastPulledAt: 0 });
+          expect(result).toEqual({
+            experimentalRejectedIds: {
+              calls: ["call-1"],
+              call_participants: ["participant-1"],
+            },
+          });
+        }
+      );
+
+      // Act
+      await service.syncNow();
+
+      // Assert
+      expect(mockSyncApi.pushLocalDataApi).not.toHaveBeenCalled();
     });
   });
 

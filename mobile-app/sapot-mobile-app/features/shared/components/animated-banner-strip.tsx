@@ -1,3 +1,5 @@
+import motion from "@/constants/motion";
+import { useReducedMotion } from "@/features/shared/hooks";
 import React, { useEffect, useRef } from "react";
 import { Animated } from "react-native";
 
@@ -19,15 +21,23 @@ export function AnimatedBannerStrip({
   children,
 }: AnimatedBannerStripProps) {
   const translateY = useRef(new Animated.Value(-height)).current;
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    const targetY = visible ? 0 : -height;
+
+    if (reducedMotion) {
+      translateY.setValue(targetY);
+      return;
+    }
+
     Animated.spring(translateY, {
-      toValue: visible ? 0 : -height,
+      toValue: targetY,
       useNativeDriver: true,
-      bounciness: 3,
-      speed: 16,
+      damping: motion.spring.gentle.damping,
+      stiffness: motion.spring.gentle.stiffness,
     }).start();
-  }, [visible, translateY, height]);
+  }, [visible, translateY, height, reducedMotion]);
 
   return (
     <Animated.View

@@ -13,12 +13,17 @@ from app.db_operations.connection_manager import manager
 from app.models.users import User
 from app.models.websocketComms import MessageData, PublicMessageData
 
+
+class WebSocketAuthError(Exception):
+    pass
+
+
 async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
     user_id = verify_token(token)
 
     if not user_id:
         await websocket.close(code=1008)
-        raise Exception("Unauthorized")
+        raise WebSocketAuthError("Unauthorized")
 
     return user_id
 

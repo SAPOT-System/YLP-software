@@ -102,7 +102,7 @@ export type CallEndedMessage = {
 };
 export type CallReadyMessage = {
   type: "call-ready";
-  data: { from: string; to: string };
+  data: { from: string; to: string; callId: string };
 };
 export type CallRejectedMessage = {
   type: "call-rejected";
@@ -157,7 +157,7 @@ export type WsCallEndedMessage = {
 };
 export type WsCallReadyMessage = {
   type: "call-ready";
-  data: { from_user: string; to: string };
+  data: { from_user: string; to: string; callId: string };
 };
 export type WsCallRejectedMessage = {
   type: "call-rejected";

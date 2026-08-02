@@ -3,9 +3,10 @@
 ## Architecture
 
 Account recovery is implemented across:
-- `server/app/api/auth.py` — forgot-password and reset-password endpoints
-- `server/app/api/users.py` — recovery key setup and retrieval
-- `server/app/models/` — `usersecurityquestion`, `recovery_session`, `wrapped_key_recovery`, OTP tables
+- `server/app/api/forgot_password.py` — all `/auth/forgot-password/*` endpoints (email/phone OTP, security question, recovery key, email magic link, reset-password)
+- `server/app/api/user_keys.py` — recovery-copy key setup and retrieval (`/users/recovery-setup`, `/users/recovery-key`, `/users/recovery-keys`)
+- `server/app/db_operations/wrapped_key_recovery.py` — recovery-session and wrapped-key recovery logic behind those routes
+- `server/app/models/` — `usersecurityquestion`, `recovery_session`, `recovery_attempt`, `wrapped_key_recovery`, OTP tables
 
 This feature is server-mediated; it has no P2P path.
 

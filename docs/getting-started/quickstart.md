@@ -24,7 +24,7 @@ This brings up MariaDB, Redis, the API, and an Nginx TLS terminator together —
 
 **Checkpoint:** `curl -sk https://<your-lan-ip>/version` (or `https://localhost/version` from the same machine) returns a JSON version payload. If not, see [Troubleshooting: server won't start](../TROUBLESHOOTING.md#server-wont-start-or-crashes-on-import).
 
-Full detail: [server-docker-setup.md](server-docker-setup.md). Prefer to run the API directly without Docker? See [server-setup.md](server-setup.md) (bare-metal, requires installing MariaDB/Redis yourself).
+Full detail: [docker-setup.md](docker-setup.md). Prefer to run the API directly without Docker? See [server-setup.md](server-setup.md) (bare-metal, requires installing MariaDB/Redis yourself).
 
 ## 3. Start the mobile app
 

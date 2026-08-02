@@ -9,6 +9,7 @@ from app.models.message import SyncableModel, now_ms
 if TYPE_CHECKING:
     from app.models.users import User
     from app.models.conversation import Conversation
+    from app.models.call_participant import CallParticipant
 
 
 class CallType(str, Enum):
@@ -53,6 +54,13 @@ class Call(SyncableModel, table=True):
 
     conversation: Optional["Conversation"] = Relationship(
         back_populates="calls"
+    )
+
+    callparticipants: List["CallParticipant"] = Relationship(
+        back_populates="call",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan", # The magic string
+            }
     )
 
 

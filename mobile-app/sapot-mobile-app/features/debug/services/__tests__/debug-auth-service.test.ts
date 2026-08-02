@@ -1,4 +1,4 @@
-import { register } from "@/features/auth/api/auth.api";
+import { loginAsFixtureApi, register } from "@/features/auth/api/auth.api";
 import {
   clearAccessToken,
   clearConnectionConfig,
@@ -10,6 +10,7 @@ import { DebugAuthService } from "../debug-auth-service";
 
 jest.mock("@/features/auth/api/auth.api", () => ({
   register: jest.fn(),
+  loginAsFixtureApi: jest.fn(),
 }));
 
 jest.mock("@/features/shared/core/stores/secure-config", () => ({
@@ -25,6 +26,7 @@ jest.mock("expo-secure-store", () => ({
 }));
 
 const mockedRegister = register as jest.Mock;
+const mockedLoginAsFixtureApi = loginAsFixtureApi as jest.Mock;
 const mockedSaveAccessToken = saveAccessToken as jest.Mock;
 const mockedClearAccessToken = clearAccessToken as jest.Mock;
 const mockedClearConnectionConfig = clearConnectionConfig as jest.Mock;
@@ -82,6 +84,20 @@ describe("DebugAuthService", () => {
         detail: "ok",
         access_token: "server-access-token",
         refresh_token: "server-refresh-token",
+      },
+    });
+
+    mockedLoginAsFixtureApi.mockResolvedValue({
+      data: {
+        id: "fixture-user-1",
+        first_name: "QA",
+        last_name: "Admin",
+        phone_number: "",
+        email: "",
+        username: "qa_admin",
+        detail: "Logged in as fixture account",
+        access_token: "fixture-access-token",
+        refresh_token: "fixture-refresh-token",
       },
     });
   });
@@ -161,6 +177,166 @@ describe("DebugAuthService", () => {
 
       expect(userStore.setIsRescuer).toHaveBeenCalledWith(false);
       expect(userStore.setIsAdmin).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe("loginAs", () => {
+    it("wipes the previous user's data before logging in as the fixture", async () => {
+      const callOrder: string[] = [];
+      userService.wipeDatabase.mockImplementation(async () => {
+        callOrder.push("wipeDatabase");
+      });
+      mockedLoginAsFixtureApi.mockImplementation(async () => {
+        callOrder.push("loginAsFixtureApi");
+        return {
+          data: {
+            id: "fixture-user-1",
+            first_name: "QA",
+            last_name: "Admin",
+            phone_number: "",
+            email: "",
+            username: "qa_admin",
+            detail: "ok",
+            access_token: "fixture-access-token",
+            refresh_token: "fixture-refresh-token",
+          },
+        };
+      });
+
+      await service.loginAs("qa_admin");
+
+      expect(userService.wipeDatabase).toHaveBeenCalledTimes(1);
+      expect(callOrder).toEqual(["wipeDatabase", "loginAsFixtureApi"]);
+    });
+
+    it("calls /testing/login-as with the given handle", async () => {
+      await service.loginAs("qa_rescuer");
+
+      expect(mockedLoginAsFixtureApi).toHaveBeenCalledWith("qa_rescuer");
+    });
+
+    it("stores the server-issued access and refresh tokens", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(mockedSaveAccessToken).toHaveBeenCalledWith("fixture-access-token");
+      expect(mockedSetItemAsync).toHaveBeenCalledWith(
+        "refresh_token",
+        "fixture-refresh-token"
+      );
+    });
+
+    it("syncs the fixture user locally", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(userService.syncAuthenticatedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "fixture-user-1", username: "qa_admin" })
+      );
+    });
+
+    it("sets the rescuer role flag when logging in as qa_rescuer", async () => {
+      await service.loginAs("qa_rescuer");
+
+      expect(userStore.setIsRescuer).toHaveBeenCalledWith(true);
+      expect(userStore.setIsAdmin).toHaveBeenCalledWith(false);
+    });
+
+    it("sets the admin role flag when logging in as qa_admin", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(userStore.setIsRescuer).toHaveBeenCalledWith(false);
+      expect(userStore.setIsAdmin).toHaveBeenCalledWith(true);
+    });
+
+    it("sets neither role flag for the plain qa_baseline handles", async () => {
+      await service.loginAs("qa_baseline");
+
+      expect(userStore.setIsRescuer).toHaveBeenCalledWith(false);
+      expect(userStore.setIsAdmin).toHaveBeenCalledWith(false);
+    });
+
+    it("does not call register", async () => {
+      await service.loginAs("qa_admin");
+
+      expect(mockedRegister).not.toHaveBeenCalled();
+    });
+
+    describe("qa_guest", () => {
+      it("becomes a local guest without calling the fixture login API", async () => {
+        // Arrange / Act — a guest has no server account, so there is nothing
+        // to authenticate against and no 404 to hit.
+        await service.loginAs("qa_guest");
+
+        // Assert
+        expect(mockedLoginAsFixtureApi).not.toHaveBeenCalled();
+        expect(userService.syncAuthenticatedUser).not.toHaveBeenCalled();
+        expect(mockedRegister).not.toHaveBeenCalled();
+      });
+
+      it("wipes the previous user's data before becoming a guest", async () => {
+        // Arrange
+        const callOrder: string[] = [];
+        userService.wipeDatabase.mockImplementation(async () => {
+          callOrder.push("wipeDatabase");
+        });
+        userService.syncGuestUser.mockImplementation(async () => {
+          callOrder.push("syncGuestUser");
+        });
+
+        // Act
+        await service.loginAs("qa_guest");
+
+        // Assert
+        expect(callOrder).toEqual(["wipeDatabase", "syncGuestUser"]);
+      });
+
+      it("stores no session, dropping any token left by a previous fixture login", async () => {
+        // Arrange / Act
+        await service.loginAs("qa_guest");
+
+        // Assert
+        expect(mockedDeleteItemAsync).toHaveBeenCalledWith("refresh_token");
+        expect(mockedClearAccessToken).toHaveBeenCalledTimes(1);
+        expect(mockedSaveAccessToken).not.toHaveBeenCalled();
+      });
+
+      it("syncs a guest carrying the qa_guest fixture identity", async () => {
+        // Arrange / Act
+        await service.loginAs("qa_guest");
+
+        // Assert — mirrors the server fixture's first/last name
+        expect(userService.syncGuestUser).toHaveBeenCalledWith({
+          firstName: "QA",
+          lastName: "Fixture",
+          username: "qa.fixture",
+        });
+      });
+
+      it("lands on the same identity every time, unlike the randomized LAN guest", async () => {
+        // Arrange — vary Math.random, which is what randomizes seedLanUser
+        const originalRandom = Math.random;
+        try {
+          Math.random = () => 0;
+          await service.loginAs("qa_guest");
+          Math.random = () => 0.999;
+          await service.loginAs("qa_guest");
+        } finally {
+          Math.random = originalRandom;
+        }
+
+        // Assert
+        const [first] = userService.syncGuestUser.mock.calls[0];
+        const [second] = userService.syncGuestUser.mock.calls[1];
+        expect(first).toEqual(second);
+      });
+
+      it("does not touch the role flags, since guests are never rescuer/admin", async () => {
+        // Arrange / Act
+        await service.loginAs("qa_guest");
+
+        // Assert
+        expect(userStore.setIsRescuer).not.toHaveBeenCalled();
+        expect(userStore.setIsAdmin).not.toHaveBeenCalled();
+      });
     });
   });
 

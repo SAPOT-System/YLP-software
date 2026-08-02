@@ -9,6 +9,13 @@
 # compose reads .env itself) — auto-detection wins in that case unless you
 # set it in the environment first. Keep in sync with up.sh.
 #
+# Passes --env-file server/.env explicitly: docker-compose.yml's
+# ${MYSQL_*} substitutions are read from this file. Passing --env-file at
+# all disables Compose's default auto-load of a root-level .env, so we
+# also pass repo-root .env (port overrides, see .env.example) when present
+# — --env-file can be repeated, later ones win on overlapping keys, and
+# there's no overlap between the two files' variables anyway.
+#
 # Usage: docker/up.ps1 up --build
 #        docker/up.ps1 run --rm api pytest
 #        (any other docker compose subcommand/args)
@@ -35,4 +42,9 @@ if (-not $env:CERT_SAN) {
     $env:CERT_SAN = $certSan
 }
 
-docker compose @args
+$envFileArgs = @("--env-file", "server/.env")
+if (Test-Path ".env") {
+    $envFileArgs = @("--env-file", ".env") + $envFileArgs
+}
+
+docker compose @envFileArgs @args

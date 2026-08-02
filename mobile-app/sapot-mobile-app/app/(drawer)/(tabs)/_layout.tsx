@@ -1,5 +1,5 @@
 import { useAuth } from "@/features/auth";
-import { useConnectionService } from "@/features/shared/hooks";
+import { useConnectionService, useReducedMotion } from "@/features/shared/hooks";
 import { navLog } from "@/features/shared/core/utils/logger";
 import Entypo from "@expo/vector-icons/Entypo";
 import Feather from "@expo/vector-icons/Feather";
@@ -7,10 +7,50 @@ import SimpleLineIcons from "@expo/vector-icons/SimpleLineIcons";
 import { router, Tabs, usePathname } from "expo-router";
 import React, { useEffect } from "react";
 import { View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { Appbar, Text, useTheme } from "react-native-paper";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import motion from "@/constants/motion";
+
+function TabUnderline({ focused }: { focused: boolean }) {
+  const opacity = useSharedValue(focused ? 1 : 0);
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    const target = focused ? 1 : 0;
+    if (reducedMotion) {
+      opacity.value = target;
+    } else {
+      opacity.value = withTiming(target, {
+        duration: motion.duration.fast,
+        easing: Easing.bezier(...motion.easing.standard),
+      });
+    }
+  }, [focused, opacity, reducedMotion]);
+
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: 55,
+          height: 2,
+          borderRadius: 999,
+          backgroundColor: "#3A7AFE",
+        },
+        animatedStyle,
+      ]}
+    />
+  );
+}
 
 function IncomingCallListener() {
   const connectionService = useConnectionService();
@@ -129,15 +169,7 @@ export default function TabLayout() {
               >
                 {children}
               </Text>
-              <View
-                style={{
-                  width: 55,
-                  height: 2,
-                  borderRadius: 999,
-                  backgroundColor: "#3A7AFE",
-                  opacity: focused ? 1 : 0,
-                }}
-              />
+              <TabUnderline focused={focused} />
             </View>
           ),
           tabBarStyle: {

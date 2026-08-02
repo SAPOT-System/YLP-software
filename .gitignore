@@ -2,3 +2,6 @@ logs/*
 .worktrees/
 node_modules/
 docs/superpowers/
+.env
+**/.env
+!*.env.example

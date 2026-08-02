@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { MainContainer } from "../main-container";
+import { MainContainer, setPendingPassword } from "../main-container";
 import { AuthContainer } from "@/features/auth/auth-container";
 import { AppModeStore } from "../core/stores";
+import { KeyInitError } from "../core/errors";
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ jest.mock("@/task/signaling-task", () => ({
 }));
 
 jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
   default: { addEventListener: jest.fn(() => jest.fn()) },
 }));
 
@@ -118,6 +120,7 @@ jest.mock("../connection/adapters", () => ({
     on: jest.fn(),
     sendMessage: jest.fn(),
     setEncryptionContext: jest.fn(),
+    resetTransportForNetworkChange: jest.fn(),
     disconnect: jest.fn(),
     connect: jest.fn(),
   })),
@@ -135,6 +138,7 @@ jest.mock("../core/stores", () => ({
   NetworkConfig: jest.fn().mockImplementation(() => ({
     initialize: jest.fn().mockResolvedValue(undefined),
     setOnIpChange: jest.fn(),
+    setOnNetworkRegained: jest.fn(),
     startWatching: jest.fn(),
     stopWatching: jest.fn(),
     port: 8080,
@@ -191,7 +195,6 @@ jest.mock("@/features/chat/services/conversation-key-manager", () => ({
 jest.mock("@/features/chat/services/message-receipt-manager", () => ({
   MessageReceiptManager: jest.fn().mockImplementation(() => ({
     shouldPushReceipt: jest.fn().mockReturnValue(true),
-    shouldPushMessage: jest.fn().mockReturnValue(true),
     getTransientStatuses: jest.fn().mockReturnValue(new Set()),
   })),
 }));
@@ -389,5 +392,122 @@ describe("MainContainer.handleMigration", () => {
     const result = await (container as any).handleMigration(keysReadyToken);
 
     expect(result.migrationPushPending).toBe(false);
+  });
+});
+
+// ── Recoverable initialization failures (issue #245) ──────────────────────────
+
+describe("MainContainer.initialize failure handling", () => {
+  const { LocalEncryptionService } = jest.requireMock(
+    "../crypto/local-encryption-service"
+  );
+
+  /** Reads back the ctx the container handed to LocalEncryptionService. */
+  function capturedEncryptionCtx() {
+    const calls = (LocalEncryptionService as jest.Mock).mock.calls;
+    return calls[calls.length - 1][0] as { getPassword: () => string | null };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    secureConfig.getStoredAccessToken.mockResolvedValue("token-1");
+    secureConfig.getMigrationState.mockResolvedValue(null);
+    setPendingPassword("");
+  });
+
+  it("keeps the pending password when a key step fails, so a retry can succeed", async () => {
+    // Arrange: guest key load fails after LocalEncryptionService.initialize()
+    setPendingPassword("hunter2");
+    const container = createTestContainer(true);
+    (container.peerKeyService.initGuestKey as jest.Mock).mockRejectedValue(
+      new Error("secure store busy")
+    );
+
+    // Act
+    await expect(container.initialize()).rejects.toBeDefined();
+
+    // Assert: a cleared password makes every retry fail, forcing a force-quit
+    expect(capturedEncryptionCtx().getPassword()).toBe("hunter2");
+  });
+
+  it("clears the pending password once initialization fully succeeds", async () => {
+    // Arrange
+    setPendingPassword("hunter2");
+    const container = createTestContainer(true);
+
+    // Act
+    await container.initialize();
+
+    // Assert
+    expect(capturedEncryptionCtx().getPassword()).toBeNull();
+  });
+
+  it("does not cache a rejected init promise, so the next call re-runs", async () => {
+    // Arrange
+    const container = createTestContainer(true);
+    const initGuestKey = container.peerKeyService.initGuestKey as jest.Mock;
+    initGuestKey.mockRejectedValueOnce(new Error("secure store busy"));
+
+    // Act
+    await expect(container.initialize()).rejects.toBeDefined();
+    await container.initialize();
+
+    // Assert
+    expect(initGuestKey).toHaveBeenCalledTimes(2);
+  });
+
+  it("classifies a guest key-load failure with a distinguishable code", async () => {
+    // Arrange
+    const container = createTestContainer(true);
+    (container.peerKeyService.initGuestKey as jest.Mock).mockRejectedValue(
+      new Error("secure store busy")
+    );
+
+    // Act / Assert
+    await expect(container.initialize()).rejects.toMatchObject({
+      code: "GUEST_KEY_INIT_FAILED",
+    });
+  });
+
+  it("classifies a peer key-load failure with a distinguishable code", async () => {
+    // Arrange
+    const container = createTestContainer(false);
+    (container.peerKeyService.initFromSecretKey as jest.Mock).mockRejectedValue(
+      new Error("500 from key service")
+    );
+
+    // Act / Assert
+    await expect(container.initialize()).rejects.toMatchObject({
+      code: "PEER_KEY_INIT_FAILED",
+    });
+  });
+
+  it("classifies a contact key sync failure with a distinguishable code", async () => {
+    // Arrange
+    const container = createTestContainer(false);
+    (container.peerKeyService.getMySecretKey as jest.Mock).mockReturnValue(
+      new Uint8Array(32)
+    );
+    (
+      container.peerKeyService.fetchAndDecryptContactKeys as jest.Mock
+    ).mockRejectedValue(new Error("network down"));
+
+    // Act / Assert
+    await expect(container.initialize()).rejects.toMatchObject({
+      code: "CONTACT_KEY_SYNC_FAILED",
+    });
+  });
+
+  it("preserves the code raised by LocalEncryptionService itself", async () => {
+    // Arrange
+    const container = createTestContainer(false);
+    (container.localEncryptionService.initialize as jest.Mock).mockRejectedValue(
+      new KeyInitError("no master key", "MASTER_KEY_UNAVAILABLE")
+    );
+
+    // Act / Assert
+    await expect(container.initialize()).rejects.toMatchObject({
+      code: "MASTER_KEY_UNAVAILABLE",
+    });
   });
 });

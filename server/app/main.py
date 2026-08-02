@@ -160,6 +160,29 @@ text_fmt = logging.Formatter("%(asctime)s | %(levelname)s | USER: %(user_id)s | 
 text_handler.setFormatter(text_fmt)
 logger.addHandler(text_handler)
 
+
+class UvicornWebSocket403Filter(logging.Filter):
+    """Downgrade uvicorn's own `"WebSocket ... " 403` access line.
+
+    uvicorn logs this INFO-level line (on "uvicorn.error") for every
+    WebSocket handshake that closes before being accepted — which includes
+    our routine, expected auth rejections (invalid/expired token). Those
+    rejections are already logged once, with more context, by the route
+    handlers (see app/api/peer_connection.py, app/api/gps.py). Without this
+    filter the same rejection is reported twice, at two different
+    severities, drowning genuine faults in access-log noise (#326).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "uvicorn.error":
+            return True
+        if "WebSocket" in record.msg and record.msg.rstrip().endswith("403"):
+            return False
+        return True
+
+
+logging.getLogger("uvicorn.error").addFilter(UvicornWebSocket403Filter())
+
 from uuid import UUID, uuid4
 from sqlmodel import Session
 

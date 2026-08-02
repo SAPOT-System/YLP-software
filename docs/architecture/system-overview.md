@@ -174,7 +174,12 @@ flowchart LR
 | `user` | Authenticated end user | Messaging, calls, GPS sharing with rescuers, view announcements |
 | `guest` | Unauthenticated user | LAN messaging and calls only; no GPS sharing; no server-dependent features |
 
-Role is stored in `peers.role` (WatermelonDB, schema v9+) and server-side. The server's `_resolve_role` helper resolves the effective role from the JWT. Role is displayed as a badge in chat lists and message bubbles. See [ADR 0006](../adr/0006-four-tier-roles-model.md) for why this flat four-role model was chosen over a fine-grained permission system.
+Role is stored in `peers.role` (WatermelonDB, added in schema v9; current schema is v11) and server-side. Role is displayed as a badge in chat lists and message bubbles. See [ADR 0006](../adr/0006-four-tier-roles-model.md) for why this flat four-role model was chosen over a fine-grained permission system.
+
+Resolution is split across two mechanisms — `_resolve_role` does **not** cover all four roles:
+
+- **`admin` / `rescuer` / `user`** — resolved by `_resolve_role` (`server/app/db_operations/user_search.py`) from the authenticated `User`'s satellite role rows: `admin` row → `admin`, else `rescuer` row → `rescuer`, else `user`. It never returns `guest`.
+- **`guest`** — not a JWT-bearing role. Guests are placeholder `user` rows with a matching `guest` row, created by `POST /sync/push` for unknown peer IDs and by the GSM phone-onboarding flow. Guest-ness is queried per peer via `GET /keys/{peer_id}/type` (`{"is_guest": bool}`), which reports whether the peer has a server-registered `PeerKey`.
 
 ---
 

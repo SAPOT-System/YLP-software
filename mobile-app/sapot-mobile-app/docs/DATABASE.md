@@ -21,7 +21,7 @@ Stores both the current authenticated user and their peers/contacts.
 | `email` | string | Yes | Current user only |
 | `phone_number` | string | Yes | Current user only |
 | `email_verified` | boolean | Yes | Current user only |
-| `phone_number_verified` | boolean | Yes | Current user only |
+| `phone_number_verified` | boolean | Yes | Current user only. Declared twice in `schema.ts`'s column array — a source-level duplicate, harmless but worth removing |
 | `role` | string | Yes | `"admin"` \| `"rescuer"` \| `"user"` — sourced from server on upsert |
 | `is_guest` | boolean | Yes | Whether the peer is a guest account |
 | `last_seen_at` | number | Yes | Unix ms of last observed activity. Server source: `UserActivity.last_active` (via `GET /user-utils/search-user/{id}`, refreshed when the peer is offline); LAN fallback: stamped on mDNS online/offline. Drives the "Last seen …" header label. |
@@ -46,7 +46,7 @@ A conversation groups messages between participants.
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | `id` | string | — | UUID |
-| `type` | string | No | `"direct"` \| `"group"` (ConversationType) |
+| `type` | string | No | `"direct"` \| `"group"` \| `"solo"` (legacy admin direct conversation) |
 | `title` | string | Yes | Used for group conversations |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
@@ -84,8 +84,6 @@ Individual chat messages within a conversation.
 | `is_deleted` | boolean | No | Soft delete |
 | `linked_message_id` | string | Yes | Added schema v8. Self-referencing FK → `messages.id` for reply threads |
 | `is_encrypted` | boolean | Yes | Added schema v9. Marks NaCl-box-encrypted content |
-
-Both columns were present in `schema.ts` but missing from this table in a prior version of this doc.
 
 ---
 
@@ -146,7 +144,7 @@ Which users participated in each call.
 | `MessageStatusType` | `"sent"` \| `"delivered"` \| `"seen"` |
 | `CallType` | `"audio"` \| `"video"` |
 | `CallStatus` | `"completed"` \| `"missed"` \| `"rejected"` |
-| `ConversationType` | `"direct"` \| `"group"` |
+| `ConversationType` | `"direct"` \| `"group"` \| `"solo"` (legacy admin direct conversation) |
 
 ---
 
@@ -165,9 +163,13 @@ calls ──< call_participants >── peers
 ## Sync
 
 WatermelonDB uses a **pull/push sync** pattern with the server:
-- `GET /sync/pull?last_pulled_at=<ms>&schema_version=<n>` — fetches changes since last sync
+- `GET /sync/pull?last_pulled_at=<ms>&limit=<n>` — fetches changes since last sync
 - `POST /sync/push` — pushes local created/updated/deleted records
+
+`features/sync/api/sync.api.ts` also sends a `schema_version` query param, but the server
+does **not** read it — the parameter is commented out in `server/app/api/sync.py`, so FastAPI
+discards it. See [API.md](API.md#sync--sync).
 
 All synced tables use `is_deleted` (soft delete) and `updated_at` for conflict resolution.
 
-Schema and migrations: `features/shared/core/database/schema.ts`, `features/shared/core/database/migrations.ts` (previously documented without the `core/` path segment)
+Schema and migrations: `features/shared/core/database/schema.ts`, `features/shared/core/database/migrations.ts`

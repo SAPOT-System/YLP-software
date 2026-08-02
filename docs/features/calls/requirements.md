@@ -30,7 +30,7 @@ SAPOT supports peer-to-peer voice and video calls using WebRTC. The server relay
 - Server relays the offer to the target peer's WebSocket connection.
 - Callee responds with `{ type: "answer", to: <caller_id>, sdp: ... }`.
 - Both peers exchange ICE candidates via `{ type: "ice-candidate", to: <peer_id>, candidate: ... }`.
-- Once signalling completes, media flows directly between devices (see [ADR 0002](../../adr/0002-webrtc-p2p-calls.md)).
+- Once signalling completes, media flows directly between devices (see [ADR 0004](../../adr/0004-p2p-calls-with-signalling-relay.md)).
 
 ### FR-CA-02 — Call record
 

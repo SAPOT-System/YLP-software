@@ -52,6 +52,7 @@ describe("NotificationService", () => {
       await service.showCallAlert({
         callerId: "peer-1",
         callType: "video-call",
+        callId: "call-1",
         callerName: "Alice",
         conversationId: "conv-1",
       });
@@ -61,6 +62,28 @@ describe("NotificationService", () => {
           content: expect.objectContaining({
             data: expect.objectContaining({
               call_type: "video",
+              call_id: "call-1",
+            }),
+          }),
+        })
+      );
+    });
+
+    // The notification is the only carrier of the ring when the app is
+    // backgrounded — the screen it opens has no other source for the caller's
+    // name, so an omitted name surfaces as "Unknown" in the call banner.
+    it("includes the caller name in the data payload", async () => {
+      await service.showCallAlert({
+        callerId: "peer-1",
+        callType: "audio-call",
+        callerName: "Alice Cruz",
+      });
+
+      expect(mockSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.objectContaining({
+            data: expect.objectContaining({
+              caller_name: "Alice Cruz",
             }),
           }),
         })

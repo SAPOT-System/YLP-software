@@ -77,6 +77,50 @@ describe("NetworkConfig", () => {
     });
   });
 
+  describe("setOnNetworkRegained", () => {
+    it("fires immediately when Wi-Fi returns with the same IP address", async () => {
+      let capturedListener: ((state: unknown) => Promise<void> | void) | undefined;
+      jest.mocked(NetInfo.addEventListener).mockImplementation((listener) => {
+        capturedListener = listener as (state: unknown) => Promise<void> | void;
+        return jest.fn();
+      });
+      const onNetworkRegained = jest.fn();
+
+      config.ipAddress = "192.168.1.10";
+      config.setOnNetworkRegained(onNetworkRegained);
+      config.startWatching();
+
+      await capturedListener?.({ type: "none", isConnected: false, details: null });
+      await capturedListener?.({
+        type: "wifi",
+        isConnected: true,
+        details: { ipAddress: "192.168.1.10" },
+      });
+
+      expect(onNetworkRegained).toHaveBeenCalledTimes(1);
+      expect(onNetworkRegained).toHaveBeenCalledWith();
+    });
+
+    it("does not treat the initial online state as a reconnection", async () => {
+      let capturedListener: ((state: unknown) => Promise<void> | void) | undefined;
+      jest.mocked(NetInfo.addEventListener).mockImplementation((listener) => {
+        capturedListener = listener as (state: unknown) => Promise<void> | void;
+        return jest.fn();
+      });
+      const onNetworkRegained = jest.fn();
+
+      config.setOnNetworkRegained(onNetworkRegained);
+      config.startWatching();
+      await capturedListener?.({
+        type: "wifi",
+        isConnected: true,
+        details: { ipAddress: "192.168.1.10" },
+      });
+
+      expect(onNetworkRegained).not.toHaveBeenCalled();
+    });
+  });
+
   describe("setOnIpChange", () => {
     const captureListener = () => {
       let captured: ((state: unknown) => Promise<void> | void) | undefined;

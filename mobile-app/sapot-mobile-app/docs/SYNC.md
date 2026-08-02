@@ -63,6 +63,10 @@ changes = WatermelonDB dirty records   // records modified locally since last sy
 
 WatermelonDB tracks which local records are dirty. `buildPushPayload` converts them to the server's snake_case format using `toServerPayload()` per entity. The push body also carries an optional `guest_users` map of display-name hints, keyed by user ID, so the server can materialize a placeholder user record for not-yet-registered peers referenced by a pushed record (e.g. a P2P-only message from a guest) instead of rejecting it on the FK.
 
+Message rows are always included, even when delivery is still pending or has failed locally. This gives the server a durable history copy without requiring a receipt. `SENDING` and `NOT_SENT` receipts remain local, while `SENT`, `DELIVERED`, and `READ` receipts are pushed.
+
+Records intentionally withheld from the request are returned to WatermelonDB through `experimentalRejectedIds`. WatermelonDB therefore keeps those rows dirty instead of marking them synced. A later status transition can then retry the same receipt, and initiating calls and their participants remain pending until the call reaches a durable status.
+
 The server can reject a push with `409` (a referenced record was updated remotely after `last_pulled_at` — client should re-pull first) or `404` (the record was already soft-deleted server-side); `syncNow()`'s fire-and-forget triggers mean these currently surface only in logs, not to the UI.
 
 ---
@@ -149,4 +153,4 @@ See `docs/API.md` — **Sync** section (`GET /sync/pull`, `POST /sync/push`).
 
 ## Secure Storage
 
-See `features/shared/stores/secure-config.ts` — `getSyncLastPulledAt` / `saveSyncLastPulledAt`.
+See `features/shared/core/stores/secure-config.ts` — `getSyncLastPulledAt` / `saveSyncLastPulledAt`.

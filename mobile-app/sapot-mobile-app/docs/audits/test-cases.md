@@ -144,7 +144,7 @@ The table below is a quick-reference for precondition states. Full setup procedu
 | TC-080 | Chats Tab | Discovered peers shown as bubbles | LAN mode, peer on network | 1. Navigate to Chats | Peer bubble per discovered device | P0 | Critical | MANUAL (2-device rig) |
 | TC-081 | Chats Tab | Conversations shown in list | Conversations exist in DB | 1. Navigate to Chats | Chat rows: name, last message, timestamp | P0 | Critical | RNTL |
 | TC-082 | Chats Tab | Pull-to-refresh triggers sync | Server mode | 1. Pull down | `syncService.syncNow()` called | P1 | High | Jest |
-| TC-083 | Chats Tab | Tap peer bubble → Chat Room (source=PEER) | Peer discovered | 1. Tap peer bubble | Navigates to `/chat/[peerId]` with source=PEER | P0 | Critical | MANUAL (2-device rig) |
+| TC-083 | Chats Tab | Tap peer bubble → Chat Room (source=PEER) | Peer discovered, no existing conversation | 1. Tap peer bubble<br>2. Keep the chat room open<br>3. Send a message from the peer device | Navigates to `/chat/[peerId]` with source=PEER, creates the empty direct conversation immediately, and renders the incoming message without reopening the room | P0 | Critical | MANUAL (2-device rig) |
 | TC-084 | Chats Tab | Tap chat row → Chat Room (source=CHAT) | Conversation exists | 1. Tap chat row | Navigates to `/chat/[id]` with source=CHAT | P0 | Critical | Maestro |
 | TC-085 | Chats Tab | Search bar tap → Search screen | | 1. Tap search bar | Navigates to `/search` | P1 | High | Maestro |
 | TC-086 | Chats Tab | QR icon → QR Scanner | | 1. Tap QR icon | Navigates to `/scan-qr` | P1 | High | Maestro |

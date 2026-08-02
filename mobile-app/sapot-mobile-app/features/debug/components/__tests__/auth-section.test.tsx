@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import axios from "axios";
 import React from "react";
 import { Alert } from "react-native";
 import { useToast } from "@/features/shared/hooks";
@@ -67,6 +68,7 @@ const baseHookValue = {
   },
   loading: false,
   seedTestUser: jest.fn().mockResolvedValue(undefined),
+  loginAs: jest.fn().mockResolvedValue(undefined),
   seedLanUser: jest.fn().mockResolvedValue(undefined),
   setRole: jest.fn().mockResolvedValue(undefined),
   injectFakeAccessToken: jest.fn().mockResolvedValue(undefined),
@@ -152,6 +154,52 @@ describe("AuthSection", () => {
       expect(baseHookValue.seedTestUser).toHaveBeenCalledWith("rescuer")
     );
     await waitFor(() => expect(baseToastValue.showToast).toHaveBeenCalled());
+  });
+
+  it("logs in as a fixture handle and confirms with a toast", async () => {
+    const { getByText } = render(<AuthSection onBack={jest.fn()} />);
+
+    fireEvent.press(getByText("qa_rescuer"));
+
+    await waitFor(() =>
+      expect(baseHookValue.loginAs).toHaveBeenCalledWith("qa_rescuer")
+    );
+    await waitFor(() => expect(baseToastValue.showToast).toHaveBeenCalled());
+  });
+
+  it("shows an error toast when logging in as a fixture fails", async () => {
+    baseHookValue.loginAs.mockRejectedValueOnce(new Error("boom"));
+    const { getByText } = render(<AuthSection onBack={jest.fn()} />);
+
+    fireEvent.press(getByText("qa_admin"));
+
+    await waitFor(() => expect(baseToastValue.showError).toHaveBeenCalled());
+  });
+
+  it("surfaces the server's reason when a fixture login fails", async () => {
+    // Arrange — the unseeded-fixture 404 from /testing/login-as. Without the
+    // reason this is indistinguishable from the missing-QA-token 404.
+    const error = new axios.AxiosError("Request failed with status code 404");
+    error.response = {
+      status: 404,
+      data: { detail: "User not found" },
+      statusText: "",
+      headers: {},
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test stub
+      config: {} as any,
+    };
+    baseHookValue.loginAs.mockRejectedValueOnce(error);
+    const { getByText } = render(<AuthSection onBack={jest.fn()} />);
+
+    // Act
+    fireEvent.press(getByText("qa_baseline"));
+
+    // Assert
+    await waitFor(() =>
+      expect(baseToastValue.showError).toHaveBeenCalledWith(
+        "Failed to log in as qa_baseline: HTTP 404 — User not found"
+      )
+    );
   });
 
   it("seeds a LAN (guest) user and confirms with a toast", async () => {

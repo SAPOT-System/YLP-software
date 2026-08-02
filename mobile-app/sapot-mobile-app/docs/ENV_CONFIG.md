@@ -8,9 +8,14 @@
 |---|---|---|
 | `EXPO_PUBLIC_DEV_HOST` | Dev only | Your machine's LAN IP for local API/WS (e.g. `192.168.1.16`) |
 | `EXPO_PUBLIC_ENABLED_LOG_MODULES` | Optional | Comma-separated log scope names to enable. Leave unset to enable all. |
+| `EXPO_PUBLIC_LOG_LEVEL` | Optional | Severity floor: `debug`\|`info`\|`warn`\|`error`. Composes with `EXPO_PUBLIC_ENABLED_LOG_MODULES` (module filter AND severity floor). Defaults to `debug` in dev / `error` in production. An unrecognised value falls back to the default with a console warning. |
 | `EXPO_PUBLIC_LOG_TO_FILE` | Optional | Set to `1` to write logs to a daily on-device file in development. On-device file logging is always on in production builds. |
 | `EXPO_PUBLIC_LOG_TO_LAPTOP` | Optional | In development, ship logs to the laptop log collector. On by default in dev; set to `0` to disable. |
+<<<<<<< HEAD
 | `EXPO_PUBLIC_LOG_SERVER_PORT` | Optional | Port the laptop log collector listens on (default `19000`). Must match `LOG_SERVER_PORT` used by `npm run log-server`. |
+=======
+| `EXPO_PUBLIC_LOG_SERVER_PORT` | Optional | Port the laptop log collector listens on (default `19000`). Must match `LOG_SERVER_PORT` used by `pnpm run log-server`. |
+>>>>>>> develop
 | `EXPO_PUBLIC_DEBUG_MENU` | Optional | Set to `1` to opt a non-dev build (e.g. `preview`/QA) into the developer debug menu (`config/debug.ts`). Always on in `__DEV__` regardless of this flag; the `production` EAS profile must never set it, since debug code is gated behind this flag and dead-code-eliminated by Metro when it's unset. |
 
 ### Setting up local env
@@ -29,9 +34,17 @@ EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background
 
 Available scopes: `connection`, `network`, `background`, `config`, `auth`, `chat`, `signaling`, `webrtc`, `tcp`, `sync`, `call`, `api`, `schema`, `app`, `type`
 
+### Log severity floor
+
+```env
+EXPO_PUBLIC_LOG_LEVEL=warn
+```
+
+Only logs at or above this severity are emitted, regardless of which modules are enabled. Unset defaults to `debug` in dev and `error` in production (current behaviour).
+
 ### File logging
 
-The logger (`features/shared/utils/logger.ts`) also writes log output to a file
+The logger (`features/shared/core/utils/logger.ts`) also writes log output to a file
 via `react-native-logs`' `fileAsyncTransport`:
 
 - **When:** always on in production builds; in development only when `EXPO_PUBLIC_LOG_TO_FILE=1`.
@@ -65,10 +78,10 @@ automatically. The `dev-logs/` directory is git-ignored.
 
 ```bash
 # 1. Start the collector on your laptop (default port 19000)
-npm run log-server
+pnpm run log-server
 
 # 2. Run the app in dev as usual — laptop logging is on by default
-npm run dev
+pnpm run dev
 ```
 
 For an **Android emulator** (which reaches the laptop via `localhost`/adb), also
@@ -85,7 +98,7 @@ Disable with `EXPO_PUBLIC_LOG_TO_LAPTOP=0`. Change the port with
 
 ## App Variants
 
-Controlled by `APP_VARIANT` environment variable. Set automatically by npm scripts.
+Controlled by `APP_VARIANT` environment variable. Set automatically by the `package.json` scripts.
 
 | Variant | Bundle ID | App Name |
 |---|---|---|
@@ -137,9 +150,9 @@ Defined in `eas.json`.
 
 | Profile | Command | Use case |
 |---|---|---|
-| `development` | `npm run android:dev` | Local dev with dev client |
-| `preview` | `npm run android:prev` | Internal testing / QA |
-| `production` | `npm run android:prod` | Play Store release |
+| `development` | `pnpm run android:dev` | Local dev with dev client |
+| `preview` | `pnpm run android:prev` | Internal testing / QA |
+| `production` | `pnpm run android:prod` | Play Store release |
 
 The `SERVER_CA` EAS secret (base64-encoded CA PEM) must be set for `preview` and `production` builds — see the "TLS Trust" section above.
 
@@ -149,7 +162,9 @@ The `SERVER_CA` EAS secret (base64-encoded CA PEM) must be set for `preview` and
 
 Sensitive runtime config is stored via `expo-secure-store` (not AsyncStorage).
 
-Managed in `features/shared/stores/secure-config.ts`:
+Managed in `features/shared/core/stores/secure-config.ts`:
+
+All 18 keys are declared in that file's `KEYS` constant:
 
 | Key | Value |
 |---|---|
@@ -159,6 +174,21 @@ Managed in `features/shared/stores/secure-config.ts`:
 | `tcpPort` | Peer TCP port |
 | `localIp` | Device's current LAN IP |
 | `access_token` | Current session's JWT (read via `getStoredAccessToken`; written via `saveAccessToken`/cleared via `clearAccessToken`) |
+<<<<<<< HEAD
+=======
+| `appAlive` | App-alive flag the background task checks to decide whether to stand down |
+| `username` | Cached profile username |
+| `firstName` | Cached profile first name |
+| `lastName` | Cached profile last name (optional) |
+| `syncLastPulledAt` | Last successful sync pull timestamp (Unix ms, stored as string) |
+| `serverHostOverride` | Dev/QA host override consumed by `config/runtime.ts` (`setRuntimeHostOverride`) |
+| `appMode` | Persisted transport mode (`auto` / `server` / `lan`) |
+| `deviceEncryptionKey` | At-rest encryption key for the local database |
+| `masterKey` | User's master key (unwrapped) |
+| `signalingSecretKey` | Secret key used for signalling-channel encryption |
+| `recoveryTokenHex` | Recovery session token, hex-encoded |
+| `guestMigrationState` | Guest→registered-account migration progress state |
+>>>>>>> develop
 
 This config is also read by the background task (`task/signaling-task.ts`) on Android when the app is killed.
 
@@ -168,11 +198,18 @@ This config is also read by the background task (`task/signaling-task.ts`) on An
 
 ## App Version
 
-Current version: `0.2.0` (in `app.config.ts`)
+The version is stored in **two** places, which `scripts/set-version.js` (via
+`scripts/version-sync.js`) keeps in step: `package.json`'s `version` and `app.config.ts`'s
+`version`. Don't hardcode the number here — read it from those files, and bump it with
+`./scripts/release.sh mobile <version>` from the repo root rather than editing either by hand.
 
-Runtime requirements:
-- Node >= 18
-- npm 10.8.2
+Both fields currently read `0.9.1`. (They had drifted — `package.json` was left at `0.2.0`
+while `app.config.ts` had been bumped to `0.9.1`; `package.json` was aligned up to match the
+shipped app version.)
+
+Runtime requirements (from `package.json`):
+- Node >= 18 (`engines.node`)
+- pnpm 9.15.9 (`packageManager`)
 - React Native 0.81.5
-- Expo ~54.0.33
-- New Architecture enabled
+- Expo ~54.0.36
+- New Architecture enabled (`newArchEnabled: true` in `app.config.ts`)

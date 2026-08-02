@@ -23,22 +23,22 @@ nix develop    # installs Python deps via flake.nix
 
 ## Run with Docker
 
-A `docker compose` stack (`server/docker-compose.yml`) gives a turnkey dev/test
-environment — MariaDB, Redis, the API, and an Nginx TLS terminator — without
-installing MariaDB/Redis locally or trusting the fail-fast env-var checks to
-dummy shell exports.
+A `docker compose` stack (root `docker-compose.yml`) gives a turnkey dev/test
+environment — MariaDB, Redis, the API, an Nginx TLS terminator, plus the admin
+dashboard, tileserver, and SMS gateway — without installing MariaDB/Redis
+locally or trusting the fail-fast env-var checks to dummy shell exports. See
+[docker-setup.md](../getting-started/docker-setup.md) for the
+full walkthrough. All commands below run from the **repo root**.
 
 ```bash
-cd server/
-cp .env.example .env    # edit placeholder secrets before anything but local dev
+cp server/.env.example server/.env    # edit placeholder secrets before anything but local dev
 docker/up.sh up --build
 ```
 
 On Windows, use the PowerShell equivalent instead (works in plain
 PowerShell — no WSL or Git Bash required):
 ```powershell
-cd server
-copy .env.example .env
+copy server\.env.example server\.env
 docker\up.ps1 up --build
 ```
 
@@ -93,12 +93,15 @@ a CA (see `runbooks.md`, "Offline CA Setup"), a self-signed cert from
 `certgen` issues a CA-signed leaf for your machine's LAN IP automatically
 instead. Dev-only — never reuse that CA for a production deployment.
 
-**Cert-pinning caveat:** the cert `certgen` generates (`docker/gen-certs.sh`)
-is regenerated whenever `server/certs/` is empty — a self-signed cert
-(default, no dev CA present) will **not** match a mobile build with
-`server_cert.pem` already pinned to a different
-cert. Only useful for local API/server testing, not for testing against a
-pinned mobile build without also updating its pinned cert.
+**CA-pinning caveat:** the cert `certgen` generates (`docker/gen-certs.sh`) is regenerated
+whenever `server/certs/` is empty. The mobile app pins a **CA**, not a leaf
+(`server_ca.pem`, see [mobile-eas.md](mobile-eas.md#tls-ca-pinning)), so:
+
+- **No dev CA present** → `certgen` emits a *self-signed* cert, which chains to nothing the
+  app trusts. A CA-pinning build will reject it. Useful for local API/server testing only.
+- **Dev CA present** (`server/dev-ca/`) → `certgen` issues a leaf signed by that CA, which a
+  mobile build pinning the *same* CA accepts — and you can regenerate the leaf as often as you
+  like without touching the app.
 
 ---
 

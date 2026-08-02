@@ -72,6 +72,7 @@ If the change is release-relevant (server), `server/app/version.py` must match t
 - No repo-wide reformatting or unrelated-file changes bundled into a task's diff.
 - `.env` files are per-component and gitignored — never commit real secrets; use the sibling `.env.example` as the template.
 - Commits never go directly to `main`; all work happens on `feature/`, `bugfix/`, or `chore/` branches (`CONTRIBUTING.md`). This repo's commit format includes a scope — `type(scope): summary` — not generic conventional commits. The scope is component-prefixed (`server-*`, `mobile-*`, `admin-*`, `gsm-*`, `portal-*`, `tileserver-*`, `docs-*`), e.g. `feat(server-auth)`, `fix(mobile-sync)` — see `CONTRIBUTING.md` for the full convention rather than restating it here.
+- When filing GitHub issues, always set an appropriate milestone and labels.
 
 ## Preferred Process
 
@@ -81,4 +82,5 @@ If the change is release-relevant (server), `server/app/version.py` must match t
 4. Make the smallest change that satisfies the request.
 5. Update tests and any `docs/` page the change makes stale.
 6. Run that component's verification commands (table above).
-7. Report what changed, which component(s), and what was run to verify.
+7. When an implementation, fix, or PR is complete, include concise smoke-test instructions; include two-device test instructions when the change involves device-to-device behavior.
+8. Report what changed, which component(s), and what was run to verify.

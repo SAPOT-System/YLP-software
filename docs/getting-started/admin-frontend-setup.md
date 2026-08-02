@@ -14,7 +14,7 @@ pnpm install
 pnpm dev
 ```
 
-This runs `NODE_EXTRA_CA_CERTS=$(pwd)/certs/server.crt next dev` — the extra CA cert env var lets the dev server trust the SAPOT server's TLS certificate (place your dev cert at `admin-frontend/sapot-admin/certs/server.crt`).
+This runs `NODE_EXTRA_CA_CERTS=$(pwd)/certs/server_ca.pem next dev` — the extra CA cert env var lets the dev server trust renewed SAPOT server TLS certificates (place the CA at `admin-frontend/sapot-admin/certs/server_ca.pem`).
 
 Open [http://localhost:3000](http://localhost:3000).
 

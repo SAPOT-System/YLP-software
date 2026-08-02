@@ -656,6 +656,44 @@ describe("ConnectionService", () => {
       expect(() => connectionService.start()).toThrow("Server start failed");
     });
   });
+  describe("prepareCallSignaling", () => {
+    it("uses configured WebSocket signaling without starting WebRTC", async () => {
+      mockAppModeStore.getEffectiveMode.mockReturnValue("auto");
+      mockAppModeStore.isWebSocketAllowed.mockReturnValue(true);
+      jest.spyOn(signalingService, "ensureWsSignaling").mockReturnValue(true);
+
+      await connectionService.prepareCallSignaling(
+        "peer-1",
+        "192.168.1.101",
+        8081
+      );
+
+      expect(mockTcpClientAdapter.connect).not.toHaveBeenCalled();
+      expect(mockWebrtcAdapter.createOffer).not.toHaveBeenCalled();
+    });
+
+    it("opens only TCP for a LAN invitation and leaves WebRTC untouched", async () => {
+      mockAppModeStore.getEffectiveMode.mockReturnValue("lan");
+      mockAppModeStore.isWebSocketAllowed.mockReturnValue(false);
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(false),
+        configurable: true,
+      });
+
+      await connectionService.prepareCallSignaling(
+        "peer-1",
+        "192.168.1.101",
+        8081
+      );
+
+      expect(mockTcpClientAdapter.connect).toHaveBeenCalledWith(
+        "192.168.1.101",
+        8081
+      );
+      expect(mockWebrtcAdapter.createOffer).not.toHaveBeenCalled();
+    });
+  });
+
 
   describe("connectToPeer", () => {
     beforeEach(() => {
@@ -772,6 +810,64 @@ describe("ConnectionService", () => {
       expect(evictSpy).toHaveBeenCalledWith("peer-1", true);
       expect(evictSpy).toHaveBeenCalledWith("peer-1", false);
     });
+
+    // After a Wi-Fi drop the TCP socket is dead but never fired close/error, so
+    // `isConnected` still reports true. Retrying against that zombie re-sends the
+    // offer into a socket that goes nowhere — the peer never sees it and the call
+    // can never recover. A retry must rebuild the TCP leg, not just the WebRTC one.
+    it("evicts the stale TCP adapter on retry so the redial does not reuse a dead socket", async () => {
+      const evictTcpSpy = jest.spyOn(connectionService, "evictTcpClientAdapter");
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
+        get: jest.fn().mockReturnValue(true), // zombie socket from the outage
+        configurable: true,
+      });
+      mockWebrtcAdapter.once.mockImplementation((event, callback) => {
+        if (event === "connection-failed") {
+          setTimeout(() => callback(new Error("Connection failed")), 0);
+        }
+        return mockWebrtcAdapter;
+      });
+
+      await expect(
+        connectionService.connectToPeer("peer-1", "192.168.1.101", 8081)
+      ).rejects.toThrow("Connection failed");
+
+      expect(evictTcpSpy).toHaveBeenCalledWith("peer-1");
+    });
+
+    // Counterpart to the test above: the redial is only possible when we still
+    // hold an address for the peer. `CallService.connect` falls back to
+    // `connectToPeer(id)` with no ip/port whenever mDNS has not (re)discovered
+    // the peer, and that argument list is what `retryConnect` replays. Evicting
+    // the live TCP session there leaves `establishTcpForMode` with nothing to
+    // rebuild from, so it throws instead of retrying and the call never forms.
+    it("keeps the TCP adapter on retry when there is no address to redial", async () => {
+      mockAppModeStore.getEffectiveMode.mockReturnValue("lan");
+      mockAppModeStore.isWebSocketAllowed.mockReturnValue(false);
+      const evictTcpSpy = jest.spyOn(connectionService, "evictTcpClientAdapter");
+      let isTcpConnected = true; // pre-existing session (e.g. opened by chat)
+      Object.defineProperty(mockTcpClientAdapter, "isConnected", {
+        get: () => isTcpConnected,
+        configurable: true,
+      });
+      mockTcpClientAdapter.disconnect.mockImplementation(() => {
+        isTcpConnected = false;
+      });
+      mockWebrtcAdapter.once.mockImplementation((event, callback) => {
+        if (event === "connection-failed") {
+          setTimeout(() => callback(new Error("Connection failed")), 0);
+        }
+        return mockWebrtcAdapter;
+      });
+
+      // Must fail on the WebRTC leg (after a real retry), not on a missing
+      // address the original attempt never needed.
+      await expect(connectionService.connectToPeer("peer-1")).rejects.toThrow(
+        "Connection failed"
+      );
+
+      expect(evictTcpSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe("sendMessage", () => {
@@ -825,6 +921,30 @@ describe("ConnectionService", () => {
         type: "chat",
         data: messageData,
       });
+    });
+
+    it("forces an admin chat message through the WebSocket relay", () => {
+      const messageData: DataChatMessageI = {
+        message: "Hello admin",
+        conversationId: "conv-admin",
+        messageId: "msg-admin",
+        from: "test-user",
+        to: "admin-1",
+        sentAt: new Date(),
+        messageType: MessageType.TEXT,
+        senderProfile: { username: "testuser", firstName: "Test" },
+      };
+      const relaySpy = jest.spyOn(signalingService, "sendChatMessage").mockImplementation(() => {});
+
+      const transport = connectionService.sendChatMessage(
+        "admin-1",
+        messageData,
+        { forceWebSocket: true }
+      );
+
+      expect(transport).toBe("ws");
+      expect(relaySpy).toHaveBeenCalledWith("admin-1", messageData);
+      expect(mockWebrtcAdapter.sendDataMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -890,6 +1010,75 @@ describe("ConnectionService", () => {
       connectionService.terminateCallConnection(peerId);
 
       expect(mockWebrtcAdapter.terminateCall).not.toHaveBeenCalled();
+    });
+
+    // Each teardown step frees a different per-call resource. `terminateCall()`
+    // has already disposed the adapter by the time it can throw, so skipping the
+    // eviction hands the *next* call an adapter with isDisposed=true, on which
+    // every negotiation silently no-ops (#304).
+    it("still evicts the webrtc adapter when media teardown throws", () => {
+      const evictSpy = jest.spyOn(webrtcSessionManager, "evictWebrtcAdapter");
+      mockWebrtcAdapter.terminateCall.mockImplementation(() => {
+        throw new Error("data channel already closed");
+      });
+
+      expect(() =>
+        connectionService.terminateCallConnection("peer-1")
+      ).not.toThrow();
+
+      expect(evictSpy).toHaveBeenCalledWith("peer-1");
+    });
+
+    it("still discards this peer's queued negotiation when media teardown throws", () => {
+      mockWebrtcAdapter.terminateCall.mockImplementation(() => {
+        throw new Error("data channel already closed");
+      });
+
+      connectionService.terminateCallConnection("peer-1");
+
+      expect(
+        mockWsSignalingAdapter.discardQueuedNegotiationFor
+      ).toHaveBeenCalledWith("peer-1");
+    });
+  });
+
+  // The busy marker is a single field, so a teardown for one peer must not clear
+  // the marker a live call with a different peer is holding.
+  describe("clearActiveCall", () => {
+    const ring = async (from: string) => {
+      const callMessageHandler = mockWsSignalingAdapter.on.mock.calls.find(
+        (call) => call[0] === "call-message"
+      )?.[1];
+      await callMessageHandler?.({
+        type: "audio-call" as const,
+        data: { from, to: "test-user-id", callId: "call-abc" },
+      });
+    };
+
+    it("stops busy-rejecting once the owning peer releases the marker", async () => {
+      connectionService.setActiveCall("peer-2");
+      connectionService.clearActiveCall("peer-2");
+      const sendCallMessageSpy = jest.spyOn(signalingService, "sendCallMessage");
+
+      await ring("peer-1");
+
+      expect(sendCallMessageSpy).not.toHaveBeenCalledWith(
+        "peer-1",
+        expect.objectContaining({ type: "call-rejected" })
+      );
+    });
+
+    it("keeps busy-rejecting when a different peer still owns the marker", async () => {
+      connectionService.setActiveCall("peer-2");
+      connectionService.clearActiveCall("peer-1");
+      const sendCallMessageSpy = jest.spyOn(signalingService, "sendCallMessage");
+
+      await ring("peer-1");
+
+      expect(sendCallMessageSpy).toHaveBeenCalledWith(
+        "peer-1",
+        expect.objectContaining({ type: "call-rejected" })
+      );
     });
   });
 
@@ -1199,6 +1388,30 @@ describe("ConnectionService", () => {
 
       // Assert: impl was called twice (once for each independent call)
       expect(callCount).toBe(2);
+    });
+
+    // `terminateCallConnection` drops the in-flight entry so the next call does
+    // not inherit the dead one's promise. The abandoned connect keeps running,
+    // and its cleanup must not reach past its own registration — if it clears a
+    // successor's entry, de-duplication silently stops working and two
+    // `connectToPeerImpl` runs race, each creating an offer. The resulting glare
+    // wedges negotiation and both ends sit on "Calling…".
+    it("does not let an abandoned connect clear a later connect's in-flight entry", async () => {
+      const settles: (() => void)[] = [];
+      jest.spyOn(connectionService as unknown as { connectToPeerImpl: () => Promise<void> }, "connectToPeerImpl")
+        .mockImplementation(() => new Promise<void>((res) => settles.push(res)));
+
+      const abandoned = connectionService.connectToPeer("peer-1");
+      connectionService.terminateCallConnection("peer-1");
+
+      const current = connectionService.connectToPeer("peer-1");
+      settles[0]();
+      await abandoned;
+
+      expect(connectionService.connectToPeer("peer-1")).toBe(current);
+
+      settles[1]();
+      await current;
     });
   });
 

@@ -19,11 +19,12 @@ import {
   useCallLifecycle,
   useCallMediaState,
   useCallTimer,
+  useIncomingCallLifecycle,
   useLocalStream,
   usePeerInfo,
   useRemoteStream,
 } from "./hooks";
-export type { CallState } from "./hooks";
+export type { CallState, IncomingCallInfo } from "./hooks";
 
 // ─────────────────────────────────────────────
 // Types
@@ -72,6 +73,13 @@ export interface CallContextValue {
   minimize: () => void;
   maximize: () => void;
   handleClose: () => void;
+
+  // Incoming (ringing, not-yet-accepted) call
+  incomingCall: import("./hooks").IncomingCallInfo | null;
+  setIncomingCall: (info: import("./hooks").IncomingCallInfo) => void;
+  clearIncomingCall: () => void;
+  minimizeIncoming: () => void;
+  maximizeIncoming: () => void;
 }
 
 // ─────────────────────────────────────────────
@@ -100,6 +108,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [callType, setCallType] = useState<"video" | "audio" | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const isMinimizedRef = useRef(false);
+  const [incomingCall, setIncomingCallState] =
+    useState<import("./hooks").IncomingCallInfo | null>(null);
 
   // Navigation helpers
   const navigateAway = useCallback(() => router.replace("/(drawer)/(tabs)"), [router]);
@@ -179,12 +189,50 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     navigateAway();
   }, [navigateAway]);
 
+  // Incoming (ringing) call
+  const setIncomingCall = useCallback((info: import("./hooks").IncomingCallInfo) => {
+    setIncomingCallState(info);
+  }, []);
+
+  const clearIncomingCall = useCallback(() => {
+    setIncomingCallState(null);
+    setIsMinimized(false);
+  }, []);
+
+  const onIncomingCallEnded = useCallback(() => {
+    clearIncomingCall();
+    navigateAway();
+  }, [clearIncomingCall, navigateAway]);
+
+  useIncomingCallLifecycle({ callService, connectionService, incomingCall, onIncomingCallEnded });
+
+  const minimizeIncoming = useCallback(() => {
+    setIsMinimized(true);
+    navigateAway();
+  }, [navigateAway]);
+
+  const maximizeIncoming = useCallback(() => {
+    if (!incomingCall) return;
+    setIsMinimized(false);
+    router.replace({
+      pathname: "/(drawer)/(tabs)/call/incoming" as never,
+      params: {
+        id: incomingCall.peerId,
+        type: incomingCall.callType,
+        conversationId: incomingCall.conversationId,
+        callId: incomingCall.callId,
+        callerName: incomingCall.callerName,
+      },
+    });
+  }, [incomingCall, router]);
+
   const value: CallContextValue = {
     peerId, callType, callState, elapsed, isMinimized, peer, peerDisplayName, peerPhotoUrl,
     localStream, remoteStreamUrl, localMic, localCam, remoteMic, remoteCam, isFrontCamera,
     remoteStreamVersion, currentRoute, isMinimizedRef, ready,
     resetCallState, handleEndCall, handleCallAgain, handleToggleMic, handleToggleCam,
     handleSwitchCamera, handleVolume, minimize, maximize, handleClose,
+    incomingCall, setIncomingCall, clearIncomingCall, minimizeIncoming, maximizeIncoming,
   };
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;

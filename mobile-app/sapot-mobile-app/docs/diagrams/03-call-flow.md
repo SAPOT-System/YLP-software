@@ -8,8 +8,8 @@ A voice or video call is initiated when the caller's device sends a call request
 flowchart TD
     A([Start]) --> B[Caller selects contact]
     B --> C[Caller taps Call]
-    C --> D[Create call record]
-    D --> E[Send call request to callee]
+    C --> D[Create call record and call ID]
+    D --> E[Prepare WS or TCP and send call request - no WebRTC]
     E --> F[Display outgoing call screen]
     F --> G{Callee responds?}
 
@@ -22,8 +22,8 @@ flowchart TD
     K --> L[Record call as declined]
     L --> Z
 
-    J -->|Yes| M[Callee sends ready signal]
-    M --> N[Begin WebRTC negotiation]
+    J -->|Yes| M[Callee sends ready signal with matching call ID]
+    M --> N[Caller validates call ID and begins WebRTC negotiation]
     N --> O[Exchange network information]
     O --> P{Connection established?}
 

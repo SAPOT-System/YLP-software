@@ -40,13 +40,25 @@ Authorization: Bearer <access_token>
 
 Tokens expire. Use `POST /auth/refresh` with a refresh token to obtain a new pair.
 
-Three role levels exist:
+Three role levels are distinguishable from a JWT:
 
 | Level | Description |
 |---|---|
-| Authenticated | Any registered user with a valid JWT |
+| Authenticated (`user`) | Any registered user with a valid JWT |
 | Rescuer | A user who has been granted the rescuer role by an admin |
 | Admin | A user who has been granted the admin role |
+
+These are exactly what the server's `_resolve_role` helper
+(`server/app/db_operations/user_search.py`) returns: `admin` if the user has an `admin` row,
+else `rescuer` if they have a `rescuer` row, else `user`.
+
+A fourth role, **`guest`**, exists in the platform's role model (ADR
+[0006](../adr/0006-four-tier-roles-model.md)) but is *not* returned by `_resolve_role` and does
+not authenticate against this API. Guest records (`guest` table) are placeholder users created
+server-side — by `POST /sync/push` when a pushed payload references an unknown peer ID, and by
+the GSM phone-onboarding flow. They have no usable password, so they never hold a JWT. To ask
+whether a given peer is a guest, use `GET /keys/{peer_id}/type`, which reports whether that peer
+has a server-registered `PeerKey`.
 
 See [authentication.md](authentication.md) for the full token flow.
 

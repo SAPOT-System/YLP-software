@@ -30,6 +30,14 @@ bash run-api.sh
 
 `main.py` starts FastAPI on `settings.host` (from `config.py`, default `127.0.0.1`) — **but the port is hardcoded to `8001`** in the `uvicorn.run(...)` call, not read from `settings.port`/`PORT`. Setting `PORT` has no effect on the bound port (it only affects the startup log line, which will report the wrong port — see `GSM-module/CLAUDE.md`'s "Common Pitfalls"). `HOST` is honored via `config.py`.
 
+### Docker (dev/test alternative)
+
+The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md))
+includes a `gsm-fastapi` service alongside the rest of the stack. It passes through the host's
+`/dev/ttyACM0` device, so it only starts successfully on a machine with the modem attached — set
+`HOST=0.0.0.0` inside the container (already set in the compose service) so the published port is
+actually reachable from outside the container.
+
 ---
 
 ## Environment variables
