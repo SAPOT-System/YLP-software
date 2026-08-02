@@ -58,12 +58,12 @@ Owns:
 **Lifetime:** rebuilt on `userContainer` change or when `retryCount` (explicit reset) is incremented. See [Complication: container lifecycle](#complication-container-lifecycle) below.
 
 ### `AppModeStore` (global config)
-**Location:** `features/shared/stores/app-mode-store.ts`
+**Location:** `features/shared/core/stores/app-mode-store.ts`
 
 Owns: the user's transport mode preference (`auto` | `server` | `lan`), persisted to secure-store. Properly reactive via subscribe + `useSyncExternalStore`.
 
 ### `UserStore` (user identity, reactive)
-**Location:** `features/shared/stores/user-store.ts`
+**Location:** `features/shared/core/stores/user-store.ts`
 
 Owns: the current user (`Peer` or `GuestUser`) and role flags (`isRescuer`, `isAdmin`, `isGuest`). Now reactive via `subscribe()` and integrated with `useUserStore()` hook using `useSyncExternalStore`. No more duplication with AuthContext.
 
@@ -217,7 +217,7 @@ setResetRequestedCallback(() => {
 });
 ```
 
-Similarly for PIN unlock (`setPendingPIN`) and password recovery (`setPendingPassword`). This is **implicit, mutable, global coupling** — non-obvious to trace.
+Similarly for password recovery (`setPendingPassword`). This is **implicit, mutable, global coupling** — non-obvious to trace.
 
 ---
 
@@ -257,7 +257,7 @@ Watch for these sequences:
 - Stale logs will show events arriving out of order or being ignored due to guard checks.
 
 ### 2. UserStore (now reactive)
-**File:** `features/shared/stores/user-store.ts` (60 lines)
+**File:** `features/shared/core/stores/user-store.ts` (60 lines)
 
 **Fixed:** `UserStore` now has a subscriber pattern (`subscribe()` method and `listeners` Set). When `setIsRescuer()`, `setIsAdmin()`, or `setUser()` is called, all subscribers are notified. The `useUserStore()` hook uses `useSyncExternalStore` to ensure components re-render when store values change.
 
@@ -270,7 +270,7 @@ Watch for these sequences:
 **To verify reactivity:** Use `useUserStore()` in a component and the values will update automatically.
 
 ### 3. MainContainer lifecycle (the rebuild dance)
-**File:** `features/shared/context/main-container-context.tsx` (137 lines)
+**File:** `features/shared/core/context/main-container-context.tsx` (137 lines)
 
 **The problem:** `main-container-context.tsx:76–82` deliberately omits `appModeStore` from the dependency array:
 
@@ -316,7 +316,7 @@ grep "connectToPeer\|tcpClientAdapters" $(getLogPath) | grep <peerId>
 ```
 
 ### 5. Two health contexts (conflicting status)
-**Files:** `features/shared/context/health-context.tsx` vs `server-health-context.tsx`
+**Files:** `features/shared/core/context/health-context.tsx` vs `server-health-context.tsx`
 
 **The problem:** Both are mounted. They read `appMode` and skip the health check if in LAN mode. But they use different polling hooks and expose different shapes. In a deeply nested tree, one part of the tree sees `useServerStatus()` and another sees `useServerHealth()`, and they might disagree.
 
@@ -360,7 +360,7 @@ UserStore now has:
 
 ### 4. Replace module-level reset callbacks with an event or context method
 - Add a `useMainContainerReset()` hook or `resetMainContainer()` method on the context
-- Call it from `AuthProvider` when `needsReloginForServer` or PIN is unlocked
+- Call it from `AuthProvider` when `needsReloginForServer`
 - Makes the dependency explicit and traceable
 - Fixes: implicit global coupling, hard-to-trace resets
 

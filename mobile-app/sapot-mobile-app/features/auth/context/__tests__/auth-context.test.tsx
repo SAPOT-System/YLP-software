@@ -224,6 +224,27 @@ describe("AuthProvider bootstrap — local-first identity", () => {
     });
   });
 
+  it("restores a guest session even when userUUID is also present (syncGuestUser sets userUUID too, so guest status must win)", async () => {
+    const userService = makeUserService({
+      isCurrentUserGuest: jest.fn().mockResolvedValue(true),
+    });
+    useUserServiceMock().mockReturnValue(userService);
+
+    secureStore().getItemAsync.mockImplementation((key: string) => {
+      if (key === "userUUID") return Promise.resolve("guest-uuid-123");
+      return Promise.resolve(null);
+    });
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(userService.initialize).toHaveBeenCalledWith({ isGuest: true });
+    });
+    expect(userService.initialize).not.toHaveBeenCalledWith({
+      isGuest: false,
+    });
+  });
+
   it("does NOT logout when refreshSession fails due to a network error (server unavailable)", async () => {
     const userService = makeUserService({
       initialize: jest.fn().mockRejectedValue(new Error("no local record")),

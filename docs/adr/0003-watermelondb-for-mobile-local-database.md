@@ -1,5 +1,7 @@
 # Use WatermelonDB for the mobile app's local database
 
+**Status:** Accepted
+
 ## Context
 
 SAPOT's mobile app must work fully offline on a LAN with no internet, and must treat the local database as the primary source of truth for messages (see [system-overview.md](../architecture/system-overview.md#system-boundaries)) rather than a cache of server state. This requires: fast local reads/writes for chat-scale data volumes, an observable/reactive query layer for React components, and an incremental sync model against a REST API rather than a real-time cloud sync backend.

@@ -14,17 +14,23 @@ SAPOT. The deliverables of this repository are the following:
    - user dashboard
    - locating users through GPS
    - network analytics
-3. a server that can provide services to the network such as
+3. a server that provides services to the network such as
+   - authentication and account recovery
+   - message sync and WebSocket signalling relay
    - GPS
+   - admin management
+   - GSM/SMS gateway proxy
+   - MikroTik router telemetry
+4. a GSM module that bridges the server to a serial-attached GSM modem for
+   SMS delivery when LAN messaging is unavailable
+5. a captive portal (MikroTik hotspot login pages) shown to users joining the
+   network
+6. an offline map tileserver for the GPS map
 
 ** NOTE
 Always use the flake.nix for downloading the dependencies during development
 ** Mobile app
-[[./mobile-app-todo.org][MOBILE APP TODOs]]
-** Server
-[[./server-todo.org][SERVER TODOs]]
-** Web portal
-[[./web-portal-todo.org][WEB PORTAL TODOs]]
+[[./docs/mobile-app-todo.org][MOBILE APP TODOs]]
 ** Sequence diagram
 [[./sequence-diagrams.md][SEQUENCE DIAGRAMS]]
 ** Expo Android CI/CD workflow
@@ -33,7 +39,11 @@ Always use the flake.nix for downloading the dependencies during development
 [[./docs/README.md][DOCUMENTATION INDEX]]
 ** Contributing
 [[./CONTRIBUTING.md][CONTRIBUTING GUIDE]]
+** Security
+[[./SECURITY.md][SECURITY POLICY]]
 ** Versioning
 [[./VERSIONING.md][VERSIONING GUIDE]]
+** Changelog
+[[./CHANGELOG.md][CHANGELOG]]
 ** License
 [[./LICENSE][MIT LICENSE]]

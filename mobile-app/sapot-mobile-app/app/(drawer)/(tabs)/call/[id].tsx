@@ -1,12 +1,16 @@
 import { useCallContext } from "@/features/call/context/call-context";
-import { useThrottledPress } from "@/features/shared/hooks";
+import { useReducedMotion, useThrottledPress } from "@/features/shared/hooks";
+import { Crossfade } from "@/features/shared/components/crossfade";
 import { uiLog } from "@/features/shared/core/utils/logger";
+import motion from "@/constants/motion";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  BackHandler,
+  Easing,
   Image,
   Pressable,
   StyleSheet,
@@ -111,24 +115,54 @@ export default function CallRoom() {
     useThrottledPress(handleCallAgain);
 
   // ─────────────────────────────────────────────
+  // Hardware back handling
+  // While a call is live, hardware back must minimize (not pop the screen
+  // and leave the call dangling); the on-screen chevron does the same.
+  // ─────────────────────────────────────────────
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (
+          callState === "calling" ||
+          callState === "connected" ||
+          callState === "reconnecting"
+        ) {
+          minimize();
+          return true;
+        }
+        return false;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [callState, minimize]);
+
+  // ─────────────────────────────────────────────
   //  CONTROL ROW ANIMATION
   // ─────────────────────────────────────────────
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlsAnim = useRef(new Animated.Value(1)).current;
+  const reducedMotion = useReducedMotion();
+  const standardEasing = Easing.bezier(...motion.easing.standard);
+  const exitEasing = Easing.bezier(...motion.easing.exit);
 
   const hideControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
 
     Animated.timing(controlsAnim, {
       toValue: 0,
-      duration: 300,
+      duration: reducedMotion ? 0 : motion.duration.base,
+      easing: exitEasing,
       useNativeDriver: true,
     }).start(() => {
       setControlsVisible(false);
     });
-  }, [controlsAnim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlsAnim, reducedMotion]);
 
   const showControls = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -137,34 +171,39 @@ export default function CallRoom() {
 
     Animated.timing(controlsAnim, {
       toValue: 1,
-      duration: 250,
+      duration: reducedMotion ? 0 : motion.duration.base,
+      easing: standardEasing,
       useNativeDriver: true,
     }).start();
 
     hideTimer.current = setTimeout(() => {
       hideControls();
     }, 5000);
-  }, [hideControls, controlsAnim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hideControls, controlsAnim, reducedMotion]);
 
   useEffect(() => {
-    if (callState === "calling") {
+    if (callState === "calling" || callState === "reconnecting") {
       // Reset visibility without starting an auto-hide timer — the end call
-      // button must stay visible for the full duration of the outgoing ring.
+      // button must stay visible for the full duration of the outgoing ring,
+      // and reachable while reconnecting since the overlay blocks tap-to-reveal.
       if (hideTimer.current) clearTimeout(hideTimer.current);
       setControlsVisible(true);
       Animated.timing(controlsAnim, {
         toValue: 1,
-        duration: 250,
+        duration: reducedMotion ? 0 : motion.duration.base,
+        easing: standardEasing,
         useNativeDriver: true,
       }).start();
-    } else if (callState === "connected" || callState === "reconnecting") {
+    } else if (callState === "connected") {
       showControls();
     }
 
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [callState, showControls, controlsAnim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callState, showControls, controlsAnim, reducedMotion]);
 
   // ─────────────────────────────────────────────
   // Derived UI flags
@@ -224,6 +263,7 @@ export default function CallRoom() {
           {callState === "connected" && formatDuration(elapsed)}
           {callState === "reconnecting" && "Reconnecting…"}
           {callState === "ended" && "Call ended"}
+          {callState === "rejected" && "Call rejected"}
           {callState === "no-answer" && "Did not answer"}
           {callState === "busy" && `${peerDisplayName} is in another call`}
         </Text>
@@ -250,12 +290,27 @@ export default function CallRoom() {
                   !remoteMic && styles.remoteMicBadgeMuted,
                 ]}
               >
-                <Feather
-                  name={remoteMic ? "mic" : "mic-off"}
-                  size={16}
-                  color="#FFFFFF"
-                />
+                <Crossfade activeKey={remoteMic ? "mic-on" : "mic-off"}>
+                  <Feather
+                    name={remoteMic ? "mic" : "mic-off"}
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                </Crossfade>
               </View>
+
+              {/* Scoped to the remote feed only — must not dim the local
+                  preview or the call controls, which stay fully bright and
+                  interactive while reconnecting. */}
+              {callState === "reconnecting" && (
+                <View style={styles.reconnectingOverlay} pointerEvents="none">
+                  <View style={styles.reconnectingPill}>
+                    <Text style={styles.reconnectingOverlayText}>
+                      Reconnecting…
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             {localStream && localCam ? (
@@ -270,11 +325,6 @@ export default function CallRoom() {
               <View style={styles.localVideo} />
             )}
 
-            {callState === "reconnecting" && (
-              <View style={styles.reconnectingOverlay}>
-                <Text style={styles.reconnectingOverlayText}>Reconnecting…</Text>
-              </View>
-            )}
           </View>
         )}
 
@@ -305,11 +355,13 @@ export default function CallRoom() {
                     ]}
                     onPress={handleToggleMic}
                   >
-                    <Feather
-                      name={localMic ? "mic" : "mic-off"}
-                      size={22}
-                      color={COLORS.primary}
-                    />
+                    <Crossfade activeKey={localMic ? "mic-on" : "mic-off"}>
+                      <Feather
+                        name={localMic ? "mic" : "mic-off"}
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    </Crossfade>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
@@ -318,11 +370,13 @@ export default function CallRoom() {
                     ]}
                     onPress={handleToggleCam}
                   >
-                    <Feather
-                      name={localCam ? "video" : "video-off"}
-                      size={22}
-                      color={COLORS.primary}
-                    />
+                    <Crossfade activeKey={localCam ? "cam-on" : "cam-off"}>
+                      <Feather
+                        name={localCam ? "video" : "video-off"}
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    </Crossfade>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.controlBtn}
@@ -370,8 +424,8 @@ export default function CallRoom() {
           </View>
         )}
 
-        {/* Ended actions */}
-        {callState === "ended" && (
+        {/* Ended / rejected actions */}
+        {(callState === "ended" || callState === "rejected") && (
           <View style={styles.controls}>
             <View style={styles.actionRow}>
               <View style={styles.actionItem}>
@@ -614,10 +668,15 @@ const styles = StyleSheet.create({
   },
   reconnectingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 5,
+    zIndex: 1,
+  },
+  reconnectingPill: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
   },
   reconnectingOverlayText: {
     color: "#FFFFFF",

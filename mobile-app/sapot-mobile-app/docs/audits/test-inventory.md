@@ -198,7 +198,6 @@ Scope: React Native / Expo frontend + FastAPI backend
 | Change Password | `/settings/account/change-password` | HIGH | HYBRID |
 | Security Question | `/settings/account/security-question` | MEDIUM | HYBRID |
 | Generate Recovery Key | `/settings/account/generate-recovery-key` | HIGH | HYBRID |
-| Encryption PIN | `/settings/account/encryption-pin` | HIGH | HYBRID |
 | QR Code | `/settings/account/qr-code` | LOW | HYBRID |
 | Switch Mode | `/settings/account/switch-mode` | HIGH | HYBRID |
 | GPS Settings | `/settings/preferences/gps` | MEDIUM | HYBRID |

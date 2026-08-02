@@ -11,18 +11,23 @@ export const useInformCall = () => {
 
   const handleCall = async (type: "audio" | "video", peerId: string) => {
     hookLog.info("[useCall] start", { peerId, type });
-    const granted = await requestMediaPermissions(type);
-    if (!granted) return;
-
     router.push({
       pathname: "/(drawer)/(tabs)/call/[id]",
       params: { id: peerId, type, status: "calling" },
     });
+
+    const granted = await requestMediaPermissions(type);
+    if (!granted) {
+      router.back();
+      return;
+    }
+
     try {
       await callService.informPeerForIncomingCall(type, peerId);
     } catch (error) {
       const appErr = toAppError(error, "media");
       hookLog.error("[useCall] informPeer failed", { peerId, type, ...appErr });
+      router.back();
     }
   };
 

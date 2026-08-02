@@ -24,6 +24,10 @@ sequenceDiagram
 - Initial sync: `last_pulled_at=0` returns all non-deleted records.
 - Incremental: returns only records with `updated_at > last_pulled_at`.
 - Conflict: if server record `updated_at > last_pulled_at`, push returns 409.
+- Message rows are pushed independently of delivery receipts, so pending or
+  failed peer delivery still has a durable server-side history copy.
+- `SENDING` and `NOT_SENT` receipts remain local and are kept dirty for retry;
+  `SENT`, `DELIVERED`, and `READ` receipts are synced.
 
 Tables synced: `conversations`, `messages`, `conversation_participants`, `calls`, `call_participants`, `message_receipts`.
 
@@ -77,7 +81,7 @@ sequenceDiagram
     A->>Z: scan for "lanchat" peers
     Z-->>A: resolve B's LAN address:port
 
-    Note over A,B: TCP connection (signaling channel)
+    Note over A,B: TCP connection (signalling channel)
     A->>B: TCP connect (TcpClientAdapter)
     A->>B: WebRTC offer (relayed over TCP)
     B-->>A: WebRTC answer (relayed over TCP)

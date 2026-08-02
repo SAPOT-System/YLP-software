@@ -14,15 +14,26 @@ apiLog.info("api › client created", {
 });
 
 // Callbacks registered by AuthProvider to keep React state in sync
-let onTokenRefreshed: ((token: string) => void) | null = null;
+let onTokenRefreshed: ((token: string | null) => void) | null = null;
 let onNeedsRelogin: (() => void) | null = null;
 
-export const setTokenRefreshCallback = (cb: (token: string) => void) => {
+export const setTokenRefreshCallback = (cb: (token: string | null) => void) => {
   onTokenRefreshed = cb;
 };
 
 export const setNeedsReloginCallback = (cb: () => void) => {
   onNeedsRelogin = cb;
+};
+
+/**
+ * Pushes a token written outside the normal login/refresh flow (e.g. the debug
+ * panel's QA fixture login, which writes SecureStore directly) into
+ * AuthContext's `accessToken` state via the same callback the 401-refresh
+ * interceptor uses, so consumers keyed on `auth.accessToken` (like the
+ * signaling WS token handoff) pick it up without requiring an app reload.
+ */
+export const notifyAccessTokenChanged = (token: string | null) => {
+  onTokenRefreshed?.(token);
 };
 
 apiClient.interceptors.request.use(async (config) => {

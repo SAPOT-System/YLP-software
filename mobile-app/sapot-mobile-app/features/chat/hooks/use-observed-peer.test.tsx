@@ -104,6 +104,23 @@ describe("useObservedPeer", () => {
     expect(result.current).toBe(second);
   });
 
+  it("never renders the previous peer for a new peerId, even for one frame", () => {
+    const first = { id: "peer-1", firstName: "Alice" };
+    const { result, rerender } = renderHook(
+      ({ peerId }: { peerId: string }) => useObservedPeer(peerId),
+      { initialProps: { peerId: "peer-1" } }
+    );
+
+    act(() => mockGetSubject("peer-1").next([first]));
+    expect(result.current).toBe(first);
+
+    // Switching peerId must clear the stale peer synchronously during
+    // render (not via a post-commit effect), so no frame ever shows
+    // peer-1's data — and by extension its role badge — under peer-2.
+    rerender({ peerId: "peer-2" });
+    expect(result.current).toBeUndefined();
+  });
+
   it("unsubscribes on unmount", () => {
     const { unmount } = renderHook(() => useObservedPeer("peer-1"));
     unmount();

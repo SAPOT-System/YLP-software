@@ -241,19 +241,6 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `conversation_id` | CHAR(32) | FK -> conversation.id |
 | `initiator_id` | CHAR(32) | FK -> user.id |
 
-### `callparticipant`
-
-| Column | Type | Notes |
-|---|---|---|
-| `created_at` | BIGINT | not null, has default |
-| `updated_at` | BIGINT | indexed, not null, has default |
-| `is_deleted` | BOOLEAN | indexed, not null, has default |
-| `id` | CHAR(32) | PK, indexed, has default |
-| `joined_at` | BIGINT | not null, has default |
-| `left_at` | INTEGER | — |
-| `call_id` | CHAR(32) | FK -> conversation.id, indexed |
-| `user_id` | CHAR(32) | FK -> user.id, indexed |
-
 ### `contact_key`
 
 | Column | Type | Notes |
@@ -302,7 +289,7 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `updated_at` | BIGINT | indexed, not null, has default |
 | `id` | CHAR(32) | PK, indexed, has default |
 | `message_type` | VARCHAR(8) | not null, has default |
-| `content` | VARCHAR(255) | not null |
+| `content` | TEXT | not null |
 | `is_deleted` | BOOLEAN | not null, has default |
 | `linked_message_id` | CHAR(32) | FK -> message.id |
 | `conversation_id` | CHAR(32) | FK -> conversation.id, indexed |
@@ -430,6 +417,19 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `file_name` | VARCHAR(200) | not null |
 | `file_size` | INTEGER | not null |
 | `mime_type` | VARCHAR(255) | not null |
+
+### `callparticipant`
+
+| Column | Type | Notes |
+|---|---|---|
+| `created_at` | BIGINT | not null, has default |
+| `updated_at` | BIGINT | indexed, not null, has default |
+| `is_deleted` | BOOLEAN | indexed, not null, has default |
+| `id` | CHAR(32) | PK, indexed, has default |
+| `joined_at` | BIGINT | not null, has default |
+| `left_at` | INTEGER | — |
+| `call_id` | CHAR(32) | FK -> call.id, indexed |
+| `user_id` | CHAR(32) | FK -> user.id, indexed |
 
 ### `messagereceipt`
 

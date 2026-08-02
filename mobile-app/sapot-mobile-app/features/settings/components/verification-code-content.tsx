@@ -7,6 +7,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
+import { Crossfade } from "@/features/shared/components/crossfade";
 
 const CODE_LENGTH = 6;
 const OTP_TTL_SECONDS = 300;
@@ -193,48 +194,54 @@ const VerificationCodeContent = ({
           The code will expire in {mm}:{ss}
         </Text>
       )}
-      {resendConfirmed ? (
-        <Text
-          variant="bodyMedium"
-          style={{
-            color: theme.colors.primary,
-            textAlign: "center",
-            fontWeight: "bold",
-          }}
-        >
-          Code resent!
-        </Text>
-      ) : resendCooldown > 0 ? (
-        <Text
-          variant="bodyMedium"
-          style={{
-            color: theme.colors.onPrimaryContainer,
-            textAlign: "center",
-          }}
-        >
-          Resend available in {cooldownMm}:{cooldownSs}
-        </Text>
-      ) : (
-        <Text
-          variant="bodyMedium"
-          style={{
-            color: theme.colors.onPrimaryContainer,
-            textAlign: "center",
-          }}
-        >
-          Didn't receive code?{" "}
+      <Crossfade
+        activeKey={
+          resendConfirmed ? "confirmed" : resendCooldown > 0 ? "cooldown" : "ready"
+        }
+      >
+        {resendConfirmed ? (
           <Text
             variant="bodyMedium"
             style={{
-              fontWeight: "bold",
               color: theme.colors.primary,
+              textAlign: "center",
+              fontWeight: "bold",
             }}
-            onPress={handleResend}
           >
-            Resend
+            Code resent!
           </Text>
-        </Text>
-      )}
+        ) : resendCooldown > 0 ? (
+          <Text
+            variant="bodyMedium"
+            style={{
+              color: theme.colors.onPrimaryContainer,
+              textAlign: "center",
+            }}
+          >
+            Resend available in {cooldownMm}:{cooldownSs}
+          </Text>
+        ) : (
+          <Text
+            variant="bodyMedium"
+            style={{
+              color: theme.colors.onPrimaryContainer,
+              textAlign: "center",
+            }}
+          >
+            Didn't receive code?{" "}
+            <Text
+              variant="bodyMedium"
+              style={{
+                fontWeight: "bold",
+                color: theme.colors.primary,
+              }}
+              onPress={handleResend}
+            >
+              Resend
+            </Text>
+          </Text>
+        )}
+      </Crossfade>
     </ScrollView>
   );
 };

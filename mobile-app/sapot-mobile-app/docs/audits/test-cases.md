@@ -134,10 +134,6 @@ The table below is a quick-reference for precondition states. Full setup procedu
 | TC-071 | Change PW | Wrong current password rejected | Logged in | 1. Enter wrong current password | Error; password unchanged | P0 | Critical | RNTL |
 | TC-072 | Recovery Key | Generate downloads key file | Logged in, not in cooldown | 1. Enter password 2. Tap Generate | Key file downloaded; old key invalidated | P0 | Critical | Maestro |
 | TC-073 | Recovery Key | Blocked during cooldown | Key generated recently | 1. Navigate to Generate Recovery Key | Cooldown message with days remaining | P0 | Critical | RNTL |
-| TC-074 | Encryption PIN | Enable PIN | Logged in, PIN off | 1. Enter password 2. Enter 6-digit PIN 3. Confirm | PIN enabled; badge shows "On" | P0 | Critical | Maestro |
-| TC-075 | Encryption PIN | PIN mismatch rejected | | 1. Enter mismatched PINs | "PINs don't match" error | P1 | High | RNTL |
-| TC-076 | Encryption PIN | Wrong password blocks PIN setup | | 1. Enter wrong password | Auth error; blocked | P0 | Critical | RNTL |
-| TC-077 | Encryption PIN | Disable PIN | PIN enabled | 1. Enter password + current PIN | PIN disabled; badge "Off" | P0 | Critical | Maestro |
 
 ---
 
@@ -148,7 +144,7 @@ The table below is a quick-reference for precondition states. Full setup procedu
 | TC-080 | Chats Tab | Discovered peers shown as bubbles | LAN mode, peer on network | 1. Navigate to Chats | Peer bubble per discovered device | P0 | Critical | MANUAL (2-device rig) |
 | TC-081 | Chats Tab | Conversations shown in list | Conversations exist in DB | 1. Navigate to Chats | Chat rows: name, last message, timestamp | P0 | Critical | RNTL |
 | TC-082 | Chats Tab | Pull-to-refresh triggers sync | Server mode | 1. Pull down | `syncService.syncNow()` called | P1 | High | Jest |
-| TC-083 | Chats Tab | Tap peer bubble → Chat Room (source=PEER) | Peer discovered | 1. Tap peer bubble | Navigates to `/chat/[peerId]` with source=PEER | P0 | Critical | MANUAL (2-device rig) |
+| TC-083 | Chats Tab | Tap peer bubble → Chat Room (source=PEER) | Peer discovered, no existing conversation | 1. Tap peer bubble<br>2. Keep the chat room open<br>3. Send a message from the peer device | Navigates to `/chat/[peerId]` with source=PEER, creates the empty direct conversation immediately, and renders the incoming message without reopening the room | P0 | Critical | MANUAL (2-device rig) |
 | TC-084 | Chats Tab | Tap chat row → Chat Room (source=CHAT) | Conversation exists | 1. Tap chat row | Navigates to `/chat/[id]` with source=CHAT | P0 | Critical | Maestro |
 | TC-085 | Chats Tab | Search bar tap → Search screen | | 1. Tap search bar | Navigates to `/search` | P1 | High | Maestro |
 | TC-086 | Chats Tab | QR icon → QR Scanner | | 1. Tap QR icon | Navigates to `/scan-qr` | P1 | High | Maestro |

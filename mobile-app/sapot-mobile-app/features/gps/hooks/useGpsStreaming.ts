@@ -2,6 +2,7 @@ import { useAuth, useAuthContainer } from "@/features/auth";
 import { getWsUrl } from "@/config/runtime";
 import { useEffect, useRef } from "react";
 import { useGpsPreference } from "../context/gps-preference-context";
+import { useLocationPermission } from "./useLocationPermission";
 import { GpsLocationService } from "../services/gps-location-service";
 
 export function useGpsStreaming() {
@@ -9,9 +10,17 @@ export function useGpsStreaming() {
   const { isAuthenticated, isGuest, accessToken } = useAuth();
   const { sessionStore } = useAuthContainer();
   const { sharingEnabled } = useGpsPreference();
+  const permissionState = useLocationPermission();
 
   useEffect(() => {
-    if (!isAuthenticated || isGuest || !sharingEnabled || !accessToken) return;
+    if (
+      !isAuthenticated ||
+      isGuest ||
+      !sharingEnabled ||
+      !accessToken ||
+      permissionState !== "granted"
+    )
+      return;
     const gpsLocation = service.current;
 
     const userId = sessionStore.userId;
@@ -21,5 +30,14 @@ export function useGpsStreaming() {
     return () => {
       gpsLocation.stop();
     };
-  }, [isAuthenticated, isGuest, sharingEnabled, accessToken, sessionStore]);
+  }, [
+    isAuthenticated,
+    isGuest,
+    sharingEnabled,
+    accessToken,
+    sessionStore,
+    permissionState,
+  ]);
+
+  return permissionState;
 }

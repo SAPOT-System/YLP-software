@@ -6,13 +6,9 @@ import {
   saveMasterKey,
   getSignalingSecretKey,
   saveSignalingSecretKey,
-  getPinEnabled,
-  savePinEnabled,
-  getPinWrappedBundle,
-  savePinWrappedBundle,
 } from "../core/stores/secure-config";
-import { deleteItemAsync } from "expo-secure-store";
 import { apiClient } from "@/features/shared/core/api";
+import { KeyInitError } from "../core/errors/key-init-error";
 import { appLog } from "../core/utils/logger";
 import { deriveKey } from "./key-derivation";
 
@@ -25,7 +21,6 @@ interface KeyBundle {
 
 interface LocalEncryptionCtx {
   getPassword: () => string | null;
-  getPIN: () => string | null;
   userId: string | null;
 }
 
@@ -39,50 +34,62 @@ export class LocalEncryptionService {
   }
 
   async initialize(): Promise<void> {
-    const pinEnabled = await getPinEnabled();
-
-    if (pinEnabled) {
-      const localBlob = await getPinWrappedBundle();
-      const pin = this.ctx?.getPIN() ?? null;
-
-      if (localBlob && pin !== null && pin !== "") {
-        const unlocked = await this.unlockFromPinBlob(localBlob, pin);
-        if (unlocked) return;
-      }
-      // PIN enabled but no local blob or no PIN provided yet — fall through to
-      // server fetch path (first login after enabling PIN, or re-login).
-    }
-
     const password = this.ctx?.getPassword() ?? null;
     const userId = this.ctx?.userId ?? null;
-    const pin = this.ctx?.getPIN() ?? "";
 
-    // No-PIN fast path: try cached plain keys in SecureStore
-    if (!pinEnabled) {
-      const cachedMaster = await getMasterKey();
-      const cachedSignaling = await getSignalingSecretKey();
-      if (cachedMaster && cachedSignaling) {
-        this.key = decodeBase64(cachedMaster);
-        this.signalingKey = decodeBase64(cachedSignaling);
-        return;
-      }
+    // Fast path: cached plain keys in SecureStore (OS keystore-protected).
+    let cachedMaster: string | null | undefined;
+    let cachedSignaling: string | null | undefined;
+    try {
+      cachedMaster = await getMasterKey();
+      cachedSignaling = await getSignalingSecretKey();
+    } catch (error) {
+      throw new KeyInitError(
+        "cached key bundle could not be read",
+        "SECURE_STORE_READ_FAILED",
+        { cause: error }
+      );
     }
 
-    if (password === null || userId === null) {
+    if (cachedMaster && cachedSignaling) {
+      try {
+        this.key = decodeBase64(cachedMaster);
+        this.signalingKey = decodeBase64(cachedSignaling);
+      } catch (error) {
+        throw new KeyInitError(
+          "cached key bundle could not be decoded",
+          "SECURE_STORE_READ_FAILED",
+          { cause: error }
+        );
+      }
+      return;
+    }
+
+    if (userId === null) {
       // Guest or unauthenticated — device-only key
       await this.initDeviceKey();
       return;
     }
 
-    await this.initFromServer(password, pin, userId, pinEnabled);
+    if (password !== null) {
+      await this.initFromServer(password, userId);
+      return;
+    }
+
+    // Authenticated, but the cache is unusable and the password is no longer in
+    // memory. Falling through to a device-only key here would silently mint a
+    // fresh master key and orphan every existing ciphertext, so fail with a
+    // reason the caller can surface instead.
+    const detail = cachedMaster || cachedSignaling ? "cache-partial" : "cache-absent";
+    appLog.error("enc › master key unavailable", { detail });
+    throw new KeyInitError(
+      "no cached key bundle and no password available to unwrap one",
+      "MASTER_KEY_UNAVAILABLE",
+      { detail }
+    );
   }
 
-  private async initFromServer(
-    password: string,
-    pin: string,
-    userId: string,
-    pinEnabled: boolean
-  ): Promise<void> {
+  private async initFromServer(password: string, userId: string): Promise<void> {
     const kek = await deriveKey(password, userId, 200_000);
     let blobExists = false;
 
@@ -93,29 +100,21 @@ export class LocalEncryptionService {
 
       if (res.status === 200) {
         blobExists = true;
-        let bundle = this.unwrapBundle(res.data.wrapped_blob, kek);
-
-        if (!bundle && pin) {
-          // Migration: blob may have been wrapped with old password+pin KEK
-          const legacyKek = await deriveKey(password + pin, userId, 200_000);
-          bundle = this.unwrapBundle(res.data.wrapped_blob, legacyKek);
-          if (bundle) {
-            await this.uploadBundle(bundle, kek);
-          }
-        }
+        const bundle = this.unwrapBundle(res.data.wrapped_blob, kek);
 
         if (bundle) {
           this.applyBundle(bundle);
-          await this.cacheKeys(pinEnabled, bundle, pin, userId);
+          await this.cacheKeys(bundle);
           return;
         }
         // Decryption failed - wrong password or password changed without re-wrapping
-        throw new Error("MASTER_KEY_UNWRAP_FAILED");
+        throw new KeyInitError(
+          "wrapped key blob could not be unwrapped",
+          "MASTER_KEY_UNWRAP_FAILED"
+        );
       }
     } catch (err: unknown) {
-      if (err instanceof Error && err.message === "MASTER_KEY_UNWRAP_FAILED") {
-        throw err;
-      }
+      if (err instanceof KeyInitError) throw err;
 
       const is404 =
         err !== null &&
@@ -125,7 +124,11 @@ export class LocalEncryptionService {
 
       if (!is404) {
         // Network error or other API failure - do not generate fresh bundle
-        throw err;
+        throw new KeyInitError(
+          "wrapped key could not be fetched",
+          "KEY_SERVER_UNREACHABLE",
+          { cause: err }
+        );
       }
     }
 
@@ -134,7 +137,7 @@ export class LocalEncryptionService {
       const bundle = this.generateBundle();
       this.applyBundle(bundle);
       await this.uploadBundle(bundle, kek);
-      await this.cacheKeys(pinEnabled, bundle, pin, userId);
+      await this.cacheKeys(bundle);
     }
   }
 
@@ -143,26 +146,6 @@ export class LocalEncryptionService {
     this.key = newKey;
     // Signaling key is not used in guest/device-only mode
     this.signalingKey = nacl.randomBytes(32);
-  }
-
-  private async unlockFromPinBlob(blob: string, pin: string): Promise<boolean> {
-    const userId = this.ctx?.userId ?? null;
-    if (!userId) return false;
-    try {
-      const pinKek = await deriveKey(pin, userId, 100_000);
-      const raw = decodeBase64(blob);
-      const nonce = raw.slice(0, nacl.secretbox.nonceLength);
-      const ct = raw.slice(nacl.secretbox.nonceLength);
-      const plaintext = nacl.secretbox.open(ct, nonce, pinKek);
-      if (!plaintext) return false;
-      const bundle = JSON.parse(
-        new TextDecoder().decode(plaintext)
-      ) as KeyBundle;
-      this.applyBundle(bundle);
-      return true;
-    } catch {
-      return false;
-    }
   }
 
   private generateBundle(): KeyBundle {
@@ -205,30 +188,9 @@ export class LocalEncryptionService {
     }
   }
 
-  private async cacheKeys(
-    pinEnabled: boolean,
-    bundle: KeyBundle,
-    pin: string,
-    userId: string
-  ): Promise<void> {
-    if (pinEnabled && pin) {
-      await this.saveLocalPinCache(bundle, pin, userId);
-    } else {
-      await saveMasterKey(bundle.chat_master_key);
-      await saveSignalingSecretKey(bundle.signaling_secret_key);
-    }
-  }
-
-  private async saveLocalPinCache(
-    bundle: KeyBundle,
-    pin: string,
-    userId: string
-  ): Promise<void> {
-    const pinKek = await deriveKey(pin, userId, 100_000);
-    const plaintext = new TextEncoder().encode(JSON.stringify(bundle));
-    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
-    const ct = nacl.secretbox(plaintext, nonce, pinKek);
-    await savePinWrappedBundle(encodeBase64(new Uint8Array([...nonce, ...ct])));
+  private async cacheKeys(bundle: KeyBundle): Promise<void> {
+    await saveMasterKey(bundle.chat_master_key);
+    await saveSignalingSecretKey(bundle.signaling_secret_key);
   }
 
   // ── Public key accessors ──────────────────────────────────────────────────
@@ -275,86 +237,18 @@ export class LocalEncryptionService {
     await saveMasterKey(encodeBase64(key));
   }
 
-  // ── PIN management ────────────────────────────────────────────────────────
-
-  async isPINEnabled(): Promise<boolean> {
-    return getPinEnabled();
-  }
-
-  async setupPIN(_password: string, newPin: string): Promise<void> {
-    const userId = this.ctx?.userId;
-    if (!userId) throw new Error("setupPIN requires an authenticated user");
-    const bundle: KeyBundle = {
-      chat_master_key: encodeBase64(this.key!),
-      signaling_secret_key: encodeBase64(this.signalingKey!),
-    };
-    // Server blob stays password-only KEK; PIN only protects local SecureStore cache
-    await this.saveLocalPinCache(bundle, newPin, userId);
-    await savePinEnabled(true);
-    await deleteItemAsync("masterKey");
-    await deleteItemAsync("signalingSecretKey");
-  }
-
-  async removePIN(_password: string, currentPin: string): Promise<boolean> {
-    const localBlob = await getPinWrappedBundle();
-    if (localBlob) {
-      const ok = await this.unlockFromPinBlob(localBlob, currentPin);
-      if (!ok) return false;
-    }
-    const bundle: KeyBundle = {
-      chat_master_key: encodeBase64(this.key!),
-      signaling_secret_key: encodeBase64(this.signalingKey!),
-    };
-    // Server blob is already password-only KEK; just persist plain keys locally
-    await saveMasterKey(bundle.chat_master_key);
-    await saveSignalingSecretKey(bundle.signaling_secret_key);
-    await deleteItemAsync("pinWrappedBundle");
-    await savePinEnabled(false);
-    return true;
-  }
-
-  async changePIN(
-    _password: string,
-    oldPin: string,
-    newPin: string
-  ): Promise<boolean> {
-    const userId = this.ctx?.userId;
-    if (!userId) return false;
-    const localBlob = await getPinWrappedBundle();
-    if (localBlob) {
-      const ok = await this.unlockFromPinBlob(localBlob, oldPin);
-      if (!ok) return false;
-    }
-    const bundle: KeyBundle = {
-      chat_master_key: encodeBase64(this.key!),
-      signaling_secret_key: encodeBase64(this.signalingKey!),
-    };
-    // Server blob stays password-only KEK; only update local PIN-wrapped cache
-    await this.saveLocalPinCache(bundle, newPin, userId);
-    return true;
-  }
-
-  /**
-   * Re-wraps the in-memory master key with a new password and updates the
-   * server-side primary wrapped key. Called after a successful password change.
-   */
   async updateMasterKeyPassword(newPassword: string): Promise<void> {
     const userId = this.ctx?.userId;
     if (!userId) throw new Error("updateMasterKeyPassword requires a userId");
     if (!this.key || !this.signalingKey) {
       throw new Error("Master key not initialized in memory");
     }
-
-    const pinEnabled = await getPinEnabled();
-    const pin = this.ctx?.getPIN() ?? "";
-
     const bundle: KeyBundle = {
       chat_master_key: encodeBase64(this.key),
       signaling_secret_key: encodeBase64(this.signalingKey),
     };
-
     const newKek = await deriveKey(newPassword, userId, 200_000);
     await this.uploadBundle(bundle, newKek);
-    await this.cacheKeys(pinEnabled, bundle, pin, userId);
+    await this.cacheKeys(bundle);
   }
 }

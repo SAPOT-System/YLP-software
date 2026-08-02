@@ -326,7 +326,7 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
         pushChanges: async ({ changes }) => {
           const lastPulledAt = await getSyncLastPulledAt();
           syncLog.debug("sync › push changes", { lastPulledAt });
-          await this.pushToServer(changes as SyncChanges, lastPulledAt);
+          return this.pushToServer(changes as SyncChanges, lastPulledAt);
         },
       });
       syncLog.info("sync › complete");
@@ -505,38 +505,33 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
     changes: SyncChanges,
     lastPulledAt?: number | null
   ) {
-    const { changes: payload, guest_users } = await this.buildPushPayload(changes);
+    const { changes: payload, guest_users, experimentalRejectedIds } =
+      await this.buildPushPayload(changes);
     syncLog.debug("sync › push payload", {
       hasChanges: this.hasPayload(payload),
+      rejectedIds: experimentalRejectedIds,
     });
-    if (!this.hasPayload(payload)) return;
-    await pushLocalDataApi({
-      last_pulled_at: lastPulledAt ?? 0,
-      changes: payload,
-      guest_users,
-    });
+    if (this.hasPayload(payload)) {
+      await pushLocalDataApi({
+        last_pulled_at: lastPulledAt ?? 0,
+        changes: payload,
+        guest_users,
+      });
+    }
+    return { experimentalRejectedIds };
   }
 
   private async buildPushPayload(
     changes: SyncChanges
-  ): Promise<{ changes: PushLocalDataRequestBody["changes"]; guest_users: Record<string, { first_name: string; last_name: string; username: string }> }> {
+  ): Promise<{
+    changes: PushLocalDataRequestBody["changes"];
+    guest_users: Record<
+      string,
+      { first_name: string; last_name: string; username: string }
+    >;
+    experimentalRejectedIds: Record<string, string[]>;
+  }> {
     type C = PushLocalDataRequestBody["changes"];
-
-    // Build a map of message receipts grouped by message for filtering logic
-    const receiptsByMessage = new Map<string, MessageStatusType[]>();
-    for (const r of [
-      ...changes.message_receipts.created,
-      ...changes.message_receipts.updated,
-    ]) {
-      const data = r as EntityLocalPayloadMap["message_receipts"];
-      const msgId = data.message_id ?? data.message;
-      if (msgId && data.status) {
-        if (!receiptsByMessage.has(msgId)) {
-          receiptsByMessage.set(msgId, []);
-        }
-        receiptsByMessage.get(msgId)!.push(data.status);
-      }
-    }
 
     // Determine which messages belong to a self conversation (current user only).
     const selfMessageIds = new Set<string>();
@@ -573,6 +568,82 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       if (data.status === CallStatus.INITIATING) {
         if (data.id) excludedCallIds.add(data.id);
       }
+    }
+
+    const isExcludedCallParticipant = (
+      record: EntityLocalPayloadMap["call_participants"]
+    ): boolean => {
+      const callId = record.call_id ?? record.call;
+      return Boolean(callId && excludedCallIds.has(callId));
+    };
+
+    const mapSelfReceiptStatus = (
+      record: EntityLocalPayloadMap["message_receipts"]
+    ): EntityLocalPayloadMap["message_receipts"] => {
+      const msgId = record.message_id ?? record.message;
+      // A message to self is delivered locally as soon as it is stored.
+      if (
+        msgId &&
+        selfMessageIds.has(msgId) &&
+        record.status === MessageStatusType.SENT
+      ) {
+        return { ...record, status: MessageStatusType.DELIVERED };
+      }
+      return record;
+    };
+
+    const createdReceipts = changes.message_receipts.created.map((record) =>
+      mapSelfReceiptStatus(
+        record as EntityLocalPayloadMap["message_receipts"]
+      )
+    );
+    const updatedReceipts = changes.message_receipts.updated.map((record) =>
+      mapSelfReceiptStatus(
+        record as EntityLocalPayloadMap["message_receipts"]
+      )
+    );
+
+    const rejectedIds = (
+      records: { id?: string }[],
+      shouldReject: (record: { id?: string }) => boolean
+    ): string[] =>
+      records.flatMap((record) =>
+        record.id && shouldReject(record) ? [record.id] : []
+      );
+
+    const rejectedReceiptIds = rejectedIds(
+      [...createdReceipts, ...updatedReceipts],
+      (record) =>
+        !this.pushFilter.shouldPushReceipt(
+          (record as EntityLocalPayloadMap["message_receipts"])
+            .status as MessageStatusType
+        )
+    );
+    const rejectedCallIds = rejectedIds(
+      [...changes.calls.created, ...changes.calls.updated],
+      (record) => excludedCallIds.has(record.id as string)
+    );
+    const rejectedCallParticipantIds = rejectedIds(
+      [
+        ...changes.call_participants.created,
+        ...changes.call_participants.updated,
+      ],
+      (record) =>
+        isExcludedCallParticipant(
+          record as EntityLocalPayloadMap["call_participants"]
+        )
+    );
+
+    const experimentalRejectedIds: Record<string, string[]> = {};
+    if (rejectedReceiptIds.length > 0) {
+      experimentalRejectedIds.message_receipts = rejectedReceiptIds;
+    }
+    if (rejectedCallIds.length > 0) {
+      experimentalRejectedIds.calls = rejectedCallIds;
+    }
+    if (rejectedCallParticipantIds.length > 0) {
+      experimentalRejectedIds.call_participants =
+        rejectedCallParticipantIds;
     }
 
     const conversationParticipantsCreated = changes.conversation_participants.created.map(
@@ -617,20 +688,10 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       },
       messages: {
         created: changes.messages.created
-          .filter(
-            (r) =>
-              this.pushFilter.shouldPushMessage(r.id as string, receiptsByMessage) ||
-              selfMessageIds.has(r.id as string)
-          )
           .map((r) =>
             this.payloadBuilder.toServerPayload("messages", r)
           ) as C["messages"]["created"],
         updated: changes.messages.updated
-          .filter(
-            (r) =>
-              this.pushFilter.shouldPushMessage(r.id as string, receiptsByMessage) ||
-              selfMessageIds.has(r.id as string)
-          )
           .map((r) =>
             this.payloadBuilder.toServerPayload("messages", r)
           ) as C["messages"]["updated"],
@@ -651,64 +712,41 @@ export class SyncService extends TypedEventEmitter<SyncServiceEvents> {
       },
       call_participants: {
         created: changes.call_participants.created
-          .filter((r) => {
-            const data = r as EntityLocalPayloadMap["call_participants"];
-            const callId = data.call_id ?? data.call;
-            return !callId || !excludedCallIds.has(callId);
-          })
+          .filter(
+            (r) =>
+              !isExcludedCallParticipant(
+                r as EntityLocalPayloadMap["call_participants"]
+              )
+          )
           .map((r) =>
             this.payloadBuilder.toServerPayload("call_participants", r)
           ) as C["call_participants"]["created"],
         updated: changes.call_participants.updated
-          .filter((r) => {
-            const data = r as EntityLocalPayloadMap["call_participants"];
-            const callId = data.call_id ?? data.call;
-            return !callId || !excludedCallIds.has(callId);
-          })
+          .filter(
+            (r) =>
+              !isExcludedCallParticipant(
+                r as EntityLocalPayloadMap["call_participants"]
+              )
+          )
           .map((r) =>
             this.payloadBuilder.toServerPayload("call_participants", r)
           ) as C["call_participants"]["updated"],
         deleted: changes.call_participants.deleted,
       },
       message_receipts: {
-        created: changes.message_receipts.created
-          .map((r) => {
-            const rec = r as EntityLocalPayloadMap["message_receipts"];
-            const msgId = (rec.message_id ?? rec.message) as string | undefined;
-            // For self messages, map SENT -> DELIVERED because server does not store SENT
-            if (
-              msgId &&
-              selfMessageIds.has(msgId) &&
-              rec.status === MessageStatusType.SENT
-            ) {
-              return { ...rec, status: MessageStatusType.DELIVERED };
-            }
-            return rec;
-          })
+        created: createdReceipts
           .filter((r) => this.pushFilter.shouldPushReceipt(r.status as MessageStatusType))
           .map((r) =>
             this.payloadBuilder.toServerPayload("message_receipts", r)
           ) as C["message_receipts"]["created"],
-        updated: changes.message_receipts.updated
-          .map((r) => {
-            const rec = r as EntityLocalPayloadMap["message_receipts"];
-            const msgId = (rec.message_id ?? rec.message) as string | undefined;
-            if (
-              msgId &&
-              selfMessageIds.has(msgId) &&
-              rec.status === MessageStatusType.SENT
-            ) {
-              return { ...rec, status: MessageStatusType.DELIVERED };
-            }
-            return rec;
-          })
+        updated: updatedReceipts
           .filter((r) => this.pushFilter.shouldPushReceipt(r.status as MessageStatusType))
           .map((r) =>
             this.payloadBuilder.toServerPayload("message_receipts", r)
           ) as C["message_receipts"]["updated"],
         deleted: changes.message_receipts.deleted,
       },
-    }, guest_users };
+    }, guest_users, experimentalRejectedIds };
   }
 
   private hasPayload(payload: PushLocalDataRequestBody["changes"]) {

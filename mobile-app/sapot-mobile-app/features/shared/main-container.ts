@@ -24,6 +24,8 @@ import { PeerKeyStore } from "./crypto/peer-key-store";
 import { WsEncryptionContext } from "./crypto/ws-encryption";
 import { KeyRecoveryService } from "./crypto/key-recovery-service";
 import { AppModeStore, NetworkConfig } from "./core/stores";
+import { toKeyInitError } from "./core/errors/key-init-error";
+import type { KeyInitErrorCode } from "./core/errors/key-init-error";
 
 import { CallService } from "@/features/call/services/call-service";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
@@ -56,15 +58,10 @@ type MigrationOk = {
 };
 
 let _pendingRawPassword: string | null = null;
-let _pendingRawPIN: string | null = null;
 let _onResetRequested: (() => void) | null = null;
 
 export function setPendingPassword(password: string): void {
   _pendingRawPassword = password;
-}
-
-export function setPendingPIN(pin: string): void {
-  _pendingRawPIN = pin;
 }
 
 export function setResetRequestedCallback(cb: () => void): void {
@@ -135,7 +132,6 @@ export class MainContainer {
 
     this.localEncryptionService = new LocalEncryptionService({
       getPassword: () => _pendingRawPassword,
-      getPIN: () => _pendingRawPIN ?? "",
       userId: this.userContainer.userStore.isGuest
         ? null
         : this.userContainer.userStore.user.id,
@@ -296,39 +292,69 @@ export class MainContainer {
   }
 
   async initialize(): Promise<void> {
+    if (this.initPromise) return this.initPromise;
+
+    const run = (async () => {
+      appLog.info("app › init start");
+      const keysReady = await this.initializeKeys();
+      const migOk = await this.handleMigration(keysReady);
+      await this.startNetworkServices(migOk);
+      // Only now is the password safe to drop: until initialization has fully
+      // succeeded it is the sole input that lets a retry re-derive the master
+      // key, and clearing it early is what makes "Try Again" unable to recover.
+      _pendingRawPassword = null;
+    })();
+
+    this.initPromise = run;
+
     try {
-      if (this.initPromise) return this.initPromise;
-
-      this.initPromise = (async () => {
-        appLog.info("app › init start");
-        const keysReady = await this.initializeKeys();
-        const migOk = await this.handleMigration(keysReady);
-        await this.startNetworkServices(migOk);
-      })();
-
-      return this.initPromise;
+      await run;
     } catch (error) {
-      appLog.error("app › init failed", { error });
-      throw error;
+      const keyError = toKeyInitError(error);
+      appLog.error("app › init failed", {
+        code: keyError.code,
+        detail: keyError.detail,
+        message: keyError.message,
+      });
+      // Never leave a rejected promise cached — a later initialize() on this
+      // instance must be able to re-run rather than replay the old failure.
+      if (this.initPromise === run) this.initPromise = undefined;
+      throw keyError;
+    }
+  }
+
+  /**
+   * Runs one key-loading step, tagging any failure with the step that failed so
+   * the generic "couldn't load your keys" screen can name a reason.
+   */
+  private async keyStep<T>(
+    code: KeyInitErrorCode,
+    step: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await step();
+    } catch (error) {
+      throw toKeyInitError(error, code);
     }
   }
 
   private async initializeKeys(): Promise<KeysReady> {
     await this.localEncryptionService.initialize();
-    _pendingRawPassword = null;
-    _pendingRawPIN = null;
 
     if (!this.userContainer.userStore.isGuest) {
       const token = await getStoredAccessToken();
       if (token) {
         this._cachedAccessToken = token;
-        const signalingKey = this.localEncryptionService.getSignalingSecretKey();
-        await this.peerKeyService.initFromSecretKey(
-          signalingKey,
-          getApiUrl(),
-          token,
-          this.userContainer.userStore.user.id
-        );
+        await this.keyStep("PEER_KEY_INIT_FAILED", async () => {
+          const signalingKey =
+            this.localEncryptionService.getSignalingSecretKey();
+          await this.peerKeyService.initFromSecretKey(
+            signalingKey,
+            getApiUrl(),
+            token,
+            this.userContainer.userStore.user.id
+          );
+        });
 
         const serverVerifyKeyB64 = getServerVerifyKey();
         if (serverVerifyKeyB64) {
@@ -364,21 +390,24 @@ export class MainContainer {
             }
           );
 
-          const contactKeys = await this.peerKeyService.fetchAndDecryptContactKeys(
-            masterKey,
-            token,
-            getApiUrl()
-          );
-          for (const [peerId, publicKey] of contactKeys) {
-            if (!this.peerKeyStore.get(peerId)) {
-              await this.peerKeyStore.restore(peerId, publicKey);
+          await this.keyStep("CONTACT_KEY_SYNC_FAILED", async () => {
+            const contactKeys =
+              await this.peerKeyService.fetchAndDecryptContactKeys(
+                masterKey,
+                token,
+                getApiUrl()
+              );
+            for (const [peerId, publicKey] of contactKeys) {
+              if (!this.peerKeyStore.get(peerId)) {
+                await this.peerKeyStore.restore(peerId, publicKey);
+              }
             }
-          }
 
-          const peerIds =
-            (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
-          await this.peerKeyStore.loadAll(peerIds);
-          await this.conversationKeyManager.preloadAllConversationKeys();
+            const peerIds =
+              (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
+            await this.peerKeyStore.loadAll(peerIds);
+            await this.conversationKeyManager.preloadAllConversationKeys();
+          });
 
           this.peerKeyStore.onKeySet((peerId) => {
             void this.conversationKeyManager.rederiveKeyForPeer(peerId).catch((err) =>
@@ -388,16 +417,18 @@ export class MainContainer {
         }
       }
     } else {
-      await this.peerKeyService.initGuestKey();
+      await this.keyStep("GUEST_KEY_INIT_FAILED", async () => {
+        await this.peerKeyService.initGuestKey();
 
-      // Guests need the server verify key to check if a peer's credential is
-      // genuine — without it they fall back to "credential present" only.
-      await this.peerKeyService.loadServerVerifyKey();
+        // Guests need the server verify key to check if a peer's credential is
+        // genuine — without it they fall back to "credential present" only.
+        await this.peerKeyService.loadServerVerifyKey();
 
-      const guestPeerIds =
-        (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
-      await this.peerKeyStore.loadAll(guestPeerIds);
-      await this.conversationKeyManager.preloadAllConversationKeys();
+        const guestPeerIds =
+          (await this.userContainer.peerRepository.getAllPeerIds?.()) ?? [];
+        await this.peerKeyStore.loadAll(guestPeerIds);
+        await this.conversationKeyManager.preloadAllConversationKeys();
+      });
 
       this.peerKeyStore.onKeySet((peerId) => {
         void this.conversationKeyManager.rederiveKeyForPeer(peerId).catch((err) =>
@@ -534,6 +565,13 @@ export class MainContainer {
           appLog.error("app › ip change rebind failed", { error });
         }
       })();
+    });
+    this.networkConfig.setOnNetworkRegained(() => {
+      try {
+        this.signalingService.restartWsSignalingAfterNetworkRegain();
+      } catch (error) {
+        appLog.error("app › ws restart after network regain failed", { error });
+      }
     });
     this.networkConfig.startWatching();
 

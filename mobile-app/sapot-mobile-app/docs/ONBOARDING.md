@@ -12,7 +12,7 @@ Not all features are equal in size. Here's where the lines of code actually live
 |---|---|---|---|
 | `features/shared/` | ~22 k | 166 | **Engine** — P2P runtime, encryption, DI, database |
 | `features/chat/` | ~7.5 k | 45 | Message threads, sync, key management |
-| `features/auth/` | ~6.2 k | 68 | Registration, login, PIN gate, guest flow |
+| `features/auth/` | ~6.2 k | 68 | Registration, login, guest flow |
 | `features/call/` | ~4.1 k | 35 | Audio/video call UI and lifecycle |
 | `features/sync/` | ~3.2 k | 16 | Background data sync with server |
 | `features/gps/` | ~0.7 k | 10 | Live location sharing (rescuers only) |

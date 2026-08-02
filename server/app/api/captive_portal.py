@@ -106,7 +106,7 @@ def disconnect_guest_session(
     Sets `status=disconnected` and records `disconnect_at`.
     Safe to call multiple times (idempotent).
     """
-    guest = db.exec(
+    guest = session.exec(
         select(GuestSession).where(GuestSession.session_id == session_id)
     ).first()
 
@@ -118,9 +118,9 @@ def disconnect_guest_session(
 
     guest.status = SessionStatus.disconnected
     guest.disconnect_at = datetime.now(timezone.utc)
-    db.add(guest)
-    db.commit()
-    db.refresh(guest)
+    session.add(guest)
+    session.commit()
+    session.refresh(guest)
     return guest
 
 

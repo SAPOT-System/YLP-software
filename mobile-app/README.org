@@ -1,20 +1,6 @@
 #+title: How to run the react native environment
 
-Follow the following directions to run the environment.
-
-1. *DOWNLOAD NIX* with what applies to you
-   - if on WSL: ~sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --daemon~
-   - if on Linux-based native system: ~sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --daemon~
-   - *Note:* you may need to restart your environment (e.g open a new shell or a new terminal) for nix to be recognized by your system.
-     - if after the restart and nix is still undefined in the CLI, enter the following command: ~source /etc/profile.d/nix.sh~
-2. *Run the script* ~configure_nix.sh~ with the command ~bash configure_nix.sh~. This script configures your Nix installation to process flakes (the tool we are using to keep things tight).
-3. *Build and install the environment* with the command below. This will fetch the tools and set up the environment we will work on. *Note:* you need to be in the ~/.../YLP/mobile-app/~ directory for this to work
-    #+BEGIN_SRC bash
-    nix develop -L
-    cd sapot-mobile-app
-    npm install
-    #+END_SRC
-
+Full setup instructions (Nix install, dev shell, dependency install) live in the root docs: [[../docs/getting-started/mobile-app-setup.md][docs/getting-started/mobile-app-setup.md]]. This file covers WSL/Android troubleshooting tips and DB schema references not covered there.
 
 ** TIPS
 This section tackles the common errors that I encountered when running the react native environment.

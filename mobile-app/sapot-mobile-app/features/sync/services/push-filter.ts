@@ -7,15 +7,4 @@ export class SyncPushFilter {
   shouldPushReceipt(status: MessageStatusType): boolean {
     return this.messageReceiptManager.shouldPushReceipt(status);
   }
-
-  shouldPushMessage(
-    messageId: string,
-    receiptsByMessage: Map<string, MessageStatusType[]>
-  ): boolean {
-    const receipts = receiptsByMessage.get(messageId);
-    if (!receipts || receipts.length === 0) {
-      return true;
-    }
-    return receipts.some((status) => this.messageReceiptManager.shouldPushReceipt(status));
-  }
 }

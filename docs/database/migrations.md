@@ -33,7 +33,45 @@ When a model changes:
 3. Apply it to the production database.
 4. Deploy the updated server code.
 
-No record of which `ALTER TABLE` statements have been applied is maintained.
+Historically, no record of which `ALTER TABLE` statements have been applied was
+maintained. New changes are logged in [Pending server DDL](#pending-server-ddl)
+below until Alembic is adopted.
+
+### Pending server DDL
+
+`create_db_and_tables()` only creates missing tables — it never alters an
+existing one. Any database created before the change below still has the old
+column type, and **must** have this applied by hand before the matching server
+code is deployed.
+
+| Date | Change | MariaDB DDL |
+|---|---|---|
+| 2026-07-26 | `message.content`: `VARCHAR(255)` → `TEXT`. A 2000-char plaintext message (the client-side cap, `MAX_MESSAGE_LENGTH`) and E2E-encrypted base64 ciphertext both overflow 255 chars, so `/sync/push` failed with a generic 500 `Internal Sync Error`. | `ALTER TABLE message MODIFY COLUMN content TEXT NOT NULL;` |
+| 2026-07-28 | `call_participant.call_id`: FK target `conversation.id` → `call.id`. Copy-paste bug — inserting a `CallParticipant` row against a real MariaDB dev DB either violated the FK or silently stored the wrong id (issue #270). | `ALTER TABLE call_participant DROP FOREIGN KEY <existing_fk_name>; ALTER TABLE call_participant ADD CONSTRAINT call_participant_ibfk_call FOREIGN KEY (call_id) REFERENCES call(id) ON DELETE CASCADE;` (find `<existing_fk_name>` via `SHOW CREATE TABLE call_participant;`) |
+
+Verify after applying:
+
+```sql
+SHOW COLUMNS FROM message LIKE 'content';   -- expect Type = text
+```
+
+```mermaid
+flowchart LR
+    subgraph Server["Server — manual, untracked"]
+        S1["Change SQLModel class"] --> S2["Hand-write ALTER TABLE SQL"]
+        S2 --> S3["Apply to production DB<br/>(no version record kept)"]
+        S3 --> S4["Deploy updated server code"]
+        S4 -.->|"code/DB out of sync until both steps done"| S3
+    end
+
+    subgraph Mobile["Mobile (WatermelonDB) — versioned, automatic"]
+        M1["Bump version in schema.ts"] --> M2["Add migration step in migrations.ts<br/>(addColumns / createTable, additive only)"]
+        M2 --> M3["App start: compare on-device version<br/>to schema.ts version"]
+        M3 --> M4["Replay all migrations with<br/>toVersion > stored version, in order"]
+    end
+```
+
+The asymmetry is the point: the server has no analog of `M3`/`M4` — there is nothing that detects or replays pending schema changes, which is exactly what [adopting Alembic](#recommendation-adopt-alembic) below would add.
 
 ---
 
