@@ -1,0 +1,248 @@
+{
+  "info": {
+    "_postman_id": "f1000000-0000-4000-8000-000000000001",
+    "name": "SAPOT flows - authentication",
+    "description": "Hand-authored smoke flow. Unlike postman/collections/, this file is NOT generated - do not run scripts/generate_postman_collection.rb against it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost" },
+    { "key": "qaToken", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "refreshToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Reset database",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
+        "url": { "raw": "{{baseUrl}}/testing/reset", "host": ["{{baseUrl}}"], "path": ["testing", "reset"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"reset succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Seed roles scenario",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/testing/seed/roles",
+          "host": ["{{baseUrl}}"],
+          "path": ["testing", "seed", "roles"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"seed succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"reports the roles scenario\", function () {",
+              "    pm.expect(pm.response.json().scenario).to.eql(\"roles\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login as qa_baseline fixture",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/testing/login-as/qa_baseline",
+          "host": ["{{baseUrl}}"],
+          "path": ["testing", "login-as", "qa_baseline"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"mints a token pair\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    var body = pm.response.json();",
+              "    pm.expect(body.access_token).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(body.refresh_token).to.be.a(\"string\").and.not.empty;",
+              "    pm.expect(body.username).to.eql(\"qa_baseline\");",
+              "});",
+              "",
+              "var body = pm.response.json();",
+              "// pm.environment.set, not pm.collectionVariables.set: Postman resolves",
+              "// {{token}} from the environment scope before the collection scope, and",
+              "// postman/environments/*.postman_environment.json declares a blank \"token\"",
+              "// key (filled via --env-var for the generated collections). A collection",
+              "// variable of the same name would be silently shadowed by that blank value",
+              "// whenever this flow runs with an environment loaded, which is how",
+              "// scripts/run-postman-tests.sh always runs it.",
+              "pm.environment.set(\"token\", body.access_token);",
+              "pm.collectionVariables.set(\"refreshToken\", body.refresh_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ping reflects the logged-in fixture",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": { "raw": "{{baseUrl}}/ping", "host": ["{{baseUrl}}"], "path": ["ping"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// GET /auth/ is a public health-style endpoint (no auth dependency), so it",
+              "// can't be used to test token acceptance/rejection. /ping is genuinely gated",
+              "// on get_current_user, which is the property this step actually needs to check.",
+              "pm.test(\"authenticated request succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"responds with JSON\", function () {",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ping rejects a garbage token",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer not-a-real-token" }],
+        "url": { "raw": "{{baseUrl}}/ping", "host": ["{{baseUrl}}"], "path": ["ping"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"rejects an invalid bearer token\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+              "});",
+              "",
+              "pm.test(\"does not leak a stack trace\", function () {",
+              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exists reports a known username",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/exists?identifier=qa_baseline",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "exists"],
+          "query": [{ "key": "identifier", "value": "qa_baseline" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"responds with JSON\", function () {",
+              "    pm.response.to.be.json;",
+              "});",
+              "",
+              "pm.test(\"reports the fixture as existing\", function () {",
+              "    pm.expect(pm.response.json().exists).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Refresh exchanges the refresh token",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"refresh_token\": \"{{refreshToken}}\"}" },
+        "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"returns a fresh access token\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().access_token).to.be.a(\"string\").and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login rejects wrong credentials",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "username", "value": "qa_baseline", "type": "text" },
+            { "key": "password", "value": "definitely-the-wrong-password", "type": "text" }
+          ]
+        },
+        "url": { "raw": "{{baseUrl}}/auth/token", "host": ["{{baseUrl}}"], "path": ["auth", "token"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"rejects a bad password without a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([400, 401, 403, 404]);",
+              "});",
+              "",
+              "pm.test(\"does not return a token\", function () {",
+              "    pm.expect(pm.response.text()).to.not.include(\"access_token\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
