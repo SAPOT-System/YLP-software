@@ -21,7 +21,7 @@ from app.version import __version__
 
 from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
-from app.db_operations.auth import SessionDep, create_db_and_tables
+from app.db_operations.auth import SessionDep
 from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, public_chat, mikrotik, captive_portal, download
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "production")
@@ -52,7 +52,8 @@ async def lifespan(app: FastAPI):
     import redis.asyncio as aioredis
     from app.db_operations.connection_manager import manager
 
-    create_db_and_tables()
+    # Schema is managed by Alembic migrations (server/alembic.ini), run as a
+    # deploy step (see runserver.sh) before the app starts — not created here.
 
     # existing worker
     threading.Thread(

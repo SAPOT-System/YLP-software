@@ -41,7 +41,7 @@ SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response
 | [architecture/networking-lan-model.md](architecture/networking-lan-model.md) | LAN topology, MikroTik router role, mDNS discovery, client isolation considerations |
 | [architecture/security-architecture.md](architecture/security-architecture.md) | Auth, password hashing, E2E encryption key hierarchy and flows, rate limiting, LAN transport security |
 | [architecture/threat-model.md](architecture/threat-model.md) | Trust boundaries, in-scope attack surfaces, device theft / router compromise / insider threat scenarios, known risks |
-| [adr/](adr/) | Architecture Decision Records — NaCl box, no server migration tooling, WatermelonDB, P2P calls, LAN-first design, roles model |
+| [adr/](adr/) | Architecture Decision Records — NaCl box, WatermelonDB, P2P calls, LAN-first design, roles model, Alembic server migrations |
 
 ### Mobile App (Detailed)
 

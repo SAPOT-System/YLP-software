@@ -4,7 +4,7 @@ Legend: ✅ confirmed bug · 🟡 partially confirmed / partially implemented / 
 
 - [ ] ✅ **1.** When in the call room, the user can back and close the call — *no `BackHandler` in the call room; hardware back navigates away without ending the call, leaving a dangling session.*
 - [x] ⚪ **2.** End call button is missing when calling peers — *End Call button renders during the `calling` state and is deliberately pinned (see `call/[id].tsx:149-159`). Appears already fixed.*
-- [ ] ✅ **3.** There is no server database migration — *server uses `SQLModel.metadata.create_all()` only (no Alembic); cannot alter existing tables.*
+- [x] ✅ **3.** There is no server database migration — *was: server used `SQLModel.metadata.create_all()` only; could not alter existing tables. **Resolved** — Alembic adopted (issue #150, [ADR 0007](adr/0007-alembic-for-server-migrations.md)).*
 - [ ] ✅ **4.** Messages in the chat room are not in sequence by the time they are sent — *receiver drops the wire `sentAt`; `createdAt` = local receive time, list orders by `created_at`.*
 - [ ] 🟡 **5.** Online icon is not appearing in LAN mode — *LAN path is wired end-to-end (mDNS `markOnline` → `peers.is_online` → peer-list). Likely a runtime mDNS/Zeroconf issue; needs on-device repro.*
 - [x] ⚪ **6.** There is no auto capitalize in the LAN login — *both LAN login fields already set `autoCapitalize="words"` (`lan-login.tsx:107,118`).*

@@ -118,7 +118,6 @@ flowchart TB
 | Risk | Status |
 |---|---|
 | No LAN segmentation (rescuer/admin/civilian devices share one broadcast domain) | Accepted for now — segmentation requires router-level VLAN config not currently documented or automated. |
-| No server migration tooling — see [migrations.md](../database/migrations.md) | Tracked as a reliability gap, not primarily a security one; a bad manual `ALTER TABLE` is an availability risk more than a confidentiality one. |
 | `testing` router reachable when `ENVIRONMENT=development` | Accepted — intentionally dev-gated per C1 in [docs-todo.md](../docs-todo.md); operational discipline (never deploy with `ENVIRONMENT=development`) is the control, not code. |
 | GSM module DB credentials hardcoded default in `config.py` | Open — tracked in [SECURITY.md](../../SECURITY.md#other-known-gaps-not-yet-resolved). |
 | No remote session/device revocation UI for end users | Open — see [Device theft](#device-theft). |

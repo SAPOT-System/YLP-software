@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-YLP-SAPOT (SAPOT Server) uses **MariaDB** as its database engine via SQLModel (an SQLAlchemy wrapper). The schema is auto-created at application startup by `create_db_and_tables()` — there is no migration tooling. See [migrations.md](migrations.md) for operational implications.
+YLP-SAPOT (SAPOT Server) uses **MariaDB** as its database engine via SQLModel (an SQLAlchemy wrapper). The schema is applied by **Alembic** at deploy time (`alembic upgrade head` in `server/runserver.sh`), not created at application startup; `create_db_and_tables()` was removed from the FastAPI `lifespan`. See [migrations.md](migrations.md) for the workflow and [ADR 0007](../adr/0007-alembic-for-server-migrations.md) for the decision.
 
 ---
 
@@ -121,8 +121,10 @@ Standalone table used by the MikroTik hotspot captive portal integration. It is 
 
 `server/app/models/devices.py` declares a `Device` SQLModel with `table=True`, but it is
 **never imported** — not by `app/models/__init__.py`, not by any router. Because SQLModel only
-registers metadata for imported modules, `create_db_and_tables()` never creates a `device`
-table, and it correctly does not appear in the generated [tables.md](tables.md).
+registers metadata for imported modules, no `device` table exists in `SQLModel.metadata`, so
+Alembic autogenerate never emitted one and it correctly does not appear in the generated
+[tables.md](tables.md). `app/models/__init__.py` carries a commented-out import for it with the
+reason: its `id` field lacks `primary_key=True`, so SQLAlchemy cannot map it at all.
 
 Two further signs the model was abandoned mid-implementation: its `id` field has no
 `primary_key=True`, and its `Relationship(back_populates="devices")` points at a `User.devices`

@@ -47,9 +47,9 @@ This starts, in dependency order (via healthchecks): `db` (MariaDB) → `redis`
 directory inside the repo — not a Docker-managed volume, so the generated
 `server.crt`/`server.key` are directly browsable on the host, gitignored)
 → `api` (Gunicorn/Uvicorn, internal-only) → `nginx` (TLS termination,
-reverse-proxies to `api`, publishes `443`/`80`). `create_db_and_tables()`
-still runs at API startup, so a fresh `db` volume just works — no manual
-schema step.
+reverse-proxies to `api`, publishes `443`/`80`). Schema comes from Alembic
+(`alembic upgrade head`), not from application startup, so a fresh `db`
+volume needs that migration step to have run before the API serves traffic.
 
 `docker-compose.override.yml` is auto-loaded alongside the base file for
 local dev: it bind-mounts `app/` for live edits and runs a single reloading
@@ -128,7 +128,9 @@ whenever `server/certs/` is empty. The mobile app pins a **CA**, not a leaf
 
 ## First run
 
-On first start, `create_db_and_tables()` creates all MariaDB tables automatically. MariaDB and Redis must be running before the server starts.
+On first start, the schema is created by Alembic, not by the application. `server/runserver.sh` runs `alembic upgrade head` before launching gunicorn; if you start the app another way, run it yourself from `server/` with `DATABASE_URL` set. MariaDB and Redis must be running before the server starts.
+
+If you are pointing the server at a database created *before* Alembic was adopted, do **not** run `upgrade` on it — see the [one-time cutover](../database/migrations.md#one-time-cutover-for-existing-databases).
 
 ---
 

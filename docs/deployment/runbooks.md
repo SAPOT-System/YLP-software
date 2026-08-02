@@ -6,7 +6,7 @@ Step-by-step procedures for operating SAPOT in production. Each runbook includes
 
 ## Backup and restore (MariaDB)
 
-**When:** Before any schema change (see [ADR 0002](../adr/0002-no-server-migration-tooling.md)), on a regular schedule if the deployment is long-running, and always before a disaster-recovery restore.
+**When:** Before any schema change (see [ADR 0007](../adr/0007-alembic-for-server-migrations.md)), on a regular schedule if the deployment is long-running, and always before a disaster-recovery restore.
 
 ### Backup
 
@@ -34,33 +34,37 @@ sudo journalctl -u server-main-api -n 50 --no-pager   # confirm no startup error
 
 ---
 
-## Manual DB DDL application (no Alembic)
+## Applying schema migrations (Alembic)
 
-**When:** A SQLModel class in `server/app/models/` changed (new column, renamed column, changed type). See [migrations.md](../database/migrations.md) and [ADR 0002](../adr/0002-no-server-migration-tooling.md) for why this is manual.
+**When:** Deploying server code whose SQLModel classes in `server/app/models/` changed. See [migrations.md](../database/migrations.md) and [ADR 0007](../adr/0007-alembic-for-server-migrations.md).
 
-1. **Back up first** — run the [backup procedure](#backup-and-restore-mariadb) above. This is the only rollback path; there is no `alembic downgrade`.
-2. Diff the model change against the current table structure:
+`server/runserver.sh` already runs `alembic upgrade head` before starting gunicorn, so a normal deploy needs no separate step. Use this runbook when applying migrations out of band, or when a deploy fails at the migration step.
+
+1. **Back up first** — run the [backup procedure](#backup-and-restore-mariadb) above. Restoring from backup is the rollback path; `alembic downgrade` is a CI verification tool, and downgrading the baseline drops every table.
+2. Check what the database is currently on:
    ```bash
-   mysql -u sapot -p -e "DESCRIBE sapot_db.<table_name>;"
+   cd /home/sapot/YLP-software/server
+   export DATABASE_URL='mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_db'
+   alembic current
    ```
-3. Write the equivalent `ALTER TABLE` by hand. Examples:
-   ```sql
-   ALTER TABLE peer ADD COLUMN last_seen_at DATETIME NULL;
-   ALTER TABLE announcement MODIFY COLUMN priority ENUM('low','normal','high') NOT NULL;
-   ```
-4. Apply it to production **before** deploying the new server code — the running code and the schema must never diverge, since `create_db_and_tables()` only creates missing tables, it never alters existing ones.
+   If this prints nothing, the database predates Alembic and needs the [one-time cutover](../database/migrations.md#one-time-cutover-for-existing-databases) instead. Do not run `upgrade` on it; it will try to create tables that already exist.
+3. Review what is about to be applied:
    ```bash
-   mysql -u sapot -p sapot_db < alter_peer_add_last_seen_at.sql
+   alembic history --verbose
    ```
-5. Deploy the updated server code and restart:
+4. Apply:
+   ```bash
+   alembic upgrade head
+   ```
+5. Restart the service:
    ```bash
    sudo systemctl restart server-main-api
    ```
-6. **Record what you did.** There is no `alembic_version` table tracking this — append the applied SQL file name and date to a changelog (e.g. a dated comment in [migrations.md](../database/migrations.md) or a local ops log) so the next person doesn't have to reverse-engineer the DB's actual state from the code.
 
 **Verification:**
 ```bash
-mysql -u sapot -p -e "DESCRIBE sapot_db.<table_name>;"   # confirm the new column/type is present
+alembic current                                           # expect the new head revision
+alembic check                                             # expect "No new upgrade operations detected"
 sudo journalctl -u server-main-api -n 50 --no-pager       # confirm no startup errors after restart
 ```
 

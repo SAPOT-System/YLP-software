@@ -31,7 +31,7 @@ Entry point for deploying, operating, and maintaining SAPOT in a live environmen
 | Doc | Contents |
 |---|---|
 | [deployment/monitoring-logging.md](../deployment/monitoring-logging.md) | Monitoring and logging setup |
-| [deployment/runbooks.md](../deployment/runbooks.md) | Backup/restore, manual DB DDL application (no migration tooling — [ADR 0002](../adr/0002-no-server-migration-tooling.md)), TLS rotation, rollback, disaster recovery |
+| [deployment/runbooks.md](../deployment/runbooks.md) | Backup/restore, applying Alembic schema migrations ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)), TLS rotation, rollback, disaster recovery |
 | [deployment/incident-response.md](../deployment/incident-response.md) | Severity levels, roles, and communication process during a live incident |
 | [deployment/maintenance.md](../deployment/maintenance.md) | Recurring backup/cert/log/dependency upkeep schedule |
 
