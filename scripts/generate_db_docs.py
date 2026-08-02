@@ -39,6 +39,7 @@ os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost")
 os.environ.setdefault("GSM_SECRET", "dummy-gsm-secret-for-doc-generation")
 os.environ.setdefault("SERVER_ED25519_SEED", "00" * 32)
 os.environ.setdefault("ENVIRONMENT", "development")
+os.environ.setdefault("QA_API_TOKEN", "dummy-qa-token-for-doc-generation-only")
 
 sys.path.insert(0, str(SERVER_DIR))
 

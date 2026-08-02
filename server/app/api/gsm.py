@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Annotated
 from uuid import UUID, uuid4, uuid5
@@ -24,6 +25,7 @@ import json
 # Module-level client reuses TCP connections to localhost:8001 across requests.
 # The 120s timeout matches the SMS send worst-case; health checks are much faster.
 _gsm_http_client: httpx.AsyncClient | None = None
+logger = logging.getLogger("app")
 
 
 def _get_gsm_client() -> httpx.AsyncClient:
@@ -35,6 +37,29 @@ def _get_gsm_client() -> httpx.AsyncClient:
             limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
         )
     return _gsm_http_client
+
+
+def _gsm_log_extra(current_user: User | None, path: str) -> dict:
+    return {
+        "user_id": str(current_user.id) if current_user else "ANONYMOUS",
+        "action": "gsm_health_unavailable",
+        "entity_id": None,
+        "metadata_json": {"path": path},
+    }
+
+
+async def _get_gsm_health(path: str, current_user: User) -> dict:
+    try:
+        response = await _get_gsm_client().get(path)
+    except httpx.RequestError as exc:
+        logger.warning(
+            "GSM gateway health check unavailable: %s",
+            exc,
+            extra=_gsm_log_extra(current_user, path),
+        )
+        raise HTTPException(status_code=503, detail="GSM gateway is unavailable") from exc
+
+    return response.json()
 
 
 class InboundSMSPayload(BaseModel):
@@ -178,9 +203,7 @@ async def inbound_sms(
 async def gsm_health(
         current_user : Annotated[User, Depends(get_current_user)],
         ):
-    client = _get_gsm_client()
-    response = await client.get("/health")
-    return response.json()
+    return await _get_gsm_health("/health", current_user)
 
 
 @router.get("/health/detailed")
@@ -188,9 +211,7 @@ async def gsm_health_detailed(
         current_user : Annotated[User, Depends(get_current_user_admin)],
         ):
     """Admin only"""
-    client = _get_gsm_client()
-    response = await client.get("/health/detailed")
-    return response.json()
+    return await _get_gsm_health("/health/detailed", current_user)
 
 
 @router.get("/sms/messages")

@@ -12,15 +12,22 @@ from app.db_operations.auth import SessionDep, engine
 _activity_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="activity-db")
 
 
+def _get_user_activity_for_update(session: Session, user_id: UUID) -> UserActivity | None:
+    """Fetch a user's presence row while preventing concurrent stale writes."""
+    return session.exec(
+        select(UserActivity)
+        .where(UserActivity.user_id == user_id)
+        .with_for_update()
+    ).first()
+
+
 def set_user_status(session: Session, user_id: UUID, status: str) -> None:
     """Upsert the user's activity record, stamping last_active=now and status.
 
     Used on WebSocket connect ("Active") and disconnect ("Inactive") so
     last_active precisely reflects when a peer was last online.
     """
-    activity = session.exec(
-        select(UserActivity).where(UserActivity.user_id == user_id)
-    ).first()
+    activity = _get_user_activity_for_update(session, user_id)
     if not activity:
         activity = UserActivity(user_id=user_id)
         session.add(activity)
@@ -32,8 +39,7 @@ def set_user_status(session: Session, user_id: UUID, status: str) -> None:
 def _write_user_activity_sync(user_id: UUID, ip: str, user_agent: str) -> None:
     try:
         with Session(engine) as session:
-            statement = select(UserActivity).where(UserActivity.user_id == user_id)
-            activity = session.exec(statement).first()
+            activity = _get_user_activity_for_update(session, user_id)
             if not activity:
                 activity = UserActivity(user_id=user_id, ip_address=ip, user_agent=user_agent)
                 session.add(activity)

@@ -1,7 +1,0 @@
-{
-  "name": "sapot-release-tools",
-  "private": true,
-  "optionalDependencies": {
-    "@anthropic-ai/sdk": "latest"
-  }
-}

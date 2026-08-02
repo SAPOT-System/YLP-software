@@ -7,6 +7,7 @@ from sqlmodel import Field, Relationship, SQLModel, String
 import time
 from typing import Optional
 from sqlmodel import SQLModel, Field, Column, BigInteger
+from sqlalchemy import Text
 
 if TYPE_CHECKING:
     from app.models.users import User
@@ -49,7 +50,12 @@ class Message(SyncableModel, table=True):
     id : UUID | None = Field(default_factory=uuid4, primary_key=True, index=True)
 
     message_type : MessageType = Field(default=MessageType.text)
-    content : str = Field(max_length=255, min_length=1)
+    # `content` holds either plaintext (public chat, capped at 2000 chars
+    # client-side) or E2E-encrypted base64 ciphertext (1:1 chat), which is
+    # significantly larger than the plaintext it encodes (nonce + MAC +
+    # base64 expansion). A fixed VARCHAR length keeps getting outgrown by
+    # legitimate ciphertext, so this column is unbounded TEXT instead.
+    content : str = Field(sa_column=Column(Text, nullable=False), min_length=1)
     is_deleted : bool = Field(default=False)
 
     # foreign_key

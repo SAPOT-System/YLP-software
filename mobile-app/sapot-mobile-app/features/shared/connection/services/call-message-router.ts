@@ -9,13 +9,14 @@ export interface CallMessageRouterDeps {
 }
 
 type IncomingCallPayload = { peerId: string; callerName: string; conversationId?: string; callId?: string };
+type CallReadyPayload = { peerId: string; callId: string };
 type CallBusyPayload = { peerId: string; callId: string; conversationId: string; messageId?: string; callType: "audio" | "video" };
 type CallRejectedPayload = { peerId: string; callId?: string; conversationId?: string; callType?: "audio" | "video" };
 
 export type CallRouterResult =
   | { action: "emit"; eventName: "audio-call" | "video-call"; payload: IncomingCallPayload }
   | { action: "emit"; eventName: "call-ended"; payload: CallEndedEventPayload }
-  | { action: "emit"; eventName: "call-ready"; payload: string }
+  | { action: "emit"; eventName: "call-ready"; payload: CallReadyPayload }
   | { action: "emit"; eventName: "call-busy"; payload: CallBusyPayload }
   | { action: "emit"; eventName: "call-rejected"; payload: CallRejectedPayload }
   | { action: "busy-reject"; peerId: string; callType: "audio" | "video"; callId?: string }
@@ -50,7 +51,11 @@ export class CallMessageRouter {
     }
 
     if (message.type === "call-ready") {
-      return { action: "emit", eventName: "call-ready", payload: message.data.from };
+      return {
+        action: "emit",
+        eventName: "call-ready",
+        payload: { peerId: message.data.from, callId: message.data.callId },
+      };
     }
 
     if (message.type === "call-rejected") {
@@ -99,6 +104,7 @@ export class CallMessageRouter {
       callType: eventName,
       callerName: data.callerName,
       conversationId: data.conversationId,
+      callId: data.callId,
     });
 
     if (this.deps.hasActiveCall(callerPeerId)) {

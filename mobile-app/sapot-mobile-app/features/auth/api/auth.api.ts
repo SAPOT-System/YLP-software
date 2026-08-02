@@ -1,3 +1,4 @@
+import { QA_API_TOKEN } from "@/config/debug";
 import { toAppError } from "@/features/shared/core/errors";
 import { apiClient } from "@/features/shared";
 import { apiLog } from "@/features/shared/core/utils/logger";
@@ -524,4 +525,24 @@ export const getRecoveryConstraintsApi = async (): Promise<RecoveryConstraints> 
     "/auth/forgot-password/recovery-constraints"
   );
   return res.data;
+};
+
+/**
+ * Debug-only: mints tokens for a seeded `qa_*` fixture account (see
+ * `server/app/api/testing.py`'s `/testing/login-as/{handle}`) instead of
+ * registering a new one. Requires `EXPO_PUBLIC_QA_API_TOKEN` to match the
+ * server's `QA_API_TOKEN`, and only ever works when the server is running
+ * with `ENVIRONMENT=development`.
+ */
+export const loginAsFixtureApi = async (
+  handle: string
+): Promise<AxiosResponse<RegisterApiResponse>> => {
+  apiLog.info("[AuthApi] Calling /testing/login-as", { handle });
+  const res = await apiClient.post<RegisterApiResponse>(
+    `/testing/login-as/${encodeURIComponent(handle)}`,
+    null,
+    { headers: QA_API_TOKEN ? { "X-QA-Token": QA_API_TOKEN } : undefined }
+  );
+  apiLog.info("[AuthApi] Response received", { status: res.status });
+  return res;
 };

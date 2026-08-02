@@ -1,5 +1,5 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-  ConnectionService,
   Conversation,
   ConversationType,
   database,
@@ -9,8 +9,8 @@ import {
   MessageStatusType,
   MessageType,
   Peer,
-  UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { UserStore } from "@/features/shared/core/stores";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { ECDH_PREFIX } from "../repositories/message-repository";
@@ -390,7 +390,7 @@ export class ChatMessageService {
           newMessageStatus.id
         );
       }, 12000);
-      const transport = this.connectionService.sendChatMessage(peer.id, {
+      const messageData = {
         message: message,
         conversationId: conversation.id,
         messageId: newMessage.id,
@@ -402,8 +402,13 @@ export class ChatMessageService {
           username: this.userStore.user.username,
           firstName: this.userStore.user.firstName,
           lastName: this.userStore.user.lastName || undefined,
-        },
-      });
+        }
+      };
+
+      const transport = peer.role === "admin"
+        ? this.connectionService.sendChatMessage(peer.id, messageData, { forceWebSocket: true })
+        : this.connectionService.sendChatMessage(peer.id, messageData);
+
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusById(
           newMessageStatus.id,

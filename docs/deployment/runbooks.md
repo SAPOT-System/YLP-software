@@ -6,7 +6,7 @@ Step-by-step procedures for operating SAPOT in production. Each runbook includes
 
 ## Backup and restore (MariaDB)
 
-**When:** Before any schema change (see [ADR 0002](../adr/0002-no-server-migration-tooling.md)), on a regular schedule if the deployment is long-running, and always before a disaster-recovery restore.
+**When:** Before any schema change (see [ADR 0007](../adr/0007-alembic-for-server-migrations.md)), on a regular schedule if the deployment is long-running, and always before a disaster-recovery restore.
 
 ### Backup
 
@@ -28,39 +28,43 @@ sudo systemctl start server-main-api
 **Verification:**
 ```bash
 mysql -u sapot -p -e "SELECT COUNT(*) FROM sapot_db.peer;"
-curl -k https://localhost/auth/exists?email=probe@example.com   # expect 200 or 404, not 500
+curl -k https://localhost/auth/exists?identifier=probe@example.com   # expect 200 with {"exists": true/false}, not 500
 sudo journalctl -u server-main-api -n 50 --no-pager   # confirm no startup errors
 ```
 
 ---
 
-## Manual DB DDL application (no Alembic)
+## Applying schema migrations (Alembic)
 
-**When:** A SQLModel class in `server/app/models/` changed (new column, renamed column, changed type). See [migrations.md](../database/migrations.md) and [ADR 0002](../adr/0002-no-server-migration-tooling.md) for why this is manual.
+**When:** Deploying server code whose SQLModel classes in `server/app/models/` changed. See [migrations.md](../database/migrations.md) and [ADR 0007](../adr/0007-alembic-for-server-migrations.md).
 
-1. **Back up first** — run the [backup procedure](#backup-and-restore-mariadb) above. This is the only rollback path; there is no `alembic downgrade`.
-2. Diff the model change against the current table structure:
+`server/runserver.sh` already runs `alembic upgrade head` before starting gunicorn, so a normal deploy needs no separate step. Use this runbook when applying migrations out of band, or when a deploy fails at the migration step.
+
+1. **Back up first** — run the [backup procedure](#backup-and-restore-mariadb) above. Restoring from backup is the rollback path; `alembic downgrade` is a CI verification tool, and downgrading the baseline drops every table.
+2. Check what the database is currently on:
    ```bash
-   mysql -u sapot -p -e "DESCRIBE sapot_db.<table_name>;"
+   cd /home/sapot/YLP-software/server
+   export DATABASE_URL='mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_db'
+   alembic current
    ```
-3. Write the equivalent `ALTER TABLE` by hand. Examples:
-   ```sql
-   ALTER TABLE peer ADD COLUMN last_seen_at DATETIME NULL;
-   ALTER TABLE announcement MODIFY COLUMN priority ENUM('low','normal','high') NOT NULL;
-   ```
-4. Apply it to production **before** deploying the new server code — the running code and the schema must never diverge, since `create_db_and_tables()` only creates missing tables, it never alters existing ones.
+   If this prints nothing, the database predates Alembic and needs the [one-time cutover](../database/migrations.md#one-time-cutover-for-existing-databases) instead. Do not run `upgrade` on it; it will try to create tables that already exist.
+3. Review what is about to be applied:
    ```bash
-   mysql -u sapot -p sapot_db < alter_peer_add_last_seen_at.sql
+   alembic history --verbose
    ```
-5. Deploy the updated server code and restart:
+4. Apply:
+   ```bash
+   alembic upgrade head
+   ```
+5. Restart the service:
    ```bash
    sudo systemctl restart server-main-api
    ```
-6. **Record what you did.** There is no `alembic_version` table tracking this — append the applied SQL file name and date to a changelog (e.g. a dated comment in [migrations.md](../database/migrations.md) or a local ops log) so the next person doesn't have to reverse-engineer the DB's actual state from the code.
 
 **Verification:**
 ```bash
-mysql -u sapot -p -e "DESCRIBE sapot_db.<table_name>;"   # confirm the new column/type is present
+alembic current                                           # expect the new head revision
+alembic check                                             # expect "No new upgrade operations detected"
 sudo journalctl -u server-main-api -n 50 --no-pager       # confirm no startup errors after restart
 ```
 
@@ -68,33 +72,101 @@ sudo journalctl -u server-main-api -n 50 --no-pager       # confirm no startup e
 
 ---
 
-## TLS certificate rotation
+## Offline CA Setup
 
-**When:** Before the self-signed certificate at `/home/sapot/certs/server.crt` expires, or immediately if the private key may have been exposed.
+**When:** One time, to establish the private certificate authority used by all subsequent server leaf issuance. This procedure is performed on an offline machine (or an air-gapped network partition) to protect the root CA private key.
 
-1. Generate a new self-signed cert (or one from your CA of choice):
+### Create the Root CA (offline machine)
+
+1. On an offline machine (not the server host), generate the private CA:
    ```bash
-   openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes \
-     -subj "/CN=<sapot-server-host-or-ip>"
+   openssl req -x509 -newkey rsa:4096 -nodes -days 3650 \
+     -keyout server_ca.key -out server_ca.pem \
+     -subj "/CN=SAPOT LAN Root CA"
    ```
-2. Copy to the server host and restrict permissions:
-   ```bash
-   sudo cp server.crt server.key /home/sapot/certs/
-   sudo chmod 600 /home/sapot/certs/server.key
-   sudo chown sapot:sapot /home/sapot/certs/server.*
-   ```
-3. Reload Nginx (no downtime — Nginx re-reads certs on reload, not just restart):
-   ```bash
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
-4. **Rebuild and redistribute the mobile app.** The mobile app pins this certificate at build time (see [secrets-management.md](secrets-management.md#tls-certificate) and [mobile-eas.md](mobile-eas.md)) — old app builds will fail to connect against a rotated cert until updated. This is the step most likely to be forgotten; plan the rebuild before rotating, not after.
+   - `-nodes` means no passphrase (acceptable for an offline, air-gapped CA)
+   - `-days 3650` = 10 years validity
+   - This generates two files: `server_ca.key` (private, **keep offline**) and `server_ca.pem` (public, distribute to mobile app)
+
+2. **Secure the private key:**
+   - Keep `server_ca.key` on the offline machine in a physically secure location (safe, locked drawer, encrypted USB drive in a vault)
+   - Never copy it to the internet-connected server host
+   - Document the location and access procedure
+
+3. **Distribute the public certificate:**
+   - Copy `server_ca.pem` (public key only) to the mobile app repository as the trust anchor (Task 1.1)
+   - Share `server_ca.pem` with any other clients that need to verify server certs
 
 **Verification:**
 ```bash
-echo | openssl s_client -connect <sapot-server-host>:443 2>/dev/null | openssl x509 -noout -dates
-# confirm notAfter reflects the new cert's expiry
+openssl x509 -in server_ca.pem -noout -text | grep -A1 "Subject:"
+# expect: Subject: CN = SAPOT LAN Root CA
+openssl x509 -in server_ca.pem -noout -dates
+# confirm notBefore and notAfter span 10 years
 ```
-Then confirm a rebuilt mobile app can connect (login screen loads without a TLS error) before retiring old app builds from use.
+
+---
+
+## TLS certificate rotation (CA-pinned server leaf)
+
+**When:** Before the server leaf certificate at `/home/sapot/certs/server.crt` expires, or immediately if the private key may have been exposed. This runbook re-issues a new server leaf from the offline CA (see [Offline CA Setup](#offline-ca-setup) above).
+
+### Issue a new server leaf from the CA (offline machine)
+
+1. On the offline machine where `server_ca.key` is kept, generate a new certificate signing request (CSR):
+   ```bash
+   openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr \
+     -subj "/CN=server.sapot.lan"
+   ```
+   - This creates `server.key` (private key) and `server.csr` (the request to be signed)
+
+2. Issue the leaf cert from the CA, adding the server's stable DNS name and IP address as Subject Alternative Names (SANs):
+   ```bash
+   SERVER_LAN_IP="192.168.0.100"  # or your server's actual LAN IP
+   openssl x509 -req -in server.csr -CA server_ca.pem -CAkey server_ca.key \
+     -CAcreateserial -days 825 \
+     -extfile <(printf "subjectAltName=DNS:server.sapot.lan,IP:%s" "$SERVER_LAN_IP") \
+     -out server.crt
+   ```
+   - `-days 825` = ~2.26 years validity (shorter than the CA, so leaves room for re-issuance before CA expiry)
+   - The SAN includes both a stable DNS name (`server.sapot.lan`, for prod deployments) and the IP (for LAN-only dev/test)
+
+3. Copy the new `server.crt` and `server.key` to the server host:
+   ```bash
+   scp server.crt server.key sapot@<sapot-server-host>:/tmp/
+   ssh sapot@<sapot-server-host> "sudo cp /tmp/server.crt /tmp/server.key /home/sapot/certs/ && sudo chmod 600 /home/sapot/certs/server.key && sudo chown sapot:sapot /home/sapot/certs/server.*"
+   ```
+
+4. Reload the server to pick up the new cert:
+   ```bash
+   ssh sapot@<sapot-server-host> "sudo systemctl reload nginx"
+   # or, if using gunicorn directly:
+   ssh sapot@<sapot-server-host> "sudo systemctl restart server-main-api"
+   ```
+
+**Verification (on offline machine, before copying):**
+```bash
+# Verify the CSR
+openssl req -in server.csr -noout -text | grep -A1 "Subject:"
+
+# Verify the signed cert matches the CA
+openssl verify -CAfile server_ca.pem server.crt
+# expect: server.crt: OK
+
+# Verify the SANs are correct
+openssl x509 -in server.crt -noout -text | grep -A1 "Subject Alternative Name"
+# expect: DNS:server.sapot.lan, IP:192.168.0.100 (or your server's IP)
+```
+
+**Verification (on server host, after deployment):**
+```bash
+openssl x509 -in /home/sapot/certs/server.crt -noout -dates
+# confirm notAfter reflects the new cert's expiry
+echo | openssl s_client -connect <sapot-server-host>:8000 2>/dev/null | openssl x509 -noout -subject -dates
+# confirm the cert is being served and dates match
+```
+
+**Mobile app rebuild:** The mobile app pins the CA certificate (not the leaf) — when you re-issue a new leaf from the same CA, old app builds **continue to work without rebuilding** (the new leaf will validate against the pinned CA). Only rebuild the app if the CA itself is rotated.
 
 ---
 

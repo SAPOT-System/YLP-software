@@ -1,5 +1,11 @@
 # SMS Gateway — Requirements
 
+## Overview
+
+The SMS gateway bridges the main server and an Arduino-based GSM module over a serial connection, letting the server send and receive SMS for OTP delivery and rescuer-initiated outreach to users without app connectivity.
+
+---
+
 ## User Stories
 
 | ID     | As a…    | I want to…                                              | So that…                                                        |

@@ -17,6 +17,8 @@ export class NetworkConfig {
   ipAddress: string;
   private unsubscribeNetInfo?: () => void;
   private onIpChange?: (newIp: string) => void;
+  private onNetworkRegained?: () => void;
+  private wasNetworkConnected?: boolean;
   private ipChangeDebounceTimer?: ReturnType<typeof setTimeout>;
 
   /**
@@ -34,6 +36,14 @@ export class NetworkConfig {
    */
   setOnIpChange(callback: (newIp: string) => void): void {
     this.onIpChange = callback;
+  }
+
+  /**
+   * Registers a callback fired immediately when connectivity returns after an
+   * observed outage, even when DHCP assigns the same Wi-Fi address.
+   */
+  setOnNetworkRegained(callback: () => void): void {
+    this.onNetworkRegained = callback;
   }
 
   /**
@@ -70,6 +80,21 @@ export class NetworkConfig {
   startWatching(): void {
     networkLog.info("network › watch start");
     this.unsubscribeNetInfo = NetInfo.addEventListener(async (state) => {
+      const isNetworkConnected = state.isConnected === true;
+      const networkRegained =
+        isNetworkConnected && this.wasNetworkConnected === false;
+      this.wasNetworkConnected = isNetworkConnected;
+
+      if (networkRegained) {
+        networkLog.info("network › connectivity regained");
+        try {
+          this.onNetworkRegained?.();
+        } catch (error) {
+          const appErr = toAppError(error, "unknown");
+          networkLog.error("network › regain callback failed", appErr);
+        }
+      }
+
       if (state.type === "wifi") {
         const newIp = (state.details as { ipAddress?: string } | null)
           ?.ipAddress;
@@ -107,6 +132,7 @@ export class NetworkConfig {
     networkLog.info("network › watch stop");
     this.unsubscribeNetInfo?.();
     this.unsubscribeNetInfo = undefined;
+    this.wasNetworkConnected = undefined;
     if (this.ipChangeDebounceTimer) {
       clearTimeout(this.ipChangeDebounceTimer);
       this.ipChangeDebounceTimer = undefined;

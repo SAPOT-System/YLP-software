@@ -84,6 +84,7 @@ describe("SignalingService", () => {
     disconnect: jest.Mock;
     connect: jest.Mock;
     notifyPeerKeyAvailable: jest.Mock;
+    resetTransportForNetworkChange: jest.Mock;
     isConnected: boolean;
   };
   let mockWebrtcAdapter: {
@@ -118,6 +119,7 @@ describe("SignalingService", () => {
       disconnect: jest.fn(),
       connect: jest.fn(),
       notifyPeerKeyAvailable: jest.fn(),
+      resetTransportForNetworkChange: jest.fn(),
       isConnected: false,
     };
 
@@ -196,6 +198,42 @@ describe("SignalingService", () => {
 
       expect(result).toBe(true);
       expect(mockWsSignalingAdapter.connect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("restartWsSignalingAfterNetworkRegain", () => {
+    it("invalidates the stale socket and starts a fresh connection", () => {
+      service.setSignalingToken("token-123");
+      jest.clearAllMocks();
+      mockWsSignalingAdapter.isConnected = true;
+      mockWsSignalingAdapter.resetTransportForNetworkChange.mockImplementation(
+        () => {
+          mockWsSignalingAdapter.isConnected = false;
+        }
+      );
+
+      const result = service.restartWsSignalingAfterNetworkRegain();
+
+      expect(result).toBe(true);
+      expect(
+        mockWsSignalingAdapter.resetTransportForNetworkChange
+      ).toHaveBeenCalledTimes(1);
+      expect(mockWsSignalingAdapter.connect).toHaveBeenCalledWith({
+        baseUrl: "ws://localhost:8000",
+        token: "token-123",
+      });
+    });
+
+    it("does nothing when WebSocket mode is disabled", () => {
+      service.setSignalingToken("token-123");
+      mockAppModeStore.isWebSocketAllowed.mockReturnValue(false);
+
+      const result = service.restartWsSignalingAfterNetworkRegain();
+
+      expect(result).toBe(false);
+      expect(
+        mockWsSignalingAdapter.resetTransportForNetworkChange
+      ).not.toHaveBeenCalled();
     });
   });
 

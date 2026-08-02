@@ -1,4 +1,4 @@
-import { Call, CallParticipant, GuestUser, Peer } from "@/features/shared";
+import { Call, CallParticipant, GuestUser, Peer } from "@/features/shared/core/database";
 import { callLog } from "@/features/shared/core/utils/logger";
 import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { callParticipantId } from "@/features/call/utils/call-participant-id";

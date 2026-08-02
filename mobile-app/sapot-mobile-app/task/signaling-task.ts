@@ -1,10 +1,10 @@
+import { backgroundLog } from "@/features/shared/core/utils/logger";
+import { NetworkConfig } from "@/features/shared/core/stores";
 import {
-    backgroundLog,
-    NetworkConfig,
     TcpServerAdapter,
     WsSignalingAdapter,
     ZeroconfAdapter,
-} from "@/features/shared";
+} from "@/features/shared/connection";
 import {
     getAppAlive,
     getStoredAccessToken,

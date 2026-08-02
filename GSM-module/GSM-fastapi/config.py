@@ -10,9 +10,11 @@ Examples:
 """
 
 import os
+from dotenv import load_dotenv
 
 
 class Settings:
+    load_dotenv()
     # Serial port the Arduino is connected to
     serial_port: str = os.environ.get("SERIAL_PORT", "/dev/ttyACM0")
 
@@ -20,7 +22,10 @@ class Settings:
     serial_baud: int = int(os.environ.get("SERIAL_BAUD", "9600"))
 
     # SQLite database file path
-    db_path: str = os.environ.get("DB_PATH", "mysql+pymysql://sapot:sapot@localhost:3306/sapot_db")
+    db_path: str | None = os.environ.get("DB_PATH")
+
+    if not db_path:
+        raise RuntimeError("Environment variable 'DB_PATH' is not set.")
 
     # FastAPI host and port
     host: str = os.environ.get("HOST", "127.0.0.1")

@@ -1,0 +1,73 @@
+name: Migration Check
+
+# Schema is owned by Alembic (server/alembic.ini) — app startup no longer calls
+# create_all(). The test suite builds its schema from SQLModel.metadata, so it
+# cannot see a migration that has fallen behind the models. This job is the only
+# thing that compares the two.
+
+on:
+  pull_request:
+    paths:
+      - "server/app/**"
+      - "server/alembic.ini"
+      - ".github/workflows/migration-check.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "server/app/**"
+      - "server/alembic.ini"
+      - ".github/workflows/migration-check.yml"
+
+jobs:
+  check-migrations:
+    runs-on: ubuntu-latest
+
+    # Run against MySQL rather than SQLite: production is MySQL 8.0, and some
+    # migration failures are dialect-specific (index prefix lengths on TEXT,
+    # row size limits) and would pass silently on SQLite.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: sapot_ci
+          MYSQL_USER: sapot
+          MYSQL_PASSWORD: sapot
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      # Test-only credentials for the throwaway service container above.
+      DATABASE_URL: mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: server/app/requirements.txt
+
+      - name: Install server dependencies
+        run: pip install -r requirements.txt
+        working-directory: server/app
+
+      # alembic.ini sets `prepend_sys_path = .`, so `app` is importable only
+      # when alembic runs from server/.
+      - name: Apply migrations to an empty database
+        run: alembic upgrade head
+        working-directory: server
+
+      - name: Fail if models have drifted from migrations
+        run: alembic check
+        working-directory: server
+
+      - name: Verify migrations reverse cleanly
+        run: alembic downgrade base
+        working-directory: server

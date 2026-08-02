@@ -1,4 +1,4 @@
-import { Conversation, ConversationType } from "@/features/shared";
+import { Conversation, ConversationType } from "@/features/shared/core/database";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import { Collection, Database, Q } from "@nozbe/watermelondb";

@@ -1,8 +1,10 @@
 # Use NaCl box (ECDH + XSalsa20-Poly1305) for message E2E encryption
 
+**Status:** Accepted
+
 ## Context
 
-SAPOT needs end-to-end message encryption where the server — which relays messages when the LAN P2P path is unavailable and stores synced history — must never be able to read message content. The mobile app is React Native/Expo (JavaScript runtime, no native crypto primitives available by default), and messages travel over two different transports (LAN TCP+TLS and server WebSocket relay) that must produce identical ciphertext handling regardless of path.
+SAPOT needs E2E message encryption where the server — which relays messages when the LAN P2P path is unavailable and stores synced history — must never be able to read message content. The mobile app is React Native/Expo (JavaScript runtime, no native crypto primitives available by default), and messages travel over two different transports (LAN TCP+TLS and server WebSocket relay) that must produce identical ciphertext handling regardless of path.
 
 Candidates considered: raw libsodium bindings, the Signal Protocol (X3DH + Double Ratchet), and TweetNaCl's `box` primitive (ECDH key agreement + XSalsa20-Poly1305 AEAD).
 

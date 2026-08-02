@@ -5,6 +5,7 @@ import {
   withGradleProperties,
 } from "@expo/config-plugins";
 import { ConfigContext } from "expo/config";
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -28,7 +29,7 @@ const withArmOnlyAbi: ConfigPlugin = (config) =>
     return mod;
   });
 
-const withServerCert: ConfigPlugin = (config) =>
+const withServerCa: ConfigPlugin = (config) =>
   withDangerousMod(config, [
     "android",
     (mod) => {
@@ -38,20 +39,40 @@ const withServerCert: ConfigPlugin = (config) =>
       );
       fs.mkdirSync(rawDir, { recursive: true });
       fs.copyFileSync(
-        path.join(mod.modRequest.projectRoot, "server_cert.pem"),
-        path.join(rawDir, "server_cert.pem")
+        path.join(mod.modRequest.projectRoot, "server_ca.pem"),
+        path.join(rawDir, "server_ca.pem")
       );
       return mod;
     },
   ]);
 
-const certPath = path.join(__dirname, "server_cert.pem");
+const caPath = path.join(__dirname, "server_ca.pem");
 
-if (process.env.SERVER_CERT) {
+if (process.env.SERVER_CA) {
   fs.writeFileSync(
-    certPath,
-    Buffer.from(process.env.SERVER_CERT, "base64").toString("utf-8")
+    caPath,
+    Buffer.from(process.env.SERVER_CA, "base64").toString("utf-8")
   );
+}
+
+// Guard against shipping the committed placeholder CA (short-lived, CN
+// "SAPOT LAN Root CA (placeholder)") to a real EAS build. `EAS_BUILD` is set
+// by the EAS CLI itself during an actual build, so this never fires for
+// local tooling (expo config, expo-doctor, typecheck) that evaluates this
+// file without producing an artifact.
+const IS_REAL_EAS_BUILD = process.env.EAS_BUILD === "true";
+const IS_DEV_BUILD = process.env.APP_VARIANT === "development";
+if (IS_REAL_EAS_BUILD && !IS_DEV_BUILD && fs.existsSync(caPath)) {
+  const cert = new crypto.X509Certificate(fs.readFileSync(caPath));
+  const isPlaceholder = /placeholder/i.test(cert.subject);
+  const isExpired = new Date(cert.validTo).getTime() <= Date.now();
+  if (isPlaceholder || isExpired) {
+    throw new Error(
+      `Refusing to build a field (non-dev) variant with the placeholder/expired CA ` +
+        `(subject: "${cert.subject}", validTo: ${cert.validTo}). Set the SERVER_CA ` +
+        `EAS secret to a real CA before building preview/production.`
+    );
+  }
 }
 
 const withNetworkSecurityConfig: ConfigPlugin = (config) => {
@@ -64,16 +85,16 @@ const withNetworkSecurityConfig: ConfigPlugin = (config) => {
     <trust-anchors>
       <certificates src="system"/>
       <certificates src="user"/>
-      <certificates src="@raw/server_cert"/>
+      <certificates src="@raw/server_ca"/>
     </trust-anchors>
   </base-config>
 </network-security-config>`
     : `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
   <domain-config cleartextTrafficPermitted="false">
-    <domain includeSubdomains="false">192.168.0.100</domain>
+    <domain includeSubdomains="false">server.sapot.lan</domain>
     <trust-anchors>
-      <certificates src="@raw/server_cert"/>
+      <certificates src="@raw/server_ca"/>
     </trust-anchors>
   </domain-config>
 </network-security-config>`;
@@ -264,7 +285,7 @@ export default ({ config }: ConfigContext) => ({
       },
     ],
     withBackgroundActionsForegroundService,
-    withServerCert,
+    withServerCa,
     withNetworkSecurityConfig,
     "expo-router",
     "expo-secure-store",
@@ -327,7 +348,6 @@ export default ({ config }: ConfigContext) => ({
     eas: {
       projectId: "ee940ed5-5653-43cb-8938-d5f54a830c59",
     },
-    apiUrl: process.env.EXPO_PUBLIC_API_URL,
     displayVersion: "0.9.1",
   },
 });

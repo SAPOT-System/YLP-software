@@ -84,7 +84,7 @@ def admin_headers(client):
 ### Mock pattern to follow (from existing tests)
 
 ```typescript
-// From features/shared/services/__tests__/connection-service.test.ts
+// From features/shared/connection/services/__tests__/connection-service.test.ts
 import { createConnectionServiceDependencyMocks } from '@/test/mocks/service.mock-builders'
 import { ConnectionService } from '../connection-service'
 
@@ -105,11 +105,11 @@ describe('ConnectionService', () => {
 
 | Service | Target Test File |
 |---------|-----------------|
-| `LocalEncryptionService` | `features/shared/services/__tests__/local-encryption-service.test.ts` |
+| `LocalEncryptionService` | `features/shared/crypto/__tests__/local-encryption-service.test.ts` |
 | `KeyDerivation` | `features/shared/services/__tests__/key-derivation.test.ts` |
 | `TcpEncryptionService` | `features/shared/services/__tests__/tcp-encryption.test.ts` |
 | `WsEncryptionService` | `features/shared/services/__tests__/ws-encryption.test.ts` |
-| `PeerKeyService` | `features/shared/services/__tests__/peer-key-service.test.ts` |
+| `PeerKeyService` | `features/shared/crypto/__tests__/peer-key-service.test.ts` |
 | `KeyRecoveryService` | `features/shared/services/__tests__/key-recovery-service.test.ts` |
 
 ### Other high-risk services
@@ -121,7 +121,7 @@ describe('ConnectionService', () => {
 | `SyncService` | `features/sync/services/__tests__/sync-service.test.ts` |
 | `GpsLocationService` | `features/gps/services/__tests__/gps-location-service.test.ts` |
 | `GuestMigrationService` | `features/auth/services/__tests__/guest-migration-service.test.ts` |
-| `SignalingService` | `features/shared/services/__tests__/signaling-service.test.ts` |
+| `SignalingService` | `features/shared/connection/services/__tests__/signaling-service.test.ts` |
 | `SIGNALING_TASK` | `task/__tests__/signaling-task.test.ts` |
 | `use-lockout-timer` | `features/auth/hooks/__tests__/use-lockout-timer.test.ts` |
 

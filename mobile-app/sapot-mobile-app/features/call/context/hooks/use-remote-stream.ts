@@ -63,11 +63,26 @@ export function useRemoteStream(params: {
     return () => clearInterval(interval);
   }, [peerId, callState]);
 
+  // `remoteStream` is edge-triggered and never replayed, but the callee's
+  // answerCall() completes before it navigates to the call room — so the stream
+  // can land before the room mounts and calls resetCallState. Re-read whatever
+  // the service is holding instead of discarding it, otherwise a live call is
+  // pinned on "calling" with no video until the 30s no-answer timeout ends it.
   const resetRemoteStream = useCallback(() => {
+    const liveStream = callService.getRemoteStream();
+    if (liveStream) {
+      uiLog.info("[CallContext] adopting remote stream that arrived pre-mount");
+      remoteStreamRef.current = liveStream;
+      setRemoteStreamUrl(liveStream.toURL());
+      setRemoteStreamVersion((v) => v + 1);
+      setReady(true);
+      onConnectedRef.current();
+      return;
+    }
     remoteStreamRef.current = null;
     setRemoteStreamUrl(undefined);
     setReady(false);
-  }, []);
+  }, [callService]);
 
   return { remoteStreamUrl, remoteStreamVersion, ready, resetRemoteStream };
 }

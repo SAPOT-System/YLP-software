@@ -1,5 +1,5 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-  ConnectionService,
   Conversation,
   ConversationType,
   database,
@@ -8,9 +8,9 @@ import {
   MessageStatusType,
   MessageType,
   Peer,
-  PeerService,
-  UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { PeerService } from "@/features/shared/peer";
+import { UserStore } from "@/features/shared/core/stores";
 import { directConversationId } from "@/features/chat/utils/direct-conversation-id";
 import { smsConversationId } from "@/features/chat/utils/sms-conversation-id";
 import { chatLog } from "@/features/shared/core/utils/logger";
@@ -183,6 +183,12 @@ export class ChatService {
       if (!foundUser) throw new Error("Peer not found");
       this.peer = foundUser;
 
+      if (foundUser.role === "admin") {
+        chatLog.info("chat › admin peer uses websocket relay", { peerId: id });
+        void this.warmUpConversationKey(id);
+        return;
+      }
+
       try {
         const discoveredPeer = this.peerService.findDiscoveredPeerById(id);
 
@@ -231,6 +237,19 @@ export class ChatService {
     const foundUser = await this.peerService.findPeerById(id);
     if (!foundUser) throw new Error("Peer not found");
     this.peer = foundUser;
+  }
+
+  /**
+   * Keeps the exact conversation selected by the chat screen. Looking up a
+   * conversation by participant pair here can select a different legacy admin
+   * conversation and create duplicates on send.
+   */
+  async setConversation(conversationId: string): Promise<void> {
+    const conversation = await this.conversationRepository.queryConversationById(
+      conversationId
+    );
+    if (!conversation) throw new Error("Conversation not found");
+    this.conversation = conversation;
   }
 
   removePeer() {
@@ -318,25 +337,23 @@ export class ChatService {
    */
   private async ensureConversationInitialized(): Promise<Conversation> {
     if (!this.conversation && this.peer) {
-      let conversationId;
       if (this.peer.id === this.userStore.user.id) {
-        conversationId =
+        const conversationId =
           await this.conversationParticipantRepository.isSelfConversationExists(
             this.peer.id
           );
+        this.conversation = conversationId
+          ? await this.conversationRepository.queryConversationById(
+              conversationId
+            )
+          : await this.receiveService.createChatRoom(this.peer);
       } else {
-        conversationId =
-          await this.conversationParticipantRepository.isDirectConversationExists(
-            [this.peer.id, this.userStore.user.id]
-          );
-      }
-      if (!conversationId) {
-        this.conversation = await this.receiveService.createChatRoom(this.peer);
-      } else {
-        this.conversation =
-          await this.conversationRepository.queryConversationById(
-            conversationId
-          );
+        // Same resolver the peer list and call log use, so a first send joins
+        // the pair's deterministic conversation instead of forking a
+        // random-UUID one the peer will never converge on.
+        this.conversation = await this.getOrCreateDirectConversationByPeer(
+          this.peer.id
+        );
       }
     }
     return this.conversation!;
@@ -368,16 +385,39 @@ export class ChatService {
   }
 
   /**
+   * Resolves the direct conversation this pair already shares, without creating
+   * one. Deterministic id first — a conversation created by the peer or by the
+   * admin console can be synced down before its participant rows arrive, and a
+   * participant-only lookup would miss it and open an empty room.
+   * @param peerId The peer id
+   * @returns Promise<string | undefined>
+   */
+  private async resolveDirectConversationId(
+    peerId: string
+  ): Promise<string | undefined> {
+    const deterministicId = directConversationId(
+      this.userStore.user.id,
+      peerId
+    );
+    const existsById =
+      await this.conversationRepository.isConversationExist(deterministicId);
+    if (existsById) return deterministicId;
+
+    // Participant-based fallback — finds random-UUID conversations created
+    // before deterministic ids were introduced.
+    return await this.conversationParticipantRepository.isDirectConversationExists(
+      [peerId, this.userStore.user.id]
+    );
+  }
+
+  /**
    * Finds the chat id by peer id.
    * @param peerId The peer id
    * @returns Promise<string | undefined>
    */
   async findChatByPeer(peerId: string): Promise<string | undefined> {
     try {
-      const directId =
-        await this.conversationParticipantRepository.isDirectConversationExists(
-          [peerId, this.userStore.user.id]
-        );
+      const directId = await this.resolveDirectConversationId(peerId);
       if (directId) return directId;
 
       // Fall back to SMS conversation using the deterministic ID so the lookup
@@ -411,20 +451,18 @@ export class ChatService {
       // Atomic find-or-create: serialized via database.write so two concurrent
       // callers cannot both pass the existence check and create a duplicate row.
       return await database.write(async () => {
-        const existsById =
-          await this.conversationRepository.isConversationExist(effectiveId);
-        if (existsById) {
-          return await this.conversationRepository.queryConversationById(
-            effectiveId
-          );
+        if (conversationId) {
+          const existsById =
+            await this.conversationRepository.isConversationExist(effectiveId);
+          if (existsById) {
+            return await this.conversationRepository.queryConversationById(
+              effectiveId
+            );
+          }
         }
 
-        // Participant-based fallback — returns existing random-UUID conversations
-        // created before deterministic IDs were introduced.
         const existingConversationId =
-          await this.conversationParticipantRepository.isDirectConversationExists(
-            [peer.id, this.userStore.user.id]
-          );
+          await this.resolveDirectConversationId(peer.id);
         if (existingConversationId) {
           return await this.conversationRepository.queryConversationById(
             existingConversationId

@@ -34,8 +34,6 @@ import {
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const TILE_URL = `${getTileServerUrl()}/styles/basic-preview/{z}/{x}/{y}.png`;
-
 const EMPTY_STYLE = {
   version: 8 as const,
   sources: {},
@@ -47,7 +45,16 @@ export default function GpsScreen() {
   const userStore = useUserStore();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const locationGranted = useLocationPermission();
+  const locationPermission = useLocationPermission();
+  // Computed here, not at module scope: getTileServerUrl() reads
+  // _hostOverride, which only finishes loading (initRuntimeOverrides())
+  // after AuthContainerProvider unblocks rendering — see
+  // features/auth/context/auth-container-context.tsx. A module-level
+  // constant would snapshot the pre-override (often undefined) host.
+  const tileUrl = useMemo(
+    () => `${getTileServerUrl()}/styles/basic-preview/{z}/{x}/{y}.png`,
+    [],
+  );
   const {
     data: rawLocations = [],
     isLoading,
@@ -74,7 +81,7 @@ export default function GpsScreen() {
   );
   const isInitialLoading = isLoading && rawLocations.length === 0;
   const showEmptyState =
-    locationGranted === true &&
+    locationPermission === "granted" &&
     !isLoading &&
     !isError &&
     userLocations.length === 0;
@@ -161,7 +168,7 @@ export default function GpsScreen() {
     return <Redirect href="/(drawer)/(tabs)" />;
   }
 
-  if (locationGranted === null) {
+  if (locationPermission === "not-asked") {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -174,7 +181,7 @@ export default function GpsScreen() {
     );
   }
 
-  if (locationGranted === false) {
+  if (locationPermission === "denied") {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -213,7 +220,7 @@ export default function GpsScreen() {
           />
           <RasterSource
             id="tileserver"
-            tiles={[TILE_URL]}
+            tiles={[tileUrl]}
             tileSize={256}
             minzoom={0}
             maxzoom={18}

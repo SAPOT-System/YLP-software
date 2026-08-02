@@ -35,10 +35,10 @@ Every component above has its own `CLAUDE.md` with project-specific architecture
 
 ## Before Writing Code
 
-- Read `docs/architecture/*.md` and `docs/adr/*.md` relevant to the feature area — architecture decisions here are deliberate (e.g. no server migration tooling: ADR 0002; LAN-first design: ADR 0005) and easy to accidentally contradict.
+- Read `docs/architecture/*.md` and `docs/adr/*.md` relevant to the feature area — architecture decisions here are deliberate (e.g. Alembic-managed server schema: ADR 0007, superseding ADR 0002; LAN-first design: ADR 0005) and easy to accidentally contradict.
 - Find and mirror a comparable existing implementation in the same component (similar endpoint, similar screen/service) before writing new code from scratch.
 - Mobile: read `mobile-app/sapot-mobile-app/CLAUDE.md` in full — DI container construction order is load-bearing and not obvious from the code alone.
-- Server/DB: schema changes have **no migration tooling** (ADR 0002) — check `docs/database/migrations.md` for the manual process before altering `server/app/models/`.
+- Server/DB: schema is **Alembic-managed** (ADR 0007) — altering `server/app/models/` requires a matching migration in `server/app/alembic/versions/`, or CI's `alembic check` fails. Follow the workflow in `docs/database/migrations.md`; a new model file must also be imported in `server/app/models/__init__.py` or autogenerate will silently omit its table.
 
 ## While Writing Code
 
@@ -56,8 +56,9 @@ Run for each component actually touched — don't assume one component's green b
 |---|---|
 | `server/app/` | `pytest` (from `server/app/`) |
 | `server/app/` API/DB surface changed | `python3 scripts/generate_openapi_docs.py --check` and `python3 scripts/generate_db_docs.py --check` — **run from repo root**, not `server/app/` |
-| `mobile-app/sapot-mobile-app/` | `npm run testAll` (= test + typecheck + lint + expo-doctor), or the individual `npm test` / `npm run typecheck` / `npm run lint` |
-| `admin-frontend/sapot-admin/` | `npm run lint && npm run build` — **no test script exists in this component**; don't claim test coverage that isn't there |
+| `server/app/models/` changed | `alembic upgrade head && alembic check` — **run from `server/`** (not `server/app/`) with `DATABASE_URL` set. `alembic check` must report no new operations. Note `pytest` builds its schema with `create_all()` and cannot detect migration drift. |
+| `mobile-app/sapot-mobile-app/` | `pnpm run testAll` (= test + typecheck + lint + expo-doctor), or the individual `pnpm test` / `pnpm run typecheck` / `pnpm run lint` |
+| `admin-frontend/sapot-admin/` | `pnpm run lint && pnpm run build` — **no test script exists in this component**; don't claim test coverage that isn't there |
 | `GSM-module/` | No automated tests exist — verify manually per `docs/getting-started/gsm-module-setup.md` |
 
 If the change is release-relevant (server), `server/app/version.py` must match the git tag per `VERSIONING.md` before tagging — not typically a per-commit concern, but relevant if asked to prepare a release.
@@ -71,7 +72,8 @@ If the change is release-relevant (server), `server/app/version.py` must match t
 - Never remove a test without stating why in the commit.
 - No repo-wide reformatting or unrelated-file changes bundled into a task's diff.
 - `.env` files are per-component and gitignored — never commit real secrets; use the sibling `.env.example` as the template.
-- Commits never go directly to `main`; all work happens on `feature/`, `bugfix/`, or `chore/` branches (`CONTRIBUTING.md`). This repo's commit format includes a scope — `type(scope): summary` — not generic conventional commits; see `CONTRIBUTING.md` for the full convention rather than restating it here.
+- Commits never go directly to `main`; all work happens on `feature/`, `bugfix/`, or `chore/` branches (`CONTRIBUTING.md`). This repo's commit format includes a scope — `type(scope): summary` — not generic conventional commits. The scope is component-prefixed (`server-*`, `mobile-*`, `admin-*`, `gsm-*`, `portal-*`, `tileserver-*`, `docs-*`), e.g. `feat(server-auth)`, `fix(mobile-sync)` — see `CONTRIBUTING.md` for the full convention rather than restating it here.
+- When filing GitHub issues, always set an appropriate milestone and labels.
 
 ## Preferred Process
 
@@ -81,4 +83,5 @@ If the change is release-relevant (server), `server/app/version.py` must match t
 4. Make the smallest change that satisfies the request.
 5. Update tests and any `docs/` page the change makes stale.
 6. Run that component's verification commands (table above).
-7. Report what changed, which component(s), and what was run to verify.
+7. When an implementation, fix, or PR is complete, include concise smoke-test instructions; include two-device test instructions when the change involves device-to-device behavior.
+8. Report what changed, which component(s), and what was run to verify.

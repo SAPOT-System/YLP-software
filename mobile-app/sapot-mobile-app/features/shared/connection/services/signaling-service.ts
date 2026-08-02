@@ -10,7 +10,9 @@ import {
   CallMessage,
   ChatMessage,
   DataAckMessage,
+  DataSeenMessageI,
   Message,
+  SeenMessage,
   SignalingMessage,
 } from "../../types";
 import { PeerKeyService } from "../../crypto/peer-key-service";
@@ -93,9 +95,12 @@ export class SignalingService {
         userId: this.userStore.user?.id ?? null,
       });
 
-      this.wsSignalingAdapter.connect({
+      const connectPromise = this.wsSignalingAdapter.connect({
         baseUrl: this.wsBaseUrl,
         token: this.signalingToken,
+      });
+      void Promise.resolve(connectPromise).catch((error) => {
+        signalingLog.warn("signaling › ws connect failed", { error });
       });
 
       return true;
@@ -104,6 +109,21 @@ export class SignalingService {
       signalingLog.warn("signaling › ws init failed", appErr);
       return false;
     }
+  }
+
+  /**
+   * Replaces a native WebSocket that may still report OPEN/CONNECTING after the
+   * device returns to the network. The adapter retains its outbound queue, so
+   * an immediate call is flushed through the fresh socket once it opens.
+   */
+  restartWsSignalingAfterNetworkRegain(): boolean {
+    if (!this.isWebSocketAllowed() || !this.signalingToken) {
+      return false;
+    }
+
+    signalingLog.info("signaling › ws restart after network regain");
+    this.wsSignalingAdapter.resetTransportForNetworkChange();
+    return this.ensureWsSignaling();
   }
 
   async handleIncomingSignaling(message: SignalingMessage): Promise<void> {
@@ -368,6 +388,28 @@ export class SignalingService {
     } catch (error) {
       const appErr = toAppError(error, "signaling");
       signalingLog.error("signaling › ws ack relay failed", { peerId, ...appErr });
+      captureAppError(appErr);
+      throw appErr;
+    }
+  }
+
+  sendSeenMessage(peerId: string, seenData: DataSeenMessageI): void {
+    try {
+      const isWsConfigured = this.isWebSocketAllowed()
+        ? this.ensureWsSignaling()
+        : false;
+      if (!isWsConfigured || !this.wsSignalingAdapter.isConnected) {
+        throw new Error("WebSocket unavailable for seen notification");
+      }
+      const payload: SeenMessage = { type: "seen", data: seenData };
+      signalingLog.debug("signaling › ws seen relay", {
+        peerId,
+        conversationId: seenData.conversationId,
+      });
+      this.wsSignalingAdapter.sendMessage(payload);
+    } catch (error) {
+      const appErr = toAppError(error, "signaling");
+      signalingLog.error("signaling › ws seen relay failed", { peerId, ...appErr });
       captureAppError(appErr);
       throw appErr;
     }

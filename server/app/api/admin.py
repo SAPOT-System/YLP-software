@@ -844,6 +844,22 @@ def get_user_info(
     return results
 
 
+@router.get('/me')
+def get_my_admin_info(
+    current_user: Annotated[User, Depends(get_current_user_admin)],
+):
+    return {
+        "id": str(current_user.id),
+        "username": current_user.username,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "email": current_user.email,
+        "phone_number": current_user.phone_number,
+        "email_verified": current_user.email_verified,
+        "role": "admin",
+    }
+
+
 @router.post("/post-announcement")
 def create_announcement(
     title: str,

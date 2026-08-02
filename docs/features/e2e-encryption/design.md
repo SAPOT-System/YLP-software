@@ -26,23 +26,13 @@ E2E encryption is implemented entirely in the mobile app (`mobile-app/sapot-mobi
 
 ## Key hierarchy
 
-```
-UserPassword
-    │
-    ▼ Argon2 + HKDF
-DeviceKey  (never stored)
-    │
-    ▼ NaCl secretbox
-WrappedKey  (stored on server: POST /users/wrapped-key)
-    │
-    ▼ unwrap with DeviceKey
-PeerKey (Curve25519 private key — in-memory only at runtime)
-    │
-    ▼ ECDH with recipient PeerKey (public)
-SharedSecret
-    │
-    ▼ XSalsa20-Poly1305
-Ciphertext  (stored in message.content)
+```mermaid
+flowchart TD
+    A[UserPassword] -->|"Argon2 + HKDF"| B["DeviceKey<br/>(never stored)"]
+    B -->|NaCl secretbox| C["WrappedKey<br/>(stored: POST /users/wrapped-key)"]
+    C -->|unwrap with DeviceKey| D["PeerKey<br/>(Curve25519 private key — in-memory only at runtime)"]
+    D -->|"ECDH with recipient PeerKey (public)"| E[SharedSecret]
+    E -->|XSalsa20-Poly1305| F["Ciphertext<br/>(stored in message.content)"]
 ```
 
 ---
@@ -54,10 +44,24 @@ Ciphertext  (stored in message.content)
 3. Server signs the public key with its Ed25519 key and returns `signed_credential`.
 4. App stores private key in memory; wraps it with DeviceKey and uploads as `WrappedKey`.
 
+```mermaid
+sequenceDiagram
+    participant App
+    participant Server
+
+    App->>App: Generate Curve25519 key pair (tweetnacl.box.keyPair())
+    App->>Server: POST /keys/register { public_key, expires_at }
+    Server->>Server: Sign public key with server Ed25519 key
+    Server-->>App: signed_credential
+    App->>App: Wrap private key with DeviceKey → WrappedKey
+    App->>Server: POST /users/wrapped-key { WrappedKey }
+```
+
 ---
 
-## Message encryption (send)
+## Message encryption (send) and decryption (receive)
 
+**Send:**
 1. Look up recipient's public key: `GET /keys/<peer_id>`.
 2. Verify server's Ed25519 signature on `signed_credential`.
 3. Cache `ContactKey` (recipient's public key) locally.
@@ -65,13 +69,33 @@ Ciphertext  (stored in message.content)
 5. Encrypt: `tweetnacl.box.after(message, nonce, sharedSecret)`.
 6. Store `{ ciphertext, nonce }` as `message.content`.
 
----
-
-## Message decryption (receive)
-
+**Receive:**
 1. Look up sender's public key from `ContactKey` cache or `GET /keys/<peer_id>`.
 2. Derive shared secret: `tweetnacl.box.before(senderPublicKey, recipientPrivateKey)`.
 3. Decrypt: `tweetnacl.box.open.after(ciphertext, nonce, sharedSecret)`.
+
+```mermaid
+sequenceDiagram
+    participant Sender
+    participant Server
+    participant Recipient
+
+    Note over Sender: Send
+    Sender->>Server: GET /keys/<peer_id> (if not cached)
+    Server-->>Sender: public_key + signed_credential
+    Sender->>Sender: verify Ed25519 signature, cache ContactKey
+    Sender->>Sender: sharedSecret = box.before(recipientPub, senderPriv)
+    Sender->>Sender: { ciphertext, nonce } = box.after(message, nonce, sharedSecret)
+    Sender->>Server: deliver { ciphertext, nonce } (LAN TCP or WS relay)
+
+    Note over Server: relays opaque bytes only — cannot decrypt
+    Server->>Recipient: relay { ciphertext, nonce }
+
+    Note over Recipient: Receive
+    Recipient->>Recipient: look up senderPublicKey (ContactKey cache or GET /keys/<peer_id>)
+    Recipient->>Recipient: sharedSecret = box.before(senderPub, recipientPriv)
+    Recipient->>Recipient: message = box.open.after(ciphertext, nonce, sharedSecret)
+```
 
 ---
 

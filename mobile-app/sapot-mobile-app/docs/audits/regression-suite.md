@@ -15,9 +15,9 @@ This document defines the must-pass regression tests for every release. These te
 
 Before merging to `main` or tagging a release:
 - [ ] All REG-P0 tests pass
-- [ ] `npm test` passes for affected features
-- [ ] `npm run typecheck` passes
-- [ ] `npm run lint` is clean
+- [ ] `pnpm test` passes for affected features
+- [ ] `pnpm run typecheck` passes
+- [ ] `pnpm run lint` is clean
 - [ ] No new CRITICAL or HIGH security findings
 
 ---
@@ -30,7 +30,7 @@ Before merging to `main` or tagging a release:
 |----|------|-----------------|-----------|-------------|
 | REG-001 | Server login happy path | `POST /auth/token` returns valid tokens; `MainContainer` initializes; Chats tab loads | Maestro E2E | `flows/auth/server-login.yaml` |
 | REG-002 | Guest login happy path | Guest name entry; Chats tab loads in LAN mode; no server call made | Maestro E2E | `flows/auth/guest-login.yaml` |
-| REG-003 | Access token refresh | Expired access token auto-renewed by interceptor; request succeeds transparently | Jest unit | `features/shared/api/__tests__/client-interceptor.test.ts` |
+| REG-003 | Access token refresh | Expired access token auto-renewed by interceptor; request succeeds transparently | Jest unit | `features/shared/core/api/__tests__/client-interceptor.test.ts` |
 | REG-004 | Logout clears session | `POST /auth/logout` called; tokens removed; redirected to login | Maestro E2E | `flows/auth/logout.yaml` |
 | REG-005 | Expired session redirects to login | Session > 60 days; app reopened | Jest unit | `features/auth/context/__tests__/auth-context.test.tsx` |
 | REG-006 | Banned account blocked | Login with banned account shows BannedBanner | RNTL | `features/auth/context/__tests__/auth-context.test.tsx` |
@@ -41,7 +41,7 @@ Before merging to `main` or tagging a release:
 | ID | Name | What It Verifies | Test Type | Target File |
 |----|------|-----------------|-----------|-------------|
 | REG-010 | Guest locked to LAN | `AppModeStore.getEffectiveMode(isGuest=true)` always returns "lan" | Jest unit | `features/shared/stores/__tests__/app-mode-store.test.ts` |
-| REG-011 | LAN mode blocks WS chat fallback | `ConnectionService.sendChatMessage()` throws when no data channel in LAN mode | Jest unit | `features/shared/services/__tests__/connection-service.test.ts` |
+| REG-011 | LAN mode blocks WS chat fallback | `ConnectionService.sendChatMessage()` throws when no data channel in LAN mode | Jest unit | `features/shared/connection/services/__tests__/connection-service.test.ts` |
 | REG-012 | Guest Public Chat tab hidden | Tab `href` is null for guest | RNTL | `app/(drawer)/(tabs)/__tests__/tab-layout.test.tsx` |
 | REG-013 | Guest Map tab hidden | Tab `href` is null for non-rescuers | RNTL | `app/(drawer)/(tabs)/__tests__/tab-layout.test.tsx` |
 | REG-014 | Rescuer Map tab visible | Tab renders for rescuer users | RNTL | `app/(drawer)/(tabs)/__tests__/tab-layout.test.tsx` |
@@ -65,7 +65,7 @@ Before merging to `main` or tagging a release:
 | REG-030 | Accept incoming call → Call Room | Accept → permissions → navigates to Call Room | Maestro E2E | `flows/call/accept-call.yaml` |
 | REG-031 | Reject incoming call → Chats | Reject → `rejectIncomingCall()` → Chats tab | Maestro E2E | `flows/call/reject-call.yaml` |
 | REG-032 | Auto-dismiss after 30 s (missed) | No action for 30 s → missed call saved | Jest unit | `features/call/services/__tests__/call-service.test.ts` |
-| REG-033 | Simultaneous call tie-breaker | Deterministic resolution; no deadlock | Jest unit | `features/shared/services/__tests__/connection-service.test.ts` |
+| REG-033 | Simultaneous call tie-breaker | Deterministic resolution; no deadlock | Jest unit | `features/shared/connection/services/__tests__/connection-service.test.ts` |
 | REG-034 | Call log saved on end | `MessageType.CALL_LOG` in DB with duration | Jest unit | `features/call/services/__tests__/call-service.test.ts` |
 | REG-035 | End call from Call Room | Both disconnected; navigate back | Maestro E2E | `flows/call/end-call.yaml` |
 
@@ -73,9 +73,9 @@ Before merging to `main` or tagging a release:
 
 | ID | Name | What It Verifies | Test Type | Target File |
 |----|------|-----------------|-----------|-------------|
-| REG-040 | mDNS peer discovery registers peer | ZeroconfAdapter → `peerService.register()` | Jest unit | `features/shared/services/__tests__/discovery-service.test.ts` |
-| REG-041 | Peer rediscovery triggers reconnect | Address change → `resendToPeer()` | Jest unit | `features/shared/services/__tests__/discovery-service.test.ts` |
-| REG-042 | TCP handshake + ECDH encryption | TcpClientAdapter completes NaCl-encrypted handshake | Jest unit | `features/shared/adapters/__tests__/tcp-client-adapter.test.ts` |
+| REG-040 | mDNS peer discovery registers peer | ZeroconfAdapter → `peerService.register()` | Jest unit | `features/shared/connection/services/__tests__/discovery-service.test.ts` |
+| REG-041 | Peer rediscovery triggers reconnect | Address change → `resendToPeer()` | Jest unit | `features/shared/connection/services/__tests__/discovery-service.test.ts` |
+| REG-042 | TCP handshake + ECDH encryption | TcpClientAdapter completes NaCl-encrypted handshake | Jest unit | `features/shared/connection/adapters/__tests__/tcp-client-adapter.test.ts` |
 | REG-043 | Max 5 retry attempts | Auto-reconnect stops after 5 failures | Jest unit | `features/chat/hooks/__tests__/use-chat-connection.test.ts` |
 | REG-044 | Exponential backoff timing | Delays: 1s, 1.8s, 3.2s, 5.8s, 10.4s (±20% jitter) | Jest unit | `features/chat/hooks/__tests__/use-chat-connection.test.ts` |
 
@@ -87,7 +87,7 @@ Before merging to `main` or tagging a release:
 | REG-051 | Background task starts transport when killed | `appAlive=false` → TCP + WS + Zeroconf start | Jest unit | `task/__tests__/signaling-task.test.ts` |
 | REG-052 | Background call notification fires | `audio-call` → `incoming-call` notification with ringtone | Maestro E2E | `flows/notifications/background-call.yaml` |
 | REG-053 | Cold-start from notification | `getLastNotificationResponseAsync()` → Incoming Call screen | Maestro E2E | `flows/notifications/cold-start-call.yaml` |
-| REG-054 | Notification deduplication | Two identical notifications → one navigation in 30 s | Jest unit | `features/shared/services/__tests__/notification-service.test.ts` |
+| REG-054 | Notification deduplication | Two identical notifications → one navigation in 30 s | Jest unit | `features/shared/connection/services/__tests__/notification-service.test.ts` |
 
 ### Sync
 
@@ -107,7 +107,7 @@ Before merging to `main` or tagging a release:
 | REG-073 | Captive portal disconnect bug fixed | PATCH `…/disconnect` → 200 (not 500 NameError) | Pytest | `tests/test_captive_portal.py` |
 | REG-074 | JWT uses env secret | `JWT_SECRET_KEY` set; no hardcoded fallback used | Manual / CI | CI env check |
 | REG-075 | Messages encrypted at rest | DB `content` is ciphertext | Jest unit | `features/chat/repositories/__tests__/message-repository.test.ts` |
-| REG-076 | TCP traffic encrypted | TcpClientAdapter sends NaCl box bytes | Jest unit | `features/shared/adapters/__tests__/tcp-client-adapter.test.ts` |
+| REG-076 | TCP traffic encrypted | TcpClientAdapter sends NaCl box bytes | Jest unit | `features/shared/connection/adapters/__tests__/tcp-client-adapter.test.ts` |
 | REG-077 | WS relay payloads E2E encrypted | WS message body is opaque blob | Jest unit | `features/shared/services/__tests__/ws-encryption.test.ts` |
 
 ### Guest Migration

@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 from app.models.conversation import Conversation, ConversationType, ConversationParticipant
 from app.models.message import Message, MessageType
+from app.models.message_receipt import MessageReceipt
 from app.models.call import Call, CallType, StatusType
 from app.models.users import User
 from fastapi.testclient import TestClient
@@ -55,6 +56,61 @@ def test_push_create_records(client: TestClient, auth_header, sample_ids, sessio
     response = client.post("/sync/push", json=payload, headers=auth_header)
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_push_persists_message_without_receipt(
+    client: TestClient,
+    auth_header,
+    sample_ids_with_test_user,
+    session: SessionDep,
+):
+    """An undelivered message is durable even before a receipt is synced."""
+    payload = {
+        "changes": {
+            "conversations": {
+                "created": [{
+                    "id": sample_ids_with_test_user["conv_id"],
+                    "title": "Offline recipient",
+                    "conversation_type": "solo",
+                    "created_at": 1712234500000,
+                    "updated_at": 1712234500000,
+                    "is_deleted": False,
+                }],
+                "updated": [],
+                "deleted": [],
+            },
+            "messages": {
+                "created": [{
+                    "id": sample_ids_with_test_user["msg_id"],
+                    "content": "Encrypted pending message",
+                    "conversation_id": sample_ids_with_test_user["conv_id"],
+                    "sender_id": sample_ids_with_test_user["user_id"],
+                    "created_at": 1712234500001,
+                    "updated_at": 1712234500001,
+                    "is_deleted": False,
+                }],
+                "updated": [],
+                "deleted": [],
+            },
+            "message_receipts": {
+                "created": [],
+                "updated": [],
+                "deleted": [],
+            },
+        },
+        "last_pulled_at": 1712234000000,
+    }
+
+    response = client.post("/sync/push", json=payload, headers=auth_header)
+
+    assert response.status_code == 200
+    assert session.get(Message, UUID(sample_ids_with_test_user["msg_id"])) is not None
+    receipt = session.exec(
+        select(MessageReceipt).where(
+            MessageReceipt.message_id == UUID(sample_ids_with_test_user["msg_id"])
+        )
+    ).first()
+    assert receipt is None
 
 
 def test_push_record_count_integrity(client: TestClient, auth_header, sample_ids, session: SessionDep):
@@ -944,3 +1000,152 @@ def test_pull_returns_messages_with_null_conversation_id(
     # the public message still flows through.
     res_no_convs = client.get("/sync/pull", headers=auth_header)
     assert any(m["id"] == public_msg_id for m in res_no_convs.json()["changes"]["messages"]["created"])
+
+
+def test_message_content_column_is_unbounded_text():
+    """`message.content` must be unbounded TEXT, not a fixed-width VARCHAR.
+
+    Regression guard for the 2000-char sync failure: the tests run against
+    SQLite, which silently ignores VARCHAR length limits, so a round-trip test
+    alone cannot catch a re-introduced cap. Assert the declared column type
+    instead — that is what MariaDB actually enforces in production.
+    """
+    # Arrange / Act
+    content_type = Message.__table__.c.content.type
+
+    # Assert
+    assert getattr(content_type, "length", None) is None, (
+        f"message.content is length-capped ({content_type}); "
+        "E2E ciphertext and 2000-char plaintext both overflow a fixed VARCHAR"
+    )
+
+
+def test_push_and_pull_max_length_message(client: TestClient, auth_header, sample_ids_with_test_user, session: SessionDep):
+    """A message at the 2000-char client cap survives push and pull intact."""
+    # Arrange
+    sample_ids = sample_ids_with_test_user
+    max_length_content = "x" * 2000
+    payload = {
+        "changes": {
+            "conversations": {
+                "created": [{
+                    "id": sample_ids["conv_id"],
+                    "title": "Long Message Chat",
+                    "conversation_type": "solo",
+                    "created_at": 1712234500000,
+                    "updated_at": 1712234500000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            },
+            # Pull is conversation-scoped — without this the message is stored
+            # but filtered out of the authenticated user's pull response.
+            "conversation_participants": {
+                "created": [{
+                    "id": str(uuid4()),
+                    "conversation_id": sample_ids["conv_id"],
+                    "user_id": sample_ids["user_id"],
+                    "joined_at": 1712234500000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            },
+            "messages": {
+                "created": [{
+                    "id": sample_ids["msg_id"],
+                    "content": max_length_content,
+                    "conversation_id": sample_ids["conv_id"],
+                    "sender_id": sample_ids["user_id"],
+                    "created_at": 1712234500001,
+                    "updated_at": 1712234500001,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            }
+        },
+        "last_pulled_at": 1712234000000
+    }
+
+    # Act
+    push_response = client.post("/sync/push", json=payload, headers=auth_header)
+
+    # Assert — stored without truncation
+    assert push_response.status_code == 200
+    stored = session.get(Message, UUID(sample_ids["msg_id"]))
+    assert stored is not None
+    assert stored.content == max_length_content
+
+    # Act — and comes back whole
+    pull_response = client.get("/sync/pull", headers=auth_header, params={"last_pulled_at": 0})
+
+    # Assert
+    assert pull_response.status_code == 200
+    pulled = pull_response.json()["changes"]["messages"]["created"]
+    target = next((m for m in pulled if m["id"] == sample_ids["msg_id"]), None)
+    assert target is not None
+    assert target["content"] == max_length_content
+
+
+def test_sync_push_db_error_is_logged(client: TestClient, auth_header, sample_ids_with_test_user, session: SessionDep, monkeypatch, caplog):
+    """A DB-level failure during push is logged with its driver detail.
+
+    The original handler `print`ed the exception and returned a bare 500, so a
+    column-overflow rejection left no trace in the app logs. Without this the
+    only symptom is an opaque "Internal Sync Error".
+    """
+    # Arrange — force the commit to fail the way MariaDB would on overflow
+    import logging
+    from sqlalchemy.exc import DataError
+
+    def boom():
+        raise DataError("INSERT INTO message", {}, Exception("(1406, \"Data too long for column 'content'\")"))
+
+    monkeypatch.setattr(session, "commit", boom)
+
+    sample_ids = sample_ids_with_test_user
+    payload = {
+        "changes": {
+            "conversations": {
+                "created": [{
+                    "id": sample_ids["conv_id"],
+                    "title": "Overflow Chat",
+                    "conversation_type": "solo",
+                    "created_at": 1712234500000,
+                    "updated_at": 1712234500000,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            },
+            "messages": {
+                "created": [{
+                    "id": sample_ids["msg_id"],
+                    "content": "x" * 2000,
+                    "conversation_id": sample_ids["conv_id"],
+                    "sender_id": sample_ids["user_id"],
+                    "created_at": 1712234500001,
+                    "updated_at": 1712234500001,
+                    "is_deleted": False
+                }],
+                "updated": [],
+                "deleted": []
+            }
+        },
+        "last_pulled_at": 1712234000000
+    }
+
+    # Act
+    with caplog.at_level(logging.ERROR, logger="app"):
+        response = client.post("/sync/push", json=payload, headers=auth_header)
+
+    # Assert — client still gets the generic envelope (no internal detail leaked)
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Internal Sync Error"
+
+    # Assert — but the server log names the failing column
+    assert "Sync push failed" in caplog.text
+    assert "DataError" in caplog.text
+    assert "Data too long for column 'content'" in caplog.text
