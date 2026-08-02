@@ -160,4 +160,22 @@ class StripItemAuthTest < Minitest::Test
       folder["item"].each { |request| refute request["request"].key?("auth") }
     end
   end
+
+  def test_removes_a_bare_null_auth_block
+    collection = sample_collection
+    collection["item"].first["item"].first["request"]["auth"] = nil
+
+    strip_item_auth!(collection["item"])
+
+    refute collection["item"].first["item"].first["request"].key?("auth")
+  end
+
+  def test_leaves_an_explicit_noauth_block_in_place
+    collection = sample_collection
+    collection["item"].first["item"].first["request"]["auth"] = { "type" => "noauth" }
+
+    strip_item_auth!(collection["item"])
+
+    assert_equal "noauth", collection["item"].first["item"].first["request"]["auth"]["type"]
+  end
 end

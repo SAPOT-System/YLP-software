@@ -56,14 +56,14 @@
       ]
     },
     {
-      "name": "Login as admin fixture",
+      "name": "Login as test fixture",
       "request": {
         "method": "POST",
         "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
         "url": {
-          "raw": "{{baseUrl}}/testing/login-as/admin",
+          "raw": "{{baseUrl}}/testing/login-as/test",
           "host": ["{{baseUrl}}"],
-          "path": ["testing", "login-as", "admin"]
+          "path": ["testing", "login-as", "test"]
         }
       },
       "event": [
@@ -72,6 +72,11 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// \"test\" (not \"admin\") deliberately: build_baseline pairs \"test\" into a",
+              "// seeded conversation with real messages, which is what makes the pull",
+              "// assertions below meaningful. \"admin\" is never a ConversationParticipant,",
+              "// so /sync/pull for it always returns empty tables -- assertions against it",
+              "// would pass vacuously regardless of what pagination/scoping actually does.",
               "pm.test(\"mints an access token\", function () {",
               "    pm.response.to.have.status(200);",
               "    pm.expect(pm.response.json().access_token).to.be.a(\"string\").and.not.empty;",
@@ -138,6 +143,11 @@
               "        pm.expect(changes[table].updated, table + \".updated\").to.be.an(\"array\");",
               "        pm.expect(changes[table].deleted, table + \".deleted\").to.be.an(\"array\");",
               "    });",
+              "});",
+              "",
+              "pm.test(\"messages were actually seeded for this participant\", function () {",
+              "    var changes = pm.response.json().changes;",
+              "    pm.expect(changes.messages.created.length).to.be.above(0);",
               "});",
               "",
               "// Sync timestamps are epoch MILLISECONDS, not ISO-8601 (docs/api/conventions.md).",

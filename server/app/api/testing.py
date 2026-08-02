@@ -47,6 +47,10 @@ FIXTURE_HANDLES = frozenset(
         "qa_calls_a",
         "qa_calls_b",
         "admin",
+        # First pair built by build_baseline (qa_scenarios.py) -- unlike "admin",
+        # "test" is a ConversationParticipant with real seeded messages, which is
+        # what makes a /sync/pull assertion against the baseline scenario meaningful.
+        "test",
     }
 )
 

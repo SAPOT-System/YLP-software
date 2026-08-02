@@ -31,6 +31,8 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +73,7 @@ jobs:
           echo "QA_API_TOKEN=$QA_API_TOKEN" >> "$GITHUB_ENV"
 
           python3 - "$QA_API_TOKEN" <<'PY'
-          import os, re, secrets, sys
+          import re, secrets, sys
 
           overrides = {
               "JWT_SECRET_KEY": secrets.token_hex(32),
@@ -147,7 +149,11 @@ jobs:
         run: |
           echo "### Postman suite: \`$SUITE\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          node scripts/newman-summary.mjs reports >> "$GITHUB_STEP_SUMMARY"
+          if [ -d reports ]; then
+            node scripts/newman-summary.mjs reports >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No reports/ directory -- the suite likely failed before any collection ran." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # Dumped so a red run is diagnosable without re-running the job.
       - name: Dump server logs

@@ -42,7 +42,7 @@ if [ ! -x "$NEWMAN" ]; then
 fi
 
 if [ -z "${QA_API_TOKEN:-}" ] && [ -f server/.env ]; then
-    QA_API_TOKEN="$(grep -E '^QA_API_TOKEN=' server/.env | head -1 | cut -d= -f2-)"
+    QA_API_TOKEN="$(grep -E '^QA_API_TOKEN=' server/.env | head -1 | cut -d= -f2- || true)"
 fi
 
 if [ -z "${QA_API_TOKEN:-}" ]; then
@@ -56,6 +56,11 @@ mkdir -p "$REPORT_DIR"
 # TLS is verified for real against the committed dev CA. gen-certs.sh issues a
 # leaf signed by that CA with CN=localhost, so --insecure is unnecessary.
 export NODE_EXTRA_CA_CERTS="$CA_CERT"
+
+# The minted token and QA_API_TOKEN are passed as newman argv (below), visible
+# via /proc to any local user for the run's duration -- an accepted tradeoff on
+# an ephemeral CI runner, and preferable to writing a secret to disk on a local
+# run, but worth knowing on a shared machine.
 
 qa_post() {
     curl --fail --silent --show-error \
@@ -104,10 +109,12 @@ if [ "$SUITE" = "full" ]; then
         exit 1
     fi
 
-    for path in postman/collections/*.postman_collection.json; do
-        label="$(basename "$path" .postman_collection.json)"
-        run_collection "$path" "$label" --env-var "token=$TOKEN"
-    done
+    if compgen -G "postman/collections/*.postman_collection.json" > /dev/null; then
+        for path in postman/collections/*.postman_collection.json; do
+            label="$(basename "$path" .postman_collection.json)"
+            run_collection "$path" "$label" --env-var "token=$TOKEN"
+        done
+    fi
 fi
 
 # Flows run in both suites, and always last. Each begins with its own

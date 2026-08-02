@@ -83,4 +83,5 @@ def test_login_as_admin_returns_a_valid_email(client):
     assert response.status_code == 200
     body = response.json()
     assert body["username"] == "admin"
+    assert body["email"] == "admin@example.com"
     assert body["access_token"]

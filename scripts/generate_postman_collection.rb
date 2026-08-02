@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Regenerate postman/sapot-api.postman_collection.json from docs/api/openapi/*.yaml.
+# Regenerate postman/collections/*.postman_collection.json from docs/api/openapi/*.yaml.
 #
 # docs/api/openapi/*.yaml is the source of truth (generated from the live FastAPI
 # app by scripts/generate_openapi_docs.py, drift-checked in CI). This script merges
@@ -131,6 +131,13 @@ BASELINE_TEST_EVENT = {
 # logic, defeating the point of seeding fixtures and minting a token before a
 # full run. Strip it so every request falls back to the collection's bearer
 # auth.
+#
+# Strips "oauth2" (what the converter emits for a secured operation) and the
+# bare `"auth": null` it emits for an operation with no security requirement --
+# neither should override the collection-level bearer auth. Only an explicit
+# `{"type": "noauth"}` block is left in place: a future OpenAPI fragment with
+# `security: []` could convert to that, and stripping it would silently start
+# sending the admin bearer token to a deliberately public endpoint.
 def strip_item_auth!(items)
   items.each do |item|
     if item.key?("item")
@@ -138,7 +145,11 @@ def strip_item_auth!(items)
       next
     end
 
-    item["request"].delete("auth") if item["request"].is_a?(Hash)
+    next unless item["request"].is_a?(Hash)
+    next unless item["request"].key?("auth")
+
+    auth = item["request"]["auth"]
+    item["request"].delete("auth") unless auth.is_a?(Hash) && auth["type"] == "noauth"
   end
 end
 

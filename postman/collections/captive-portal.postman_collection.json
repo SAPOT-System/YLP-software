@@ -128,7 +128,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"active\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"disconnected\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
           "cookie": [
 
           ],
@@ -302,7 +302,7 @@
                 "type": "text/plain"
               },
               "key": "status",
-              "value": "active"
+              "value": "disconnected"
             },
             {
               "disabled": false,
@@ -369,7 +369,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "active"
+                  "value": "disconnected"
                 },
                 {
                   "disabled": false,
@@ -421,7 +421,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"total\": \"<integer>\",\n  \"results\": [\n    {\n      \"session_id\": \"<string>\",\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"id\": \"<integer>\",\n      \"status\": \"disconnected\",\n      \"login_at\": \"<dateTime>\",\n      \"disconnect_at\": \"<dateTime>\",\n      \"mac_address\": \"<string>\",\n      \"ip_address\": \"<string>\",\n      \"hotspot_name\": \"<string>\"\n    },\n    {\n      \"session_id\": \"<string>\",\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"id\": \"<integer>\",\n      \"status\": \"active\",\n      \"login_at\": \"<dateTime>\",\n      \"disconnect_at\": \"<dateTime>\",\n      \"mac_address\": \"<string>\",\n      \"ip_address\": \"<string>\",\n      \"hotspot_name\": \"<string>\"\n    }\n  ]\n}",
+          "body": "{\n  \"total\": \"<integer>\",\n  \"results\": [\n    {\n      \"session_id\": \"<string>\",\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"id\": \"<integer>\",\n      \"status\": \"active\",\n      \"login_at\": \"<dateTime>\",\n      \"disconnect_at\": \"<dateTime>\",\n      \"mac_address\": \"<string>\",\n      \"ip_address\": \"<string>\",\n      \"hotspot_name\": \"<string>\"\n    },\n    {\n      \"session_id\": \"<string>\",\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"id\": \"<integer>\",\n      \"status\": \"active\",\n      \"login_at\": \"<dateTime>\",\n      \"disconnect_at\": \"<dateTime>\",\n      \"mac_address\": \"<string>\",\n      \"ip_address\": \"<string>\",\n      \"hotspot_name\": \"<string>\"\n    }\n  ]\n}",
           "cookie": [
 
           ],
@@ -449,7 +449,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "active"
+                  "value": "disconnected"
                 },
                 {
                   "disabled": false,
@@ -519,7 +519,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "active"
+                  "value": "disconnected"
                 },
                 {
                   "disabled": false,
@@ -863,7 +863,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"active\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"disconnected\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
           "cookie": [
 
           ],
@@ -1102,7 +1102,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"active\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
+          "body": "{\n  \"session_id\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<integer>\",\n  \"status\": \"disconnected\",\n  \"login_at\": \"<dateTime>\",\n  \"disconnect_at\": \"<dateTime>\",\n  \"mac_address\": \"<string>\",\n  \"ip_address\": \"<string>\",\n  \"hotspot_name\": \"<string>\"\n}",
           "cookie": [
 
           ],
