@@ -84,14 +84,23 @@ body {
  * dot stops being anchored to the marker's true coordinate.
  */
 .custom-marker.rescuer {
+  width: 20px;
+  height: 20px;
   background-color: #059669;
+  border: none;
   border-radius: 0;
-  transform: translate(-50%, -50%) rotate(45deg);
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%); /* triangle — reads distinctly
+    from the user circle even at marker scale, unlike the previous 45deg-rotated
+    square, which a thick white border softened into looking like a circle */
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+  transform: translate(-50%, -50%);
 }
 
 .custom-marker.admin {
+  width: 18px;
+  height: 18px;
   background-color: #7c3aed;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
 /* Inactive still wins on colour, but the role shape is retained. */
