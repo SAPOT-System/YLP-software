@@ -29,6 +29,23 @@ def test_seed_roles_scenario_creates_fixtures(client):
     assert body["result"]["rescuer"] == "qa_rescuer"
 
 
+def test_seed_gps_roles_scenario_creates_multi_role_fixtures(client):
+    response = client.post("/testing/seed/gps-roles")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scenario"] == "gps-roles"
+    assert body["result"]["admins"] == ["qa_map_admin"]
+    assert body["result"]["rescuers"] == ["qa_map_rescuer", "qa_map_rescuer_2"]
+
+
+def test_login_as_qa_map_rescuer_mints_usable_tokens(client):
+    client.post("/testing/seed/gps-roles")
+
+    response = client.post("/testing/login-as/qa_map_rescuer", headers=QA_HEADERS)
+    assert response.status_code == 200
+    assert response.json()["username"] == "qa_map_rescuer"
+
+
 def test_reset_requires_qa_token(client):
     response = client.post("/testing/reset")
     assert response.status_code == 404
