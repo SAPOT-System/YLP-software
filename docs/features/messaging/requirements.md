@@ -29,7 +29,6 @@ SAPOT supports E2E-encrypted direct messaging between users over three transport
 - Messages are created locally in WatermelonDB before being sent.
 - `message.content` stores the E2E-encrypted ciphertext blob (never plaintext).
 - `message.conversation_id` links to the conversation; `message.sender_id` is the authenticated user.
-- `message.linked_message_id` is a self-referential FK for reply-to threads (nullable).
 
 ### FR-MS-02 — Delivery channels (priority order)
 

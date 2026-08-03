@@ -531,6 +531,9 @@ def get_security_question(
         session: SessionDep
 ):
     current_user = get_user(identifier, session)
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     questions = session.exec(
         select(UserSecurityQuestion).where(UserSecurityQuestion.user_id == current_user.id)
     ).all()

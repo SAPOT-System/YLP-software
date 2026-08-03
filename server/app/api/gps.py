@@ -15,12 +15,13 @@ import uuid
 
 from app.db_operations.token import get_current_user, get_current_user_rescuer
 from app.db_operations.user_search import _resolve_role
-from app.db_operations.websockets import authenticate_websocket
+from app.db_operations.websockets import authenticate_websocket, WebSocketAuthError
 from app.models.rescuer import Rescuer
 from app.models.users import User
 from app.models.location import UserLocation
 from app.db_operations.GPS_manager import gps_manager
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix='/gps',
@@ -38,7 +39,12 @@ async def stream_gps_location(
     token: str,
     session: SessionDep
 ):
-    authed_id = await authenticate_websocket(websocket, token)
+    try:
+        authed_id = await authenticate_websocket(websocket, token)
+    except WebSocketAuthError:
+        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
+        return
+
     if str(authed_id) != user_id:
         await websocket.close(code=1008)
         return
@@ -173,7 +179,12 @@ async def monitor_live_feed(
     token: str,
     session: SessionDep,
 ):
-    authed_id = await authenticate_websocket(websocket, token)
+    try:
+        authed_id = await authenticate_websocket(websocket, token)
+    except WebSocketAuthError:
+        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
+        return
+
     if str(authed_id) != rescuer_id:
         await websocket.close(code=1008)
         return

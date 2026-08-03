@@ -1,6 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 import { useUserService } from "@/features/auth/hooks/use-user-service";
+import { notifyAccessTokenChanged } from "@/features/shared/core/api/client";
+import { getStoredAccessToken } from "@/features/shared/core/stores/secure-config";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
+import { requestMainContainerReset } from "@/features/shared/main-container";
 import * as Updates from "expo-updates";
 import { DebugAuthService } from "../../services/debug-auth-service";
 import { useDebugAuth } from "../use-debug-auth";
@@ -13,6 +16,18 @@ jest.mock("@/features/shared/hooks/use-user-store", () => ({
   useUserStore: jest.fn(),
 }));
 
+jest.mock("@/features/shared/core/api/client", () => ({
+  notifyAccessTokenChanged: jest.fn(),
+}));
+
+jest.mock("@/features/shared/core/stores/secure-config", () => ({
+  getStoredAccessToken: jest.fn(),
+}));
+
+jest.mock("@/features/shared/main-container", () => ({
+  requestMainContainerReset: jest.fn(),
+}));
+
 jest.mock("expo-updates", () => ({
   reloadAsync: jest.fn(),
 }));
@@ -23,6 +38,9 @@ const mockedUseUserService = useUserService as jest.Mock;
 const mockedUseUserStore = useUserStore as jest.Mock;
 const MockedDebugAuthService = DebugAuthService as jest.Mock;
 const mockedReloadAsync = Updates.reloadAsync as jest.Mock;
+const mockedNotifyAccessTokenChanged = notifyAccessTokenChanged as jest.Mock;
+const mockedGetStoredAccessToken = getStoredAccessToken as jest.Mock;
+const mockedRequestMainContainerReset = requestMainContainerReset as jest.Mock;
 
 describe("useDebugAuth", () => {
   let serviceInstance: {
@@ -64,6 +82,7 @@ describe("useDebugAuth", () => {
     };
     MockedDebugAuthService.mockImplementation(() => serviceInstance);
     mockedReloadAsync.mockResolvedValue(undefined);
+    mockedGetStoredAccessToken.mockResolvedValue("fixture-access-token");
   });
 
   it("loads the auth snapshot on mount", async () => {
@@ -86,7 +105,7 @@ describe("useDebugAuth", () => {
     expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it("seedTestUser falls back to refreshing the snapshot if the restart fails", async () => {
+  it("seedTestUser falls back to syncing auth state and refreshing the snapshot if the restart fails", async () => {
     mockedReloadAsync.mockRejectedValue(new Error("reload unsupported"));
     const { result } = renderHook(() => useDebugAuth());
     await waitFor(() => expect(result.current.snapshot).toEqual(baseSnapshot));
@@ -96,6 +115,10 @@ describe("useDebugAuth", () => {
     });
 
     expect(mockedReloadAsync).toHaveBeenCalledTimes(1);
+    expect(mockedNotifyAccessTokenChanged).toHaveBeenCalledWith(
+      "fixture-access-token"
+    );
+    expect(mockedRequestMainContainerReset).toHaveBeenCalledTimes(1);
     expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(2);
   });
 
@@ -112,7 +135,7 @@ describe("useDebugAuth", () => {
     expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it("loginAs falls back to refreshing the snapshot if the restart fails", async () => {
+  it("loginAs falls back to syncing auth state and refreshing the snapshot if the restart fails", async () => {
     mockedReloadAsync.mockRejectedValue(new Error("reload unsupported"));
     const { result } = renderHook(() => useDebugAuth());
     await waitFor(() => expect(result.current.snapshot).toEqual(baseSnapshot));
@@ -122,7 +145,25 @@ describe("useDebugAuth", () => {
     });
 
     expect(mockedReloadAsync).toHaveBeenCalledTimes(1);
+    expect(mockedNotifyAccessTokenChanged).toHaveBeenCalledWith(
+      "fixture-access-token"
+    );
+    expect(mockedRequestMainContainerReset).toHaveBeenCalledTimes(1);
     expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("loginAs falls back to clearing auth state when the fixture is a guest with no stored token", async () => {
+    mockedReloadAsync.mockRejectedValue(new Error("reload unsupported"));
+    mockedGetStoredAccessToken.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDebugAuth());
+    await waitFor(() => expect(result.current.snapshot).toEqual(baseSnapshot));
+
+    await act(async () => {
+      await result.current.loginAs("qa_guest");
+    });
+
+    expect(mockedNotifyAccessTokenChanged).toHaveBeenCalledWith(null);
+    expect(mockedRequestMainContainerReset).toHaveBeenCalledTimes(1);
   });
 
   it("seedLanUser seeds a guest user then restarts the app", async () => {
@@ -138,7 +179,7 @@ describe("useDebugAuth", () => {
     expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it("seedLanUser falls back to refreshing the snapshot if the restart fails", async () => {
+  it("seedLanUser falls back to syncing auth state and refreshing the snapshot if the restart fails", async () => {
     mockedReloadAsync.mockRejectedValue(new Error("reload unsupported"));
     const { result } = renderHook(() => useDebugAuth());
     await waitFor(() => expect(result.current.snapshot).toEqual(baseSnapshot));
@@ -148,6 +189,10 @@ describe("useDebugAuth", () => {
     });
 
     expect(mockedReloadAsync).toHaveBeenCalledTimes(1);
+    expect(mockedNotifyAccessTokenChanged).toHaveBeenCalledWith(
+      "fixture-access-token"
+    );
+    expect(mockedRequestMainContainerReset).toHaveBeenCalledTimes(1);
     expect(serviceInstance.getSnapshot).toHaveBeenCalledTimes(2);
   });
 

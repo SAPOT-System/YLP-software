@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Maximize, Minimize, Lock, Unlock } from "lucide-react";
+import { Maximize, Minimize, Lock, Unlock, AlertTriangle } from "lucide-react";
 
 function formatTimestamp(timestamp: string) {
   const date = new Date(timestamp + "Z");
@@ -115,6 +115,21 @@ function applyRoleClass(dot: HTMLDivElement, role?: string) {
     dot.classList.toggle(roleClass, role === roleClass);
   });
 }
+/** GeoJSON source we add ourselves — errors on it are not tileserver errors. */
+const HISTORY_SOURCE_ID = "history-path";
+
+/**
+ * How the basemap can be missing. The tileserver is a deployment separate from
+ * the API (see `tileserver/`), so either of these can happen while the rest of
+ * the dashboard is perfectly healthy — the copy has to say "map server", not
+ * "server".
+ */
+type TileServerStatus =
+  | "ok"
+  /** The style descriptor itself never loaded — the map was never created. */
+  | "style-unreachable"
+  /** The map is up but the tileserver is failing to serve tiles. */
+  | "tiles-unavailable";
 
 // ✅ wait + retry for style (IMPORTANT)
 async function waitForStyle(url: string, retries = 10, delay = 500) {
@@ -124,12 +139,74 @@ async function waitForStyle(url: string, retries = 10, delay = 500) {
       if (res.ok) {
         return await res.json();
       }
-    } catch (err) {}
+    } catch {
+      // Retried below; only the final failure is surfaced to the caller.
+    }
 
     await new Promise((r) => setTimeout(r, delay));
   }
 
   throw new Error("Style never became available");
+}
+
+function TileServerBanner({
+  status,
+  onRetry,
+  detailsPanelOpen,
+}: {
+  status: Exclude<TileServerStatus, "ok">;
+  onRetry: () => void;
+  /** The user-details panel is 320px wide and overlays the right edge. */
+  detailsPanelOpen: boolean;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 60,
+        left: 12,
+        right: detailsPanelOpen ? 332 : 12,
+        zIndex: 25,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 16px",
+        borderRadius: 10,
+        background: "#fff4f4",
+        border: "1px solid #ffc9c9",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+      }}
+    >
+      <AlertTriangle size={20} color="#d92d20" style={{ flexShrink: 0 }} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#912018" }}>
+          Map tiles unavailable
+        </span>
+        <span style={{ fontSize: 13, color: "#7a271a" }}>
+          {status === "style-unreachable"
+            ? "The map server could not be reached, so the basemap could not be loaded."
+            : "The map server stopped serving tiles. Markers and user data are unaffected."}
+        </span>
+      </div>
+
+      <button
+        onClick={onRetry}
+        style={{
+          marginLeft: "auto",
+          padding: "8px 14px",
+          background: "#912018",
+          color: "white",
+          borderRadius: 8,
+          border: "none",
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Retry
+      </button>
+    </div>
+  );
 }
 
 export default function MapLibre({ data }: Props) {
@@ -149,7 +226,14 @@ export default function MapLibre({ data }: Props) {
   const [searchResults, setSearchResults] = useState<UserNode[]>([]);
   const [isLocked, setIsLocked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
+  const [tileServerStatus, setTileServerStatus] =
+    useState<TileServerStatus>("ok");
+  /** Bumped by the Retry button to re-run map initialisation. */
+  const [retryNonce, setRetryNonce] = useState(0);
+  /** Bumped each time a new map instance finishes loading, so the marker and
+      path effects re-apply themselves onto it after a retry. */
+  const [mapVersion, setMapVersion] = useState(0);
+
   useEffect(() => {
     if (!isLocked || !selectedUser || !map.current) return;
 
@@ -234,13 +318,39 @@ export default function MapLibre({ data }: Props) {
 
         map.current = mapInstance;
 
+        // Tile fetch failures reach us here and nowhere else — without this
+        // subscription a dead tileserver is completely invisible to the user.
+        mapInstance.on("error", (e) => {
+          const sourceId = (e as maplibregl.ErrorEvent & { sourceId?: string })
+            .sourceId;
+
+          if (sourceId && sourceId !== HISTORY_SOURCE_ID) {
+            setTileServerStatus("tiles-unavailable");
+            return;
+          }
+
+          console.error("Map error:", e.error ?? e);
+        });
+
+        // Clear the banner once the tileserver starts answering again, so it
+        // never outlives the outage it is reporting. Keyed on `e.tile` — an
+        // actual tile arriving — rather than `isSourceLoaded`, which flips true
+        // on source metadata alone and would clear the banner while every tile
+        // is still failing.
+        mapInstance.on("sourcedata", (e) => {
+          if (e.sourceId && e.sourceId !== HISTORY_SOURCE_ID && e.tile) {
+            setTileServerStatus("ok");
+          }
+        });
+
         mapInstance.on("load", () => {
           mapReady.current = true;
+          setMapVersion((v) => v + 1);
 
           // ✅ fix blank map on first render
           mapInstance.resize();
 
-          mapInstance.addSource("history-path", {
+          mapInstance.addSource(HISTORY_SOURCE_ID, {
             type: "geojson",
             data: {
               type: "FeatureCollection",
@@ -251,7 +361,7 @@ export default function MapLibre({ data }: Props) {
           mapInstance.addLayer({
             id: "history-path-line",
             type: "line",
-            source: "history-path",
+            source: HISTORY_SOURCE_ID,
             layout: {
               "line-join": "round",
               "line-cap": "round",
@@ -264,13 +374,13 @@ export default function MapLibre({ data }: Props) {
             },
           });
         });
-
-        // optional debug
-        mapInstance.on("error", (e) => {
-          console.error("Map error:", e);
-        });
       } catch (err) {
         console.error("Map initialization failed:", err);
+
+        // waitForStyle() exhausted its retries: the tileserver never served
+        // the style, so no map exists at all. Previously this failed silently
+        // and left an empty container behind.
+        if (isMounted) setTileServerStatus("style-unreachable");
       }
     };
 
@@ -280,8 +390,19 @@ export default function MapLibre({ data }: Props) {
       isMounted = false;
       map.current?.remove();
       map.current = null;
+      mapReady.current = false;
+
+      // The markers belonged to the removed map instance; drop the cache so
+      // the marker effect rebuilds them against the next one.
+      Object.values(markersRef.current).forEach(({ marker }) => marker.remove());
+      markersRef.current = {};
     };
-  }, []);
+  }, [retryNonce]);
+
+  const handleRetryTileServer = () => {
+    setTileServerStatus("ok");
+    setRetryNonce((n) => n + 1);
+  };
 
   // ---------------- MARKERS ----------------
   useEffect(() => {
@@ -354,7 +475,7 @@ export default function MapLibre({ data }: Props) {
         delete existing[id];
       }
     });
-  }, [data]);
+  }, [data, mapVersion]);
 
   // ---------------- PATH BUILDING ----------------
   function buildSegments(data: HistoryPoint[]) {
@@ -410,7 +531,7 @@ export default function MapLibre({ data }: Props) {
     if (!map.current || !mapReady.current) return;
 
     const source = map.current.getSource(
-      "history-path"
+      HISTORY_SOURCE_ID
     ) as maplibregl.GeoJSONSource;
 
     if (!source) return;
@@ -434,7 +555,7 @@ export default function MapLibre({ data }: Props) {
       "visibility",
       "visible"
     );
-  }, [history, showPath]);
+  }, [history, showPath, mapVersion]);
 
   // ---------------- UI ----------------
   return (
@@ -557,6 +678,14 @@ export default function MapLibre({ data }: Props) {
 	</div>
 	
       </div>
+
+      {tileServerStatus !== "ok" && (
+	<TileServerBanner
+	  status={tileServerStatus}
+	  onRetry={handleRetryTileServer}
+	  detailsPanelOpen={selectedUser !== null}
+	/>
+      )}
 
       {selectedUser && (
 	<div

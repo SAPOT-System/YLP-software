@@ -180,3 +180,20 @@ def test_reset_password_succeeds_with_invalid_recovery_token(web_client, web_ses
         json={"new_password": "NewPassword1!", "recovery_token": "garbage-token"},
     )
     assert r.status_code == 200, "Password reset must succeed even when recovery_token is invalid"
+
+
+# ---------------------------------------------------------------------------
+# GET /auth/forgot-password/security-question must 404 (not crash) for an
+# identifier that matches no user. Found via the Postman baseline suite:
+# get_user() returns None for an unknown identifier, and the handler
+# previously dereferenced `current_user.id` unconditionally, turning any
+# unknown identifier into a 500.
+# ---------------------------------------------------------------------------
+
+def test_get_security_question_404s_for_unknown_identifier(web_client, web_session):
+    r = web_client.get(
+        "/auth/forgot-password/security-question",
+        params={"identifier": "no-such-user@test.com"},
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"] == "User not found"

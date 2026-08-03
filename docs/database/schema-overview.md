@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-YLP-SAPOT (SAPOT Server) uses **MariaDB** as its database engine via SQLModel (an SQLAlchemy wrapper). The schema is auto-created at application startup by `create_db_and_tables()` — there is no migration tooling. See [migrations.md](migrations.md) for operational implications.
+YLP-SAPOT (SAPOT Server) uses **MariaDB** as its database engine via SQLModel (an SQLAlchemy wrapper). The schema is applied by **Alembic** at deploy time (`alembic upgrade head` in `server/runserver.sh`), not created at application startup; `create_db_and_tables()` was removed from the FastAPI `lifespan`. See [migrations.md](migrations.md) for the workflow and [ADR 0007](../adr/0007-alembic-for-server-migrations.md) for the decision.
 
 ---
 
@@ -56,13 +56,13 @@ Covers OTP flows, password reset, JWT blacklist, and login rate-limiting.
 
 ### 3. Messaging
 
-Conversations hold messages between participants. Messages can reference each other (reply thread), carry attachments, and be tracked per-recipient.
+Conversations hold messages between participants, which carry attachments and are tracked per-recipient.
 
 | Table | Class | Purpose |
 |-------|-------|---------|
 | `conversation` | `Conversation` | Chat channel; types: `direct`, `solo`, `sms` |
 | `conversationparticipant` | `ConversationParticipant` | Join table linking users to conversations |
-| `message` | `Message` | Individual message; supports reply via `linked_message_id` |
+| `message` | `Message` | Individual message |
 | `messagereceipt` | `MessageReceipt` | Per-(message, user) delivery/read status |
 | `attachment` | `Attachment` | File attachment metadata for a message |
 | `queue` | `Queue` | Server-side delivery queue for offline users |
@@ -121,8 +121,10 @@ Standalone table used by the MikroTik hotspot captive portal integration. It is 
 
 `server/app/models/devices.py` declares a `Device` SQLModel with `table=True`, but it is
 **never imported** — not by `app/models/__init__.py`, not by any router. Because SQLModel only
-registers metadata for imported modules, `create_db_and_tables()` never creates a `device`
-table, and it correctly does not appear in the generated [tables.md](tables.md).
+registers metadata for imported modules, no `device` table exists in `SQLModel.metadata`, so
+Alembic autogenerate never emitted one and it correctly does not appear in the generated
+[tables.md](tables.md). `app/models/__init__.py` carries a commented-out import for it with the
+reason: its `id` field lacks `primary_key=True`, so SQLAlchemy cannot map it at all.
 
 Two further signs the model was abandoned mid-implementation: its `id` field has no
 `primary_key=True`, and its `Relationship(back_populates="devices")` points at a `User.devices`
@@ -155,7 +157,6 @@ conversation 1──* call
 conversation 1──* callparticipant
 message 1──1 attachment
 message 1──1 messagereceipt
-message 0──1 message        (self-ref reply via linked_message_id)
 ```
 
 ---
@@ -179,7 +180,7 @@ The mobile schema is deliberately narrower than the server's: it holds only what
 |-------|---------|
 | `conversations` | Local mirror of a chat channel (`type`, `title`) |
 | `conversation_participants` | Join table linking `peers` to `conversations` |
-| `messages` | Individual message; `is_encrypted` flag (added v9) marks NaCl-box-encrypted content; `linked_message_id` (added v8) supports reply threads |
+| `messages` | Individual message; `is_encrypted` flag (added v9) marks NaCl-box-encrypted content; `linked_message_id` (added v8, paired a P2P message with its SMS duplicate) is retained unused since the dual-send UX was removed — see [migrations.md](migrations.md#version-by-version-history-v4--v11) |
 | `message_receipts` | Per-(message, peer) delivery/read status |
 
 ### 3. Calls

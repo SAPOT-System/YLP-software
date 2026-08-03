@@ -25,7 +25,7 @@ Each component owns its own dependency file — there is no repo-wide update mec
 
 | Component | File | Notes |
 |---|---|---|
-| `server/` | `requirements.txt` | No migration tooling ([ADR 0002](../adr/0002-no-server-migration-tooling.md)) — a dependency bump that changes SQLModel/DB-driver behavior still needs the manual DDL discipline in [runbooks.md](runbooks.md#manual-db-ddl-application-no-alembic) if it touches schema |
+| `server/` | `requirements.txt` | Schema is Alembic-managed ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) — a dependency bump that changes SQLModel/SQLAlchemy/DB-driver behavior can shift what autogenerate emits, so re-run `alembic check` and follow [runbooks.md](runbooks.md#applying-schema-migrations-alembic) if it touches schema. Pin `alembic` itself deliberately. |
 | `mobile-app/sapot-mobile-app/` | `package.json` | Expo SDK bumps need `expo-doctor` (`pnpm run testAll` includes it) — do not hand-edit `pnpm-lock.yaml` |
 | `admin-frontend/sapot-admin/` | `package.json` | `pnpm run lint && pnpm run build` after any bump — no test script exists in this component |
 | `GSM-module/GSM-fastapi/` | `requirements.txt` | No automated tests — verify manually per [gsm-module-setup.md](../getting-started/gsm-module-setup.md) after any bump |

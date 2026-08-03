@@ -1,0 +1,483 @@
+{
+  "event": [
+
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "/"
+    }
+  ],
+  "info": {
+    "_postman_id": "decacc1f7118cb05e4a33fc44a3aa857",
+    "name": "SAPOT API - gps",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "",
+      "type": "text/plain"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "id": "9675734a95e86d664c38c66de91e9155",
+      "name": "Get User Location History",
+      "request": {
+        "name": "Get User Location History",
+        "description": {
+          "content": "Returns the last 'X' locations for a specific user to show their path.",
+          "type": "text/plain"
+        },
+        "url": {
+          "path": [
+            "gps",
+            "history",
+            ":user_id"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "",
+                "type": "text/plain"
+              },
+              "key": "limit",
+              "value": "50"
+            }
+          ],
+          "variable": [
+            {
+              "type": "any",
+              "value": "<uuid>",
+              "key": "user_id",
+              "disabled": false,
+              "description": {
+                "content": "(Required) ",
+                "type": "text/plain"
+              }
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        }
+      },
+      "response": [
+        {
+          "id": "2ed519e39bf3b160042b235e8e7c2977",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "gps",
+                "history",
+                ":user_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "50"
+                }
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<uuid>",
+                  "key": "user_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "c76f152a33fa12074d6bf15162807f88",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "gps",
+                "history",
+                ":user_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "50"
+                }
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<uuid>",
+                  "key": "user_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "5c1c5f7e631b696a7d34fb83273c73fe",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "gps",
+                "history",
+                ":user_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "50"
+                }
+              ],
+              "variable": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  },
+                  "type": "any",
+                  "value": "<uuid>",
+                  "key": "user_id"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "bfc23da48178f711de0d593f1bbb6508",
+      "name": "Get All Latest Locations",
+      "request": {
+        "name": "Get All Latest Locations",
+        "description": {
+          "content": "Returns the most recent location for every user who has sent a ping.\nUseful for the initial map load.",
+          "type": "text/plain"
+        },
+        "url": {
+          "path": [
+            "gps",
+            "latest"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        }
+      },
+      "response": [
+        {
+          "id": "f8972035211b6471ef61c40dddbaf7ac",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "gps",
+                "latest"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "e86f3b962357ec285a9de298393193ae",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "gps",
+                "latest"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    }
+  ]
+}
