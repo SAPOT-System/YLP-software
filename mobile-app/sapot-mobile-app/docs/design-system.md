@@ -157,6 +157,8 @@ export const GpsPreferenceContext = createContext<GpsPreference | null>(null);
 
 GPS / map feature uses `@maplibre/maplibre-react-native`. `useLatestLocations` polls `GET /gps/latest` every 5 seconds via React Query and passes results to the map renderer.
 
+The basemap tiles come from the **tileserver**, a deployment separate from the API, and MapLibre reports no error when they fail to load. `useTileServerStatus` probes it every 30 seconds so the map screen can show a distinct "Map tiles unavailable" card — kept separate from the location-error card, because a dead tileserver and a dead API are different problems for the user. Both cards stack in the shared bottom overlay on the map screen.
+
 ---
 
 ## Motion
