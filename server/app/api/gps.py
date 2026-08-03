@@ -14,6 +14,7 @@ import uuid
 
 
 from app.db_operations.token import get_current_user, get_current_user_rescuer
+from app.db_operations.user_search import _resolve_role
 from app.db_operations.websockets import authenticate_websocket, WebSocketAuthError
 from app.models.rescuer import Rescuer
 from app.models.users import User
@@ -80,7 +81,8 @@ async def stream_gps_location(
                 "latitude": data["lat"],
                 "longitude": data["lng"],
                 "timestamp": new_location.timestamp.isoformat(),
-                "username": user.username
+                "username": user.username,
+                "role": _resolve_role(user)
             }
 
             # 5. Push to all Rescuers in real-time
@@ -124,23 +126,25 @@ def get_all_latest_locations(
     )
     
     statement = (
-        select(UserLocation, User.username)
+        select(UserLocation, User)
         .join(User, User.id == UserLocation.user_id)
-        .join(subquery, (UserLocation.user_id == subquery.c.user_id) & 
+        .join(subquery, (UserLocation.user_id == subquery.c.user_id) &
                        (UserLocation.timestamp == subquery.c.max_ts))
     )
 
     locations = session.exec(statement).all()
 
-    # Format for the frontend (React Native Map)
+    # Format for the frontend (React Native Map). `role` lets the map clients
+    # draw rescuers differently from regular users without a second request.
     return [
         {
             "user_id": loc.user_id,
             "latitude": loc.latitude,
             "longitude": loc.longitude,
             "timestamp": loc.timestamp,
-            "username": username
-        } for loc, username in locations
+            "username": user.username,
+            "role": _resolve_role(user)
+        } for loc, user in locations
     ]
 
 @router.get("/history/{user_id}")

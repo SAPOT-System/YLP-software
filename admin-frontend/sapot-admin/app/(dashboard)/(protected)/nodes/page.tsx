@@ -249,6 +249,28 @@ export default function Nodes() {
 
             </div>
 
+            {/* Role markers — shape differs as well as colour, so the
+                distinction survives greyscale and colour-blind viewing. */}
+            <div className="flex gap-2 items-center">
+
+              <div className="marker-wrapper">
+                <div className="custom-marker rescuer" />
+              </div>
+
+              Rescuer
+
+            </div>
+
+            <div className="flex gap-2 items-center">
+
+              <div className="marker-wrapper">
+                <div className="custom-marker admin" />
+              </div>
+
+              Admin
+
+            </div>
+
             <div className="text-sm text-gray-500 mt-2">
               Click nodes to view details.
             </div>

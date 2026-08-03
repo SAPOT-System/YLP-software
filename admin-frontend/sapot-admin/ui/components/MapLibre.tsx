@@ -67,12 +67,14 @@ function Field({ label, value }: { label: string; value: any }) {
   );
 }
 
-type UserNode = {
+export type UserNode = {
   user_id: string;
   latitude: number;
   longitude: number;
   timestamp: string;
   username: string;
+  /** "admin" | "rescuer" | "user" — drives the marker shape/colour. */
+  role?: string;
 };
 
 type UserData = {
@@ -101,6 +103,18 @@ type Props = {
 
 const GAP_THRESHOLD = 60 * 1000; // 1 min
 
+/**
+ * Marker CSS modifier per role. Role vocabulary matches the server's
+ * `_resolve_role`; the shapes/colours live in app/globals.css.
+ * A plain "user" needs no modifier — the base .custom-marker is its style.
+ */
+const ROLE_MARKER_CLASSES = ["rescuer", "admin"] as const;
+
+function applyRoleClass(dot: HTMLDivElement, role?: string) {
+  ROLE_MARKER_CLASSES.forEach((roleClass) => {
+    dot.classList.toggle(roleClass, role === roleClass);
+  });
+}
 /** GeoJSON source we add ourselves — errors on it are not tileserver errors. */
 const HISTORY_SOURCE_ID = "history-path";
 
@@ -406,12 +420,16 @@ export default function MapLibre({ data }: Props) {
 
         marker.setLngLat([node.longitude, node.latitude]);
         dot.classList.toggle("inactive", isInactive);
+        // Role can change between polls (a user is promoted to rescuer),
+        // so re-apply it rather than only setting it at creation time.
+        applyRoleClass(dot, node.role);
       } else {
         const wrapper = document.createElement("div");
         wrapper.className = "marker-wrapper";
 
         const dot = document.createElement("div");
         dot.className = "custom-marker";
+        applyRoleClass(dot, node.role);
 
         const label = document.createElement("div");
         label.className = "marker-label";

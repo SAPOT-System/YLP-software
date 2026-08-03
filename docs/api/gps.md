@@ -47,9 +47,14 @@ wss://<host>/gps/ws/<user_uuid>?token=<access_token>
   "latitude": 14.0000,
   "longitude": 120.0000,
   "timestamp": "2026-06-28T12:00:00+00:00",
-  "username": "jdoe"
+  "username": "jdoe",
+  "role": "user"
 }
 ```
+
+`role` is one of `admin`, `rescuer`, or `user` — the same vocabulary the chat
+role badge uses. Map clients render rescuer markers distinctly from regular
+users based on this field.
 
 ---
 
@@ -89,10 +94,13 @@ Return the most recent location for every user who has sent at least one GPS pin
     "latitude": 14.0000,
     "longitude": 120.0000,
     "timestamp": "2026-06-28T12:00:00+00:00",
-    "username": "jdoe"
+    "username": "jdoe",
+    "role": "rescuer"
   }
 ]
 ```
+
+`role` is one of `admin`, `rescuer`, or `user`.
 
 ---
 

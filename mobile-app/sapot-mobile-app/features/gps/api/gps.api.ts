@@ -7,6 +7,8 @@ export type UserLocation = {
   longitude: number;
   timestamp: string;
   username: string;
+  /** "admin" | "rescuer" | "user" — drives the map marker (see resolve-role-marker). */
+  role?: string;
 };
 
 export const getLatestLocationsApi = async (): Promise<UserLocation[]> => {
