@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/release.sh — cut a component release tag with notes.
+# scripts/release.sh — cut a component release tag.
 # Usage: ./scripts/release.sh <mobile|server> <version>
 set -euo pipefail
 
@@ -8,7 +8,7 @@ version="${2:-}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [[ -z "$component" || -z "$version" ]]; then
-  echo "Usage: ./scripts/release.sh <mobile|server> <X.Y.Z[-(alpha|beta|rc).N]>" >&2
+  echo "Usage: ./scripts/release.sh <mobile|server|admin|portal|gsm> <X.Y.Z[-(alpha|beta|rc).N]>" >&2
   exit 1
 fi
 
@@ -26,8 +26,28 @@ case "$component" in
     python3 "$root/server/scripts/set_version.py" "$version"
     git -C "$root" add server/app/version.py
     tag="server/v$version" ;;
+  admin)
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+      echo "Invalid version '$version' — expected X.Y.Z[-(alpha|beta|rc).N]" >&2
+      exit 1
+    fi
+    (cd "$root/admin-frontend/sapot-admin" && pnpm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
+    git -C "$root" add admin-frontend/sapot-admin/package.json
+    tag="admin/v$version" ;;
+  portal)
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+      echo "Invalid version '$version' — expected X.Y.Z[-(alpha|beta|rc).N]" >&2
+      exit 1
+    fi
+    echo "$version" > "$root/captive-portal/VERSION"
+    git -C "$root" add captive-portal/VERSION
+    tag="portal/v$version" ;;
+  gsm)
+    python3 "$root/GSM-module/scripts/set_version.py" "$version"
+    git -C "$root" add GSM-module/GSM-fastapi/app_version.py GSM-module/GSM-arduino-actual-code/GSM-arduino-actual-code.ino
+    tag="gsm/v$version" ;;
   *)
-    echo "Unknown component '$component' (expected mobile|server)" >&2
+    echo "Unknown component '$component' (expected mobile|server|admin|portal|gsm)" >&2
     exit 1 ;;
 esac
 
@@ -37,21 +57,10 @@ else
   git -C "$root" commit -m "chore(version): $component $version"
 fi
 
-# Draft notes via the Claude CLI if available; otherwise a fillable template.
-notes="$(mktemp)"
-node "$root/scripts/release-notes.mjs" "$component" "$tag" > "$notes"
-if [[ -t 0 && -n "${EDITOR:-}" ]]; then
-  "$EDITOR" "$notes"
-else
-  echo "Review/edit the drafted notes at: $notes" >&2
-fi
-
 if git -C "$root" tag -l "$tag" | grep -q .; then
   echo "Tag $tag already exists — delete it first with: git tag -d $tag" >&2
-  rm -f "$notes"
   exit 1
 fi
-git -C "$root" tag -a "$tag" -F "$notes"
-rm -f "$notes"
-echo "Created annotated tag $tag (notes embedded in the tag message)."
+git -C "$root" tag -a "$tag" -m "$component $version"
+echo "Created annotated tag $tag."
 echo "Push it:  git push origin HEAD && git push origin $tag"

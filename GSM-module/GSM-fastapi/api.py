@@ -37,6 +37,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
 import database
+from app_version import __version__
 from serial_worker import SerialWorker
 from sms_handler import handle_incoming_sms
 from config import settings
@@ -161,7 +162,7 @@ def _send_and_log(from_number: str, to_number: str, body: str):
 
 app = FastAPI(
     title="SAPOT SMS Relay API",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
