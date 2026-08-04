@@ -94,5 +94,9 @@ print(f"Firmware: {m['gsmFirmware']['version']} ({m['gsmFirmware']['fqbn']})")
 PY
 (cd "$bundle" && find . -type f ! -name CHECKSUMS.sha256 -print0 | sort -z | xargs -0 sha256sum > CHECKSUMS.sha256)
 mkdir -p dist
-tar -C "$scratch" -cf - "$(basename "$bundle")" | zstd -T0 -19 -o "dist/sapot-bundle-v$version.tar.zst"
-echo "built dist/sapot-bundle-v$version.tar.zst"
+output="dist/sapot-bundle-v$version.tar.zst"
+temporary_output="$output.tmp.$$"
+trap 'rm -rf "$scratch"; rm -f "$temporary_output"' EXIT
+tar -C "$scratch" -cf - "$(basename "$bundle")" | zstd -T0 -19 -o "$temporary_output"
+mv -f "$temporary_output" "$output"
+echo "built $output"
