@@ -8,7 +8,7 @@ version="${2:-}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [[ -z "$component" || -z "$version" ]]; then
-  echo "Usage: ./scripts/release.sh <mobile|server|portal|gsm> <X.Y.Z[-(alpha|beta|rc).N]>" >&2
+  echo "Usage: ./scripts/release.sh <mobile|server|admin|portal|gsm> <X.Y.Z[-(alpha|beta|rc).N]>" >&2
   exit 1
 fi
 
@@ -26,6 +26,14 @@ case "$component" in
     python3 "$root/server/scripts/set_version.py" "$version"
     git -C "$root" add server/app/version.py
     tag="server/v$version" ;;
+  admin)
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+      echo "Invalid version '$version' — expected X.Y.Z[-(alpha|beta|rc).N]" >&2
+      exit 1
+    fi
+    (cd "$root/admin-frontend/sapot-admin" && pnpm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
+    git -C "$root" add admin-frontend/sapot-admin/package.json
+    tag="admin/v$version" ;;
   portal)
     if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
       echo "Invalid version '$version' — expected X.Y.Z[-(alpha|beta|rc).N]" >&2
@@ -39,7 +47,7 @@ case "$component" in
     git -C "$root" add GSM-module/GSM-fastapi/app_version.py GSM-module/GSM-arduino-actual-code/GSM-arduino-actual-code.ino
     tag="gsm/v$version" ;;
   *)
-    echo "Unknown component '$component' (expected mobile|server|portal|gsm)" >&2
+    echo "Unknown component '$component' (expected mobile|server|admin|portal|gsm)" >&2
     exit 1 ;;
 esac
 

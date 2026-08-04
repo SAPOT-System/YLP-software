@@ -145,7 +145,7 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching, commit conventions, and PR workflow |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure process and known security posture |
 | [../LICENSE](../LICENSE) | MIT license |
-| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile, server, captive portal, GSM module — independent) |
+| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile, server, admin, captive portal, GSM module — independent) |
 | [../CHANGELOG.md](../CHANGELOG.md) | Notable changes per release |
 | [docs-todo.md](docs-todo.md) | Documentation audit remediation tracker |
 | [mobile-app-todo.org](mobile-app-todo.org) | Mobile app feature brief and TODOs |

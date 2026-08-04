@@ -1,11 +1,11 @@
 # AGENTS.md — scripts
 
-Root-level release orchestration and documentation-generation tooling — spans `mobile-app/`'s and `server/`'s version files, and generates `docs/api/openapi/**` / `docs/database/*.md` from `server/`. See the root `AGENTS.md` for repo-wide conventions.
+Root-level release orchestration and documentation-generation tooling — spans `mobile-app/`, `server/`, `admin-frontend/`, `captive-portal/`, and `GSM-module/`'s version files, and generates `docs/api/openapi/**` / `docs/database/*.md` from `server/`. See the root `AGENTS.md` for repo-wide conventions.
 
 ## Development Workflow
 
 - Python scripts (`generate_openapi_docs.py`, `generate_db_docs.py`) run against `server/`'s dependencies — install `server/app/requirements.txt` first, or run from an environment that already has the server's stack.
-- `release.sh` is the entry point end users/agents invoke directly: `./scripts/release.sh <mobile|server> <X.Y.Z[-suffix]>` — see root `VERSIONING.md` for the full flow.
+- `release.sh` is the entry point end users/agents invoke directly: `./scripts/release.sh <mobile|server|admin|portal|gsm> <X.Y.Z[-suffix]>` — see root `VERSIONING.md` for the full flow.
 
 ## Build
 
