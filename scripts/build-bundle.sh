@@ -42,6 +42,12 @@ cp tileserver/osm-batangas.mbtiles "$bundle/data/"
 cp -a server/static "$bundle/data/static"
 firmware_source=GSM-module/GSM-arduino-actual-code/GSM-arduino-actual-code.ino
 fqbn=${GSM_ARDUINO_FQBN:-arduino:avr:uno}
+# A fresh arduino-cli installation has no board platform. This runs only on
+# the connected build host; deployment hosts receive the already-built hex.
+arduino-cli core list | awk '{print $1}' | grep -qx 'arduino:avr' || {
+  arduino-cli core update-index
+  arduino-cli core install arduino:avr
+}
 arduino-cli compile --fqbn "$fqbn" --output-dir "$scratch/firmware-build" "$firmware_source"
 hex=$(find "$scratch/firmware-build" -name '*.hex' -print -quit)
 [ -n "$hex" ] || { echo "firmware compilation produced no .hex file" >&2; exit 1; }
