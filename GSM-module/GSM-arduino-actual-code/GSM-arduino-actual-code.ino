@@ -13,6 +13,9 @@
 
 #include <SoftwareSerial.h>
 
+// ── Version (tracked by GSM-module/scripts/set_version.py, tag gsm/vX.Y.Z) ────
+#define FIRMWARE_VERSION "0.1.0"
+
 // ── Pins / baud ───────────────────────────────────────────────────────────────
 #define GSM_RX_PIN   2
 #define GSM_TX_PIN   3

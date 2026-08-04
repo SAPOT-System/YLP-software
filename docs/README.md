@@ -85,6 +85,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [getting-started/mobile-app-setup.md](getting-started/mobile-app-setup.md) | Nix + Expo dev environment setup |
 | [getting-started/gsm-module-setup.md](getting-started/gsm-module-setup.md) | SMS gateway setup |
 | [getting-started/admin-frontend-setup.md](getting-started/admin-frontend-setup.md) | Next.js admin dashboard setup |
+| [getting-started/captive-portal-setup.md](getting-started/captive-portal-setup.md) | Captive portal `config.js` setup (RouterOS hotspot login pages) |
 
 ### API
 
@@ -144,7 +145,7 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching, commit conventions, and PR workflow |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure process and known security posture |
 | [../LICENSE](../LICENSE) | MIT license |
-| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile/server independent) |
+| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile, server, captive portal, GSM module — independent) |
 | [../CHANGELOG.md](../CHANGELOG.md) | Notable changes per release |
 | [docs-todo.md](docs-todo.md) | Documentation audit remediation tracker |
 | [mobile-app-todo.org](mobile-app-todo.org) | Mobile app feature brief and TODOs |

@@ -1,6 +1,8 @@
 # Versioning Guide
 
-This repo uses git-tag-driven versioning for two independent components: **mobile** and **server**.
+This repo uses git-tag-driven versioning for four independent components: **mobile**, **server**, **portal** (captive portal), and **gsm** (GSM-module: `GSM-fastapi` + the production Arduino firmware, versioned together since they implement one wire-protocol contract).
+
+`GSM-module/GSM-API/` and `GSM-trial-code/` are not covered — neither is deployed (see `GSM-module/CLAUDE.md`). `tileserver/` has no source of its own (deploy scripts + `.mbtiles` data only) and isn't versioned.
 
 ---
 
@@ -10,6 +12,8 @@ This repo uses git-tag-driven versioning for two independent components: **mobil
 |-----------|-----------|---------|
 | Mobile | `mobile/vX.Y.Z` | `mobile/v1.0.0` |
 | Server | `server/vX.Y.Z` | `server/v0.2.0` |
+| Captive Portal | `portal/vX.Y.Z` | `portal/v0.2.0` |
+| GSM Module | `gsm/vX.Y.Z` | `gsm/v0.2.0` |
 
 **Pre-release suffix:** append `-(alpha|beta|rc).N` — e.g. `mobile/v1.0.0-beta.2`.  
 A tag with any `-` suffix is published as a GitHub **pre-release**. A tag without one is a full release.
@@ -20,43 +24,25 @@ A tag with any `-` suffix is published as a GitHub **pre-release**. A tag withou
 
 ```bash
 # 1. From the repo root, on a clean working tree:
-./scripts/release.sh <mobile|server> <X.Y.Z[-(alpha|beta|rc).N]>
+./scripts/release.sh <mobile|server|portal|gsm> <X.Y.Z[-(alpha|beta|rc).N]>
 
 # Examples:
 ./scripts/release.sh mobile 1.0.0-beta.1
 ./scripts/release.sh server 0.2.0
+./scripts/release.sh portal 0.2.0
+./scripts/release.sh gsm 0.2.0-beta.1
 ```
 
 The script will:
-1. Bump the component's version file (`package.json` for mobile, `server/app/version.py` for server).
+1. Bump the component's version file(s) (`package.json` for mobile, `server/app/version.py` for server, `captive-portal/VERSION` for portal, `GSM-module/GSM-fastapi/app_version.py` **and** the Arduino firmware's `FIRMWARE_VERSION` define for gsm).
 2. Commit the bump: `chore(version): <component> <version>`.
-3. Draft release notes — using Claude (`claude-sonnet-4-6`) if `ANTHROPIC_API_KEY` is set and `@anthropic-ai/sdk` is installed locally; otherwise emit the template for manual editing.
-4. Open the notes in `$EDITOR` for review (if running interactively).
-5. Create an **annotated git tag** (`mobile/vX.Y.Z` or `server/vX.Y.Z`) with the notes embedded in the tag message.
-6. Print the push command — **it does NOT push automatically**.
+3. Create an **annotated git tag** (`<component>/vX.Y.Z`).
+4. Print the push command — **it does NOT push automatically**.
 
 ```bash
 # 2. Review, then push:
 git push origin HEAD && git push origin <tag>
 ```
-
----
-
-## Release Notes
-
-Notes are drafted **locally only** — Claude is never called from CI.
-
-| Scenario | Result |
-|----------|--------|
-| `ANTHROPIC_API_KEY` set + `@anthropic-ai/sdk` installed | Claude (`claude-sonnet-4-6`) drafts notes from the commit list |
-| Key or SDK absent | The template (`scripts/release-notes-prompt.md`) is filled in for you to edit |
-
-To install the SDK locally (optional):
-```bash
-npm install   # at repo root — installs @anthropic-ai/sdk from package.json
-```
-
-The final notes travel with the tag. CI extracts them via `git tag -l --format='%(contents)'` and publishes them as the GitHub Release body.
 
 ---
 
@@ -77,6 +63,8 @@ The final notes travel with the tag. CI extracts them via `git tag -l --format='
 |-----------|----------------------|
 | Mobile | `mobile-app/sapot-mobile-app/package.json` → `version` |
 | Server | `server/app/version.py` → `__version__` |
+| Captive Portal | `captive-portal/VERSION` (plain text) |
+| GSM Module | `GSM-module/GSM-fastapi/app_version.py` → `__version__` **and** `GSM-module/GSM-arduino-actual-code/GSM-arduino-actual-code.ino` → `FIRMWARE_VERSION` (kept in lockstep by `GSM-module/scripts/set_version.py`) |
 
 `app.config.ts` (`version` and `extra.displayVersion`) is kept in sync by `set-version.js` — do not edit it manually.
 
@@ -87,10 +75,10 @@ The final notes travel with the tag. CI extracts them via `git tag -l --format='
 When a tag is pushed, the corresponding GitHub Actions workflow:
 1. Derives the version from the tag name.
 2. **Asserts** the version in the source file matches the tag (fails loudly if not).
-3. Extracts the annotated tag message as release notes.
+3. Extracts the annotated tag message (`<component> <version>`) as the GitHub Release body.
 4. Creates a GitHub Release (pre-release if the tag has a `-` suffix).
 
-CI uses **no Claude, no `@anthropic-ai/sdk`, no extra npm installs** — only the default `GITHUB_TOKEN`.
+CI does not draft or edit notes — it only reads the tag message and publishes it, using the default `GITHUB_TOKEN`.
 
 ---
 

@@ -1,11 +1,14 @@
 # git-cliff configuration (https://git-cliff.org)
 #
 # Regenerates CHANGELOG.md from Conventional Commits. This repo versions
-# mobile and server independently (see VERSIONING.md), so each component's
-# changelog must be generated separately using its own tag pattern, e.g.:
+# mobile, server, captive portal, and the GSM module independently (see
+# VERSIONING.md), so each component's changelog must be generated separately
+# using its own tag pattern, e.g.:
 #
-#   git-cliff --tag-pattern '^mobile/v' --include-path 'mobile-app/**' -o mobile-app/CHANGELOG.md
-#   git-cliff --tag-pattern '^server/v'  --include-path 'server/**'     -o server/CHANGELOG.md
+#   git-cliff --tag-pattern '^mobile/v' --include-path 'mobile-app/**'      -o mobile-app/CHANGELOG.md
+#   git-cliff --tag-pattern '^server/v'  --include-path 'server/**'         -o server/CHANGELOG.md
+#   git-cliff --tag-pattern '^portal/v'  --include-path 'captive-portal/**' -o captive-portal/CHANGELOG.md
+#   git-cliff --tag-pattern '^gsm/v'     --include-path 'GSM-module/**'     -o GSM-module/CHANGELOG.md
 #
 # The root CHANGELOG.md is a manually curated summary until per-component
 # changelogs are split out.
@@ -47,5 +50,5 @@ commit_parsers = [
     { message = "^ci", group = "CI" },
 ]
 filter_commits = false
-tag_pattern = "^(mobile|server)/v.*"
+tag_pattern = "^(mobile|server|portal|gsm)/v.*"
 sort_commits = "oldest"

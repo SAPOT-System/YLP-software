@@ -1,8 +1,9 @@
 # Changelog
 
 All notable changes to this project are documented here. SAPOT versions its
-**mobile** and **server** components independently — see [VERSIONING.md](VERSIONING.md)
-for the tag convention and release process.
+**mobile**, **server**, **captive portal**, and **GSM module** components
+independently — see [VERSIONING.md](VERSIONING.md) for the tag convention and
+release process.
 
 This file is manually curated today, seeded from existing release-tag annotations.
 Once each component has enough tagged history, it should be regenerated with
