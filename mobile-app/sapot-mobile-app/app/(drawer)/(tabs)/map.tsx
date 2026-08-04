@@ -22,6 +22,7 @@ import {
   Camera,
   GeoJSONSource,
   Layer,
+  type LngLatBounds,
   Map,
   Marker,
   RasterSource,
@@ -44,6 +45,17 @@ const EMPTY_STYLE = {
   sources: {},
   layers: [],
 };
+
+// The tile server only carries Batangas — see tileserver/crop-mbtiles.py,
+// whose REGIONS["batangas"] box these must stay in sync with. Re-cropping for
+// a different province means updating these here and in the admin's
+// MapLibre.tsx, which holds the same two constants.
+const REGION_MAX_BOUNDS: LngLatBounds = [120.45, 13.4, 121.6, 14.32];
+
+// One above the vector-tile floor stored in the .mbtiles: tileserver-gl
+// renders a raster tile at zoom Z from vector tiles at Z-1, so the lowest
+// zoom that renders anything is one higher than the lowest zoom stored.
+const REGION_MIN_ZOOM = 10;
 
 export default function GpsScreen() {
   const { isAuthenticated, isRescuer } = useAuth();
@@ -233,12 +245,14 @@ export default function GpsScreen() {
           <Camera
             trackUserLocation={followUser ? "default" : undefined}
             zoom={14}
+            minZoom={REGION_MIN_ZOOM}
+            maxBounds={REGION_MAX_BOUNDS}
           />
           <RasterSource
             id="tileserver"
             tiles={[tileUrl]}
             tileSize={256}
-            minzoom={0}
+            minzoom={REGION_MIN_ZOOM}
             maxzoom={18}
           >
             <Layer id="tileserver-layer" type="raster" source="tileserver" />

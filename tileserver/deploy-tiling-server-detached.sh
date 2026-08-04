@@ -10,4 +10,4 @@ echo "##################### running the tile server ###################"
 /usr/bin/docker run --name tileserver \
   -p 127.0.0.1:8080:8080 \
   -v /home/sapot/YLP-software/tileserver:/data \
-  maptiler/tileserver-gl --mbtiles osm-2020-02-10-v3.11_asia_philippines.mbtiles
+  maptiler/tileserver-gl --mbtiles osm-batangas.mbtiles

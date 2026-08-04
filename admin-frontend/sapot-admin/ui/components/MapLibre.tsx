@@ -67,6 +67,19 @@ function Field({ label, value }: { label: string; value: any }) {
   );
 }
 
+// Must stay in sync with the region used to build the served .mbtiles
+// (`REGIONS["batangas"]` in tileserver/crop-mbtiles.py). Re-cropping for a
+// different province means updating these two constants as well.
+const REGION_MAX_BOUNDS: [[number, number], [number, number]] = [
+  [120.45, 13.4], // south-west
+  [121.6, 14.32], // north-east
+];
+
+// One above the vector-tile floor in the .mbtiles: tileserver-gl renders a
+// raster tile at zoom Z from vector tiles at Z-1, so the lowest zoom that
+// renders anything is one higher than the lowest zoom actually stored.
+const REGION_MIN_ZOOM = 10;
+
 export type UserNode = {
   user_id: string;
   latitude: number;
@@ -314,6 +327,11 @@ export default function MapLibre({ data }: Props) {
           style: styleJSON, // ✅ pass JSON instead of URL
           center: [121.0581, 13.7573],
           zoom: 12,
+          // The tile file only covers Batangas — see tileserver/crop-mbtiles.py.
+          // Without these clamps the map happily pans to Manila and zooms out
+          // to the whole country, rendering blank tiles the whole way.
+          maxBounds: REGION_MAX_BOUNDS,
+          minZoom: REGION_MIN_ZOOM,
         });
 
         map.current = mapInstance;

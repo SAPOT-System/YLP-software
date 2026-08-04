@@ -105,7 +105,7 @@ services:
   tileserver:
     image: maptiler/tileserver-gl
     restart: unless-stopped
-    command: ["--mbtiles", "osm-2020-02-10-v3.11_asia_philippines.mbtiles"]
+    command: ["--mbtiles", "osm-batangas.mbtiles"]
     volumes:
       - ./tileserver:/data
     # Not published to the host — only reachable via nginx (TLS) at /tiles/,
