@@ -315,7 +315,7 @@ export default function MapLibre({ data }: Props) {
       try {
         const styleURL =
           process.env.NEXT_PUBLIC_MAP_STYLE ||
-            "https://localhost/tiles/styles/basic-preview/style.json";
+            `${window.location.origin}/tiles/styles/basic-preview/style.json`;
 
         // ✅ wait until style server is ready
         const styleJSON = await waitForStyle(styleURL);

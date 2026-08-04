@@ -221,10 +221,7 @@ export async function connectWebSocket(userId: string) {
   try {
     const token = await getToken();
     const raw = process.env.NEXT_PUBLIC_WEBSOCKET_DOMAIN;
-    if (!raw) {
-      throw new Error("NEXT_PUBLIC_WEBSOCKET_DOMAIN is not configured.");
-    }
-    const wsDomain = raw
+    const wsDomain = (raw || `wss://${window.location.host}`)
       .replace(/^http:\/\//, "ws://")
       .replace(/^https:\/\//, "wss://");
 

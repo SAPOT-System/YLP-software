@@ -2,6 +2,8 @@
 
 Runs the whole SAPOT stack — server (`db`, `redis`, `api`, `certgen`, `nginx`), `admin` (admin dashboard), `tileserver`, and `gsm-fastapi` (SMS gateway) — via the root `docker-compose.yml`. Alternative to setting up each component individually by hand: [server-setup.md](server-setup.md) (bare-metal server), [admin-frontend setup](../deployment/admin-frontend.md), [tileserver setup](../deployment/tileserver.md), [gsm-module setup](gsm-module-setup.md). All commands below run from the **repo root**, not `server/`.
 
+This is the developer stack. For a disconnected production site, build and use an [offline Docker bundle](../deployment/docker-bundle.md).
+
 ## Prerequisites
 
 - Docker + Docker Compose v2
