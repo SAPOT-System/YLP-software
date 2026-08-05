@@ -5,6 +5,107 @@ the developer compose stack and from the existing bare-metal/systemd deployment
 path. Build one immutable bundle on a connected machine, transport it to the
 site, then install it without pulling images or downloading dependencies.
 
+## Architecture
+
+### Build → ship → run
+
+```mermaid
+flowchart LR
+    subgraph dev["Dev machine"]
+        BB["scripts/build-bundle.sh<br/>builds images, manifest.json,<br/>CHECKSUMS.sha256, firmware .hex"]
+        RS["scripts/release.sh<br/>tags version (semver)"]
+    end
+
+    subgraph bundle["Release artifact (deploy/ bundle dir)"]
+        direction TB
+        M["manifest.json"]
+        C["CHECKSUMS.sha256"]
+        I["images/*.tar"]
+        CO["compose/*.yml"]
+        E["config/*.env.example"]
+        CE["certs/detect-ip.sh, gen-certs.sh"]
+        F["firmware/gsm-arduino-*.hex"]
+    end
+
+    subgraph target["Target (offline, LAN-only)"]
+        INS["deploy/scripts/install.sh"]
+    end
+
+    BB --> bundle
+    RS --> bundle
+    bundle -- "removable media" --> INS
+```
+
+### On-target lifecycle
+
+Every operator script (`install.sh`, `upgrade.sh`, `rollback.sh`, `status.sh`,
+`doctor.sh`) is a thin wrapper around `deploy/scripts/lib/deploy-common.sh`,
+which provides `check_schema`, `acquire_lock`, `compose`, `verify_checksums`,
+`disk_preflight`, `wait_healthy`, and `write_state`.
+
+```mermaid
+flowchart TD
+    Common["deploy-common.sh<br/>check_schema · acquire_lock · compose<br/>verify_checksums · disk_preflight<br/>wait_healthy · write_state"]
+
+    Install["install.sh<br/>(first run)"] --> Common
+    Upgrade["upgrade.sh<br/>(v → v+1, in place)"] --> Common
+    Rollback["rollback.sh<br/>(v → v-1, DB-ancestor safe)"] --> Common
+    Status["status.sh<br/>(health snapshot)"] --> Common
+    Doctor["doctor.sh<br/>(pass/fail diagnostic)"] --> Common
+
+    Common --> Checksums["verify_checksums<br/>(CHECKSUMS.sha256)"]
+    Common --> Disk["disk_preflight<br/>(SAPOT_ROOT + docker root,<br/>20% safety margin)"]
+
+    Checksums --> LoadImages["docker load images/*.tar<br/>→ verify-digests.sh<br/>(manifest-pinned digests)"]
+    Disk --> LoadImages
+
+    LoadImages --> ComposeDeps["compose up -d db redis<br/>→ wait_healthy"]
+    ComposeDeps --> Migrate["compose run api<br/>alembic upgrade head<br/>(ADR 0007)"]
+    Migrate --> ComposeFull["compose up -d<br/>(full stack: db, redis, api,<br/>admin, gsm-fastapi, tileserver, nginx)"]
+    ComposeFull --> HealthPoll["poll https://localhost/version<br/>(3min timeout)"]
+    HealthPoll --> Symlink["ln -sfn releases/vX → releases/current<br/>(atomic symlink swap)"]
+    Symlink --> WriteState["write_state()<br/>→ shared/state.json"]
+    WriteState --> Retention["lib/retention.sh<br/>(prunes old releases/vX dirs)"]
+```
+
+### Filesystem layout on target (`$SAPOT_ROOT`, default `/opt/sapot`)
+
+```
+/opt/sapot/
+├── releases/
+│   ├── v1.2.0/              full copy of a bundle (cp -a from source)
+│   ├── v1.3.0/
+│   └── current -> v1.3.0    symlink, atomically repointed by install/upgrade/rollback
+└── shared/                  persists across versions
+    ├── state.json           (currentVersion, gsmHardwarePresent, history)
+    ├── certs/                (TLS cert, CN = detected LAN IP)
+    ├── db-data/
+    ├── gsm-arduino-backups/  (pre-flash firmware backups)
+    └── server.env, admin.env, gsm-fastapi.env, gsm-arduino.env
+```
+
+### GSM firmware flash (independent flow)
+
+```mermaid
+flowchart TD
+    A["verify firmware .hex checksum against manifest"] --> B["verify board FQBN +<br/>version-compatibility constraint<br/>(semver.py satisfies)"]
+    B --> C["compose stop gsm-fastapi<br/>(release the serial port)"]
+    C --> D["dockerized avrdude:<br/>read-back backup of existing firmware<br/>→ shared/gsm-arduino-backups/"]
+    D --> E{"--check?"}
+    E -- "yes" --> F["stop here<br/>(preflight only, no upload)"]
+    E -- "no" --> G["confirm prompt<br/>unless --yes"]
+    G --> H["dockerized arduino-cli<br/>upload to device"]
+    H --> I["restart gsm-fastapi<br/>(trap on EXIT, always runs)"]
+    I --> J["record lastFirmwareFlashed<br/>in state.json"]
+```
+
+Safety mechanisms tying it together: `acquire_lock` serializes install/upgrade/
+rollback/flash so only one lifecycle operation runs at a time; checksums and
+manifest-pinned image digests mean the target never runs unverified images;
+upgrade/rollback validate Alembic revisions before migrating or reverting; and
+`releases/current` is only repointed after the new stack passes a `/version`
+health check, so a failed cutover leaves the previous release live.
+
 ## Build and transport
 
 On a clean, tagged checkout with Docker, Compose v2, `python3`, `zstd`, and
