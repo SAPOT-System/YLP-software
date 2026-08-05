@@ -16,7 +16,7 @@ live=$(compose "$current" run --rm api alembic current 2>/dev/null | awk '/^[0-9
 head=$(compose "$current" run --rm api alembic heads 2>/dev/null | awk '/^[0-9a-f]+/ {print $1; exit}')
 [ -n "$live" ] && [ "$live" = "$head" ] || { log_error "database revision drift: current=$live head=$head"; exit 1; }
 compose "$target" run --rm api alembic upgrade head
-compose "$target" up -d; for _ in {1..36}; do curl -kfsS https://localhost/version >/dev/null && break; sleep 5; done
+compose "$target" up -d; for _ in {1..36}; do curl -kfs https://localhost/version >/dev/null 2>&1 && break; sleep 5; done
 curl -kfsS https://localhost/version >/dev/null || { log_error "nginx/api did not become ready"; exit 1; }
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent); ln -sfn "$target" "$SAPOT_ROOT/releases/current"; write_state upgrade "$current_version" "$version" "$hardware"
 "$SELF/lib/retention.sh"; log_pass "upgraded SAPOT from v$current_version to v$version"

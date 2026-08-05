@@ -22,7 +22,7 @@ for image in "$target"/images/*.tar; do docker load -i "$image"; done
 "$VERIFY_DIGESTS" "$target/manifest.json"
 compose "$target" up -d db redis; wait_healthy "$target" db; wait_healthy "$target" redis
 compose "$target" run --rm api alembic upgrade head
-compose "$target" up -d; for _ in {1..36}; do curl -kfsS https://localhost/version >/dev/null && break; sleep 5; done
+compose "$target" up -d; for _ in {1..36}; do curl -kfs https://localhost/version >/dev/null 2>&1 && break; sleep 5; done
 curl -kfsS https://localhost/version >/dev/null || { log_error "nginx/api did not become ready"; exit 1; }
 ln -sfn "$target" "$SAPOT_ROOT/releases/current"; write_state install "" "$version" "$hardware"
 "$SELF/lib/retention.sh"; log_pass "installed SAPOT v$version"
