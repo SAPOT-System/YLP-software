@@ -32,7 +32,8 @@ compose() {
 }
 verify_checksums() { (cd "$1" && sha256sum -c CHECKSUMS.sha256); }
 disk_preflight() {
-  local required=$1 margin=$((required * (100 + SAFETY_PERCENT) / 100)) docker_root free
+  local required=$1 margin docker_root free
+  margin=$((required * (100 + SAFETY_PERCENT) / 100))
   docker_root=$(docker info --format '{{.DockerRootDir}}')
   for path in "$SAPOT_ROOT" "$docker_root"; do
     free=$(df -PB1 "$path" | awk 'NR==2 {print $4}')
