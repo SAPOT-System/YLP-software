@@ -8,6 +8,7 @@ import {
   markConversationMessagesAsRead,
 } from "../records/Createmessagereceipt";
 import { initAdminKeyPair } from "../adminEncryption";
+import { withBasePath } from "../basePath";
 
 /* =========================
    TYPES
@@ -74,7 +75,7 @@ function notifyHandlers(message: IncomingMessage) {
    TOKEN FETCH
 ========================= */
 export async function getToken(): Promise<string> {
-  const res = await fetch("/api/get-token");
+  const res = await fetch(withBasePath("/api/get-token"));
   if (!res.ok) throw new Error("Failed to fetch WS token");
   const data = await res.json();
   return data.token;

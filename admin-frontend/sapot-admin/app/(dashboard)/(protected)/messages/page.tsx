@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader } from "lucide-react";
 import { initSessionCleanup } from "@/lib/sessionCleanup";
 import { v4 as uuidv4 } from "uuid";
+import { withBasePath } from "@/lib/basePath";
 
 export function usePolling(callback: () => Promise<void>, interval: number) {
   const isRunning = useRef(false);
@@ -210,7 +211,7 @@ export default function Messages() {
     }
 
     const request = (async () => {
-      const res = await fetch("/api/get-current-user");
+      const res = await fetch(withBasePath("/api/get-current-user"));
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {

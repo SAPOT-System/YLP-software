@@ -7,6 +7,7 @@ import { logout } from '@/actions/auth'; // adjust path if needed
 
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/db';
+import { withBasePath } from '@/lib/basePath';
 
 
 export default function NavBar() {
@@ -21,7 +22,7 @@ export default function NavBar() {
 		setLoggingOut(true);
 
 		try {
-			const res = await fetch('/api/logout', {
+			const res = await fetch(withBasePath('/api/logout'), {
 				method: 'POST',
 			});
 

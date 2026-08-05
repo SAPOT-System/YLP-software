@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { withBasePath } from '@/lib/basePath';
 
 const inputStyle =
   'w-full bg-gray-50 px-4 py-3 rounded-xl outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400 text-gray-700';
@@ -30,7 +31,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const res = await fetch('/api/current-user');
+        const res = await fetch(withBasePath('/api/current-user'));
 
         const data = await res.json();
 

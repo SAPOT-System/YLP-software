@@ -1,5 +1,6 @@
 import nacl from "tweetnacl";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
+import { withBasePath } from "./basePath";
 
 const STORAGE_KEY = "admin_ecdh_secret";
 const ECDH_PREFIX = "ecdh:";
@@ -42,7 +43,7 @@ export async function initAdminKeyPair(token: string): Promise<void> {
   myPublicKey = keyPair.publicKey;
 
   try {
-    await fetch("/api/keys/register", {
+    await fetch(withBasePath("/api/keys/register"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ecdh_public_key: encodeBase64(myPublicKey) }),

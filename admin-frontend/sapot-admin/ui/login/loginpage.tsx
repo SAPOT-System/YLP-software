@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { withBasePath } from '@/lib/basePath';
 
 export default function LoginPage() {
   const hasSubmitted = useRef(false);
@@ -23,7 +24,7 @@ export default function LoginPage() {
     const formData = new FormData(e.currentTarget);
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch(withBasePath('/api/login'), {
         method: 'POST',
         body: formData, // ✅ IMPORTANT: matches req.formData()
       });

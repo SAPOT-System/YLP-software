@@ -5,6 +5,7 @@ import Modal from './modal';
 import { toast } from 'sonner';
 import { refresh } from 'next/cache';
 import clsx from 'clsx';
+import { withBasePath } from '@/lib/basePath';
 
 export interface UserData {
   id: number;
@@ -97,7 +98,7 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
       return;
     }
 
-    const fetchData = await fetch("/api/ban/user", {
+    const fetchData = await fetch(withBasePath("/api/ban/user"), {
       method: "POST",
       body: JSON.stringify({"user_id": selectedUser.id, "duration_in_days": banDuration}),
       headers: { 'Content-Type': 'application/json'}
@@ -120,7 +121,7 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
       return;
     }
 
-    const fetchData = await fetch("/api/unban/user", {
+    const fetchData = await fetch(withBasePath("/api/unban/user"), {
       method: "POST",
       body: JSON.stringify({"user_id": selectedUser.id}),
       headers: { 'Content-Type': 'application/json'}
