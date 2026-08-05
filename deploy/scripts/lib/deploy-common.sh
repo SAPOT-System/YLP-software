@@ -14,7 +14,7 @@ import json, sys
 value=json.load(open(sys.argv[1], encoding="utf-8"))
 for key in sys.argv[2].split('.'):
     value=value[key]
-print(value if not isinstance(value, (dict,list)) else json.dumps(value))
+print(json.dumps(value) if isinstance(value, (dict, list, bool)) else value)
 PY
 }
 check_schema() {
