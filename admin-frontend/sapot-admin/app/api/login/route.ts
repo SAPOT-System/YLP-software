@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   let response: Response;
 
   try {
-    response = await fetch(baseUrl + '/admin/login', {
+    response = await fetch(baseUrl + '/api/admin/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

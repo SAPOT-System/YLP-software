@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     }).toString();
     
     // ✅ Forward to backend
-    const res = await secureFetch(`/admin/get-logs?${query}`);
+    const res = await secureFetch(`/api/admin/get-logs?${query}`);
 
     if (!res.ok) {
       return NextResponse.json(

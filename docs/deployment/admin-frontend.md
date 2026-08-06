@@ -97,7 +97,7 @@ location /admin/ {
 ## Notes
 
 - `next.config.ts` sets `typescript.ignoreBuildErrors: true` and `eslint.ignoreDuringBuilds: true`. Fix type and lint errors before disabling these for production hardening.
-- The admin panel communicates directly with the SAPOT FastAPI server. It requires admin credentials (POST `/admin/login`).
+- The admin panel communicates directly with the SAPOT FastAPI server. It requires admin credentials (POST `/api/admin/login`).
 
 ---
 

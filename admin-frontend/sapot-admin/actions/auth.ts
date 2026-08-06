@@ -18,7 +18,7 @@ export async function loginAction(prevState: any, formData: FormData) {
   loginData.append('password', password as string);
 
   try {
-    const response = await fetch(`${process.env.API_DOMAIN}/admin/login`, {
+    const response = await fetch(`${process.env.API_DOMAIN}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: loginData,

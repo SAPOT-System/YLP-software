@@ -4,7 +4,7 @@ import { secureFetch } from "@/api/fetch";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId');
-  const backendUrl = `/admin/user-info?user_id=${userId}`
+  const backendUrl = `/api/admin/user-info?user_id=${userId}`
   try {
     const res = await secureFetch(backendUrl); 
     

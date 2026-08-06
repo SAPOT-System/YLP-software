@@ -3,12 +3,12 @@ info:
   title: SAPOT Server — Admin
   version: 0.1.0
 paths:
-  /admin:
+  /api/admin:
     get:
       tags:
       - admin
       summary: Test If Admin
-      operationId: test_if_admin_admin_get
+      operationId: test_if_admin_api_admin_get
       responses:
         '200':
           description: Successful Response
@@ -19,12 +19,12 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
-  /admin/announcements/{announcement_id}:
+  /api/admin/announcements/{announcement_id}:
     patch:
       tags:
       - admin
       summary: Edit Announcement
-      operationId: edit_announcement_admin_announcements__announcement_id__patch
+      operationId: edit_announcement_api_admin_announcements__announcement_id__patch
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -102,7 +102,7 @@ paths:
       tags:
       - admin
       summary: Delete Announcement
-      operationId: delete_announcement_admin_announcements__announcement_id__delete
+      operationId: delete_announcement_api_admin_announcements__announcement_id__delete
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -127,12 +127,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/ban/user:
+  /api/admin/ban/user:
     post:
       tags:
       - admin
       summary: Ban User
-      operationId: ban_user_admin_ban_user_post
+      operationId: ban_user_api_admin_ban_user_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -163,12 +163,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/create/user:
+  /api/admin/create/user:
     post:
       tags:
       - admin
       summary: Create User
-      operationId: create_user_admin_create_user_post
+      operationId: create_user_api_admin_create_user_post
       requestBody:
         content:
           application/json:
@@ -191,12 +191,12 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - OAuth2PasswordBearer: []
-  /admin/create/user/admin:
+  /api/admin/create/user/admin:
     post:
       tags:
       - admin
       summary: Create Admin
-      operationId: create_admin_admin_create_user_admin_post
+      operationId: create_admin_api_admin_create_user_admin_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -221,12 +221,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/create/user/rescuer:
+  /api/admin/create/user/rescuer:
     post:
       tags:
       - admin
       summary: Create Rescuer
-      operationId: create_rescuer_admin_create_user_rescuer_post
+      operationId: create_rescuer_api_admin_create_user_rescuer_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -251,12 +251,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/delete/user:
+  /api/admin/delete/user:
     post:
       tags:
       - admin
       summary: Delete User
-      operationId: delete_user_admin_delete_user_post
+      operationId: delete_user_api_admin_delete_user_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -281,12 +281,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/edit/user:
+  /api/admin/edit/user:
     post:
       tags:
       - admin
       summary: Edit User
-      operationId: edit_user_admin_edit_user_post
+      operationId: edit_user_api_admin_edit_user_post
       requestBody:
         content:
           application/json:
@@ -309,7 +309,7 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - OAuth2PasswordBearer: []
-  /admin/get-active-users:
+  /api/admin/get-active-users:
     get:
       tags:
       - admin
@@ -317,7 +317,7 @@ paths:
       description: |-
         Returns the most recent location for every user who has sent a ping.
         Useful for the initial map load.
-      operationId: get_all_latest_locations_admin_get_active_users_get
+      operationId: get_all_latest_locations_api_admin_get_active_users_get
       responses:
         '200':
           description: Successful Response
@@ -328,12 +328,12 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
-  /admin/get-all-announcements:
+  /api/admin/get-all-announcements:
     get:
       tags:
       - admin
       summary: Get Announcements
-      operationId: get_announcements_admin_get_all_announcements_get
+      operationId: get_announcements_api_admin_get_all_announcements_get
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -380,12 +380,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/get-logs:
+  /api/admin/get-logs:
     get:
       tags:
       - admin
       summary: Get System Logs
-      operationId: get_system_logs_admin_get_logs_get
+      operationId: get_system_logs_api_admin_get_logs_get
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -424,17 +424,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/login:
+  /api/admin/login:
     post:
       tags:
       - admin
       summary: Login For Access Token
-      operationId: login_for_access_token_admin_login_post
+      operationId: login_for_access_token_api_admin_login_post
       requestBody:
         content:
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Body_login_for_access_token_admin_login_post'
+              $ref: '#/components/schemas/Body_login_for_access_token_api_admin_login_post'
         required: true
       responses:
         '200':
@@ -450,12 +450,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/logout:
+  /api/admin/logout:
     post:
       tags:
       - admin
       summary: Logout User
-      operationId: logout_user_admin_logout_post
+      operationId: logout_user_api_admin_logout_post
       responses:
         '200':
           description: Successful Response
@@ -466,12 +466,12 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
-  /admin/me:
+  /api/admin/me:
     get:
       tags:
       - admin
       summary: Get My Admin Info
-      operationId: get_my_admin_info_admin_me_get
+      operationId: get_my_admin_info_api_admin_me_get
       responses:
         '200':
           description: Successful Response
@@ -482,12 +482,12 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
-  /admin/network/interfaces:
+  /api/admin/network/interfaces:
     get:
       tags:
       - admin
       summary: Read Interfaces
-      operationId: read_interfaces_admin_network_interfaces_get
+      operationId: read_interfaces_api_admin_network_interfaces_get
       responses:
         '200':
           description: Successful Response
@@ -498,12 +498,12 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
-  /admin/network/usage:
+  /api/admin/network/usage:
     get:
       tags:
       - admin
       summary: Get Live Speed
-      operationId: get_live_speed_admin_network_usage_get
+      operationId: get_live_speed_api_admin_network_usage_get
       responses:
         '200':
           description: Successful Response
@@ -514,12 +514,12 @@ paths:
           description: Not Found
       security:
       - OAuth2PasswordBearer: []
-  /admin/post-announcement:
+  /api/admin/post-announcement:
     post:
       tags:
       - admin
       summary: Create Announcement
-      operationId: create_announcement_admin_post_announcement_post
+      operationId: create_announcement_api_admin_post_announcement_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -566,12 +566,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/refresh:
+  /api/admin/refresh:
     post:
       tags:
       - admin
       summary: Refresh Access Token
-      operationId: refresh_access_token_admin_refresh_post
+      operationId: refresh_access_token_api_admin_refresh_post
       responses:
         '200':
           description: Successful Response
@@ -580,12 +580,12 @@ paths:
               schema: {}
         '404':
           description: Not Found
-  /admin/remove/user/admin:
+  /api/admin/remove/user/admin:
     post:
       tags:
       - admin
       summary: Remove Admin
-      operationId: remove_admin_admin_remove_user_admin_post
+      operationId: remove_admin_api_admin_remove_user_admin_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -610,12 +610,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/remove/user/rescuer:
+  /api/admin/remove/user/rescuer:
     post:
       tags:
       - admin
       summary: Remove Rescuer
-      operationId: remove_rescuer_admin_remove_user_rescuer_post
+      operationId: remove_rescuer_api_admin_remove_user_rescuer_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -640,12 +640,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/unban/user:
+  /api/admin/unban/user:
     post:
       tags:
       - admin
       summary: Unban User
-      operationId: unban_user_admin_unban_user_post
+      operationId: unban_user_api_admin_unban_user_post
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -670,12 +670,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/user-info:
+  /api/admin/user-info:
     get:
       tags:
       - admin
       summary: Get User Info
-      operationId: get_user_info_admin_user_info_get
+      operationId: get_user_info_api_admin_user_info_get
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -700,12 +700,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/users-activity:
+  /api/admin/users-activity:
     get:
       tags:
       - admin
       summary: Get Admin Users
-      operationId: get_admin_users_admin_users_activity_get
+      operationId: get_admin_users_api_admin_users_activity_get
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -759,7 +759,7 @@ components:
       - user
       - rescuer
       title: AudienceType
-    Body_login_for_access_token_admin_login_post:
+    Body_login_for_access_token_api_admin_login_post:
       properties:
         grant_type:
           anyOf:
@@ -793,7 +793,7 @@ components:
       required:
       - username
       - password
-      title: Body_login_for_access_token_admin_login_post
+      title: Body_login_for_access_token_api_admin_login_post
     HTTPValidationError:
       properties:
         detail:

@@ -7,7 +7,7 @@ export async function POST(request) {
     const body = await request.json();
 
     // 2. Forward that data to your FastAPI backend
-    const res = await secureFetch('/admin/edit/user', {
+    const res = await secureFetch('/api/admin/edit/user', {
       method: 'POST', // Ensure method is POST
       body: JSON.stringify(body), // Convert JS object to JSON string
       headers: {
