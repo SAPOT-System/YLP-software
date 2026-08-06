@@ -87,7 +87,12 @@ services:
       # client bundle and run in the developer's own browser on the host
       # network, which can't resolve "nginx" — those keep whatever
       # host-reachable value is set in this service's .env (LAN IP/localhost).
-      API_DOMAIN: https://nginx
+      # Talk to the api service directly rather than through nginx: nginx's
+      # /admin location proxies to this same admin container, so routing
+      # backend calls to admin/login through nginx self-loops back here
+      # instead of reaching the FastAPI /admin router (see deploy/config/
+      # admin.env.example, which made the same change for the prod bundle).
+      API_DOMAIN: http://api:8000
       NODE_EXTRA_CA_CERTS: /app/certs/server_ca.pem
     volumes:
       - ./admin-frontend/sapot-admin:/app

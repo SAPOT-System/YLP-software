@@ -69,7 +69,7 @@ const UserTable: React.FC<UserTableProps> = ({ data, currentPage, totalPages, on
       return;
     }
     
-    const fetchData = await fetch('api/delete/user', {
+    const fetchData = await fetch(withBasePath('/api/delete/user'), {
       method: "POST",
       body: JSON.stringify({ user_id: selectedUser?.id }),
       headers: {

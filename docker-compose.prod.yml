@@ -50,8 +50,6 @@ services:
     image: sapot/admin:bundle
     restart: unless-stopped
     env_file: [../../../shared/admin.env]
-    volumes:
-      - ../../../shared/certs/server_ca.pem:/app/certs/server_ca.pem:ro
     expose: ["3000"]
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', r => process.exit(r.statusCode < 500 ? 0 : 1))"]

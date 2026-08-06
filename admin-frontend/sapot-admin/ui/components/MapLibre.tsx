@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Maximize, Minimize, Lock, Unlock, AlertTriangle } from "lucide-react";
+import { withBasePath } from "@/lib/basePath";
 
 function formatTimestamp(timestamp: string) {
   const date = new Date(timestamp + "Z");
@@ -283,8 +284,8 @@ export default function MapLibre({ data }: Props) {
     setSelectedUser(node);
 
     const [historyRes, userRes] = await Promise.all([
-      fetch(`/api/get-gps/history?userId=${node.user_id}`),
-      fetch(`/api/get-user-info?userId=${node.user_id}`)
+      fetch(withBasePath(`/api/get-gps/history?userId=${node.user_id}`)),
+      fetch(withBasePath(`/api/get-user-info?userId=${node.user_id}`))
     ]);
 
     const [historyJson, userJson] = await Promise.all([
@@ -462,8 +463,8 @@ export default function MapLibre({ data }: Props) {
           setSelectedUser(node);
 	  setIsLocked(true);
 	  const [history, userdata] = await Promise.all([
-	    fetch(`/api/get-gps/history?userId=${node.user_id}`),
-	    fetch(`/api/get-user-info?userId=${node.user_id}`)
+	    fetch(withBasePath(`/api/get-gps/history?userId=${node.user_id}`)),
+	    fetch(withBasePath(`/api/get-user-info?userId=${node.user_id}`))
 	  ]);
 
 	  const [json, userJson] = await Promise.all([

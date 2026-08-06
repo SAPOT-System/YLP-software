@@ -59,7 +59,7 @@ export async function fetchAndCachePeerKey(peerId: string): Promise<void> {
   if (sharedKeyCache.has(peerId) || !mySecretKey) return;
 
   try {
-    const res = await fetch(`/api/keys/${peerId}`);
+    const res = await fetch(withBasePath(`/api/keys/${peerId}`));
     if (!res.ok) return;
     const data = await res.json();
     if (!data.ecdh_public_key) return;

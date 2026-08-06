@@ -277,7 +277,7 @@ export default function Dashboard() {
   const fetchUserActivity = async () => {
     try {
       const res = await fetch(
-        `/api/get-users-activity?page=${page}&size=${size}`
+        withBasePath(`/api/get-users-activity?page=${page}&size=${size}`)
       );
 
       if (!res.ok) {

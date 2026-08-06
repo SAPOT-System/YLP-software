@@ -84,7 +84,7 @@ export default function SettingsPage() {
 
     try {
       const res = await fetch(
-        '/api/update-profile',
+        withBasePath('/api/update-profile'),
         {
           method: 'POST',
           headers: {

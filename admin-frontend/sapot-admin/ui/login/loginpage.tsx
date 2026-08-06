@@ -52,7 +52,7 @@ export default function LoginPage() {
       {/* Background */}
       <div className="fixed inset-0 -z-10">
         <Image
-          src="/backgrounds/login.png"
+          src={withBasePath('/backgrounds/login.png')}
           alt="Background"
           fill
           priority={false}
@@ -65,7 +65,7 @@ export default function LoginPage() {
 
       {/* Logo */}
       <div className="flex py-4 items-center gap-2 text-white font-bold text-xl">
-        <Image src="/logos/logo.png" alt="Logo" width={32} height={32} />
+        <Image src={withBasePath('/logos/logo.png')} alt="Logo" width={32} height={32} />
         <span className="font-custom-color">SAPOT</span>
       </div>
 

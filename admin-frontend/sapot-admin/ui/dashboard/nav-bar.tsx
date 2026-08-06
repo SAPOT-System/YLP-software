@@ -68,7 +68,7 @@ export default function NavBar() {
       {/* Logo */}
       <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
         <Image
-          src="/logos/logo.png"
+          src={withBasePath('/logos/logo.png')}
           alt="SAPOT logo"
           width={logoSize}
           height={logoSize}
@@ -86,7 +86,7 @@ export default function NavBar() {
             className="flex items-center"
           >
             <Image
-              src="/icons/profile_icon.png"
+              src={withBasePath('/icons/profile_icon.png')}
               alt="profile"
               width={iconSize}
               height={iconSize}

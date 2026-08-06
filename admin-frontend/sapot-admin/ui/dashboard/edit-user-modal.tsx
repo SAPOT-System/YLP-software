@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { XIcon } from 'lucide-react'; // Or your icon library
 import { toast } from 'sonner';
 import Modal from './modal';
+import { withBasePath } from '@/lib/basePath';
 
 const inputStyle = "w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 bg-gray-50 focus:bg-white";
 const labelStyle = "block text-sm font-semibold text-gray-700 mb-1 ml-1";
@@ -70,9 +71,9 @@ export default function EditUserModal({ user, isOpen, onClose, onRefresh, mode="
       const endpoint =
         mode === "edit"
           ? "/api/edit/user"
-          : "/api/create/user/";
+          : "/api/create/user";
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(withBasePath(endpoint), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cleanedData),
