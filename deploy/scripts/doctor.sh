@@ -17,7 +17,30 @@ for service in db redis api admin gsm-fastapi tileserver nginx; do
   elif [ "$state" = healthy ]; then check "$service" PASS healthy
   else check "$service" FAIL "$state"; fi
 done
-cert="$SAPOT_ROOT/shared/certs/server.crt"; [ -f "$cert" ] && openssl x509 -checkend 0 -noout -in "$cert" >/dev/null && check certificate PASS "certificate is current" || check certificate FAIL "certificate missing or expired"
+check_certificate() {
+  local cert="$SAPOT_ROOT/shared/certs/server.crt"
+  local key="$SAPOT_ROOT/shared/certs/server.key"
+  if ! { [ -f "$cert" ] && openssl x509 -checkend 0 -noout -in "$cert" >/dev/null 2>&1; }; then
+    check certificate FAIL "certificate missing or expired"; return
+  fi
+  local crt_pubkey key_pubkey
+  crt_pubkey=$(openssl x509 -in "$cert" -noout -pubkey 2>/dev/null || true)
+  key_pubkey=$(openssl pkey -in "$key" -pubout 2>/dev/null || true)
+  if [ "$crt_pubkey" != "$key_pubkey" ]; then
+    check certificate FAIL "certificate and key do not match"; return
+  fi
+  local ip
+  ip=$("$current/certs/detect-ip.sh" 2>/dev/null || true)
+  if [ -n "$ip" ]; then
+    local san
+    san=$(openssl x509 -in "$cert" -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" || true)
+    if [[ "$san" != *"$ip"* ]]; then
+      check certificate FAIL "certificate SAN does not cover detected LAN IP $ip"; return
+    fi
+  fi
+  check certificate PASS "certificate is current"
+}
+check_certificate
 for port in 80 443; do ss -ltn "sport = :$port" | grep -q LISTEN && check "port-$port" PASS bound || check "port-$port" FAIL not-bound; done
 if [ "$hardware" = true ]; then port=$(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2-); [ -c "$port" ] && check gsm-device PASS "$port present" || check gsm-device FAIL "$port missing"; fi
 if "$json"; then printf '%s\n' "${checks[@]}" | python3 -c 'import json,sys; print(json.dumps([dict(zip(("check","status","detail"), line.rstrip().split("|",2))) for line in sys.stdin]))'
