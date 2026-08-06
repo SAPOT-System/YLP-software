@@ -6,9 +6,9 @@
 # Passing -f explicitly also suppresses Compose's auto-load of
 # docker-compose.override.yml, so CI runs the image's gunicorn CMD rather than
 # the override's reloading uvicorn worker -- prod parity, as that file's header
-# comment asks for. Naming only `api nginx` pulls in db, redis, certgen and
-# tileserver via depends_on while excluding `admin` and `gsm-fastapi`, whose
-# env_file paths don't exist in CI.
+# comment asks for. Naming only `api nginx` pulls in db, redis, certgen,
+# tileserver and admin via depends_on while excluding `gsm-fastapi`, whose
+# env_file path doesn't exist in CI.
 services:
   # Load-bearing, not cosmetic. docker/nginx.docker.conf proxies /tiles/ to a
   # static `tileserver:8080` upstream with no `resolver`, and nginx resolves
@@ -17,6 +17,20 @@ services:
   # so the real image would exit immediately. This container exists only to
   # hold the DNS name.
   tileserver:
+    image: alpine:3.20
+    command: ["sleep", "infinity"]
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # Same reasoning as tileserver above: docker/nginx.docker.conf proxies
+  # /admin to a static `admin:3000` upstream, so nginx refuses to start if
+  # the name doesn't resolve. Postman doesn't exercise the admin dashboard,
+  # so this only needs to hold the DNS name -- not actually build or run the
+  # real Next.js app.
+  admin:
     image: alpine:3.20
     command: ["sleep", "infinity"]
     healthcheck:
