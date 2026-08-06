@@ -61,6 +61,7 @@ cp docker-compose.gsm-hardware.yml "$bundle/compose/"
 cp deploy/config/* "$bundle/config/"
 cp docker/gen-certs.sh docker/detect-ip.sh "$bundle/certs/"
 cp -a deploy/scripts/. "$bundle/scripts/"
+find "$bundle" -name 'sign-leaf.sh' -print -quit | grep -q . && { echo "refusing to ship the CA signing tool in a bundle" >&2; exit 1; } || true
 chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
 
 python3 - "$bundle/manifest.json" "$version" "$git_sha" "$built_at" "$min_version" "$max_version" "$firmware_version" "$fqbn" "$firmware_sha" "$bundle" <<'PY'
