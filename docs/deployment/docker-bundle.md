@@ -28,7 +28,7 @@ flowchart LR
     end
 
     subgraph target["Target (offline, LAN-only)"]
-        INS["deploy/scripts/install.sh"]
+        INS["scripts/install.sh"]
     end
 
     BB --> bundle
@@ -39,7 +39,7 @@ flowchart LR
 ### On-target lifecycle
 
 Every operator script (`install.sh`, `upgrade.sh`, `rollback.sh`, `status.sh`,
-`doctor.sh`) is a thin wrapper around `deploy/scripts/lib/deploy-common.sh`,
+`doctor.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
 which provides `check_schema`, `acquire_lock`, `compose`, `verify_checksums`,
 `disk_preflight`, `wait_healthy`, and `write_state`.
 
@@ -53,14 +53,16 @@ flowchart TD
     Status["status.sh<br/>(health snapshot)"] --> Common
     Doctor["doctor.sh<br/>(pass/fail diagnostic)"] --> Common
 
-    Common --> Checksums["verify_checksums<br/>(CHECKSUMS.sha256)"]
+    Common --> Lock["acquire_lock<br/>(serializes lifecycle ops)"]
+    Lock --> Checksums["verify_checksums<br/>(CHECKSUMS.sha256)"]
     Common --> Disk["disk_preflight<br/>(SAPOT_ROOT + docker root,<br/>20% safety margin)"]
 
     Checksums --> LoadImages["docker load images/*.tar<br/>→ verify-digests.sh<br/>(manifest-pinned digests)"]
     Disk --> LoadImages
 
     LoadImages --> ComposeDeps["compose up -d db redis<br/>→ wait_healthy"]
-    ComposeDeps --> Migrate["compose run api<br/>alembic upgrade head<br/>(ADR 0007)"]
+    ComposeDeps --> SchemaCheck["check_schema<br/>(validates current Alembic<br/>revision before migrating)"]
+    SchemaCheck --> Migrate["compose run api<br/>alembic upgrade head<br/>(ADR 0007: Alembic migrations)"]
     Migrate --> ComposeFull["compose up -d<br/>(full stack: db, redis, api,<br/>admin, gsm-fastapi, tileserver, nginx)"]
     ComposeFull --> HealthPoll["poll https://localhost/version<br/>(3min timeout)"]
     HealthPoll --> Symlink["ln -sfn releases/vX → releases/current<br/>(atomic symlink swap)"]
@@ -102,7 +104,7 @@ flowchart TD
 Safety mechanisms tying it together: `acquire_lock` serializes install/upgrade/
 rollback/flash so only one lifecycle operation runs at a time; checksums and
 manifest-pinned image digests mean the target never runs unverified images;
-upgrade/rollback validate Alembic revisions before migrating or reverting; and
+upgrade/rollback validate Alembic revisions ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) before migrating or reverting; and
 `releases/current` is only repointed after the new stack passes a `/version`
 health check, so a failed cutover leaves the previous release live.
 
@@ -119,6 +121,12 @@ The result is `dist/sapot-bundle-vX.Y.Z.tar.zst`. Its `manifest.json` records
 the version, source commit, image IDs, firmware checksum, compatibility gates,
 and disk requirement. `CHECKSUMS.sha256` detects accidental corruption during
 transport. It is not a tamper-evident signature.
+
+`--min-upgrade-version` sets the manifest's `minimumUpgradeVersion` gate:
+`upgrade.sh` refuses to upgrade a target whose installed release is older than
+this version, so operators aren't allowed to skip straight from an
+unsupported ancient release into this one. `--max-rollback-version` sets
+`maximumRollbackVersion`, described below under rollback.
 
 Copy the tarball to the offline host by removable media, extract it, and run
 the bundled scripts from the extracted release. The host needs Docker Engine,
@@ -142,12 +150,17 @@ files, database data, certificates, firmware backups, and state remain in
 `shared/`; release directories are immutable.
 
 For a later artifact, extract it and run its `scripts/upgrade.sh`. Upgrades
-are safe to rerun for data integrity after interruption, including after an
-already-completed Alembic migration, but they are not zero-downtime. Schedule a
-maintenance window and stop site traffic while an upgrade runs.
+are idempotent: if interrupted, even after the Alembic migration has already
+completed, rerunning `upgrade.sh` is safe. Upgrades are not zero-downtime,
+though — schedule a maintenance window and stop site traffic while one runs.
 
 ```bash
 sudo ./scripts/upgrade.sh
+```
+
+To revert to a prior release instead:
+
+```bash
 sudo /opt/sapot/releases/current/scripts/rollback.sh 1.4.0
 ```
 
@@ -160,9 +173,29 @@ their image IDs and recent firmware backups, are retained. Run
 `doctor.sh` checks release checksums, image IDs, services, certificate, ports,
 disk, and expected hardware. Add `--json` for structured output. A site with
 no GSM modem normally shows `gsm-fastapi` as `unhealthy` in raw Docker output:
-that is expected because its `/health` endpoint signals no modem. `doctor.sh`
-and `status.sh` interpret it as healthy-degraded when the installation records
-that no hardware is attached.
+that is expected because its `/health` endpoint signals no modem. When the
+installation's `state.json` records that no GSM hardware is attached,
+`doctor.sh` and `status.sh` reinterpret that `unhealthy` container as an
+expected, non-blocking degraded state rather than a real failure — this is
+descriptive language in this doc, not a literal status string either tool
+prints.
+
+## Pitfalls
+
+- **Bump the version for every rebuild**, even for a config/frontend-only fix.
+  `upgrade.sh` targets `releases/v$version`; if that directory already exists
+  it skips copying the new bundle in, so a same-version rebuild silently
+  fails to deploy.
+- **Never run bare `docker load` / `docker compose`** against a release.
+  Always go through `install.sh` / `upgrade.sh`, which invoke compose with
+  `-p sapot` via `deploy-common.sh`'s `compose()` wrapper. Omitting `-p sapot`
+  creates a second, disconnected project instead of touching the live one.
+- **Don't extract a bundle under `$HOME`** and run compose from there —
+  `env_file` paths are relative to `$SAPOT_ROOT` and only resolve correctly
+  once installed under `/opt/sapot/releases/...`.
+- After any deploy, confirm `docker inspect <container> --format '{{.Image}}'`
+  matches the digest in that release's `manifest.json` — a container showing
+  "Up (healthy)" does not prove it's running the code you expect.
 
 ## GSM firmware
 
