@@ -24,11 +24,14 @@ LEAF_DAYS="${LEAF_DAYS:-825}"
 mkdir -p "$CERT_DIR"
 
 if [ -f "$CERT_DIR/server.crt" ] && [ -f "$CERT_DIR/server.key" ]; then
+    CRT_PUBKEY="$(openssl x509 -in "$CERT_DIR/server.crt" -noout -pubkey)"
+    KEY_PUBKEY="$(openssl pkey -in "$CERT_DIR/server.key" -pubout)"
+    if [ "$CRT_PUBKEY" != "$KEY_PUBKEY" ]; then
+        echo "gen-certs: ERROR: $CERT_DIR/server.crt and $CERT_DIR/server.key do not match (public key mismatch) — refusing to continue" >&2
+        exit 1
+    fi
     echo "gen-certs: $CERT_DIR/server.crt already exists, skipping generation"
-    exit 0
-fi
-
-if [ -f "$CA_CERT" ] && [ -f "$CA_KEY" ]; then
+elif [ -f "$CA_CERT" ] && [ -f "$CA_KEY" ]; then
     echo "gen-certs: dev CA found at $CA_DIR, issuing CA-signed leaf for CN=$CERT_CN SAN=$CERT_SAN"
     openssl req -newkey rsa:2048 -nodes \
         -keyout "$CERT_DIR/server.key" \
@@ -44,6 +47,9 @@ if [ -f "$CA_CERT" ] && [ -f "$CA_KEY" ]; then
         -extfile "$EXTFILE" \
         -out "$CERT_DIR/server.crt"
     rm -f "$EXTFILE" "$CERT_DIR/server.csr"
+elif [ -f "$CERT_DIR/server.csr" ] && [ ! -f "$CERT_DIR/server.crt" ]; then
+    echo "gen-certs: ERROR: CSR pending signature at $CERT_DIR/server.csr — refusing to fall back to self-signed while a CA request is outstanding; sign it via scripts/ca/sign-leaf.sh or remove $CERT_DIR/server.csr explicitly" >&2
+    exit 1
 else
     echo "gen-certs: no dev CA at $CA_DIR, generating self-signed cert for CN=$CERT_CN SAN=$CERT_SAN"
     openssl req -x509 -newkey rsa:2048 -nodes \
