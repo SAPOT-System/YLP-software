@@ -149,6 +149,29 @@ then atomically switches `/opt/sapot/releases/current`. Per-site environment
 files, database data, certificates, firmware backups, and state remain in
 `shared/`; release directories are immutable.
 
+### Issuing a TLS leaf via the offline-CA USB workflow
+
+The server host is deliberately never trusted with the CA private key — it only
+ever handles a CSR and, later, a signed leaf. Three participants are involved:
+the server, a transport USB stick that carries the CSR out and the signed
+`server.crt` back, and a separate offline signing laptop with the CA USB stick
+mounted (see [runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf)
+for the full step-by-step procedure and the trust-zone diagram).
+
+On the server, generate (or regenerate) the CSR:
+
+```bash
+sudo /opt/sapot/releases/current/scripts/request-cert.sh
+```
+
+`request-cert.sh` refuses to overwrite an existing `server.key`/`server.csr`
+pair without `--force`, and refuses to rotate the key itself without
+`--force --rotate-key`. Copy the resulting `server.csr` to the offline signing
+laptop, sign it there with `scripts/ca/sign-leaf.sh` against the CA USB stick,
+then copy the signed `server.crt` back into `$SAPOT_ROOT/shared/certs` on the
+server and recreate `nginx` per `request-cert.sh`'s printed next-step
+instructions.
+
 For a later artifact, extract it and run its `scripts/upgrade.sh`. Upgrades
 are idempotent: if interrupted, even after the Alembic migration has already
 completed, rerunning `upgrade.sh` is safe. Upgrades are not zero-downtime,
@@ -189,7 +212,11 @@ prints.
 - **Never run bare `docker load` / `docker compose`** against a release.
   Always go through `install.sh` / `upgrade.sh`, which invoke compose with
   `-p sapot` via `deploy-common.sh`'s `compose()` wrapper. Omitting `-p sapot`
-  creates a second, disconnected project instead of touching the live one.
+  creates a second, disconnected project instead of touching the live one. The
+  one sanctioned exception is the `docker compose -p sapot ... up -d
+  --force-recreate nginx` command `request-cert.sh` prints after a new leaf
+  is dropped in — it still passes `-p sapot` and only recreates the single
+  service that needs the new cert, rather than the whole stack.
 - **Don't extract a bundle under `$HOME`** and run compose from there —
   `env_file` paths are relative to `$SAPOT_ROOT` and only resolve correctly
   once installed under `/opt/sapot/releases/...`.
@@ -210,5 +237,8 @@ The script holds the same deployment lock as install and upgrade, verifies the
 firmware checksum and board type, stops the GSM service, reads a backup before
 uploading, and restarts the service on exit. `--check` includes the backup read
 but never uploads. Database backup/restore and automatic certificate renewal
-are out of scope: take database backups separately and regenerate certificates
-manually when their LAN IP or expiry requires it.
+are out of scope: take database backups separately, and when their LAN IP or
+expiry requires a new certificate, use the [offline-CA USB
+workflow](#issuing-a-tls-leaf-via-the-offline-ca-usb-workflow) above (or see
+[runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf) for
+the full procedure).
