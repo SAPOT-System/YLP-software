@@ -116,7 +116,7 @@
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
-        "url": { "raw": "{{baseUrl}}/admin/me", "host": ["{{baseUrl}}"], "path": ["admin", "me"] }
+        "url": { "raw": "{{baseUrl}}/api/admin/me", "host": ["{{baseUrl}}"], "path": ["api", "admin", "me"] }
       },
       "event": [
         {
@@ -143,7 +143,7 @@
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
-        "url": { "raw": "{{baseUrl}}/admin/me", "host": ["{{baseUrl}}"], "path": ["admin", "me"] }
+        "url": { "raw": "{{baseUrl}}/api/admin/me", "host": ["{{baseUrl}}"], "path": ["api", "admin", "me"] }
       },
       "event": [
         {
@@ -169,9 +169,9 @@
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
         "url": {
-          "raw": "{{baseUrl}}/admin/get-all-announcements",
+          "raw": "{{baseUrl}}/api/admin/get-all-announcements",
           "host": ["{{baseUrl}}"],
-          "path": ["admin", "get-all-announcements"]
+          "path": ["api", "admin", "get-all-announcements"]
         }
       },
       "event": [
@@ -198,9 +198,9 @@
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
         "url": {
-          "raw": "{{baseUrl}}/admin/get-all-announcements",
+          "raw": "{{baseUrl}}/api/admin/get-all-announcements",
           "host": ["{{baseUrl}}"],
-          "path": ["admin", "get-all-announcements"]
+          "path": ["api", "admin", "get-all-announcements"]
         }
       },
       "event": [
@@ -223,9 +223,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/admin/get-active-users",
+          "raw": "{{baseUrl}}/api/admin/get-active-users",
           "host": ["{{baseUrl}}"],
-          "path": ["admin", "get-active-users"]
+          "path": ["api", "admin", "get-active-users"]
         }
       },
       "event": [
@@ -252,9 +252,9 @@
         ],
         "body": { "mode": "raw", "raw": "{\"nonsense\": 1}" },
         "url": {
-          "raw": "{{baseUrl}}/admin/post-announcement",
+          "raw": "{{baseUrl}}/api/admin/post-announcement",
           "host": ["{{baseUrl}}"],
-          "path": ["admin", "post-announcement"]
+          "path": ["api", "admin", "post-announcement"]
         }
       },
       "event": [

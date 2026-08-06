@@ -74,8 +74,8 @@ yaml.add_representer(str, _yaml_str_presenter)
 # router's `prefix=` in server/app/api/*.py, cross-checked against which
 # paths currently live in which committed fragment.
 _RULES: list[tuple[str, "list[str] | None"]] = [
-    ("mikrotik-telemetry", ["/admin/router/"]),
-    ("admin", ["/admin/", "/admin"]),
+    ("mikrotik-telemetry", ["/api/admin/router/"]),
+    ("admin", ["/api/admin/", "/api/admin"]),
     ("auth-and-recovery", ["/auth/forgot-password/"]),
     ("authentication", ["/auth/"]),
     ("keys-and-encryption", ["/keys/", "/users/"]),

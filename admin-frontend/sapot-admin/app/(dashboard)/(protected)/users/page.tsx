@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import EditUserModal from "@/ui/dashboard/edit-user-modal";
+import { withBasePath } from "@/lib/basePath";
 
 export default function Users() {
 	const [data, setData] = useState<any | undefined>(undefined);
@@ -62,7 +63,7 @@ export default function Users() {
 
       abortRef.current = controller;
 
-      const url = `/api/get-users-activity?keyword=${debouncedKeyword}&page=${page}&size=${size}`;
+      const url = withBasePath(`/api/get-users-activity?keyword=${debouncedKeyword}&page=${page}&size=${size}`);
 
       const res = await fetch(url, {
         signal: controller.signal,

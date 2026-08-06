@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, RefreshCw, Search, Activity } from "lucide-react";
 import ReusableTable from "@/ui/dashboard/reusable-table";
+import { withBasePath } from "@/lib/basePath";
 
 type PercentBlock = {
   count: number;
@@ -50,7 +51,7 @@ export default function GSMDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/gsm-stats");
+      const res = await fetch(withBasePath("/api/gsm-stats"));
 
       if (!res.ok) throw new Error("Failed to fetch GSM stats");
 
@@ -73,7 +74,7 @@ export default function GSMDashboard() {
       setMessagesError(null);
       
       const offset = (page - 1) * PAGE_SIZE;
-      const url = `/api/sms/get-messages?limit=${PAGE_SIZE}&offset=${offset}`;
+      const url = withBasePath(`/api/sms/get-messages?limit=${PAGE_SIZE}&offset=${offset}`);
       
       const res = await fetch(url);
 

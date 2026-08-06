@@ -207,7 +207,7 @@
         "method": "POST",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639464970283\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
+          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639383978490\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
           "options": {
             "raw": {
               "headerFamily": "json",
@@ -249,7 +249,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639464970283\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639383978490\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -266,7 +266,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<uuid>\",\n  \"detail\": \"<string>\",\n  \"access_token\": \"<string>\",\n  \"refresh_token\": \"<string>\",\n  \"phone_number\": \"+639954232966\",\n  \"email\": \"<email>\"\n}",
+          "body": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"id\": \"<uuid>\",\n  \"detail\": \"<string>\",\n  \"access_token\": \"<string>\",\n  \"refresh_token\": \"<string>\",\n  \"phone_number\": \"+639447555475\",\n  \"email\": \"<email>\"\n}",
           "cookie": [
 
           ],
@@ -300,7 +300,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639464970283\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639383978490\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -351,7 +351,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639464970283\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639383978490\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",

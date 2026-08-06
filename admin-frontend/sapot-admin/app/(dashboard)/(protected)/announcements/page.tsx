@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { withBasePath } from "@/lib/basePath";
 
 type Announcement = {
   id: string;
@@ -80,7 +81,7 @@ export default function AnnouncementsPage() {
   const fetchAnnouncements = async (pageNumber = 1, keyword="") => {
     setLoading(true);
     const offset = (pageNumber - 1) * limit;
-    const res = await fetch(`/api/announcements?limit=${limit}&offset=${offset}&keyword=${keyword}`);
+    const res = await fetch(withBasePath(`/api/announcements?limit=${limit}&offset=${offset}&keyword=${keyword}`));
     const json = await res.json();
 
     setData(json.announcements || []);
@@ -95,7 +96,7 @@ export default function AnnouncementsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/announcements/${id}`, { method: "DELETE" });
+    await fetch(withBasePath(`/api/announcements/${id}`), { method: "DELETE" });
     fetchAnnouncements(page);
   };
 
@@ -110,13 +111,13 @@ export default function AnnouncementsPage() {
     };
 
     if (editing) {
-      await fetch(`/api/announcements/${editing.id}`, {
+      await fetch(withBasePath(`/api/announcements/${editing.id}`), {
 	method: "PATCH",
 	headers: { "Content-Type": "application/json" },
 	body: JSON.stringify(payload),
       });
     } else {
-      await fetch(`/api/announcements/create`, {
+      await fetch(withBasePath(`/api/announcements/create`), {
 	method: "POST",
 	headers: { "Content-Type": "application/json" },
 	body: JSON.stringify(payload),
@@ -139,13 +140,13 @@ export default function AnnouncementsPage() {
     };
 
     if (editing) {
-      await fetch(`/api/announcements/${editing.id}`, {
+      await fetch(withBasePath(`/api/announcements/${editing.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
     } else {
-      await fetch(`/api/announcements/create`, {
+      await fetch(withBasePath(`/api/announcements/create`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

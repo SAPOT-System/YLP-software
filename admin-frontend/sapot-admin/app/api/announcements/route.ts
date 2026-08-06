@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     const keyword = searchParams.get("keyword");
 
     const res = await secureFetch(
-      `/admin/get-all-announcements?limit=${limit}&offset=${offset}&keyword=${keyword}`
+      `/api/admin/get-all-announcements?limit=${limit}&offset=${offset}&keyword=${keyword}`
     );
 
     if (!res.ok) {

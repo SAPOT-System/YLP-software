@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader } from "lucide-react";
 import { initSessionCleanup } from "@/lib/sessionCleanup";
 import { v4 as uuidv4 } from "uuid";
+import { withBasePath } from "@/lib/basePath";
 
 export function usePolling(callback: () => Promise<void>, interval: number) {
   const isRunning = useRef(false);
@@ -210,7 +211,7 @@ export default function Messages() {
     }
 
     const request = (async () => {
-      const res = await fetch("/api/get-current-user");
+      const res = await fetch(withBasePath("/api/get-current-user"));
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
@@ -299,7 +300,7 @@ export default function Messages() {
         const existing = await db.peers.get(id);
         if (existing?.username) return;
         try {
-          const res = await fetch(`/api/search-user/by-id?identifier_string=${id}`, { method: "POST" });
+          const res = await fetch(withBasePath(`/api/search-user/by-id?identifier_string=${id}`), { method: "POST" });
           const fetched = await res.json();
           if (fetched?.id) {
             await db.peers.put({
@@ -396,7 +397,7 @@ export default function Messages() {
   async function search(identifier: string) {
     setSearchQuery(identifier);
     if (identifier === "") { setMatchedUsers([]); return; }
-    const fet = await fetch(`/api/search-user?identifier_string=${identifier}`, { method: "POST" });
+    const fet = await fetch(withBasePath(`/api/search-user?identifier_string=${identifier}`), { method: "POST" });
     const tojson = await fet.json();
     setMatchedUsers(tojson.res || []);
   }
@@ -425,7 +426,7 @@ export default function Messages() {
             let peer = await db.peers.get(p.user_id);
             if (!peer || !peer.username) {
               try {
-                const res = await fetch(`/api/search-user/by-id?identifier_string=${p.user_id}`, { method: "POST" });
+                const res = await fetch(withBasePath(`/api/search-user/by-id?identifier_string=${p.user_id}`), { method: "POST" });
                 const fetchedUser = await res.json();
                 if (fetchedUser) {
                   const peerData = {

@@ -9,3 +9,5 @@ reports/
 
 # Generated from PORTAL_API_BASE by scripts/gen-portal-config.sh.
 captive-portal/config.js
+.bundle-build.*
+dist/

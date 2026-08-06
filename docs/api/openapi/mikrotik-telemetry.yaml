@@ -3,13 +3,13 @@ info:
   title: SAPOT Server — Mikrotik Telemetry
   version: 0.1.0
 paths:
-  /admin/router/dashboard:
+  /api/admin/router/dashboard:
     get:
       tags:
       - router
       - admin
       summary: Dashboard
-      operationId: dashboard_admin_router_dashboard_get
+      operationId: dashboard_api_admin_router_dashboard_get
       responses:
         '200':
           description: Successful Response
@@ -18,13 +18,13 @@ paths:
               schema: {}
       security:
       - OAuth2PasswordBearer: []
-  /admin/router/health/history:
+  /api/admin/router/health/history:
     get:
       tags:
       - router
       - admin
       summary: Health History
-      operationId: health_history_admin_router_health_history_get
+      operationId: health_history_api_admin_router_health_history_get
       security:
       - OAuth2PasswordBearer: []
       parameters:
@@ -47,13 +47,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/router/health/latest:
+  /api/admin/router/health/latest:
     get:
       tags:
       - router
       - admin
       summary: Latest Health
-      operationId: latest_health_admin_router_health_latest_get
+      operationId: latest_health_api_admin_router_health_latest_get
       responses:
         '200':
           description: Successful Response
@@ -62,13 +62,13 @@ paths:
               schema: {}
       security:
       - OAuth2PasswordBearer: []
-  /admin/router/traffic/{interface}:
+  /api/admin/router/traffic/{interface}:
     get:
       tags:
       - router
       - admin
       summary: Traffic
-      operationId: traffic_admin_router_traffic__interface__get
+      operationId: traffic_api_admin_router_traffic__interface__get
       security:
       - OAuth2PasswordBearer: []
       parameters:

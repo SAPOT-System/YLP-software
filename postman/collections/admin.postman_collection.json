@@ -37,6 +37,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin"
           ],
           "host": [
@@ -66,6 +67,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin"
               ],
               "host": [
@@ -116,6 +118,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin"
               ],
               "host": [
@@ -196,6 +199,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "announcements",
             ":announcement_id"
@@ -229,7 +233,7 @@
                 "type": "text/plain"
               },
               "key": "priority",
-              "value": "high"
+              "value": "low"
             },
             {
               "disabled": false,
@@ -238,7 +242,7 @@
                 "type": "text/plain"
               },
               "key": "target_audience",
-              "value": "rescuer"
+              "value": "user"
             },
             {
               "disabled": false,
@@ -256,7 +260,7 @@
                 "type": "text/plain"
               },
               "key": "status",
-              "value": "expired"
+              "value": "active"
             }
           ],
           "variable": [
@@ -289,6 +293,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "announcements",
                 ":announcement_id"
@@ -322,7 +327,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "high"
+                  "value": "low"
                 },
                 {
                   "disabled": false,
@@ -331,7 +336,7 @@
                     "type": "text/plain"
                   },
                   "key": "target_audience",
-                  "value": "rescuer"
+                  "value": "user"
                 },
                 {
                   "disabled": false,
@@ -349,7 +354,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "expired"
+                  "value": "active"
                 }
               ],
               "variable": [
@@ -403,6 +408,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "announcements",
                 ":announcement_id"
@@ -436,7 +442,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "high"
+                  "value": "low"
                 },
                 {
                   "disabled": false,
@@ -445,7 +451,7 @@
                     "type": "text/plain"
                   },
                   "key": "target_audience",
-                  "value": "rescuer"
+                  "value": "user"
                 },
                 {
                   "disabled": false,
@@ -463,7 +469,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "expired"
+                  "value": "active"
                 }
               ],
               "variable": [
@@ -509,6 +515,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "announcements",
                 ":announcement_id"
@@ -542,7 +549,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "high"
+                  "value": "low"
                 },
                 {
                   "disabled": false,
@@ -551,7 +558,7 @@
                     "type": "text/plain"
                   },
                   "key": "target_audience",
-                  "value": "rescuer"
+                  "value": "user"
                 },
                 {
                   "disabled": false,
@@ -569,7 +576,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "expired"
+                  "value": "active"
                 }
               ],
               "variable": [
@@ -661,6 +668,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "announcements",
             ":announcement_id"
@@ -701,6 +709,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "announcements",
                 ":announcement_id"
@@ -762,6 +771,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "announcements",
                 ":announcement_id"
@@ -815,6 +825,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "announcements",
                 ":announcement_id"
@@ -914,6 +925,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "ban",
             "user"
@@ -962,6 +974,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "ban",
                 "user"
@@ -1031,6 +1044,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "ban",
                 "user"
@@ -1092,6 +1106,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "ban",
                 "user"
@@ -1199,6 +1214,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "create",
             "user"
@@ -1226,7 +1242,7 @@
         "method": "POST",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639206716749\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+          "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639202524969\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
           "options": {
             "raw": {
               "headerFamily": "json",
@@ -1242,6 +1258,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user"
@@ -1277,7 +1294,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639206716749\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639202524969\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -1306,6 +1323,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user"
@@ -1337,7 +1355,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639206716749\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639202524969\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -1362,6 +1380,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user"
@@ -1397,7 +1416,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639206716749\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
+              "raw": "{\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"password\": \"<string>\",\n  \"phone_number\": \"+639202524969\",\n  \"email\": \"<email>\",\n  \"id\": \"<uuid>\",\n  \"terms_accepted\": true,\n  \"is_admin\": false,\n  \"is_rescuer\": false\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -1464,6 +1483,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "create",
             "user",
@@ -1504,6 +1524,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user",
@@ -1565,6 +1586,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user",
@@ -1618,6 +1640,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user",
@@ -1717,6 +1740,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "create",
             "user",
@@ -1757,6 +1781,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user",
@@ -1818,6 +1843,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user",
@@ -1871,6 +1897,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "create",
                 "user",
@@ -1970,6 +1997,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "delete",
             "user"
@@ -2009,6 +2037,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "delete",
                 "user"
@@ -2069,6 +2098,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "delete",
                 "user"
@@ -2121,6 +2151,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "delete",
                 "user"
@@ -2219,6 +2250,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "edit",
             "user"
@@ -2246,7 +2278,7 @@
         "method": "POST",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639261199404\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+          "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639349793109\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
           "options": {
             "raw": {
               "headerFamily": "json",
@@ -2262,6 +2294,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "edit",
                 "user"
@@ -2297,7 +2330,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639261199404\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639349793109\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2326,6 +2359,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "edit",
                 "user"
@@ -2357,7 +2391,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639261199404\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639349793109\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2382,6 +2416,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "edit",
                 "user"
@@ -2417,7 +2452,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639261199404\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
+              "raw": "{\n  \"id\": \"<uuid>\",\n  \"username\": \"<string>\",\n  \"first_name\": \"<string>\",\n  \"last_name\": \"<string>\",\n  \"phone_number\": \"+639349793109\",\n  \"email\": \"<email>\",\n  \"is_admin\": \"<boolean>\",\n  \"is_rescuer\": \"<boolean>\"\n}",
               "options": {
                 "raw": {
                   "headerFamily": "json",
@@ -2486,6 +2521,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "get-active-users"
           ],
@@ -2516,6 +2552,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-active-users"
               ],
@@ -2567,6 +2604,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-active-users"
               ],
@@ -2648,6 +2686,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "get-all-announcements"
           ],
@@ -2680,7 +2719,7 @@
                 "type": "text/plain"
               },
               "key": "status",
-              "value": "expired"
+              "value": "active"
             },
             {
               "disabled": false,
@@ -2713,6 +2752,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-all-announcements"
               ],
@@ -2745,7 +2785,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "expired"
+                  "value": "active"
                 },
                 {
                   "disabled": false,
@@ -2799,6 +2839,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-all-announcements"
               ],
@@ -2831,7 +2872,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "expired"
+                  "value": "active"
                 },
                 {
                   "disabled": false,
@@ -2877,6 +2918,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-all-announcements"
               ],
@@ -2909,7 +2951,7 @@
                     "type": "text/plain"
                   },
                   "key": "status",
-                  "value": "expired"
+                  "value": "active"
                 },
                 {
                   "disabled": false,
@@ -3001,6 +3043,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "get-logs"
           ],
@@ -3057,6 +3100,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-logs"
               ],
@@ -3134,6 +3178,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-logs"
               ],
@@ -3203,6 +3248,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "get-logs"
               ],
@@ -3318,6 +3364,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "login"
           ],
@@ -3409,6 +3456,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "login"
               ],
@@ -3513,6 +3561,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "login"
               ],
@@ -3609,6 +3658,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "login"
               ],
@@ -3751,6 +3801,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "logout"
           ],
@@ -3781,6 +3832,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "logout"
               ],
@@ -3832,6 +3884,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "logout"
               ],
@@ -3913,6 +3966,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "me"
           ],
@@ -3943,6 +3997,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "me"
               ],
@@ -3994,6 +4049,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "me"
               ],
@@ -4075,6 +4131,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "network",
             "interfaces"
@@ -4106,6 +4163,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "network",
                 "interfaces"
@@ -4158,6 +4216,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "network",
                 "interfaces"
@@ -4240,6 +4299,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "network",
             "usage"
@@ -4271,6 +4331,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "network",
                 "usage"
@@ -4323,6 +4384,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "network",
                 "usage"
@@ -4405,6 +4467,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "post-announcement"
           ],
@@ -4437,7 +4500,7 @@
                 "type": "text/plain"
               },
               "key": "priority",
-              "value": "high"
+              "value": "low"
             },
             {
               "disabled": false,
@@ -4446,7 +4509,7 @@
                 "type": "text/plain"
               },
               "key": "target_audience",
-              "value": "rescuer"
+              "value": "user"
             },
             {
               "disabled": false,
@@ -4479,6 +4542,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "post-announcement"
               ],
@@ -4511,7 +4575,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "high"
+                  "value": "low"
                 },
                 {
                   "disabled": false,
@@ -4520,7 +4584,7 @@
                     "type": "text/plain"
                   },
                   "key": "target_audience",
-                  "value": "rescuer"
+                  "value": "user"
                 },
                 {
                   "disabled": false,
@@ -4574,6 +4638,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "post-announcement"
               ],
@@ -4606,7 +4671,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "high"
+                  "value": "low"
                 },
                 {
                   "disabled": false,
@@ -4615,7 +4680,7 @@
                     "type": "text/plain"
                   },
                   "key": "target_audience",
-                  "value": "rescuer"
+                  "value": "user"
                 },
                 {
                   "disabled": false,
@@ -4661,6 +4726,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "post-announcement"
               ],
@@ -4693,7 +4759,7 @@
                     "type": "text/plain"
                   },
                   "key": "priority",
-                  "value": "high"
+                  "value": "low"
                 },
                 {
                   "disabled": false,
@@ -4702,7 +4768,7 @@
                     "type": "text/plain"
                   },
                   "key": "target_audience",
-                  "value": "rescuer"
+                  "value": "user"
                 },
                 {
                   "disabled": false,
@@ -4794,6 +4860,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "refresh"
           ],
@@ -4824,6 +4891,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "refresh"
               ],
@@ -4867,6 +4935,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "refresh"
               ],
@@ -4938,6 +5007,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "remove",
             "user",
@@ -4978,6 +5048,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "remove",
                 "user",
@@ -5039,6 +5110,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "remove",
                 "user",
@@ -5092,6 +5164,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "remove",
                 "user",
@@ -5191,6 +5264,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "remove",
             "user",
@@ -5231,6 +5305,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "remove",
                 "user",
@@ -5292,6 +5367,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "remove",
                 "user",
@@ -5345,6 +5421,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "remove",
                 "user",
@@ -5444,6 +5521,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "unban",
             "user"
@@ -5483,6 +5561,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "unban",
                 "user"
@@ -5543,6 +5622,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "unban",
                 "user"
@@ -5595,6 +5675,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "unban",
                 "user"
@@ -5693,6 +5774,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "user-info"
           ],
@@ -5731,6 +5813,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "user-info"
               ],
@@ -5790,6 +5873,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "user-info"
               ],
@@ -5841,6 +5925,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "user-info"
               ],
@@ -5938,6 +6023,7 @@
         },
         "url": {
           "path": [
+            "api",
             "admin",
             "users-activity"
           ],
@@ -5994,6 +6080,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "users-activity"
               ],
@@ -6071,6 +6158,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "users-activity"
               ],
@@ -6140,6 +6228,7 @@
           "originalRequest": {
             "url": {
               "path": [
+                "api",
                 "admin",
                 "users-activity"
               ],

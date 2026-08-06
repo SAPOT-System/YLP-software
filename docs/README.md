@@ -14,6 +14,7 @@ SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response
 | `GSM-module/` | SMS gateway — sends SMS when LAN messaging fails | FastAPI, pyserial, Arduino/AT commands | — |
 | `captive-portal/` | MikroTik hotspot login pages shown to users joining the network | Static HTML/CSS/JS | — |
 | `tileserver/` | Offline map tile server for the GPS map | — | — |
+| `deploy/` | Offline, immutable Docker deployment bundle tooling | Bash, Docker Compose | [deployment/docker-bundle.md](deployment/docker-bundle.md) |
 
 ---
 
@@ -120,6 +121,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [deployment/admin-frontend.md](deployment/admin-frontend.md) | Admin dashboard deployment |
 | [deployment/gsm-module.md](deployment/gsm-module.md) | GSM module deployment |
 | [deployment/tileserver.md](deployment/tileserver.md) | Offline tileserver deployment |
+| [deployment/docker-bundle.md](deployment/docker-bundle.md) | Offline Docker bundle build, install, upgrade, and recovery |
 
 ### Features
 

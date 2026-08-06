@@ -79,10 +79,10 @@ Each `.md` file below links to a corresponding machine-readable OpenAPI fragment
 | [sync.md](sync.md) | `GET /sync/pull`, `POST /sync/push` — WatermelonDB sync protocol |
 | [messaging-and-websocket.md](messaging-and-websocket.md) | `WebSocket /ws/` — chat, signalling, presence, public chat; `GET /public-chat` |
 | [gps.md](gps.md) | `WebSocket /gps/ws/{user_id}`, `WebSocket /gps/ws/monitor/rescuers/{rescuer_id}`, `GET /gps/latest`, `GET /gps/history/{user_id}` |
-| [admin.md](admin.md) | All `GET /admin/*`, `POST /admin/*`, `PATCH /admin/*`, `DELETE /admin/*` endpoints — user management, banning, roles, announcements, activity logs, network stats |
+| [admin.md](admin.md) | All `GET /api/admin/*`, `POST /api/admin/*`, `PATCH /api/admin/*`, `DELETE /api/admin/*` endpoints — user management, banning, roles, announcements, activity logs, network stats |
 | [gsm-sms.md](gsm-sms.md) | `/gsm/sms/send`, `/gsm/request`, `/gsm/verify`, `/gsm/resend`, `/gsm/contact-unknown-user`, `/gsm/migrate-phone-user`, internal inbound/health endpoints, mock variants |
 | [captive-portal.md](captive-portal.md) | `/portal/api/v1/guests/*` — MikroTik hotspot guest session tracking |
-| [mikrotik-telemetry.md](mikrotik-telemetry.md) | `/admin/router/health/*`, `/admin/router/traffic/{interface}`, `/admin/router/dashboard` |
+| [mikrotik-telemetry.md](mikrotik-telemetry.md) | `/api/admin/router/health/*`, `/api/admin/router/traffic/{interface}`, `/api/admin/router/dashboard` |
 | [profile.md](profile.md) | `GET /profile-picture/me`, `POST /profile-picture/me`, `GET /profile-picture/{user_id}` |
 | [system.yaml](openapi/system.yaml) | `GET /`, `GET /version`, `GET /ping`, `GET /static/*`, `GET /download/download-apk`, `POST /testing/test-make-admin`, `POST /testing/test-make-rescuer`, `POST /update/profile/`, `/user-utils/*` — see [Other Endpoints](#other-endpoints) below |
 

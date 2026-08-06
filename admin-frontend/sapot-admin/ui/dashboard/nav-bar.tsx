@@ -7,6 +7,7 @@ import { logout } from '@/actions/auth'; // adjust path if needed
 
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/db';
+import { withBasePath } from '@/lib/basePath';
 
 
 export default function NavBar() {
@@ -21,7 +22,7 @@ export default function NavBar() {
 		setLoggingOut(true);
 
 		try {
-			const res = await fetch('/api/logout', {
+			const res = await fetch(withBasePath('/api/logout'), {
 				method: 'POST',
 			});
 
@@ -67,7 +68,7 @@ export default function NavBar() {
       {/* Logo */}
       <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
         <Image
-          src="/logos/logo.png"
+          src={withBasePath('/logos/logo.png')}
           alt="SAPOT logo"
           width={logoSize}
           height={logoSize}
@@ -85,7 +86,7 @@ export default function NavBar() {
             className="flex items-center"
           >
             <Image
-              src="/icons/profile_icon.png"
+              src={withBasePath('/icons/profile_icon.png')}
               alt="profile"
               width={iconSize}
               height={iconSize}

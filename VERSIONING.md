@@ -90,5 +90,5 @@ CI does not draft or edit notes — it only reads the tag message and publishes 
 This versioning system covers **only** version strings and GitHub Releases. The following are handled separately:
 
 - EAS builds and OTA updates
-- Server Docker image tagging and deployment
+- Offline Docker bundles: a bundle uses the server `__version__` at build time and records its exact artifact metadata in `manifest.json`; see [the Docker bundle deployment guide](docs/deployment/docker-bundle.md)
 - In-app update banners and client-version gating

@@ -19,6 +19,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /home/app/server
 COPY app ./app
 COPY static ./static
+COPY alembic.ini ./alembic.ini
 
 RUN mkdir -p logs && chown -R app:app /home/app/server
 USER app

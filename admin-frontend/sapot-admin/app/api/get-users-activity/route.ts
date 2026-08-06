@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
 	const page = searchParams.get('page') || '1';
 	const size = searchParams.get('size') || '10';
 	const keyword = searchParams.get('keyword') || '';
-	const backendUrl = `/admin/users-activity?page=${page}&size=${size}&keyword=${keyword}`
+	const backendUrl = `/api/admin/users-activity?page=${page}&size=${size}&keyword=${keyword}`
   try {
     const res = await secureFetch(backendUrl); 
     

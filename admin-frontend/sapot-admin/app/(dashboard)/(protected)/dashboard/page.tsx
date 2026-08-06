@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, ChevronRight, Loader, MoveRight } from "lucide-react";
+import { withBasePath } from "@/lib/basePath";
 
 export function getTime() {
   return new Intl.DateTimeFormat('en-PH', {
@@ -98,7 +99,7 @@ export default function Dashboard() {
 
 	const fetchRouterDashboard = async () => {
 		try {
-			const res = await fetch("/api/router/dashboard");
+			const res = await fetch(withBasePath("/api/router/dashboard"));
 
 			if (!res.ok) {
 				throw new Error("Failed router dashboard fetch");
@@ -137,7 +138,7 @@ export default function Dashboard() {
 
   const fetchNodeData = async () => {
     try {
-      const res = await fetch('/api/active-users');
+      const res = await fetch(withBasePath('/api/active-users'));
 
       if (!res.ok) {
         throw new Error("Failed active users fetch");
@@ -176,7 +177,7 @@ export default function Dashboard() {
 
   const fetchNetworkData = async () => {
     try {
-      const res = await fetch('/api/get-network-usage');
+      const res = await fetch(withBasePath('/api/get-network-usage'));
 
       if (!res.ok) {
         throw new Error("Failed network fetch");
@@ -230,7 +231,7 @@ export default function Dashboard() {
 
   const fetchNICData = async () => {
     try {
-      const res = await fetch('/api/get-interfaces');
+      const res = await fetch(withBasePath('/api/get-interfaces'));
 
       if (!res.ok) {
         throw new Error("Failed interfaces fetch");
@@ -276,7 +277,7 @@ export default function Dashboard() {
   const fetchUserActivity = async () => {
     try {
       const res = await fetch(
-        `/api/get-users-activity?page=${page}&size=${size}`
+        withBasePath(`/api/get-users-activity?page=${page}&size=${size}`)
       );
 
       if (!res.ok) {

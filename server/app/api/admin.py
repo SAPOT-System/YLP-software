@@ -55,7 +55,7 @@ from app.models.users import (
 
 
 router = APIRouter(
-    prefix="/admin", tags=["admin"], responses={404: {"description": "Not Found"}}
+    prefix="/api/admin", tags=["admin"], responses={404: {"description": "Not Found"}}
 )
 
 
