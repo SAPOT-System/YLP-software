@@ -1,7 +1,7 @@
 [Unit]
 Description=SAPOT MariaDB backup
 After=network.target
-Documentation=file:///home/sapot/YLP-software/docs/deployment/runbooks.md
+Documentation=https://github.com/Emman-pip/YLP-software/blob/main/docs/deployment/runbooks.md
 
 [Service]
 Type=oneshot
