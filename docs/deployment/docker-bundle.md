@@ -161,16 +161,24 @@ for the full step-by-step procedure and the trust-zone diagram).
 On the server, generate (or regenerate) the CSR:
 
 ```bash
-sudo /opt/sapot/releases/current/scripts/request-cert.sh
+sudo /opt/sapot/releases/current/scripts/request-cert.sh --force
 ```
 
-`request-cert.sh` refuses to overwrite an existing `server.key`/`server.csr`
-pair without `--force`, and refuses to rotate the key itself without
-`--force --rotate-key`. Copy the resulting `server.csr` to the offline signing
-laptop, sign it there with `scripts/ca/sign-leaf.sh` against the CA USB stick,
-then copy the signed `server.crt` back into `$SAPOT_ROOT/shared/certs` on the
-server and recreate `nginx` per `request-cert.sh`'s printed next-step
-instructions.
+**`--force` is required immediately after `install.sh`.** `install.sh` already
+ran `gen-certs.sh`, which self-signed a `server.key`/`server.crt` pair (no
+`server.csr`). Running `request-cert.sh` right after install hits that
+existing key+crt state; `--force` tells it this is intentional — reuse the
+already-installed `server.key` and issue a fresh CSR from it, which is safe
+and expected (not a destructive rotation; the key itself is unchanged). Without
+`--force` in this state, or when a `server.key` exists with no matching
+`server.crt` at all, `request-cert.sh` refuses to proceed rather than guessing
+whether it's safe. Rotating the key itself additionally requires
+`--force --rotate-key`.
+
+Copy the resulting `server.csr` to the offline signing laptop, sign it there
+with `scripts/ca/sign-leaf.sh` against the CA USB stick, then copy the signed
+`server.crt` back into `$SAPOT_ROOT/shared/certs` on the server and recreate
+`nginx` per `request-cert.sh`'s printed next-step instructions.
 
 For a later artifact, extract it and run its `scripts/upgrade.sh`. Upgrades
 are idempotent: if interrupted, even after the Alembic migration has already

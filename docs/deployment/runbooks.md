@@ -115,17 +115,19 @@ openssl x509 -in server_ca.pem -noout -dates
 
 1. On the server, generate a CSR:
    ```bash
-   sudo /opt/sapot/releases/current/scripts/request-cert.sh
+   sudo /opt/sapot/releases/current/scripts/request-cert.sh --force
    ```
    - Detects the server's LAN IP automatically (prompts interactively if detection fails) and writes `server.key`/`server.csr` into `$SAPOT_ROOT/shared/certs`.
-   - Refuses to overwrite an existing `server.key`/`server.csr` pair without `--force`; refuses to rotate the private key itself without `--force --rotate-key` (rotating the key invalidates every leaf previously issued for it, and moves any existing `server.crt` aside with a `.stale-<timestamp>` suffix for audit).
+   - `--force` is required in the common case: a `server.key` with a matching `server.crt` already on disk (either `install.sh`'s self-signed cert, or a previously-issued CA-signed leaf) and no `server.csr`. `--force` here just confirms reusing that existing key to issue a fresh CSR is intentional — it does not touch the key itself and is not a destructive rotation. Without `--force` in that state, or when `server.key` exists with no `server.crt` at all (an interrupted prior run), `request-cert.sh` refuses to proceed. Rotating the private key itself additionally requires `--force --rotate-key` (this invalidates every leaf previously issued for it, and moves any existing `server.crt` aside with a `.stale-<timestamp>` suffix for audit).
+   - **If using `--rotate-key`: `server.crt` is removed from disk immediately, before the new leaf even exists.** nginx keeps serving its already-loaded cert from memory, but do not restart or recreate the nginx container, and do not reboot this host, until the signed leaf is copied back in step 3 — otherwise TLS will break with no automatic recovery.
+   - Note the `server.csr sha256` digest `request-cert.sh` prints — you'll cross-check it against the digest `sign-leaf.sh` prints in step 2, to detect tampering on the transport USB stick.
    - Copy the resulting `server.csr` onto the transport USB stick.
 
 2. On the offline signing laptop, with the CA USB stick mounted, sign the CSR:
    ```bash
    ./scripts/ca/sign-leaf.sh --ca-dir /mnt/ca-usb --csr server.csr --out server.crt --days 825
    ```
-   - Prints the CA's identity and the CSR's CN/SAN, then prompts for confirmation before signing (pass `--yes` to skip the prompt for scripted use); refuses to sign a CSR with no Subject Alternative Name.
+   - Prints the CA's identity and the CSR's CN/SAN plus the CSR's own `sha256` digest, then prompts for confirmation before signing (pass `--yes` to skip the prompt for scripted use); refuses to sign a CSR with no Subject Alternative Name. **Compare the printed digest against the one noted in step 1 before confirming** — a mismatch means the CSR was swapped or altered on the transport USB stick.
    - Refuses to sign if `--ca-dir` isn't on a separate mounted filesystem from `/` (a guard against a stale, unplugged mountpoint) unless `SAPOT_CA_ALLOW_LOCAL=1` is set — that env var is an escape hatch for testing against a scratch CA only, not for production signing.
    - Appends a record to `issued-leaves.log` on the CA USB stick and self-verifies the signed cert against the CA cert before reporting success; on any failure it removes the partially-written output rather than leaving an unverified cert behind.
 

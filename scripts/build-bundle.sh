@@ -61,7 +61,18 @@ cp docker-compose.gsm-hardware.yml "$bundle/compose/"
 cp deploy/config/* "$bundle/config/"
 cp docker/gen-certs.sh docker/detect-ip.sh "$bundle/certs/"
 cp -a deploy/scripts/. "$bundle/scripts/"
-find "$bundle" -name 'sign-leaf.sh' -print -quit | grep -q . && { echo "refusing to ship the CA signing tool in a bundle" >&2; exit 1; } || true
+
+# Guards against the CA signing tool or CA private-key material ever reaching
+# a bundle (scripts/AGENTS.md). Called here right after the file copies that
+# could introduce them, and again immediately before CHECKSUMS.sha256 is
+# generated below - the second call is the last check before the bundle is
+# sealed, so anything added between here and there still gets caught.
+check_no_ca_material() {
+  local hit
+  hit=$(find "$bundle" \( -name 'sign-leaf.sh' -o -name 'server_ca.key' -o -name 'server_ca.pem' \) -print -quit)
+  [ -z "$hit" ] || { echo "refusing to ship CA signing tool or CA key material in a bundle: $hit" >&2; exit 1; }
+}
+check_no_ca_material
 chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
 
 python3 - "$bundle/manifest.json" "$version" "$git_sha" "$built_at" "$min_version" "$max_version" "$firmware_version" "$fqbn" "$firmware_sha" "$bundle" <<'PY'
@@ -93,6 +104,7 @@ m=json.load(open(sys.argv[1])); print(f"SAPOT bundle v{m['version']}\nBundle ID:
 print("Images:"); [print(f"  {n}: {i['tag']} ({i['digest']})") for n,i in m['images'].items()]
 print(f"Firmware: {m['gsmFirmware']['version']} ({m['gsmFirmware']['fqbn']})")
 PY
+check_no_ca_material
 (cd "$bundle" && find . -type f ! -name CHECKSUMS.sha256 -print0 | sort -z | xargs -0 sha256sum > CHECKSUMS.sha256)
 mkdir -p dist
 output="dist/sapot-bundle-v$version.tar.zst"

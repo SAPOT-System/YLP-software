@@ -55,8 +55,12 @@ san=$(openssl req -in "$csr" -noout -text \
   | awk '/X509v3 Subject Alternative Name/{getline; gsub(/^[ \t]+|[ \t]+$/, ""); print; exit}' \
   | sed -e 's/IP Address:/IP:/g' -e 's/, */,/g')
 
+csr_sha256=$(sha256sum "$csr" | cut -d' ' -f1)
+
 echo "CSR CN: $cn" >&2
 echo "CSR SAN: ${san:-<none>}" >&2
+echo "CSR sha256: $csr_sha256" >&2
+echo "compare this digest against the one request-cert.sh printed on the server before confirming - a mismatch means the CSR was altered in transit" >&2
 
 if [ -z "$san" ]; then
   echo "refusing to sign: CSR has no Subject Alternative Name. openssl x509 -req does not copy CSR extensions, so a SAN-less CSR would silently yield a CN-only cert that modern clients reject" >&2
