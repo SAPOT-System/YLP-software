@@ -109,15 +109,45 @@ openssl x509 -in server_ca.pem -noout -dates
 
 ## TLS certificate rotation (CA-pinned server leaf)
 
-**When:** Before the server leaf certificate at `$SAPOT_ROOT/shared/certs/server.crt` (docker-bundle deployment, default `$SAPOT_ROOT` = `/opt/sapot`) expires, or immediately if the private key may have been exposed. This runbook re-issues a new server leaf from the offline CA (see [Offline CA Setup](#offline-ca-setup) above), using the offline-CA USB workflow: `deploy/scripts/request-cert.sh` runs on the server to produce a CSR, `scripts/ca/sign-leaf.sh` runs on a separate offline signing laptop with the CA USB stick mounted to sign it, and a transport USB stick carries the CSR and signed leaf between the two — the CA private key never touches the server host.
+**When:** Before the server leaf certificate expires, or immediately if the private key may have been exposed. This runbook re-issues a new server leaf from the offline CA (see [Offline CA Setup](#offline-ca-setup) above).
 
-### Issue and deploy a new server leaf
+**Trust zones.** The signing step is deliberately separated from the server. The CA private key lives only on a CA USB stick, used only on an offline signing laptop. The server host never sees it — it emits a CSR and receives a signed leaf, both carried on a second, separate transport USB stick.
+
+```mermaid
+flowchart LR
+    subgraph server["Server host (on the LAN)"]
+        REQ["generate server.key + server.csr<br/>server.key never leaves this host"]
+        INST["install signed server.crt<br/>reload/recreate the TLS terminator"]
+    end
+
+    subgraph transport["Transport USB stick"]
+        T1["server.csr out"]
+        T2["server.crt back"]
+    end
+
+    subgraph laptop["Offline signing laptop"]
+        SIGN["sign-leaf.sh<br/>reads CA USB stick"]
+        CA[("CA USB stick<br/>server_ca.key<br/>never leaves this zone")]
+    end
+
+    REQ --> T1 --> SIGN
+    CA -.-> SIGN
+    SIGN --> T2 --> INST
+```
+
+**Every leaf must carry `DNS:server.sapot.lan` as a SAN**, alongside the server's LAN IP and `localhost`. Mobile preview/production builds connect to that name and scope their CA pin to it, so a leaf missing it fails TLS hostname verification on every production handset regardless of the IP ([mobile-eas.md](mobile-eas.md#tls-ca-pinning)). `sign-leaf.sh` refuses SAN-less CSRs outright, and on docker-bundle installs `doctor.sh` fails its `certificate` check if the DNS name is absent.
+
+Two deployment paths issue the CSR differently. The signing step (step 2) is identical for both.
+
+### Path A: docker-bundle deployment
+
+Certificates live at `$SAPOT_ROOT/shared/certs/server.crt` (default `$SAPOT_ROOT` = `/opt/sapot`). See [docker-bundle.md](docker-bundle.md#tls-certificates).
 
 1. On the server, generate a CSR:
    ```bash
    sudo /opt/sapot/releases/current/scripts/request-cert.sh --force
    ```
-   - Detects the server's LAN IP automatically (prompts interactively if detection fails) and writes `server.key`/`server.csr` into `$SAPOT_ROOT/shared/certs`.
+   - Detects the server's LAN IP automatically (prompts interactively if detection fails) and writes `server.key`/`server.csr` into `$SAPOT_ROOT/shared/certs`, with SAN `DNS:server.sapot.lan,IP:<detected IP>,DNS:localhost`. The DNS name comes from `SAPOT_SERVER_DNS_NAME` in `deploy/scripts/lib/deploy-common.sh`.
    - `--force` is required in the common case: a `server.key` with a matching `server.crt` already on disk (either `install.sh`'s self-signed cert, or a previously-issued CA-signed leaf) and no `server.csr`. `--force` here just confirms reusing that existing key to issue a fresh CSR is intentional — it does not touch the key itself and is not a destructive rotation. Without `--force` in that state, or when `server.key` exists with no `server.crt` at all (an interrupted prior run), `request-cert.sh` refuses to proceed. Rotating the private key itself additionally requires `--force --rotate-key` (this invalidates every leaf previously issued for it, and moves any existing `server.crt` aside with a `.stale-<timestamp>` suffix for audit).
    - **If using `--rotate-key`: `server.crt` is removed from disk immediately, before the new leaf even exists.** nginx keeps serving its already-loaded cert from memory, but do not restart or recreate the nginx container, and do not reboot this host, until the signed leaf is copied back in step 3 — otherwise TLS will break with no automatic recovery.
    - Note the `server.csr sha256` digest `request-cert.sh` prints — you'll cross-check it against the digest `sign-leaf.sh` prints in step 2, to detect tampering on the transport USB stick.
@@ -143,6 +173,39 @@ openssl x509 -in server_ca.pem -noout -dates
      sudo ./scripts/install.sh
      ```
 
+### Path B: bare-metal/systemd deployment
+
+Certificates live at `/home/sapot/certs/server.crt` ([server.md](server.md), [overview.md](overview.md)). `request-cert.sh` is part of the docker bundle and is not available here, so generate the CSR with `openssl` directly. The signing step is unchanged.
+
+1. On the server, generate a new key and CSR. Set `SERVER_LAN_IP` to this host's actual LAN address:
+   ```bash
+   SERVER_LAN_IP="192.168.0.100"
+   openssl req -newkey rsa:2048 -nodes \
+     -keyout server.key -out server.csr \
+     -subj "/CN=server.sapot.lan" \
+     -addext "subjectAltName=DNS:server.sapot.lan,IP:$SERVER_LAN_IP,DNS:localhost"
+   ```
+   - `-addext` is required. `sign-leaf.sh` refuses a CSR with no SAN, because `openssl x509 -req` does not copy extensions from the CSR and would otherwise yield a CN-only cert that modern clients reject.
+   - Note the CSR digest for the step 2 cross-check: `sha256sum server.csr`.
+   - Keep the existing `server.crt` in place until the new leaf arrives, so TLS keeps working if the process is interrupted.
+
+2. Sign it on the offline laptop exactly as in Path A step 2 above, including the digest comparison.
+
+3. Install the signed leaf and its key on the server:
+   ```bash
+   sudo cp server.crt server.key /home/sapot/certs/
+   sudo chown sapot:sapot /home/sapot/certs/server.crt /home/sapot/certs/server.key
+   sudo chmod 644 /home/sapot/certs/server.crt
+   sudo chmod 600 /home/sapot/certs/server.key
+   ```
+
+4. Reload the TLS terminator:
+   ```bash
+   sudo systemctl reload nginx
+   # or, if serving TLS from gunicorn directly:
+   sudo systemctl restart server-main-api
+   ```
+
 **Verification (on the offline signing laptop, after signing):** `sign-leaf.sh` already prints the SAN read back out of the signed cert and the result of its own `openssl verify -CAfile` self-check on success — no separate manual verification is needed for a normal run. Re-run these by hand only if you need to double-check a cert after the fact:
 ```bash
 openssl x509 -in server.crt -noout -text | grep -A1 "Subject Alternative Name"
@@ -156,11 +219,20 @@ openssl verify -CAfile server_ca.pem server.crt
 
 **Verification (on server host, after deployment):**
 ```bash
-openssl x509 -in $SAPOT_ROOT/shared/certs/server.crt -noout -dates
+# Path A: $SAPOT_ROOT/shared/certs/server.crt   Path B: /home/sapot/certs/server.crt
+openssl x509 -in <cert-path> -noout -dates
 # confirm notAfter reflects the new cert's expiry
+
 echo | openssl s_client -connect <server-lan-ip>:443 2>/dev/null | openssl x509 -noout -subject -dates
 # confirm the cert is being served and dates match
+
+echo | openssl s_client -connect <server-lan-ip>:443 2>/dev/null \
+  | openssl x509 -noout -text | grep -A1 "Subject Alternative Name"
+# expect: DNS:server.sapot.lan, IP:<server-lan-ip>, DNS:localhost
+# a missing server.sapot.lan breaks every mobile preview/production build
 ```
+
+On a docker-bundle install, `sudo /opt/sapot/releases/current/scripts/doctor.sh` checks the same things (expiry, key pairing, and both SANs) in one command.
 
 **Mobile app rebuild:** The mobile app pins the CA certificate (not the leaf) — when you re-issue a new leaf from the same CA, old app builds **continue to work without rebuilding** (the new leaf will validate against the pinned CA). Only rebuild the app if the CA itself is rotated.
 

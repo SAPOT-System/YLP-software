@@ -8,6 +8,11 @@ SEMVER="$SCRIPT_DIR/semver.py"
 VERIFY_DIGESTS="$SCRIPT_DIR/verify-digests.sh"
 SAPOT_ROOT=${SAPOT_ROOT:-/opt/sapot}
 SAFETY_PERCENT=${SAPOT_DISK_SAFETY_PERCENT:-20}
+# Stable DNS name the mobile app's preview/production builds connect to, and the
+# only host their CA pin is scoped to (docs/deployment/mobile-eas.md). Every leaf
+# issued for this server must carry it as a SAN or those builds fail TLS hostname
+# verification, regardless of what the LAN IP is.
+SAPOT_SERVER_DNS_NAME=${SAPOT_SERVER_DNS_NAME:-server.sapot.lan}
 
 manifest_value() { python3 - "$1" "$2" <<'PY'
 import json, sys

@@ -12,8 +12,8 @@ site, then install it without pulling images or downloading dependencies.
 ```mermaid
 flowchart LR
     subgraph dev["Dev machine"]
-        BB["scripts/build-bundle.sh<br/>builds images, manifest.json,<br/>CHECKSUMS.sha256, firmware .hex"]
         RS["scripts/release.sh<br/>tags version (semver)"]
+        BB["scripts/build-bundle.sh<br/>builds images, manifest.json,<br/>CHECKSUMS.sha256, firmware .hex"]
     end
 
     subgraph bundle["Release artifact (deploy/ bundle dir)"]
@@ -25,14 +25,16 @@ flowchart LR
         E["config/*.env.example"]
         CE["certs/detect-ip.sh, gen-certs.sh"]
         F["firmware/gsm-arduino-*.hex"]
+        D["data/static"]
+        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · lib/"]
     end
 
     subgraph target["Target (offline, LAN-only)"]
         INS["scripts/install.sh"]
     end
 
+    RS -- "version tag read by" --> BB
     BB --> bundle
-    RS --> bundle
     bundle -- "removable media" --> INS
 ```
 
@@ -149,37 +151,6 @@ then atomically switches `/opt/sapot/releases/current`. Per-site environment
 files, database data, certificates, firmware backups, and state remain in
 `shared/`; release directories are immutable.
 
-### Issuing a TLS leaf via the offline-CA USB workflow
-
-The server host is deliberately never trusted with the CA private key — it only
-ever handles a CSR and, later, a signed leaf. Three participants are involved:
-the server, a transport USB stick that carries the CSR out and the signed
-`server.crt` back, and a separate offline signing laptop with the CA USB stick
-mounted (see [runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf)
-for the full step-by-step procedure and the trust-zone diagram).
-
-On the server, generate (or regenerate) the CSR:
-
-```bash
-sudo /opt/sapot/releases/current/scripts/request-cert.sh --force
-```
-
-**`--force` is required immediately after `install.sh`.** `install.sh` already
-ran `gen-certs.sh`, which self-signed a `server.key`/`server.crt` pair (no
-`server.csr`). Running `request-cert.sh` right after install hits that
-existing key+crt state; `--force` tells it this is intentional — reuse the
-already-installed `server.key` and issue a fresh CSR from it, which is safe
-and expected (not a destructive rotation; the key itself is unchanged). Without
-`--force` in this state, or when a `server.key` exists with no matching
-`server.crt` at all, `request-cert.sh` refuses to proceed rather than guessing
-whether it's safe. Rotating the key itself additionally requires
-`--force --rotate-key`.
-
-Copy the resulting `server.csr` to the offline signing laptop, sign it there
-with `scripts/ca/sign-leaf.sh` against the CA USB stick, then copy the signed
-`server.crt` back into `$SAPOT_ROOT/shared/certs` on the server and recreate
-`nginx` per `request-cert.sh`'s printed next-step instructions.
-
 For a later artifact, extract it and run its `scripts/upgrade.sh`. Upgrades
 are idempotent: if interrupted, even after the Alembic migration has already
 completed, rerunning `upgrade.sh` is safe. Upgrades are not zero-downtime,
@@ -206,10 +177,57 @@ disk, and expected hardware. Add `--json` for structured output. A site with
 no GSM modem normally shows `gsm-fastapi` as `unhealthy` in raw Docker output:
 that is expected because its `/health` endpoint signals no modem. When the
 installation's `state.json` records that no GSM hardware is attached,
-`doctor.sh` and `status.sh` reinterpret that `unhealthy` container as an
-expected, non-blocking degraded state rather than a real failure — this is
-descriptive language in this doc, not a literal status string either tool
-prints.
+`doctor.sh` and `status.sh` treat that `unhealthy` container as an expected,
+non-blocking degraded state rather than a real failure.
+
+## TLS certificates
+
+`install.sh` generates a self-signed cert so the stack can come up. That cert
+is not trusted by the mobile app, so a real deployment replaces it with a leaf
+signed by the offline CA.
+
+### What every leaf must contain
+
+Every leaf issued for a SAPOT server carries three SANs:
+
+```
+DNS:server.sapot.lan, IP:<detected LAN IP>, DNS:localhost
+```
+
+`server.sapot.lan` is load-bearing and must never be dropped. Mobile
+preview/production builds connect to that name (it is the build-time
+`SERVER_NAME` constant) and their network-security config scopes the CA pin to
+that domain alone, so a leaf without it fails TLS hostname verification on
+every production handset no matter what the LAN IP is. See
+[mobile-eas.md](mobile-eas.md#tls-ca-pinning). The IP SAN serves LAN clients
+that reach the server by address, and `localhost` serves the in-container
+health poll. `doctor.sh`'s `certificate` check fails if the DNS name is
+missing, so a bad leaf is caught before it reaches the field.
+
+The name is defined once as `SAPOT_SERVER_DNS_NAME` in
+`deploy/scripts/lib/deploy-common.sh` and consumed by `install.sh`,
+`request-cert.sh`, and `doctor.sh`. Override it there (or via the environment)
+if a site uses a different hostname, and rebuild the mobile app to match.
+
+### Issuing a leaf
+
+The server host is deliberately never trusted with the CA private key. It only
+ever handles a CSR and, later, a signed leaf. On the server:
+
+```bash
+sudo /opt/sapot/releases/current/scripts/request-cert.sh --force
+```
+
+`--force` is required in the normal case, because `install.sh` has already left
+a key and self-signed cert on disk. It confirms reusing that key is intentional
+and does not rotate it. Carry the resulting `server.csr` to the offline signing
+laptop on a transport USB stick, sign it with `scripts/ca/sign-leaf.sh`, carry
+`server.crt` back into `$SAPOT_ROOT/shared/certs`, and recreate `nginx` as
+`request-cert.sh` instructs.
+
+[runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf) has
+the full step-by-step procedure, the digest cross-check that detects tampering
+on the transport stick, the key-rotation warnings, and the recovery notes.
 
 ## Pitfalls
 
@@ -244,9 +262,34 @@ sudo /opt/sapot/releases/current/scripts/flash-gsm-firmware.sh --yes
 The script holds the same deployment lock as install and upgrade, verifies the
 firmware checksum and board type, stops the GSM service, reads a backup before
 uploading, and restarts the service on exit. `--check` includes the backup read
-but never uploads. Database backup/restore and automatic certificate renewal
-are out of scope: take database backups separately, and when their LAN IP or
-expiry requires a new certificate, use the [offline-CA USB
-workflow](#issuing-a-tls-leaf-via-the-offline-ca-usb-workflow) above (or see
-[runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf) for
-the full procedure).
+but never uploads.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `already installed (vX) - use upgrade.sh instead` | `install.sh` run on a host that already has `releases/current` | Run `upgrade.sh` from the new bundle instead |
+| `bundle checksum verification failed` | Corrupted transfer, or the bundle was modified after build | Re-copy the tarball from source media and re-extract; do not bypass the check |
+| `insufficient free space on <path>` | `requiredDiskBytes` plus the 20% margin exceeds free space on `$SAPOT_ROOT` or the Docker root | Free space or prune old releases with `scripts/lib/retention.sh` |
+| `nginx/api did not become ready` | Stack came up but `/version` never answered within 3 minutes | `docker compose -p sapot logs api nginx`; the previous release is still live, so the cutover has not happened |
+| Upgrade appears to succeed but nothing changed | The bundle reuses a version already in `releases/` | Rebuild with a bumped version (see Pitfalls) |
+| `doctor.sh` reports `certificate SAN does not cover server.sapot.lan` | Leaf issued without the required DNS SAN | Reissue via the offline-CA workflow; mobile production builds cannot connect until fixed |
+| `server.key exists but no server.csr or server.crt` | A previous `request-cert.sh` run was interrupted | If no leaf was ever issued from that key, `--force --rotate-key` is safe |
+| `refusing to sign: <dir> appears to be on the root filesystem` | CA USB stick not mounted, or a stale mountpoint left by an unplugged drive | Mount the CA stick and retry; do not set `SAPOT_CA_ALLOW_LOCAL=1` for production signing |
+| `refusing to sign: CSR has no Subject Alternative Name` | CSR generated outside `request-cert.sh` | Regenerate the CSR with `request-cert.sh` |
+| `gsm-fastapi` shows `unhealthy` in `docker ps` | No modem attached | Expected. `doctor.sh` and `status.sh` treat this as non-blocking when `state.json` records no GSM hardware |
+
+## Limitations
+
+- **Database backup and restore are out of scope.** Take backups separately, per
+  [runbooks.md](runbooks.md#backup-and-restore-mariadb). Rollback protects the
+  application, not the data.
+- **No automatic certificate renewal.** Leaves are valid ~825 days and must be
+  reissued by hand through the offline-CA workflow before expiry, or whenever
+  the site's LAN IP changes.
+- **Upgrades are not zero-downtime.** Schedule a maintenance window.
+- **`CHECKSUMS.sha256` detects corruption, not tampering.** It is not a signature.
+  Bundle integrity depends on controlling the physical transport media.
+- **Rollback never reverses a migration.** A release whose schema changes are not
+  an ancestor of the live DB revision cannot be rolled back to.
+- **Single-host only.** The bundle assumes one Docker host per site.

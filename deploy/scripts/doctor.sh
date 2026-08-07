@@ -29,14 +29,14 @@ check_certificate() {
   if [ "$crt_pubkey" != "$key_pubkey" ]; then
     check certificate FAIL "certificate and key do not match"; return
   fi
-  local ip
+  local san ip
+  san=$(openssl x509 -in "$cert" -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" || true)
+  if [[ "$san" != *"$SAPOT_SERVER_DNS_NAME"* ]]; then
+    check certificate FAIL "certificate SAN does not cover $SAPOT_SERVER_DNS_NAME - mobile preview/production builds will fail TLS hostname verification"; return
+  fi
   ip=$("$current/certs/detect-ip.sh" 2>/dev/null || true)
-  if [ -n "$ip" ]; then
-    local san
-    san=$(openssl x509 -in "$cert" -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" || true)
-    if [[ "$san" != *"$ip"* ]]; then
-      check certificate FAIL "certificate SAN does not cover detected LAN IP $ip"; return
-    fi
+  if [ -n "$ip" ] && [[ "$san" != *"$ip"* ]]; then
+    check certificate FAIL "certificate SAN does not cover detected LAN IP $ip"; return
   fi
   check certificate PASS "certificate is current"
 }

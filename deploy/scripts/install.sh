@@ -15,7 +15,7 @@ target="$SAPOT_ROOT/releases/v$version"; mkdir -p "$SAPOT_ROOT/releases"
 prepare_env_files "$target"
 ip=$($target/certs/detect-ip.sh 2>/dev/null || true)
 [ -n "$ip" ] || { read -r -p "LAN IP for TLS certificate: " ip; }
-CERT_DIR="$SAPOT_ROOT/shared/certs" CERT_CN="$ip" CERT_SAN="IP:$ip,DNS:localhost" "$target/certs/gen-certs.sh"
+CERT_DIR="$SAPOT_ROOT/shared/certs" CERT_CN="$ip" CERT_SAN="DNS:$SAPOT_SERVER_DNS_NAME,IP:$ip,DNS:localhost" "$target/certs/gen-certs.sh"
 read -r -p "Is the GSM Arduino connected at $(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2)? [y/N] " answer
 hardware=false; [[ "$answer" =~ ^[Yy]$ ]] && hardware=true
 for image in "$target"/images/*.tar; do docker load -i "$image"; done

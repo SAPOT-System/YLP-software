@@ -63,12 +63,12 @@ if "$rotate_key"; then
   fi
   log_warn "rotating server.key - every leaf previously issued for this server is now invalidated"
   log_warn "server.crt will be ABSENT from $certs_dir until the new signed leaf is copied back - do NOT restart/recreate the nginx container or reboot this host until then, or TLS will break with no automatic recovery"
-  openssl req -newkey rsa:2048 -nodes -keyout "$key" -out "$csr" -subj "/CN=$ip" -addext "subjectAltName=IP:$ip,DNS:localhost"
+  openssl req -newkey rsa:2048 -nodes -keyout "$key" -out "$csr" -subj "/CN=$ip" -addext "subjectAltName=DNS:$SAPOT_SERVER_DNS_NAME,IP:$ip,DNS:localhost"
 elif "$key_exists"; then
   log_info "reusing existing server.key, regenerating server.csr for CN=$ip"
-  openssl req -new -key "$key" -out "$csr" -subj "/CN=$ip" -addext "subjectAltName=IP:$ip,DNS:localhost"
+  openssl req -new -key "$key" -out "$csr" -subj "/CN=$ip" -addext "subjectAltName=DNS:$SAPOT_SERVER_DNS_NAME,IP:$ip,DNS:localhost"
 else
-  openssl req -newkey rsa:2048 -nodes -keyout "$key" -out "$csr" -subj "/CN=$ip" -addext "subjectAltName=IP:$ip,DNS:localhost"
+  openssl req -newkey rsa:2048 -nodes -keyout "$key" -out "$csr" -subj "/CN=$ip" -addext "subjectAltName=DNS:$SAPOT_SERVER_DNS_NAME,IP:$ip,DNS:localhost"
 fi
 chmod 600 "$key"
 
