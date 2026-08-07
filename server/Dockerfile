@@ -21,7 +21,7 @@ COPY app ./app
 COPY static ./static
 COPY alembic.ini ./alembic.ini
 
-RUN mkdir -p logs && chown -R app:app /home/app/server
+RUN mkdir -p /home/app/logs && chown -R app:app /home/app/server /home/app/logs
 USER app
 
 EXPOSE 8000
@@ -35,5 +35,5 @@ CMD ["gunicorn", "app.main:app", \
      "--worker-connections", "200", \
      "--max-requests", "1000", \
      "--max-requests-jitter", "100", \
-     "--access-logfile", "logs/gunicorn-access.log", \
-     "--error-logfile", "logs/gunicorn-error.log"]
+     "--access-logfile", "/home/app/logs/gunicorn-access.log", \
+     "--error-logfile", "/home/app/logs/gunicorn-error.log"]

@@ -13,7 +13,9 @@ environment variable if you need LAN access.
 """
 
 import logging
+import os
 import sys
+from logging.handlers import RotatingFileHandler
 
 import uvicorn
 
@@ -23,12 +25,18 @@ from config import settings
 def setup_logging():
     level = getattr(logging, settings.log_level.upper(), logging.INFO)
     fmt   = "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s"
+    log_dir = os.environ.get("GSM_LOG_DIR", ".")
+    os.makedirs(log_dir, exist_ok=True)
+    file_handler = RotatingFileHandler(
+        os.path.join(log_dir, "sapot.log"), maxBytes=10**6,
+        backupCount=3, encoding="utf-8",
+    )
     logging.basicConfig(
         level=level,
         format=fmt,
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler("sapot.log", encoding="utf-8"),
+            file_handler,
         ],
     )
     # Quiet down uvicorn's access log a little

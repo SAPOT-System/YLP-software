@@ -61,7 +61,7 @@ cp docker-compose.gsm-hardware.yml "$bundle/compose/"
 cp deploy/config/* "$bundle/config/"
 cp docker/gen-certs.sh docker/detect-ip.sh "$bundle/certs/"
 cp -a deploy/scripts/. "$bundle/scripts/"
-chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
+chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/*.py "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
 
 python3 - "$bundle/manifest.json" "$version" "$git_sha" "$built_at" "$min_version" "$max_version" "$firmware_version" "$fqbn" "$firmware_sha" "$bundle" <<'PY'
 import json, os, subprocess, sys

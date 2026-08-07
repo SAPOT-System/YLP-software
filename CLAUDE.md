@@ -61,6 +61,7 @@ Run for each component actually touched — don't assume one component's green b
 | `mobile-app/sapot-mobile-app/` | `pnpm run testAll` (= test + typecheck + lint + expo-doctor), or the individual `pnpm test` / `pnpm run typecheck` / `pnpm run lint` |
 | `admin-frontend/sapot-admin/` | `pnpm run lint && pnpm run build` — **no test script exists in this component**; don't claim test coverage that isn't there |
 | `GSM-module/` | No automated tests exist — verify manually per `docs/getting-started/gsm-module-setup.md` |
+| `deploy/scripts/collect-status.py` | `python3 -m pytest tests` — **run from `deploy/`**. No CI job runs this; it is manual per CLAUDE.md's process. |
 
 If the change is release-relevant (server), `server/app/version.py` must match the git tag per `VERSIONING.md` before tagging — not typically a per-commit concern, but relevant if asked to prepare a release.
 

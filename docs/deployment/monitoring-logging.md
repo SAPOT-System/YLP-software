@@ -1,73 +1,42 @@
 # Monitoring and Logging
 
----
-
 ## Mobile app — Sentry
 
-The mobile app integrates Sentry via `@sentry/react-native/expo` (configured in `app.config.ts`):
-
-- **Sentry project:** `sapot-mobile-app`
-- **Organization:** `adriele-matthew-tosino`
-- **Sentry URL:** `https://sentry.io/`
-
-Sentry captures uncaught JS exceptions and native crashes. Release tracking is tied to the EAS build profile and version.
-
-### Mobile logging scopes
-
-The app uses a scope-based logger (`features/shared/core/utils/logger.ts`). Control which scopes emit output via:
-
-```bash
-EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,sync
-```
-
-Omitting the variable enables all scopes. Each log entry is also written to a daily rotating log file on-device; retrieve the path via `getLogFilePath()`.
-
----
+The mobile app integrates Sentry via `@sentry/react-native/expo`. It captures uncaught JS exceptions and native crashes. Server-side Sentry alerts are not configured.
 
 ## Server — application logs
 
-The FastAPI server configures Python's standard `logging` module at startup (`server/app/main.py`). Log output goes to stdout/stderr, captured by systemd journal.
-
-View live logs:
+The FastAPI `app` logger has JSON and text `RotatingFileHandler`s (1 MB plus three backups each), and a `StreamHandler` visible through `docker logs api`. `SAPOT_LOG_DIR` selects the directory; it defaults to `../logs` for local runs and is `/home/app/logs` in Docker. That directory is mounted from `/opt/sapot/shared/logs/api`, as are Gunicorn's access and error logs.
 
 ```bash
-sudo journalctl -u server-main-api -f
+docker compose -p sapot -f /opt/sapot/releases/current/compose/docker-compose.yml logs -f api
+tail -f /opt/sapot/shared/logs/api/activity.log
 ```
-
-> **TODO (human input required):** Confirm whether JSON structured logging or rotating file logging is enabled, and document the log level configuration.
-
----
-
-## Server — router metrics collection
-
-A background thread (`collect_metrics_loop`) polls the MikroTik router for telemetry and writes to the `routerhealth` and `interfacetraffic` MariaDB tables (see [tables.md](../database/tables.md)). The admin frontend reads these tables via the `/admin/router-*` endpoints (see [mikrotik-telemetry.md](../api/mikrotik-telemetry.md)).
-
-No external monitoring agent is required — data is stored in the existing database.
-
----
-
-## Server — announcement expiry
-
-A second background thread (`expire_announcements_loop`) periodically marks announcements whose `expires_at` has passed by setting `is_expired = True`. This runs entirely in-process; no external scheduler is needed.
-
----
 
 ## GSM module logs
 
-The GSM module logs to `GSM-module/GSM-fastapi/sapot.log`. Rotate or clear this file periodically in production.
+The GSM module writes `$GSM_LOG_DIR/sapot.log` through a rotating handler (1 MB plus three backups) and stdout. Docker sets `GSM_LOG_DIR=/var/log/sapot`, mounted from `/opt/sapot/shared/logs/gsm`; an unset value preserves the local working-directory behavior.
 
----
+`deploy/scripts/lib/retention.sh` removes files under `shared/logs` older than `SAPOT_LOG_RETENTION_DAYS` (30 by default) during install and upgrade.
 
-## Health checks
+## Health checks — `/status`
 
-No dedicated health-check endpoints are documented. The Nginx proxy (port 443 → Gunicorn :8000) can be used as a liveness check:
+Open `https://<server-ip>/status` on the LAN. It needs no login and stays available when the API is down because nginx serves a static page and a status snapshot directly.
+
+`status-collector` runs every 60 seconds outside the API process. It probes API, admin, TileServer, and GSM over the compose network, queries Redis and MariaDB directly, and writes `shared/status/health.json` atomically. It uses no Docker socket. Its read-only `sapot_status` database user has SELECT only on `message`, `activity_logs`, and `sms_log`.
+
+| Page item | Meaning |
+|---|---|
+| Overall | `healthy` means every check passes; `degraded` means API is up but another service is not; `failed` means API is not responding; `unknown` means the collector cycle itself failed. |
+| Stale banner | The snapshot is over 180 seconds old. Treat it as a stopped collector, even if the last overall state was healthy. |
+| `—` counter | That individual query failed. It does not make the health section fail. |
+| Release file integrity | Checksum result recorded during the last install or upgrade. It is provenance, not a live health check. |
+
+The page deliberately excludes IP addresses, user identifiers, internal hostnames, and error messages. For deeper host and bundle checks, run:
 
 ```bash
-curl -k https://localhost/auth/exists?identifier=probe@example.com
+/opt/sapot/releases/current/scripts/doctor.sh
+/opt/sapot/releases/current/scripts/doctor.sh --json
 ```
 
-A 200 response with `{"exists": true/false}` confirms the stack is reachable.
-
----
-
-> **TODO (human input required):** Document whether an uptime monitor (e.g. UptimeRobot, Prometheus, or a simple cron ping) is in use, and whether Sentry alerts are configured for the server component.
+No cloud uptime monitor is used. This deployment is LAN-first and does not rely on internet access; `/status` and `doctor.sh` are the monitoring surface.
