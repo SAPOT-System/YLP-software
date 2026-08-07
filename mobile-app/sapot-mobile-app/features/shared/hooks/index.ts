@@ -5,6 +5,7 @@ export * from "./use-active-user-service";
 export * from "./use-active-users";
 export * from "./use-check-connection";
 export * from "./use-connection-service";
+export * from "./use-delayed-loading";
 export * from "./use-dialog-visibility";
 export * from "./use-discovery-service";
 export * from "./use-foreground-sync";
@@ -24,4 +25,3 @@ export * from "./use-user-profile";
 export * from "./use-user-search";
 export * from "./use-user-store";
 export * from "./use-zeroconf-published";
-

@@ -1,4 +1,5 @@
 import { usePublicChat } from "@/features/chat/hooks/use-public-chat";
+import { ChatMessageSkeleton } from "@/features/chat/components/chat-message-skeleton";
 import { MAX_MESSAGE_LENGTH, PublicChatMessage } from "@/features/chat/types";
 import motion from "@/constants/motion";
 import { formatDate } from "@/features/shared";
@@ -97,12 +98,7 @@ export default function PublicChat() {
 
       <View style={styles.body}>
         {messages.length === 0 && isLoadingHistory ? (
-          <View style={styles.emptyStateContainer}>
-            <LoadingSpinner />
-            <Text style={[styles.emptyStateText, { marginTop: 8 }]}>
-              Loading messages…
-            </Text>
-          </View>
+          <ChatMessageSkeleton />
         ) : messages.length === 0 ? (
           <View style={styles.emptyStateContainer}>
             <Text style={styles.emptyStateText}>

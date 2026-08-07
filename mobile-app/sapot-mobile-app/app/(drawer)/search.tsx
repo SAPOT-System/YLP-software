@@ -2,9 +2,11 @@ import { APP_ROUTES } from "@/config/routes";
 import { ChatRoomSource } from "@/features/chat/types";
 import motion from "@/constants/motion";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { SearchResultsSkeleton } from "@/features/shared/components/search-results-skeleton";
 import {
   useReducedMotion,
   usePeerService,
+  useDelayedLoading,
   useProfilePhoto,
   useToast,
   useUserSearch,
@@ -95,6 +97,7 @@ export default function SearchScreen() {
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useUserSearch(debouncedQuery);
+  const showSkeleton = useDelayedLoading(isLoading);
 
   const results = useMemo(() => data?.pages.flat() ?? [], [data?.pages]);
 
@@ -224,8 +227,7 @@ export default function SearchScreen() {
         </Pressable>
       </View>
 
-      {isLoading && <Text>Searching...</Text>}
-      <FlatList
+      {showSkeleton ? <SearchResultsSkeleton /> : <FlatList
         data={mergedResults}
         keyExtractor={(item) => item.id}
         onEndReached={() => {
@@ -309,7 +311,7 @@ export default function SearchScreen() {
             <Text>No users found</Text>
           ) : null
         }
-      />
+      />}
       <AppSnackbar
         visible={toastVisible}
         onDismiss={hideToast}

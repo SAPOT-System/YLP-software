@@ -7,6 +7,8 @@ import {
   uploadProfilePicApi,
 } from "@/features/shared";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
+import { Skeleton } from "@/features/shared/components/skeleton";
+import { ProfileFormSkeleton } from "@/features/settings/components/profile-form-skeleton";
 import {
   useProfilePhoto,
   useServerAction,
@@ -36,7 +38,6 @@ import {
   Text,
   useTheme,
 } from "react-native-paper";
-import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ManageProfile() {
@@ -96,7 +97,7 @@ export default function ManageProfile() {
     }, [userService])
   );
 
-  if (!user) return <LoadingSpinner />;
+  if (!user) return <ProfileFormSkeleton />;
 
   const isPeer = user instanceof Peer;
   const currentPhoneNumber = isPeer ? (user.phoneNumber ?? "") : "";
@@ -221,7 +222,7 @@ export default function ManageProfile() {
         >
           <View style={{ alignItems: "center", gap: 28 }}>
             {isProfilePicLoading && !isGuest ? (
-              <LoadingSpinner />
+              <Skeleton width={100} height={100} borderRadius={50} />
             ) : (
               <View style={{ alignItems: "center" }}>
                 {profilePicUrl ? (
