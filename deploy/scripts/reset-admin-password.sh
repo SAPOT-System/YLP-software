@@ -25,5 +25,12 @@ payload=$(printf '%s\0' "$username" "$password" | python3 -c '
 import json,sys
 username, password = sys.stdin.buffer.read().split(b"\0")[:-1]
 print(json.dumps({"username": username.decode(), "password": password.decode()}))')
-printf '%s' "$payload" | compose "$current" exec -T api python -m app.scripts.reset_admin_password >/dev/null
-log_pass "password reset. The replacement password must be changed by the administrator on next login."
+if result=$(printf '%s' "$payload" | compose "$current" exec -T api python -m app.scripts.reset_admin_password); then
+  log_pass "password reset. The replacement password must be changed by the administrator on next login."
+else
+  # stdout carries the only explanation of a rejected password; discarding it
+  # leaves the operator with a script that dies without saying why.
+  code=$?
+  log_error "password reset failed: $result"
+  exit "$code"
+fi
