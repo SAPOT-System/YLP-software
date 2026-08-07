@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily SAPOT MariaDB backup
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15m
+Persistent=true
+Unit=sapot-db-backup.service
+
+[Install]
+WantedBy=timers.target
