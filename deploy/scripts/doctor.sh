@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SELF=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd); source "$SELF/lib/deploy-common.sh"
+# shellcheck source=./lib/backup-lib.sh
+source "$SELF/lib/backup-lib.sh"
 json=false; [ "${1:-}" = --json ] && json=true
 current=$(readlink -f "$SAPOT_ROOT/releases/current" 2>/dev/null || true); [ -n "$current" ] || { log_error "SAPOT is not installed"; exit 1; }
 check_schema "$current/manifest.json"
@@ -17,6 +19,24 @@ for service in db redis api admin gsm-fastapi tileserver nginx; do
   elif [ "$state" = healthy ]; then check "$service" PASS healthy
   else check "$service" FAIL "$state"; fi
 done
+backup_fields=()
+mapfile -t -d '' backup_fields < <(resolve_backup_paths)
+backup_dir=${backup_fields[2]}
+max_age_hours=${SAPOT_BACKUP_MAX_AGE_HOURS:-36}
+offhost_dir=${SAPOT_BACKUP_OFFHOST_DIR:-}
+newest_epoch=$(newest_backup_epoch "$backup_dir")
+if [ -n "$offhost_dir" ] && [ -d "$offhost_dir" ]; then
+  offhost_epoch=$(newest_backup_epoch "$offhost_dir")
+  if [ -n "$offhost_epoch" ]; then offhost_detail="off-host $(( ($(date +%s) - offhost_epoch) / 3600 ))h ago"; else offhost_detail='off-host has no dumps'; fi
+elif [ -n "$offhost_dir" ]; then offhost_detail='off-host target unavailable'
+else offhost_detail='off-host not configured'; fi
+if [ -z "$newest_epoch" ]; then
+  check db-backup FAIL "no backups in $backup_dir; $offhost_detail"
+else
+  backup_age_hours=$(( ($(date +%s) - newest_epoch) / 3600 ))
+  if [ "$backup_age_hours" -lt "$max_age_hours" ]; then check db-backup PASS "newest ${backup_age_hours}h ago; $offhost_detail"
+  else check db-backup FAIL "newest ${backup_age_hours}h ago exceeds ${max_age_hours}h threshold; $offhost_detail"; fi
+fi
 cert="$SAPOT_ROOT/shared/certs/server.crt"; [ -f "$cert" ] && openssl x509 -checkend 0 -noout -in "$cert" >/dev/null && check certificate PASS "certificate is current" || check certificate FAIL "certificate missing or expired"
 for port in 80 443; do ss -ltn "sport = :$port" | grep -q LISTEN && check "port-$port" PASS bound || check "port-$port" FAIL not-bound; done
 if [ "$hardware" = true ]; then port=$(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2-); [ -c "$port" ] && check gsm-device PASS "$port present" || check gsm-device FAIL "$port missing"; fi

@@ -67,7 +67,7 @@ PY
 }
 prepare_env_files() {
   local release=$1 generated secret mysql_password
-  mkdir -p "$SAPOT_ROOT/shared" "$SAPOT_ROOT/shared/certs" "$SAPOT_ROOT/shared/db-data" "$SAPOT_ROOT/shared/gsm-arduino-backups"
+  mkdir -p "$SAPOT_ROOT/shared" "$SAPOT_ROOT/shared/certs" "$SAPOT_ROOT/shared/db-data" "$SAPOT_ROOT/shared/gsm-arduino-backups" "$SAPOT_ROOT/shared/db-backups"
   secret=$(openssl rand -hex 32); mysql_password=$(openssl rand -hex 32)
   for name in server admin gsm-fastapi gsm-arduino; do
     generated="$SAPOT_ROOT/shared/$name.env"
