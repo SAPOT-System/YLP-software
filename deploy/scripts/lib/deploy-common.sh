@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/log.sh"
 source "$SCRIPT_DIR/lock.sh"
+source "$SCRIPT_DIR/ca-certs.sh"
 SEMVER="$SCRIPT_DIR/semver.py"
 VERIFY_DIGESTS="$SCRIPT_DIR/verify-digests.sh"
 SAPOT_ROOT=${SAPOT_ROOT:-/opt/sapot}

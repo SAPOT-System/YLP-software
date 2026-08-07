@@ -48,7 +48,7 @@ elif [ -f "$CA_CERT" ] && [ -f "$CA_KEY" ]; then
         -out "$CERT_DIR/server.crt"
     rm -f "$EXTFILE" "$CERT_DIR/server.csr"
 elif [ -f "$CERT_DIR/server.csr" ] && [ ! -f "$CERT_DIR/server.crt" ]; then
-    echo "gen-certs: ERROR: CSR pending signature at $CERT_DIR/server.csr — refusing to fall back to self-signed while a CA request is outstanding; sign it via scripts/ca/sign-leaf.sh or remove $CERT_DIR/server.csr explicitly" >&2
+    echo "gen-certs: ERROR: CSR pending signature at $CERT_DIR/server.csr — refusing to fall back to self-signed while a CA request is outstanding; sign it against your dev CA or remove $CERT_DIR/server.csr explicitly" >&2
     exit 1
 else
     echo "gen-certs: no dev CA at $CA_DIR, generating self-signed cert for CN=$CERT_CN SAN=$CERT_SAN"

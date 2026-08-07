@@ -22,6 +22,6 @@ Without a cloud secret manager, store secrets in restricted env files:
 
 ## TLS certificate
 
-The server's self-signed TLS certificate lives at `/home/sapot/certs/server.crt` and `server.key` (referenced in `nginx.conf`). The mobile app pins this certificate at build time (see [mobile-eas.md](mobile-eas.md)).
+The server's TLS certificate lives at `/home/sapot/certs/server.crt` and `server.key` (referenced in `nginx.conf`), issued by the offline CA on the CA USB stick ([runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf)). The mobile app pins the *CA*, not the leaf, so the leaf can be reissued without rebuilding the app (see [mobile-eas.md](mobile-eas.md)).
 
 Rotate the certificate before expiry and rebuild the mobile APK to distribute the updated pinned cert.

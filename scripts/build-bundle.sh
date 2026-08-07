@@ -59,18 +59,23 @@ firmware_sha=$(sha256sum "$bundle/firmware/gsm-arduino-actual-code.hex" | awk '{
 cp docker-compose.prod.yml "$bundle/compose/docker-compose.yml"
 cp docker-compose.gsm-hardware.yml "$bundle/compose/"
 cp deploy/config/* "$bundle/config/"
-cp docker/gen-certs.sh docker/detect-ip.sh "$bundle/certs/"
+# gen-certs.sh is deliberately not shipped: it can self-sign, and servers issue
+# their leaf from the offline CA on a USB stick instead (scripts/request-cert.sh).
+# It stays a dev/CI-only tool driven by docker-compose.yml's certgen service.
+cp docker/detect-ip.sh "$bundle/certs/"
 cp -a deploy/scripts/. "$bundle/scripts/"
 
-# Guards against the CA signing tool or CA private-key material ever reaching
-# a bundle (scripts/AGENTS.md). Called here right after the file copies that
-# could introduce them, and again immediately before CHECKSUMS.sha256 is
-# generated below - the second call is the last check before the bundle is
-# sealed, so anything added between here and there still gets caught.
+# Guards against CA key material ever reaching a bundle (scripts/AGENTS.md).
+# Servers read the CA from a USB stick at issuance time and keep only the public
+# server_ca.pem afterwards; neither may be baked into a release. Called here
+# right after the file copies that could introduce them, and again immediately
+# before CHECKSUMS.sha256 is generated below - the second call is the last check
+# before the bundle is sealed, so anything added between here and there still
+# gets caught.
 check_no_ca_material() {
   local hit
-  hit=$(find "$bundle" \( -name 'sign-leaf.sh' -o -name 'server_ca.key' -o -name 'server_ca.pem' \) -print -quit)
-  [ -z "$hit" ] || { echo "refusing to ship CA signing tool or CA key material in a bundle: $hit" >&2; exit 1; }
+  hit=$(find "$bundle" \( -name 'server_ca.key' -o -name 'server_ca.pem' \) -print -quit)
+  [ -z "$hit" ] || { echo "refusing to ship CA key material in a bundle: $hit" >&2; exit 1; }
 }
 check_no_ca_material
 chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py

@@ -23,7 +23,7 @@ flowchart LR
         I["images/*.tar"]
         CO["compose/*.yml"]
         E["config/*.env.example"]
-        CE["certs/detect-ip.sh, gen-certs.sh"]
+        CE["certs/detect-ip.sh"]
         F["firmware/gsm-arduino-*.hex"]
         D["data/static"]
         SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · lib/"]
@@ -182,9 +182,11 @@ non-blocking degraded state rather than a real failure.
 
 ## TLS certificates
 
-`install.sh` generates a self-signed cert so the stack can come up. That cert
-is not trusted by the mobile app, so a real deployment replaces it with a leaf
-signed by the offline CA.
+`install.sh` issues the server's leaf from the offline CA on a USB stick you
+plug into the server before installing. There is no self-signed fallback: the
+mobile app pins the CA, so a cert that CA did not issue leaves every production
+handset unable to connect. `install.sh` aborts before copying anything if it
+cannot find and validate the CA stick.
 
 ### What every leaf must contain
 
@@ -211,23 +213,37 @@ if a site uses a different hostname, and rebuild the mobile app to match.
 
 ### Issuing a leaf
 
-The server host is deliberately never trusted with the CA private key. It only
-ever handles a CSR and, later, a signed leaf. On the server:
+Plug the CA USB stick into the server, then run:
 
 ```bash
-sudo /opt/sapot/releases/current/scripts/request-cert.sh --force
+sudo /opt/sapot/releases/current/scripts/request-cert.sh
 ```
 
-`--force` is required in the normal case, because `install.sh` has already left
-a key and self-signed cert on disk. It confirms reusing that key is intentional
-and does not rotate it. Carry the resulting `server.csr` to the offline signing
-laptop on a transport USB stick, sign it with `scripts/ca/sign-leaf.sh`, carry
-`server.crt` back into `$SAPOT_ROOT/shared/certs`, and recreate `nginx` as
-`request-cert.sh` instructs.
+One run generates the key (or reuses the existing one), builds the CSR, signs
+it against the CA on the stick, verifies the result, and installs the leaf.
+There is no CSR to carry anywhere. Unplug the stick afterwards and recreate
+`nginx` as the script instructs.
+
+`request-cert.sh` finds the stick by looking for a directory containing both
+`server_ca.pem` and `server_ca.key` under `/media/*/*`, `/media/*`,
+`/run/media/*/*`, `/mnt/*/*`, and `/mnt/*`. Pass `--ca-dir <mount>` if it is
+mounted elsewhere or more than one candidate matches. Add `--rotate-key` to
+generate a fresh private key as well; `--days <n>` overrides the 825-day
+default lifetime.
+
+Issuance never destroys what is already serving. The new leaf is written to a
+staging file and only replaces `server.crt` after it verifies against the CA,
+so a failed run leaves the working cert untouched and TLS keeps running.
+
+**Where the CA key is exposed.** The CA private key is readable on the server
+for the duration of the run. That is the deliberate trade for a single-machine
+workflow: it removes the transport USB stick, the CSR round trip, and the
+digest cross-check that went with them, at the cost of the CA key touching a
+LAN-connected host. Keep the stick physically controlled, plug it in only to
+issue, and unplug it immediately after.
 
 [runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf) has
-the full step-by-step procedure, the digest cross-check that detects tampering
-on the transport stick, the key-rotation warnings, and the recovery notes.
+the full procedure, the key-rotation warnings, and the recovery notes.
 
 ## Pitfalls
 
@@ -273,10 +289,13 @@ but never uploads.
 | `insufficient free space on <path>` | `requiredDiskBytes` plus the 20% margin exceeds free space on `$SAPOT_ROOT` or the Docker root | Free space or prune old releases with `scripts/lib/retention.sh` |
 | `nginx/api did not become ready` | Stack came up but `/version` never answered within 3 minutes | `docker compose -p sapot logs api nginx`; the previous release is still live, so the cutover has not happened |
 | Upgrade appears to succeed but nothing changed | The bundle reuses a version already in `releases/` | Rebuild with a bumped version (see Pitfalls) |
-| `doctor.sh` reports `certificate SAN does not cover server.sapot.lan` | Leaf issued without the required DNS SAN | Reissue via the offline-CA workflow; mobile production builds cannot connect until fixed |
-| `server.key exists but no server.csr or server.crt` | A previous `request-cert.sh` run was interrupted | If no leaf was ever issued from that key, `--force --rotate-key` is safe |
-| `refusing to sign: <dir> appears to be on the root filesystem` | CA USB stick not mounted, or a stale mountpoint left by an unplugged drive | Mount the CA stick and retry; do not set `SAPOT_CA_ALLOW_LOCAL=1` for production signing |
-| `refusing to sign: CSR has no Subject Alternative Name` | CSR generated outside `request-cert.sh` | Regenerate the CSR with `request-cert.sh` |
+| `doctor.sh` reports `certificate SAN does not cover server.sapot.lan` | Leaf issued without the required DNS SAN | Reissue with `request-cert.sh`; mobile production builds cannot connect until fixed |
+| `doctor.sh` reports `certificate does not chain to .../server_ca.pem` | The live cert was not issued by the pinned CA (e.g. carried over from a pre-CA install) | Reissue with `request-cert.sh` from the CA USB stick |
+| `no CA USB stick found` | Stick not plugged in, not mounted, or mounted outside the searched paths | Plug it in, confirm with `lsblk -f`, or pass `--ca-dir <mount>` / set `SAPOT_CA_DIR` |
+| `found N candidate CA directories` | More than one mounted volume carries CA material | Pass `--ca-dir <mount>` so the choice is explicit |
+| `refusing to sign: <dir> is on the root filesystem` | CA USB stick not mounted, or a stale mountpoint left by an unplugged drive | Mount the stick and retry; do not set `SAPOT_CA_ALLOW_LOCAL=1` for production signing |
+| `CA USB stick at <dir> is not writable` | Stick mounted read-only, so `server_ca.srl` and `issued-leaves.log` cannot be updated | Remount read-write (`mount -o remount,rw <mount>`) |
+| `<path> is not a CA certificate` / `does not match` | The stick holds the wrong file as `server_ca.pem`, or mismatched CA cert and key | Check the stick against the CA identity recorded at [Offline CA Setup](runbooks.md#offline-ca-setup) |
 | `gsm-fastapi` shows `unhealthy` in `docker ps` | No modem attached | Expected. `doctor.sh` and `status.sh` treat this as non-blocking when `state.json` records no GSM hardware |
 
 ## Limitations

@@ -29,6 +29,16 @@ check_certificate() {
   if [ "$crt_pubkey" != "$key_pubkey" ]; then
     check certificate FAIL "certificate and key do not match"; return
   fi
+  # The leaf must chain to the offline CA the mobile app pins. A self-signed
+  # cert satisfies every check above and still fails on every production
+  # handset, so this is the one that catches it.
+  local anchor="$SAPOT_ROOT/shared/certs/server_ca.pem"
+  if [ ! -f "$anchor" ]; then
+    check certificate FAIL "no CA trust anchor at $anchor - reissue from the CA USB stick with request-cert.sh"; return
+  fi
+  if ! openssl verify -CAfile "$anchor" "$cert" >/dev/null 2>&1; then
+    check certificate FAIL "certificate does not chain to $anchor - reissue from the CA USB stick with request-cert.sh"; return
+  fi
   local san ip
   san=$(openssl x509 -in "$cert" -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" || true)
   if [[ "$san" != *"$SAPOT_SERVER_DNS_NAME"* ]]; then
