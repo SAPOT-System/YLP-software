@@ -15,6 +15,8 @@ export async function POST() {
 
 		cookieStore.delete('access_token');
 		cookieStore.delete('refresh_token');
+		cookieStore.delete('must_change_password');
+		cookieStore.delete('terms_acceptance_required');
 
     const data = await res.json();
     return NextResponse.json(data);
