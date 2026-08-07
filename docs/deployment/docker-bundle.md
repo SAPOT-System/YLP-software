@@ -39,7 +39,7 @@ flowchart LR
 ### On-target lifecycle
 
 Every operator script (`install.sh`, `upgrade.sh`, `rollback.sh`, `status.sh`,
-`doctor.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
+`doctor.sh`, `backup-db.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
 which provides `check_schema`, `acquire_lock`, `compose`, `verify_checksums`,
 `disk_preflight`, `wait_healthy`, and `write_state`.
 
@@ -82,6 +82,7 @@ flowchart TD
     ├── state.json           (currentVersion, gsmHardwarePresent, history)
     ├── certs/                (TLS cert, CN = detected LAN IP)
     ├── db-data/
+    ├── db-backups/           (timestamped mysqldump output, 14-day retention)
     ├── gsm-arduino-backups/  (pre-flash firmware backups)
     └── server.env, admin.env, gsm-fastapi.env, gsm-arduino.env
 ```
@@ -107,6 +108,14 @@ manifest-pinned image digests mean the target never runs unverified images;
 upgrade/rollback validate Alembic revisions ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) before migrating or reverting; and
 `releases/current` is only repointed after the new stack passes a `/version`
 health check, so a failed cutover leaves the previous release live.
+
+`backup-db.sh` is driven by a host systemd timer rather than by the bundle, but
+it takes the same `$SAPOT_ROOT/.lock` as install, upgrade, rollback, and firmware
+flash. A backup therefore cannot run while `alembic upgrade head` is
+mid-migration. On lock contention it skips that run and the next timer cycle
+retries. Because it uses `docker compose`, the timer's user must be in the
+`docker` group. Enabling the timer is a manual host step on both deployment
+paths. See [runbooks.md](runbooks.md#backup-automated).
 
 ## Build and transport
 
@@ -171,7 +180,8 @@ their image IDs and recent firmware backups, are retained. Run
 `scripts/lib/retention.sh --dry-run` to preview cleanup.
 
 `doctor.sh` checks release checksums, image IDs, services, certificate, ports,
-disk, and expected hardware. Add `--json` for structured output. A site with
+disk, expected hardware, and the `db-backup` row for on-host backup age and
+off-host-copy status. Add `--json` for structured output. A site with
 no GSM modem normally shows `gsm-fastapi` as `unhealthy` in raw Docker output:
 that is expected because its `/health` endpoint signals no modem. When the
 installation's `state.json` records that no GSM hardware is attached,
@@ -209,6 +219,5 @@ sudo /opt/sapot/releases/current/scripts/flash-gsm-firmware.sh --yes
 The script holds the same deployment lock as install and upgrade, verifies the
 firmware checksum and board type, stops the GSM service, reads a backup before
 uploading, and restarts the service on exit. `--check` includes the backup read
-but never uploads. Database backup/restore and automatic certificate renewal
-are out of scope: take database backups separately and regenerate certificates
-manually when their LAN IP or expiry requires it.
+but never uploads. Database backup runs through `backup-db.sh`; certificate
+renewal remains a manual operation when the LAN IP or expiry requires it.

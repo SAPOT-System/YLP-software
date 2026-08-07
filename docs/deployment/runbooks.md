@@ -8,28 +8,74 @@ Step-by-step procedures for operating SAPOT in production. Each runbook includes
 
 **When:** Before any schema change (see [ADR 0007](../adr/0007-alembic-for-server-migrations.md)), on a regular schedule if the deployment is long-running, and always before a disaster-recovery restore.
 
-### Backup
+### Backup (automated)
+
+Backups run unattended via `sapot-db-backup.timer`. Install it once per host:
 
 ```bash
-mysqldump --single-transaction -u sapot -p sapot_db > sapot_db_$(date +%Y%m%d_%H%M%S).sql
+sudo cp /home/sapot/YLP-software/deployment-scripts/sapot-db-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now sapot-db-backup.timer
+systemctl list-timers sapot-db-backup.timer
 ```
 
-- `--single-transaction` avoids locking tables on InnoDB, so the server can keep running during backup.
-- Store the dump off the server host if possible (a USB drive at the incident site, or the admin's laptop) — a backup that lives only on the machine it protects against doesn't survive hardware failure.
+Default cadence is daily. For a standing or dev environment, change it to weekly with `sudo systemctl edit sapot-db-backup.timer` and add `[Timer]` plus `OnCalendar=weekly`.
+
+Settings go in `/etc/sapot/backup.env` (mode 600, optional; all have defaults):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SAPOT_BACKUP_DIR` | `/opt/sapot/shared/db-backups` (bundle) or `/home/sapot/backups` (bare-metal) | Where dumps are written |
+| `SAPOT_BACKUP_RETENTION_DAYS` | `14` | Dumps older than this are deleted |
+| `SAPOT_BACKUP_MIN_KEEP` | `3` | Newest N dumps are kept regardless of age |
+| `SAPOT_BACKUP_OFFHOST_DIR` | unset | Mountpoint of the removable drive to copy to |
+| `SAPOT_BACKUP_MAX_AGE_HOURS` | `36` | Age at which `doctor.sh` reports the backup stale |
+
+Dumps are named `sapot_db_<UTC timestamp>.sql.gz`. Each is verified for gzip integrity and mysqldump's completion footer before receiving its final name.
+
+```bash
+systemctl status sapot-db-backup.timer
+journalctl -u sapot-db-backup.service -n 50 --no-pager
+/opt/sapot/releases/current/scripts/doctor.sh
+```
+
+Set `SAPOT_BACKUP_OFFHOST_DIR` to a removable drive's mountpoint to copy each verified dump off-host. An absent drive logs a warning but does not discard the on-host dump. The script never deletes copies on removable media.
+
+### Backup (manual, ad hoc)
+
+```bash
+/home/sapot/YLP-software/deploy/scripts/backup-db.sh
+/opt/sapot/releases/current/scripts/backup-db.sh
+/home/sapot/YLP-software/deploy/scripts/backup-db.sh --dry-run
+```
 
 ### Restore
 
+Restore is deliberately manual. Dumps are gzipped, and the database is `sapot_db` on bare-metal and `sapot` in a bundle.
+
+**Bare-metal:**
+
 ```bash
 sudo systemctl stop server-main-api
-mysql -u sapot -p sapot_db < sapot_db_20260701_120000.sql
+zcat /home/sapot/backups/sapot_db_20260807T020000Z.sql.gz | mysql -u sapot -p sapot_db
 sudo systemctl start server-main-api
 ```
 
-**Verification:**
+**Bundle:**
+
 ```bash
-mysql -u sapot -p -e "SELECT COUNT(*) FROM sapot_db.peer;"
-curl -k https://localhost/auth/exists?identifier=probe@example.com   # expect 200 with {"exists": true/false}, not 500
-sudo journalctl -u server-main-api -n 50 --no-pager   # confirm no startup errors
+cd /opt/sapot/releases/current
+docker compose -p sapot -f compose/docker-compose.yml stop api
+zcat /opt/sapot/shared/db-backups/sapot_db_20260807T020000Z.sql.gz | docker compose -p sapot -f compose/docker-compose.yml exec -T db mysql -u sapot -p sapot
+docker compose -p sapot -f compose/docker-compose.yml start api
+```
+
+**Verification:**
+
+```bash
+mysql -u sapot -p -e "SELECT COUNT(*) FROM sapot_db.peer;"   # bundle: FROM sapot.peer
+curl -k https://localhost/auth/exists?identifier=probe@example.com
+sudo journalctl -u server-main-api -n 50 --no-pager
 ```
 
 ---

@@ -34,6 +34,10 @@ View live logs:
 sudo journalctl -u server-main-api -f
 ```
 
+Scheduled database backup events are also in journald:
+
+- `sudo journalctl -u sapot-db-backup.service --since '7 days ago' --no-pager` records each scheduled backup. `[PASS]` confirms the dump and any off-host copy. `[WARN]` means a lifecycle operation held the lock or the off-host drive was absent, leaving the on-host dump intact. `[ERROR]` means no backup was produced.
+
 > **TODO (human input required):** Confirm whether JSON structured logging or rotating file logging is enabled, and document the log level configuration.
 
 ---
