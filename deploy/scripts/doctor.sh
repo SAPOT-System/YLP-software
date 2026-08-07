@@ -20,6 +20,19 @@ done
 cert="$SAPOT_ROOT/shared/certs/server.crt"; [ -f "$cert" ] && openssl x509 -checkend 0 -noout -in "$cert" >/dev/null && check certificate PASS "certificate is current" || check certificate FAIL "certificate missing or expired"
 for port in 80 443; do ss -ltn "sport = :$port" | grep -q LISTEN && check "port-$port" PASS bound || check "port-$port" FAIL not-bound; done
 if [ "$hardware" = true ]; then port=$(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2-); [ -c "$port" ] && check gsm-device PASS "$port present" || check gsm-device FAIL "$port missing"; fi
+if compose "$current" exec -T api python -m app.scripts.bootstrap_admin --status >/tmp/sapot-admin-status.$$ 2>/dev/null; then
+  admin_status=$(cat /tmp/sapot-admin-status.$$ | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+  rm -f /tmp/sapot-admin-status.$$
+  case "$admin_status" in
+    missing) check administrator FAIL "no administrator account; run scripts/bootstrap-admin.sh";;
+    pending-password-change) check administrator PASS "initial password not yet changed";;
+    configured) check administrator PASS "admin account configured";;
+    *) check administrator FAIL "invalid administrator status";;
+  esac
+else
+  rm -f /tmp/sapot-admin-status.$$
+  check administrator FAIL "API is not running"
+fi
 if "$json"; then printf '%s\n' "${checks[@]}" | python3 -c 'import json,sys; print(json.dumps([dict(zip(("check","status","detail"), line.rstrip().split("|",2))) for line in sys.stdin]))'
 else for row in "${checks[@]}"; do IFS='|' read -r name state detail <<< "$row"; [ "$state" = PASS ] && log_pass "$name: $detail" || log_fail "$name: $detail"; done; fi
 exit "$failed"
