@@ -1,3 +1,6 @@
+import io
+import json
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import pytest
@@ -5,6 +8,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlmodel import select
 
+from app.scripts import bootstrap_admin
 from app.db_operations.auth import get_password_hash, verify_password
 from app.db_operations.token import _assert_password_current, create_token_pair
 from app.limiter import limiter
@@ -136,3 +140,56 @@ def test_password_change_does_not_replace_existing_consent(client, session) -> N
     assert response.status_code == 200
     session.refresh(user)
     assert user.terms_accepted_at == accepted_at.replace(tzinfo=None)
+
+
+@contextmanager
+def _borrowed(session):
+    """Hand the script the test session without letting it close the fixture."""
+    yield session
+
+
+def _run_bootstrap(monkeypatch, session, payload: dict) -> int:
+    monkeypatch.setattr(bootstrap_admin, "Session", lambda _engine: _borrowed(session))
+    monkeypatch.setattr("sys.argv", ["bootstrap_admin"])
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+    return bootstrap_admin.main()
+
+
+def _payload(username: str, phone: str) -> dict:
+    # Phone numbers must stay clear of tests/assets.py, whose fixture users are
+    # already in the session and would collide on the uniqueness check.
+    return {
+        "username": username, "first_name": "Boot", "last_name": "Strap",
+        "phone_number": phone, "password": "StrongPass123", "terms_accepted": False,
+    }
+
+
+def test_bootstrap_creates_an_admin_that_must_change_its_password(monkeypatch, session, capsys) -> None:
+    assert _run_bootstrap(monkeypatch, session, _payload("firstadmin", "+639991110001")) == bootstrap_admin.SUCCESS
+    assert json.loads(capsys.readouterr().out)["status"] == "created"
+
+    user = session.exec(select(User).where(User.username == "firstadmin")).one()
+    assert user.must_change_password is True
+    assert user.terms_accepted_at is None
+    assert session.exec(select(Admin).where(Admin.user_id == user.id)).one()
+
+
+def test_bootstrap_reports_a_taken_username_as_correctable(monkeypatch, session, capsys) -> None:
+    session.add(User(username="taken", first_name="Prior", last_name="User", hashed_password="hash"))
+    session.commit()
+
+    # Correctable, not a system failure: the wrapper's retry loop keys off exit
+    # code 2, and anything else aborts the install instead of re-prompting.
+    assert _run_bootstrap(monkeypatch, session, _payload("taken", "+639991110002")) == bootstrap_admin.CORRECTABLE
+    assert "username" in {item["field"] for item in json.loads(capsys.readouterr().out)["errors"]}
+
+
+def test_bootstrap_leaves_no_orphan_user_when_granting_admin_fails(monkeypatch, session) -> None:
+    def explode(*_args, **_kwargs):
+        raise RuntimeError("admin grant failed")
+
+    monkeypatch.setattr(bootstrap_admin, "makeAdmin", explode)
+
+    assert _run_bootstrap(monkeypatch, session, _payload("orphan", "+639991110003")) == bootstrap_admin.SYSTEM_FAILURE
+    # An orphan would collide on username forever, wedging every later retry.
+    assert session.exec(select(User).where(User.username == "orphan")).first() is None
