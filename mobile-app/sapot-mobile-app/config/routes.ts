@@ -47,6 +47,7 @@ export const SETTINGS_ROUTES = {
   // Support
   ABOUT_US: "/(drawer)/settings/support/about-us",
   HELP_CENTER: "/(drawer)/settings/support/help-center",
+  HELP_ARTICLE: "/(drawer)/settings/support/help/[id]",
 } as const;
 export const APP_ROUTES = {
   HOME: "/(drawer)/(tabs)",

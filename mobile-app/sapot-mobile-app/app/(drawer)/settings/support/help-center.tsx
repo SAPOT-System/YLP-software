@@ -1,10 +1,15 @@
+import { APP_ROUTES } from "@/config/routes";
+import { ArticleList, resetTourCompletion, useTour } from "@/features/help";
 import { uiLog } from "@/features/shared/core/utils/logger";
+import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
-import { Text, useTheme } from "react-native-paper";
+import { useTheme } from "react-native-paper";
 
-export default function SwitchMode() {
+export default function HelpCenter() {
   const theme = useTheme();
+  const router = useRouter();
+  const { start } = useTour();
 
   useEffect(() => {
     uiLog.info("[HelpCenter] mounted");
@@ -13,11 +18,12 @@ export default function SwitchMode() {
     };
   }, []);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
-      <View style={{ padding: 16, alignItems: "center" }}>
-        <Text>Help Center</Text>
-      </View>
-    </View>
-  );
+  const handleReplayTour = async () => {
+    uiLog.info("[HelpCenter] tour replay requested");
+    await resetTourCompletion();
+    await start();
+    router.push(APP_ROUTES.HOME);
+  };
+
+  return <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}><ArticleList onReplayTour={handleReplayTour} /></View>;
 }

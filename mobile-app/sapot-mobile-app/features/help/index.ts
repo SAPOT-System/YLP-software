@@ -1,0 +1,14 @@
+export * from "./types";
+export * from "./constants";
+export { isVisible } from "./services/help-visibility";
+export { resetTourCompletion } from "./services/tour-persistence";
+export { HELP_ARTICLES, HELP_ARTICLE_IDS, getArticle } from "./content/registry";
+export type { HelpArticleId } from "./content/registry";
+export { ArticleList } from "./components/article-list";
+export { ArticleView } from "./components/article-view";
+export { HelpIconButton } from "./components/help-icon-button";
+export { TourOverlay } from "./components/tour-overlay";
+export { TourProvider, useTour, useTourAnchor } from "./context/tour-context";
+export { useHelpArticles } from "./hooks/use-help-articles";
+export { useHelpContext } from "./hooks/use-help-context";
+export { useTourAutostart } from "./hooks/use-tour-autostart";

@@ -255,6 +255,12 @@ Four sub-domains in dependency order (bottom → top):
 
 **One-way dependency rule:** `core` ← `crypto` ← `peer` / `connection` ← domain features. A sub-domain may only import from itself and sub-domains *below* it. Domain features (`chat/`, `auth/`, etc.) depend on the engine — never the reverse.
 
+### `features/help/`
+
+Offline Help Center articles and a one-time, audience-filtered spotlight tour. `TourProvider`
+is mounted in `app/(drawer)/_layout.tsx` inside the authenticated app providers and wraps the
+drawer, so it can read auth and app-mode state while presenting its Paper Portal overlay.
+
 ### `features/announcements/`
 
 Server-fetched announcement board — no WatermelonDB, purely React Query.
