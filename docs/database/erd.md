@@ -131,6 +131,7 @@ erDiagram
         VARCHAR hashed_password
         BOOLEAN email_verified
         DATETIME terms_accepted_at
+        BOOLEAN must_change_password
     }
     activity_logs {
         CHAR id PK
