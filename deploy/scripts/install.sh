@@ -9,13 +9,18 @@ if [ -L "$SAPOT_ROOT/releases/current" ] || [ -e "$SAPOT_ROOT/releases/current" 
   log_error "already installed (v$current) - use upgrade.sh instead"; exit 1
 fi
 verify_checksums "$source_release" || { log_error "bundle checksum verification failed"; exit 1; }
+# Locate and validate the CA USB stick before anything is copied or started.
+# There is no self-signed fallback: the mobile app pins this CA, so a leaf it
+# did not issue leaves every production handset unable to connect.
+ca_dir=$(ca_find_dir); ca_verify_dir "$ca_dir"
 disk_preflight "$(manifest_value "$source_manifest" requiredDiskBytes)"
 target="$SAPOT_ROOT/releases/v$version"; mkdir -p "$SAPOT_ROOT/releases"
 [ ! -e "$target" ] && cp -a "$source_release" "$target"
 prepare_env_files "$target"
 ip=$($target/certs/detect-ip.sh 2>/dev/null || true)
 [ -n "$ip" ] || { read -r -p "LAN IP for TLS certificate: " ip; }
-CERT_DIR="$SAPOT_ROOT/shared/certs" CERT_CN="$ip" CERT_SAN="IP:$ip,DNS:localhost" "$target/certs/gen-certs.sh"
+ca_issue_leaf "$SAPOT_ROOT/shared/certs" "$ip" "$ca_dir" false
+log_info "certificate issued - the CA USB stick can be unplugged now"
 read -r -p "Is the GSM Arduino connected at $(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2)? [y/N] " answer
 hardware=false; [[ "$answer" =~ ^[Yy]$ ]] && hardware=true
 for image in "$target"/images/*.tar; do docker load -i "$image"; done
