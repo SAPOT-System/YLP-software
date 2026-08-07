@@ -115,9 +115,16 @@ health check, so a failed cutover leaves the previous release live.
 it takes the same `$SAPOT_ROOT/.lock` as install, upgrade, rollback, and firmware
 flash. A backup therefore cannot run while `alembic upgrade head` is
 mid-migration. On lock contention it skips that run and the next timer cycle
-retries. Because it uses `docker compose`, the timer's user must be in the
-`docker` group. Enabling the timer is a manual host step on both deployment
-paths. See [runbooks.md](runbooks.md#backup-automated).
+retries.
+
+Enabling the timer is a manual host step, and on this path it needs two things
+the bundle does not provide. The unit files are not in the tarball (the build
+ships `deploy/scripts/` into the release but not `deployment-scripts/`), so
+carry them on the same removable media. And the units run as `sapot`, a user
+`install.sh` neither creates nor grants anything to, so the account must exist,
+belong to the `docker` group, and own `shared/server.env`,
+`shared/db-backups`, and `.lock`. Full procedure:
+[runbooks.md](runbooks.md#backup-automated).
 
 ## Build and transport
 

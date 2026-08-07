@@ -39,7 +39,7 @@ Never bundle a dependency bump with an unrelated feature change — if it breaks
 
 - **Server:** stdout/stderr goes to the systemd journal ([monitoring-logging.md](monitoring-logging.md#server--application-logs)). `journald` rotates by its own configured size/time limits (`/etc/systemd/journald.conf`) — confirm those limits are set on the deployment host; the default can otherwise consume significant disk on a long-running field deployment.
 - **GSM module:** `sapot.log` has no rotation configured in-repo. Either wire it into `logrotate` or truncate it manually on the weekly cadence above.
-- **Database backups:** pruned automatically on each successful run, with a 14-day window and a floor of the three newest. Copies on removable media are never pruned by the script.
+- **Database backups:** pruned automatically on each successful run, with a 14-day window and a floor of the three newest. Copies on removable media are never pruned by the script. Each dump is a complete, unencrypted copy of the database, so both the backup directory and the off-host drive need the same protection as the server itself; see [runbooks.md](runbooks.md#protecting-dumps).
 - **Mobile app:** daily rotating log file on-device (`getLogFilePath()`, see [monitoring-logging.md](monitoring-logging.md#mobile-app--sentry)) — no server-side action needed; this is per-device storage, not something an operator cleans up remotely.
 
 ---
