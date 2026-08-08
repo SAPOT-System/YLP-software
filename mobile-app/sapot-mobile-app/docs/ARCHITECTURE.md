@@ -209,22 +209,51 @@ is queued and flushed through the replacement socket instead of being written to
 
 ## Server Status
 
-**Single source of truth:** `HealthProvider` (`features/shared/core/context/health-context.tsx`) mounts inside `app/(drawer)/_layout.tsx` and continuously tracks server reachability.
+> **There are two health contexts, not one.** Both are mounted, nested, in
+> `app/(drawer)/_layout.tsx` (`<ServerHealthProvider><HealthProvider>…`). This is known
+> duplication — see [STATE_MANAGEMENT.md](STATE_MANAGEMENT.md#b-two-redundant-health-contexts).
+> Pick the right one for what you're building; don't assume a single source of truth.
 
-- Runs an immediate check via `checkBackEndHealth()` on mount, then polls `/ping` every 5s via `usePing()`
-- Exposes `useServerStatus()` → `{ online: boolean; latency: number | null; shouldWarn: boolean }`
-- `shouldWarn` is `true` only when `mode` is `server` or `auto` **and** the server is unreachable — LAN mode users are never warned
+| Context | Hook | Exposes | Mounted in | Used by |
+|---|---|---|---|---|
+| `HealthProvider` (`core/context/health-context.tsx`) | `useServerStatus()` | `{ online, latency, shouldWarn }` | drawer only | `useServerAction()`, debug panel |
+| `ServerHealthProvider` (`core/context/server-health-context.tsx`) | `useServerHealth()` | `{ online, initialChecked }` | drawer, `auth/`, `getting-started/` | `ServerStatusBanner`, `ServerHealthBanner`, `ServerDownReloginTransition` |
 
-**Passive warning:** `ServerStatusBanner` (`features/shared/components/server-status-banner.tsx`) renders as an absolute-positioned overlay inside the drawer layout. It slides in from the top when `shouldWarn` is true and disappears automatically when the server comes back.
+`HealthProvider` runs an immediate `checkBackEndHealth()` on mount, then polls `/ping` every 5 s
+via `usePing()`. Its `shouldWarn` is `true` only when the effective mode is `server` or `auto`
+**and** the server is unreachable — LAN-mode users are never warned.
 
-**Active guard:** `useServerAction()` (`features/shared/hooks/use-server-action.ts`) wraps imperative actions. When `shouldWarn` is true, it fires the caller-supplied `onBlocked` callback instead of proceeding.
+`ServerHealthProvider` is the one that survives outside the drawer, which is why the unauthenticated
+`auth/` and `getting-started/` layouts use it.
+
+**Passive warning:** `ServerStatusBanner` (`features/shared/components/server-status-banner.tsx`)
+renders as an absolute-positioned overlay inside the drawer layout. It reads `useServerHealth()`
+and computes its own warn condition (`initialChecked && isServerMode && !online`) rather than
+reusing `HealthProvider`'s `shouldWarn`. It also waits 10 s after mount before it can appear, and
+suppresses itself while `OfflineExpiredBanner` is showing.
+
+`ServerHealthBanner` is the sibling used in the auth/getting-started layouts, with a 5.5 s delay
+and no mode gating.
+
+**Active guard:** `useServerAction()` (`features/shared/hooks/use-server-action.ts`) reads
+`useServerStatus().shouldWarn` and returns two things:
 
 ```ts
-const { isServerOffline } = useServerAction();
+const { guardAction, isServerOffline } = useServerAction();
+
+// Wrap an action — onBlocked fires instead of the action, which resolves to undefined
+const submit = guardAction(async () => saveProfile(form), () => showToast("Server unreachable"));
+
+// Or branch directly
 if (isServerOffline) { showToast("..."); return; }
 ```
 
-Used in: `server-login.tsx`, `register/index.tsx`, `change-password.tsx`, `manage-profile.tsx`, `custom-drawer-content.tsx`, and all `forgot-password/` screens.
+`isServerOffline` is simply `shouldWarn` re-exported under an action-oriented name.
+
+Used in `change-password.tsx`, `manage-profile.tsx`, and `phone/edit-phone.tsx` — all under
+`app/(drawer)/settings/account/`. The unauthenticated screens (`auth/`, `getting-started/`) cannot
+use it, because `HealthProvider` is mounted only inside the drawer; they rely on
+`ServerHealthBanner` instead.
 
 ---
 
