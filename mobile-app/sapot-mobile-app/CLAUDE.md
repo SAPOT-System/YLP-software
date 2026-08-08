@@ -15,10 +15,10 @@ Use the `app-commands` skill for the full CLI reference beyond the quality-gate 
 ### Dependency Injection
 
 Manual DI via two container classes, not a framework:
-- **`AuthContainer`** (`features/auth/auth-container.ts`) — owns auth state: `sessionStore`, `userStore`, `peerService`, `peerRepository`, `userService`.
-- **`MainContainer`** (`features/shared/main-container.ts`) — constructed with an `AuthContainer`; the single point of initialization for the app, wiring every runtime service/repository. Passed down via React context (`features/shared/context/main-container-context.tsx`). Services are instantiated once, not singletons.
+- **`AuthContainer`** (`features/auth/auth-container.ts`) — owns auth state: `sessionStore`, `userStore`, `peerService`, `peerRepository`, `guestUserRepository`, `guestMigrationService`, `userService`. Takes no constructor arguments.
+- **`MainContainer`** (`features/shared/main-container.ts`) — constructed as `new MainContainer(authContainer, appModeStore)`; the single point of initialization for the app, wiring every runtime service/repository. Passed down via React context (`features/shared/core/context/main-container-context.tsx`). Services are instantiated once, not singletons.
 
-**Construction order matters:** `ConnectionService` is constructed last because it wires sub-services in its constructor via callbacks (`.setTcpCallbacks()`, `.setSignalingSender()`). Callbacks use closures instead of `.bind()` so `jest.spyOn` replacements on the instance are respected in tests — don't "simplify" this to `.bind()`.
+**Construction order matters:** `ConnectionService` is constructed last *of the connection group* (`WebrtcSessionManager` → `SignalingService` → `CallMediaService` → `ConnectionService`) because it wires those sub-services in its constructor via callbacks (`.setTcpCallbacks()`, `.setSignalingSender()`). It is not the last thing the container builds — the chat/call/data layer is constructed after it and attached via setters (`setChatService`, `setCallService`, `setPeerService`). Callbacks use closures instead of `.bind()` so `jest.spyOn` replacements on the instance are respected in tests — don't "simplify" this to `.bind()`.
 
 ### Connection layer (`features/shared/connection/services/`)
 
@@ -27,15 +27,24 @@ Manual DI via two container classes, not a framework:
 - **`SignalingService`** — routes WebRTC SDP/ICE via TCP (direct) or WS (relay), enforcing the active transport mode.
 - **`CallMediaService`** — local mic/camera stream lifecycle.
 - **`DiscoveryService`** — mDNS (Zeroconf) peer discovery on the LAN.
-- **`ChatService`** — message send/receive, persisted to WatermelonDB via data channels.
-- **`CallService`** — call lifecycle, audio routing (earpiece/speaker/Bluetooth) via `react-native-incall-manager`.
-- **`SyncService`** — periodic sync against the server REST API.
 - **`CleanUpService`** — purges stale peers/messages/conversations; wired into `UserService` so cleanup runs on logout.
 - **`ActiveUsersService`** — tracks peer presence via the WS signaling adapter.
+- **`UserService`** — user initialization and identity persistence; owns `logout`.
+- **`NotificationService`** — local incoming-call notifications (`expo-notifications`).
+- **`CallMessageRouter`** — pure decision layer mapping inbound call messages to events, keeping glare handling out of `ConnectionService`.
+
+Two helper modules live here but are not services: `connect-planning.ts` (per-mode dial timeouts, address de-duplication) and `service-interfaces.ts` (the structural interfaces the setter wiring depends on).
+
+**Living outside this directory**, despite being part of the same runtime:
+- **`ChatService`** (`features/chat/services/`) — message send/receive, persisted to WatermelonDB; sends over the WebRTC data channel, falling back to the WS relay. Throws in `lan` mode when no data channel exists.
+- **`SyncService`** (`features/sync/services/`) — pull-then-push sync against the server REST API.
+- **`CallService`** (`features/call/services/`) — call lifecycle, audio routing (earpiece/speaker/Bluetooth) via `react-native-incall-manager`.
 
 ### Adapters (`features/shared/connection/adapters/`)
 
 Thin injectable wrappers around native modules, for testability: `TcpServerAdapter`/`TcpClientAdapter` (`react-native-tcp-socket`), `WsSignalingAdapter` (WebSocket + auto-reconnect/heartbeat, relay via server), `ZeroconfAdapter` (`react-native-zeroconf`), `WebrtcAdapter` (`react-native-webrtc`).
+
+`WebrtcAdapter` delegates two concerns to sibling units driven by injected closures: `LivenessMonitor` (data-channel ping/pong, detects half-open links) and `IceRestartController` (ICE-restart scheduling and backoff). `ws-message-parser.ts` is the pure frame decoder `WsSignalingAdapter` uses — not an adapter class.
 
 ### Background connectivity
 
@@ -56,7 +65,7 @@ features/<name>/
   types.ts
   index.ts        # Public API
 ```
-Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`.
+Features: `announcements`, `auth`, `call`, `chat`, `debug`, `getting-started`, `gps`, `settings`, `shared`, `sync`.
 
 - `app/` — Expo Router file-based routing (screens).
 - `features/shared/` — cross-feature services, DI containers, connection/crypto/database infrastructure. Check here first before writing a new util/service.
