@@ -14,13 +14,22 @@ This quickstart covers the **minimum golden path**: server + mobile app. GSM/SMS
 
 ## 2. Start the server
 
+All three commands run from the **repo root**, because `docker/up.sh` lives there, not in `server/`:
+
 ```bash
-cd server
-cp .env.example .env    # edit placeholder secrets before anything but local dev
-docker/up.sh up --build -d
+cp server/.env.example server/.env    # edit placeholder secrets before anything but local dev
+./docker/up.sh up --build -d
+docker compose exec api alembic upgrade head
 ```
 
-This brings up MariaDB, Redis, the API, and an Nginx TLS terminator together — no local MariaDB/Redis install, and no manual cert setup — and auto-detects this machine's LAN IP for the dev TLS certificate's SAN.
+The first two bring up MariaDB, Redis, the API, an Nginx TLS terminator, the admin dashboard, and the
+tileserver together, with no local MariaDB/Redis install and no manual cert setup, auto-detecting this
+machine's LAN IP for the dev TLS certificate's SAN.
+
+The third creates the schema. It is a required, separate step: the schema is owned by Alembic
+([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) and nothing in the container runs it for
+you, so without it the API starts but every database-backed request fails. Re-run it after any pull
+that adds a migration.
 
 **Checkpoint:** `curl -sk https://<your-lan-ip>/version` (or `https://localhost/version` from the same machine) returns a JSON version payload. If not, see [Troubleshooting: server won't start](../TROUBLESHOOTING.md#server-wont-start-or-crashes-on-import).
 
@@ -34,12 +43,13 @@ bash configure_nix.sh
 nix develop -L
 cd sapot-mobile-app
 pnpm install
+cp .env.example .env
 ```
 
 Point the app at your server's LAN IP:
 
-```bash
-# mobile-app/sapot-mobile-app/.env.local
+```dotenv
+# mobile-app/sapot-mobile-app/.env
 EXPO_PUBLIC_DEV_HOST=192.168.1.x   # same host from step 2
 ```
 
@@ -47,7 +57,7 @@ EXPO_PUBLIC_DEV_HOST=192.168.1.x   # same host from step 2
 pnpm dev
 ```
 
-Open the app on your device/emulator (same Wi-Fi network as the server), go to the getting-started screen, tap **Server Mode**, and enter the same LAN IP in settings.
+Open the app on your device/emulator (same Wi-Fi network as the server), go to the getting-started screen, tap **Server Mode**, then the cog icon on that card, and enter the same LAN IP.
 
 **Checkpoint:** the app's login/registration screen loads without a network error. If it hangs or errors, see [Troubleshooting: mobile app can't reach the server](../TROUBLESHOOTING.md#mobile-app-cant-reach-the-server).
 
@@ -55,8 +65,8 @@ Full detail: [mobile-app-setup.md](mobile-app-setup.md).
 
 ## 4. Register a user and verify end-to-end messaging
 
-1. Register a new account in the app (or use **Guest Mode** to skip registration entirely — no server dependency for LAN messaging).
-2. Repeat steps 3–4 on a second device on the same LAN.
+1. Register a new account in the app. To skip registration entirely, pick **LAN Mode** on the getting-started screen instead of Server Mode. It asks only for a first and last name and signs you in as a guest, with no server dependency for LAN messaging.
+2. Repeat step 3 on a second device on the same LAN.
 3. Discover the peer (automatic via mDNS on the same network) and send a message.
 
 **Checkpoint:** the message appears on the recipient device. This confirms LAN peer discovery, transport (WebRTC data channel or LAN TCP+TLS), and E2E encryption are all working together.
@@ -67,7 +77,10 @@ Only needed if testing SMS delivery to devices off the LAN. See [gsm-module-setu
 
 ## 6. Optional: Admin frontend
 
-Only needed for dashboard work (user management, live GPS map, announcements). See [admin-frontend-setup.md](admin-frontend-setup.md) — requires `API_DOMAIN` pointed at the same server from step 2.
+Step 2's stack already builds and serves the dashboard: open `https://<your-lan-ip>/admin` (the
+`/admin` prefix is required; the app sets `basePath: "/admin"`). A fresh database has no admin
+account and the dashboard has no signup, so create the first one before you can log in. See
+[admin-frontend-setup.md](admin-frontend-setup.md#create-the-first-administrator).
 
 ---
 
