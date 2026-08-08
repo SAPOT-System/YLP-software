@@ -163,7 +163,9 @@ calls ──< call_participants >── peers
 ## Sync
 
 WatermelonDB uses a **pull/push sync** pattern with the server:
-- `GET /sync/pull?last_pulled_at=<ms>&limit=<n>` — fetches changes since last sync
+- `GET /sync/pull?last_pulled_at=<ms>&schema_version=<n>` — fetches changes since last sync.
+  Page size is a server-side default (100 per table), not a client parameter; the client pages
+  through `has_more`/`next_cursor` until every table is drained.
 - `POST /sync/push` — pushes local created/updated/deleted records
 
 `features/sync/api/sync.api.ts` also sends a `schema_version` query param, but the server

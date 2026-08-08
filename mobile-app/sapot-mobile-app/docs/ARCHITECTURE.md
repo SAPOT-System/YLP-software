@@ -12,34 +12,58 @@ All services are instantiated once at app startup through two container classes.
 
 ### AuthContainer (`features/auth/auth-container.ts`)
 
-Owns auth-persistent state that outlives individual screens:
+Owns auth-persistent state that outlives individual screens. Constructed before `MainContainer`,
+and takes no arguments:
 
 - `sessionStore` — WebSocket session handle
 - `userStore` — current user identity (`Peer | GuestUser`)
 - `peerService` / `peerRepository`
+- `guestUserRepository` — guest profile row
 - `guestMigrationService` — guest→auth conversion
+- `userService` — login/logout; `MainContainer` injects the `CleanUpService` into it so logout purges local data
 
 ### MainContainer (`features/shared/main-container.ts`)
 
-Single wiring point for all runtime services. Constructed with an `AuthContainer`.
+Single wiring point for all runtime services. Constructed as
+`new MainContainer(authContainer, appModeStore)` — the `AppModeStore` is a second constructor
+argument, not something it creates, because the transport mode is chosen before the container exists.
 
-**Construction order is explicit and load-bearing:**
+**Construction order is explicit and load-bearing** for the connection layer:
 ```
 WebrtcSessionManager → SignalingService → CallMediaService → ConnectionService
 ```
 
-`ConnectionService` is always constructed last because it wires sub-services via callbacks in its constructor. Callbacks use closures (not `.bind()`) so `jest.spyOn` replacements on instances are respected in tests.
+`ConnectionService` is constructed last *of that group* because its constructor wires those
+sub-services via callbacks (`signalingService.setTcpCallbacks(...)`,
+`webrtcSessionManager.setSignalingSender(...)`). It is **not** the last thing the container
+builds — the data/chat/call layer (`ConversationKeyStore`, `MessageRepository`, `SyncService`,
+`ConversationKeyManager`, `ChatService`, `PublicChatService`, `CallService`, `CleanUpService`)
+is constructed after it and attached via the setters below.
+
+Callbacks use closures (not `.bind()`) so `jest.spyOn` replacements on instances are respected
+in tests.
 
 **Two wiring patterns exist for cross-service dependencies:**
 
-1. **Constructor injection** — used for most services
-2. **Post-construction setters** — used where constructor injection would create circular dependencies:
+1. **Constructor injection** — the default. Use it whenever the dependency already exists at the
+   point the consumer is built.
+2. **Post-construction setters** — used only where constructor injection would create a cycle.
+   The complete set in `main-container.ts` is:
    ```typescript
-   connectionService.setChatService(chatService);
-   syncService.setMessageReceiptManager(messageReceiptManager);
+   connectionService.setChatService(this.chatService);
+   connectionService.setCallService(this.callService);
+   connectionService.setPeerService(this.userContainer.peerService);
+   discoveryService.setChatService(this.chatService);
+   discoveryService.setConnectionService(this.connectionService);
+   userContainer.guestMigrationService.setMessageRepository(this.messageRepository);
+   userContainer.userService.setCleanUpService(this.cleanUpService);
    ```
 
-TODO: the distinction between these two patterns is implied by the circular dependency constraint but is not documented. It is not always obvious which pattern applies to a new dependency.
+**Which pattern applies to a new dependency:** if the dependency is constructed *before* its
+consumer, pass it to the constructor. Reach for a setter only when the two services need each
+other — `ConnectionService` is built before `ChatService` (which depends on it), so the reverse
+edge has to be a setter. A setter that isn't resolving a cycle is a constructor argument in
+disguise.
 
 **`initialize()` phase decomposition** — the public `initialize()` delegates to three typed private phases:
 
@@ -66,8 +90,12 @@ React context provider: `features/shared/core/context/main-container-context.tsx
 ### At Rest
 
 - Chat messages are encrypted per-conversation using ECDH-derived NaCl box keys
-- `MessageRepository` maintains `conversationKeys` (current) and `conversationKeyHistory` (up to 5 past keys) so messages can be decrypted after peer key rotation
-- Conversation keys are in-memory only; cleared on logout
+- `ConversationKeyStore` (`features/chat/repositories/conversation-key-store.ts`) holds
+  `conversationKeys` (current) and `conversationKeyHistory` (up to `MAX_KEY_HISTORY = 5` past
+  keys per conversation) so messages still decrypt after a peer rotates keys. It is injected
+  into `MessageRepository`, `ConversationKeyManager` and `ChatService` rather than owned by any
+  one of them — `getCandidateKeys()` returns current-plus-history for decrypt attempts.
+- Conversation keys are in-memory only; `clearConversationKeys()` drops them on logout
 
 ### Key Storage
 
@@ -108,7 +136,12 @@ Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `r
 | `ConversationKeyManager` | ECDH key derivation per conversation — `deriveAndSetConversationKey`, `preloadAllConversationKeys`, `rederiveKeyForPeer` |
 | `DiscoveryService` | Zeroconf (mDNS) peer discovery on LAN. Publishes the local service idempotently and only marks it active after `ZeroconfAdapter` confirms publication. |
 | `SyncService` | Pull-then-push sync with the server REST API. Triggered on app open, after send/ACK, and after call end. Tracks `lastPulledAt` in expo-secure-store. See `docs/SYNC.md`. |
-| `CleanUpService` | Cleanup of stale data and connections |
+| `CleanUpService` | Cleanup of stale data and connections. Injected into `AuthContainer`'s `UserService` so logout purges local data. |
+| `UserService` | Owned by `AuthContainer`. User initialization and identity persistence — ensures a user row exists and is published to `SessionStore`/`UserStore`; owns `logout`. |
+| `ActiveUsersService` | Live presence. Subscribes to the `active-users` event on `WsSignalingAdapter` and re-polls every 10 s (`pollIntervalMs`, constructor-overridable). |
+| `NotificationService` | Local incoming-call notifications via `expo-notifications`. Constructed inline in `main-container.ts` and passed to `ConnectionService`; not exposed as a container field. |
+| `CallMessageRouter` | Pure decision layer for inbound call messages. Maps a `CallMessage` + busy/active state to a `CallRouterResult` (`emit` / suppress), keeping glare handling out of `ConnectionService`. |
+| `PublicChatService` | Server-relayed public chat over `WsSignalingAdapter`, with history loaded from `GET /public-chat`. Independent of the P2P chat path. |
 
 ---
 
@@ -208,6 +241,16 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 | `LivenessMonitor` | Application-level data-channel ping/pong probe, extracted from `WebrtcAdapter`. Detects half-open links and triggers ICE restart via closures. |
 | `IceRestartController` | ICE-restart scheduling and exponential-backoff logic, extracted from `WebrtcAdapter`. Drives `createOffer({ iceRestart: true })` and emits `signal-offer`/`ice-restarting`/`connection-failed` via closures. |
 | `ZeroconfAdapter` | `react-native-zeroconf`. Tracks the active published service name, exposes publish confirmation via the native `published` event, and serializes scan/publish cleanup. |
+| `ws-message-parser.ts` | Not an adapter class — the pure decoder `WsSignalingAdapter` uses to turn a raw frame into a discriminated `WsEvent` (`signaling` / `chat` / `ack` / `call` / `sms` / public-chat). Kept separate so frame parsing is testable without a socket. |
+
+Two helper modules sit alongside the connection services rather than in this table:
+
+- **`connect-planning.ts`** — pure connect-strategy helpers: per-mode dial timeouts
+  (`LAN_CONNECT_TIMEOUT_MS` 7 s, `SERVER_CONNECT_TIMEOUT_MS` 15 s, `AUTO_CONNECT_TIMEOUT_MS` 10 s),
+  `MAX_CONNECT_RETRIES`, and `dedupeCandidateAddresses()` for dual-homed peers.
+- **`service-interfaces.ts`** — the structural interfaces (`setSignalingSender`, `setTcpCallbacks`,
+  `IChatMessageHandler`, …) that let `ConnectionService` depend on shapes rather than concrete
+  classes, which is what makes the setter wiring above mockable.
 
 ---
 
@@ -227,20 +270,34 @@ features/<name>/
 
 `features/` is not flat — features differ enormously in size and complexity:
 
+Sizes below include tests and are indicative, not exact — they drift with every change. Regenerate with:
+
+```bash
+find features -type f \( -name "*.ts" -o -name "*.tsx" \) -exec wc -l {} + \
+  | awk '{split($2,a,"/"); if(a[1]=="features" && a[2]!="") {s[a[2]]+=$1; c[a[2]]++}} \
+         END {for(k in s) printf "%-18s %6d lines %4d files\n", k, s[k], c[k]}' | sort -k2 -rn
+```
+
 | Feature | Lines | Files | Role |
 |---|---|---|---|
-| `shared/` | ~22 k | 166 | **Engine** — P2P runtime, encryption, DI, database |
-| `chat/` | ~7.5 k | 45 | Message threads, sync, conversation key management |
-| `auth/` | ~6.2 k | 68 | Registration, login, guest flow |
-| `call/` | ~4.1 k | 35 | Audio/video call UI and lifecycle |
-| `sync/` | ~3.2 k | 16 | Background data sync with server |
-| `gps/` | ~0.7 k | 10 | Live location sharing (rescuers only) |
+| `shared/` | ~24 k | 176 | **Engine** — P2P runtime, encryption, DI, database |
+| `chat/` | ~7.6 k | 46 | Message threads, sync, conversation key management |
+| `auth/` | ~6.1 k | 67 | Registration, login, guest flow |
+| `call/` | ~4.9 k | 38 | Audio/video call UI and lifecycle |
+| `debug/` | ~3.9 k | 27 | Developer debug panel (dev/QA-only) |
+| `sync/` | ~3.3 k | 16 | Background data sync with server |
+| `gps/` | ~1.2 k | 18 | Live location sharing (rescuers only) |
 | `settings/` | ~0.6 k | 5 | User preferences |
 | `announcements/` | ~0.4 k | 9 | Server-fetched announcement board |
 | `getting-started/` | ~0.4 k | 8 | Onboarding screens |
-| `debug/` | ~0.7 k | 10 | Developer debug panel (dev/QA-only, gated by `config/debug.ts`); `DebugDbService` provides a WatermelonDB table browser/seeder/reset + JSON export-import over the shared `database` instance; `DebugAuthService` (Auth/Users section) seeds test users and switches roles via `UserService`/`UserStore`, injects/clears a fake JWT via `secure-config`, and drives force-logout/reset via `UserService.logout`/`wipeDatabase` |
 
-`features/shared/` is ~50 % of all production code. It is a layered engine, not a utility bucket. See the sub-domain layout below and `features/shared/README.md` for the one-page map.
+`debug/` is gated by `config/debug.ts` and ships only in dev/QA builds: `DebugDbService` provides
+a WatermelonDB table browser/seeder/reset plus JSON export-import over the shared `database`
+instance; `DebugAuthService` (Auth/Users section) seeds test users and switches roles via
+`UserService`/`UserStore`, injects/clears a fake JWT via `secure-config`, and drives
+force-logout/reset via `UserService.logout`/`wipeDatabase`.
+
+`features/shared/` is ~45 % of all production code. It is a layered engine, not a utility bucket. See the sub-domain layout below and `features/shared/README.md` for the one-page map.
 
 ### Engine Sub-domains (`features/shared/`)
 
@@ -248,12 +305,34 @@ Four sub-domains in dependency order (bottom → top):
 
 | Sub-domain | Path | Lines | What lives here |
 |---|---|---|---|
-| **core** | `shared/core/` | ~3.5 k | Logger, errors, context, WatermelonDB schema/models, stores, API client |
+| **core** | `shared/core/` | ~4.1 k | Logger, errors, context, WatermelonDB schema/models, stores, API client |
 | **crypto** | `shared/crypto/` | ~1.7 k | NaCl E2E encryption, key derivation, key recovery, at-rest encryption |
 | **peer** | `shared/peer/` | ~1.7 k | `PeerService`, `PeerRepository`, `GuestUserRepository` |
-| **connection** | `shared/connection/` | ~10.9 k | `ConnectionService`, WebRTC, signaling, TCP/WS adapters, discovery |
+| **connection** | `shared/connection/` | ~11.6 k | `ConnectionService`, WebRTC, signaling, TCP/WS adapters, discovery |
 
-**One-way dependency rule:** `core` ← `crypto` ← `peer` / `connection` ← domain features. A sub-domain may only import from itself and sub-domains *below* it. Domain features (`chat/`, `auth/`, etc.) depend on the engine — never the reverse.
+`shared/` also holds two presentation-layer directories that are not part of the dependency
+ladder above: `shared/components/` (~1.8 k, cross-feature UI such as `ServerStatusBanner`) and
+`shared/hooks/` (~1.3 k, the React entry points to the engine — `use-main-container`,
+`use-connection-service`, `use-server-action`, …), plus `main-container.ts` itself (~0.6 k).
+
+**One-way dependency rule:** `core` ← `crypto` ← `peer` / `connection` ← domain features. A
+sub-domain may only import from itself and sub-domains *below* it. This holds strictly today:
+neither `crypto/` nor `peer/` imports `connection/`.
+
+**The engine → domain-feature direction is the weaker rule**, and it is not currently absolute.
+Known inbound edges from `shared/` into domain features:
+
+| Importer | Imports | Why |
+|---|---|---|
+| `main-container.ts` | `chat/`, `call/`, `sync/` | Structural. The DI composition root must name every concrete type it wires — this one is expected and not a leak. |
+| `shared/components/*`, `shared/core/context/*`, `shared/hooks/*` | mostly `auth/` | Cross-feature UI and context that render or read auth state. Tolerated. |
+| `shared/connection/services/clean-up-service.ts` | `@/features/chat` | Leak — an engine service reaching up into a domain feature. |
+| `shared/types.ts` | `@/features/chat/types` (`DataChatMessageI`) | Leak — the engine's own message type is defined in `chat/`. |
+| `shared/core/api/user-profile.api.ts` | `@/features/auth/utils/validation` (`toLocalPhone`) | Leak — a shared util that belongs in `core/`. |
+
+Treat the last three as debt, not precedent: when you touch them, move the shared type or util
+down into `shared/`, don't add a fourth. Before adding any new `shared/ → features/<name>/`
+import, check whether the thing being imported actually belongs in `shared/`.
 
 ### `features/announcements/`
 
@@ -294,13 +373,32 @@ Two mechanisms coordinate foreground ↔ background:
 
 ## Data Flow — Sending a Chat Message
 
+`ConnectionService.sendChatMessage()` picks the transport and returns which one it used
+(`"webrtc" | "ws"`):
+
 ```
 User types message
-  → ChatService.sendMessage()
-    → WebrtcSessionManager.sendChatMessage()
-      → WebrtcAdapter.sendData()  [WebRTC data channel]
+  → ChatService.sendChatMessage()
+    → ConnectionService.sendChatMessage(peerId, messageData)
+      │
+      ├─ data channel open?  → WebrtcSessionManager.sendChatMessage()
+      │                         → WebrtcAdapter.sendData()   [WebRTC data channel]  ⇒ "webrtc"
+      │
+      └─ no data channel:
+           ├─ effective mode === "lan" → throws
+           │    ("No data channel and WS not allowed in lan mode")
+           └─ otherwise                → SignalingService.sendChatMessage()
+                                          → WsSignalingAdapter  [server relay]      ⇒ "ws"
         → Peer receives "chat" message
           → ChatService persists to WatermelonDB
 ```
 
-> TCP is a planned fallback for chat — not yet implemented.
+The WS relay is a real, implemented fallback — the server forwards the (E2E-encrypted) payload
+without being able to read it. Callers can force it with `{ forceWebSocket: true }`, which
+`tryResendMessage` uses when retrying.
+
+In `lan` mode there is no fallback by design: the send throws rather than routing a LAN-only
+conversation through the server. Callers must surface that as a failed send.
+
+> A direct TCP fallback for chat is still unimplemented — `lan` mode relies on the WebRTC data
+> channel alone. TCP currently carries signaling and the key handshake, not chat payloads.
