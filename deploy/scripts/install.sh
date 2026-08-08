@@ -30,4 +30,16 @@ compose "$target" run --rm api alembic upgrade head
 compose "$target" up -d; for _ in {1..36}; do curl -kfs https://localhost/version >/dev/null 2>&1 && break; sleep 5; done
 curl -kfsS https://localhost/version >/dev/null || { log_error "nginx/api did not become ready"; exit 1; }
 ln -sfn "$target" "$SAPOT_ROOT/releases/current"; write_state install "" "$version" "$hardware"
+# Scheduled backups are the one part of this deployment that is useless when
+# left off, so install enables them rather than leaving it to a later manual
+# step. This is the only thing here that writes outside $SAPOT_ROOT and Docker
+# state; see docs/deployment/docker-bundle.md.
+install_systemd_units "$target"
+# Guarded on the unit actually landing, which covers both a host without systemd
+# and a bundle built before units shipped.
+if [ -e "${SAPOT_SYSTEMD_DIR:-/etc/systemd/system}/sapot-db-backup.timer" ]; then
+  provision_service_account
+  systemctl enable --now sapot-db-backup.timer
+  log_info "scheduled database backups enabled (sapot-db-backup.timer)"
+fi
 "$SELF/lib/retention.sh"; log_pass "installed SAPOT v$version"

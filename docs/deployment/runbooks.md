@@ -10,42 +10,33 @@ Step-by-step procedures for operating SAPOT in production. Each runbook includes
 
 ### Backup (automated)
 
-Backups run unattended via `sapot-db-backup.timer`. Both deployment paths use the same two unit files and the same script; only how the files reach the host differs. Install once per host.
+Backups run unattended via `sapot-db-backup.timer`. Both deployment paths use the same two unit files and the same script; only how they reach the host differs.
 
-**Bare-metal**: copy them out of the checkout:
+**Docker bundle: nothing to do.** The bundle carries the units in its `systemd/` directory, and `install.sh` copies them to `/etc/systemd/system/`, creates the `sapot` account they run as, and enables the timer. `upgrade.sh` and `rollback.sh` refresh the unit files so a changed unit travels with its release, but neither enables anything — a timer you deliberately disable stays disabled.
+
+**Bare-metal:** copy the units out of the checkout and enable the timer once. A bare-metal host is not managed by the bundle installer, so this stays manual.
 
 ```bash
 sudo cp /home/sapot/YLP-software/deployment-scripts/sapot-db-backup.{service,timer} /etc/systemd/system/
-```
-
-**Docker bundle**: the units are *not* inside the bundle tarball. `build-bundle.sh` ships `deploy/scripts/` into the release but not `deployment-scripts/`, and a bundle host has no repo checkout to copy from. Carry both files on the same removable media as the tarball, then:
-
-```bash
-sudo cp /media/<stick>/sapot-db-backup.{service,timer} /etc/systemd/system/
-```
-
-The service picks `/opt/sapot/releases/current/scripts/backup-db.sh` when a bundle is installed and falls back to the bare-metal checkout otherwise, so one unit file serves both paths unmodified.
-
-Then, on either path:
-
-```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now sapot-db-backup.timer
 systemctl list-timers sapot-db-backup.timer
 ```
 
-#### Bundle prerequisite: give the `sapot` user access
+The service picks `/opt/sapot/releases/current/scripts/backup-db.sh` when a bundle is installed and falls back to the bare-metal checkout otherwise, so one unit file serves both paths unmodified.
 
-The units run as `sapot`, but `install.sh` runs under `sudo`, creates `/opt/sapot` as root, and does not create a `sapot` user at all. Without this step every scheduled run on a bundle host fails before it reaches the database: first on an unreadable `shared/server.env`, then on an unwritable backup directory and lock file.
+#### What the bundle installer grants the `sapot` account
+
+`install.sh` runs under `sudo` and creates `/opt/sapot` as root, so it also provisions the unprivileged account the units run as: a system user with no login shell, added to the `docker` group (bundle-mode backups shell out to `docker compose`), owning `shared/server.env`, `shared/db-backups`, and `.lock`. Those are exactly the three paths a scheduled run touches — the env file it reads `DATABASE_URL` from, the directory it writes dumps to, and the lock that keeps a backup from starting mid-migration.
+
+Owning `server.env` lets that account read the database password and `JWT_SECRET_KEY`, which are otherwise root-only. If that trade is unacceptable at your site, run the unit as root instead and hand the file back:
 
 ```bash
-sudo useradd -r -s /usr/sbin/nologin sapot     # skip if the user already exists
-sudo usermod -aG docker sapot                  # bundle mode shells out to docker compose
-sudo touch /opt/sapot/.lock
-sudo chown sapot:sapot /opt/sapot/shared/server.env /opt/sapot/shared/db-backups /opt/sapot/.lock
+sudo systemctl edit sapot-db-backup.service   # [Service] then User=root
+sudo chown root:root /opt/sapot/shared/server.env
 ```
 
-This widens read access to `server.env` (which holds the database password and `JWT_SECRET_KEY`) from root to the `sapot` user. If that trade is unacceptable at your site, the alternative is to run the unit as root with `sudo systemctl edit sapot-db-backup.service` and `[Service]` plus `User=root`, which leaves dumps owned by root instead. Bare-metal hosts already run their services as `sapot` and need neither change.
+Dumps are then owned by root. Bare-metal hosts already run their services as `sapot` and need neither change.
 
 #### Cadence
 

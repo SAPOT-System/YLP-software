@@ -22,7 +22,7 @@ git_sha=$(git rev-parse HEAD); short_sha=$(git rev-parse --short HEAD); built_at
 scratch=$(mktemp -d "$repo_root/.bundle-build.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 bundle="$scratch/sapot-bundle-v$version"
-mkdir -p "$bundle"/{images,compose,config,data,certs,firmware,scripts}
+mkdir -p "$bundle"/{images,compose,config,data,certs,firmware,scripts,systemd}
 
 declare -A tags=(
   [api]="sapot/api:bundle" [admin]="sapot/admin:bundle" [gsm-fastapi]="sapot/gsm-fastapi:bundle"
@@ -64,6 +64,10 @@ cp deploy/config/* "$bundle/config/"
 # It stays a dev/CI-only tool driven by docker-compose.yml's certgen service.
 cp docker/detect-ip.sh "$bundle/certs/"
 cp -a deploy/scripts/. "$bundle/scripts/"
+# Units get their own directory rather than riding along in scripts/, which is
+# chmod +x wholesale below - a unit file is read by systemd, never executed.
+# install.sh installs whatever lands here; see deploy-common.sh.
+cp deployment-scripts/sapot-db-backup.service deployment-scripts/sapot-db-backup.timer "$bundle/systemd/"
 
 # Guards against CA key material ever reaching a bundle (scripts/AGENTS.md).
 # Servers read the CA from a USB stick at issuance time and keep only the public

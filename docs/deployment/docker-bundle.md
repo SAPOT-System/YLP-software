@@ -26,7 +26,8 @@ flowchart LR
         CE["certs/detect-ip.sh"]
         F["firmware/gsm-arduino-*.hex"]
         D["data/static"]
-        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · lib/"]
+        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · backup-db · lib/"]
+        SD["systemd/ sapot-db-backup.service<br/>sapot-db-backup.timer"]
     end
 
     subgraph target["Target (offline, LAN-only)"]
@@ -69,7 +70,8 @@ flowchart TD
     ComposeFull --> HealthPoll["poll https://localhost/version<br/>(3min timeout)"]
     HealthPoll --> Symlink["ln -sfn releases/vX → releases/current<br/>(atomic symlink swap)"]
     Symlink --> WriteState["write_state()<br/>→ shared/state.json"]
-    WriteState --> Retention["lib/retention.sh<br/>(prunes old releases/vX dirs)"]
+    WriteState --> Units["install_systemd_units<br/>(units → /etc/systemd/system;<br/>install also enables the backup timer)"]
+    Units --> Retention["lib/retention.sh<br/>(prunes old releases/vX dirs)"]
 ```
 
 ### Filesystem layout on target (`$SAPOT_ROOT`, default `/opt/sapot`)
@@ -88,6 +90,15 @@ flowchart TD
     ├── gsm-arduino-backups/  (pre-flash firmware backups)
     └── server.env, admin.env, gsm-fastapi.env, gsm-arduino.env
 ```
+
+`install.sh` also writes outside this tree: it installs the release's systemd
+units to `/etc/systemd/system/` and creates the unprivileged `sapot` account
+they run as. That is the only host state these scripts touch beyond
+`$SAPOT_ROOT` and Docker's own storage, and it exists because a disaster-recovery
+backup that ships disabled protects nothing. `upgrade.sh` and `rollback.sh`
+refresh the unit files but never enable a unit, so an operator's decision to
+disable the timer survives a release change. Details:
+[runbooks.md](runbooks.md#backup-automated).
 
 ### GSM firmware flash (independent flow)
 
@@ -111,20 +122,16 @@ upgrade/rollback validate Alembic revisions ([ADR 0007](../adr/0007-alembic-for-
 `releases/current` is only repointed after the new stack passes a `/version`
 health check, so a failed cutover leaves the previous release live.
 
-`backup-db.sh` is driven by a host systemd timer rather than by the bundle, but
-it takes the same `$SAPOT_ROOT/.lock` as install, upgrade, rollback, and firmware
-flash. A backup therefore cannot run while `alembic upgrade head` is
-mid-migration. On lock contention it skips that run and the next timer cycle
-retries.
+`backup-db.sh` is driven by a host systemd timer rather than by a running
+container, but it takes the same `$SAPOT_ROOT/.lock` as install, upgrade,
+rollback, and firmware flash. A backup therefore cannot run while `alembic
+upgrade head` is mid-migration. On lock contention it skips that run and the
+next timer cycle retries.
 
-Enabling the timer is a manual host step, and on this path it needs two things
-the bundle does not provide. The unit files are not in the tarball (the build
-ships `deploy/scripts/` into the release but not `deployment-scripts/`), so
-carry them on the same removable media. And the units run as `sapot`, a user
-`install.sh` neither creates nor grants anything to, so the account must exist,
-belong to the `docker` group, and own `shared/server.env`,
-`shared/db-backups`, and `.lock`. Full procedure:
-[runbooks.md](runbooks.md#backup-automated).
+The units it runs under travel inside the bundle (`systemd/`), so a unit change
+reaches a target the same way a script change does — with the release that
+carries it — and an offline site needs nothing on its removable media beyond the
+tarball itself.
 
 ## Build and transport
 
@@ -163,7 +170,8 @@ sudo /opt/sapot/releases/current/scripts/doctor.sh
 
 `install.sh` verifies checksums, creates `/opt/sapot/shared` configuration and
 certificates, loads images, runs Alembic forward migrations, waits for the API,
-then atomically switches `/opt/sapot/releases/current`. Per-site environment
+atomically switches `/opt/sapot/releases/current`, then installs the release's
+systemd units and enables the daily database backup timer. Per-site environment
 files, database data, certificates, firmware backups, and state remain in
 `shared/`; release directories are immutable.
 

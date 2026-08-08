@@ -8,7 +8,7 @@ Routine, scheduled upkeep for a running SAPOT deployment, as opposed to [runbook
 
 | Task | Frequency | Reference |
 |---|---|---|
-| Confirm the backup timer is firing | Weekly | `systemctl list-timers sapot-db-backup.timer` and `journalctl -u sapot-db-backup.service --since '7 days ago'`. Bundle installs: `doctor.sh` reports a `db-backup` row |
+| Confirm the backup timer is firing | Weekly | `systemctl list-timers sapot-db-backup.timer` and `journalctl -u sapot-db-backup.service --since '7 days ago'`. Bundle installs enable this timer automatically, and `doctor.sh` reports a `db-backup` row |
 | Swap or verify the off-host backup drive | Daily during an active field deployment; weekly for a standing/dev environment | The script copies each dump to `SAPOT_BACKUP_OFFHOST_DIR` but never deletes from it, so capacity is managed by hand. `doctor.sh` reports the off-host copy's age |
 | Check disk space on the server host | Weekly | `df -h` — MariaDB and journald logs grow without rotation; database backups are bounded by `SAPOT_BACKUP_RETENTION_DAYS` (default 14, newest 3 always kept) |
 | Review GSM module log size | Weekly | `GSM-module/GSM-fastapi/sapot.log` has no automatic rotation configured — see [monitoring-logging.md](monitoring-logging.md#gsm-module-logs); truncate or `logrotate` it manually |
@@ -60,4 +60,4 @@ Before standing up SAPOT at a new incident site (fresh hardware, not a restore �
 1. Confirm the offline root CA is still valid (see schedule above) and re-issue a server leaf if needed.
 2. Confirm all required secrets are set per [environment-config.md](environment-config.md) and [SECURITY.md](../../SECURITY.md) — the server fails fast at import if `DATABASE_URL`, `JWT_SECRET_KEY`, or `CORS_ALLOWED_ORIGINS` are missing.
 3. Confirm `ENVIRONMENT` is **not** set to `development` in the field deployment's env — that gate exists specifically to keep `/testing/*` endpoints out of production (see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#testing-endpoints-return-404-in-dev)).
-4. Enable `sapot-db-backup.timer` and run `deploy/scripts/backup-db.sh` once by hand to take a baseline before real data accumulates only on this host.
+4. Confirm `sapot-db-backup.timer` is enabled (a docker-bundle `install.sh` does this for you; bare-metal is a manual step, see [runbooks.md](runbooks.md#backup-automated)) and run `backup-db.sh` once by hand to take a baseline before real data accumulates only on this host.
