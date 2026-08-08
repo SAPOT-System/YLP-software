@@ -427,7 +427,7 @@ await this.messageStatusRepository.updateMessageStatusByMessage(
 
 ### WatermelonDB Schema
 
-**Location:** `features/shared/core/database/schema.ts` (version 6)
+**Location:** `features/shared/core/database/schema.ts` (version 11 — see [DATABASE.md](DATABASE.md) for the full column reference)
 
 Tables relevant to LAN messaging:
 
@@ -437,7 +437,7 @@ Tables relevant to LAN messaging:
 {
   name: "conversations",
   columns: [
-    { name: "type", type: "string" },           // "DIRECT" | "GROUP"
+    { name: "type", type: "string" },           // "direct" | "group" | "solo" | "sms"
     { name: "title", type: "string", optional },
     { name: "created_at", type: "number" },
     { name: "updated_at", type: "number" },
@@ -472,11 +472,13 @@ Tables relevant to LAN messaging:
   columns: [
     { name: "conversation", type: "string" },   // FK to conversation.id
     { name: "sender", type: "string" },         // FK to peers
-    { name: "message_type", type: "string" },   // "TEXT" | "CALL_LOG" | "IMAGE"
+    { name: "message_type", type: "string" },   // "text" | "file" | "call_log" | "sms"
     { name: "content", type: "string" },
     { name: "created_at", type: "number" },     // timestamp (ms since epoch)
     { name: "updated_at", type: "number" },
-    { name: "is_deleted", type: "boolean" }
+    { name: "is_deleted", type: "boolean" },
+    { name: "linked_message_id", type: "string", optional },  // added v8
+    { name: "is_encrypted", type: "boolean", optional }        // added v9
   ]
 }
 ```
@@ -493,7 +495,7 @@ Tables relevant to LAN messaging:
   columns: [
     { name: "message", type: "string" },        // FK to messages.id
     { name: "user", type: "string" },           // FK to peers (the user who received it)
-    { name: "status", type: "string" },         // "SENDING" | "SENT" | "DELIVERED" | "NOT_SENT"
+    { name: "status", type: "string" },         // "sending" | "sent" | "not_sent" | "delivered" | "read"
     { name: "created_at", type: "number" },
     { name: "updated_at", type: "number" },
     { name: "is_deleted", type: "boolean" }
@@ -503,11 +505,15 @@ Tables relevant to LAN messaging:
 
 **Model:** `features/shared/core/database/model/MessageStatus.ts`
 
-**Status transitions:**
-- **SENDING** → initial state (message created, not yet sent)
-- **SENT** → received ACK over WebRTC data channel
-- **NOT_SENT** → ACK timeout (12s) or send error; eligible for retry
-- **DELIVERED** → peer acknowledged receipt (incoming message)
+**Status transitions** (`MessageStatusType`, stored lowercase):
+- **`sending`** → initial state (message created, not yet sent)
+- **`sent`** → received ACK over WebRTC data channel
+- **`not_sent`** → ACK timeout (12 s, `chat-message-service.ts`) or send error; eligible for retry
+- **`delivered`** → peer acknowledged receipt (incoming message)
+- **`read`** → peer opened the conversation; set from the inbound `seen` data-channel message
+
+Only `sent`, `delivered` and `read` are pushed to the server — `sending` and `not_sent` stay local
+(see [SYNC.md](SYNC.md#2-push-post-syncpush)).
 
 #### `peers`
 
@@ -1043,7 +1049,7 @@ Once the data channel is open, messages are sent as WebRTC messages:
 | `features/shared/connection/adapters/tcp-server-adapter.ts` | Server-side TCP listener |
 | `features/shared/connection/adapters/webrtc-adapter.ts` | RTCPeerConnection wrapper |
 | `features/shared/connection/adapters/zeroconf-adapter.ts` | mDNS/Zeroconf wrapper |
-| `features/shared/core/database/schema.ts` | WatermelonDB schema (v6) |
+| `features/shared/core/database/schema.ts` | WatermelonDB schema (v11) |
 | `features/shared/core/database/migrations.ts` | Schema migration steps |
 | `features/chat/repositories/message-repository.ts` | Message CRUD operations |
 | `features/chat/repositories/conversation-repository.ts` | Conversation CRUD |
