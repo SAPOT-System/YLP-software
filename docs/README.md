@@ -122,6 +122,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [deployment/gsm-module.md](deployment/gsm-module.md) | GSM module deployment |
 | [deployment/tileserver.md](deployment/tileserver.md) | Offline tileserver deployment |
 | [deployment/docker-bundle.md](deployment/docker-bundle.md) | Offline Docker bundle build, install, upgrade, and recovery |
+| [deployment/install-ubuntu-server.md](deployment/install-ubuntu-server.md) | First-install walkthrough: CA USB stick, Docker Engine on Ubuntu Server 24.04, build, transfer, install, verify |
 
 ### Features
 
