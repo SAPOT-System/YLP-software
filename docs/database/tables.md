@@ -183,6 +183,7 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `hashed_password` | VARCHAR | not null |
 | `email_verified` | BOOLEAN | not null, has default |
 | `terms_accepted_at` | DATETIME | — |
+| `must_change_password` | BOOLEAN | not null, has default |
 
 ### `activity_logs`
 

@@ -504,6 +504,7 @@ components:
       properties:
         new_password:
           type: string
+          maxLength: 128
           minLength: 8
           title: New Password
         wrapped_blob:

@@ -50,6 +50,7 @@ class User(UserBase, table=True):
     hashed_password: str
     email_verified : bool =  Field(default=False)
     terms_accepted_at: datetime | None = Field(default=None, nullable=True)
+    must_change_password: bool = Field(default=False, nullable=False)
 
     security_questions: List["UserSecurityQuestion"] = Relationship(
             back_populates="user",
@@ -249,6 +250,17 @@ class UserCreateThroughAdmin(UserCreate):
     is_admin: bool = False
     is_rescuer: bool = False
     terms_accepted: bool = True
+
+
+class BootstrapAdminCreate(UserCreate):
+    """Installation-only user payload. It deliberately defers consent to the operator."""
+
+    terms_accepted: bool = False
+
+    @field_validator("terms_accepted")
+    @classmethod
+    def must_accept_terms(cls, v: bool) -> bool:
+        return v
 
 
 class UserUpdate(SQLModel):

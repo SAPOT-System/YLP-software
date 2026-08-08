@@ -441,7 +441,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/AdminLoginResponse'
         '404':
           description: Not Found
         '422':
@@ -746,6 +747,31 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    AdminLoginResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+        must_change_password:
+          type: boolean
+          title: Must Change Password
+        terms_accepted:
+          type: boolean
+          title: Terms Accepted
+      type: object
+      required:
+      - status
+      - access_token
+      - refresh_token
+      - must_change_password
+      - terms_accepted
+      title: AdminLoginResponse
     AnnouncementStatusType:
       type: string
       enum:

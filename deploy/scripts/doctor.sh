@@ -53,6 +53,20 @@ check_certificate() {
 check_certificate
 for port in 80 443; do ss -ltn "sport = :$port" | grep -q LISTEN && check "port-$port" PASS bound || check "port-$port" FAIL not-bound; done
 if [ "$hardware" = true ]; then port=$(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2-); [ -c "$port" ] && check gsm-device PASS "$port present" || check gsm-device FAIL "$port missing"; fi
+if admin_json=$(compose "$current" exec -T api python -m app.scripts.bootstrap_admin --status 2>/dev/null); then
+  # `|| echo` matters: under `set -euo pipefail` an unparseable body (a docker
+  # warning, a traceback, an empty response) would otherwise abort doctor.sh
+  # here, discarding every remaining check and the exit status.
+  admin_status=$(printf '%s' "$admin_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])' 2>/dev/null || echo unreadable)
+  case "$admin_status" in
+    missing) check administrator FAIL "no administrator account; run scripts/bootstrap-admin.sh";;
+    pending-password-change) check administrator PASS "initial password not yet changed";;
+    configured) check administrator PASS "admin account configured";;
+    *) check administrator FAIL "administrator status could not be read";;
+  esac
+else
+  check administrator FAIL "cannot verify administrator; api unreachable or command failed"
+fi
 if "$json"; then printf '%s\n' "${checks[@]}" | python3 -c 'import json,sys; print(json.dumps([dict(zip(("check","status","detail"), line.rstrip().split("|",2))) for line in sys.stdin]))'
 else for row in "${checks[@]}"; do IFS='|' read -r name state detail <<< "$row"; [ "$state" = PASS ] && log_pass "$name: $detail" || log_fail "$name: $detail"; done; fi
 exit "$failed"

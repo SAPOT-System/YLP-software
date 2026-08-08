@@ -31,3 +31,8 @@ compose "$target" up -d; for _ in {1..36}; do curl -kfs https://localhost/versio
 curl -kfsS https://localhost/version >/dev/null || { log_error "nginx/api did not become ready"; exit 1; }
 ln -sfn "$target" "$SAPOT_ROOT/releases/current"; write_state install "" "$version" "$hardware"
 "$SELF/lib/retention.sh"; log_pass "installed SAPOT v$version"
+# The install is complete and recorded by this point. Release the lock before an
+# unbounded interactive prompt, and never let a fumbled or cancelled bootstrap
+# report a successful install as a failure - the stack is up either way.
+flock -u 9 || true
+"$SAPOT_ROOT/releases/current/scripts/bootstrap-admin.sh" || log_warn "no administrator was created - run scripts/bootstrap-admin.sh to finish setup"

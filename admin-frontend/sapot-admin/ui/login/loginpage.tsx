@@ -36,8 +36,7 @@ export default function LoginPage() {
         return;
       }
 
-      // success → redirect
-      router.push('/dashboard');
+      router.push(data?.must_change_password ? '/change-password' : '/dashboard');
     } catch (err) {
       setError('Network error');
     } finally {

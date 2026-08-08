@@ -245,6 +245,8 @@ issue, and unplug it immediately after.
 [runbooks.md](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf) has
 the full procedure, the key-rotation warnings, and the recovery notes.
 
+At the end of a new install, `bootstrap-admin.sh` creates the first administrator. It prompts locally and sends its JSON payload only over standard input to the API container. The initial password is one-shot: on first dashboard login the operator must replace it and accept the Terms & Conditions. If installation is interrupted at this prompt, the healthy installation remains retryable with `sudo /opt/sapot/releases/current/scripts/bootstrap-admin.sh`; an existing admin makes that command a no-op. Use `reset-admin-password.sh` for break-glass recovery. It verifies the selected administrator, asks for confirmation, then marks the replacement password as one-shot too. `doctor.sh` reports whether the administrator is missing, awaiting its initial password change, or configured.
+
 ## Pitfalls
 
 - **Bump the version for every rebuild**, even for a config/frontend-only fix.
