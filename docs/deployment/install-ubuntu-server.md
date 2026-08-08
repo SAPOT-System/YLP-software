@@ -208,7 +208,7 @@ sha256sum dist/sapot-bundle-vX.Y.Z.tar.zst
 Over the LAN, if the two machines can see each other:
 
 ```bash
-scp dist/sapot-bundle-vX.Y.Z.tar.zst operator@192.168.0.100:/var/tmp/
+scp dist/sapot-bundle-vX.Y.Z.tar.zst <server-name>@<server-ip>:/var/tmp/
 ```
 
 Or by removable media, for a genuinely disconnected site. Use a different stick
