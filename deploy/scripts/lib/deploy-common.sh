@@ -71,9 +71,40 @@ with open(tmp,"w",encoding="utf-8") as f: json.dump(state,f,indent=2); f.write("
 os.replace(tmp,path)
 PY
 }
+# install_systemd_units <release>
+# Copies the units the bundle carries (systemd/, filled by build-bundle.sh) onto
+# the host so a unit change reaches the host with the release that carries it.
+# Install, upgrade, and rollback all call this; only install.sh enables anything.
+# A host without systemd is a no-op rather than a failure - nothing else in these
+# scripts needs it - and so is a bundle built before units were shipped.
+# SAPOT_SYSTEMD_DIR exists so this can be exercised outside a real host.
+install_systemd_units() {
+  local release=$1 destination=${SAPOT_SYSTEMD_DIR:-/etc/systemd/system} units=()
+  mapfile -t units < <(find "$release/systemd" -maxdepth 1 -type f \( -name '*.service' -o -name '*.timer' \) 2>/dev/null | sort)
+  [ ${#units[@]} -gt 0 ] || return 0
+  command -v systemctl >/dev/null 2>&1 || { log_warn "systemd not available - skipping unit installation"; return 0; }
+  install -m 644 -t "$destination" "${units[@]}"
+  systemctl daemon-reload
+}
+# provision_service_account
+# The shipped units run as an unprivileged account, matching the bare-metal
+# deployment. A bundle host has no such account: install.sh runs under sudo and
+# creates everything as root. Create it and hand it exactly the three paths a
+# scheduled backup touches - the env file it reads DATABASE_URL from, the
+# directory it writes dumps to, and the lifecycle lock it takes so a backup can
+# never run mid-migration. Owning server.env lets the account read the database
+# password and JWT_SECRET_KEY; that trade is documented in runbooks.md.
+provision_service_account() {
+  local user=${SAPOT_SERVICE_USER:-sapot}
+  id "$user" >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin "$user"
+  # Bundle-mode backups shell out to docker compose.
+  getent group docker >/dev/null 2>&1 && usermod -aG docker "$user"
+  touch "$SAPOT_ROOT/.lock"
+  chown "$user:$(id -gn "$user")" "$SAPOT_ROOT/shared/server.env" "$SAPOT_ROOT/shared/db-backups" "$SAPOT_ROOT/.lock"
+}
 prepare_env_files() {
   local release=$1 generated secret mysql_password
-  mkdir -p "$SAPOT_ROOT/shared" "$SAPOT_ROOT/shared/certs" "$SAPOT_ROOT/shared/db-data" "$SAPOT_ROOT/shared/gsm-arduino-backups"
+  mkdir -p "$SAPOT_ROOT/shared" "$SAPOT_ROOT/shared/certs" "$SAPOT_ROOT/shared/db-data" "$SAPOT_ROOT/shared/gsm-arduino-backups" "$SAPOT_ROOT/shared/db-backups"
   secret=$(openssl rand -hex 32); mysql_password=$(openssl rand -hex 32)
   for name in server admin gsm-fastapi gsm-arduino; do
     generated="$SAPOT_ROOT/shared/$name.env"

@@ -19,4 +19,7 @@ compose "$target" run --rm api alembic upgrade head
 compose "$target" up -d; for _ in {1..36}; do curl -kfs https://localhost/version >/dev/null 2>&1 && break; sleep 5; done
 curl -kfsS https://localhost/version >/dev/null || { log_error "nginx/api did not become ready"; exit 1; }
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent); ln -sfn "$target" "$SAPOT_ROOT/releases/current"; write_state upgrade "$current_version" "$version" "$hardware"
+# Refresh the unit files only. An operator who deliberately disabled a timer
+# should not have an upgrade switch it back on, so nothing is enabled here.
+install_systemd_units "$target"
 "$SELF/lib/retention.sh"; log_pass "upgraded SAPOT from v$current_version to v$version"

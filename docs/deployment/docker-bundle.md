@@ -26,7 +26,8 @@ flowchart LR
         CE["certs/detect-ip.sh"]
         F["firmware/gsm-arduino-*.hex"]
         D["data/static"]
-        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · lib/"]
+        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · backup-db · lib/"]
+        SD["systemd/ sapot-db-backup.service<br/>sapot-db-backup.timer"]
     end
 
     subgraph target["Target (offline, LAN-only)"]
@@ -41,7 +42,7 @@ flowchart LR
 ### On-target lifecycle
 
 Every operator script (`install.sh`, `upgrade.sh`, `rollback.sh`, `status.sh`,
-`doctor.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
+`doctor.sh`, `backup-db.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
 which provides `check_schema`, `acquire_lock`, `compose`, `verify_checksums`,
 `disk_preflight`, `wait_healthy`, and `write_state`.
 
@@ -69,7 +70,8 @@ flowchart TD
     ComposeFull --> HealthPoll["poll https://localhost/version<br/>(3min timeout)"]
     HealthPoll --> Symlink["ln -sfn releases/vX → releases/current<br/>(atomic symlink swap)"]
     Symlink --> WriteState["write_state()<br/>→ shared/state.json"]
-    WriteState --> Retention["lib/retention.sh<br/>(prunes old releases/vX dirs)"]
+    WriteState --> Units["install_systemd_units<br/>(units → /etc/systemd/system;<br/>install also enables the backup timer)"]
+    Units --> Retention["lib/retention.sh<br/>(prunes old releases/vX dirs)"]
 ```
 
 ### Filesystem layout on target (`$SAPOT_ROOT`, default `/opt/sapot`)
@@ -84,9 +86,19 @@ flowchart TD
     ├── state.json           (currentVersion, gsmHardwarePresent, history)
     ├── certs/                (TLS cert, CN = detected LAN IP)
     ├── db-data/
+    ├── db-backups/           (timestamped mysqldump output, 14-day retention)
     ├── gsm-arduino-backups/  (pre-flash firmware backups)
     └── server.env, admin.env, gsm-fastapi.env, gsm-arduino.env
 ```
+
+`install.sh` also writes outside this tree: it installs the release's systemd
+units to `/etc/systemd/system/` and creates the unprivileged `sapot` account
+they run as. That is the only host state these scripts touch beyond
+`$SAPOT_ROOT` and Docker's own storage, and it exists because a disaster-recovery
+backup that ships disabled protects nothing. `upgrade.sh` and `rollback.sh`
+refresh the unit files but never enable a unit, so an operator's decision to
+disable the timer survives a release change. Details:
+[runbooks.md](runbooks.md#backup-automated).
 
 ### GSM firmware flash (independent flow)
 
@@ -109,6 +121,17 @@ manifest-pinned image digests mean the target never runs unverified images;
 upgrade/rollback validate Alembic revisions ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) before migrating or reverting; and
 `releases/current` is only repointed after the new stack passes a `/version`
 health check, so a failed cutover leaves the previous release live.
+
+`backup-db.sh` is driven by a host systemd timer rather than by a running
+container, but it takes the same `$SAPOT_ROOT/.lock` as install, upgrade,
+rollback, and firmware flash. A backup therefore cannot run while `alembic
+upgrade head` is mid-migration. On lock contention it skips that run and the
+next timer cycle retries.
+
+The units it runs under travel inside the bundle (`systemd/`), so a unit change
+reaches a target the same way a script change does — with the release that
+carries it — and an offline site needs nothing on its removable media beyond the
+tarball itself.
 
 ## Build and transport
 
@@ -147,7 +170,8 @@ sudo /opt/sapot/releases/current/scripts/doctor.sh
 
 `install.sh` verifies checksums, creates `/opt/sapot/shared` configuration and
 certificates, loads images, runs Alembic forward migrations, waits for the API,
-then atomically switches `/opt/sapot/releases/current`. Per-site environment
+atomically switches `/opt/sapot/releases/current`, then installs the release's
+systemd units and enables the daily database backup timer. Per-site environment
 files, database data, certificates, firmware backups, and state remain in
 `shared/`; release directories are immutable.
 
@@ -173,7 +197,8 @@ their image IDs and recent firmware backups, are retained. Run
 `scripts/lib/retention.sh --dry-run` to preview cleanup.
 
 `doctor.sh` checks release checksums, image IDs, services, certificate, ports,
-disk, and expected hardware. Add `--json` for structured output. A site with
+disk, expected hardware, and the `db-backup` row for on-host backup age and
+off-host-copy status. Add `--json` for structured output. A site with
 no GSM modem normally shows `gsm-fastapi` as `unhealthy` in raw Docker output:
 that is expected because its `/health` endpoint signals no modem. When the
 installation's `state.json` records that no GSM hardware is attached,
@@ -280,7 +305,8 @@ sudo /opt/sapot/releases/current/scripts/flash-gsm-firmware.sh --yes
 The script holds the same deployment lock as install and upgrade, verifies the
 firmware checksum and board type, stops the GSM service, reads a backup before
 uploading, and restarts the service on exit. `--check` includes the backup read
-but never uploads.
+but never uploads. Database backup runs through `backup-db.sh`; certificate
+renewal remains a manual operation when the LAN IP or expiry requires it.
 
 ## Troubleshooting
 

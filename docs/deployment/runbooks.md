@@ -8,28 +8,141 @@ Step-by-step procedures for operating SAPOT in production. Each runbook includes
 
 **When:** Before any schema change (see [ADR 0007](../adr/0007-alembic-for-server-migrations.md)), on a regular schedule if the deployment is long-running, and always before a disaster-recovery restore.
 
-### Backup
+### Backup (automated)
+
+Backups run unattended via `sapot-db-backup.timer`. Both deployment paths use the same two unit files and the same script; only how they reach the host differs.
+
+**Docker bundle: nothing to do.** The bundle carries the units in its `systemd/` directory, and `install.sh` copies them to `/etc/systemd/system/`, creates the `sapot` account they run as, and enables the timer. `upgrade.sh` and `rollback.sh` refresh the unit files so a changed unit travels with its release, but neither enables anything — a timer you deliberately disable stays disabled.
+
+**Bare-metal:** copy the units out of the checkout and enable the timer once. A bare-metal host is not managed by the bundle installer, so this stays manual.
 
 ```bash
-mysqldump --single-transaction -u sapot -p sapot_db > sapot_db_$(date +%Y%m%d_%H%M%S).sql
+sudo cp /home/sapot/YLP-software/deployment-scripts/sapot-db-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now sapot-db-backup.timer
+systemctl list-timers sapot-db-backup.timer
 ```
 
-- `--single-transaction` avoids locking tables on InnoDB, so the server can keep running during backup.
-- Store the dump off the server host if possible (a USB drive at the incident site, or the admin's laptop) — a backup that lives only on the machine it protects against doesn't survive hardware failure.
+The service picks `/opt/sapot/releases/current/scripts/backup-db.sh` when a bundle is installed and falls back to the bare-metal checkout otherwise, so one unit file serves both paths unmodified.
+
+#### What the bundle installer grants the `sapot` account
+
+`install.sh` runs under `sudo` and creates `/opt/sapot` as root, so it also provisions the unprivileged account the units run as: a system user with no login shell, added to the `docker` group (bundle-mode backups shell out to `docker compose`), owning `shared/server.env`, `shared/db-backups`, and `.lock`. Those are exactly the three paths a scheduled run touches — the env file it reads `DATABASE_URL` from, the directory it writes dumps to, and the lock that keeps a backup from starting mid-migration.
+
+Owning `server.env` lets that account read the database password and `JWT_SECRET_KEY`, which are otherwise root-only. If that trade is unacceptable at your site, run the unit as root instead and hand the file back:
+
+```bash
+sudo systemctl edit sapot-db-backup.service   # [Service] then User=root
+sudo chown root:root /opt/sapot/shared/server.env
+```
+
+Dumps are then owned by root. Bare-metal hosts already run their services as `sapot` and need neither change.
+
+#### Cadence
+
+Default is daily, with up to 15 minutes of jitter. For a standing or dev environment, change it to weekly with `sudo systemctl edit sapot-db-backup.timer` and add `[Timer]` plus `OnCalendar=weekly`. The timer is `Persistent=true`, so a host that was powered off through its scheduled window runs the missed backup shortly after next boot rather than skipping the day, so expect a backup to appear on startup at a field site that shuts down overnight.
+
+#### Settings
+
+Settings go in `/etc/sapot/backup.env` (mode 600, optional; all have defaults):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SAPOT_BACKUP_DIR` | `/opt/sapot/shared/db-backups` (bundle) or `/home/sapot/backups` (bare-metal) | Where dumps are written |
+| `SAPOT_SERVER_ENV` | `/opt/sapot/shared/server.env` (bundle) or `/home/sapot/YLP-software/server/.env` (bare-metal) | File the script reads `DATABASE_URL` from; set this if the checkout lives elsewhere |
+| `SAPOT_BACKUP_RETENTION_DAYS` | `14` | Dumps older than this are deleted |
+| `SAPOT_BACKUP_MIN_KEEP` | `3` | Newest N dumps are kept regardless of age |
+| `SAPOT_BACKUP_OFFHOST_DIR` | unset | Mountpoint of the removable drive to copy to |
+| `SAPOT_BACKUP_MAX_AGE_HOURS` | `36` | Age at which `doctor.sh` reports the backup stale |
+
+Dumps are named `sapot_db_<UTC timestamp>.sql.gz`. Each is verified for gzip integrity and mysqldump's completion footer before receiving its final name.
+
+```bash
+systemctl status sapot-db-backup.timer
+journalctl -u sapot-db-backup.service -n 50 --no-pager
+/opt/sapot/releases/current/scripts/doctor.sh
+```
+
+#### Off-host copies
+
+Set `SAPOT_BACKUP_OFFHOST_DIR` to a removable drive's mountpoint to copy each verified dump off-host. Do this wherever the site allows it: a backup that lives only on the machine it protects against does not survive that machine's hardware failure, which is the disaster this runbook exists for. An absent or unwritable drive logs a warning but does not discard the on-host dump. The script never deletes copies on removable media, so that drive's capacity is yours to manage.
+
+#### Protecting dumps
+
+A dump is a complete, unencrypted copy of the database, including account records and message rows. The script writes it under whatever umask it inherits and never restricts the mode itself, so an operator has to set that. Restrict the directory, and set the service's umask so future dumps are owner-only:
+
+```bash
+sudo chmod 700 /opt/sapot/shared/db-backups          # or /home/sapot/backups
+sudo chmod 600 /opt/sapot/shared/db-backups/*.sql.gz # existing dumps
+sudo systemctl edit sapot-db-backup.service          # [Service] then UMask=0077
+```
+
+Apply the same reasoning to the off-host drive: it carries the same data as the server, so it needs the same physical handling as the server itself, not a shared or general-purpose stick.
+
+### Backup (manual, ad hoc)
+
+Run the script directly for a pre-migration or pre-teardown backup. It takes the same lock and the same settings as the timer, so a manual run and a scheduled one cannot collide.
+
+```bash
+/home/sapot/YLP-software/deploy/scripts/backup-db.sh        # bare-metal
+/opt/sapot/releases/current/scripts/backup-db.sh            # bundle
+```
+
+`--dry-run` prints the resolved mode, paths, retention settings, and exactly which dumps retention would delete, then exits without connecting to the database or writing anything. Use it to confirm configuration after editing `/etc/sapot/backup.env`.
+
+```bash
+/home/sapot/YLP-software/deploy/scripts/backup-db.sh --dry-run
+```
 
 ### Restore
 
+Restore is deliberately manual. Dumps are gzipped, and the database is `sapot_db` on bare-metal and `sapot` in a bundle. Confirm against `DATABASE_URL` in the host's server env file before typing a name.
+
+**Bare-metal:**
+
 ```bash
 sudo systemctl stop server-main-api
-mysql -u sapot -p sapot_db < sapot_db_20260701_120000.sql
+zcat /home/sapot/backups/sapot_db_20260807T020000Z.sql.gz | mysql -u sapot -p sapot_db
 sudo systemctl start server-main-api
 ```
 
-**Verification:**
+**Bundle:**
+
+```bash
+cd /opt/sapot/releases/current
+docker compose -p sapot -f compose/docker-compose.yml stop api
+zcat /opt/sapot/shared/db-backups/sapot_db_20260807T020000Z.sql.gz | docker compose -p sapot -f compose/docker-compose.yml exec -T db mysql -u sapot -p sapot
+docker compose -p sapot -f compose/docker-compose.yml start api
+```
+
+**Then reconcile the schema revision.** A dump carries the `alembic_version` row from the moment it was taken, so restoring an older dump under a newer release leaves the database behind the code that is about to query it ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)). Always check, and upgrade if they differ. Never use `alembic downgrade` to close the gap: downgrading the baseline drops every table.
+
+```bash
+# bare-metal, with DATABASE_URL set, from /home/sapot/YLP-software/server
+alembic current && alembic upgrade head
+
+# bundle
+cd /opt/sapot/releases/current
+docker compose -p sapot -f compose/docker-compose.yml run --rm api alembic current
+docker compose -p sapot -f compose/docker-compose.yml run --rm api alembic upgrade head
+```
+
+**Verification (bare-metal):**
+
 ```bash
 mysql -u sapot -p -e "SELECT COUNT(*) FROM sapot_db.peer;"
-curl -k https://localhost/auth/exists?identifier=probe@example.com   # expect 200 with {"exists": true/false}, not 500
-sudo journalctl -u server-main-api -n 50 --no-pager   # confirm no startup errors
+curl -k https://localhost/auth/exists?identifier=probe@example.com
+sudo journalctl -u server-main-api -n 50 --no-pager
+```
+
+**Verification (bundle).** A bundle host has no host-side `mysql` client and no `server-main-api` unit; the database and API are containers:
+
+```bash
+cd /opt/sapot/releases/current
+docker compose -p sapot -f compose/docker-compose.yml exec -T db \
+  mariadb -u sapot -p sapot -e "SELECT COUNT(*) FROM peer;"
+curl -k https://localhost/version
+docker compose -p sapot -f compose/docker-compose.yml logs --tail 50 api
 ```
 
 ---
