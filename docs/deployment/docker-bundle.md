@@ -5,6 +5,11 @@ the developer compose stack and from the existing bare-metal/systemd deployment
 path. Build one immutable bundle on a connected machine, transport it to the
 site, then install it without pulling images or downloading dependencies.
 
+This page is the reference: how the bundle is put together and what each script
+does. For a first install on a fresh host, follow
+[install-ubuntu-server.md](install-ubuntu-server.md), which walks the whole
+sequence from creating the CA USB stick to verifying the running stack.
+
 ## Architecture
 
 ### Build → ship → run
