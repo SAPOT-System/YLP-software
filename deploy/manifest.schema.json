@@ -1,14 +1,37 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "required": ["schemaVersion", "bundleId", "version", "gitSha", "builtAt", "minimumUpgradeVersion", "maximumRollbackVersion", "requiredDiskBytes", "images", "gsmFirmware", "buildEnvironment"],
+  "required": ["schemaVersion", "bundleId", "version", "gitSha", "builtAt", "minimumUpgradeVersion", "minimumRollbackVersion", "requiredDiskBytes", "componentVersions", "images", "mapData", "gsmFirmware", "buildEnvironment"],
   "properties": {
-    "schemaVersion": {"const": "1.0"},
+    "schemaVersion": {"const": "2.0"},
     "bundleId": {"type": "string"},
     "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$"},
     "gitSha": {"type": "string"}, "builtAt": {"type": "string"},
-    "minimumUpgradeVersion": {"type": "string"}, "maximumRollbackVersion": {"type": "string"},
+    "minimumUpgradeVersion": {"type": "string"}, "minimumRollbackVersion": {"type": "string"},
     "requiredDiskBytes": {"type": "integer", "minimum": 1},
-    "images": {"type": "object"}, "gsmFirmware": {"type": "object"}, "buildEnvironment": {"type": "object"}
+    "componentVersions": {
+      "type": "object",
+      "required": ["server", "admin", "gsmFastapi", "gsmFirmware"],
+      "properties": {
+        "server": {"type": "string"},
+        "admin": {"type": "string"},
+        "gsmFastapi": {"type": "string"},
+        "gsmFirmware": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "images": {"type": "object"},
+    "mapData": {
+      "type": "object",
+      "required": ["region", "sourceSha256", "artifactSha256"],
+      "properties": {
+        "region": {"const": "batangas"},
+        "sourceSha256": {"type": "string"},
+        "artifactSha256": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "gsmFirmware": {"type": "object"},
+    "buildEnvironment": {"type": "object"}
   }
 }

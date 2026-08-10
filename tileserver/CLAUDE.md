@@ -14,7 +14,10 @@ Docker image `maptiler/tileserver-gl`, bind-mounting this directory (which must 
 
 - `deploy-tiling-server.sh` — foreground/interactive run (`docker run -it`), for local development.
 - `deploy-tiling-server-detached.sh` — background/production run: force-removes any existing `tileserver` container first, then starts a fresh named container with a hardcoded `.mbtiles` filename and host path.
-- `download-script.sh` — fetches the full Philippines `.mbtiles` via `curl` from a Google Drive link, then crops it to the deployment region. Takes an optional region argument (default `batangas`).
+- `download-script.sh` - fetches the full Philippines `.mbtiles`, verifies it
+  against `osm-source.sha256`, then crops it to the deployment region. It takes
+  an optional region argument (default `batangas`) and `--cleanup-source` for
+  ephemeral release runners.
 - `crop-mbtiles.py` — cuts the 432 MB national extract down to the ~27 MB regional file that is actually served. Deployment uses `--no-overview --min-zoom 9`, keeping only z9-14 inside the region bbox; without `--no-overview` it instead keeps a nationwide low-zoom overview plus regional detail. Opens the source read-only and builds the output fresh, so peak disk usage is the size of the output, not 3x the input.
 - `documentation.org` — setup instructions, the `.mbtiles` download link, and an example tile-consumer HTML snippet.
 - `.gitignore` — excludes `*.mbtiles` (the data file is not committed; see Common Pitfalls).

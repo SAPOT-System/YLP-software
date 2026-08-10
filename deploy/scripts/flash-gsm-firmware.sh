@@ -11,7 +11,7 @@ hex="$current/firmware/gsm-arduino-actual-code.hex"; expected=$(manifest_value "
 [ "$(sha256sum "$hex" | awk '{print $1}')" = "$expected" ] || { log_error "firmware checksum mismatch"; exit 1; }
 [ -c "$port" ] || { log_error "no device at $port - check the cable, or is gsm-fastapi still holding it?"; exit 1; }
 [ "$(manifest_value "$manifest" gsmFirmware.fqbn)" = "$GSM_ARDUINO_FQBN" ] || { log_error "firmware board does not match GSM_ARDUINO_FQBN"; exit 1; }
-constraint=$(manifest_value "$manifest" gsmFirmware.compatibleGsmFastapiVersion); installed=$(manifest_value "$current/manifest.json" version)
+constraint=$(manifest_value "$manifest" gsmFirmware.compatibleGsmFastapiVersion); installed=$(manifest_value "$current/manifest.json" componentVersions.gsmFastapi)
 python3 "$SEMVER" satisfies "$installed" "$constraint" || { log_error "gsm-fastapi v$installed does not satisfy $constraint"; exit 1; }
 compose "$current" stop gsm-fastapi || true
 restart() { compose "$current" up -d gsm-fastapi >/dev/null 2>&1 || true; }

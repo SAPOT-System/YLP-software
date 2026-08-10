@@ -58,6 +58,11 @@ bash tileserver/download-script.sh            # fetches the national source, the
 python3 tileserver/crop-mbtiles.py --region batangas --no-overview --min-zoom 9
 ```
 
+The download script verifies the national extract against the committed
+`tileserver/osm-source.sha256` before cropping. Release CI uses
+`--cleanup-source` to remove the 432 MB source after producing and validating the
+Batangas database.
+
 To change the deployment region, add a bbox to `REGIONS` in `crop-mbtiles.py`, re-run the crop for the new region, and update the hardcoded filename in **both** `deploy-tiling-server-detached.sh` and `docker-compose.yml`'s `tileserver.command` — plus the matching `REGION_MAX_BOUNDS`/`REGION_MIN_ZOOM` client constants in `admin-frontend/sapot-admin/ui/components/MapLibre.tsx` and `mobile-app/sapot-mobile-app/app/(drawer)/(tabs)/map.tsx`. See `tileserver/CLAUDE.md` for the full detail, including the zoom-floor pitfall (stored min-zoom must be one below the clients' `minZoom`).
 
 ---

@@ -44,7 +44,9 @@ Entry point for deploying, operating, and maintaining SAPOT in a live environmen
 
 ## Releases
 
-[VERSIONING.md](../../VERSIONING.md) — git-tag-driven versioning, independent for mobile and server. `server/app/version.py` must match the git tag before tagging a server release.
+[VERSIONING.md](../../VERSIONING.md) documents the independent mobile, server,
+admin, portal, GSM, and deployment-bundle tags. Bundle releases use
+`deploy/VERSION` and publish the offline archive from `bundle/v*` tags.
 
 ## When something breaks
 
