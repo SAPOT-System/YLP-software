@@ -17,7 +17,7 @@ All SAPOT components are configured via environment variables. This document lis
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
 | `GSM_SECRET` | `""` (empty — webhook auth disabled) | Set to a shared secret to authenticate GSM module webhooks |
 
-See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` became required.
+See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` became required.
 
 > **Note:** `server/.env.example` has since been synced to include `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`,
 > `ENVIRONMENT`, and `REDIS_URL` (previously flagged here as missing). It still lists `TLS_CERT`/`TLS_KEY`,
@@ -98,7 +98,7 @@ Set in EAS project secrets or a local `.env` file (not committed).
 > `mobile-app/sapot-mobile-app/.env.example`. `EXPO_PUBLIC_ENABLED_LOG_MODULES` additionally
 > ships in the separate `.env.development.local.example`, which is the only variable that file
 > carries. This repo-root table is a cross-component summary; for full mobile env-var detail and
-> per-file breakdown, see [ENV_CONFIG.md](../../mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md).
+> per-file breakdown, see [the mobile app environment configuration](pathname:///mobile-docs/ENV_CONFIG).
 >
 > There is no `EXPO_PUBLIC_API_URL` in this app — the API base URL is not env-configurable at
 > runtime. It is derived in `config/runtime.ts` from `EXPO_PUBLIC_DEV_HOST` (dev) or the

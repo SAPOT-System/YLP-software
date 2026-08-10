@@ -374,7 +374,7 @@ On a docker-bundle install, `sudo /opt/sapot/releases/current/scripts/doctor.sh`
 
 **When:** A server deploy introduces a regression and needs to be reverted.
 
-1. Identify the last known-good git tag/commit (see [VERSIONING.md](../../VERSIONING.md)).
+1. Identify the last known-good git tag/commit (see the repo-root `VERSIONING.md`).
 2. If the deploy included a DDL change, **do not roll back code without also reverting the schema** — check whether the new columns/tables the deploy added are still compatible with the old code (additive changes usually are; renames/type changes are not). If incompatible, restore the pre-deploy DB backup first.
 3. Redeploy the previous code version:
    ```bash
@@ -409,7 +409,7 @@ flowchart TD
 **Recovery steps:**
 
 1. **If a spare host is available on-site:** stand up the full stack fresh (see [server.md](server.md), [deployment/overview.md](overview.md#deployment-order)) and restore the most recent [backup](#backup-and-restore-mariadb). If backups were only stored on the failed host, this step is impossible — see the note on off-host backup storage above.
-2. **If no spare host is available:** the LAN continues to function in degraded P2P-only mode. Do not attempt to route around this with a temporary unsecured server — bringing up a server without `DATABASE_URL`/`JWT_SECRET_KEY`/`CORS_ALLOWED_ORIGINS` properly configured re-opens the issues fixed in [SECURITY.md](../../SECURITY.md).
+2. **If no spare host is available:** the LAN continues to function in degraded P2P-only mode. Do not attempt to route around this with a temporary unsecured server — bringing up a server without `DATABASE_URL`/`JWT_SECRET_KEY`/`CORS_ALLOWED_ORIGINS` properly configured re-opens the issues documented in the repo-root `SECURITY.md`.
 3. Once a replacement host is running, re-point the MikroTik router's DNS/DHCP (or the mobile app's configured server IP, if static) at the new host's address.
 4. Mobile devices with cached credentials will resume syncing automatically once the server is reachable at the expected address; devices requiring fresh login need the new server reachable first.
 

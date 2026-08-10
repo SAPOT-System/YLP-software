@@ -35,5 +35,5 @@ If something doesn't work, see [../TROUBLESHOOTING.md](../TROUBLESHOOTING.md).
 
 - [`docs/architecture/`](../architecture/) — system-wide architecture
 - [`docs/deployment/environment-config.md`](../deployment/environment-config.md) — full environment variable reference for all components
-- [`mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md`](../../mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md) — mobile app internals
-- [`mobile-app/sapot-mobile-app/docs/ONBOARDING.md`](../../mobile-app/sapot-mobile-app/docs/ONBOARDING.md) — mobile app onboarding doc
+- [Mobile app architecture](pathname:///mobile-docs/ARCHITECTURE) — mobile app internals
+- [Mobile app onboarding](pathname:///mobile-docs/ONBOARDING) — mobile app onboarding doc

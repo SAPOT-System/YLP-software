@@ -1,6 +1,7 @@
 logs/*
 .worktrees/
 node_modules/
+docs/superpowers/
 reports/
 .pnpm-store/
 .env
@@ -11,3 +12,4 @@ reports/
 captive-portal/config.js
 .bundle-build.*
 dist/
+docs/superpowers/

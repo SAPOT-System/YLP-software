@@ -31,7 +31,7 @@ sequenceDiagram
 
 Tables synced: `conversations`, `messages`, `conversation_participants`, `calls`, `call_participants`, `message_receipts`.
 
-See [api/sync.md](../api/sync.md) and [mobile-app docs SYNC.md](../../mobile-app/sapot-mobile-app/docs/SYNC.md).
+See [api/sync.md](../api/sync.md) and [mobile app sync documentation](pathname:///mobile-docs/SYNC).
 
 ---
 
@@ -68,7 +68,7 @@ sequenceDiagram
 
 ### Path C: LAN direct (mDNS discovery + TCP + WebRTC data channel)
 
-Devices on the same WiFi network can message each other directly with no server involvement, using the `lan` transport mode. See [mobile-app docs LAN_MESSENGER.md](../../mobile-app/sapot-mobile-app/docs/LAN_MESSENGER.md) and [ARCHITECTURE.md](../../mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md) for full implementation detail.
+Devices on the same WiFi network can message each other directly with no server involvement, using the `lan` transport mode. See [mobile app LAN messenger documentation](pathname:///mobile-docs/LAN_MESSENGER) and [the mobile app architecture](pathname:///mobile-docs/ARCHITECTURE) for full implementation detail.
 
 ```mermaid
 sequenceDiagram
@@ -94,6 +94,7 @@ sequenceDiagram
 ```
 
 Key constraints of `lan` mode:
+
 - No WebSocket relay is used or allowed — message send throws if no data channel is open (`"No data channel and WS not allowed in lan mode"`).
 - Zeroconf publish/scan is only enabled when `effectiveMode === "lan" || "auto"`.
 - On `peer-reconnected` (WebRTC data channel reopens), `DiscoveryService` triggers a retry of any message left in `NOT_SENT` status.
@@ -147,7 +148,7 @@ sequenceDiagram
     A<<->>B: WebRTC P2P media (server not involved)
 ```
 
-See [mobile-app docs CALL_FLOW.md](../../mobile-app/sapot-mobile-app/docs/CALL_FLOW.md).
+See [mobile app call flow documentation](pathname:///mobile-docs/CALL_FLOW).
 
 ---
 

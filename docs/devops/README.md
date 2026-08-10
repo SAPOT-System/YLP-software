@@ -24,7 +24,7 @@ Entry point for deploying, operating, and maintaining SAPOT in a live environmen
 |---|---|
 | [deployment/environment-config.md](../deployment/environment-config.md) | Every environment variable, per component |
 | [deployment/secrets-management.md](../deployment/secrets-management.md) | Secret storage and rotation |
-| [SECURITY.md](../../SECURITY.md) | Required secrets that fail fast at import time if unset, and why — this repo has a history of committed credentials that had to be rotated |
+| `SECURITY.md` at the repo root | Required secrets that fail fast at import time if unset, and why — this repo has a history of committed credentials that had to be rotated |
 
 ## Operations
 
@@ -44,7 +44,7 @@ Entry point for deploying, operating, and maintaining SAPOT in a live environmen
 
 ## Releases
 
-[VERSIONING.md](../../VERSIONING.md) — git-tag-driven versioning, independent for mobile and server. `server/app/version.py` must match the git tag before tagging a server release.
+The repo-root `VERSIONING.md` defines git-tag-driven versioning, independent for mobile and server. `server/app/version.py` must match the git tag before tagging a server release.
 
 ## When something breaks
 
