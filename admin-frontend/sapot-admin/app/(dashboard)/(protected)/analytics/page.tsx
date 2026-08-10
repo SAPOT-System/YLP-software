@@ -10,6 +10,7 @@ import { useEffect, useState, useRef } from "react";
 import { ChevronRight, Loader } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import Link from "next/link";
+import { withBasePath } from "@/lib/basePath";
 
 
 function RouterHealthChart({ data }) {
@@ -57,7 +58,7 @@ export default function Analytics() {
 
 	const fetchRouterHealthLatest = async () => {
 		try {
-			const res = await fetch("/api/router/health/latest");
+			const res = await fetch(withBasePath("/api/router/health/latest"));
 
 			if (!res.ok) throw new Error("Failed latest health fetch");
 
@@ -70,7 +71,7 @@ export default function Analytics() {
 
 	const fetchRouterHealthHistory = async () => {
 		try {
-			const res = await fetch("/api/router/health/history?limit=50");
+			const res = await fetch(withBasePath("/api/router/health/history?limit=50"));
 			if (!res.ok) throw new Error("Failed history fetch");
 
 			const data = await res.json();
@@ -95,7 +96,7 @@ export default function Analytics() {
 
 	const fetchTrafficHistory = async (iface = "ether5") => {
 		try {
-			const res = await fetch("/api/router/traffic/ether5?limit=100");
+			const res = await fetch(withBasePath("/api/router/traffic/ether5?limit=100"));
 
 			if (!res.ok) throw new Error("Failed traffic fetch");
 
@@ -121,7 +122,7 @@ export default function Analytics() {
 
 	const fetchTrafficHistory2 = async (iface = "ether4") => {
 		try {
-			const res = await fetch("/api/router/traffic/ether4?limit=100");
+			const res = await fetch(withBasePath("/api/router/traffic/ether4?limit=100"));
 
 			if (!res.ok) throw new Error("Failed traffic fetch");
 
@@ -147,7 +148,7 @@ export default function Analytics() {
 
 	const fetchTrafficHistory3 = async (iface = "ether1") => {
 		try {
-			const res = await fetch("/api/router/traffic/ether1?limit=100");
+			const res = await fetch(withBasePath("/api/router/traffic/ether1?limit=100"));
 
 			if (!res.ok) throw new Error("Failed traffic fetch");
 
@@ -226,7 +227,7 @@ export default function Analytics() {
 
 	const fetchRouterDashboard = async () => {
 		try {
-			const res = await fetch("/api/router/dashboard");
+			const res = await fetch(withBasePath("/api/router/dashboard"));
 
 			if (!res.ok) {
 				throw new Error("Failed router dashboard fetch");
@@ -261,7 +262,7 @@ export default function Analytics() {
 
   const fetchNetworkData = async () => {
     try {
-      const res = await fetch("/api/get-network-usage");
+      const res = await fetch(withBasePath("/api/get-network-usage"));
       
       if (!res.ok) {
         console.error("Network fetch failed:", res.status);
@@ -300,7 +301,7 @@ export default function Analytics() {
 
   const fetchNicData = async () => {
     try {
-      const res = await fetch("/api/get-interfaces");
+      const res = await fetch(withBasePath("/api/get-interfaces"));
       
       if (!res.ok) {
         console.error("Interfaces fetch failed:", res.status);

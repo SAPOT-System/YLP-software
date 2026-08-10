@@ -16,6 +16,7 @@ SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response
 | `GSM-module/` | SMS gateway — sends SMS when LAN messaging fails | FastAPI, pyserial, Arduino/AT commands | — |
 | `captive-portal/` | MikroTik hotspot login pages shown to users joining the network | Static HTML/CSS/JS | — |
 | `tileserver/` | Offline map tile server for the GPS map | — | — |
+| `deploy/` | Offline, immutable Docker deployment bundle tooling | Bash, Docker Compose | [deployment/docker-bundle.md](deployment/docker-bundle.md) |
 
 ---
 
@@ -43,7 +44,7 @@ SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response
 | [architecture/networking-lan-model.md](architecture/networking-lan-model.md) | LAN topology, MikroTik router role, mDNS discovery, client isolation considerations |
 | [architecture/security-architecture.md](architecture/security-architecture.md) | Auth, password hashing, E2E encryption key hierarchy and flows, rate limiting, LAN transport security |
 | [architecture/threat-model.md](architecture/threat-model.md) | Trust boundaries, in-scope attack surfaces, device theft / router compromise / insider threat scenarios, known risks |
-| [adr/](adr/) | Architecture Decision Records — NaCl box, no server migration tooling, WatermelonDB, P2P calls, LAN-first design, roles model |
+| [adr/](adr/) | Architecture Decision Records — NaCl box, WatermelonDB, P2P calls, LAN-first design, roles model, Alembic server migrations |
 
 ### Mobile App (Detailed)
 
@@ -87,6 +88,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [getting-started/mobile-app-setup.md](getting-started/mobile-app-setup.md) | Nix + Expo dev environment setup |
 | [getting-started/gsm-module-setup.md](getting-started/gsm-module-setup.md) | SMS gateway setup |
 | [getting-started/admin-frontend-setup.md](getting-started/admin-frontend-setup.md) | Next.js admin dashboard setup |
+| [getting-started/captive-portal-setup.md](getting-started/captive-portal-setup.md) | Captive portal `config.js` setup (RouterOS hotspot login pages) |
 
 ### API
 
@@ -121,6 +123,8 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [deployment/admin-frontend.md](deployment/admin-frontend.md) | Admin dashboard deployment |
 | [deployment/gsm-module.md](deployment/gsm-module.md) | GSM module deployment |
 | [deployment/tileserver.md](deployment/tileserver.md) | Offline tileserver deployment |
+| [deployment/docker-bundle.md](deployment/docker-bundle.md) | Offline Docker bundle build, install, upgrade, and recovery |
+| [deployment/install-ubuntu-server.md](deployment/install-ubuntu-server.md) | First-install walkthrough: CA USB stick, Docker Engine on Ubuntu Server 24.04, build, transfer, install, verify |
 
 ### Features
 
@@ -142,11 +146,11 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 
 | Document | Contents |
 |---|---|
-| [../README.org](../README.org) | Repository overview and deliverables |
+| [../README.md](../README.md) | Repository overview, architecture, and quick-start links |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching, commit conventions, and PR workflow |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure process and known security posture |
 | [../LICENSE](../LICENSE) | MIT license |
-| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile/server independent) |
+| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile, server, admin, captive portal, GSM module — independent) |
 | [../CHANGELOG.md](../CHANGELOG.md) | Notable changes per release |
 | [docs-todo.md](docs-todo.md) | Documentation audit remediation tracker |
 | [mobile-app-todo.org](mobile-app-todo.org) | Mobile app feature brief and TODOs |

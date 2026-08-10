@@ -20,7 +20,7 @@ export async function loginAction(formData: FormData) {
   const baseUrl = process.env.API_DOMAIN || 'https://localhost:8000';
 
   try {
-    const response = await fetch(`${baseUrl}/admin/login`, {
+    const response = await fetch(`${baseUrl}/api/admin/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

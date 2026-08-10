@@ -65,6 +65,8 @@ services:
         condition: service_started
       tileserver:
         condition: service_started
+      admin:
+        condition: service_started
     ports:
       - "${NGINX_HTTPS_PORT:-443}:443"
       - "${NGINX_HTTP_PORT:-80}:80"
@@ -87,7 +89,12 @@ services:
       # client bundle and run in the developer's own browser on the host
       # network, which can't resolve "nginx" — those keep whatever
       # host-reachable value is set in this service's .env (LAN IP/localhost).
-      API_DOMAIN: https://nginx
+      # Talk to the api service directly rather than through nginx: nginx's
+      # /admin location proxies to this same admin container, so routing
+      # backend calls to admin/login through nginx self-loops back here
+      # instead of reaching the FastAPI /admin router (see deploy/config/
+      # admin.env.example, which made the same change for the prod bundle).
+      API_DOMAIN: http://api:8000
       NODE_EXTRA_CA_CERTS: /app/certs/server_ca.pem
     volumes:
       - ./admin-frontend/sapot-admin:/app
@@ -96,16 +103,13 @@ services:
       # Only the public CA is needed by Node. Do not mount the backend leaf
       # certificate or private key into the admin container.
       - ${DEV_CA_DIR:-./server/dev-ca}/server_ca.pem:/app/certs/server_ca.pem:ro
-    depends_on:
-      nginx:
-        condition: service_started
     ports:
       - "${ADMIN_PORT:-3000}:3000"
 
   tileserver:
     image: maptiler/tileserver-gl
     restart: unless-stopped
-    command: ["--mbtiles", "osm-2020-02-10-v3.11_asia_philippines.mbtiles"]
+    command: ["--mbtiles", "osm-batangas.mbtiles"]
     volumes:
       - ./tileserver:/data
     # Not published to the host — only reachable via nginx (TLS) at /tiles/,

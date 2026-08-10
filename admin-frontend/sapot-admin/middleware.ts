@@ -15,6 +15,7 @@ const protectedPaths = [
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value;
+  const mustChangePassword = request.cookies.get('must_change_password')?.value === 'true';
   const pathname = request.nextUrl.pathname;
 
   // Check if route is protected
@@ -25,6 +26,16 @@ export function middleware(request: NextRequest) {
   // Redirect unauthenticated users away from protected pages
   if (isProtectedRoute && !token) {
     return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  if (pathname === '/change-password') {
+    if (!token) return NextResponse.redirect(new URL('/', request.url));
+    if (!mustChangePassword) return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.next();
+  }
+
+  if (isProtectedRoute && token && mustChangePassword) {
+    return NextResponse.redirect(new URL('/change-password', request.url));
   }
 
   // Redirect logged-in users away from login page
@@ -38,6 +49,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/',
     '/dashboard/:path*',
     '/admin/:path*',
     '/analytics/:path*',
@@ -47,5 +59,6 @@ export const config = {
     '/gsm/:path*',
     '/announcements/:path*',
     '/settings/:path*',
+    '/change-password',
   ],
 };

@@ -84,6 +84,43 @@ def test_get_all_latest_locations(client: TestClient, session, test_user_instanc
     user_a_record = next(item for item in data if item["user_id"] == str(user_a))
     assert user_a_record["latitude"] == 11.0
 
+def test_get_all_latest_locations_includes_role(
+    client: TestClient, session, test_user_instance, test_rescuer
+):
+    """
+    /gps/latest must carry each user's role so the map clients can draw
+    rescuer markers differently from regular-user markers (issue #322).
+    """
+    # Arrange: the authenticated user is a rescuer (test_rescuer fixture);
+    # tony_stark is a plain user with no rescuer/admin profile.
+    plain_user = sample_users.get('tony_stark')["id"]
+    session.add_all([
+        UserLocation(user_id=plain_user, latitude=10.0, longitude=10.0),
+        UserLocation(user_id=test_user_instance.id, latitude=12.0, longitude=12.0),
+    ])
+    session.commit()
+    session.expire_all()
+
+    headers = get_auth_headers(client, 'testusername', 'test_password')
+
+    # Act
+    response = client.get("/gps/latest", headers=headers)
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+
+    rescuer_record = next(
+        item for item in data if item["user_id"] == str(test_user_instance.id)
+    )
+    plain_record = next(
+        item for item in data if item["user_id"] == str(plain_user)
+    )
+
+    assert rescuer_record["role"] == "rescuer"
+    assert plain_record["role"] == "user"
+
+
 def test_get_user_location_history(client: TestClient, session, test_user_instance, test_rescuer):
     """
     Test that /gps/history/{user_id} returns multiple pings for one user.

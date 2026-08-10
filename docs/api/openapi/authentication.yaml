@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SAPOT Server — Authentication
-  version: 0.0.2-beta.1
+  version: 0.1.0
 paths:
   /auth/:
     get:
@@ -314,6 +314,10 @@ components:
         new_password:
           type: string
           title: New Password
+        terms_accepted:
+          type: boolean
+          title: Terms Accepted
+          default: false
       type: object
       required:
       - current_password

@@ -96,6 +96,36 @@ def test_build_gps_track_creates_route_points(session: Session):
     assert len(points) == result["points"] > 0
 
 
+def test_build_gps_roles_creates_users_across_every_role(session: Session):
+    result = qa_scenarios.build_gps_roles(session)
+
+    assert result["users"] == ["qa_map_user", "qa_map_user_2"]
+    assert result["rescuers"] == ["qa_map_rescuer", "qa_map_rescuer_2"]
+    assert result["admins"] == ["qa_map_admin"]
+
+    for username in result["rescuers"]:
+        user = session.exec(select(User).where(User.username == username)).first()
+        assert session.exec(select(Rescuer).where(Rescuer.user_id == user.id)).first()
+
+    admin_user = session.exec(select(User).where(User.username == "qa_map_admin")).first()
+    assert session.exec(select(Admin).where(Admin.user_id == admin_user.id)).first()
+
+    for username in result["users"] + result["rescuers"] + result["admins"]:
+        user = session.exec(select(User).where(User.username == username)).first()
+        points = session.exec(select(UserLocation).where(UserLocation.user_id == user.id)).all()
+        assert len(points) == qa_scenarios.MAP_ROLE_POINT_COUNT
+
+
+def test_build_gps_roles_is_idempotent(session: Session):
+    first = qa_scenarios.build_gps_roles(session)
+    second = qa_scenarios.build_gps_roles(session)
+
+    assert first == second
+    user = session.exec(select(User).where(User.username == "qa_map_admin")).first()
+    points = session.exec(select(UserLocation).where(UserLocation.user_id == user.id)).all()
+    assert len(points) == qa_scenarios.MAP_ROLE_POINT_COUNT
+
+
 def test_build_calls_creates_all_three_statuses(session: Session):
     qa_scenarios.build_calls(session)
 

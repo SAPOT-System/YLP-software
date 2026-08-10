@@ -2,6 +2,13 @@ logs/*
 .worktrees/
 node_modules/
 docs/superpowers/
+reports/
+.pnpm-store/
 .env
 **/.env
 !*.env.example
+
+# Generated from PORTAL_API_BASE by scripts/gen-portal-config.sh.
+captive-portal/config.js
+.bundle-build.*
+dist/

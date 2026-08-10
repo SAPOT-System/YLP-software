@@ -41,6 +41,12 @@ Verifies the current password and issues a short-lived re-auth token used to aut
 
 Returns `401` if the supplied current password doesn't match.
 
+Bootstrap and administrator-password resets mark the account as requiring a password change. Authenticated HTTP endpoints then return `403` with `PASSWORD_CHANGE_REQUIRED`; only logout (`POST /auth/logout` and `POST /api/admin/logout`), reauthentication, and this endpoint remain available. WebSocket connections authenticate separately and are not gated.
+
+For a flagged account with no Terms acceptance timestamp, this request must include `terms_accepted: true` or it returns `400` with `TERMS_ACCEPTANCE_REQUIRED`. Password replacement, clearing the requirement, and the first consent timestamp are committed together. Existing consent timestamps are never replaced.
+
+Two further `400` codes apply to every caller, not just flagged accounts. `PASSWORD_REUSED` rejects a `new_password` equal to `current_password` — without it, a mandatory change is satisfiable by resubmitting the installer-chosen credential, which would make a one-shot password permanent. `PASSWORD_TOO_WEAK` carries the specific unmet rule; replacement passwords must meet the same 8–128 character, upper/lower/digit rules as passwords chosen at signup.
+
 ## Email verification (`POST /auth/verify/verify-code`, `POST /auth/verify/resend-verification-code`)
 
 - `verify-code` returns `400` for an invalid/expired code, `404` if the user isn't found.

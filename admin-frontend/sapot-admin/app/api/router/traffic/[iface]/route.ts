@@ -11,7 +11,7 @@ export async function GET(
 		 const par = await params;
 
     const res = await secureFetch(
-      `/admin/router/traffic/${par.iface}?limit=${limit}`
+      `/api/admin/router/traffic/${par.iface}?limit=${limit}`
     );
 
     if (!res.ok) {

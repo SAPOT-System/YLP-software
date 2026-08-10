@@ -1,0 +1,15 @@
+[Unit]
+Description=SAPOT MariaDB backup
+After=network.target
+Documentation=https://github.com/Emman-pip/YLP-software/blob/main/docs/deployment/runbooks.md
+
+[Service]
+Type=oneshot
+User=sapot
+Group=sapot
+EnvironmentFile=-/etc/sapot/backup.env
+# Prefer the installed bundle script when present; fall back to the bare-metal
+# checkout. This keeps the same unit usable on both supported deployment paths.
+ExecStart=/bin/sh -c 'root=${SAPOT_ROOT:-/opt/sapot}; if [ -x "$root/releases/current/scripts/backup-db.sh" ]; then exec "$root/releases/current/scripts/backup-db.sh"; else exec /home/sapot/YLP-software/deploy/scripts/backup-db.sh; fi'
+StandardOutput=journal
+StandardError=journal

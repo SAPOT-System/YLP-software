@@ -10,9 +10,39 @@ will be built, and how it was built.
 * Database Schema
 // soon
 
+* Database Migrations
+Schema is managed by Alembic (~alembic.ini~, ~app/alembic/~), not
+~SQLModel.metadata.create_all~. ~create_all~ only creates missing tables — it
+never alters existing ones, so it can't apply column/enum changes to a
+database that's already been deployed.
+
+** Applying migrations
+Run from ~server/~, with ~DATABASE_URL~ set (see ~.env.example~):
+#+BEGIN_SRC bash
+alembic upgrade head
+#+END_SRC
+This runs automatically as a deploy step in ~runserver.sh~ before the server
+starts.
+
+** Adding a schema change
+1. Change the relevant SQLModel(s) in ~app/models/~. If it's a new model,
+   import it from ~app/models/__init__.py~ so Alembic's autogenerate (and
+   anything else relying on ~SQLModel.metadata~) can see it.
+2. Generate a migration and *review it* — autogenerate doesn't reliably
+   detect every kind of change (e.g. column renames look like drop+add):
+   #+BEGIN_SRC bash
+   alembic revision --autogenerate -m "short description"
+   #+END_SRC
+3. Sanity-check there's no drift between the models and the migrations:
+   #+BEGIN_SRC bash
+   alembic check
+   #+END_SRC
+4. Commit the generated file under ~app/alembic/versions/~.
+
 * Tools to be used
 - fastAPI (main framework for the API)
 - SQLModel (for creating database models)
+- Alembic (for versioned database migrations)
 - pytest (for testing)
 - pytest-asyncio (for async testing)
 - httpx (for async testing)

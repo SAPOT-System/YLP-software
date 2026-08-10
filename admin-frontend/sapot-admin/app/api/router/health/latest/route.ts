@@ -3,7 +3,7 @@ import { secureFetch } from "@/api/fetch";
 
 export async function GET() {
   try {
-    const res = await secureFetch("/admin/router/health/latest");
+    const res = await secureFetch("/api/admin/router/health/latest");
 
     if (!res.ok) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 import { applyChanges } from "./applyChanges";
 import { getLastPulledAt, setLastPulledAt } from "./storage";
 import { getQueue, saveQueue, clearMutations, type Mutation } from "./mutationQueue";
+import { withBasePath } from "../basePath";
 
 
 export async function pull(limit = 100) {
@@ -15,7 +16,7 @@ export async function pull(limit = 100) {
 
   while (shouldContinue) {
     const res = await fetch(
-      `/api/sync/pull?last_pulled_at=${lastPulledAt}&limit=${limit}`
+      withBasePath(`/api/sync/pull?last_pulled_at=${lastPulledAt}&limit=${limit}`)
     );
 
     if (!res.ok) {
@@ -117,7 +118,7 @@ export async function push() {
   const pushedIds = queue.map((m) => m.id);
 
   const changes = await collectChanges(queue);
-  const res = await fetch(`/api/sync/push`, {
+  const res = await fetch(withBasePath(`/api/sync/push`), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

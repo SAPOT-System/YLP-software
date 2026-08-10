@@ -113,7 +113,18 @@ def create_access_token(data: dict, expires_delta : timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(
+def _assert_password_current(user: User) -> None:
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "PASSWORD_CHANGE_REQUIRED",
+                "message": "You must change your password before continuing.",
+            },
+        )
+
+
+async def get_current_user_allow_stale_password(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: SessionDep
 ) -> User:
@@ -144,6 +155,15 @@ async def get_current_user(
     if not user:
         raise credentials_exception
 
+    return user
+
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: SessionDep,
+) -> User:
+    user = await get_current_user_allow_stale_password(token, session)
+    _assert_password_current(user)
     return user
 
 
@@ -181,10 +201,12 @@ async def get_current_user_rescuer(
     if not user.rescuer and not user.admin:
         raise credentials_exception
 
+    _assert_password_current(user)
+
     return user
 
 
-async def get_current_user_admin(
+async def get_current_user_admin_allow_stale_password(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: SessionDep
 ) -> User:
@@ -218,6 +240,15 @@ async def get_current_user_admin(
     if not user.admin:
         raise credentials_exception
 
+    return user
+
+
+async def get_current_user_admin(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: SessionDep,
+) -> User:
+    user = await get_current_user_admin_allow_stale_password(token, session)
+    _assert_password_current(user)
     return user
 
 # depreciated function, used create_token_pair instead

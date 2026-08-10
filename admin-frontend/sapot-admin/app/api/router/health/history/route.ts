@@ -7,7 +7,7 @@ export async function GET(req: Request) {
     const limit = searchParams.get("limit") ?? "50";
 
     const res = await secureFetch(
-      `/admin/router/health/history?limit=${limit}`
+      `/api/admin/router/health/history?limit=${limit}`
     );
 
     if (!res.ok) {

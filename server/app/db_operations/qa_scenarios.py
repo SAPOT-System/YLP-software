@@ -99,7 +99,11 @@ ADMIN_ACCOUNT = {
     "first_name": "Admin",
     "last_name": "User",
     "phone_number": "+639300000001",
-    "email": "admin@sapot.local",
+    # "sapot.local" is a special-use TLD (RFC 6762); EmailStr rejects it, which
+    # 500'd every UserPublic response for this fixture (e.g. /testing/login-as/admin).
+    # "example.com" is RFC 2606-reserved for exactly this use, unlike a real
+    # registrable domain nobody here owns.
+    "email": "admin@example.com",
 }
 
 
@@ -461,7 +465,9 @@ def build_gps_track(session: Session) -> dict:
 
     now = datetime.now(timezone.utc)
     # A short walking route so the map/history views have visible movement.
-    base_lat, base_lng = 14.5547, 121.0244  # Makati, arbitrary anchor
+    # Batangas City center — matches MapLibre.tsx's default map center
+    # ([121.0581, 13.7573]), so the seeded route is visible without panning.
+    base_lat, base_lng = 13.7573, 121.0581
     point_count = 60
     for n in range(point_count):
         session.add(
@@ -474,6 +480,73 @@ def build_gps_track(session: Session) -> dict:
         )
     session.commit()
     return {"user": user.username, "points": point_count}
+
+
+# (username, role, (base_lat, base_lng)) — role is None for a plain user, otherwise
+# "rescuer"/"admin" matching `_resolve_role`'s return values (user_search.py), which is
+# what drives marker shape/colour in admin-frontend's MapLibre.tsx (ROLE_MARKER_CLASSES)
+# and the mobile app's equivalent. Anchors are spread around Batangas City — matches
+# MapLibre.tsx's default map center ([121.0581, 13.7573]) and its cached tileserver
+# coverage, so the seeded users render as visibly distinct markers on load without
+# panning, instead of stacking on top of each other off-screen in Metro Manila.
+_MAP_ROLE_ANCHORS: tuple[tuple[str, str | None, tuple[float, float]], ...] = (
+    ("qa_map_user", None, (13.7565, 121.0583)),  # Batangas City proper
+    ("qa_map_user_2", None, (13.7830, 121.0430)),  # Alangilan
+    ("qa_map_rescuer", "rescuer", (13.7300, 121.0700)),  # Bolbok
+    ("qa_map_rescuer_2", "rescuer", (13.7150, 121.0330)),  # toward Bauan
+    ("qa_map_admin", "admin", (13.7950, 121.0850)),  # Batangas Port
+)
+
+# Short trail per user rather than a single ping, so the same scenario also exercises
+# the "Show Path" / location-history view, not just the latest-position marker.
+MAP_ROLE_POINT_COUNT = 8
+
+
+def build_gps_roles(session: Session) -> dict:
+    """Multiple users spanning every map-marker role (plain user/rescuer/admin), each
+    with a short recent location trail at a distinct anchor point — for QA'ing the
+    live map's role-based marker rendering with a realistic mixed-role crowd in one
+    seed, rather than the single-user `gps-track` scenario."""
+    now = datetime.now(timezone.utc)
+    summary: dict[str, list[str]] = {"user": [], "rescuer": [], "admin": []}
+
+    for index, (username, role, (base_lat, base_lng)) in enumerate(_MAP_ROLE_ANCHORS, start=1):
+        user = get_or_create_user(session, username, phone_number=f"+639300000{800 + index}")
+
+        if role == "rescuer" and not session.exec(
+            select(Rescuer).where(Rescuer.user_id == user.id)
+        ).first():
+            session.add(Rescuer(user_id=user.id))
+            session.commit()
+        elif role == "admin" and not session.exec(
+            select(Admin).where(Admin.user_id == user.id)
+        ).first():
+            session.add(Admin(user_id=user.id))
+            session.commit()
+
+        existing_points = session.exec(
+            select(UserLocation).where(UserLocation.user_id == user.id)
+        ).all()
+        if not existing_points:
+            for n in range(MAP_ROLE_POINT_COUNT):
+                session.add(
+                    UserLocation(
+                        latitude=base_lat + n * 0.0004,
+                        longitude=base_lng + n * 0.0003,
+                        timestamp=now - timedelta(minutes=(MAP_ROLE_POINT_COUNT - n)),
+                        user_id=user.id,
+                    )
+                )
+            session.commit()
+
+        summary[role or "user"].append(username)
+
+    return {
+        "users": summary["user"],
+        "rescuers": summary["rescuer"],
+        "admins": summary["admin"],
+        "points_per_user": MAP_ROLE_POINT_COUNT,
+    }
 
 
 def build_calls(session: Session) -> dict:
@@ -526,6 +599,12 @@ SCENARIOS: dict[str, Scenario] = {
     "gps-track": Scenario(
         "qa_gps with a 60-point UserLocation history along a short route.",
         build_gps_track,
+    ),
+    "gps-roles": Scenario(
+        f"qa_map_user/qa_map_user_2/qa_map_rescuer/qa_map_rescuer_2/qa_map_admin — "
+        f"multiple users across every map-marker role, each with a "
+        f"{MAP_ROLE_POINT_COUNT}-point location trail at a distinct anchor.",
+        build_gps_roles,
     ),
     "calls": Scenario(
         "qa_calls_a/qa_calls_b with completed/missed/rejected Call rows (each with "

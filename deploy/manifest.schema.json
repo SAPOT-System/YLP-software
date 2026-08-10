@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schemaVersion", "bundleId", "version", "gitSha", "builtAt", "minimumUpgradeVersion", "maximumRollbackVersion", "requiredDiskBytes", "images", "gsmFirmware", "buildEnvironment"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "bundleId": {"type": "string"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$"},
+    "gitSha": {"type": "string"}, "builtAt": {"type": "string"},
+    "minimumUpgradeVersion": {"type": "string"}, "maximumRollbackVersion": {"type": "string"},
+    "requiredDiskBytes": {"type": "integer", "minimum": 1},
+    "images": {"type": "object"}, "gsmFirmware": {"type": "object"}, "buildEnvironment": {"type": "object"}
+  }
+}

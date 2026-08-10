@@ -1,0 +1,574 @@
+{
+  "event": [
+
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "/"
+    }
+  ],
+  "info": {
+    "_postman_id": "b62f3d360030ab8b40dbe5101a30a80c",
+    "name": "SAPOT API - sync",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "",
+      "type": "text/plain"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "id": "62cbea398e558ede64080b2746813e82",
+      "name": "Pull Remote Changes",
+      "request": {
+        "name": "Pull Remote Changes",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "sync",
+            "pull"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+            {
+              "disabled": false,
+              "description": {
+                "content": "",
+                "type": "text/plain"
+              },
+              "key": "last_pulled_at",
+              "value": "0"
+            },
+            {
+              "disabled": false,
+              "description": {
+                "content": "",
+                "type": "text/plain"
+              },
+              "key": "limit",
+              "value": "100"
+            }
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "GET",
+        "body": {
+        }
+      },
+      "response": [
+        {
+          "id": "06b538aa6c760eac79cdcdf62704d1a3",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "sync",
+                "pull"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "last_pulled_at",
+                  "value": "0"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "100"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "b79065a2fec04fc55baeaa5257b9964b",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "sync",
+                "pull"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "last_pulled_at",
+                  "value": "0"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "100"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "fcdf124b5871a7ffbd20c18dca5e82bc",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "sync",
+                "pull"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "last_pulled_at",
+                  "value": "0"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "100"
+                }
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "GET",
+            "body": {
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    },
+    {
+      "id": "2d39335d73dd7b205f2297ec997739af",
+      "name": "Push Local Data",
+      "request": {
+        "name": "Push Local Data",
+        "description": {
+        },
+        "url": {
+          "path": [
+            "sync",
+            "push"
+          ],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "query": [
+
+          ],
+          "variable": [
+
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+          "options": {
+            "raw": {
+              "headerFamily": "json",
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "id": "39adeb971a860ab6a457770560ea437b",
+          "name": "Successful Response",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "sync",
+                "push"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        },
+        {
+          "id": "1f2dc7df0b8eafceb4459063a7bfe2b1",
+          "name": "Not Found",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "sync",
+                "push"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "header": [
+
+          ],
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "text"
+        },
+        {
+          "id": "63c2634b57f360581cbe7df2293a6bba",
+          "name": "Validation Error",
+          "originalRequest": {
+            "url": {
+              "path": [
+                "sync",
+                "push"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+
+              ],
+              "variable": [
+
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "description": {
+                  "content": "Added as a part of security scheme: oauth2",
+                  "type": "text/plain"
+                },
+                "key": "Authorization",
+                "value": "<token>"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"changes\": {\n    \"key_0\": {},\n    \"key_1\": {}\n  },\n  \"last_pulled_at\": \"<integer>\",\n  \"guest_users\": {\n    \"key_0\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    },\n    \"key_1\": {\n      \"first_name\": \"<string>\",\n      \"last_name\": \"<string>\",\n      \"username\": \"<string>\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+          "code": 422,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+          "cookie": [
+
+          ],
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generated by scripts/generate_postman_collection.rb. Do not hand-edit --",
+              "// regenerating overwrites this file.",
+              "pm.test(\"does not return a server error\", function () {",
+              "    pm.expect(pm.response.code).to.be.below(500);",
+              "});",
+              "",
+              "pm.test(\"responds within 5s\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "});",
+              "",
+              "pm.test(\"a JSON content-type means a parseable JSON body\", function () {",
+              "    var contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "    if (contentType.indexOf(\"application/json\") === -1) {",
+              "        return;",
+              "    }",
+              "    if (pm.response.text().length === 0) {",
+              "        return;",
+              "    }",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      }
+    }
+  ]
+}

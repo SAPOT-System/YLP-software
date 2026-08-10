@@ -215,7 +215,6 @@ export class MessageRepository {
     conversation: Conversation;
     messageId?: string;
     messageType?: MessageType;
-    linkedMessageId?: string;
     allowPlaintext?: boolean;
     sentAt?: Date;
   }): Message {
@@ -234,7 +233,6 @@ export class MessageRepository {
       message.messageType = newMessage.messageType ?? MessageType.TEXT;
       message.content = content;
       message.isEncrypted = isEncrypted;
-      message.linkedMessageId = newMessage.linkedMessageId ?? null;
       message.createdAt = newMessage.sentAt ?? new Date();
       message.updatedAt = new Date();
       message.isDeleted = false;

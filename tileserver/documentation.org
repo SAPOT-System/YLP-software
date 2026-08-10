@@ -1,15 +1,38 @@
 * How to run the tile server
 
-** Running temporarily
-1. download the ~.mbtiles~ file: [[https://drive.google.com/file/d/1UVakmRkrHaz2J1cgCIbkAHsHDW9SYwLq/view?usp=sharing][link to .mbtiles]]
-2. place it in the same directory as this documentation.org file
-3. run the script ~deploy-tiling-server.sh~
+** Setup (both modes)
+1. run ~./download-script.sh~ — this fetches the full Philippines extract
+   (432 MB) and crops it to the deployment region, producing
+   ~osm-batangas.mbtiles~ (~27 MB), which is the file actually served.
+   To cut a different region: ~./download-script.sh calabarzon~
+2. run ~deploy-tiling-server.sh~ (foreground) or
+   ~deploy-tiling-server-detached.sh~ (background)
 
+The ~.mbtiles~ can also be downloaded by hand from
+[[https://drive.google.com/file/d/1UVakmRkrHaz2J1cgCIbkAHsHDW9SYwLq/view?usp=sharing][link to .mbtiles]] and placed next to this file, then cropped with
+~./crop-mbtiles.py --region batangas~.
 
-** Running the server in detached mode
-1. download the ~.mbtiles~ file: [[https://drive.google.com/file/d/1UVakmRkrHaz2J1cgCIbkAHsHDW9SYwLq/view?usp=sharing][link to .mbtiles]]
-2. place it in the same directory as this documentation.org file
-3. run the script ~deploy-tiling-server-detached.sh~
+** Why the file is cropped
+The full extract covers the entire country at every zoom. A SAPOT deployment
+only ever looks at one province, so ~crop-mbtiles.py --no-overview~ keeps
+only z9-14 inside the Batangas box: *432 MB -> 27 MB (93% smaller)*.
+
+The clients are clamped to match — ~maxBounds~ to the same box and
+~minZoom~ 10 — in both ~admin-frontend/.../ui/components/MapLibre.tsx~ and
+~mobile-app/.../app/(drawer)/(tabs)/map.tsx~. Those constants and the
+~REGIONS~ entry in ~crop-mbtiles.py~ must be changed together.
+
+Two things that look like bugs but are not:
+
+- The stored zoom floor is 9 while the clients' floor is 10. tileserver-gl
+  renders a raster tile at zoom Z from vector tiles at Z-1, so dropping z9
+  makes z10 render blank. Always crop one zoom below the client minimum.
+- At z10 a little of the neighbouring provinces is visible. Tiles are
+  squares — a z9 tile spans ~0.7 degrees — so the data cannot be clipped to
+  the provincial outline. ~maxBounds~ is what stops users panning there.
+
+Run ~./crop-mbtiles.py --list~ to see the available regions; add new ones to
+the ~REGIONS~ dict in that script.
 
 ** Example usage
 The code below shows the sample usage of the application

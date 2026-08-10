@@ -33,8 +33,6 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 
 ### `device_key`
 
-> **Orphaned model:** not imported anywhere `app.main` reaches at import time — this table is not created by `create_all()` in production unless something else imports its module first. See the model's docstring/usage.
-
 | Column | Type | Notes |
 |---|---|---|
 | `id` | CHAR(32) | PK, has default |
@@ -185,6 +183,7 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `hashed_password` | VARCHAR | not null |
 | `email_verified` | BOOLEAN | not null, has default |
 | `terms_accepted_at` | DATETIME | — |
+| `must_change_password` | BOOLEAN | not null, has default |
 
 ### `activity_logs`
 
@@ -293,7 +292,6 @@ All tables use MariaDB. Schema is auto-created at startup — see [migrations.md
 | `message_type` | VARCHAR(8) | not null, has default |
 | `content` | TEXT | not null |
 | `is_deleted` | BOOLEAN | not null, has default |
-| `linked_message_id` | CHAR(32) | FK -> message.id |
 | `conversation_id` | CHAR(32) | FK -> conversation.id, indexed |
 | `sender_id` | CHAR(32) | FK -> user.id, indexed |
 
@@ -490,7 +488,7 @@ All tables use WatermelonDB's implicit `id` primary key (framework-managed, not 
 | `created_at` | number | ms epoch |
 | `updated_at` | number | ms epoch |
 | `is_deleted` | boolean | soft-delete |
-| `linked_message_id` | string | optional (added v8) — reply-thread self-reference |
+| `linked_message_id` | string | optional (added v8) — formerly paired a P2P message with its SMS duplicate for the dual-send UX (removed); column retained unused, no longer read or written |
 | `is_encrypted` | boolean | optional (added v9) |
 
 ### `calls`

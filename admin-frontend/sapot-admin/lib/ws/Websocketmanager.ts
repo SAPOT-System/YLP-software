@@ -8,6 +8,7 @@ import {
   markConversationMessagesAsRead,
 } from "../records/Createmessagereceipt";
 import { initAdminKeyPair } from "../adminEncryption";
+import { withBasePath } from "../basePath";
 
 /* =========================
    TYPES
@@ -74,7 +75,7 @@ function notifyHandlers(message: IncomingMessage) {
    TOKEN FETCH
 ========================= */
 export async function getToken(): Promise<string> {
-  const res = await fetch("/api/get-token");
+  const res = await fetch(withBasePath("/api/get-token"));
   if (!res.ok) throw new Error("Failed to fetch WS token");
   const data = await res.json();
   return data.token;
@@ -221,10 +222,7 @@ export async function connectWebSocket(userId: string) {
   try {
     const token = await getToken();
     const raw = process.env.NEXT_PUBLIC_WEBSOCKET_DOMAIN;
-    if (!raw) {
-      throw new Error("NEXT_PUBLIC_WEBSOCKET_DOMAIN is not configured.");
-    }
-    const wsDomain = raw
+    const wsDomain = (raw || `wss://${window.location.host}`)
       .replace(/^http:\/\//, "ws://")
       .replace(/^https:\/\//, "wss://");
 

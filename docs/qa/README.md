@@ -44,7 +44,7 @@ There is no dedicated E2E test suite doc yet. For manual multi-device verificati
 ## When something fails
 
 - Setup/connectivity failure (server won't start, mobile app can't reach server, CORS, mDNS discovery, GSM auth) → [TROUBLESHOOTING.md](../TROUBLESHOOTING.md)
-- Unexpected behavior that traces back to a documented decision → check [adr/](../adr/) before assuming it's a bug — e.g. no server migration tooling ([ADR 0002](../adr/0002-no-server-migration-tooling.md)) is intentional
+- Unexpected behavior that traces back to a documented decision → check [adr/](../adr/) before assuming it's a bug — e.g. LAN-first operation with no internet dependency ([ADR 0005](../adr/0005-lan-first-design.md)) is intentional
 - Terminology / domain concepts (roles, LAN modes, signalling, sync) → [GLOSSARY.md](../GLOSSARY.md)
 
 ## Filing bugs

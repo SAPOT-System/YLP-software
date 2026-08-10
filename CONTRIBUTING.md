@@ -67,6 +67,7 @@ The scope is prefixed with the component the change belongs to, so it's clear at
 - `gsm-*` — `GSM-module/`
 - `portal-*` — `captive-portal/`
 - `tileserver-*` — `tileserver/`
+- `deploy-*` — offline Docker bundle tooling in `deploy/` and `scripts/build-bundle.sh`
 - `docs-*` — repo-wide documentation not scoped to one component
 
 Pick the more specific part of the scope for the area actually touched, e.g. `feat(server-auth)`, `fix(mobile-sync)`, `docs(admin-dashboard)`.
