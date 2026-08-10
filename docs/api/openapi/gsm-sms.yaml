@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SAPOT Server — Gsm Sms
-  version: 0.0.2-beta.1
+  version: 0.1.0
 paths:
   /gsm/contact-unknown-user:
     post:

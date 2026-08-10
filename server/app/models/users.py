@@ -50,6 +50,7 @@ class User(UserBase, table=True):
     hashed_password: str
     email_verified : bool =  Field(default=False)
     terms_accepted_at: datetime | None = Field(default=None, nullable=True)
+    must_change_password: bool = Field(default=False, nullable=False)
 
     security_questions: List["UserSecurityQuestion"] = Relationship(
             back_populates="user",
@@ -251,6 +252,17 @@ class UserCreateThroughAdmin(UserCreate):
     terms_accepted: bool = True
 
 
+class BootstrapAdminCreate(UserCreate):
+    """Installation-only user payload. It deliberately defers consent to the operator."""
+
+    terms_accepted: bool = False
+
+    @field_validator("terms_accepted")
+    @classmethod
+    def must_accept_terms(cls, v: bool) -> bool:
+        return v
+
+
 class UserUpdate(SQLModel):
     username: str | None = Field(
         default=None, max_length=50, min_length=2
@@ -316,6 +328,10 @@ class UserPasswordUpdateNoOldPassword(SQLModel):
 
 
 class UserInfo(UserBase):
+    # Legacy rows can predate the current Philippine-phone validation rule.
+    # Keep validation strict on writes while allowing authenticated profile reads.
+    phone_number: str | None = None
+    email: str | None = None
     # (email, phone number, username, first name, last name, and id
     id: uuid.UUID
     email_verified: bool

@@ -1,6 +1,8 @@
 from typing import Annotated
+import logging
 import time
 from sqlalchemy import exists
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select, col
 from uuid import uuid4, UUID
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,6 +45,20 @@ router = APIRouter(
         404: {'description': 'Not Found'}
     }
 )
+
+# Reuses the "app" logger configured in main.py. Its formatters interpolate
+# user_id/action/entity_id/metadata_json, so every call must supply them or
+# the handler raises at format time and the record is dropped.
+logger = logging.getLogger("app")
+
+
+def _sync_log_extra(current_user: User, action: str) -> Dict[str, Any]:
+    return {
+        "user_id": str(current_user.id) if current_user else "ANONYMOUS",
+        "action": action,
+        "entity_id": None,
+        "metadata_json": {},
+    }
 
 
 
@@ -178,8 +194,7 @@ def cast_to_uuids(model, datum: dict):
     elif model is Message:
         if "sender_id" in datum: datum["sender_id"] = UUID(datum["sender_id"])
         if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
-        if "linked_message_id" in datum and datum["linked_message_id"]: datum["linked_message_id"] = UUID(datum["linked_message_id"])
-        
+
     elif model is Call:
         if "conversation_id" in datum: datum["conversation_id"] = UUID(datum["conversation_id"])
         if "initiator_id" in datum: datum["initiator_id"] = UUID(datum["initiator_id"])
@@ -260,10 +275,10 @@ async def push_local_data(
             """Returns False if the message doesn't exist — caller should skip the record.
 
             MessageReceipt has a hard FK on message.id (ON DELETE CASCADE). If the
-            parent message was never pushed to the server (e.g. a P2P-only message
-            delivered via TCP/WebRTC), inserting a receipt for it causes an
-            IntegrityError. Skipping is safe: the receipt will be re-tried on the
-            next sync once/if the parent message is pushed.
+            parent message has not reached the server yet, inserting its receipt
+            causes an IntegrityError. The mobile client keeps intentionally
+            withheld records dirty, so skipping remains safe: the receipt is
+            retried after the parent message is persisted.
             """
             if not message_id:
                 return False
@@ -344,10 +359,10 @@ async def push_local_data(
                     ensure_user_exists(datum.get("user_id"))
                 elif model is MessageReceipt:
                     ensure_user_exists(datum.get("user_id"))
-                    # Guard: skip receipts whose parent message doesn't exist on the
-                    # server. P2P-only messages (TCP/WebRTC) may never be pushed here,
-                    # so their receipts would violate the FK constraint.  The receipt
-                    # will be retried on the next sync once the message is pushed.
+                    # Guard against an out-of-order or legacy client push whose
+                    # parent message has not reached the server yet. The current
+                    # mobile client pushes message history independently of receipt
+                    # state and keeps withheld receipts dirty for a later retry.
                     if not ensure_message_exists(datum.get("message_id")):
                         continue
                 # --- END FK VALIDATION ---
@@ -416,7 +431,23 @@ async def push_local_data(
     except HTTPException as he:
         session.rollback()
         raise he
+    except SQLAlchemyError as e:
+        session.rollback()
+        # DB-level rejections (column overflow, FK/unique violations) used to be
+        # swallowed into a bare 500 with no server-side trace, which made a
+        # `message.content` overflow undiagnosable from the logs alone.
+        # `orig` carries the driver's own message (e.g. MariaDB 1406 "Data too
+        # long for column 'content'") — the part that actually identifies the
+        # failing column.
+        logger.exception(
+            "Sync push failed: %s: %s", type(e).__name__, getattr(e, "orig", e),
+            extra=_sync_log_extra(current_user, "sync_push_db_error"),
+        )
+        raise HTTPException(status_code=500, detail="Internal Sync Error")
     except Exception as e:
         session.rollback()
-        print(f"Sync Error: {e}")
+        logger.exception(
+            "Sync push failed: %s: %s", type(e).__name__, e,
+            extra=_sync_log_extra(current_user, "sync_push_error"),
+        )
         raise HTTPException(status_code=500, detail="Internal Sync Error")

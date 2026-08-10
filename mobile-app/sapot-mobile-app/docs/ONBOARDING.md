@@ -6,21 +6,18 @@ Welcome to SAPOT. This document orients you to where complexity lives and how to
 
 ## Codebase Weight Map
 
-Not all features are equal in size. Here's where the lines of code actually live:
+Not all features are equal in size, and the difference is large enough to change how you should
+read the codebase:
 
-| Feature | Lines | Files | Role |
-|---|---|---|---|
-| `features/shared/` | ~22 k | 166 | **Engine** — P2P runtime, encryption, DI, database |
-| `features/chat/` | ~7.5 k | 45 | Message threads, sync, key management |
-| `features/auth/` | ~6.2 k | 68 | Registration, login, guest flow |
-| `features/call/` | ~4.1 k | 35 | Audio/video call UI and lifecycle |
-| `features/sync/` | ~3.2 k | 16 | Background data sync with server |
-| `features/gps/` | ~0.7 k | 10 | Live location sharing (rescuers only) |
-| `features/settings/` | ~0.6 k | 5 | User preferences |
-| `features/announcements/` | ~0.4 k | 9 | Server-fetched announcement board |
-| `features/getting-started/` | ~0.4 k | 8 | Onboarding screens |
+- **`features/shared/` is the engine** — roughly **45 %** of all production code on its own. It is
+  not a utility bucket; it is the P2P runtime, encryption, DI and database layer.
+- **`chat/` and `auth/` are the heavyweight domain features**, together about as large as
+  everything else combined.
+- **`call/`, `debug/` and `sync/` are mid-sized**; `gps/`, `settings/`, `announcements/` and
+  `getting-started/` are small enough to read end-to-end in one sitting.
 
-`features/shared/` is ~50 % of all production code. It holds the entire runtime engine.
+Exact line and file counts, plus the command to regenerate them, live in
+[`ARCHITECTURE.md`](ARCHITECTURE.md#feature-structure) — that is the single canonical copy.
 
 ---
 
@@ -35,7 +32,16 @@ Not all features are equal in size. Here's where the lines of code actually live
 | **peer** | `shared/peer/` | `PeerService`, `PeerRepository`, `GuestUserRepository` |
 | **connection** | `shared/connection/` | `ConnectionService`, WebRTC, signaling, TCP/WS adapters, discovery |
 
-**Dependency rule:** a sub-domain may only import from itself and sub-domains *below* it. Domain features (`chat/`, `auth/`, etc.) depend on the engine — never the reverse. See `features/shared/README.md` for the one-page map.
+**Dependency rule:** a sub-domain may only import from itself and sub-domains *below* it. This
+holds strictly — `crypto/` and `peer/` do not import `connection/`.
+
+Domain features (`chat/`, `auth/`, etc.) depend on the engine. The reverse direction is the weaker
+rule and has known exceptions — `main-container.ts` must import every concrete type it wires, and
+three lower-layer files still reach up into domain features. They are listed in
+[`ARCHITECTURE.md`](ARCHITECTURE.md#engine-sub-domains-featuresshared); treat them as debt, not
+precedent.
+
+See `features/shared/README.md` for the one-page map.
 
 ---
 
@@ -58,9 +64,9 @@ These are the most complex parts of the codebase. Don't start here — come back
 
 | Area | Entry point | Why it's complex |
 |---|---|---|
-| `ConnectionService` | `shared/connection/services/connection-service.ts` | Central P2P facade. Three transport modes, WebRTC orchestration, TCP per-peer state, typed event bus. ~900 lines. |
-| `WebrtcAdapter` | `shared/connection/adapters/webrtc-adapter.ts` | RTCPeerConnection per peer, liveness probing, ICE restart backoff, local media controls. |
-| `MainContainer` | `shared/main-container.ts` | Single DI wiring point. Construction order is load-bearing; phase-gated `initialize()` uses branded tokens. |
+| `ConnectionService` | `shared/connection/services/connection-service.ts` | Central P2P facade. Three transport modes, WebRTC orchestration, TCP per-peer state, typed event bus. **~1 450 lines** — the largest file in the codebase, and well over the 800-line guideline. |
+| `WebrtcAdapter` | `shared/connection/adapters/webrtc-adapter.ts` | RTCPeerConnection per peer, plus local media controls. Liveness probing and ICE-restart backoff are already extracted to `LivenessMonitor` / `IceRestartController`. ~860 lines. |
+| `MainContainer` | `shared/main-container.ts` | Single DI wiring point (~640 lines). Construction order is load-bearing; phase-gated `initialize()` uses branded tokens. |
 | Crypto stack | `shared/crypto/` | NaCl box encryption over TCP + WS, at-rest encryption, key derivation, recovery. See `crypto-architecture` skill. |
 
 ---

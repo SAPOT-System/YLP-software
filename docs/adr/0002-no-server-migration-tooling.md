@@ -1,5 +1,7 @@
 # Server schema uses SQLModel `create_all()`, not a migration tool
 
+**Status:** Superseded by [ADR 0007](0007-alembic-for-server-migrations.md) — the project adopted Alembic. This record is retained for historical context; it does **not** describe how the server works today.
+
 ## Context
 
 The FastAPI server uses SQLModel/SQLAlchemy models as the schema source of truth. Schema changes need some mechanism to reach the running database. Options considered: adopt Alembic (SQLAlchemy's standard migration tool, with autogenerate, versioning, and up/down migrations) now, or defer it and apply schema changes by hand.
@@ -12,7 +14,7 @@ Use SQLModel's `create_db_and_tables()` (→ SQLAlchemy `metadata.create_all()`)
 
 ## Consequences
 
-- **No schema version tracking, no rollback.** If a manual DDL change breaks production, there is no recorded migration to revert — see [migrations.md](../database/migrations.md#operational-implications) for the full risk table.
+- **No schema version tracking, no rollback.** If a manual DDL change breaks production, there is no recorded migration to revert.
 - **Deploy ordering is manual and error-prone.** Deploying updated server code without first applying the matching `ALTER TABLE` causes runtime errors (missing column, type mismatch). This must be sequenced by hand on every deploy that changes a model.
 - **Contrast with the mobile app:** the mobile app's WatermelonDB uses a fully versioned, additive `schemaMigrations()` mechanism (see [migrations.md](../database/migrations.md#mobile-app-watermelondb)) that replays automatically on client start — the server intentionally does not have the equivalent discipline yet.
-- **This is tracked as technical debt, not a permanent decision.** [migrations.md](../database/migrations.md#recommendation-adopt-alembic) recommends adopting Alembic; this ADR should be superseded once that happens.
+- **This was tracked as technical debt, not a permanent decision.** Both predicted failure modes occurred (issues #174 and #270), and the project subsequently adopted Alembic — see [ADR 0007](0007-alembic-for-server-migrations.md), which supersedes this record.

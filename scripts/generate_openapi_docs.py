@@ -52,6 +52,8 @@ os.environ.setdefault("SERVER_ED25519_SEED", "00" * 32)
 # fragments already document /testing/* (useful for engineers running the
 # server locally with ENVIRONMENT=development), so we match that.
 os.environ.setdefault("ENVIRONMENT", "development")
+# Required at import time by app/api/testing.py whenever ENVIRONMENT=development.
+os.environ.setdefault("QA_API_TOKEN", "dummy-qa-token-for-doc-generation-only")
 
 sys.path.insert(0, str(SERVER_DIR))
 
@@ -72,8 +74,8 @@ yaml.add_representer(str, _yaml_str_presenter)
 # router's `prefix=` in server/app/api/*.py, cross-checked against which
 # paths currently live in which committed fragment.
 _RULES: list[tuple[str, "list[str] | None"]] = [
-    ("mikrotik-telemetry", ["/admin/router/"]),
-    ("admin", ["/admin/", "/admin"]),
+    ("mikrotik-telemetry", ["/api/admin/router/"]),
+    ("admin", ["/api/admin/", "/api/admin"]),
     ("auth-and-recovery", ["/auth/forgot-password/"]),
     ("authentication", ["/auth/"]),
     ("keys-and-encryption", ["/keys/", "/users/"]),

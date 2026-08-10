@@ -4,8 +4,8 @@ import { createConversation } from "@/lib/actions/conversations";
 import { createPeer } from "@/lib/actions/peers";
 import { db } from "@/lib/db";
 import { directConversationId } from "@/lib/directConversationId";
-import { pull, push, sync } from "@/lib/sync/syncEngine";
-import { connectWebSocket } from "@/lib/ws/Websocketmanager";
+import { push, sync } from "@/lib/sync/syncEngine";
+import { connectWebSocket, disconnectWebSocket } from "@/lib/ws/Websocketmanager";
 import { onMessage, sendChatMessage, sendSeen } from "@/lib/ws/Websocketmanager";
 import { fetchAndCachePeerKey, decryptFromPeer, ensureAdminKeysLoaded } from "@/lib/adminEncryption";
 import { markConversationMessagesAsRead } from "@/lib/records/Createmessagereceipt";
@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader } from "lucide-react";
 import { initSessionCleanup } from "@/lib/sessionCleanup";
 import { v4 as uuidv4 } from "uuid";
+import { withBasePath } from "@/lib/basePath";
 
 export function usePolling(callback: () => Promise<void>, interval: number) {
   const isRunning = useRef(false);
@@ -44,6 +45,7 @@ export default function Messages() {
   const [messages, setMessages] = useState<any[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversationError, setConversationError] = useState<string | null>(null);
 	const [loadingConversations, setLoadingConversations] = useState(true);
 	const [loadingMessages, setLoadingMessages] = useState(false);
 	const [initializing, setInitializing] = useState(true); const [onlinePeers, setOnlinePeers] = useState<Set<string>>(new Set());
@@ -52,6 +54,7 @@ export default function Messages() {
   const activeConversationRef = useRef<any>(null);
   const userIdRef = useRef<string | null>(null);
   const currentUserInfoRef = useRef<any>(null);
+  const currentUserRequestRef = useRef<Promise<any> | null>(null);
 
   useEffect(() => { activeConversationRef.current = activeConversation; }, [activeConversation]);
   useEffect(() => { userIdRef.current = userid; }, [userid]);
@@ -194,6 +197,7 @@ export default function Messages() {
 
 		return () => {
 			unsubscribe?.();
+			disconnectWebSocket();
 		};
 
 	}, []);
@@ -202,13 +206,35 @@ export default function Messages() {
     if (userIdRef.current && currentUserInfoRef.current) {
       return { id: userIdRef.current, ...currentUserInfoRef.current };
     }
-    const res = await fetch("/api/get-current-user");
-    const data = await res.json();
-    setUserId(data.id);
-    setCurrentUserInfo(data);
-    userIdRef.current = data.id;
-    currentUserInfoRef.current = data;
-    return data;
+    if (currentUserRequestRef.current) {
+      return currentUserRequestRef.current;
+    }
+
+    const request = (async () => {
+      const res = await fetch(withBasePath("/api/get-current-user"));
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(`Unable to load the current user (HTTP ${res.status}).`);
+      }
+
+      if (!data || typeof data.id !== "string" || !data.id) {
+        throw new Error("The current-user response did not include a valid ID.");
+      }
+
+      setUserId(data.id);
+      setCurrentUserInfo(data);
+      userIdRef.current = data.id;
+      currentUserInfoRef.current = data;
+      return data;
+    })();
+
+    currentUserRequestRef.current = request;
+    try {
+      return await request;
+    } finally {
+      currentUserRequestRef.current = null;
+    }
   }
 
   function refreshConvos() {
@@ -262,76 +288,6 @@ export default function Messages() {
     }
   }
 
-  useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
-
-    (async () => {
-      const user = await ensureCurrentUser();
-      await connectWebSocket(user.id);
-
-      try { await sync(); } catch (e) { console.warn("sync error", e); }
-
-      await hydratePeers(user.id);
-      const convos = await getConversations();
-      setConversations(convos);
-
-      unsubscribe = onMessage(async (msg: any) => {
-        // ── Incoming chat message ──────────────────────────────────────────
-        if (msg.type === "chat") {
-          const current = activeConversationRef.current;
-          if (msg.data.conversationId === current?.id) {
-            await loadMessages(msg.data.conversationId);
-            // Conversation is open → immediately notify sender we've seen it
-            const senderId = msg.data.from ?? msg.data.from_user;
-            if (userIdRef.current && senderId && senderId !== userIdRef.current) {
-              sendSeen({ conversationId: current.id, to: senderId });
-              await markConversationMessagesAsRead({
-                conversation_id: current.id,
-                current_user_id: userIdRef.current,
-              });
-            }
-          }
-          const updated = await getConversations();
-          setConversations(updated);
-        }
-
-        // ── server-ack: server confirms our message reached the recipient ──
-        // Update receipt status → "sent", reload to show the checkmark
-        if (msg.type === "server-ack" || msg.type === "ack") {
-          const current = activeConversationRef.current;
-          if (current) await loadMessages(current.id);
-          const updated = await getConversations();
-          setConversations(updated);
-        }
-
-        // ── seen: the other person opened the conversation ─────────────────
-        // Their client already updated receipts via handleSeen in WS manager;
-        // we just need to re-render so the "Seen" label appears.
-        if (msg.type === "seen") {
-          const current = activeConversationRef.current;
-          if (current) await loadMessages(current.id);
-          const updated = await getConversations();
-          setConversations(updated);
-        }
-
-        // ── status-update: peer online/offline ────────────────────────────
-        if (msg.type === "status-update") {
-          const { user_id, status } = msg;
-          setOnlinePeers((prev) => {
-            const next = new Set(prev);
-            if (status === "online") next.add(user_id);
-            else next.delete(user_id);
-            return next;
-          });
-          const peer = await db.peers.get(user_id);
-          if (peer) await db.peers.put({ ...peer, is_online: status === "online" });
-        }
-      });
-    })();
-
-    return () => { unsubscribe?.(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   async function hydratePeers(currentUserId: string) {
     const participants = await db.conversation_participants.toArray();
     const otherIds = [...new Set(
@@ -344,7 +300,7 @@ export default function Messages() {
         const existing = await db.peers.get(id);
         if (existing?.username) return;
         try {
-          const res = await fetch(`/api/search-user/by-id?identifier_string=${id}`, { method: "POST" });
+          const res = await fetch(withBasePath(`/api/search-user/by-id?identifier_string=${id}`), { method: "POST" });
           const fetched = await res.json();
           if (fetched?.id) {
             await db.peers.put({
@@ -441,7 +397,7 @@ export default function Messages() {
   async function search(identifier: string) {
     setSearchQuery(identifier);
     if (identifier === "") { setMatchedUsers([]); return; }
-    const fet = await fetch(`/api/search-user?identifier_string=${identifier}`, { method: "POST" });
+    const fet = await fetch(withBasePath(`/api/search-user?identifier_string=${identifier}`), { method: "POST" });
     const tojson = await fet.json();
     setMatchedUsers(tojson.res || []);
   }
@@ -470,7 +426,7 @@ export default function Messages() {
             let peer = await db.peers.get(p.user_id);
             if (!peer || !peer.username) {
               try {
-                const res = await fetch(`/api/search-user/by-id?identifier_string=${p.user_id}`, { method: "POST" });
+                const res = await fetch(withBasePath(`/api/search-user/by-id?identifier_string=${p.user_id}`), { method: "POST" });
                 const fetchedUser = await res.json();
                 if (fetchedUser) {
                   const peerData = {
@@ -536,6 +492,10 @@ export default function Messages() {
   }
 
   async function createConversationIfNotExists(user: any) {
+    if (!db.isOpen()) {
+      await db.open();
+    }
+
     const userIDB = user.id;
     const userExists = await db.peers.get(userIDB);
     if (!userExists) {
@@ -572,7 +532,7 @@ export default function Messages() {
         return;
       }
 
-      await createConversation({ id: conversationId, conversation_type: "solo" });
+      await createConversation({ id: conversationId, conversation_type: "direct" });
       await createConversationParticipant({ id: uuidv4(), conversation_id: conversationId, user_id: currentUserId });
       await createConversationParticipant({ id: uuidv4(), conversation_id: conversationId, user_id: userIDB });
       await push();
@@ -630,6 +590,12 @@ export default function Messages() {
             )}
           </div>
 
+          {conversationError && (
+            <p role="alert" className="mt-2 text-xs text-red-600">
+              {conversationError}
+            </p>
+          )}
+
           {/* Search Results Dropdown */}
           {matchedUsers.length > 0 && (
             <div className="absolute left-4 right-4 top-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 z-10 overflow-hidden">
@@ -638,9 +604,18 @@ export default function Messages() {
                   <button
                     key={user.id}
                     onClick={async () => {
-                      await createConversationIfNotExists(user);
-                      setSearchQuery("");
-                      setMatchedUsers([]);
+                      try {
+                        await createConversationIfNotExists(user);
+                        setSearchQuery("");
+                        setMatchedUsers([]);
+                      } catch (error) {
+                        console.error("Failed to start conversation:", error);
+                        setConversationError(
+                          error instanceof Error
+                            ? error.message
+                            : "Unable to start the conversation."
+                        );
+                      }
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left transition-colors"
                   >

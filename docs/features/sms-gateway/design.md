@@ -28,6 +28,25 @@ Main Server (FastAPI)
                                                              SIM800L / SIM900
 ```
 
+```mermaid
+sequenceDiagram
+    participant Main as Main Server
+    participant GSM as GSM FastAPI service
+    participant Ard as Arduino / modem
+
+    Note over Main,Ard: Outbound SMS
+    Main->>GSM: POST /gsm/send { phone, message }
+    GSM->>GSM: encode SEND:<phone>:<message> frame
+    GSM->>Ard: serial write (SEND frame)
+    Ard-->>GSM: ACK:<message_id> or ERR:<code>:<detail>
+    GSM->>GSM: mark sms_outbox delivered/failed
+
+    Note over Main,Ard: Inbound SMS
+    Ard->>GSM: serial RECV:<from_number>:<message_body>
+    GSM->>Main: POST /gsm/inbound { from, body }<br/>header X-GSM-Secret
+    Main->>Main: verify X-GSM-Secret, process inbound SMS
+```
+
 ---
 
 ## GSM FastAPI Service — `GSM-module/GSM-fastapi/`
@@ -150,6 +169,29 @@ if not row or not bcrypt.check(otp, row.otp_hash):
 
 row.used = True
 db.commit()
+```
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Main as Main Server
+    participant GSM as GSM FastAPI service
+    participant Ard as Arduino / modem
+
+    User->>Main: POST /gsm/otp/request { phone }
+    Main->>Main: generate 6-digit OTP, bcrypt hash,<br/>upsert phone_verification (expires_at +10min)
+    Main->>GSM: POST /gsm/send { phone, "Your SAPOT code is..." }
+    GSM->>Ard: serial SEND frame
+    Ard-->>User: SMS delivered
+
+    User->>Main: POST /gsm/otp/verify { phone, otp }
+    Main->>Main: lookup unused, unexpired phone_verification row
+    alt otp matches hash
+        Main->>Main: mark used = true
+        Main-->>User: 200 OK
+    else no match / expired / not found
+        Main-->>User: 401
+    end
 ```
 
 ### `POST /gsm/inbound` (Webhook)

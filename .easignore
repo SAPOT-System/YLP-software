@@ -1,0 +1,33 @@
+# Upload only the mobile application.
+*
+!mobile-app
+mobile-app/*
+!mobile-app/sapot-mobile-app
+!mobile-app/sapot-mobile-app/**
+
+# Exclude local/generated mobile files.
+mobile-app/sapot-mobile-app/node_modules/
+mobile-app/sapot-mobile-app/.expo/
+mobile-app/sapot-mobile-app/dist/
+mobile-app/sapot-mobile-app/dev-logs/
+mobile-app/sapot-mobile-app/.kotlin/
+mobile-app/sapot-mobile-app/.ruff_cache/
+mobile-app/sapot-mobile-app/.claude/
+mobile-app/sapot-mobile-app/.agents/
+mobile-app/sapot-mobile-app/e2e/
+mobile-app/sapot-mobile-app/assets/certs/
+
+# Never upload local secrets or credentials.
+mobile-app/sapot-mobile-app/**/.env
+mobile-app/sapot-mobile-app/**/.env.*
+!mobile-app/sapot-mobile-app/**/.env.example
+mobile-app/sapot-mobile-app/**/*.jks
+mobile-app/sapot-mobile-app/**/*.keystore
+mobile-app/sapot-mobile-app/**/*.p8
+mobile-app/sapot-mobile-app/**/*.p12
+mobile-app/sapot-mobile-app/**/*.key
+mobile-app/sapot-mobile-app/**/*.mobileprovision
+
+mobile-app/sapot-mobile-app/android/
+mobile-app/sapot-mobile-app/ios/
+

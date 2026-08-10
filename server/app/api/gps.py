@@ -14,12 +14,14 @@ import uuid
 
 
 from app.db_operations.token import get_current_user, get_current_user_rescuer
-from app.db_operations.websockets import authenticate_websocket
+from app.db_operations.user_search import _resolve_role
+from app.db_operations.websockets import authenticate_websocket, WebSocketAuthError
 from app.models.rescuer import Rescuer
 from app.models.users import User
 from app.models.location import UserLocation
 from app.db_operations.GPS_manager import gps_manager
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix='/gps',
@@ -37,7 +39,12 @@ async def stream_gps_location(
     token: str,
     session: SessionDep
 ):
-    authed_id = await authenticate_websocket(websocket, token)
+    try:
+        authed_id = await authenticate_websocket(websocket, token)
+    except WebSocketAuthError:
+        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
+        return
+
     if str(authed_id) != user_id:
         await websocket.close(code=1008)
         return
@@ -74,7 +81,8 @@ async def stream_gps_location(
                 "latitude": data["lat"],
                 "longitude": data["lng"],
                 "timestamp": new_location.timestamp.isoformat(),
-                "username": user.username
+                "username": user.username,
+                "role": _resolve_role(user)
             }
 
             # 5. Push to all Rescuers in real-time
@@ -118,23 +126,25 @@ def get_all_latest_locations(
     )
     
     statement = (
-        select(UserLocation, User.username)
+        select(UserLocation, User)
         .join(User, User.id == UserLocation.user_id)
-        .join(subquery, (UserLocation.user_id == subquery.c.user_id) & 
+        .join(subquery, (UserLocation.user_id == subquery.c.user_id) &
                        (UserLocation.timestamp == subquery.c.max_ts))
     )
 
     locations = session.exec(statement).all()
 
-    # Format for the frontend (React Native Map)
+    # Format for the frontend (React Native Map). `role` lets the map clients
+    # draw rescuers differently from regular users without a second request.
     return [
         {
             "user_id": loc.user_id,
             "latitude": loc.latitude,
             "longitude": loc.longitude,
             "timestamp": loc.timestamp,
-            "username": username
-        } for loc, username in locations
+            "username": user.username,
+            "role": _resolve_role(user)
+        } for loc, user in locations
     ]
 
 @router.get("/history/{user_id}")
@@ -169,7 +179,12 @@ async def monitor_live_feed(
     token: str,
     session: SessionDep,
 ):
-    authed_id = await authenticate_websocket(websocket, token)
+    try:
+        authed_id = await authenticate_websocket(websocket, token)
+    except WebSocketAuthError:
+        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
+        return
+
     if str(authed_id) != rescuer_id:
         await websocket.close(code=1008)
         return

@@ -90,7 +90,7 @@ features/<name>/
 
 ### AppError
 
-All errors are wrapped in `AppError` (`features/shared/errors/app-error.ts`) before being logged or rethrown:
+All errors are wrapped in `AppError` (`features/shared/core/errors/app-error.ts`) before being logged or rethrown:
 
 ```typescript
 export class AppError extends Error {
@@ -202,7 +202,7 @@ const chatLog       = logger.createLogger({ scope: "chat" });
 
 Runtime filter: `EXPO_PUBLIC_ENABLED_LOG_MODULES=connection,network,background`
 
-Unset = all scopes enabled. File logging is always on in production; opt-in in dev via `EXPO_PUBLIC_LOG_TO_FILE=1`. Laptop collector runs via `npm run log-server` in dev.
+Unset = all scopes enabled. File logging is always on in production; opt-in in dev via `EXPO_PUBLIC_LOG_TO_FILE=1`. Laptop collector runs via `pnpm run log-server` in dev.
 
 ---
 
@@ -235,4 +235,10 @@ Global mocks (WatermelonDB, WebRTC, TCP, Zeroconf, Expo modules, react-native-pa
 
 Path alias `@/` maps to the project root.
 
-TODO: CLAUDE.md requires 80% test coverage. Actual coverage is well below this — only ~6 test files exist. Factory infrastructure is in place but underused. No CI enforcement of the coverage threshold is visible.
+There are ~130 test files across `features/`, `config/`, `components/` and `app/`.
+
+**No coverage threshold is enforced.** `.github/workflows/expo-android-ci.yml` runs `pnpm run
+lint`, `pnpm run --if-present typecheck`, `pnpm test -- --runInBand --forceExit` and
+`expo-doctor` — none of them with `--coverage`. A green CI run therefore says nothing about the
+80 % figure in the repo-wide guidance. Measure it deliberately with `npx jest --coverage` when it
+matters.

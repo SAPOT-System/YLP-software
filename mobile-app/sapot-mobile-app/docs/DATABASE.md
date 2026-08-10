@@ -21,7 +21,7 @@ Stores both the current authenticated user and their peers/contacts.
 | `email` | string | Yes | Current user only |
 | `phone_number` | string | Yes | Current user only |
 | `email_verified` | boolean | Yes | Current user only |
-| `phone_number_verified` | boolean | Yes | Current user only |
+| `phone_number_verified` | boolean | Yes | Current user only. Declared twice in `schema.ts`'s column array — a source-level duplicate, harmless but worth removing |
 | `role` | string | Yes | `"admin"` \| `"rescuer"` \| `"user"` — sourced from server on upsert |
 | `is_guest` | boolean | Yes | Whether the peer is a guest account |
 | `last_seen_at` | number | Yes | Unix ms of last observed activity. Server source: `UserActivity.last_active` (via `GET /user-utils/search-user/{id}`, refreshed when the peer is offline); LAN fallback: stamped on mDNS online/offline. Drives the "Last seen …" header label. |
@@ -46,7 +46,7 @@ A conversation groups messages between participants.
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | `id` | string | — | UUID |
-| `type` | string | No | `"direct"` \| `"group"` (ConversationType) |
+| `type` | string | No | `"direct"` \| `"group"` \| `"solo"` (legacy admin-created two-person) \| `"sms"` (GSM-relayed) |
 | `title` | string | Yes | Used for group conversations |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
@@ -77,11 +77,13 @@ Individual chat messages within a conversation.
 | `id` | string | — | UUID |
 | `conversation` | string | No | FK → `conversations.id` |
 | `sender` | string | No | FK → `peers.id` |
-| `message_type` | string | No | `"text"` \| `"file"` \| `"call_log"` |
+| `message_type` | string | No | `"text"` \| `"file"` \| `"call_log"` \| `"sms"` |
 | `content` | string | No | Message text or file reference |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
 | `is_deleted` | boolean | No | Soft delete |
+| `linked_message_id` | string | Yes | Added schema v8. Self-referencing FK → `messages.id` for reply threads |
+| `is_encrypted` | boolean | Yes | Added schema v9. Marks NaCl-box-encrypted content |
 
 ---
 
@@ -93,7 +95,7 @@ Delivery and read status per message per user.
 | `id` | string | — | UUID |
 | `message` | string | No | FK → `messages.id` |
 | `user` | string | No | FK → `peers.id` |
-| `status` | string | No | `"sent"` \| `"delivered"` \| `"seen"` (MessageStatusType) |
+| `status` | string | No | MessageStatusType — `"sending"` \| `"sent"` \| `"not_sent"` \| `"delivered"` \| `"read"` |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
 | `is_deleted` | boolean | No | Soft delete |
@@ -138,11 +140,16 @@ Which users participated in each call.
 
 | Enum | Values |
 |---|---|
-| `MessageType` | `"text"` \| `"file"` \| `"call_log"` |
-| `MessageStatusType` | `"sent"` \| `"delivered"` \| `"seen"` |
+| `MessageType` | `"text"` \| `"file"` \| `"call_log"` \| `"sms"` |
+| `MessageStatusType` | `"sending"` \| `"sent"` \| `"not_sent"` \| `"delivered"` \| `"read"` |
 | `CallType` | `"audio"` \| `"video"` |
 | `CallStatus` | `"completed"` \| `"missed"` \| `"rejected"` |
-| `ConversationType` | `"direct"` \| `"group"` |
+| `ConversationType` | `"direct"` \| `"group"` \| `"solo"` (legacy admin-created two-person) \| `"sms"` (GSM-relayed) |
+
+> The wire protocol and the database use **different names for the read receipt**: the WebRTC
+> data-channel message is `seen` (see
+> [CONNECTION_MESSAGES.md](CONNECTION_MESSAGES.md#seen--read-receipt)), while the value persisted
+> in `message_receipts.status` is `"read"`. Don't assume the strings match across the two layers.
 
 ---
 
@@ -161,9 +168,15 @@ calls ──< call_participants >── peers
 ## Sync
 
 WatermelonDB uses a **pull/push sync** pattern with the server:
-- `GET /sync/pull?last_pulled_at=<ms>&schema_version=<n>` — fetches changes since last sync
+- `GET /sync/pull?last_pulled_at=<ms>&schema_version=<n>` — fetches changes since last sync.
+  Page size is a server-side default (100 per table), not a client parameter; the client pages
+  through `has_more`/`next_cursor` until every table is drained.
 - `POST /sync/push` — pushes local created/updated/deleted records
+
+`features/sync/api/sync.api.ts` also sends a `schema_version` query param, but the server
+does **not** read it — the parameter is commented out in `server/app/api/sync.py`, so FastAPI
+discards it. See [API.md](API.md#sync--sync).
 
 All synced tables use `is_deleted` (soft delete) and `updated_at` for conflict resolution.
 
-Schema and migrations: `features/shared/database/schema.ts`, `features/shared/database/migrations.ts`
+Schema and migrations: `features/shared/core/database/schema.ts`, `features/shared/core/database/migrations.ts`

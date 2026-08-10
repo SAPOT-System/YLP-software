@@ -21,7 +21,7 @@ from app.version import __version__
 
 from app.api import gsm, user_utils
 from app.db_operations.activity import activity_tracking_middleware
-from app.db_operations.auth import SessionDep, create_db_and_tables
+from app.db_operations.auth import SessionDep
 from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, public_chat, mikrotik, captive_portal, download
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "production")
@@ -52,7 +52,8 @@ async def lifespan(app: FastAPI):
     import redis.asyncio as aioredis
     from app.db_operations.connection_manager import manager
 
-    create_db_and_tables()
+    # Schema is managed by Alembic migrations (server/alembic.ini), run as a
+    # deploy step (see runserver.sh) before the app starts — not created here.
 
     # existing worker
     threading.Thread(
@@ -159,6 +160,29 @@ logger.addHandler(json_handler)
 text_fmt = logging.Formatter("%(asctime)s | %(levelname)s | USER: %(user_id)s | ACTION: %(action)s | %(message)s")
 text_handler.setFormatter(text_fmt)
 logger.addHandler(text_handler)
+
+
+class UvicornWebSocket403Filter(logging.Filter):
+    """Downgrade uvicorn's own `"WebSocket ... " 403` access line.
+
+    uvicorn logs this INFO-level line (on "uvicorn.error") for every
+    WebSocket handshake that closes before being accepted — which includes
+    our routine, expected auth rejections (invalid/expired token). Those
+    rejections are already logged once, with more context, by the route
+    handlers (see app/api/peer_connection.py, app/api/gps.py). Without this
+    filter the same rejection is reported twice, at two different
+    severities, drowning genuine faults in access-log noise (#326).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "uvicorn.error":
+            return True
+        if "WebSocket" in record.msg and record.msg.rstrip().endswith("403"):
+            return False
+        return True
+
+
+logging.getLogger("uvicorn.error").addFilter(UvicornWebSocket403Filter())
 
 from uuid import UUID, uuid4
 from sqlmodel import Session

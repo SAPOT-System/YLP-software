@@ -3,6 +3,7 @@
 import { clearSessionData } from '@/lib/sync/collectChanges';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { withBasePath } from '@/lib/basePath';
 
 export async function loginAction(prevState: any, formData: FormData) {
   await clearSessionData();
@@ -17,7 +18,7 @@ export async function loginAction(prevState: any, formData: FormData) {
   loginData.append('password', password as string);
 
   try {
-    const response = await fetch(`${process.env.API_DOMAIN}/admin/login`, {
+    const response = await fetch(`${process.env.API_DOMAIN}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: loginData,
@@ -84,7 +85,7 @@ export async function logout() {
   const cookieStore = await cookies();
   cookieStore.delete('auth_token'); // or whatever your cookie name is
 	try {
-		await fetch('/api/logout', {method: "POST"}); 
+		await fetch(withBasePath('/api/logout'), {method: "POST"});
 	} catch {}
   redirect('/');
 }

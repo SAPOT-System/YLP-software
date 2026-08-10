@@ -132,6 +132,30 @@ const isModuleEnabled = (module: string) => {
   return ENABLED_MODULES.indexOf(module) + 1;
 };
 
+const VALID_LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
+type LogLevel = (typeof VALID_LOG_LEVELS)[number];
+
+const isValidLogLevel = (value: string): value is LogLevel =>
+  (VALID_LOG_LEVELS as readonly string[]).includes(value);
+
+// Env-driven severity floor (EXPO_PUBLIC_LOG_LEVEL), mirroring the module
+// filter's env-driven pattern. Falls back to the default (debug in dev, error
+// in prod) with a single warning on an unrecognised value, rather than
+// silently disabling logging.
+const resolveLogLevel = (): LogLevel => {
+  const envLevel = process.env.EXPO_PUBLIC_LOG_LEVEL;
+  const defaultLevel: LogLevel = __DEV__ ? "debug" : "error";
+  if (!envLevel) return defaultLevel;
+  if (isValidLogLevel(envLevel)) return envLevel;
+
+  console.warn(
+    `[logger] invalid EXPO_PUBLIC_LOG_LEVEL "${envLevel}", falling back to "${defaultLevel}"`,
+  );
+  return defaultLevel;
+};
+
+const LOG_LEVEL = resolveLogLevel();
+
 export const createScopedLogger = (scope: string) => {
   const scoped = baseLogger.extend(scope);
 
@@ -169,7 +193,7 @@ type ReactotronTransportProps = {
 };
 
 const baseLogger = logger.createLogger({
-  severity: __DEV__ ? "debug" : "error",
+  severity: LOG_LEVEL,
   transport: [
     ...(__DEV__
       ? [

@@ -10,7 +10,7 @@ hookLog.debug("[use-call-lifecycle] module loaded");
 
 export type CallState =
   | "calling" | "answering" | "connected"
-  | "reconnecting" | "ended" | "no-answer" | "busy";
+  | "reconnecting" | "ended" | "no-answer" | "busy" | "rejected";
 
 export function useCallLifecycle(params: {
   callService: CallService;
@@ -30,6 +30,7 @@ export function useCallLifecycle(params: {
 
   const [callState, setCallState] = useState<CallState>("calling");
   const hasTerminated = useRef(false);
+  const wasRejected = useRef(false);
 
   const onCallEndedRef = useRef(onCallEnded);
   onCallEndedRef.current = onCallEnded;
@@ -52,27 +53,39 @@ export function useCallLifecycle(params: {
     [callService, peerId, isMinimized]
   );
 
-  // call-ready + call-busy
+  // The CallService owns call-ready so it cannot be lost while the screen is
+  // mounting. UI lifecycle only reacts to a busy response here.
   useEffect(() => {
     if (!peerId || !callType) return;
-    const callReadyHandler = (incomingPeerId: string) => {
-      if (incomingPeerId !== peerId) return;
-      callLog.info("[CallContext] Starting call");
-      callService.startCall(callType, peerId);
-    };
     const callBusyHandler = (incomingPeerId: string) => {
       if (incomingPeerId !== peerId) return;
       if (connectionService.shouldIgnoreCallBusy(incomingPeerId)) return;
       callLog.info("[CallContext] peer is busy", { peerId });
       setCallState("busy");
     };
-    connectionService.on("call-ready", callReadyHandler);
     connectionService.on("call-busy", callBusyHandler);
     return () => {
-      connectionService.off("call-ready", callReadyHandler);
       connectionService.off("call-busy", callBusyHandler);
     };
-  }, [callService, connectionService, peerId, callType]);
+  }, [connectionService, peerId, callType]);
+
+  // Remote call-rejected (declined) — dedicated UI state, distinct from generic call-ended
+  useEffect(() => {
+    if (!peerId) return;
+    const handler = (payload: { peerId: string }) => {
+      if (payload.peerId !== peerId) return;
+      callLog.info("[CallContext] call › rejected", { peerId });
+      wasRejected.current = true;
+      // Mark terminated so a connection drop racing the follow-up call-ended
+      // message (e.g. peer-disconnected) can't override this back to "ended".
+      hasTerminated.current = true;
+      setCallState("rejected");
+    };
+    connectionService.on("call-rejected", handler);
+    return () => {
+      connectionService.off("call-rejected", handler);
+    };
+  }, [connectionService, peerId]);
 
   // Remote call-ended (stale-callId guard + finalize)
   useEffect(() => {
@@ -98,7 +111,11 @@ export function useCallLifecycle(params: {
       } catch (error) {
         uiLog.error("[CallContext] Error in remote finalize", { error });
       }
-      setCallState(payload.status === "missed" ? "no-answer" : "ended");
+      // A preceding call-rejected event already set the terminal UI state — don't
+      // clobber "rejected" back to the generic "ended" display.
+      if (!wasRejected.current) {
+        setCallState(payload.status === "missed" ? "no-answer" : "ended");
+      }
     };
     connectionService.on("call-ended", handler);
     return () => {
@@ -111,8 +128,22 @@ export function useCallLifecycle(params: {
     if (!peerId) return;
     const onReconnecting = (id: string) => {
       if (id !== peerId) return;
-      callLog.info("[CallContext] call › reconnecting", { peerId });
-      setCallState("reconnecting");
+      // "Reconnecting" is only meaningful for a call that reached "connected".
+      // The connection layer also emits call-reconnecting for plain connect
+      // retries (adapter evicted for retry / initial ICE restart), which happen
+      // while we are still ringing. Entering "reconnecting" from "calling" is a
+      // dead end: it cancels the 30s no-answer timeout (armed only in "calling")
+      // and no further event resolves it once the retries are exhausted, so the
+      // room stays pinned on "Reconnecting…". Ignore it outside "connected" —
+      // that also stops it from resurrecting a terminal state.
+      setCallState((prev) => {
+        if (prev !== "connected" && prev !== "reconnecting") {
+          callLog.info("[CallContext] call › reconnect signal ignored", { peerId, callState: prev });
+          return prev;
+        }
+        callLog.info("[CallContext] call › reconnecting", { peerId });
+        return "reconnecting";
+      });
     };
     const onPeerReconnected = (id: string) => {
       if (id !== peerId) return;
@@ -151,20 +182,24 @@ export function useCallLifecycle(params: {
     return () => clearTimeout(timer);
   }, [callState, terminate]);
 
-  // Auto-navigate away on "ended" (3s delay)
+  // Auto-navigate away on "ended"/"rejected" (3s delay)
   useEffect(() => {
-    if (callState !== "ended") return;
-    uiLog.info("[CallContext] call › ended", { peerId });
+    if (callState !== "ended" && callState !== "rejected") return;
+    uiLog.info("[CallContext] call › ended", { peerId, callState });
     const timer = setTimeout(() => {
       onCallEndedRef.current();
     }, 3000);
     return () => clearTimeout(timer);
   }, [callState, peerId]);
 
-  const resetTerminated = useCallback(() => { hasTerminated.current = false; }, []);
+  const resetTerminated = useCallback(() => {
+    hasTerminated.current = false;
+    wasRejected.current = false;
+  }, []);
   const resetLifecycle = useCallback(() => {
     setCallState("calling");
     hasTerminated.current = false;
+    wasRejected.current = false;
   }, []);
 
   return { callState, setCallState, terminate, resetTerminated, resetLifecycle };

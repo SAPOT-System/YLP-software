@@ -34,6 +34,12 @@ View live logs:
 sudo journalctl -u server-main-api -f
 ```
 
+Scheduled database backup events are also in journald:
+
+- `sudo journalctl -u sapot-db-backup.service --since '7 days ago' --no-pager` records each scheduled backup. `[PASS]` confirms the dump and any off-host copy. `[WARN]` means a lifecycle operation held the lock or the off-host drive was absent, leaving the on-host dump intact. `[ERROR]` means no backup was produced.
+
+Nothing watches these entries. A backup that stops running is noticed only when someone reads the journal or runs `doctor.sh`, whose `db-backup` row fails once the newest dump is older than `SAPOT_BACKUP_MAX_AGE_HOURS` (default 36). Since "MariaDB corrupted with no recent backup" is a SEV1 in [incident-response.md](incident-response.md), treat the weekly check in [maintenance.md](maintenance.md#recurring-schedule) as load-bearing rather than routine.
+
 > **TODO (human input required):** Confirm whether JSON structured logging or rotating file logging is enabled, and document the log level configuration.
 
 ---
@@ -63,10 +69,10 @@ The GSM module logs to `GSM-module/GSM-fastapi/sapot.log`. Rotate or clear this 
 No dedicated health-check endpoints are documented. The Nginx proxy (port 443 → Gunicorn :8000) can be used as a liveness check:
 
 ```bash
-curl -k https://localhost/auth/exists?email=probe@example.com
+curl -k https://localhost/auth/exists?identifier=probe@example.com
 ```
 
-A 200 or 404 response confirms the stack is reachable.
+A 200 response with `{"exists": true/false}` confirms the stack is reachable.
 
 ---
 

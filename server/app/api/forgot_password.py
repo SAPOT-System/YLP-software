@@ -334,7 +334,9 @@ def can_reset_password(token: str, session: SessionDep):
 
 
 class PasswordResetRequest(SQLModel):
-    new_password: str = Field(min_length=8)
+    # Bounds match UserCreate.password so set_user_password rejects nothing
+    # here that Pydantic has not already turned into a 422.
+    new_password: str = Field(min_length=8, max_length=128)
     wrapped_blob: Optional[str] = None
     recovery_token: Optional[str] = None
 
@@ -531,6 +533,9 @@ def get_security_question(
         session: SessionDep
 ):
     current_user = get_user(identifier, session)
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     questions = session.exec(
         select(UserSecurityQuestion).where(UserSecurityQuestion.user_id == current_user.id)
     ).all()

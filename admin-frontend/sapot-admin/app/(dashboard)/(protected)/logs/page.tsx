@@ -5,6 +5,7 @@ import ReusableTable from "@/ui/dashboard/reusable-table";
 import { useEffect, useState } from "react";
 import Modal from "@/ui/dashboard/modal";
 import { XIcon, SearchIcon } from "lucide-react";
+import { withBasePath } from "@/lib/basePath";
 
 type Log = {
   id: string;
@@ -46,7 +47,7 @@ export default function LogsPage() {
       setLoading(true);
 
       const res = await fetch(
-        `/api/get-logs?page=${page}&size=${size}&keyword=${debouncedKeyword}`
+        withBasePath(`/api/get-logs?page=${page}&size=${size}&keyword=${debouncedKeyword}`)
       );
 
       const json = await res.json();
@@ -151,5 +152,4 @@ export default function LogsPage() {
     </div>
   );
 }
-
 

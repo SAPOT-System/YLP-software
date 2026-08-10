@@ -16,6 +16,7 @@ import MapLibre from "@/ui/components/MapLibre";
 import { UserNode } from "../../../ui/components/MapLibre";
 
 import { Loader } from "lucide-react";
+import { withBasePath } from "@/lib/basePath";
 
 export default function Nodes() {
 
@@ -46,7 +47,7 @@ export default function Nodes() {
   const fetchNodeData = async () => {
     try {
 
-      const res = await fetch('/api/active-users');
+      const res = await fetch(withBasePath('/api/active-users'));
 
       if (!res.ok) {
         throw new Error("Failed node fetch");
@@ -90,7 +91,7 @@ export default function Nodes() {
   const fetchLocations = async () => {
     try {
 
-      const res = await fetch('/api/get-gps/latest');
+      const res = await fetch(withBasePath('/api/get-gps/latest'));
 
       if (!res.ok) {
         throw new Error("Failed GPS fetch");
@@ -246,6 +247,28 @@ export default function Nodes() {
               </div>
 
               Inactive Nodes
+
+            </div>
+
+            {/* Role markers — shape differs as well as colour, so the
+                distinction survives greyscale and colour-blind viewing. */}
+            <div className="flex gap-2 items-center">
+
+              <div className="marker-wrapper">
+                <div className="custom-marker rescuer" />
+              </div>
+
+              Rescuer
+
+            </div>
+
+            <div className="flex gap-2 items-center">
+
+              <div className="marker-wrapper">
+                <div className="custom-marker admin" />
+              </div>
+
+              Admin
 
             </div>
 

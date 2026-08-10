@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 
 import ast
@@ -18,10 +19,12 @@ from app.db_operations.token import verify_token
 from app.models.queued import Queue
 from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
-from app.db_operations.websockets import authenticate_websocket, relay_message, relay_public_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message
+from app.db_operations.websockets import authenticate_websocket, relay_message, relay_public_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message, WebSocketAuthError
 from app.db_operations.connection_manager import manager
 from app.db_operations.activity import set_user_status
 from app.models.websocketComms import MessageData, PublicMessageData
+
+logger = logging.getLogger(__name__)
 
 
 def _set_status_bg(user_id: UUID, status: str) -> None:
@@ -173,7 +176,12 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
     ICE candidates
     handshakes
     """
-    user_id = await authenticate_websocket(websocket, token)
+    try:
+        user_id = await authenticate_websocket(websocket, token)
+    except WebSocketAuthError:
+        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
+        return
+
     await manager.connect(UUID(user_id), websocket)
     asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Active")
     try:

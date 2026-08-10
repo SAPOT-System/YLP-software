@@ -14,10 +14,13 @@ export function makeCallServiceMock(overrides: Record<string, any> = {}) {
     startCall: jest.fn().mockResolvedValue(undefined),
     informPeerForIncomingCall: jest.fn().mockResolvedValue(undefined),
     terminateCallConnection: jest.fn().mockResolvedValue(undefined),
+    markMissedIncomingCall: jest.fn().mockResolvedValue(undefined),
     getActiveCallId: jest.fn().mockReturnValue(undefined),
+    hasActiveSession: jest.fn().mockReturnValue(false),
     handleRemoteCallEnded: jest.fn().mockResolvedValue(undefined),
     syncMediaState: jest.fn(),
     getLocalCam: jest.fn().mockReturnValue(undefined),
+    getRemoteStream: jest.fn().mockReturnValue(null),
     toggleMic: jest.fn(),
     toggleCamera: jest.fn().mockResolvedValue(true),
     toggleSpeaker: jest.fn(),
@@ -31,6 +34,9 @@ export function makeConnectionServiceMock(overrides: Record<string, any> = {}) {
     on: jest.fn(),
     off: jest.fn(),
     shouldIgnoreCallBusy: jest.fn().mockReturnValue(false),
+    setActiveCall: jest.fn(),
+    clearActiveCall: jest.fn(),
+    dismissIncomingCallNotification: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

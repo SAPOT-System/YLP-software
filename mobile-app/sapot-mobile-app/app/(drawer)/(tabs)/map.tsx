@@ -4,6 +4,7 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { useLatestLocations } from "@/features/gps/hooks/useLatestLocations";
 import { useLocationPermission } from "@/features/gps/hooks/useLocationPermission";
 import { useGpsHistory } from "@/features/gps/hooks/useGpsHistory";
+import { useTileServerStatus } from "@/features/gps/hooks/useTileServerStatus";
 import {
   SelectedUser,
   UserMarkerSheet,
@@ -12,11 +13,16 @@ import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import { useToast } from "@/features/shared/hooks";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { getGpsHistoryApi } from "@/features/gps/api/gps.api";
+import {
+  MAP_LEGEND_ROLES,
+  resolveRoleMarker,
+} from "@/features/gps/utils/resolve-role-marker";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Camera,
   GeoJSONSource,
   Layer,
+  type LngLatBounds,
   Map,
   Marker,
   RasterSource,
@@ -34,20 +40,39 @@ import {
 import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const TILE_URL = `${getTileServerUrl()}/styles/basic-preview/{z}/{x}/{y}.png`;
-
 const EMPTY_STYLE = {
   version: 8 as const,
   sources: {},
   layers: [],
 };
 
+// The tile server only carries Batangas — see tileserver/crop-mbtiles.py,
+// whose REGIONS["batangas"] box these must stay in sync with. Re-cropping for
+// a different province means updating these here and in the admin's
+// MapLibre.tsx, which holds the same two constants.
+const REGION_MAX_BOUNDS: LngLatBounds = [120.45, 13.4, 121.6, 14.32];
+
+// One above the vector-tile floor stored in the .mbtiles: tileserver-gl
+// renders a raster tile at zoom Z from vector tiles at Z-1, so the lowest
+// zoom that renders anything is one higher than the lowest zoom stored.
+const REGION_MIN_ZOOM = 10;
+
 export default function GpsScreen() {
   const { isAuthenticated, isRescuer } = useAuth();
   const userStore = useUserStore();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const locationGranted = useLocationPermission();
+  const locationPermission = useLocationPermission();
+  // Computed here, not at module scope: getTileServerUrl() reads
+  // _hostOverride, which only finishes loading (initRuntimeOverrides())
+  // after AuthContainerProvider unblocks rendering — see
+  // features/auth/context/auth-container-context.tsx. A module-level
+  // constant would snapshot the pre-override (often undefined) host.
+  const tileServerUrl = useMemo(() => getTileServerUrl(), []);
+  const tileUrl = useMemo(
+    () => `${tileServerUrl}/styles/basic-preview/{z}/{x}/{y}.png`,
+    [tileServerUrl],
+  );
   const {
     data: rawLocations = [],
     isLoading,
@@ -55,6 +80,16 @@ export default function GpsScreen() {
     error,
     refetch,
   } = useLatestLocations();
+
+  // The tileserver is a separate deployment from the API, so it can be down
+  // while `useLatestLocations()` above is perfectly healthy. MapLibre gives no
+  // error signal for failed tiles, hence the explicit probe. Deliberately fed
+  // the same `tileServerUrl` the raster source renders from, so the banner can
+  // never report on a host other than the one on screen.
+  const {
+    isUnavailable: isTileServerUnavailable,
+    recheck: recheckTileServer,
+  } = useTileServerStatus(tileServerUrl);
 
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
@@ -74,7 +109,7 @@ export default function GpsScreen() {
   );
   const isInitialLoading = isLoading && rawLocations.length === 0;
   const showEmptyState =
-    locationGranted === true &&
+    locationPermission === "granted" &&
     !isLoading &&
     !isError &&
     userLocations.length === 0;
@@ -161,7 +196,7 @@ export default function GpsScreen() {
     return <Redirect href="/(drawer)/(tabs)" />;
   }
 
-  if (locationGranted === null) {
+  if (locationPermission === "not-asked") {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -174,7 +209,7 @@ export default function GpsScreen() {
     );
   }
 
-  if (locationGranted === false) {
+  if (locationPermission === "denied") {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -210,62 +245,67 @@ export default function GpsScreen() {
           <Camera
             trackUserLocation={followUser ? "default" : undefined}
             zoom={14}
+            minZoom={REGION_MIN_ZOOM}
+            maxBounds={REGION_MAX_BOUNDS}
           />
           <RasterSource
             id="tileserver"
-            tiles={[TILE_URL]}
+            tiles={[tileUrl]}
             tileSize={256}
-            minzoom={0}
+            minzoom={REGION_MIN_ZOOM}
             maxzoom={18}
           >
             <Layer id="tileserver-layer" type="raster" source="tileserver" />
           </RasterSource>
           <UserLocation animated />
-          {userLocations.map((loc) => (
-            <Marker
-              key={loc.user_id}
-              id={String(loc.user_id)}
-              lngLat={[loc.longitude, loc.latitude]}
-              anchor="bottom"
-              onPress={() => {
-                setFollowUser(false);
-                clearPath();
-                setSelectedUser({
-                  user_id: loc.user_id,
-                  username: loc.username,
-                  timestamp: loc.timestamp,
-                });
-                if (pathMode) {
-                  handleViewPath(loc.user_id);
-                }
-              }}
-            >
-              <View style={styles.marker}>
-                <Icon
-                  source="map-marker-account"
-                  size={32}
-                  color={theme.colors.primary}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.markerLabel,
-                    {
-                      backgroundColor: theme.dark
-                        ? "rgba(15,23,42,0.85)"
-                        : "rgba(255,255,255,0.95)",
-                      color: theme.dark
-                        ? theme.colors.onSurface
-                        : theme.colors.onSurface,
-                      borderColor: theme.colors.outlineVariant,
-                    },
-                  ]}
-                >
-                  {loc.username}
-                </Text>
-              </View>
-            </Marker>
-          ))}
+          {userLocations.map((loc) => {
+            const roleMarker = resolveRoleMarker(loc.role, theme);
+            return (
+              <Marker
+                key={loc.user_id}
+                id={String(loc.user_id)}
+                lngLat={[loc.longitude, loc.latitude]}
+                anchor="bottom"
+                onPress={() => {
+                  setFollowUser(false);
+                  clearPath();
+                  setSelectedUser({
+                    user_id: loc.user_id,
+                    username: loc.username,
+                    timestamp: loc.timestamp,
+                  });
+                  if (pathMode) {
+                    handleViewPath(loc.user_id);
+                  }
+                }}
+              >
+                <View style={styles.marker}>
+                  <Icon
+                    source={roleMarker.icon}
+                    size={32}
+                    color={roleMarker.color}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.markerLabel,
+                      {
+                        backgroundColor: theme.dark
+                          ? "rgba(15,23,42,0.85)"
+                          : "rgba(255,255,255,0.95)",
+                        color: theme.dark
+                          ? theme.colors.onSurface
+                          : theme.colors.onSurface,
+                        borderColor: theme.colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    {loc.username}
+                  </Text>
+                </View>
+              </Marker>
+            );
+          })}
           {showPath && pathGeoJSON && (
             <GeoJSONSource id="user-path-source" data={pathGeoJSON} lineMetrics>
               <Layer
@@ -429,6 +469,31 @@ export default function GpsScreen() {
             </Pressable>
           </View>
         </View>
+        <View pointerEvents="none" style={styles.legend}>
+          <View
+            style={[
+              styles.legendCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+          >
+            {MAP_LEGEND_ROLES.map((role) => {
+              const legendMarker = resolveRoleMarker(role, theme);
+              return (
+                <View key={role} style={styles.legendRow}>
+                  <Icon
+                    source={legendMarker.icon}
+                    size={16}
+                    color={legendMarker.color}
+                  />
+                  <Text variant="labelSmall">{legendMarker.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
         {!followUser && (
           <View style={styles.recenterButton}>
             <View
@@ -450,8 +515,37 @@ export default function GpsScreen() {
             </View>
           </View>
         )}
-        {isInitialLoading && (
-          <View style={[styles.overlay, { bottom: overlayBottom }]}>
+        {/* One stack, because the tileserver banner is independent of the
+            location states below and can be shown alongside any of them. */}
+        <View
+          pointerEvents="box-none"
+          style={[styles.overlay, { bottom: overlayBottom }]}
+        >
+          {isTileServerUnavailable && (
+            <View
+              style={[
+                styles.overlayCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+            >
+              <Icon source="map-outline" size={20} color={theme.colors.error} />
+              <Text variant="bodySmall" style={{ textAlign: "center" }}>
+                Map tiles unavailable. The map server can&apos;t be reached —
+                locations below are still live.
+              </Text>
+              <Button
+                mode="contained"
+                onPress={() => recheckTileServer()}
+                compact
+              >
+                Retry
+              </Button>
+            </View>
+          )}
+          {isInitialLoading && (
             <View
               style={[
                 styles.overlayCard,
@@ -464,13 +558,8 @@ export default function GpsScreen() {
               <LoadingSpinner />
               <Text variant="bodySmall">Fetching live locations...</Text>
             </View>
-          </View>
-        )}
-        {isError && (
-          <View
-            pointerEvents="box-none"
-            style={[styles.overlay, { bottom: overlayBottom }]}
-          >
+          )}
+          {isError && (
             <View
               style={[
                 styles.overlayCard,
@@ -492,14 +581,10 @@ export default function GpsScreen() {
                 Retry
               </Button>
             </View>
-          </View>
-        )}
-        {showEmptyState && (
-          <View
-            pointerEvents="none"
-            style={[styles.overlay, { bottom: overlayBottom }]}
-          >
+          )}
+          {showEmptyState && (
             <View
+              pointerEvents="none"
               style={[
                 styles.overlayCard,
                 {
@@ -517,8 +602,8 @@ export default function GpsScreen() {
                 No other users are sharing their location right now.
               </Text>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </View>
       <UserMarkerSheet
         selectedUser={selectedUser}
@@ -558,6 +643,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     alignItems: "center",
+    gap: 8,
   },
   overlayCard: {
     width: "100%",
@@ -625,6 +711,28 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
+  },
+  legend: {
+    position: "absolute",
+    top: 60,
+    left: 16,
+  },
+  legendCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 4,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+  },
+  legendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   marker: { alignItems: "center" },
   markerLabel: {

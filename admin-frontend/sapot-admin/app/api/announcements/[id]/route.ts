@@ -21,7 +21,7 @@ export async function PATCH(
     console.log("PARAMS:", context);
 
     const res = await secureFetch(
-      `/admin/announcements/${params.id}?${queryParams.toString()}`,
+      `/api/admin/announcements/${params.id}?${queryParams.toString()}`,
       {
         method: "PATCH",
         headers: {
@@ -56,7 +56,7 @@ export async function DELETE(
   try {
     const context = await params;
     const res = await secureFetch(
-      `/admin/announcements/${context.id}`,
+      `/api/admin/announcements/${context.id}`,
       { method: "DELETE" }
     );
 

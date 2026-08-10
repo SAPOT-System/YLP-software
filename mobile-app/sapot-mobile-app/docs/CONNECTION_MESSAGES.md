@@ -155,14 +155,15 @@ Used to signal call lifecycle events between peers.
 ### `call-ready`
 **Transport:** WebSocket + TCP &nbsp;|&nbsp; **Direction:** Sent & Received
 
-> Sent by the callee to signal they are ready to begin WebRTC negotiation.
+> Sent by the callee after accepting. The caller begins WebRTC negotiation only when `callId` matches its active session.
 
 ```json
 {
   "type": "call-ready",
   "data": {
     "from_user / from": "string",
-    "to":               "string"
+    "to":               "string",
+    "callId":           "string  — active call session ID"
   }
 }
 ```
@@ -249,7 +250,9 @@ Sent and received directly between peers after WebRTC connection is established.
 ---
 
 ### `seen` — read receipt
-**Transport:** WebRTC Data Channel &nbsp;|&nbsp; **Direction:** Sent & Received
+**Transport:** WebRTC Data Channel or WebSocket relay &nbsp;|&nbsp; **Direction:** Sent & Received
+
+> Admin conversations use the WebSocket relay and never establish WebRTC.
 
 ```json
 {
@@ -287,7 +290,8 @@ Sent and received directly between peers after WebRTC connection is established.
 }
 ```
 
-Application-level liveness check owned by `WebrtcAdapter`. Because
+Application-level liveness check, implemented by `LivenessMonitor` and driven by `WebrtcAdapter`
+through injected closures (`send`, `onLivenessLost`, `onLivenessRestored`). Because
 `RTCPeerConnection.connectionState === "connected"` can lie after a Wi-Fi flap
 (the link is half-open / stale), each peer pings every 4 s and expects a `pong`
 with the same `nonce` within 3 s. Two consecutive missed pongs force an ICE
@@ -296,6 +300,83 @@ state is treated as authoritative proof the peer is reachable again and emits
 `peer-reconnected` upstream — this is what resolves a one-sided "Reconnecting…"
 status where the ICE state machine never re-reported "connected". These frames
 are intercepted inside the adapter and never propagate to chat handling.
+
+---
+
+## Server-Relay Messages
+
+These exist only on the WebSocket link to the server — they have no TCP or data-channel
+equivalent.
+
+### `profile-info`
+**Transport:** TCP, WebSocket &nbsp;|&nbsp; **Direction:** Sent & Received
+
+```json
+{
+  "type": "profile-info",
+  "data": {
+    "from":      "string",
+    "username":  "string",
+    "firstName": "string",
+    "lastName":  "string?"
+  }
+}
+```
+
+Display-name exchange. Part of the `Message` union alongside signaling and call messages, so it
+travels over the same TCP/WS paths. This is how a peer's name is learned when it is not already in
+the local `peers` table (notably guests, which are never server-registered).
+
+---
+
+### `server-ack`
+**Transport:** WebSocket &nbsp;|&nbsp; **Direction:** Received
+
+```json
+{
+  "type": "server-ack",
+  "data": {
+    "message_type": "chat" | "call-ended" | "ack" | "seen",
+    "messageId":    "string",
+    "from":         "string",
+    "to":           "string"
+  }
+}
+```
+
+The relay confirming it accepted a frame for forwarding. Note this is **weaker than the peer-level
+`ack`**: it means the server took the message, not that the recipient received it. Only the
+peer's `ack` proves delivery.
+
+---
+
+### `get-active-users`
+**Transport:** WebSocket &nbsp;|&nbsp; **Direction:** Sent
+
+```json
+{ "type": "get-active-users" }
+```
+
+Presence poll. `ActiveUsersService` sends it and listens for the adapter's `active-users` event,
+re-polling every 10 s. Payload-free — the response is a list of connected user IDs.
+
+---
+
+### `public-chat`
+**Transport:** WebSocket &nbsp;|&nbsp; **Direction:** Sent & Received
+
+Broadcast channel, separate from P2P chat. History comes from `GET /public-chat`
+(see [API.md](API.md#public-chat--public-chat)); live messages arrive over this frame.
+
+---
+
+### `chat` with `messageType: "sms"`
+**Transport:** WebSocket &nbsp;|&nbsp; **Direction:** Received
+
+A `chat` frame whose `data.messageType` is `"sms"` rather than `"text"`/`"file"`/`"call_log"`. It
+is delivered by the GSM gateway on behalf of someone reachable only by SMS, and carries the same
+`senderProfile` shape as a normal chat message. Handle it as an inbound chat message whose sender
+may not be a registered peer.
 
 ---
 
@@ -313,7 +394,7 @@ are intercepted inside the adapter and never propagate to chat handling.
 | `status` | `string` | `"completed"` \| `"missed"` \| `"rejected"` |
 | `reason` (call-rejected) | `string` | `"declined"` \| `"busy"` |
 | `reason` (call-missed) | `string` | `"no-answer"` |
-| `messageType` | `string` | `"text"` \| `"file"` \| `"call_log"` |
+| `messageType` | `string` | `"text"` \| `"file"` \| `"call_log"`, plus `"sms"` on GSM-relayed `chat` frames |
 | `endedAt` | `number` | Unix timestamp in milliseconds |
 | `durationSeconds` | `number` | Integer seconds |
 | `initiatorId` | `string` | User ID of who ended the call |
@@ -335,12 +416,16 @@ are intercepted inside the adapter and never propagate to chat handling.
 | `call-ready` | ✓ | ✓ | |
 | `call-rejected` | ✓ | ✓ | |
 | `call-missed` | ✓ | ✓ | |
-| `chat` | | | ✓ |
-| `ack` | | | ✓ |
-| `seen` | | | ✓ |
+| `chat` | ✓ | | ✓ |
+| `ack` | ✓ | | ✓ |
+| `seen` | ✓ | | ✓ |
 | `camera_toggle` | | | ✓ |
 | `mic_toggle` | | | ✓ |
 | `ping` | | | ✓ |
 | `pong` | | | ✓ |
+| `profile-info` | ✓ | ✓ | |
+| `server-ack` | | ✓ | |
+| `get-active-users` | | ✓ | |
+| `public-chat` | | ✓ | |
 
 > **WebSocket** messages are server-relayed. **TCP** messages are direct peer-to-peer. WebSocket uses `from_user`; TCP uses `from`.

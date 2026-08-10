@@ -17,7 +17,7 @@ const CombinedDarkTheme    = merge(DarkTheme,  customDarkTheme);
 
 `Colors.dark` / `Colors.light` are the only place where color values are defined.
 
-### ThemePreferenceProvider (`features/shared/context/theme-preference-context.tsx`)
+### ThemePreferenceProvider (`features/shared/core/context/theme-preference-context.tsx`)
 
 Exposes:
 - `themeChoice` — `"light" | "dark" | "system"` (user-persisted preference)
@@ -55,11 +55,24 @@ Order is load-bearing — each provider depends on those above it:
 ```
 ThemePreferenceProvider
   └─ AuthContainerProvider
-     └─ AuthProvider       ← auth state machine; drives auth vs. main branch
-        └─ RootLayoutGate  ← Sentry init (deferred until fonts loaded + auth bootstrapped)
+     └─ AuthProvider          ← auth state machine; drives auth vs. main branch
+        └─ RootLayoutGate     ← Sentry init (deferred until fonts loaded + auth bootstrapped)
+           └─ SafeAreaProvider
+              └─ AppModeProvider
+                 └─ PaperProvider
+                    └─ ThemeProvider
+                       └─ Stack   ← Expo Router
 ```
 
-Auth state determines which branch renders: auth screens or the drawer. `AppModeProvider` and `MainContainerProvider` are mounted conditionally inside the authenticated branch only.
+Auth state determines which branch the `Stack` renders: auth screens or the drawer.
+
+`AppModeProvider` sits **above** that branch, inside `RootLayoutGate` — it is mounted for
+authenticated and unauthenticated screens alike, because the getting-started flow needs to pick a
+transport mode before any account exists.
+
+`MainContainerProvider` is the one that is authenticated-only: it is mounted inside
+`app/(drawer)/_layout.tsx`, alongside the two health providers
+(see [ARCHITECTURE.md](ARCHITECTURE.md#server-status)).
 
 ---
 
@@ -156,3 +169,54 @@ export const GpsPreferenceContext = createContext<GpsPreference | null>(null);
 ## Map Rendering
 
 GPS / map feature uses `@maplibre/maplibre-react-native`. `useLatestLocations` polls `GET /gps/latest` every 5 seconds via React Query and passes results to the map renderer.
+
+The basemap tiles come from the **tileserver**, a deployment separate from the API, and MapLibre reports no error when they fail to load. `useTileServerStatus` probes it every 30 seconds so the map screen can show a distinct "Map tiles unavailable" card — kept separate from the location-error card, because a dead tileserver and a dead API are different problems for the user. Both cards stack in the shared bottom overlay on the map screen.
+
+---
+
+## Motion
+
+Shared motion tokens live in `constants/motion.ts` — duration scale, easing curves, and spring presets. Easing curves are stored as raw cubic-bezier tuples (not `Easing.bezier(...)` instances) because the legacy `Animated` API and Reanimated's `Easing` are separate, incompatible modules; call sites wrap the tuple themselves: `Easing.bezier(...motion.easing.standard)`.
+
+```typescript
+motion.duration.fast   // 150 — micro-interactions: toggles, icon crossfades
+motion.duration.base   // 250 — general transitions: fades, list-item entrances
+motion.duration.slow   // 400 — deliberate/looping motion: skeleton shimmer
+
+motion.easing.standard   // general UI transitions
+motion.easing.emphasized // deliberate entrances: success states, pop-ins
+motion.easing.exit       // exits and fade-outs
+
+motion.spring.gentle    // { damping: 12, stiffness: 120 } — banners, success states
+```
+
+### Reduced Motion
+
+`useReducedMotion()` (`features/shared/hooks/use-reduced-motion.ts`) wraps `AccessibilityInfo.isReduceMotionEnabled()`. Every animated component must check it and either set the end value instantly or drop duration/entering animation to none — never skip the check.
+
+```typescript
+const reducedMotion = useReducedMotion();
+
+<Animated.View
+  entering={reducedMotion ? undefined : FadeInUp.duration(motion.duration.base)}
+>
+```
+
+### Shared Motion Components
+
+| Component | Use | Location |
+|-----------|-----|----------|
+| `Crossfade` | Fades content out/in when a keyed value changes (status text, icons) | `features/shared/components/crossfade.tsx` |
+| `Skeleton` | Pulsing placeholder box for skeleton loading layouts | `features/shared/components/skeleton.tsx` |
+
+`Crossfade` takes an `activeKey` (string/number/boolean) and re-fades its children whenever that key changes — used for connection-status labels (`chat/[id].tsx`, `public-chat.tsx`) and the Zeroconf status icon (`zeroconf-status-indicator.tsx`).
+
+`Skeleton` composes into feature-specific skeleton layouts (e.g. `features/chat/components/chat-message-skeleton.tsx`) passed to `PageLoader`'s `skeleton` prop.
+
+### Patterns in Use
+
+- **List item entrance**: track already-seen ids in a `useRef<Set<string>>`; wrap only genuinely new items in `Animated.View` with `entering={FadeInUp...}` (message list, public chat, announcements, search).
+- **List reorder**: `Animated.View` with `layout={LinearTransition...}` on each row (chat list).
+- **Pop-in badges/dots**: `Animated.View` with `entering={ZoomIn...}` and `motion.easing.emphasized` (unread badge, presence dot).
+- **Status crossfade**: wrap the swapped content in `Crossfade` keyed on the status value.
+- **Looping pulse**: `withRepeat(withSequence(withTiming(...), withTiming(...)), -1)` on a shared opacity value, frozen under reduced motion (skeleton shimmer, call banner pulse).

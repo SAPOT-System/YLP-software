@@ -28,15 +28,57 @@ Messaging spans two layers:
 
 Guards in `ConnectionService` — `isWebSocketAllowed()` and `isTcpAllowed()` — check `AppModeStore` plus guest status before selecting a transport.
 
+```mermaid
+flowchart TD
+    Start([Send message]) --> Mode{AppModeStore mode}
+
+    Mode -->|server| WsOnly["isWebSocketAllowed()?"]
+    WsOnly -->|Yes| WsSend["Send via WsSignalingAdapter (server relay)"]
+    WsOnly -->|No| ServerFail["Send fails — server mode has no fallback"]
+
+    Mode -->|lan| TcpOnly["isTcpAllowed()?"]
+    TcpOnly -->|Yes, data channel open| TcpSend["Send via RTCDataChannel (direct P2P)"]
+    TcpOnly -->|No data channel open| LanFail["Send fails outright — no WebSocket fallback in lan mode"]
+
+    Mode -->|auto| AutoWs["Try WebSocket first"]
+    AutoWs -->|Available| WsSend
+    AutoWs -->|Unavailable| AutoTcp["Fall back to LAN TCP / data channel"]
+    AutoTcp -->|Available| TcpSend
+    AutoTcp -->|Unavailable| AutoFail["Send fails — no transport available"]
+```
+
 #### `lan` mode: peer discovery and transport
 
 In `lan` mode, messages travel entirely over a direct WebRTC data channel between peers on the same local network — the server is never involved in message delivery:
 
 1. **Discovery** — `DiscoveryService` publishes this device and scans for peers via mDNS/Zeroconf (`ZeroconfAdapter`, wrapping `react-native-zeroconf`). Each peer is published with its TCP listen port and peer ID in the Zeroconf TXT record.
-2. **TCP signaling** — Once a peer is discovered, `ConnectionService` opens a `TcpClientAdapter` connection to the peer's advertised IP/port and exchanges a handshake, then a WebRTC offer/answer, then ICE candidates — all over TCP.
+2. **TCP signalling** — Once a peer is discovered, `ConnectionService` opens a `TcpClientAdapter` connection to the peer's advertised IP/port and exchanges a handshake, then a WebRTC offer/answer, then ICE candidates — all over TCP.
 3. **Data channel** — Once the WebRTC connection is established, messages are sent over the resulting `RTCDataChannel`. `lan` mode has no WebSocket fallback: if the data channel is not open, sending fails outright.
 
 See `mobile-app/sapot-mobile-app/docs/LAN_MESSENGER.md` for the full discovery → TCP → WebRTC → data channel sequence, and `mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md` ("Transport Modes") for the mode table.
+
+```mermaid
+sequenceDiagram
+    participant A as Mobile A (DiscoveryService)
+    participant Z as mDNS / Zeroconf
+    participant B as Mobile B (DiscoveryService)
+
+    A->>Z: publish self (peer id, TCP port)
+    B->>Z: publish self (peer id, TCP port)
+    A->>Z: scan for peers
+    Z-->>A: resolve B's LAN address:port
+
+    Note over A,B: TCP signalling channel
+    A->>B: TCP connect (TcpClientAdapter)
+    A->>B: handshake
+    A->>B: WebRTC offer
+    B-->>A: WebRTC answer
+    A->>B: ICE candidates
+    B-->>A: ICE candidates
+
+    Note over A,B: RTCDataChannel open — messages flow directly, no server involved
+    A->>B: message (over data channel)
+```
 
 ---
 
@@ -57,6 +99,27 @@ When a user establishes a WebSocket connection:
 3. Waits for `{ type: "ack", id: <queue_id> }`.
 4. On ack: deletes the queue row.
 
+```mermaid
+sequenceDiagram
+    participant A as Sender
+    participant S as Server (peer_connection.py)
+    participant B as Recipient
+
+    A->>S: { type: "message", to: B, data: <encrypted_blob> }
+
+    alt Recipient online
+        S->>B: forward immediately
+        B-->>S: { type: "ack", id }
+    else Recipient offline
+        S->>S: store in queue table (to, data, payload_type="message")
+        Note over B: later...
+        B->>S: WS connect
+        S->>B: drain queue (send each payload)
+        B-->>S: { type: "ack", id: queue_id }
+        S->>S: delete queue row
+    end
+```
+
 ### Public chat
 
 `{ type: "public-chat", content: <encrypted_blob> }` is broadcast to all connected users. History stored and returned by `GET /public-chat`.
@@ -75,18 +138,12 @@ Messages created locally are pushed to the server via `POST /sync/push`. The ser
 
 ```
 conversations       id, type, created_at, updated_at, is_deleted
-  └── messages      id, conversation_id, sender_id, content (encrypted blob), linked_message_id
+  └── messages      id, conversation_id, sender_id, content (encrypted blob)
         └── message_receipts  id, message_id, user_id, status
         └── attachments       id, message_id, filename, mime_type
 ```
 
 Messages are keyed by UUID generated on the mobile device. The same UUID is used when pushing to the server, enabling idempotent upserts.
-
----
-
-## Reply threading
-
-`message.linked_message_id` is a self-referential FK. The mobile app reads this field to group messages into reply threads in the UI. No server-side thread aggregation — threading is a presentation concern only.
 
 ---
 
@@ -127,5 +184,4 @@ For users without the app, a rescuer can use `POST /gsm/send` to send an SMS via
 
 - A message sent while the recipient is offline (server mode) is delivered once they reconnect, without duplication.
 - A message sent via LAN P2P never appears in server-side storage in decryptable form — only ciphertext, if it appears at all.
-- Reply-thread grouping (`linked_message_id`) renders correctly regardless of which transport delivered the messages in the thread.
 - SMS-fallback messages are clearly distinguished in the UI from E2E-encrypted app messages, so users understand the confidentiality difference.

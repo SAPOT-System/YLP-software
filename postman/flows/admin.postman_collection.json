@@ -1,0 +1,279 @@
+{
+  "info": {
+    "_postman_id": "f1000000-0000-4000-8000-000000000003",
+    "name": "SAPOT flows - admin",
+    "description": "Hand-authored smoke flow. Unlike postman/collections/, this file is NOT generated - do not run scripts/generate_postman_collection.rb against it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost" },
+    { "key": "qaToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "userToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Reset database",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
+        "url": { "raw": "{{baseUrl}}/testing/reset", "host": ["{{baseUrl}}"], "path": ["testing", "reset"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test(\"reset succeeds\", function () {", "    pm.response.to.have.status(200);", "});"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Seed roles scenario",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/testing/seed/roles",
+          "host": ["{{baseUrl}}"],
+          "path": ["testing", "seed", "roles"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"seed succeeds\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().scenario).to.eql(\"roles\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login as qa_admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/testing/login-as/qa_admin",
+          "host": ["{{baseUrl}}"],
+          "path": ["testing", "login-as", "qa_admin"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"mints an admin token\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().access_token).to.be.a(\"string\").and.not.empty;",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"adminToken\", pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login as qa_baseline (non-admin)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/testing/login-as/qa_baseline",
+          "host": ["{{baseUrl}}"],
+          "path": ["testing", "login-as", "qa_baseline"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"mints a plain-user token\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().access_token).to.be.a(\"string\").and.not.empty;",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"userToken\", pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin can read their own admin info",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/admin/me", "host": ["{{baseUrl}}"], "path": ["api", "admin", "me"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"succeeds for an admin\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "// nginx.docker.conf re-sets and passes Authorization because nginx strips it",
+              "// by default. A 200 here through nginx is what guards that config.",
+              "pm.test(\"responds with JSON\", function () {",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Non-admin is refused admin info",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/admin/me", "host": ["{{baseUrl}}"], "path": ["api", "admin", "me"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"refuses a non-admin\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([401, 403, 404]);",
+              "});",
+              "",
+              "pm.test(\"does not leak a stack trace\", function () {",
+              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin can list announcements",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/get-all-announcements",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "get-all-announcements"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"succeeds for an admin\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"responds with JSON\", function () {",
+              "    pm.response.to.be.json;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Non-admin is refused the announcement list",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/get-all-announcements",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "get-all-announcements"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"refuses a non-admin\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([401, 403, 404]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin endpoints reject an unauthenticated request",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/get-active-users",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "get-active-users"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"requires authentication\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([401, 403, 404]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Posting a malformed announcement is rejected, not a crash",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"nonsense\": 1}" },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/post-announcement",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "post-announcement"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"validation failure, not a crash\", function () {",
+              "    pm.expect(pm.response.code).to.eql(422);",
+              "});",
+              "",
+              "pm.test(\"does not leak a stack trace\", function () {",
+              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

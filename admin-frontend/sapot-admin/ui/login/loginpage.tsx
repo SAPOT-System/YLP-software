@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { withBasePath } from '@/lib/basePath';
 
 export default function LoginPage() {
   const hasSubmitted = useRef(false);
@@ -23,7 +24,7 @@ export default function LoginPage() {
     const formData = new FormData(e.currentTarget);
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch(withBasePath('/api/login'), {
         method: 'POST',
         body: formData, // ✅ IMPORTANT: matches req.formData()
       });
@@ -35,8 +36,7 @@ export default function LoginPage() {
         return;
       }
 
-      // success → redirect
-      router.push('/dashboard');
+      router.push(data?.must_change_password ? '/change-password' : '/dashboard');
     } catch (err) {
       setError('Network error');
     } finally {
@@ -51,7 +51,7 @@ export default function LoginPage() {
       {/* Background */}
       <div className="fixed inset-0 -z-10">
         <Image
-          src="/backgrounds/login.png"
+          src={withBasePath('/backgrounds/login.png')}
           alt="Background"
           fill
           priority={false}
@@ -64,7 +64,7 @@ export default function LoginPage() {
 
       {/* Logo */}
       <div className="flex py-4 items-center gap-2 text-white font-bold text-xl">
-        <Image src="/logos/logo.png" alt="Logo" width={32} height={32} />
+        <Image src={withBasePath('/logos/logo.png')} alt="Logo" width={32} height={32} />
         <span className="font-custom-color">SAPOT</span>
       </div>
 

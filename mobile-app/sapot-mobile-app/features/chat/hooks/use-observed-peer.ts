@@ -14,15 +14,24 @@ import { useEffect, useState } from "react";
  * QR scans) that resolve before the peer is persisted self-heal instead of
  * showing "Unknown user" forever.
  *
+ * The peer reset on a `peerId` change happens synchronously during render
+ * (not in the effect) so the previous peer's record — and anything derived
+ * from it, like a role badge — never paints for even one frame against the
+ * new `peerId`.
+ *
  * @param peerId The peer id to observe, or undefined to observe nothing.
  * @returns The observed peer, or undefined while absent.
  */
 export function useObservedPeer(peerId: string | undefined): Peer | undefined {
   const [peer, setPeer] = useState<Peer | undefined>();
+  const [observedPeerId, setObservedPeerId] = useState<string | undefined>();
+
+  if (peerId !== observedPeerId) {
+    setObservedPeerId(peerId);
+    setPeer(undefined);
+  }
 
   useEffect(() => {
-    // Reset so a previous peer's record never lingers while the next resolves.
-    setPeer(undefined);
     if (!peerId) return;
 
     const subscription = database

@@ -3,7 +3,7 @@ import * as Updates from "expo-updates";
 
 // const PORT = "8000";
 const DEV_HOST = process.env.EXPO_PUBLIC_DEV_HOST;
-const STAGING_HOST = "192.168.0.100";
+const SERVER_NAME = "server.sapot.lan";
 
 let _hostOverride: string | null = null;
 
@@ -34,23 +34,21 @@ export const getApiUrl = () => {
   switch (channel) {
     case "preview":
       configLog.debug("config › env preview", { channel });
-      return `https://${STAGING_HOST}`;
+      return `https://${SERVER_NAME}`;
 
     case "production":
-      return `https://${STAGING_HOST}`;
+      return `https://${SERVER_NAME}`;
 
     default:
       return `https://${DEV_HOST}`;
   }
 };
 
-const TILE_PORT = "8080";
-
 export const getTileServerUrl = () => {
-  if (_hostOverride) return `https://${_hostOverride}:${TILE_PORT}`;
+  if (_hostOverride) return `https://${_hostOverride}/tiles`;
 
   if (__DEV__) {
-    return `https://${DEV_HOST}:${TILE_PORT}`;
+    return `https://${DEV_HOST}/tiles`;
   }
 
   const channel = Updates.channel;
@@ -58,9 +56,9 @@ export const getTileServerUrl = () => {
   switch (channel) {
     case "preview":
     case "production":
-      return `https://${STAGING_HOST}:${TILE_PORT}`;
+      return `https://${SERVER_NAME}/tiles`;
     default:
-      return `https://${DEV_HOST}:${TILE_PORT}`;
+      return `https://${DEV_HOST}/tiles`;
   }
 };
 
@@ -79,10 +77,10 @@ export const getWsUrl = () => {
 
   switch (channel) {
     case "preview":
-      return `wss://${STAGING_HOST}`;
+      return `wss://${SERVER_NAME}`;
 
     case "production":
-      return `wss://${STAGING_HOST}`;
+      return `wss://${SERVER_NAME}`;
 
     default:
       return `wss://${DEV_HOST}`;

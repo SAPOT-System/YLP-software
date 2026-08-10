@@ -8,7 +8,7 @@ from app.db_operations.auth import SessionDep
 from app.models.users import User 
 
 
-router = APIRouter(prefix="/admin/router", tags=[ "router", "admin" ])
+router = APIRouter(prefix="/api/admin/router", tags=[ "router", "admin" ])
 
 @router.get("/health/latest")
 def latest_health(

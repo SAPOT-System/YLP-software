@@ -46,7 +46,7 @@ Commit changes as soon as they can be committed, to prevent large commits.
 
 ```bash
 git add .
-git commit -m "feat(chat): add peer discovery.
+git commit -m "feat(server-auth): add peer discovery.
 
 Summary, notes, and/or changes of commit"
 ```
@@ -59,6 +59,19 @@ type(scope): short summary.
 More detailed summary
 ```
 
+The scope is prefixed with the component the change belongs to, so it's clear at a glance which of the six components (see root `CLAUDE.md`) a commit touches:
+
+- `server-*` — `server/`
+- `mobile-*` — `mobile-app/sapot-mobile-app/`
+- `admin-*` — `admin-frontend/sapot-admin/`
+- `gsm-*` — `GSM-module/`
+- `portal-*` — `captive-portal/`
+- `tileserver-*` — `tileserver/`
+- `deploy-*` — offline Docker bundle tooling in `deploy/` and `scripts/build-bundle.sh`
+- `docs-*` — repo-wide documentation not scoped to one component
+
+Pick the more specific part of the scope for the area actually touched, e.g. `feat(server-auth)`, `fix(mobile-sync)`, `docs(admin-dashboard)`.
+
 #### Types
 
 - `feat` — new feature
@@ -70,7 +83,7 @@ More detailed summary
 #### Example
 
 ```
-docs(contributing): create contributing guide.
+docs(docs-contributing): create contributing guide.
 
 Created the git contributing guide with the following:
 1. Core principles

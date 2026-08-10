@@ -1,4 +1,5 @@
 import { useCallService } from "@/features/call";
+import { useCallContext } from "@/features/call/context/call-context";
 import { Peer } from "@/features/shared/core/database/model/Peer";
 import {
   useConnectionService,
@@ -6,15 +7,20 @@ import {
   useProfilePhoto,
   useThrottledPress,
 } from "@/features/shared/hooks";
-import { stopForegroundService } from "@/features/shared/hooks/use-background-task";
 import { useMediaPermissions } from "@/features/shared/hooks/use-media-permissions";
-import { navLog, uiLog } from "@/features/shared/core/utils/logger";
-import * as Notifications from "expo-notifications";
+import { uiLog } from "@/features/shared/core/utils/logger";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  BackHandler,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function IncomingCall() {
   const router = useRouter();
@@ -29,6 +35,8 @@ export default function IncomingCall() {
   const connectionService = useConnectionService();
   const peerService = usePeerService();
   const { requestMediaPermissions } = useMediaPermissions();
+  const { incomingCall, setIncomingCall, clearIncomingCall, minimizeIncoming } =
+    useCallContext();
 
   const [peer, setPeer] = useState<Peer | null>(null);
   const { url: peerPhotoUrl } = useProfilePhoto(id);
@@ -36,6 +44,9 @@ export default function IncomingCall() {
   const peerDisplayName = peer
     ? [peer.firstName, peer.lastName].filter(Boolean).join(" ")
     : "";
+  // The peer row is loaded asynchronously and may not exist yet on a first
+  // contact, so fall back to the name the caller sent with the ring.
+  const displayName = peerDisplayName || callerName;
 
   useEffect(() => {
     uiLog.info("[IncomingCall] mounted");
@@ -44,10 +55,39 @@ export default function IncomingCall() {
     };
   }, []);
 
-  // Mark user as busy so concurrent callers receive a busy rejection
+  // Register (or reconnect to, if returning from minimized) the ringing call.
+  // The 30s no-answer timeout and caller-cancel listener live in CallContext
+  // via useIncomingCallLifecycle so they survive this screen minimizing.
+  //
+  // This screen sits in a bottom-tab navigator, which never unmounts a screen it
+  // has already rendered — answering only blurs it behind the call room. Register
+  // each ring at most once, keyed on its identity, so that `clearIncomingCall()`
+  // on accept/reject cannot be immediately undone from here. Resurrecting an
+  // answered ring re-arms its no-answer timeout, which tears the live call down
+  // 30s later, and flips CallBanner back to its "Incoming call…" variant.
+  const registeredRingRef = useRef<string | null>(null);
+  const ringKey = `${id}|${callId ?? ""}`;
+
   useEffect(() => {
-    connectionService.setActiveCall(id as string);
-  }, [connectionService, id]);
+    if (incomingCall || registeredRingRef.current === ringKey) return;
+    registeredRingRef.current = ringKey;
+    setIncomingCall({
+      peerId: id as string,
+      callType: (type as "audio" | "video") ?? "audio",
+      conversationId: conversationId || undefined,
+      callId: callId || undefined,
+      callerName,
+    });
+  }, [incomingCall, setIncomingCall, ringKey, id, type, conversationId, callId, callerName]);
+
+  // Hardware back minimizes the ringing call instead of dropping it silently.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      minimizeIncoming();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [minimizeIncoming]);
 
   useEffect(() => {
     uiLog.debug("[IncomingCall] useEffect triggered, deps:", { id });
@@ -59,92 +99,61 @@ export default function IncomingCall() {
       });
   }, [id, peerService]);
 
-  useFocusEffect(
-    useCallback(() => {
-      const timer = setTimeout(async () => {
-        navLog.info("[IncomingCall] did not answer");
-        await connectionService.dismissIncomingCallNotification();
-        callService
-          .markMissedIncomingCall(
-            (type as "audio" | "video") ?? "audio",
-            id as string,
-            conversationId || undefined
-          )
-          .catch((error) => {
-            uiLog.error("[IncomingCall] Error while marking missed call", {
-              error,
-            });
-          });
-        router.replace("/(drawer)/(tabs)");
-      }, 30_000);
-
-      return () => clearTimeout(timer);
-    }, [callService, connectionService, id, router, type, conversationId])
-  );
-
-  // If the caller cancels before we accept, go back and clean up
-  useEffect(() => {
-    const handler = async (payload: { peerId: string }) => {
-      if (payload.peerId !== id) return;
-      uiLog.info(
-        "[Navigation] goBack triggered from IncomingCall — caller cancelled"
-      );
-      connectionService.setActiveCall(null);
-      await connectionService.dismissIncomingCallNotification();
-      // Dismiss any other incoming_call notifications from the tray
-      try {
-        const presented = await Notifications.getPresentedNotificationsAsync();
-        for (const n of presented) {
-          if (n.request.content.data.type === "incoming_call") {
-            await Notifications.dismissNotificationAsync(n.request.identifier);
-          }
-        }
-      } catch {
-        // best-effort
-      }
-      // Stop foreground service — no call to keep alive for
-      await stopForegroundService();
-      router.replace("/(drawer)/(tabs)");
-    };
-    connectionService.on("call-ended", handler);
-    return () => {
-      connectionService.off("call-ended", handler);
-    };
-  }, [connectionService, id, router]);
-
   const handleAccept = useCallback(async () => {
     uiLog.debug("[IncomingCall] handleAccept called", {
       id,
       type,
       conversationId,
     });
+    const callType = (type as "audio" | "video") ?? "audio";
+    const incomingCallParams = {
+      id: id!,
+      type: callType,
+      conversationId: conversationId ?? "",
+      callId: callId ?? "",
+      callerName,
+    };
+
+    uiLog.info("[Navigation] Navigating to CallRoom", {
+      screen: "/(drawer)/(tabs)/call/[id]",
+      peerId: id,
+      type: callType,
+      status: "answering",
+    });
+    router.replace({
+      pathname: "/(drawer)/(tabs)/call/[id]" as never,
+      params: { id: id!, type: callType, status: "answering" },
+    });
+
     const granted = await requestMediaPermissions(
-      (type as "audio" | "video") ?? "audio"
+      callType
     );
-    if (!granted) return;
+    if (!granted) {
+      router.replace({
+        pathname: "/(drawer)/(tabs)/call/incoming" as never,
+        params: incomingCallParams,
+      });
+      return;
+    }
 
     await connectionService.dismissIncomingCallNotification();
     try {
       await callService.answerCall(
-        (type as "audio" | "video") ?? "audio",
+        callType,
         id as string,
         conversationId || undefined,
         callId || undefined
       );
     } catch (error) {
       uiLog.error("[IncomingCall] Error in start call", { error });
+      router.replace({
+        pathname: "/(drawer)/(tabs)/call/incoming" as never,
+        params: incomingCallParams,
+      });
+      return;
     }
-    uiLog.info("[Navigation] Navigating to CallRoom", {
-      screen: "/(drawer)/(tabs)/call/[id]",
-      peerId: id,
-      type: type ?? "audio",
-      status: "answering",
-    });
-    router.replace({
-      pathname: "/(drawer)/(tabs)/call/[id]" as never,
-      params: { id: id!, type: type ?? "audio", status: "answering" },
-    });
-  }, [id, type, conversationId, callId, requestMediaPermissions, connectionService, callService, router]);
+    clearIncomingCall();
+  }, [id, type, conversationId, callId, callerName, requestMediaPermissions, connectionService, callService, clearIncomingCall, router]);
 
   const handleReject = useCallback(async () => {
     uiLog.debug("[IncomingCall] handleReject called", { id });
@@ -159,8 +168,9 @@ export default function IncomingCall() {
       uiLog.error("[IncomingCall] Error in reject call", { error });
     }
     uiLog.info("[Navigation] goBack triggered from IncomingCall");
+    clearIncomingCall();
     router.replace("/(drawer)/(tabs)");
-  }, [id, type, conversationId, connectionService, callService, router]);
+  }, [id, type, conversationId, connectionService, callService, clearIncomingCall, router]);
 
   const { onPress: onAccept, busy: accepting } = useThrottledPress(handleAccept);
   const { onPress: onReject, busy: rejecting } = useThrottledPress(handleReject);
@@ -172,6 +182,11 @@ export default function IncomingCall() {
       end={{ x: 0, y: 0 }}
       style={styles.container}
     >
+      {/* Minimize */}
+      <TouchableOpacity style={styles.backButton} onPress={minimizeIncoming}>
+        <Feather name="chevron-down" size={28} color="#103462" />
+      </TouchableOpacity>
+
       {/* Peer section */}
       <View style={styles.peerSection}>
         <View style={styles.avatarWrap}>
@@ -180,12 +195,12 @@ export default function IncomingCall() {
           ) : (
             <View style={[styles.avatar, styles.avatarFallback]}>
               <Text style={styles.avatarInitial}>
-                {peerDisplayName ? peerDisplayName[0].toUpperCase() : "?"}
+                {displayName ? displayName[0].toUpperCase() : "?"}
               </Text>
             </View>
           )}
         </View>
-        <Text style={styles.peerName}>{peerDisplayName ?? callerName}</Text>
+        <Text style={styles.peerName}>{displayName}</Text>
       </View>
 
       {/* Status */}
@@ -198,6 +213,8 @@ export default function IncomingCall() {
             style={styles.actionBtn}
             onPress={onAccept}
             disabled={accepting || rejecting}
+            accessibilityRole="button"
+            accessibilityLabel="Accept call"
           >
             <Feather name="phone" size={28} color="#34A853" />
           </TouchableOpacity>
@@ -208,6 +225,8 @@ export default function IncomingCall() {
             style={styles.actionBtn}
             onPress={onReject}
             disabled={accepting || rejecting}
+            accessibilityRole="button"
+            accessibilityLabel="Reject call"
           >
             <Feather name="phone-off" size={28} color="#EA4335" />
           </TouchableOpacity>
@@ -221,6 +240,16 @@ export default function IncomingCall() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  backButton: {
+    position: "absolute",
+    top: 70,
+    left: 24,
+    width: 35,
+    height: 35,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
   },
   peerSection: {
     alignItems: "center",

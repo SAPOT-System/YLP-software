@@ -1,5 +1,11 @@
 # GPS Location — Requirements
 
+## Overview
+
+GPS location sharing uses a dedicated, server-mediated WebSocket layer independent of the messaging connection service. Any authenticated user can stream their coordinates; only rescuers can view live locations and history for all users.
+
+---
+
 ## User Stories
 
 | ID     | As a…    | I want to…                                               | So that…                                                   |
@@ -41,7 +47,7 @@
 
 - `GET /gps/latest` returns the single most-recent `UserLocation` row per user.
 - Requires rescuer role (`UserStore.isRescuer === true`).
-- Response is an array of `{ user_id, lat, lng, timestamp }` objects.
+- Response is an array of `{ user_id, lat, lng, timestamp, username, role }` objects.
 - Used by the map view to place markers for all users.
 
 ### FR-GP-04 — Location History (Rescuer Only)
@@ -61,6 +67,7 @@
 - The map view uses `@maplibre/maplibre-react-native` to render user location markers.
 - Each marker displays the user's display name and last-seen timestamp.
 - Tapping a marker opens the location history trail for that user.
+- Markers are styled by the user's `role` (`admin` | `rescuer` | `user`) so a responder is identifiable without tapping the marker. The distinction is carried by **both** shape and colour — colour alone is not sufficient, so the map stays readable in greyscale and for colour-blind operators. Both the mobile map and the admin map show a legend explaining the marker styles.
 
 ### FR-GP-07 — Permission and Privacy
 

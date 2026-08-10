@@ -8,34 +8,32 @@ This quickstart covers the **minimum golden path**: server + mobile app. GSM/SMS
 
 ## 1. Prerequisites checklist
 
-- Python 3.13, Node ≥ 18, npm 10.8.2
-- A running MariaDB instance reachable from your machine
+- Docker + Docker Compose v2, Node ≥ 18, [pnpm](https://pnpm.io/) (mobile app's declared package manager — see `mobile-app/sapot-mobile-app/package.json`'s `packageManager` field)
 - Android device or emulator, on the **same Wi-Fi network** as the machine running the server
 - [Nix](https://nixos.org/) (used to pin the mobile app's dev toolchain)
 
 ## 2. Start the server
 
-```bash
-cd server
-source app/venv/bin/activate && pip install -r app/requirements.txt
-```
-
-Copy `server/.env.example` to `server/.env` and set the three required variables (the server raises `RuntimeError` at import time if any are missing):
-
-```dotenv
-DATABASE_URL=mysql+pymysql://<user>:<password>@127.0.0.1:3306/sapot_db
-JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
-CORS_ALLOWED_ORIGINS=http://192.168.1.x:3000
-ENVIRONMENT=development
-```
+All three commands run from the **repo root**, because `docker/up.sh` lives there, not in `server/`:
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cp server/.env.example server/.env    # edit placeholder secrets before anything but local dev
+./docker/up.sh up --build -d
+docker compose exec api alembic upgrade head
 ```
 
-**Checkpoint:** `curl http://<your-lan-ip>:8000/docs` returns the Swagger UI HTML. If not, see [Troubleshooting: server won't start](../TROUBLESHOOTING.md#server-wont-start-or-crashes-on-import).
+The first two bring up MariaDB, Redis, the API, an Nginx TLS terminator, the admin dashboard, and the
+tileserver together, with no local MariaDB/Redis install and no manual cert setup, auto-detecting this
+machine's LAN IP for the dev TLS certificate's SAN.
 
-Full detail: [server-setup.md](server-setup.md).
+The third creates the schema. It is a required, separate step: the schema is owned by Alembic
+([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) and nothing in the container runs it for
+you, so without it the API starts but every database-backed request fails. Re-run it after any pull
+that adds a migration.
+
+**Checkpoint:** `curl -sk https://<your-lan-ip>/version` (or `https://localhost/version` from the same machine) returns a JSON version payload. If not, see [Troubleshooting: server won't start](../TROUBLESHOOTING.md#server-wont-start-or-crashes-on-import).
+
+Full detail: [docker-setup.md](docker-setup.md). Prefer to run the API directly without Docker? See [server-setup.md](server-setup.md) (bare-metal, requires installing MariaDB/Redis yourself).
 
 ## 3. Start the mobile app
 
@@ -44,21 +42,22 @@ Full detail: [server-setup.md](server-setup.md).
 bash configure_nix.sh
 nix develop -L
 cd sapot-mobile-app
-npm install
+pnpm install
+cp .env.example .env
 ```
 
 Point the app at your server's LAN IP:
 
-```bash
-# mobile-app/sapot-mobile-app/.env.local
+```dotenv
+# mobile-app/sapot-mobile-app/.env
 EXPO_PUBLIC_DEV_HOST=192.168.1.x   # same host from step 2
 ```
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
-Open the app on your device/emulator (same Wi-Fi network as the server), go to the getting-started screen, tap **Server Mode**, and enter the same LAN IP in settings.
+Open the app on your device/emulator (same Wi-Fi network as the server), go to the getting-started screen, tap **Server Mode**, then the cog icon on that card, and enter the same LAN IP.
 
 **Checkpoint:** the app's login/registration screen loads without a network error. If it hangs or errors, see [Troubleshooting: mobile app can't reach the server](../TROUBLESHOOTING.md#mobile-app-cant-reach-the-server).
 
@@ -66,8 +65,8 @@ Full detail: [mobile-app-setup.md](mobile-app-setup.md).
 
 ## 4. Register a user and verify end-to-end messaging
 
-1. Register a new account in the app (or use **Guest Mode** to skip registration entirely — no server dependency for LAN messaging).
-2. Repeat steps 3–4 on a second device on the same LAN.
+1. Register a new account in the app. To skip registration entirely, pick **LAN Mode** on the getting-started screen instead of Server Mode. It asks only for a first and last name and signs you in as a guest, with no server dependency for LAN messaging.
+2. Repeat step 3 on a second device on the same LAN.
 3. Discover the peer (automatic via mDNS on the same network) and send a message.
 
 **Checkpoint:** the message appears on the recipient device. This confirms LAN peer discovery, transport (WebRTC data channel or LAN TCP+TLS), and E2E encryption are all working together.
@@ -78,7 +77,10 @@ Only needed if testing SMS delivery to devices off the LAN. See [gsm-module-setu
 
 ## 6. Optional: Admin frontend
 
-Only needed for dashboard work (user management, live GPS map, announcements). See [admin-frontend-setup.md](admin-frontend-setup.md) — requires `API_DOMAIN` pointed at the same server from step 2.
+Step 2's stack already builds and serves the dashboard: open `https://<your-lan-ip>/admin` (the
+`/admin` prefix is required; the app sets `basePath: "/admin"`). A fresh database has no admin
+account and the dashboard has no signup, so create the first one before you can log in. See
+[admin-frontend-setup.md](admin-frontend-setup.md#create-the-first-administrator).
 
 ---
 

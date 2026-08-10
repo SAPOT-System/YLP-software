@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from app.models.users import User
     from app.models.message import Message
     from app.models.call import Call
-    from app.models.call_participant import CallParticipant
 
 class ConversationType(str, Enum):
     direct = 'direct'
@@ -35,13 +34,6 @@ class Conversation(SyncableModel, table=True):
     )
 
     calls: List['Call'] = Relationship(
-        back_populates='conversation',
-        sa_relationship_kwargs={
-            "cascade": "all, delete-orphan", # The magic string
-            }
-    )
-
-    callparticipants: List['CallParticipant'] = Relationship(
         back_populates='conversation',
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan", # The magic string

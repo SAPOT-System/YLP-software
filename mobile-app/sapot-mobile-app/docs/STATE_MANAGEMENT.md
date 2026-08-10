@@ -55,15 +55,15 @@ Owns:
 
 **Construction order matters:** `ConnectionService` is constructed last; its constructor calls `.setTcpCallbacks()` and `.setSignalingSender()` with closures so that `jest.spyOn` replacements in tests are respected.
 
-**Lifetime:** rebuilt on `userContainer` change or when `retryCount` (explicit reset) is incremented. See [Complication: container lifecycle](#complication-container-lifecycle) below.
+**Lifetime:** rebuilt on `userContainer` change or when `retryCount` (explicit reset) is incremented. See [MainContainer lifecycle](#3-maincontainer-lifecycle-the-rebuild-dance) below.
 
 ### `AppModeStore` (global config)
-**Location:** `features/shared/stores/app-mode-store.ts`
+**Location:** `features/shared/core/stores/app-mode-store.ts`
 
 Owns: the user's transport mode preference (`auto` | `server` | `lan`), persisted to secure-store. Properly reactive via subscribe + `useSyncExternalStore`.
 
 ### `UserStore` (user identity, reactive)
-**Location:** `features/shared/stores/user-store.ts`
+**Location:** `features/shared/core/stores/user-store.ts`
 
 Owns: the current user (`Peer` or `GuestUser`) and role flags (`isRescuer`, `isAdmin`, `isGuest`). Now reactive via `subscribe()` and integrated with `useUserStore()` hook using `useSyncExternalStore`. No more duplication with AuthContext.
 
@@ -98,7 +98,7 @@ Owns: the current user (`Peer` or `GuestUser`) and role flags (`isRescuer`, `isA
 2. Emitted events mirrored to `CallContext` useState: `callState`, `localMic`, `localCam`, `remoteCam`, `remoteMic`, `isMinimized`, `elapsed`
 3. `peers.is_online` column (DB, synced by SyncService from server presence)
 
-**Reconciliation:** `CallContext` subscribes to ~10 service events and copies values into React state. The service also keeps auth-source-of-truth in Maps (to handle concurrent calls, retries). **Problem:** if a service-side state update misses the event, the UI doesn't know. See [CallContext Debugging](#callcontext-debugging) below.
+**Reconciliation:** `CallContext` subscribes to ~10 service events and copies values into React state. The service also keeps auth-source-of-truth in Maps (to handle concurrent calls, retries). **Problem:** if a service-side state update misses the event, the UI doesn't know. See [CallContext debugging](#1-callcontext-the-worst) below.
 
 ### Online presence (is peer online?)
 **Contestants:**
@@ -171,7 +171,7 @@ Both `HealthProvider` (`health-context.tsx`) and `ServerHealthProvider` (`server
 - `connectionService.on("call-ended")` → `setCallState`, async finalize
 - `connectionService.on("call-reconnecting", "peer-reconnected", "peer-disconnected")` → state transitions + timers
 
-**Risk:** if a service-side state change doesn't emit, the UI is stale. If an event fires out of order (e.g., late `call-ended` after a timeout), the guard refs (`hasTerminated.current`) must prevent double-processing. See [CallContext Debugging](#callcontext-debugging).
+**Risk:** if a service-side state change doesn't emit, the UI is stale. If an event fires out of order (e.g., late `call-ended` after a timeout), the guard refs (`hasTerminated.current`) must prevent double-processing. See [CallContext debugging](#1-callcontext-the-worst).
 
 ### d) Connection config in-memory + secure-store
 `NetworkConfig` generates a port and reads the IP on init, then keeps both in-memory. On IP change, it immediately writes to secure-store (for the background task to pick up):
@@ -257,7 +257,7 @@ Watch for these sequences:
 - Stale logs will show events arriving out of order or being ignored due to guard checks.
 
 ### 2. UserStore (now reactive)
-**File:** `features/shared/stores/user-store.ts` (60 lines)
+**File:** `features/shared/core/stores/user-store.ts` (60 lines)
 
 **Fixed:** `UserStore` now has a subscriber pattern (`subscribe()` method and `listeners` Set). When `setIsRescuer()`, `setIsAdmin()`, or `setUser()` is called, all subscribers are notified. The `useUserStore()` hook uses `useSyncExternalStore` to ensure components re-render when store values change.
 
@@ -270,7 +270,7 @@ Watch for these sequences:
 **To verify reactivity:** Use `useUserStore()` in a component and the values will update automatically.
 
 ### 3. MainContainer lifecycle (the rebuild dance)
-**File:** `features/shared/context/main-container-context.tsx` (137 lines)
+**File:** `features/shared/core/context/main-container-context.tsx` (137 lines)
 
 **The problem:** `main-container-context.tsx:76–82` deliberately omits `appModeStore` from the dependency array:
 
@@ -316,7 +316,7 @@ grep "connectToPeer\|tcpClientAdapters" $(getLogPath) | grep <peerId>
 ```
 
 ### 5. Two health contexts (conflicting status)
-**Files:** `features/shared/context/health-context.tsx` vs `server-health-context.tsx`
+**Files:** `features/shared/core/context/health-context.tsx` vs `server-health-context.tsx`
 
 **The problem:** Both are mounted. They read `appMode` and skip the health check if in LAN mode. But they use different polling hooks and expose different shapes. In a deeply nested tree, one part of the tree sees `useServerStatus()` and another sees `useServerHealth()`, and they might disagree.
 

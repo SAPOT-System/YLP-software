@@ -15,6 +15,7 @@ import {
     createWatermelonDbMock,
 } from "@/test/mocks/database.mock-builders";
 import { conversationParticipantId } from "@/features/chat/utils/conversation-participant-id";
+import { Q } from "@nozbe/watermelondb";
 import { writer } from "@nozbe/watermelondb/decorators";
 import { ConversationParticipantRepository } from "../conversation-participant-repository";
 
@@ -134,6 +135,25 @@ describe("ConversationParticipantRepository", () => {
     ]);
 
     expect(result).toBe("conv-1");
+  });
+
+  it("includes legacy admin solo conversations in direct lookups", async () => {
+    const oneOf = jest.spyOn(Q, "oneOf");
+    mockCollection
+      .query()
+      .fetch.mockResolvedValueOnce([
+        { conversation: { id: "conv-solo" } },
+        { conversation: { id: "conv-solo" } },
+      ])
+      .mockResolvedValueOnce([{ id: "conv-solo" }]);
+
+    await repository.isDirectConversationExists(["user-1", "user-2"]);
+
+    expect(oneOf).toHaveBeenCalledWith([
+      ConversationType.DIRECT,
+      ConversationType.SOLO,
+    ]);
+    oneOf.mockRestore();
   });
 
   it("returns undefined when candidate is not a live direct conversation", async () => {

@@ -1,6 +1,6 @@
 # SAPOT — Documentation Index
 
-SAPOT (Search and Patrol Operations Technology) is a local-first disaster-response communications platform. It provides messaging, voice/video calls, GPS tracking, and announcements over a local-area network (LAN) when internet connectivity is unavailable. All core functions — messaging, peer discovery, and calls — operate without an internet connection. The server coordinates authentication, sync, and signalling but does not relay chat messages.
+SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response communications platform. It provides messaging, voice/video calls, GPS tracking, and announcements over a local-area network (LAN) when internet connectivity is unavailable. All core functions — messaging, peer discovery, and calls — operate without an internet connection. The server coordinates authentication, sync, and signalling but does not relay chat messages.
 
 ---
 
@@ -14,6 +14,18 @@ SAPOT (Search and Patrol Operations Technology) is a local-first disaster-respon
 | `GSM-module/` | SMS gateway — sends SMS when LAN messaging fails | FastAPI, pyserial, Arduino/AT commands | — |
 | `captive-portal/` | MikroTik hotspot login pages shown to users joining the network | Static HTML/CSS/JS | — |
 | `tileserver/` | Offline map tile server for the GPS map | — | — |
+| `deploy/` | Offline, immutable Docker deployment bundle tooling | Bash, Docker Compose | [deployment/docker-bundle.md](deployment/docker-bundle.md) |
+
+---
+
+## By Role
+
+| Role | Start here |
+|---|---|
+| New developer / contributor | [getting-started/](getting-started/) |
+| QA | [qa/README.md](qa/README.md) |
+| DevOps | [devops/README.md](devops/README.md) |
+| Architect | [architecture/](architecture/) and [adr/](adr/) |
 
 ---
 
@@ -24,11 +36,13 @@ SAPOT (Search and Patrol Operations Technology) is a local-first disaster-respon
 | Document | Contents |
 |---|---|
 | [architecture/system-overview.md](architecture/system-overview.md) | Component responsibilities, system boundaries, communication matrix, roles |
+| [architecture/assumptions-and-constraints.md](architecture/assumptions-and-constraints.md) | Consolidated deployment assumptions and technical constraints, with links to the ADRs/threat model they come from |
 | [architecture/component-map.md](architecture/component-map.md) | Process/service topology, ports, deployment units, what talks to what |
 | [architecture/data-flow.md](architecture/data-flow.md) | Sync flow, message delivery (WS relay, LAN P2P, SMS fallback), call signalling, GPS streaming — with Mermaid diagrams |
+| [architecture/networking-lan-model.md](architecture/networking-lan-model.md) | LAN topology, MikroTik router role, mDNS discovery, client isolation considerations |
 | [architecture/security-architecture.md](architecture/security-architecture.md) | Auth, password hashing, E2E encryption key hierarchy and flows, rate limiting, LAN transport security |
 | [architecture/threat-model.md](architecture/threat-model.md) | Trust boundaries, in-scope attack surfaces, device theft / router compromise / insider threat scenarios, known risks |
-| [adr/](adr/) | Architecture Decision Records — NaCl box, no server migration tooling, WatermelonDB, P2P calls, LAN-first design, roles model |
+| [adr/](adr/) | Architecture Decision Records — NaCl box, WatermelonDB, P2P calls, LAN-first design, roles model, Alembic server migrations |
 
 ### Mobile App (Detailed)
 
@@ -36,6 +50,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 
 | Document | Contents |
 |---|---|
+| [ONBOARDING.md](../mobile-app/sapot-mobile-app/docs/ONBOARDING.md) | Developer onboarding — where complexity lives and how to navigate the codebase |
 | [ARCHITECTURE.md](../mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md) | Service map, DI containers, transport modes, encryption, adapters |
 | [SYNC.md](../mobile-app/sapot-mobile-app/docs/SYNC.md) | Pull/push sync cycle, trigger points, entity list, field normalization |
 | [API.md](../mobile-app/sapot-mobile-app/docs/API.md) | REST endpoint reference |
@@ -45,6 +60,14 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [CONNECTION_MESSAGES.md](../mobile-app/sapot-mobile-app/docs/CONNECTION_MESSAGES.md) | WebSocket, TCP, and WebRTC data-channel message catalogue |
 | [ENV_CONFIG.md](../mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md) | Environment variables, build variants, secure-storage keys |
 | [TESTING.md](../mobile-app/sapot-mobile-app/docs/TESTING.md) | Test utilities, mock patterns, conventions |
+| [STATE_MANAGEMENT.md](../mobile-app/sapot-mobile-app/docs/STATE_MANAGEMENT.md) | The app's seven state mechanisms, sources of truth, debugging pain points |
+| [system-boundaries.md](../mobile-app/sapot-mobile-app/docs/system-boundaries.md) | UI/hooks/service layer boundaries |
+| [design-system.md](../mobile-app/sapot-mobile-app/docs/design-system.md) | Material Design 3 theming via `react-native-paper` |
+| [conventions.md](../mobile-app/sapot-mobile-app/docs/conventions.md) | Code style and TypeScript conventions |
+| [READABILITY_AUDIT.md](../mobile-app/sapot-mobile-app/docs/READABILITY_AUDIT.md) | Codebase readability/maintainability audit |
+| [adr/](../mobile-app/sapot-mobile-app/docs/adr/) | Mobile-specific Architecture Decision Records (WebRTC reconnect/rebuild behaviour) |
+| [diagrams/](../mobile-app/sapot-mobile-app/docs/diagrams/) | Mermaid sequence diagrams for startup, LAN messaging, calls, GPS, SMS, guest user, security, encryption |
+| [audits/](../mobile-app/sapot-mobile-app/docs/audits/) | QA test cases, regression suite, automation plan |
 
 ### CI/CD
 
@@ -58,10 +81,12 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 |---|---|
 | [getting-started/overview.md](getting-started/overview.md) | Component map and setup order |
 | [getting-started/quickstart.md](getting-started/quickstart.md) | Full-stack "clone → run everything" happy path |
-| [getting-started/server-setup.md](getting-started/server-setup.md) | Run the FastAPI server locally |
+| [getting-started/docker-setup.md](getting-started/docker-setup.md) | Run the full stack — server, admin dashboard, tileserver, SMS gateway — via Docker Compose (recommended) |
+| [getting-started/server-setup.md](getting-started/server-setup.md) | Run the FastAPI server bare-metal (no Docker) |
 | [getting-started/mobile-app-setup.md](getting-started/mobile-app-setup.md) | Nix + Expo dev environment setup |
 | [getting-started/gsm-module-setup.md](getting-started/gsm-module-setup.md) | SMS gateway setup |
 | [getting-started/admin-frontend-setup.md](getting-started/admin-frontend-setup.md) | Next.js admin dashboard setup |
+| [getting-started/captive-portal-setup.md](getting-started/captive-portal-setup.md) | Captive portal `config.js` setup (RouterOS hotspot login pages) |
 
 ### API
 
@@ -90,10 +115,14 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [deployment/secrets-management.md](deployment/secrets-management.md) | Secret storage and rotation |
 | [deployment/monitoring-logging.md](deployment/monitoring-logging.md) | Monitoring and logging setup |
 | [deployment/runbooks.md](deployment/runbooks.md) | Backup/restore, manual DB DDL application, TLS rotation, rollback, disaster recovery |
+| [deployment/incident-response.md](deployment/incident-response.md) | Severity levels, roles, and communication process during a live incident |
+| [deployment/maintenance.md](deployment/maintenance.md) | Recurring backup/cert/log/dependency upkeep schedule |
 | [deployment/mobile-eas.md](deployment/mobile-eas.md) | Mobile app EAS build/deploy |
 | [deployment/admin-frontend.md](deployment/admin-frontend.md) | Admin dashboard deployment |
 | [deployment/gsm-module.md](deployment/gsm-module.md) | GSM module deployment |
 | [deployment/tileserver.md](deployment/tileserver.md) | Offline tileserver deployment |
+| [deployment/docker-bundle.md](deployment/docker-bundle.md) | Offline Docker bundle build, install, upgrade, and recovery |
+| [deployment/install-ubuntu-server.md](deployment/install-ubuntu-server.md) | First-install walkthrough: CA USB stick, Docker Engine on Ubuntu Server 24.04, build, transfer, install, verify |
 
 ### Features
 
@@ -115,15 +144,17 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 
 | Document | Contents |
 |---|---|
-| [../README.org](../README.org) | Repository overview and deliverables |
+| [../README.md](../README.md) | Repository overview, architecture, and quick-start links |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching, commit conventions, and PR workflow |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure process and known security posture |
 | [../LICENSE](../LICENSE) | MIT license |
-| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile/server independent) |
+| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile, server, admin, captive portal, GSM module — independent) |
 | [../CHANGELOG.md](../CHANGELOG.md) | Notable changes per release |
-| [../sequence-diagrams.md](../sequence-diagrams.md) | Cross-component sequence diagrams |
-| [../docs-todo.md](../docs-todo.md) | Documentation audit remediation tracker |
+| [docs-todo.md](docs-todo.md) | Documentation audit remediation tracker |
+| [mobile-app-todo.org](mobile-app-todo.org) | Mobile app feature brief and TODOs |
 
 ---
 
-See [getting-started/](getting-started/) for developer environment setup. Physical deployment steps (router configuration, APK distribution, onboarding rescuers at an incident site) are not yet documented.
+## Known Gap
+
+Physical deployment steps — MikroTik router configuration for a real site, APK distribution to rescuer devices, onboarding rescuers at an incident site — are not yet documented. See [devops/README.md](devops/README.md) and [qa/README.md](qa/README.md) for what *is* covered for those workflows.

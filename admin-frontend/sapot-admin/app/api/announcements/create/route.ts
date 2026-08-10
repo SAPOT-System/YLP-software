@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     });
 
     const res = await secureFetch(
-      `/admin/post-announcement?${params.toString()}`,
+      `/api/admin/post-announcement?${params.toString()}`,
       {
         method: "POST",
         headers: {

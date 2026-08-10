@@ -131,6 +131,7 @@ erDiagram
         VARCHAR hashed_password
         BOOLEAN email_verified
         DATETIME terms_accepted_at
+        BOOLEAN must_change_password
     }
     activity_logs {
         CHAR id PK
@@ -174,16 +175,6 @@ erDiagram
         CHAR conversation_id FK
         CHAR initiator_id FK
     }
-    callparticipant {
-        BIGINT created_at
-        BIGINT updated_at
-        BOOLEAN is_deleted
-        CHAR id PK
-        BIGINT joined_at
-        INTEGER left_at
-        CHAR call_id FK
-        CHAR user_id FK
-    }
     contact_key {
         INTEGER id PK
         CHAR owner_id FK
@@ -217,9 +208,8 @@ erDiagram
         BIGINT updated_at
         CHAR id PK
         VARCHAR message_type
-        VARCHAR content
+        TEXT content
         BOOLEAN is_deleted
-        CHAR linked_message_id FK
         CHAR conversation_id FK
         CHAR sender_id FK
     }
@@ -310,6 +300,16 @@ erDiagram
         INTEGER file_size
         VARCHAR mime_type
     }
+    callparticipant {
+        BIGINT created_at
+        BIGINT updated_at
+        BOOLEAN is_deleted
+        CHAR id PK
+        BIGINT joined_at
+        INTEGER left_at
+        CHAR call_id FK
+        CHAR user_id FK
+    }
     messagereceipt {
         BIGINT created_at
         BIGINT updated_at
@@ -325,8 +325,6 @@ erDiagram
     user ||--o{ banneduser : "user_id"
     conversation ||--o{ call : "conversation_id"
     user ||--o{ call : "initiator_id"
-    conversation ||--o{ callparticipant : "call_id"
-    user ||--o{ callparticipant : "user_id"
     user ||--o{ contact_key : "owner_id"
     conversation ||--o{ conversationparticipant : "conversation_id"
     user ||--o{ conversationparticipant : "user_id"
@@ -346,6 +344,8 @@ erDiagram
     user ||--o{ wrapped_key : "user_id"
     user ||--o{ wrapped_key_recovery : "user_id"
     message ||--o{ attachment : "message_id"
+    call ||--o{ callparticipant : "call_id"
+    user ||--o{ callparticipant : "user_id"
     message ||--o{ messagereceipt : "message_id"
     user ||--o{ messagereceipt : "user_id"
 ```
@@ -356,7 +356,6 @@ erDiagram
 
 - `callparticipant.call_id` is a FK to `conversation.id`, not `call.id` — see
   [schema-overview.md](schema-overview.md) for details.
-- `message.linked_message_id` is a self-referential FK for reply threads (omitted above).
 - Router metric tables (`routerhealth`, `interfacetraffic`) and `guest_sessions` have no FK to
   `user` and appear above with no edges.
 - `mobile app` (WatermelonDB) tables are not part of this diagram — see

@@ -1,14 +1,19 @@
 """
-Regression tests for TC-247.
+Regression tests for TC-247 and the GH #273 `/testing/*` production guard.
 
 TC-247: /gps/ws/monitor/rescuers/{id} must require a valid rescuer token.
 
-TC-246 (/testing/* endpoints must require admin authentication) was removed:
-the testing router is no longer included in the app (see main.py), so those
-endpoints don't exist in any deployment.
+GH #273 (`require_qa_env`): every `/testing/*` route must 404 outside
+ENVIRONMENT=development, even though this repo's test suite normally runs with
+ENVIRONMENT=development (so the router is mounted at all — see main.py). Tested
+against the dependency function directly rather than reimporting `app.main` under a
+different ENVIRONMENT, since the router-inclusion decision is baked in at process
+import time and re-importing it mid-suite is not meaningfully different from a unit
+test of the guard itself.
 """
 import uuid
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -109,3 +114,54 @@ class TestTC247MonitorWebSocketRequiresRescuerAuth:
             f"/gps/ws/monitor/rescuers/{rescuer_id}?token={token}"
         ) as ws:
             assert ws.scope["path"] == f"/gps/ws/monitor/rescuers/{rescuer_id}"
+
+
+# ---------------------------------------------------------------------------
+# GH #273 — /testing/* must 404 outside ENVIRONMENT=development
+# ---------------------------------------------------------------------------
+
+class TestQAGuardProductionLockout:
+
+    def test_require_qa_env_raises_404_when_qa_disabled(self, monkeypatch):
+        from app.api import testing as testing_module
+
+        monkeypatch.setattr(testing_module, "IS_QA_ENABLED", False)
+        with pytest.raises(HTTPException) as exc_info:
+            testing_module.require_qa_env()
+        assert exc_info.value.status_code == 404
+
+    def test_require_qa_env_passes_when_qa_enabled(self, monkeypatch):
+        from app.api import testing as testing_module
+
+        monkeypatch.setattr(testing_module, "IS_QA_ENABLED", True)
+        testing_module.require_qa_env()  # must not raise
+
+    def test_require_qa_token_rejects_missing_header(self):
+        from app.api import testing as testing_module
+
+        with pytest.raises(HTTPException) as exc_info:
+            testing_module.require_qa_token(x_qa_token=None)
+        assert exc_info.value.status_code == 404
+
+    def test_require_qa_token_rejects_wrong_token(self):
+        from app.api import testing as testing_module
+
+        with pytest.raises(HTTPException) as exc_info:
+            testing_module.require_qa_token(x_qa_token="not-the-real-token")
+        assert exc_info.value.status_code == 404
+
+    def test_require_qa_token_accepts_correct_token(self):
+        from app.api import testing as testing_module
+
+        testing_module.require_qa_token(x_qa_token=testing_module.QA_API_TOKEN)  # must not raise
+
+    def test_every_testing_route_depends_on_require_qa_env(self):
+        """Belt-and-suspenders: catches a route added to testing.py that forgets the
+        dependency, independent of any single route's behaviour above."""
+        from app.api import testing as testing_module
+
+        for route in testing_module.router.routes:
+            dependant_calls = {dep.call for dep in route.dependant.dependencies}
+            assert testing_module.require_qa_env in dependant_calls, (
+                f"{route.path} is missing Depends(require_qa_env)"
+            )

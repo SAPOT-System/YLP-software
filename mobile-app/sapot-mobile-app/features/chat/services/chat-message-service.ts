@@ -1,5 +1,5 @@
+import { ConnectionService } from "@/features/shared/connection";
 import {
-  ConnectionService,
   Conversation,
   ConversationType,
   database,
@@ -9,8 +9,8 @@ import {
   MessageStatusType,
   MessageType,
   Peer,
-  UserStore,
-} from "@/features/shared";
+} from "@/features/shared/core/database";
+import { UserStore } from "@/features/shared/core/stores";
 import { chatLog } from "@/features/shared/core/utils/logger";
 import { ConversationKeyManager } from "@/features/chat/services/conversation-key-manager";
 import { ECDH_PREFIX } from "../repositories/message-repository";
@@ -172,171 +172,6 @@ export class ChatMessageService {
     return { conversationId: smsConversation.id, messageId: newMessage.id };
   }
 
-  /**
-   * Sends a message via P2P and SMS simultaneously. Both message records are written in a
-   * single atomic database batch so `linked_message_id` is set from the start — no post-hoc
-   * patch needed, and the UI never shows two separate bubbles.
-   */
-  async sendChatMessageWithSms(message: string): Promise<{
-    conversationId: string;
-    p2pMessageId: string;
-    smsMessageId: string;
-  }> {
-    const peer = this.session.getActivePeer();
-    if (!peer) throw new Error("No peer state stored");
-
-    let preparedP2pMessage: Message | undefined;
-    let preparedP2pStatus: MessageStatus | undefined;
-    let conversation: Conversation | undefined;
-
-    try {
-      chatLog.debug("chat › send+sms start", {
-        peerId: peer.id,
-        messageLength: message.length,
-      });
-      conversation = await this.session.ensureConversationInitialized();
-
-      const existingDirectId =
-        await this.conversationParticipantRepository.isDirectConversationExists(
-          [peer.id, this.userStore.user.id]
-        );
-      const smsConversation = existingDirectId
-        ? await this.conversationRepository.queryConversationById(
-            existingDirectId
-          )
-        : await this.session.getOrCreateSmsConversationByPeer(peer.id);
-
-      await this.conversationKeyManager.deriveAndSetConversationKey(
-        peer.id,
-        conversation.id
-      );
-      await this.conversationKeyManager.deriveAndSetConversationKey(peer.id, smsConversation.id);
-
-      // Prepare SMS message first — read its auto-assigned id before committing.
-      const preparedSmsMessage = this.messageRepository.prepareMessageCreate({
-        sender: this.userStore.user,
-        content: message,
-        conversation: smsConversation,
-        messageType: MessageType.SMS,
-      });
-
-      // Prepare P2P message with the SMS id already linked.
-      preparedP2pMessage = this.messageRepository.prepareMessageCreate({
-        sender: this.userStore.user,
-        content: message,
-        conversation: conversation,
-        linkedMessageId: preparedSmsMessage.id,
-      });
-
-      preparedP2pStatus =
-        this.messageStatusRepository.prepareMessageStatusCreate({
-          message: preparedP2pMessage,
-          user: this.userStore.user,
-          status: MessageStatusType.SENDING,
-        });
-
-      const preparedSmsStatus =
-        this.messageStatusRepository.prepareMessageStatusCreate({
-          message: preparedSmsMessage,
-          user: this.userStore.user,
-          status: MessageStatusType.SENDING,
-        });
-
-      // Single atomic write — link is set from the very first render.
-      await database.write(() =>
-        database.batch(
-          preparedP2pMessage!,
-          preparedSmsMessage,
-          preparedP2pStatus!,
-          preparedSmsStatus
-        )
-      );
-
-      void this.conversationRepository.touchConversation(conversation.id);
-      void this.conversationRepository.touchConversation(smsConversation.id);
-
-      await this.sendAndTrackMessageStatus(
-        preparedP2pMessage,
-        preparedP2pStatus,
-        message,
-        peer,
-        conversation
-      );
-
-      if (!this.userStore.isGuest) void this.syncService.syncNow();
-
-      chatLog.debug("chat › send+sms complete", {
-        peerId: peer.id,
-        conversationId: conversation.id,
-        p2pMessageId: preparedP2pMessage.id,
-        smsMessageId: preparedSmsMessage.id,
-      });
-
-      return {
-        conversationId: conversation.id,
-        p2pMessageId: preparedP2pMessage.id,
-        smsMessageId: preparedSmsMessage.id,
-      };
-    } catch (error) {
-      const appErr = toAppError(error, "network");
-      chatLog.error("chat › send+sms failed", {
-        peerId: peer?.id,
-        conversationId: conversation?.id,
-        ...appErr,
-      });
-      if (preparedP2pMessage && preparedP2pStatus) {
-        await this.messageStatusRepository
-          .updateMessageStatusById(
-            preparedP2pStatus.id,
-            MessageStatusType.NOT_SENT
-          )
-          .catch((error) => chatLog.warn("chat › p2p status update failed (not_sent)", { error }));
-        return {
-          conversationId: conversation!.id,
-          p2pMessageId: preparedP2pMessage.id,
-          smsMessageId: "",
-        };
-      }
-      captureAppError(appErr);
-      throw appErr;
-    }
-  }
-
-  async linkMessages(
-    p2pMessageId: string,
-    smsMessageId: string
-  ): Promise<void> {
-    try {
-      const message = await this.messageRepository.queryMessageById(
-        p2pMessageId
-      );
-      if (!message) {
-        chatLog.warn("chat › linkMessages: p2p message not found", {
-          p2pMessageId,
-        });
-        return;
-      }
-      await database.write(async () => {
-        await message.update((m) => {
-          m.linkedMessageId = smsMessageId;
-        });
-      });
-      chatLog.debug("chat › linkMessages complete", {
-        p2pMessageId,
-        smsMessageId,
-      });
-    } catch (error) {
-      const appErr = toAppError(error, "database");
-      chatLog.error("chat › linkMessages failed", {
-        p2pMessageId,
-        smsMessageId,
-        ...appErr,
-      });
-      captureAppError(appErr);
-      throw appErr;
-    }
-  }
-
   async updateMessageStatus(
     messageId: string,
     status: MessageStatusType
@@ -489,7 +324,6 @@ export class ChatMessageService {
           firstName: this.userStore.user.firstName,
           lastName: this.userStore.user.lastName || undefined,
         },
-        linkedMessageId: message.linkedMessageId ?? undefined,
       });
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusByMessage(
@@ -556,7 +390,7 @@ export class ChatMessageService {
           newMessageStatus.id
         );
       }, 12000);
-      const transport = this.connectionService.sendChatMessage(peer.id, {
+      const messageData = {
         message: message,
         conversationId: conversation.id,
         messageId: newMessage.id,
@@ -568,9 +402,13 @@ export class ChatMessageService {
           username: this.userStore.user.username,
           firstName: this.userStore.user.firstName,
           lastName: this.userStore.user.lastName || undefined,
-        },
-        linkedMessageId: newMessage.linkedMessageId ?? undefined,
-      });
+        }
+      };
+
+      const transport = peer.role === "admin"
+        ? this.connectionService.sendChatMessage(peer.id, messageData, { forceWebSocket: true })
+        : this.connectionService.sendChatMessage(peer.id, messageData);
+
       if (transport === "webrtc") {
         await this.messageStatusRepository.updateMessageStatusById(
           newMessageStatus.id,

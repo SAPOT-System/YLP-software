@@ -1,10 +1,19 @@
 import { Q } from "@nozbe/watermelondb";
 import { withObservables } from "@nozbe/watermelondb/react";
 import { Feather } from "@expo/vector-icons";
-import React, { memo, useEffect, useReducer, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
+import Animated, { Easing, FadeInUp } from "react-native-reanimated";
 import { catchError, map, of } from "rxjs";
 
+import motion from "@/constants/motion";
 import {
   GuestUser,
   Message,
@@ -15,7 +24,7 @@ import {
 } from "@/features/shared";
 import { MessageType } from "@/features/shared/core/database/model/Message";
 import { CallType } from "@/features/shared/core/database/model/Call";
-import { useMainContainer } from "@/features/shared/hooks";
+import { useMainContainer, useReducedMotion } from "@/features/shared/hooks";
 import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
@@ -28,51 +37,122 @@ import { sendSmsToUser } from "@/features/shared/core/api/gsm.api";
 import { toLocalPhone } from "@/features/auth/utils/validation";
 uiLog.debug("[message-list] module loaded");
 
+const MESSAGE_PAGE_SIZE = 100;
+
 const enhanceMessages = withObservables(
-  ["conversationId"],
-  ({ conversationId }: { conversationId: string }) => ({
+  ["conversationId", "messageLimit"],
+  ({
+    conversationId,
+    messageLimit,
+  }: {
+    conversationId: string;
+    messageLimit: number;
+  }) => ({
     messages: database
       .get<Message>(Message.table)
       .query(
         Q.where("conversation", conversationId),
-        Q.sortBy("created_at", Q.asc),
-        Q.take(100)
+        Q.sortBy("created_at", Q.desc),
+        Q.take(messageLimit)
       )
       .observe(),
   })
 );
 
-const MessageList = enhanceMessages(
-  ({ messages, peerId }: { messages: Message[]; peerId: string }) => {
-    const listRef = useRef<FlatList<Message>>(null);
-    const prevLengthRef = useRef(0);
+const MessageListWithData = enhanceMessages(
+  ({
+    messages,
+    peerId,
+    onLoadOlderMessages,
+  }: {
+    messages: Message[];
+    peerId: string;
+    onLoadOlderMessages: () => void;
+  }) => {
+    const hasUserScrolledRef = useRef(false);
+    const seenIdsRef = useRef<Set<string> | null>(null);
+    const reducedMotion = useReducedMotion();
 
-    useEffect(() => {
-      if (messages.length === 0) return;
-      const isInitialLoad = prevLengthRef.current === 0;
-      prevLengthRef.current = messages.length;
-      listRef.current?.scrollToEnd({ animated: !isInitialLoad });
-    }, [messages.length]);
+    if (seenIdsRef.current === null) {
+      seenIdsRef.current = new Set(messages.map((message) => message.id));
+    }
+
+    if (messages.length === 0) {
+      return <View style={{ flex: 1 }} />;
+    }
 
     return (
       <View style={{ flex: 1 }}>
         <FlatList
-          ref={listRef}
           data={messages}
-          renderItem={({ item }) => (
-            <MessageListItem message={item} peerId={peerId} />
-          )}
+          inverted
+          renderItem={({ item }) => {
+            const isNewMessage = !seenIdsRef.current!.has(item.id);
+            seenIdsRef.current!.add(item.id);
+
+            if (reducedMotion || !isNewMessage) {
+              return <MessageListItem message={item} peerId={peerId} />;
+            }
+
+            return (
+              <Animated.View
+                entering={FadeInUp.duration(motion.duration.base).easing(
+                  Easing.bezier(...motion.easing.standard)
+                )}
+              >
+                <MessageListItem message={item} peerId={peerId} />
+              </Animated.View>
+            );
+          }}
           keyExtractor={(message) => message.id}
           ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
           maxToRenderPerBatch={10}
-          initialNumToRender={20}
+          initialNumToRender={MESSAGE_PAGE_SIZE}
           windowSize={5}
           removeClippedSubviews
+          onScrollBeginDrag={() => {
+            hasUserScrolledRef.current = true;
+          }}
+          onEndReached={() => {
+            if (hasUserScrolledRef.current) {
+              hasUserScrolledRef.current = false;
+              onLoadOlderMessages();
+            }
+          }}
+          onEndReachedThreshold={0.5}
         />
       </View>
     );
   }
 );
+
+const MessageList = ({
+  conversationId,
+  peerId,
+}: {
+  conversationId: string;
+  peerId: string;
+}) => {
+  const [messageLimit, setMessageLimit] = useState(MESSAGE_PAGE_SIZE);
+
+  useEffect(() => {
+    setMessageLimit(MESSAGE_PAGE_SIZE);
+  }, [conversationId]);
+
+  const handleLoadOlderMessages = useCallback(() => {
+    setMessageLimit((prev) => prev + MESSAGE_PAGE_SIZE);
+  }, []);
+
+  return (
+    <MessageListWithData
+      key={conversationId}
+      conversationId={conversationId}
+      peerId={peerId}
+      messageLimit={messageLimit}
+      onLoadOlderMessages={handleLoadOlderMessages}
+    />
+  );
+};
 
 const enhanceMessage = withObservables(
   ["message"],
@@ -80,10 +160,6 @@ const enhanceMessage = withObservables(
     const senderId = (message._raw as Record<string, unknown>).sender as
       | string
       | null;
-    const linkedMessageId = (message._raw as Record<string, unknown>).linked_message_id as
-      | string
-      | null;
-    const messageType = (message._raw as Record<string, unknown>).message_type as string | null;
     return {
       message,
       sender: message.sender.observe().pipe(catchError(() => of(null))),
@@ -101,24 +177,6 @@ const enhanceMessage = withObservables(
         .get<MessageStatus>(MessageStatus.table)
         .query(Q.where("message", message.id))
         .observeWithColumns(["status"]),
-      linkedSmsStatus: linkedMessageId
-        ? database
-            .get<MessageStatus>(MessageStatus.table)
-            .query(Q.where("message", linkedMessageId))
-            .observeWithColumns(["status"])
-            .pipe(
-              map((r) => r[0] ?? null),
-              catchError(() => of(null))
-            )
-        : of(null),
-      // True when this SMS message is already shown inside a P2P message's bubble
-      isLinkedSms: messageType === MessageType.SMS
-        ? database
-            .get<Message>(Message.table)
-            .query(Q.where("linked_message_id", message.id))
-            .observeCount()
-            .pipe(map((count) => count > 0))
-        : of(false),
     };
   }
 );
@@ -295,8 +353,6 @@ type MessageListItemProps = {
   sender?: Peer | GuestUser | null;
   guestSender?: GuestUser | null;
   status: MessageStatus[];
-  linkedSmsStatus?: MessageStatus | null;
-  isLinkedSms?: boolean;
   peerId: string;
 };
 
@@ -322,8 +378,6 @@ const MessageListItemInner = memo(
     sender,
     guestSender,
     status,
-    linkedSmsStatus,
-    isLinkedSms,
     peerId,
   }: MessageListItemProps) => {
     const statusObj = status?.[0];
@@ -383,11 +437,6 @@ const MessageListItemInner = memo(
       }
     };
 
-    if (isLinkedSms) {
-      uiLog.debug("[message-list] suppressed linked SMS bubble", { messageId: message.id });
-      return null;
-    }
-
     if (message.messageType === "call_log") {
       return (
         <CallLogMessageCard
@@ -423,11 +472,7 @@ const MessageListItemInner = memo(
               }}
             >
               {displayName}, {formatDate(message.createdAt)}
-              {message.messageType === MessageType.SMS
-                ? " · SMS"
-                : message.linkedMessageId != null
-                ? " · +SMS"
-                : ""}
+              {message.messageType === MessageType.SMS ? " · SMS" : ""}
             </Text>
             <Text
               style={{
@@ -445,23 +490,6 @@ const MessageListItemInner = memo(
     // For the current user message (outgoing)
     if (isCurrentUserMessage) {
       const isNotSent = statusObj?.status === MessageStatusType.NOT_SENT;
-      const isSmsNotSent = linkedSmsStatus?.status === MessageStatusType.NOT_SENT;
-      const hasSmsLink = message.linkedMessageId != null;
-
-      const handleResendSms = async () => {
-        if (!message.linkedMessageId) return;
-        setIsResending(true);
-        try {
-          await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.SENDING);
-          const res = await sendSmsToUser(peerId, content);
-          const newStatus = res.ok ? MessageStatusType.DELIVERED : MessageStatusType.NOT_SENT;
-          await chatService.updateMessageStatus(message.linkedMessageId, newStatus);
-        } catch {
-          await chatService.updateMessageStatus(message.linkedMessageId, MessageStatusType.NOT_SENT).catch((error) => uiLog.warn("[message-list] reset linked message status failed", { error }));
-        } finally {
-          setIsResending(false);
-        }
-      };
 
       return (
         <View style={{ alignSelf: "flex-end" }}>
@@ -480,42 +508,18 @@ const MessageListItemInner = memo(
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {hasSmsLink ? (
-              // Combined P2P + SMS footer
-              <>
-                <Text style={{ color: theme.dark ? "#9C9C9C" : "#6B7280", fontSize: 11 }}>
-                  P2P: {statusObj?.status ?? "sending"}
-                </Text>
-                <Text style={{ color: theme.dark ? "#A78BFA" : "#7C3AED", fontSize: 11 }}>
-                  SMS: {linkedSmsStatus?.status ?? "sending"}
-                </Text>
-                {isNotSent && (
-                  <TouchableOpacity onPress={handleResend} disabled={isResending}>
-                    <Text style={{ color: isResending ? "#9C9C9C" : "#3A7AFE", fontSize: 13 }}>
-                      {isResending ? "Resending..." : "Resend P2P"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {isSmsNotSent && (
-                  <TouchableOpacity onPress={handleResendSms} disabled={isResending}>
-                    <Text style={{ color: isResending ? "#9C9C9C" : "#3A7AFE", fontSize: 13 }}>
-                      Resend SMS
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            ) : message.messageType === MessageType.SMS ? (
+            {message.messageType === MessageType.SMS ? (
               // SMS-only message (in SMS conversation)
               <Text style={{ color: theme.dark ? "#9C9C9C" : "#6B7280", fontSize: 11 }}>
                 SMS: {statusObj?.status ?? "sending"}
               </Text>
             ) : (
-              // P2P-only message (no SMS link)
+              // P2P message
               <Text style={{ color: theme.dark ? "#9C9C9C" : "" }}>
                 {statusObj?.status}
               </Text>
             )}
-            {!hasSmsLink && isNotSent && (
+            {isNotSent && (
               <TouchableOpacity onPress={handleResend} disabled={isResending}>
                 <Text
                   style={{
