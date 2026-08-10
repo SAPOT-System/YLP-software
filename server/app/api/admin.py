@@ -29,6 +29,7 @@ from fastapi.routing import APIRouter
 from app.db_operations.token import logout
 import time
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 
 from app.db_operations.auth import (
     SessionDep,
@@ -41,6 +42,7 @@ from app.db_operations.token import (
     RefreshRequest,
     create_token_pair,
     get_current_user_admin,
+    get_current_user_admin_allow_stale_password,
     refresh_token,
 )
 from app.models.rescuer import Rescuer
@@ -59,12 +61,20 @@ router = APIRouter(
 )
 
 
+class AdminLoginResponse(BaseModel):
+    status: str
+    access_token: str
+    refresh_token: str
+    must_change_password: bool
+    terms_accepted: bool
+
+
 @router.get("")
 def test_if_admin(current_user: Annotated[User, Depends(get_current_user_admin)]):
     return {"status": "ok"}
 
 
-@router.post("/login")  # 1. Added response_model for validation
+@router.post("/login", response_model=AdminLoginResponse)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
@@ -105,7 +115,13 @@ async def login_for_access_token(
     # )
     #
     # 4. Return the full dictionary (access_token, refresh_token, token_type)
-    return {"status": "ok", "access_token": tokens.access_token, "refresh_token": tokens.refresh_token}
+    return {
+        "status": "ok",
+        "access_token": tokens.access_token,
+        "refresh_token": tokens.refresh_token,
+        "must_change_password": user.must_change_password,
+        "terms_accepted": user.terms_accepted_at is not None,
+    }
 
 
 @router.post("/refresh")
@@ -146,7 +162,9 @@ async def refresh_access_token(
 
 @router.post("/logout")
 async def logout_user(
-    current_user: Annotated[User, Depends(get_current_user_admin)],
+    # Stale-password admins must still be able to end their session; the
+    # dashboard logs out through this route, not POST /auth/logout.
+    current_user: Annotated[User, Depends(get_current_user_admin_allow_stale_password)],
     token: Annotated[str, Depends(oauth2_scheme)],
     session: SessionDep,
     request: Request,

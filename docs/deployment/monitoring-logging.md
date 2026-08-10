@@ -13,6 +13,30 @@ docker compose -p sapot -f /opt/sapot/releases/current/compose/docker-compose.ym
 tail -f /opt/sapot/shared/logs/api/activity.log
 ```
 
+Scheduled database backup events are also in journald:
+
+- `sudo journalctl -u sapot-db-backup.service --since '7 days ago' --no-pager` records each scheduled backup. `[PASS]` confirms the dump and any off-host copy. `[WARN]` means a lifecycle operation held the lock or the off-host drive was absent, leaving the on-host dump intact. `[ERROR]` means no backup was produced.
+
+Nothing watches these entries. A backup that stops running is noticed only when someone reads the journal or runs `doctor.sh`, whose `db-backup` row fails once the newest dump is older than `SAPOT_BACKUP_MAX_AGE_HOURS` (default 36). Since "MariaDB corrupted with no recent backup" is a SEV1 in [incident-response.md](incident-response.md), treat the weekly check in [maintenance.md](maintenance.md#recurring-schedule) as load-bearing rather than routine.
+
+> **TODO (human input required):** Confirm whether JSON structured logging or rotating file logging is enabled, and document the log level configuration.
+
+---
+
+## Server — router metrics collection
+
+A background thread (`collect_metrics_loop`) polls the MikroTik router for telemetry and writes to the `routerhealth` and `interfacetraffic` MariaDB tables (see [tables.md](../database/tables.md)). The admin frontend reads these tables via the `/admin/router-*` endpoints (see [mikrotik-telemetry.md](../api/mikrotik-telemetry.md)).
+
+No external monitoring agent is required — data is stored in the existing database.
+
+---
+
+## Server — announcement expiry
+
+A second background thread (`expire_announcements_loop`) periodically marks announcements whose `expires_at` has passed by setting `is_expired = True`. This runs entirely in-process; no external scheduler is needed.
+
+---
+
 ## GSM module logs
 
 The GSM module writes `$GSM_LOG_DIR/sapot.log` through a rotating handler (1 MB plus three backups) and stdout. Docker sets `GSM_LOG_DIR=/var/log/sapot`, mounted from `/opt/sapot/shared/logs/gsm`; an unset value preserves the local working-directory behavior.

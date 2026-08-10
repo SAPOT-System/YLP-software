@@ -22,7 +22,7 @@ git_sha=$(git rev-parse HEAD); short_sha=$(git rev-parse --short HEAD); built_at
 scratch=$(mktemp -d "$repo_root/.bundle-build.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 bundle="$scratch/sapot-bundle-v$version"
-mkdir -p "$bundle"/{images,compose,config,data,certs,firmware,scripts}
+mkdir -p "$bundle"/{images,compose,config,data,certs,firmware,scripts,systemd}
 
 declare -A tags=(
   [api]="sapot/api:bundle" [admin]="sapot/admin:bundle" [gsm-fastapi]="sapot/gsm-fastapi:bundle"
@@ -59,8 +59,29 @@ firmware_sha=$(sha256sum "$bundle/firmware/gsm-arduino-actual-code.hex" | awk '{
 cp docker-compose.prod.yml "$bundle/compose/docker-compose.yml"
 cp docker-compose.gsm-hardware.yml "$bundle/compose/"
 cp deploy/config/* "$bundle/config/"
-cp docker/gen-certs.sh docker/detect-ip.sh "$bundle/certs/"
+# gen-certs.sh is deliberately not shipped: it can self-sign, and servers issue
+# their leaf from the offline CA on a USB stick instead (scripts/request-cert.sh).
+# It stays a dev/CI-only tool driven by docker-compose.yml's certgen service.
+cp docker/detect-ip.sh "$bundle/certs/"
 cp -a deploy/scripts/. "$bundle/scripts/"
+# Units get their own directory rather than riding along in scripts/, which is
+# chmod +x wholesale below - a unit file is read by systemd, never executed.
+# install.sh installs whatever lands here; see deploy-common.sh.
+cp deployment-scripts/sapot-db-backup.service deployment-scripts/sapot-db-backup.timer "$bundle/systemd/"
+
+# Guards against CA key material ever reaching a bundle (scripts/AGENTS.md).
+# Servers read the CA from a USB stick at issuance time and keep only the public
+# server_ca.pem afterwards; neither may be baked into a release. Called here
+# right after the file copies that could introduce them, and again immediately
+# before CHECKSUMS.sha256 is generated below - the second call is the last check
+# before the bundle is sealed, so anything added between here and there still
+# gets caught.
+check_no_ca_material() {
+  local hit
+  hit=$(find "$bundle" \( -name 'server_ca.key' -o -name 'server_ca.pem' \) -print -quit)
+  [ -z "$hit" ] || { echo "refusing to ship CA key material in a bundle: $hit" >&2; exit 1; }
+}
+check_no_ca_material
 chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/*.py "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
 
 python3 - "$bundle/manifest.json" "$version" "$git_sha" "$built_at" "$min_version" "$max_version" "$firmware_version" "$fqbn" "$firmware_sha" "$bundle" <<'PY'
@@ -92,6 +113,7 @@ m=json.load(open(sys.argv[1])); print(f"SAPOT bundle v{m['version']}\nBundle ID:
 print("Images:"); [print(f"  {n}: {i['tag']} ({i['digest']})") for n,i in m['images'].items()]
 print(f"Firmware: {m['gsmFirmware']['version']} ({m['gsmFirmware']['fqbn']})")
 PY
+check_no_ca_material
 (cd "$bundle" && find . -type f ! -name CHECKSUMS.sha256 -print0 | sort -z | xargs -0 sha256sum > CHECKSUMS.sha256)
 mkdir -p dist
 output="dist/sapot-bundle-v$version.tar.zst"

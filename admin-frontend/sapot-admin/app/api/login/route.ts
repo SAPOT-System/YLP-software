@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 type LoginResponse = {
   access_token?: string;
   refresh_token?: string;
+  must_change_password?: boolean;
+  terms_accepted?: boolean;
   detail?: unknown;
 };
 
@@ -83,6 +85,29 @@ export async function POST(req: Request) {
 			maxAge: 60 * 60 * 24 * 7,
 		});
 	}
+
+  // Must outlive access_token (15m) and match refresh_token (7d). A shorter-lived
+  // flag cookie strands the operator: middleware would let /dashboard render while
+  // every API call 403s, and /change-password would bounce back to /dashboard.
+  const flagCookie = {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
+  };
+
+  if (data.must_change_password) {
+    cookieStore.set('must_change_password', 'true', flagCookie);
+    if (!data.terms_accepted) {
+      cookieStore.set('terms_acceptance_required', 'true', flagCookie);
+    } else {
+      cookieStore.delete('terms_acceptance_required');
+    }
+  } else {
+    cookieStore.delete('must_change_password');
+    cookieStore.delete('terms_acceptance_required');
+  }
 
   return Response.json(data);
 }

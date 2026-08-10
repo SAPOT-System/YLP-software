@@ -334,7 +334,9 @@ def can_reset_password(token: str, session: SessionDep):
 
 
 class PasswordResetRequest(SQLModel):
-    new_password: str = Field(min_length=8)
+    # Bounds match UserCreate.password so set_user_password rejects nothing
+    # here that Pydantic has not already turned into a 422.
+    new_password: str = Field(min_length=8, max_length=128)
     wrapped_blob: Optional[str] = None
     recovery_token: Optional[str] = None
 

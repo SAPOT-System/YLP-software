@@ -4,7 +4,9 @@ SAPOT is a multi-component system deployed as independent services on a LAN.
 
 The established bare-metal/systemd path below remains supported. For an offline
 site that uses Docker Engine and a prebuilt immutable artifact, use the
-[offline Docker bundle guide](docker-bundle.md) instead.
+[offline Docker bundle guide](docker-bundle.md) instead, and follow
+[install-ubuntu-server.md](install-ubuntu-server.md) for the first install on a
+fresh Ubuntu Server 24.04 host.
 
 ---
 

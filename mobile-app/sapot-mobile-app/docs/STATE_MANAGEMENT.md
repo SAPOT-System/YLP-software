@@ -55,7 +55,7 @@ Owns:
 
 **Construction order matters:** `ConnectionService` is constructed last; its constructor calls `.setTcpCallbacks()` and `.setSignalingSender()` with closures so that `jest.spyOn` replacements in tests are respected.
 
-**Lifetime:** rebuilt on `userContainer` change or when `retryCount` (explicit reset) is incremented. See [Complication: container lifecycle](#complication-container-lifecycle) below.
+**Lifetime:** rebuilt on `userContainer` change or when `retryCount` (explicit reset) is incremented. See [MainContainer lifecycle](#3-maincontainer-lifecycle-the-rebuild-dance) below.
 
 ### `AppModeStore` (global config)
 **Location:** `features/shared/core/stores/app-mode-store.ts`
@@ -98,7 +98,7 @@ Owns: the current user (`Peer` or `GuestUser`) and role flags (`isRescuer`, `isA
 2. Emitted events mirrored to `CallContext` useState: `callState`, `localMic`, `localCam`, `remoteCam`, `remoteMic`, `isMinimized`, `elapsed`
 3. `peers.is_online` column (DB, synced by SyncService from server presence)
 
-**Reconciliation:** `CallContext` subscribes to ~10 service events and copies values into React state. The service also keeps auth-source-of-truth in Maps (to handle concurrent calls, retries). **Problem:** if a service-side state update misses the event, the UI doesn't know. See [CallContext Debugging](#callcontext-debugging) below.
+**Reconciliation:** `CallContext` subscribes to ~10 service events and copies values into React state. The service also keeps auth-source-of-truth in Maps (to handle concurrent calls, retries). **Problem:** if a service-side state update misses the event, the UI doesn't know. See [CallContext debugging](#1-callcontext-the-worst) below.
 
 ### Online presence (is peer online?)
 **Contestants:**
@@ -171,7 +171,7 @@ Both `HealthProvider` (`health-context.tsx`) and `ServerHealthProvider` (`server
 - `connectionService.on("call-ended")` → `setCallState`, async finalize
 - `connectionService.on("call-reconnecting", "peer-reconnected", "peer-disconnected")` → state transitions + timers
 
-**Risk:** if a service-side state change doesn't emit, the UI is stale. If an event fires out of order (e.g., late `call-ended` after a timeout), the guard refs (`hasTerminated.current`) must prevent double-processing. See [CallContext Debugging](#callcontext-debugging).
+**Risk:** if a service-side state change doesn't emit, the UI is stale. If an event fires out of order (e.g., late `call-ended` after a timeout), the guard refs (`hasTerminated.current`) must prevent double-processing. See [CallContext debugging](#1-callcontext-the-worst).
 
 ### d) Connection config in-memory + secure-store
 `NetworkConfig` generates a port and reads the IP on init, then keeps both in-memory. On IP change, it immediately writes to secure-store (for the background task to pick up):

@@ -203,9 +203,22 @@ def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDe
     session.refresh(user)
 
 
-def update_user_password(user: User, new_password : str, session : SessionDep):
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 128
+
+
+def set_user_password(user: User, new_password: str, session: SessionDep):
+    """Validate and stage a password replacement without committing it.
+
+    Mirrors the rules UserCreate.password enforces at signup so a replacement
+    password can never be weaker than the one it replaces.
+    """
     v = new_password
 
+    if not PASSWORD_MIN_LENGTH <= len(v) <= PASSWORD_MAX_LENGTH:
+        raise ValueError(
+            f"Password must be between {PASSWORD_MIN_LENGTH} and {PASSWORD_MAX_LENGTH} characters"
+        )
     if not any(char.isdigit() for char in v):
         raise ValueError("Password must contain at least one number")
     if not any(char.islower() for char in v):
@@ -216,6 +229,10 @@ def update_user_password(user: User, new_password : str, session : SessionDep):
     hashed_password = get_password_hash(new_password)
     setattr(user, "hashed_password", hashed_password)
     session.add(user)
+
+
+def update_user_password(user: User, new_password : str, session : SessionDep):
+    set_user_password(user, new_password, session)
     session.commit()
     session.refresh(user)
 

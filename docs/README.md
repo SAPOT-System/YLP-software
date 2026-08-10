@@ -122,6 +122,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [deployment/gsm-module.md](deployment/gsm-module.md) | GSM module deployment |
 | [deployment/tileserver.md](deployment/tileserver.md) | Offline tileserver deployment |
 | [deployment/docker-bundle.md](deployment/docker-bundle.md) | Offline Docker bundle build, install, upgrade, and recovery |
+| [deployment/install-ubuntu-server.md](deployment/install-ubuntu-server.md) | First-install walkthrough: CA USB stick, Docker Engine on Ubuntu Server 24.04, build, transfer, install, verify |
 
 ### Features
 
@@ -143,7 +144,7 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 
 | Document | Contents |
 |---|---|
-| [../README.org](../README.org) | Repository overview and deliverables |
+| [../README.md](../README.md) | Repository overview, architecture, and quick-start links |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching, commit conventions, and PR workflow |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure process and known security posture |
 | [../LICENSE](../LICENSE) | MIT license |

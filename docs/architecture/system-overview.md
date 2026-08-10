@@ -148,11 +148,11 @@ flowchart LR
     Portal["Captive portal"]
 
     MobileA -->|HTTPS REST: auth, sync, keys, admin| Server
-    MobileA <-->|WSS /ws/: signalling, presence| Server
-    MobileA -->|WSS /gps/ws/&lt;id&gt;: location stream| Server
-    MobileA <-.->|WebRTC P2P: data channel, media| MobileB
-    MobileA <-.->|LAN TCP+TLS: fallback signalling| MobileB
-    MobileA <-.->|mDNS: peer discovery| MobileB
+    Server -->|WSS /ws/: signalling, presence| MobileA
+    MobileA -->|WSS /gps/ws/user-id: location stream| Server
+    MobileA -->|WebRTC P2P: data channel and media| MobileB
+    MobileA -->|LAN TCP+TLS: fallback signalling| MobileB
+    MobileA -->|mDNS: peer discovery| MobileB
 
     Admin -->|HTTPS BFF: all dashboard ops| Server
     Server -->|RouterOS API: telemetry| Router

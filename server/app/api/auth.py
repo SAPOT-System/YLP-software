@@ -1,5 +1,5 @@
-from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_password_hash, update_user_password
-from app.db_operations.token import get_current_user
+from app.db_operations.auth import SessionDep, authenticate_user, db_create_user, get_password_hash, set_user_password, update_user_password
+from app.db_operations.token import get_current_user, get_current_user_allow_stale_password
 from fastapi import APIRouter, BackgroundTasks, Request
 from typing import Annotated, Literal, Optional
 import uuid
@@ -392,7 +392,7 @@ class ReauthenticateRequest(BaseModel):
 def reauthenticate(
     request: Request,
     body: ReauthenticateRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_allow_stale_password)],
 ):
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Wrong password")
@@ -403,21 +403,51 @@ def reauthenticate(
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
+    terms_accepted: bool = False
 
 
 @router.post("/change-password")
 @limiter.limit("3/minute")
 def change_password(
         request: Request,
-        current_user: Annotated[User, Depends(get_current_user)],
+        current_user: Annotated[User, Depends(get_current_user_allow_stale_password)],
         body: ChangePasswordRequest,
         session: SessionDep
 ):
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(401, "Wrong old password")
-    update_user_password(current_user, body.new_password, session)
+    if current_user.must_change_password and current_user.terms_accepted_at is None and not body.terms_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "TERMS_ACCEPTANCE_REQUIRED",
+                "message": "You must accept the Terms & Conditions before changing your initial password.",
+            },
+        )
+    # Without this the mandatory change is satisfiable by resubmitting the
+    # installer-chosen password, making a one-shot credential permanent.
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "PASSWORD_REUSED",
+                "message": "Your new password must be different from your current password.",
+            },
+        )
+    try:
+        set_user_password(current_user, body.new_password, session)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "PASSWORD_TOO_WEAK", "message": str(error)},
+        )
+    current_user.must_change_password = False
+    if body.terms_accepted and current_user.terms_accepted_at is None:
+        current_user.terms_accepted_at = datetime.now(timezone.utc)
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
 
     return {
         "message": "password updated successfully."
     }
-

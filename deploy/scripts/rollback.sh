@@ -18,5 +18,8 @@ target_head=$(compose "$target" run --rm api alembic heads 2>/dev/null | awk '/^
 current_tag=$(manifest_value "$current/manifest.json" images.api.tag)
 docker run --rm -v "$SELF/lib/alembic_ancestor_check.py:/check.py:ro" "$current_tag" python /check.py --versions-dir /home/app/server/app/alembic/versions --live-revision "$live" --target-head "$target_head" || { log_error "database revision is not compatible with rollback"; exit 1; }
 ln -sfn "$target" "$SAPOT_ROOT/releases/current"; compose "$target" up -d
+# Restore the rolled-back release's units so they match the code now running.
+# Like upgrade, this refreshes without enabling anything.
+install_systemd_units "$target"
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent); write_state rollback "$current_version" "$target_version" "$hardware"
 log_pass "rolled back from v$current_version to v$target_version"
