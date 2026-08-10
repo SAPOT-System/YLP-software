@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SAPOT Server — Gps
-  version: 0.1.0
+  version: 0.1.2
 paths:
   /gps/history/{user_id}:
     get:
