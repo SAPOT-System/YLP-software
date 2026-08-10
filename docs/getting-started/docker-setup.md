@@ -37,7 +37,7 @@ cp server/.env.example server/.env
 ```
 
 Optional — override the stack's host-side ports (default: `nginx` 443/80, `admin` 3000,
-`tileserver` 8080, `gsm-fastapi` 8001) by copying the repo-root env file too:
+`gsm-fastapi` 8001) by copying the repo-root env file too:
 
 ```bash
 cp .env.example .env
@@ -68,13 +68,7 @@ whole `docker compose up` would abort on any machine without the GSM modem attac
 Without the GSM modem, just run the normal `./docker/up.sh up --build -d` below — `gsm-fastapi` still
 starts, it just won't have serial access.
 
-Add to `.env` (not yet in `.env.example` — add manually until that's fixed):
-
-```dotenv
-ADMIN_WEB_URL=https://<ip>:3000 # For admin website
-```
-
-See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` are required at import time.
+See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `SERVER_ED25519_SEED` are required at import time. `server/.env.example` ships a working value for each, so the copy above is enough for local dev.
 
 ## Run
 
@@ -87,23 +81,44 @@ See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, a
 This brings up every service in `docker-compose.yml`. Besides `db`/`redis`/`api`/`certgen`/`nginx`,
 that includes:
 
-- `admin` — the Next.js admin dashboard, `http://localhost:3000`
-- `tileserver` — offline map tiles, `http://localhost:8080`
-- `gsm-fastapi` — the SMS gateway, `http://localhost:8001` (starts without the GSM modem; add
+- `admin`: the Next.js admin dashboard. Its `next.config.ts` sets `basePath: "/admin"`, so the
+  dashboard lives at `http://localhost:3000/admin` (published port) or `https://localhost/admin`
+  (through `nginx`), **not** at the bare `/`, which 404s.
+- `tileserver`: offline map tiles. Not published to the host: `docker-compose.yml` only `expose`s
+  port 8080 on the internal network, so reach it at `https://localhost/tiles/` through `nginx`.
+- `gsm-fastapi`: the SMS gateway, `http://localhost:8001` (starts without the GSM modem; add
   `docker-compose.gsm-hardware.yml` per the [Configure](#configure) section above for real SMS)
 
-To bring up only the core backend (skip the admin/tileserver/GSM services), name them explicitly:
+`nginx` declares `depends_on` on `admin` and `tileserver` (both proxied by `nginx.docker.conf` as
+static upstreams, which nginx resolves at config-load time and refuses to start without). Naming
+`nginx` therefore always pulls those two in. `gsm-fastapi` is the only service you can leave out:
 
 ```bash
 ./docker/up.sh up --build -d db redis api certgen nginx
 ```
+
+## Apply database migrations
+
+**Required on a fresh `db-data` volume. The stack does not do this for you.** The schema is owned
+by Alembic ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)); the app no longer calls
+`create_all()` at startup, and the `api` image's `CMD` is a bare gunicorn with no migration step.
+Skip this and `api` starts fine but every request that touches the database fails on a missing
+table.
+
+```bash
+docker compose exec api alembic upgrade head
+```
+
+Run it again after any pull that adds a migration. See [migrations.md](../database/migrations.md)
+for the full workflow, and its [one-time cutover](../database/migrations.md#one-time-cutover-for-existing-databases)
+section if you are pointing the stack at a database that predates Alembic.
 
 ## Verify
 
 ```bash
 docker compose ps
 ```
-Expect `db`/`redis`/`api` **healthy**, `certgen` exited (0), `nginx` running. `nginx`'s `depends_on` waits for `api`'s own healthcheck (a request to `/version` inside the container), not just the process launching — so a slow first boot (image build, table creation) no longer races `nginx` into serving 502s before `api` is actually ready. If `api` sits at `starting`/`unhealthy` instead of turning `healthy`, go straight to its logs below rather than assuming it's a networking issue.
+Expect `db`/`redis` **healthy**, `certgen` exited (0), and `api`/`nginx`/`admin`/`tileserver`/`gsm-fastapi` running. Only `db` and `redis` declare healthchecks in the dev stack. `api`'s `/version` probe lives in `docker-compose.ci.yml` and is not loaded here, so `api` shows no health status and `nginx` waits only for its *process* to start (`condition: service_started`). A slow first boot can therefore still race `nginx` into serving 502s for a few seconds; the [Troubleshooting](#troubleshooting) entry below covers telling that apart from a real failure.
 
 ```bash
 docker compose logs -f api
@@ -113,16 +128,19 @@ Look for Uvicorn's "Application startup complete" with no traceback.
 ```bash
 curl -sk https://localhost/version
 ```
-Expect a JSON version payload. A connection/TLS error means `nginx`/`certgen` isn't ready; a `502 Bad Gateway` means `nginx` is up but couldn't reach `api` — check `docker compose ps`'s health column and the `api` logs above, not `nginx`'s own logs, to find the actual cause.
+Expect a JSON version payload. A connection/TLS error means `nginx`/`certgen` isn't ready; a `502 Bad Gateway` means `nginx` is up but couldn't reach `api`. Check the `api` logs above, not `nginx`'s own logs, to find the actual cause.
 
 ## Troubleshooting
 
 **`nginx` returns `502 Bad Gateway`.** This means `nginx` itself is fine — TLS terminated, the request was parsed — but its `proxy_pass` to `api:8000` (Docker's internal bridge network, unrelated to any LAN/cert IP) got nothing back. Always check `api` first, not `nginx`:
 ```bash
-docker compose ps                    # is api "healthy", "unhealthy", or restarting?
+docker compose ps                    # is api running, exited, or restarting?
 docker compose logs api --tail=50    # look for a traceback right before "Application startup failed"
 ```
-- `api` is `healthy` and `nginx` still 502s intermittently right after `up --build -d` — retry once; this was a startup race in older versions of `docker-compose.yml` (`nginx` didn't wait for `api`'s healthcheck) and shouldn't recur, but a very slow first build can still occasionally outrun the `start_period`.
+- **`api` is running and the 502s stop on their own within a few seconds of `up -d`**: expected. The dev stack gives `api` no healthcheck, so `nginx` starts as soon as the `api` *process* does, which is before Uvicorn finishes importing the app. Just retry.
+- **`api` is running and the 502s persist**: read the logs. An unset required env var (`DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, `SERVER_ED25519_SEED`, or `QA_API_TOKEN` when `ENVIRONMENT=development`) raises at import time and the container exits before serving anything.
+
+**Requests reach `api` but fail on missing tables (`1146 Table ... doesn't exist`).** Migrations were never applied to this `db-data` volume. Run [Apply database migrations](#apply-database-migrations).
 
 **Another machine on the LAN can't reach `https://<host-LAN-IP>/...` at all (times out, not a TLS or refused error).** Two independent requirements, both needed:
 1. WSL2 networking mode — see step 4 under [Running under WSL](#running-under-wsl). Confirms the packet reaches the WSL2 network namespace at all.
@@ -139,8 +157,10 @@ The new stack runs under a different project name (derived from the repo root di
 
 **`admin` (or any other service) stays stuck in `Created` and never actually starts.** `docker compose up` (no service names) starts every service in dependency order; if one fails partway, services later in the batch can be left created but never started. The most common cause used to be `gsm-fastapi`'s `/dev/ttyACM0` device passthrough failing on machines without the GSM modem — that's no longer in the base `docker-compose.yml` (see [Configure](#configure)), so this should only recur if you merged in `docker-compose.gsm-hardware.yml` without the GSM modem actually attached. Either way, bring up the specific services you need directly instead of relying on the full batch:
 ```bash
-docker compose up -d db redis api certgen nginx admin tileserver   # skips gsm-fastapi
+docker compose up -d db redis api certgen nginx   # pulls in admin + tileserver, skips gsm-fastapi
 ```
+
+**`https://localhost/admin` works but `http://localhost:3000` returns 404.** Expected. The admin app sets `basePath: "/admin"` in `next.config.ts`, so its published port serves the dashboard at `http://localhost:3000/admin`, not at the root path.
 
 **`nginx` logs `host not found in upstream "api"` even though `api` is running.** The `nginx` container was created against a stale image/config and never recreated (Compose reuses an existing container if it thinks nothing relevant changed). Force it:
 ```bash
@@ -160,7 +180,7 @@ both running at once:
   directory name, so a worktree gets its own containers, network, and `db-data` volume automatically
   — no shared state with the main checkout's stack.
 - **Host ports are not automatically isolated.** Two stacks (main checkout + a worktree, or two
-  worktrees) both bind `443`/`80`/`3000`/`8080`/`8001` on the host by default, so bringing up a
+  worktrees) both bind `443`/`80`/`3000`/`8001` on the host by default, so bringing up a
   second stack while the first is still running fails with "port is already allocated". If you want
   them running concurrently, give the worktree its own `.env` (root-level, copied from
   `.env.example`) with different port values, e.g.:
@@ -168,9 +188,10 @@ both running at once:
   NGINX_HTTPS_PORT=8443
   NGINX_HTTP_PORT=8080
   ADMIN_PORT=13000
-  TILESERVER_PORT=18080
   GSM_FASTAPI_PORT=18001
   ```
+  (`.env.example` also carries `TILESERVER_PORT`, but `docker-compose.yml` no longer publishes
+  `tileserver` to the host, so setting it has no effect.)
   If you only ever run one stack at a time — the more common workflow, matching how you'd run
   bare-metal dev servers — you can skip this and leave every worktree's ports at their defaults.
 - **`gsm-fastapi` has no live bind mount** — its code is baked into the image at `docker compose
@@ -184,4 +205,5 @@ both running at once:
 ## Next
 
 - [Mobile app setup](mobile-app-setup.md) to connect a client.
+- [Admin frontend setup](admin-frontend-setup.md) to create the first administrator and sign in to the dashboard the `admin` service is already serving.
 - [environment-config.md](../deployment/environment-config.md) for the full server environment variable list.
