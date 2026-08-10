@@ -1,6 +1,7 @@
 logs/*
 .worktrees/
 node_modules/
+docs/superpowers/
 reports/
 .pnpm-store/
 .env
