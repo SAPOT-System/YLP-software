@@ -144,7 +144,7 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 
 | Document | Contents |
 |---|---|
-| [../README.org](../README.org) | Repository overview and deliverables |
+| [../README.md](../README.md) | Repository overview, architecture, and quick-start links |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching, commit conventions, and PR workflow |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure process and known security posture |
 | [../LICENSE](../LICENSE) | MIT license |
