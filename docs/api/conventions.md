@@ -1,6 +1,6 @@
 # API Conventions
 
-Cross-cutting behavior shared by every endpoint. For any single endpoint's exact field-level request/response schema, see the relevant [`openapi/*.yaml`](openapi/) fragment (linked from each feature's `.md` file) rather than this page.
+Cross-cutting behavior shared by every endpoint. For any single endpoint's exact field-level request/response schema, see the relevant `openapi/*.yaml` fragment (linked from each feature's `.md` file) rather than this page.
 
 ## Base URL
 

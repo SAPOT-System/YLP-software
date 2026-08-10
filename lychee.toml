@@ -1,0 +1,13 @@
+# Dependency READMEs are third-party content and are not part of this project's
+# documentation link-checking scope.
+exclude_path = [
+  '(^|/)node_modules/',
+  '(^|/)captive-portal/',
+]
+
+# RouterOS expands captive-portal placeholders at runtime, so those templates
+# are out of scope. The admin development URL likewise requires a locally
+# running application.
+exclude = [
+  '^http://localhost:3000/$',
+]

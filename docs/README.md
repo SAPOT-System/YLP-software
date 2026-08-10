@@ -1,6 +1,6 @@
 # SAPOT — Documentation Index
 
-> Browse this documentation as a website: run `pnpm start` inside `docs/site/`, or visit https://sapot-system.github.io/YLP-software/ once the GitHub Pages deploy is live.
+> Browse this documentation as a website by running `pnpm start` inside `docs/site/`.
 
 SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response communications platform. It provides messaging, voice/video calls, GPS tracking, and announcements over a local-area network (LAN) when internet connectivity is unavailable. All core functions — messaging, peer discovery, and calls — operate without an internet connection. The server coordinates authentication, sync, and signalling but does not relay chat messages.
 
@@ -10,7 +10,7 @@ SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response
 
 | Name | Role | Primary Stack | Local Docs |
 |---|---|---|---|
-| `mobile-app/sapot-mobile-app/` | Android app — messaging, voice/video calls, GPS sharing, announcements, peer discovery | Expo, React Native, TypeScript, WatermelonDB, WebRTC | [mobile-app/sapot-mobile-app/docs/](../mobile-app/sapot-mobile-app/docs/) |
+| `mobile-app/sapot-mobile-app/` | Android app — messaging, voice/video calls, GPS sharing, announcements, peer discovery | Expo, React Native, TypeScript, WatermelonDB, WebRTC | [Mobile App Docs](pathname:///mobile-docs/ONBOARDING) |
 | `server/` | Backend — auth, sync, signalling relay, GPS, admin, GSM proxy, MikroTik telemetry | FastAPI, Python, MariaDB, Redis, Gunicorn | — |
 | `admin-frontend/sapot-admin/` | Admin/rescuer dashboard — user management, GPS map, network analytics | Next.js App Router, TypeScript | — |
 | `GSM-module/` | SMS gateway — sends SMS when LAN messaging fails | FastAPI, pyserial, Arduino/AT commands | — |
@@ -24,7 +24,7 @@ SAPOT (Search and Patrol Operations Technology) is a LAN-first disaster-response
 
 | Role | Start here |
 |---|---|
-| New developer / contributor | [getting-started/](getting-started/) |
+| New developer / contributor | [Getting Started](getting-started/overview.md) |
 | QA | [qa/README.md](qa/README.md) |
 | DevOps | [devops/README.md](devops/README.md) |
 | Architect | [architecture/](architecture/) and [adr/](adr/) |
@@ -52,30 +52,30 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 
 | Document | Contents |
 |---|---|
-| [ONBOARDING.md](../mobile-app/sapot-mobile-app/docs/ONBOARDING.md) | Developer onboarding — where complexity lives and how to navigate the codebase |
-| [ARCHITECTURE.md](../mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md) | Service map, DI containers, transport modes, encryption, adapters |
-| [SYNC.md](../mobile-app/sapot-mobile-app/docs/SYNC.md) | Pull/push sync cycle, trigger points, entity list, field normalization |
-| [API.md](../mobile-app/sapot-mobile-app/docs/API.md) | REST endpoint reference |
-| [DATABASE.md](../mobile-app/sapot-mobile-app/docs/DATABASE.md) | WatermelonDB schema and migrations |
-| [CALL_FLOW.md](../mobile-app/sapot-mobile-app/docs/CALL_FLOW.md) | Call lifecycle and message types |
-| [LAN_MESSENGER.md](../mobile-app/sapot-mobile-app/docs/LAN_MESSENGER.md) | LAN-only messaging behaviour and constraints |
-| [CONNECTION_MESSAGES.md](../mobile-app/sapot-mobile-app/docs/CONNECTION_MESSAGES.md) | WebSocket, TCP, and WebRTC data-channel message catalogue |
-| [ENV_CONFIG.md](../mobile-app/sapot-mobile-app/docs/ENV_CONFIG.md) | Environment variables, build variants, secure-storage keys |
-| [TESTING.md](../mobile-app/sapot-mobile-app/docs/TESTING.md) | Test utilities, mock patterns, conventions |
-| [STATE_MANAGEMENT.md](../mobile-app/sapot-mobile-app/docs/STATE_MANAGEMENT.md) | The app's seven state mechanisms, sources of truth, debugging pain points |
-| [system-boundaries.md](../mobile-app/sapot-mobile-app/docs/system-boundaries.md) | UI/hooks/service layer boundaries |
-| [design-system.md](../mobile-app/sapot-mobile-app/docs/design-system.md) | Material Design 3 theming via `react-native-paper` |
-| [conventions.md](../mobile-app/sapot-mobile-app/docs/conventions.md) | Code style and TypeScript conventions |
-| [READABILITY_AUDIT.md](../mobile-app/sapot-mobile-app/docs/READABILITY_AUDIT.md) | Codebase readability/maintainability audit |
-| [adr/](../mobile-app/sapot-mobile-app/docs/adr/) | Mobile-specific Architecture Decision Records (WebRTC reconnect/rebuild behaviour) |
-| [diagrams/](../mobile-app/sapot-mobile-app/docs/diagrams/) | Mermaid sequence diagrams for startup, LAN messaging, calls, GPS, SMS, guest user, security, encryption |
-| [audits/](../mobile-app/sapot-mobile-app/docs/audits/) | QA test cases, regression suite, automation plan |
+| [ONBOARDING.md](pathname:///mobile-docs/ONBOARDING) | Developer onboarding — where complexity lives and how to navigate the codebase |
+| [ARCHITECTURE.md](pathname:///mobile-docs/ARCHITECTURE) | Service map, DI containers, transport modes, encryption, adapters |
+| [SYNC.md](pathname:///mobile-docs/SYNC) | Pull/push sync cycle, trigger points, entity list, field normalization |
+| [API.md](pathname:///mobile-docs/API) | REST endpoint reference |
+| [DATABASE.md](pathname:///mobile-docs/DATABASE) | WatermelonDB schema and migrations |
+| [CALL_FLOW.md](pathname:///mobile-docs/CALL_FLOW) | Call lifecycle and message types |
+| [LAN_MESSENGER.md](pathname:///mobile-docs/LAN_MESSENGER) | LAN-only messaging behaviour and constraints |
+| [CONNECTION_MESSAGES.md](pathname:///mobile-docs/CONNECTION_MESSAGES) | WebSocket, TCP, and WebRTC data-channel message catalogue |
+| [ENV_CONFIG.md](pathname:///mobile-docs/ENV_CONFIG) | Environment variables, build variants, secure-storage keys |
+| [TESTING.md](pathname:///mobile-docs/TESTING) | Test utilities, mock patterns, conventions |
+| [STATE_MANAGEMENT.md](pathname:///mobile-docs/STATE_MANAGEMENT) | The app's seven state mechanisms, sources of truth, debugging pain points |
+| [system-boundaries.md](pathname:///mobile-docs/system-boundaries) | UI/hooks/service layer boundaries |
+| [design-system.md](pathname:///mobile-docs/design-system) | Material Design 3 theming via `react-native-paper` |
+| [conventions.md](pathname:///mobile-docs/conventions) | Code style and TypeScript conventions |
+| [READABILITY_AUDIT.md](pathname:///mobile-docs/READABILITY_AUDIT) | Codebase readability/maintainability audit |
+| [adr/](pathname:///mobile-docs/adr/unexpected-offer-triggers-rebuild) | Mobile-specific Architecture Decision Records (WebRTC reconnect/rebuild behaviour) |
+| [diagrams/](pathname:///mobile-docs/diagrams/system-startup-flow) | Mermaid sequence diagrams for startup, LAN messaging, calls, GPS, SMS, guest user, security, encryption |
+| [audits/](pathname:///mobile-docs/audits/test-inventory) | QA test cases, regression suite, automation plan |
 
 ### CI/CD
 
 | Document | Contents |
 |---|---|
-| [EXPO_ANDROID_CI_DOCUMENTATION.md](../.github/workflows/EXPO_ANDROID_CI_DOCUMENTATION.md) | Expo Android CI/CD workflow |
+| `.github/workflows/EXPO_ANDROID_CI_DOCUMENTATION.md` | Expo Android CI/CD workflow |
 
 ### Getting Started
 
@@ -88,7 +88,6 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 | [getting-started/mobile-app-setup.md](getting-started/mobile-app-setup.md) | Nix + Expo dev environment setup |
 | [getting-started/gsm-module-setup.md](getting-started/gsm-module-setup.md) | SMS gateway setup |
 | [getting-started/admin-frontend-setup.md](getting-started/admin-frontend-setup.md) | Next.js admin dashboard setup |
-| [getting-started/captive-portal-setup.md](getting-started/captive-portal-setup.md) | Captive portal `config.js` setup (RouterOS hotspot login pages) |
 
 ### API
 
@@ -96,7 +95,7 @@ These live inside the mobile app sub-project at `mobile-app/sapot-mobile-app/doc
 |---|---|
 | [api/README.md](api/README.md) | How to discover the live API base URL and spec (`/docs`, `/redoc`, `/openapi.json`) |
 | [api/conventions.md](api/conventions.md) | Shared API conventions (auth, errors, rate limits) |
-| [api/openapi/](api/openapi/) | Committed OpenAPI YAML fragments per feature, generated from the live server |
+| `api/openapi/` | Committed OpenAPI YAML fragments per feature, generated from the live server |
 
 ### Database
 
@@ -146,14 +145,12 @@ See [GLOSSARY.md](GLOSSARY.md) for definitions of SAPOT-specific terms (roles, L
 
 | Document | Contents |
 |---|---|
-| [../README.md](../README.md) | Repository overview, architecture, and quick-start links |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching, commit conventions, and PR workflow |
-| [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure process and known security posture |
-| [../LICENSE](../LICENSE) | MIT license |
-| [../VERSIONING.md](../VERSIONING.md) | Git-tag-driven versioning and release process (mobile, server, admin, captive portal, GSM module — independent) |
-| [../CHANGELOG.md](../CHANGELOG.md) | Notable changes per release |
-| [docs-todo.md](docs-todo.md) | Documentation audit remediation tracker |
-| [mobile-app-todo.org](mobile-app-todo.org) | Mobile app feature brief and TODOs |
+| `README.md` | Repository overview, architecture, and quick-start links |
+| `CONTRIBUTING.md` | Branching, commit conventions, and PR workflow |
+| `SECURITY.md` | Vulnerability disclosure process and known security posture |
+| `LICENSE` | MIT license |
+| `VERSIONING.md` | Git-tag-driven versioning and release process (mobile, server, admin, captive portal, GSM module — independent) |
+| `CHANGELOG.md` | Notable changes per release |
 
 ---
 

@@ -26,11 +26,13 @@ const config: Config = {
   projectName: 'YLP-software', // Usually your repo name.
 
   onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
 
   markdown: {
     format: 'md',
     mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
   },
 
   // Even if you don't use internationalization, you can use this field to set
@@ -78,7 +80,9 @@ const config: Config = {
       {
         hashed: true,
         indexDocs: true,
+        indexBlog: false,
         indexPages: false,
+        docsDir: ['..', '../../mobile-app/sapot-mobile-app/docs'],
         docsRouteBasePath: ['/docs', '/mobile-docs'],
       },
     ],

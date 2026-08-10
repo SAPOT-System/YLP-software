@@ -225,12 +225,12 @@ After each call state transition `CallService` calls `SyncService.schedulePush()
 - No TURN server / relay fallback for media — calls that can't establish direct P2P connectivity fail rather than falling back to a relayed media path. See [ADR 0004](../../adr/0004-p2p-calls-with-signalling-relay.md).
 - No group calls — the data model (`callparticipant`) allows multiple rows per call, but the current UI and signalling flow only support 1:1 calls; multi-party calls are unimplemented.
 - No call recording or transcription.
-- No screen sharing — camera/mic use `replaceTrack` for switching, but adding a new track type (e.g. a screen-share m-line) requires renegotiation the current WebRTC session model doesn't support (see [mobile ADR 0001](../../../mobile-app/sapot-mobile-app/docs/adr/0001-unexpected-offer-triggers-rebuild.md)).
+- No screen sharing — camera/mic use `replaceTrack` for switching, but adding a new track type (e.g. a screen-share m-line) requires renegotiation the current WebRTC session model doesn't support (see [mobile ADR 0001](pathname:///mobile-docs/adr/unexpected-offer-triggers-rebuild)).
 
 ## Failure handling
 
 - **ICE negotiation fails (no direct path available):** the call fails to connect; there is no TURN fallback, so the user sees a failed/missed call rather than a degraded-quality relayed call.
-- **Peer's device WebRTC session drops mid-call (network blip):** an unexpected offer from the peer is treated as proof they rebuilt their connection — the still-connected side evicts its own adapter and answers fresh rather than attempting in-place renegotiation (see [mobile ADR 0001](../../../mobile-app/sapot-mobile-app/docs/adr/0001-unexpected-offer-triggers-rebuild.md)).
+- **Peer's device WebRTC session drops mid-call (network blip):** an unexpected offer from the peer is treated as proof they rebuilt their connection — the still-connected side evicts its own adapter and answers fresh rather than attempting in-place renegotiation (see [mobile ADR 0001](pathname:///mobile-docs/adr/unexpected-offer-triggers-rebuild)).
 - **Signalling relay (WS) disconnects mid-call:** if the call already has a live P2P media path, the call continues — signalling is only needed for setup and renegotiation, not to sustain already-connected media.
 - **Callee never answers:** `CallService` transitions the call to `missed` after a timeout (see the `idle → ringing → connecting → active → ended` state machine); the `call` row is persisted with `status: missed`.
 - **Local media acquisition fails (camera/mic denied or unavailable):** per the mobile app's permission-state convention, the UI must render a distinct denied/unavailable state rather than silently starting an audio-only or blank call.

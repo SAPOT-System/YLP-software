@@ -78,8 +78,8 @@ Running the tileserver standalone instead? Use `deploy-tiling-server.sh` from `t
 
 ## Verify
 
-- `pnpm run typecheck`, `pnpm run lint`, `pnpm test` — see [`mobile-app/sapot-mobile-app/docs/TESTING.md`](../../mobile-app/sapot-mobile-app/docs/TESTING.md).
+- `pnpm run typecheck`, `pnpm run lint`, `pnpm test` — see [the mobile app testing documentation](pathname:///mobile-docs/TESTING).
 
 ## Next
 
-- [`mobile-app/sapot-mobile-app/docs/ONBOARDING.md`](../../mobile-app/sapot-mobile-app/docs/ONBOARDING.md) for a deeper architectural walkthrough.
+- [The mobile app onboarding documentation](pathname:///mobile-docs/ONBOARDING) for a deeper architectural walkthrough.

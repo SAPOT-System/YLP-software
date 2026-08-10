@@ -4,7 +4,7 @@
 
 SAPOT has **no formal secrets management system**. Secrets are handled through environment variables, loaded via `load_dotenv()` in `server/app/main.py`.
 
-See [SECURITY.md](../../SECURITY.md) at the repo root for the canonical list of resolved and outstanding security gaps — do not duplicate that table here.
+See the repo-root `SECURITY.md` for the canonical list of resolved and outstanding security gaps — do not duplicate that table here.
 
 ---
 
