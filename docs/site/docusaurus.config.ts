@@ -15,14 +15,14 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://emman-pip.github.io',
+  url: 'https://sapot-system.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/YLP-software/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'Emman-pip', // Usually your GitHub org/user name.
+  organizationName: 'SAPOT-System', // Usually your GitHub org/user name.
   projectName: 'YLP-software', // Usually your repo name.
 
   onBrokenLinks: 'warn',
