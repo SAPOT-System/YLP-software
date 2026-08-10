@@ -51,7 +51,7 @@ const config: Config = {
           exclude: ['site/**'],
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/Emman-pip/YLP-software/edit/develop/docs/',
+            'https://github.com/SAPOT-System/YLP-software/edit/develop/docs/',
         },
         blog: false,
         theme: {
@@ -70,7 +70,7 @@ const config: Config = {
         routeBasePath: 'mobile-docs',
         sidebarPath: './sidebarsMobile.ts',
         editUrl:
-          'https://github.com/Emman-pip/YLP-software/edit/develop/mobile-app/sapot-mobile-app/docs/',
+          'https://github.com/SAPOT-System/YLP-software/edit/develop/mobile-app/sapot-mobile-app/docs/',
       },
     ],
     [
@@ -108,7 +108,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/Emman-pip/YLP-software',
+          href: 'https://github.com/SAPOT-System/YLP-software',
           label: 'GitHub',
           position: 'right',
         },
@@ -135,7 +135,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/Emman-pip/YLP-software',
+              href: 'https://github.com/SAPOT-System/YLP-software',
             },
           ],
         },
