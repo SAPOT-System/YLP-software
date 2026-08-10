@@ -46,7 +46,7 @@ A conversation groups messages between participants.
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | `id` | string | — | UUID |
-| `type` | string | No | `"direct"` \| `"group"` \| `"solo"` (legacy admin direct conversation) |
+| `type` | string | No | `"direct"` \| `"group"` \| `"solo"` (legacy admin-created two-person) \| `"sms"` (GSM-relayed) |
 | `title` | string | Yes | Used for group conversations |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
@@ -77,7 +77,7 @@ Individual chat messages within a conversation.
 | `id` | string | — | UUID |
 | `conversation` | string | No | FK → `conversations.id` |
 | `sender` | string | No | FK → `peers.id` |
-| `message_type` | string | No | `"text"` \| `"file"` \| `"call_log"` |
+| `message_type` | string | No | `"text"` \| `"file"` \| `"call_log"` \| `"sms"` |
 | `content` | string | No | Message text or file reference |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
@@ -95,7 +95,7 @@ Delivery and read status per message per user.
 | `id` | string | — | UUID |
 | `message` | string | No | FK → `messages.id` |
 | `user` | string | No | FK → `peers.id` |
-| `status` | string | No | `"sent"` \| `"delivered"` \| `"seen"` (MessageStatusType) |
+| `status` | string | No | MessageStatusType — `"sending"` \| `"sent"` \| `"not_sent"` \| `"delivered"` \| `"read"` |
 | `created_at` | number | No | Unix ms |
 | `updated_at` | number | No | Unix ms |
 | `is_deleted` | boolean | No | Soft delete |
@@ -140,11 +140,16 @@ Which users participated in each call.
 
 | Enum | Values |
 |---|---|
-| `MessageType` | `"text"` \| `"file"` \| `"call_log"` |
-| `MessageStatusType` | `"sent"` \| `"delivered"` \| `"seen"` |
+| `MessageType` | `"text"` \| `"file"` \| `"call_log"` \| `"sms"` |
+| `MessageStatusType` | `"sending"` \| `"sent"` \| `"not_sent"` \| `"delivered"` \| `"read"` |
 | `CallType` | `"audio"` \| `"video"` |
 | `CallStatus` | `"completed"` \| `"missed"` \| `"rejected"` |
-| `ConversationType` | `"direct"` \| `"group"` \| `"solo"` (legacy admin direct conversation) |
+| `ConversationType` | `"direct"` \| `"group"` \| `"solo"` (legacy admin-created two-person) \| `"sms"` (GSM-relayed) |
+
+> The wire protocol and the database use **different names for the read receipt**: the WebRTC
+> data-channel message is `seen` (see
+> [CONNECTION_MESSAGES.md](CONNECTION_MESSAGES.md#seen--read-receipt)), while the value persisted
+> in `message_receipts.status` is `"read"`. Don't assume the strings match across the two layers.
 
 ---
 
@@ -163,7 +168,9 @@ calls ──< call_participants >── peers
 ## Sync
 
 WatermelonDB uses a **pull/push sync** pattern with the server:
-- `GET /sync/pull?last_pulled_at=<ms>&limit=<n>` — fetches changes since last sync
+- `GET /sync/pull?last_pulled_at=<ms>&schema_version=<n>` — fetches changes since last sync.
+  Page size is a server-side default (100 per table), not a client parameter; the client pages
+  through `has_more`/`next_cursor` until every table is drained.
 - `POST /sync/push` — pushes local created/updated/deleted records
 
 `features/sync/api/sync.api.ts` also sends a `schema_version` query param, but the server

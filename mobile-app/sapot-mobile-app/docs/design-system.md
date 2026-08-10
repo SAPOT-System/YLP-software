@@ -55,11 +55,24 @@ Order is load-bearing — each provider depends on those above it:
 ```
 ThemePreferenceProvider
   └─ AuthContainerProvider
-     └─ AuthProvider       ← auth state machine; drives auth vs. main branch
-        └─ RootLayoutGate  ← Sentry init (deferred until fonts loaded + auth bootstrapped)
+     └─ AuthProvider          ← auth state machine; drives auth vs. main branch
+        └─ RootLayoutGate     ← Sentry init (deferred until fonts loaded + auth bootstrapped)
+           └─ SafeAreaProvider
+              └─ AppModeProvider
+                 └─ PaperProvider
+                    └─ ThemeProvider
+                       └─ Stack   ← Expo Router
 ```
 
-Auth state determines which branch renders: auth screens or the drawer. `AppModeProvider` and `MainContainerProvider` are mounted conditionally inside the authenticated branch only.
+Auth state determines which branch the `Stack` renders: auth screens or the drawer.
+
+`AppModeProvider` sits **above** that branch, inside `RootLayoutGate` — it is mounted for
+authenticated and unauthenticated screens alike, because the getting-started flow needs to pick a
+transport mode before any account exists.
+
+`MainContainerProvider` is the one that is authenticated-only: it is mounted inside
+`app/(drawer)/_layout.tsx`, alongside the two health providers
+(see [ARCHITECTURE.md](ARCHITECTURE.md#server-status)).
 
 ---
 

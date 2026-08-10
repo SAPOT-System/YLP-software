@@ -41,7 +41,7 @@ The `apiClient` (axios instance) automatically attaches the token via an interce
 }
 ```
 
-**Response `201`:** (server sets `status_code=201`; previously documented here as `200`)
+**Response `201`:**
 ```json
 {
   "id":            "string",
@@ -104,7 +104,7 @@ grant_type=password&username=<username>&password=<password>&scope=&client_id=&cl
 ### `POST /auth/reauthenticate` — Re-authenticate (confirm password)
 **Auth:** Required · Rate limit: 5/minute
 
-Issues a short-lived (10 min) reauth token for sensitive actions, without invalidating the current session. Not previously documented here.
+Issues a short-lived (10 min) reauth token for sensitive actions, without invalidating the current session.
 
 **Request body:**
 ```json
@@ -134,7 +134,7 @@ Issues a short-lived (10 min) reauth token for sensitive actions, without invali
 ### `POST /auth/change-password` — Change Password
 **Auth:** Required · Rate limit: 3/minute
 
-**Request body:** (was previously documented as query params — actual route takes a JSON body)
+**Request body:**
 ```json
 {
   "current_password": "string",
@@ -265,6 +265,268 @@ Issues a short-lived (10 min) reauth token for sensitive actions, without invali
 
 ---
 
+### `GET /auth/terms` — Terms & Conditions Text
+**Auth:** None
+
+**Response `200`:**
+```json
+{ "content": "string" }
+```
+
+---
+
+### `GET /auth/forgot-password/generate-security-question` — Suggest Security Questions
+**Auth:** Bearer token (from registration flow)
+
+Returns the server-curated question list the registration flow offers the user.
+
+---
+
+### `GET /auth/forgot-password/recovery-constraints` — Recovery Method Cooldowns
+**Auth:** Required
+
+Drives which recovery options the settings UI enables, and why one is greyed out.
+
+**Response `200`:**
+```json
+{
+  "recovery_key": {
+    "has_key":               "boolean",
+    "can_change":            "boolean",
+    "days_since_generated":  "number | null",
+    "days_until_changeable": "number | null"
+  },
+  "security_question": {
+    "has_question":          "boolean",
+    "can_change":            "boolean",
+    "is_burned":             "boolean",
+    "is_expired":            "boolean",
+    "days_since_set":        "number | null",
+    "days_until_changeable": "number | null",
+    "days_until_expiry":     "number | null"
+  }
+}
+```
+
+---
+
+### `POST /auth/forgot-password/phone` — Send Reset SMS Code
+**Auth:** None
+
+**Request body:**
+```json
+{ "phone_number": "string" }
+```
+
+---
+
+### `POST /auth/forgot-password/phone-code` — Verify Reset SMS Code
+**Auth:** None
+
+**Request body:**
+```json
+{ "phone_number": "string", "code": "string" }
+```
+
+**Response `200`:**
+```json
+{ "link": "string", "detail": "string", "recovery_token": "string" }
+```
+
+---
+
+### `POST /auth/forgot-password/otp/send` — Send Master-Key Recovery OTP
+**Auth:** None
+
+Distinct from `/auth/forgot-password/phone`: that one resets the *password*, this one unlocks a
+wrapped *master key* blob (see [Recovery Blobs](#recovery-blobs--users)).
+
+**Request body:**
+```json
+{ "phone_number": "string" }
+```
+
+---
+
+### `POST /auth/forgot-password/otp/verify` — Verify Master-Key Recovery OTP
+**Auth:** None
+
+**Request body:**
+```json
+{ "phone_number": "string", "code": "string" }
+```
+
+**Response `200`:**
+```json
+{ "recovery_token": "string", "user_id": "string" }
+```
+
+---
+
+### `POST /auth/forgot-password/email-recovery/send` — Send Master-Key Recovery Email
+**Auth:** None · **Query params:** `email=<string>`
+
+---
+
+### `GET /auth/forgot-password/email-recovery/verify` — Verify Recovery Email Token
+**Auth:** None · **Query params:** `t=<token>`
+
+**Response `200`:**
+```json
+{ "recovery_token": "string", "user_id": "string" }
+```
+
+---
+
+## Keys — `/keys`
+
+Peer ECDH public-key distribution. Underpins E2E encryption on both transports — see
+[ARCHITECTURE.md](ARCHITECTURE.md#encryption). Handled by
+`features/shared/crypto/peer-key-service.ts`.
+
+Some calls here use raw `fetch` with an explicit `Authorization` header rather than `apiClient`,
+because they run during initialization before the axios interceptor has a token to attach.
+
+### `POST /keys/register` — Register Own ECDH Public Key
+**Auth:** Required
+
+**Request body:**
+```json
+{ "ecdh_public_key": "string — base64" }
+```
+
+**Response `200`:** a server-signed credential other peers can verify offline:
+```json
+{
+  "peer_id":         "string",
+  "ecdh_public_key": "string — base64",
+  "issued_at":       "number",
+  "expires_at":      "number",
+  "signature":       "string — base64 Ed25519"
+}
+```
+
+---
+
+### `GET /keys/{peerId}` — Fetch a Peer's Signed Credential
+**Auth:** Required
+
+Same body as `POST /keys/register`'s response. The client verifies `signature` against the
+server's Ed25519 key before trusting `ecdh_public_key`; a credential that fails verification is
+discarded. Registered (non-guest) peers only — guests are not server-registered.
+
+---
+
+### `GET /keys/{peerId}/type` — Is This Peer a Guest?
+**Auth:** Required
+
+**Response `200`:**
+```json
+{ "is_guest": "boolean" }
+```
+
+---
+
+### `GET /keys/server-public-key` — Server Ed25519 Verify Key
+**Auth:** None
+
+**Response `200`:**
+```json
+{ "ed25519PublicKey": "string — base64" }
+```
+
+Fallback for when `EXPO_PUBLIC_SERVER_VERIFY_KEY` is not baked into the build. If neither is
+available the client **skips** credential signature verification, so treat a missing verify key
+as a security downgrade, not a harmless default.
+
+---
+
+### `POST /keys/contacts/{peerId}` — Back Up a Contact's Key
+**Auth:** Required
+
+Guest peers never appear in `/keys/{peerId}`, so their public key — learned over the TCP
+handshake — would be lost on re-login. The client encrypts it under its own master key with
+`nacl.secretbox` and parks the ciphertext here. The server stores an opaque blob and cannot read
+the key.
+
+**Request body:**
+```json
+{ "encrypted_public_key": "string — base64(nonce ‖ ciphertext)" }
+```
+
+---
+
+### `GET /keys/contacts` — Restore Backed-Up Contact Keys
+**Auth:** Required
+
+Called on re-login / new device, before conversation keys are derived.
+
+**Response `200`:**
+```json
+[ { "peer_id": "string", "encrypted_public_key": "string — base64" } ]
+```
+
+---
+
+## Recovery Blobs — `/users`
+
+Wrapped copies of the user's master key, one per recovery method, so the key survives a
+forgotten password. The server only ever holds ciphertext.
+
+### `POST /users/recovery-setup` — Store Wrapped Master Keys
+**Auth:** Required
+
+**Request body:**
+```json
+{
+  "blobs": [
+    { "method": "string", "wrapped_blob": "string", "metadata": "string?" }
+  ]
+}
+```
+
+---
+
+### `PUT /users/recovery-keys` — Replace Wrapped Master Keys
+**Auth:** Required
+
+Same body as `POST /users/recovery-setup`. Used after a password change re-wraps the master key.
+
+---
+
+### `GET /users/recovery-key` — Fetch One Wrapped Blob
+**Auth:** None (authorized by `recovery_token`)  
+**Query params:** `recovery_token=<string>&method=<string>`
+
+The `recovery_token` comes from a verified OTP / email / security-question challenge.
+
+**Response `200`:**
+```json
+{ "wrapped_blob": "string", "metadata": "string | null", "user_id": "string" }
+```
+
+---
+
+### `GET /users/wrapped-key` — Own Wrapped Key (existence probe)
+**Auth:** Required
+
+`LocalEncryptionService` calls this on login to decide whether a wrapped key already exists
+server-side. A `200` means yes; anything else is treated as "not yet uploaded".
+
+---
+
+### `POST /users/wrapped-key` — Upload Own Wrapped Key
+**Auth:** Required
+
+**Request body:**
+```json
+{ "wrapped_blob": "string" }
+```
+
+Failure is non-fatal — the client logs and retries on next login.
+
+---
+
 ## User — `/user-utils`
 
 ### `GET /user-utils/current-user-info/` — Get Current User
@@ -284,7 +546,6 @@ Issues a short-lived (10 min) reauth token for sensitive actions, without invali
   "role":           "\"admin\" | \"rescuer\" | \"user\""
 }
 ```
-`phone_verified` was missing from this response body in the previous version of this doc.
 
 ---
 
@@ -304,7 +565,7 @@ Issues a short-lived (10 min) reauth token for sensitive actions, without invali
 
 ### `POST /user-utils/search-user` — Search Users
 **Auth:** Required  
-**Query params:** `identifier_string=<string>` (previously documented as `username`) `&limit=<number=20>&offset=<number=0>`
+**Query params:** `identifier_string=<string>&limit=<number=20>&offset=<number=0>`
 
 **Response `200`:**
 ```json
@@ -351,7 +612,7 @@ activity). The client uses `last_active` to render the "Last seen …" label for
 **Auth:** Required  
 **Query params:** `limit=<number=20>&offset=<number=0>`
 
-Not previously documented. Returns active, non-expired announcements filtered by the caller's role:
+Returns active, non-expired announcements filtered by the caller's role:
 admins see all; rescuers see `rescuer` + `user`-targeted announcements; regular users see only
 `user`-targeted announcements. Ordered newest first.
 
@@ -424,9 +685,15 @@ admins see all; rescuers see `rescuer` + `user`-targeted announcements; regular 
 
 ### `GET /sync/pull` — Pull Changes from Server
 **Auth:** Required  
-**Query params:** `last_pulled_at=<number=0>&limit=<number=100>`
+**Query params sent by the client:** `last_pulled_at=<number>&schema_version=<number>`
 
-`schema_version` is **not** an accepted param — it's commented out in `app/api/sync.py` (`# schema_version: int = Query(default=1)`) despite being documented here previously. Each table's change-set is paginated via `limit`; the response tells the client whether more pages remain.
+`limit` is a **server-side default (100 per table)**, not something the client sends — page size
+is not client-controlled.
+
+`schema_version` is sent by `features/sync/api/sync.api.ts` but the server ignores it: the
+parameter is commented out in `app/api/sync.py` (`# schema_version: int = Query(default=1)`), so
+FastAPI discards it. It is preserved on the client so a future server can use it without a mobile
+release.
 
 **Response `200`:**
 ```json
@@ -442,8 +709,11 @@ admins see all; rescuers see `rescuer` + `user`-targeted announcements; regular 
   "timestamp": "number — Unix timestamp (ms)"
 }
 ```
-`next_cursor`/`has_more` per table were not previously documented here — the client doesn't currently
-consume them (see the note below), but they're present on every response.
+`next_cursor`/`has_more` are present on every table's change-set, and the client **does** page
+through them: `SyncService.pullFromServer()` loops while any table reports `has_more`, advancing
+the cursor to `Math.min(...next_cursor)` across those tables and merging pages by id. The loop is
+bounded at 50 iterations, and stops early (with a warning) if `has_more` is true but no table
+returns a usable `next_cursor`.
 
 ---
 
@@ -469,7 +739,7 @@ consume them (see the note below), but they're present on every response.
   "guest_users": { "<user_id>": { "username": "string", "first_name": "string", "last_name": "string" } }
 }
 ```
-`guest_users` (not previously documented) lets the client supply display-name hints for
+`guest_users` lets the client supply display-name hints for
 not-yet-registered peers referenced by a pushed record (e.g. a P2P-only message from a guest). The
 server uses these to materialize a placeholder `User`+`Guest` row instead of failing the FK.
 
@@ -478,9 +748,199 @@ server uses these to materialize a placeholder `User`+`Guest` row instead of fai
 { "status": "ok" }
 ```
 
-**Errors** (not previously documented): `409` — a referenced record was modified on the server after
+**Errors:** `409` — a referenced record was modified on the server after
 the client's `last_pulled_at` (conflict; client should re-pull before retrying). `404` — the record
 was already soft-deleted on the server. `500` — unhandled sync error (transaction rolled back).
+
+---
+
+## Public Chat — `/public-chat`
+
+Server-relayed broadcast channel, separate from P2P chat. History over REST; live messages arrive
+over the signaling WebSocket (see [CONNECTION_MESSAGES.md](CONNECTION_MESSAGES.md)).
+
+### `GET /public-chat` — Message History
+**Auth:** Required  
+**Query params:** `limit=<number>&before=<number?>` — `before` is an epoch-ms cursor for paging backwards.
+
+**Response `200`:**
+```json
+{
+  "messages": [
+    {
+      "id":                 "string",
+      "content":            "string",
+      "is_deleted":         "boolean",
+      "sender_id":          "string",
+      "sender_first_name":  "string | null",
+      "sender_last_name":   "string | null",
+      "sender_username":    "string | null",
+      "created_at":         "number — Unix ms"
+    }
+  ],
+  "limit":             "number",
+  "oldest_created_at": "number | null"
+}
+```
+
+Page backwards by passing the previous response's `oldest_created_at` as `before`; `null` means
+the start of history has been reached.
+
+---
+
+## GPS — `/gps`
+
+Location history and last-known positions for the map screen. Live streaming does **not** go
+through REST — it uses a dedicated WebSocket (`/gps/ws/<userId>`), independent of
+`ConnectionService`.
+
+### `GET /gps/latest` — Latest Location Per User
+**Auth:** Required
+
+**Response `200`:**
+```json
+[
+  {
+    "user_id":   "string",
+    "latitude":  "number",
+    "longitude": "number",
+    "timestamp": "ISO-8601 string",
+    "username":  "string",
+    "role":      "\"admin\" | \"rescuer\" | \"user\"  — optional; drives the map marker"
+  }
+]
+```
+
+---
+
+### `GET /gps/history/{userId}` — Location History for One User
+**Auth:** Required  
+**Query params:** `limit=<number=50>`
+
+**Response `200`:**
+```json
+[
+  {
+    "id":        "number",
+    "user_id":   "string",
+    "latitude":  "number",
+    "longitude": "number",
+    "timestamp": "ISO-8601 string"
+  }
+]
+```
+
+Note `id` is a **number** here, unlike the string UUIDs used elsewhere in this API.
+
+---
+
+## SMS Gateway — `/gsm`
+
+Proxies the GSM module (`GSM-module/GSM-fastapi/`) for phone verification and for reaching people
+who are not on the LAN. The API server forwards to the GSM service; the handset never talks to it
+directly.
+
+### `GET /gsm/health` — GSM Module Health
+**Auth:** Required
+
+**Response `200`:**
+```json
+{ "status": "string", "gsm_ready": "boolean", "connected": "boolean", "detail": "string" }
+```
+
+`gsm_ready` (modem registered on the network) and `connected` (API can reach the GSM service) fail
+independently — surface them separately rather than collapsing to one "offline" state.
+
+---
+
+### `POST /gsm/sms/send` — Send SMS to a Known User
+**Auth:** Required  
+**Query params:** `user_id=<string>&message=<string>` (query params, not a JSON body)
+
+**Response `200`:**
+```json
+{ "msg_id": "string", "ok": "boolean", "to": "string" }
+```
+
+---
+
+### `POST /gsm/contact-unknown-user` — SMS an Arbitrary Number
+**Auth:** Required  
+**Query params:** `target_phone_number=<string>`
+
+**Response `200`:**
+```json
+{
+  "status":        "string",
+  "detail":        "string",
+  "user_id":       "string",
+  "is_sapot_user": "boolean"
+}
+```
+
+`is_sapot_user` reports whether the number already belongs to a registered account.
+
+---
+
+### `POST /gsm/verify` — Verify Phone Code
+**Auth:** Required
+
+**Request body:**
+```json
+{ "code": "string" }
+```
+
+---
+
+### `POST /gsm/resend` — Resend Phone Verification Code
+**Auth:** Required
+
+**Response `200`:**
+```json
+{ "message": "string" }
+```
+
+---
+
+### `POST /gsm/migrate-phone-user` — Claim a Ghost Phone Account
+**Auth:** Required
+
+Merges a "ghost" record — created when someone was SMS'd before registering — into the calling
+user's account.
+
+**Response `200`:**
+```json
+{ "migrated": "boolean", "ghost_user_id": "string?", "detail": "string?" }
+```
+
+---
+
+## Tile Server — separate deployment
+
+Map tiles are **not** served by the API. `getTileServerUrl()` resolves a separate origin
+(`<host>/tiles`, see [ENV_CONFIG.md](ENV_CONFIG.md#api--websocket-url-resolution)), so the
+tileserver can be down while the API is healthy.
+
+| Path | Purpose |
+|---|---|
+| `GET /styles/basic-preview/style.json` | Reachability probe (`checkTileServerReachable`). Probed instead of a tile because it is always present, whereas a given `{z}/{x}/{y}` depends on the loaded mbtiles. |
+| `GET /styles/basic-preview/{z}/{x}/{y}.png` | Raster basemap tiles rendered by MapLibre. |
+
+The probe never throws — a failure is reported as `false`. MapLibre swallows tile fetch errors and
+exposes no error event, so this probe is the only way to tell the user their basemap is missing.
+
+---
+
+## Debug / QA — `/testing`
+
+Only reachable when the server runs with `ENVIRONMENT=development`. Gated in the app behind
+`config/debug.ts`.
+
+### `POST /testing/login-as/{handle}` — Log In as a Seeded Fixture
+**Auth:** `X-QA-Token` header, from `EXPO_PUBLIC_QA_API_TOKEN`; must match the server's `QA_API_TOKEN`
+
+Mints tokens for a seeded `qa_*` fixture account instead of registering a new user. Same response
+shape as `POST /auth/`.
 
 ---
 
