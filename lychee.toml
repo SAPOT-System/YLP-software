@@ -9,5 +9,5 @@ exclude_path = [
 # are out of scope. The admin development URL likewise requires a locally
 # running application.
 exclude = [
-  '^http://localhost:3000/$',
+  '^http://localhost:3000(?:/.*)?$',
 ]
