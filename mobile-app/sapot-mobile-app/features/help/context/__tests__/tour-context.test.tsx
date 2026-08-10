@@ -1,0 +1,6 @@
+import { act, render } from "@testing-library/react-native";
+import { Text } from "react-native";
+import { TourProvider, useTour } from "../tour-context";
+const mockClaim = jest.fn(); jest.mock("../../services/tour-persistence", () => ({ claimTourStart: () => mockClaim() })); jest.mock("../../hooks/use-help-context", () => ({ useHelpContext: () => ({ mode: "server", isGuest: false, isRescuer: true }) }));
+function Probe() { const { status, stepIndex, start, next, skip } = useTour(); return <><Text testID="status">{status}</Text><Text testID="index">{stepIndex}</Text><Text testID="start" onPress={() => void start()}>start</Text><Text testID="next" onPress={next}>next</Text><Text testID="skip" onPress={skip}>skip</Text></>; }
+describe("TourProvider", () => { beforeEach(() => { mockClaim.mockResolvedValue(true); }); it("runs and advances after a claimed start", async () => { const screen = render(<TourProvider><Probe /></TourProvider>); await act(async () => { screen.getByTestId("start").props.onPress(); }); expect(screen.getByTestId("status").props.children).toBe("running"); act(() => screen.getByTestId("next").props.onPress()); expect(screen.getByTestId("index").props.children).toBe(1); }); });

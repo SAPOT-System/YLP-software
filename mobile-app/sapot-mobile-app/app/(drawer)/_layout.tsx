@@ -1,4 +1,5 @@
-import { AUTH_ROUTES } from "@/config/routes";
+import { AUTH_ROUTES, SETTINGS_ROUTES } from "@/config/routes";
+import { TourOverlay, TourProvider, useTourAnchor, useTourAutostart } from "@/features/help";
 import { IS_DEBUG_ENABLED } from "@/config/debug";
 import { useAuth } from "@/features/auth";
 import { AnnouncementSeenProvider } from "@/features/announcements/context/announcement-seen-context";
@@ -24,11 +25,11 @@ import { navLog } from "@/features/shared/core/utils/logger";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
-import { Redirect, router } from "expo-router";
+import { Redirect, router, useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { useEffect, useRef } from "react";
 import { Platform, TouchableOpacity, View } from "react-native";
-import { Icon, Text, useTheme } from "react-native-paper";
+import { Icon, IconButton, Text, useTheme } from "react-native-paper";
 import { PageLoader } from "@/features/shared/components/page-loader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import "../../task/signaling-task";
@@ -55,6 +56,9 @@ const labelIcon = {
 function HeaderRight() {
   const { isPublished, isZeroconfAllowed } = useZeroconfPublished();
   const { store } = useAppMode();
+  const modeAnchor = useTourAnchor("mode-badge");
+  const navigation = useRouter();
+  const theme = useTheme();
 
   return (
     <View
@@ -70,6 +74,9 @@ function HeaderRight() {
         isZeroconfAllowed={isZeroconfAllowed}
       />
       <View
+        ref={modeAnchor.ref}
+        onLayout={modeAnchor.onLayout}
+        collapsable={false}
         style={{
           display: "flex",
           flexDirection: "row",
@@ -80,24 +87,31 @@ function HeaderRight() {
           alignItems: "center",
           borderRadius: 20,
           borderWidth: 1,
-          borderColor: "#103462",
+          borderColor: theme.colors.primary,
         }}
       >
-        <Icon source={labelIcon[store.mode]} size={12} color="#103462" />
+        <Icon source={labelIcon[store.mode]} size={12} color={theme.colors.primary} />
         <Text
           style={{
             marginLeft: 2,
             fontSize: 11,
             lineHeight: 13,
             fontWeight: "600",
-            color: "#103462",
+            color: theme.colors.primary,
           }}
         >
           {store.mode.toUpperCase()}
         </Text>
       </View>
+      <IconButton icon="help-circle-outline" size={20} accessibilityLabel="Help" onPress={() => navigation.push(SETTINGS_ROUTES.HELP_CENTER)} />
     </View>
   );
+}
+
+function TourAutostart() {
+  const { isAuthenticated, isGuest } = useAuth();
+  useTourAutostart(isAuthenticated || isGuest);
+  return null;
 }
 
 export default function DrawerLayout() {
@@ -255,6 +269,8 @@ export default function DrawerLayout() {
                   <DebugPanel />
                 </>
               )}
+              <TourProvider>
+              <TourAutostart />
               <Drawer
                 drawerContent={(props) => <CustomDrawerContent {...props} />}
                 screenOptions={{
@@ -387,6 +403,8 @@ export default function DrawerLayout() {
                   }}
                 />
               </Drawer>
+              <TourOverlay />
+              </TourProvider>
             </CallProvider>
             </AnnouncementSeenProvider>
           </QueryClientProvider>

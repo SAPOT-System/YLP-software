@@ -164,7 +164,7 @@ Sensitive runtime config is stored via `expo-secure-store` (not AsyncStorage).
 
 Managed in `features/shared/core/stores/secure-config.ts`:
 
-All 18 keys are declared in that file's `KEYS` constant:
+All secure-storage keys are declared in that file's `KEYS` constant:
 
 | Key | Value |
 |---|---|
@@ -188,6 +188,7 @@ All 18 keys are declared in that file's `KEYS` constant:
 | `signalingSecretKey` | Secret key used for signalling-channel encryption |
 | `recoveryTokenHex` | Recovery session token, hex-encoded |
 | `guestMigrationState` | Guest→registered-account migration progress state |
+| `helpTourCompleted` | Version of the in-app guide the user has completed; compared with `CURRENT_TOUR_VERSION` |
 >>>>>>> develop
 
 This config is also read by the background task (`task/signaling-task.ts`) on Android when the app is killed.

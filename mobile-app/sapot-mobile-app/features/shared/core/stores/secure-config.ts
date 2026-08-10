@@ -18,6 +18,7 @@ const KEYS = {
   SYNC_LAST_PULLED_AT: "syncLastPulledAt",
   SERVER_HOST_OVERRIDE: "serverHostOverride",
   APP_MODE: "appMode",
+  HELP_TOUR_COMPLETED: "helpTourCompleted",
   DEVICE_ENCRYPTION_KEY: "deviceEncryptionKey",
   MASTER_KEY: "masterKey",
   SIGNALING_SECRET_KEY: "signalingSecretKey",
@@ -267,6 +268,22 @@ export const getStoredAppMode = async (): Promise<AppMode | null> => {
     backgroundLog.error("secure-config › read app mode failed", { error });
     return null;
   }
+};
+
+/** Stores the version of the in-app guide that the user has seen. */
+export const saveHelpTourCompleted = async (version: number): Promise<void> => {
+  await setItemAsync(KEYS.HELP_TOUR_COMPLETED, String(version));
+};
+
+export const getHelpTourCompleted = async (): Promise<number | undefined> => {
+  const value = await getItemAsync(KEYS.HELP_TOUR_COMPLETED);
+  if (value === null) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+};
+
+export const clearHelpTourCompleted = async (): Promise<void> => {
+  await deleteItemAsync(KEYS.HELP_TOUR_COMPLETED);
 };
 
 export const getSyncLastPulledAt = async (): Promise<number> => {

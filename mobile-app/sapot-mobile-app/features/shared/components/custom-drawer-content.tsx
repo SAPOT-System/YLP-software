@@ -248,6 +248,15 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
               style={{ marginHorizontal: 0, borderRadius: 0 }}
             />
             <DrawerItem
+              label="Help & Guide"
+              onPress={() => {
+                uiLog.info("drawer › help pressed");
+                router.push(SETTINGS_ROUTES.HELP_CENTER);
+              }}
+              icon={({ color, size }) => <Icon source="help-circle-outline" color={color} size={size ?? 24} />}
+              style={{ marginHorizontal: 0, borderRadius: 0 }}
+            />
+            <DrawerItem
               label="Logout"
               onPress={handleLogout}
               icon={({ color, size }) => (

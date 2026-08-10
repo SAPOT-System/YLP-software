@@ -1,4 +1,5 @@
 import { APP_ROUTES } from "@/config/routes";
+import { HelpIconButton, useTourAnchor } from "@/features/help";
 import { AnnouncementCard } from "@/features/announcements/components/announcement-card";
 import { useAnnouncementNewCount } from "@/features/announcements/hooks/use-announcement-new-count";
 import { useAnnouncements } from "@/features/announcements/hooks/use-announcements";
@@ -45,6 +46,7 @@ export default function AnnouncementsScreen() {
   );
   const { visible, message, variant, showError, hideToast } = useToast();
   const reducedMotion = useReducedMotion();
+  const announcementsAnchor = useTourAnchor("announcements-drawer-item");
 
   const markedRef = useRef(false);
 
@@ -129,13 +131,16 @@ export default function AnnouncementsScreen() {
             }
           }}
         />
-        <Appbar.Content
-          title="Announcements"
-          titleStyle={[
-            styles.appbarTitle,
-            { color: theme.dark ? "#E6ECF5" : "#000" },
-          ]}
-        />
+        <View ref={announcementsAnchor.ref} onLayout={announcementsAnchor.onLayout} collapsable={false} style={{ flex: 1 }}>
+          <Appbar.Content
+            title="Announcements"
+            titleStyle={[
+              styles.appbarTitle,
+              { color: theme.colors.onSurface },
+            ]}
+          />
+        </View>
+        <HelpIconButton articleId="announcements" />
         {newCount > 0 && (
           <View style={styles.newBadge}>
             <Text style={styles.newBadgeText}>{newCount} new</Text>

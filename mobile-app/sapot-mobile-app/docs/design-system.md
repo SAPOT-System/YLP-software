@@ -44,6 +44,7 @@ app/
   ├─ (drawer)/            ← main app (drawer + nested tabs/stacks)
   │  └─ (tabs)/
   │     └─ chat/[id].tsx  ← dynamic chat screen
+  │  └─ settings/support/help/[id].tsx  ← Help Center article
   ├─ getting-started/
   └─ +not-found.tsx
 ```

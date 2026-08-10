@@ -56,7 +56,7 @@ features/<name>/
   types.ts
   index.ts        # Public API
 ```
-Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `settings`, `shared`, `sync`.
+Features: `announcements`, `auth`, `call`, `chat`, `getting-started`, `gps`, `help`, `settings`, `shared`, `sync`.
 
 - `app/` — Expo Router file-based routing (screens).
 - `features/shared/` — cross-feature services, DI containers, connection/crypto/database infrastructure. Check here first before writing a new util/service.

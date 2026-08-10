@@ -1,4 +1,5 @@
 import { useAuth } from "@/features/auth";
+import { HelpIconButton, useTourAnchor } from "@/features/help";
 import { useConnectionService, useReducedMotion } from "@/features/shared/hooks";
 import { navLog } from "@/features/shared/core/utils/logger";
 import Entypo from "@expo/vector-icons/Entypo";
@@ -50,6 +51,10 @@ function TabUnderline({ focused }: { focused: boolean }) {
       ]}
     />
   );
+}
+
+function TourTabLabel({ children, color, focused, anchor }: { children: React.ReactNode; color: string; focused: boolean; anchor: ReturnType<typeof useTourAnchor> }) {
+  return <View ref={anchor.ref} onLayout={anchor.onLayout} collapsable={false} style={{ alignItems: "center", justifyContent: "center", gap: 4 }}><Text style={{ color, fontSize: 12, fontWeight: focused ? "600" : "500" }}>{children}</Text><TabUnderline focused={focused} /></View>;
 }
 
 function IncomingCallListener() {
@@ -141,6 +146,10 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = useTheme();
   const { isRescuer, isGuest } = useAuth();
+  const chatsAnchor = useTourAnchor("chats-tab");
+  const scanQrAnchor = useTourAnchor("scan-qr-tab");
+  const mapAnchor = useTourAnchor("map-tab");
+  const settingsAnchor = useTourAnchor("settings-tab");
 
   useEffect(() => {
     navLog.info("[TabLayout] mounted");
@@ -193,7 +202,7 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Chats",
-            tabBarLabel: "Chats",
+            tabBarLabel: ({ children, color, focused }) => <TourTabLabel anchor={chatsAnchor} color={color} focused={focused}>{children}</TourTabLabel>,
             tabBarIcon: ({ color }) => (
               <Entypo name="chat" size={24} color={color} />
             ),
@@ -220,7 +229,7 @@ export default function TabLayout() {
           name="map"
           options={{
             title: "Live Map",
-            tabBarLabel: "Map",
+            tabBarLabel: ({ children, color, focused }) => <TourTabLabel anchor={mapAnchor} color={color} focused={focused}>{children}</TourTabLabel>,
             tabBarIcon: ({ color }) => (
               <Feather name="map" size={24} color={color} />
             ),
@@ -230,6 +239,7 @@ export default function TabLayout() {
             headerShadowVisible: false,
             headerStyle: { backgroundColor: "transparent" },
             href: isRescuer ? undefined : null,
+            headerRight: () => <HelpIconButton articleId="map-and-location" />,
           }}
         />
         <Tabs.Screen
@@ -252,7 +262,7 @@ export default function TabLayout() {
               <Feather name="settings" size={24} color={color} />
             ),
             headerShown: false,
-            tabBarLabel: "Settings",
+            tabBarLabel: ({ children, color, focused }) => <TourTabLabel anchor={settingsAnchor} color={color} focused={focused}>{children}</TourTabLabel>,
           }}
         />
         <Tabs.Screen
@@ -293,14 +303,17 @@ export default function TabLayout() {
                   }}
                 />
 
-                <Appbar.Content
-                  titleStyle={{
-                    fontWeight: "bold",
-                    color: theme.dark ? "#E6ECF5" : "#000",
-                    fontSize: 24,
-                  }}
-                  title={options.title ?? "QR Code"}
-                />
+                <View ref={scanQrAnchor.ref} onLayout={scanQrAnchor.onLayout} collapsable={false} style={{ flex: 1 }}>
+                  <Appbar.Content
+                    titleStyle={{
+                      fontWeight: "bold",
+                      color: theme.colors.onSurface,
+                      fontSize: 24,
+                    }}
+                    title={options.title ?? "QR Code"}
+                  />
+                </View>
+                <HelpIconButton articleId="chat" />
               </Appbar.Header>
             ),
           }}
@@ -318,6 +331,8 @@ export default function TabLayout() {
                     router.back();
                   }}
                 />
+                <Appbar.Content title="" />
+                <HelpIconButton articleId="calls" />
               </Appbar.Header>
             ),
           }}
