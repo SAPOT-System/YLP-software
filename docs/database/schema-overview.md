@@ -192,4 +192,4 @@ The mobile schema is deliberately narrower than the server's: it holds only what
 
 ### Sync-tracked tables
 
-`messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants` all carry `created_at`, `updated_at`, `is_deleted` columns and participate in the pull/push sync flow described in [SYNC.md](../../mobile-app/sapot-mobile-app/docs/SYNC.md) and [data-flow.md](../architecture/data-flow.md#1-sync-flow-pull-then-push). `peers` and `guest_user` are local-only and not synced to the server through this mechanism.
+`messages`, `calls`, `call_participants`, `message_receipts`, `conversations`, `conversation_participants` all carry `created_at`, `updated_at`, `is_deleted` columns and participate in the pull/push sync flow described in [the mobile app sync documentation](pathname:///mobile-docs/SYNC) and [data-flow.md](../architecture/data-flow.md#1-sync-flow-pull-then-push). `peers` and `guest_user` are local-only and not synced to the server through this mechanism.

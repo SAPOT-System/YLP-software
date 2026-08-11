@@ -150,7 +150,7 @@ Encryption is applied identically regardless of transport mode (`lan`, `server`,
 
 - NaCl box (Curve25519 + XSalsa20-Poly1305) is fast enough for per-message encryption on mobile hardware — encryption/decryption cost is not a bottleneck relative to network or DB I/O for typical chat message sizes.
 - `tweetnacl.box.before()` (ECDH shared-secret derivation) is the more expensive step; it is cached per-peer (`ContactKey`) rather than recomputed per message.
-- Argon2/HKDF key derivation for wrapping (see [security-architecture.md](../../architecture/security-architecture.md#device-master-key-setup-password--wrapped-key)) is intentionally slow and happens only at key setup/recovery, not per-message.
+- Argon2/HKDF key derivation for wrapping (see [security-architecture.md](../../architecture/security-architecture.md#devicemaster-key-setup-password--wrapped-key)) is intentionally slow and happens only at key setup/recovery, not per-message.
 
 ## Scalability
 

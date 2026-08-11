@@ -3,6 +3,7 @@ logs/*
 node_modules/
 __pycache__/
 *.py[cod]
+docs/superpowers/
 reports/
 .pnpm-store/
 .env
@@ -13,3 +14,4 @@ reports/
 captive-portal/config.js
 .bundle-build.*
 dist/
+docs/superpowers/

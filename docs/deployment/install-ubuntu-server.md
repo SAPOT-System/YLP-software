@@ -188,7 +188,7 @@ admin, and GSM component versions recorded in the generated manifest.
 **Bump the version for every rebuild**, even a config-only or frontend-only
 change. `upgrade.sh` targets `releases/v$version` and skips copying if that
 directory already exists, so a same-version rebuild appears to deploy and
-changes nothing. See [VERSIONING.md](../../VERSIONING.md).
+changes nothing. See the repo-root `VERSIONING.md`.
 
 The build takes several minutes: it builds four images, pulls four more,
 compiles the Arduino firmware, and compresses everything. The result is:

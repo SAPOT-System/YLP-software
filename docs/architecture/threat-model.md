@@ -108,7 +108,7 @@ flowchart TB
 
 - **Key distribution trust:** The server is the directory for `PeerKey` records. Server-side signing (`SERVER_ED25519_SEED`) is the only defense against a malicious or compromised server substituting a public key for a MITM — and it is **optional** (env var unset ⇒ signing disabled per [environment-config.md](../deployment/environment-config.md)). Without it, a compromised server is a full MITM against new conversations.
 - **No key transparency / trust-on-first-use verification UI.** The app has no user-facing way to compare/verify a peer's public key fingerprint out-of-band (e.g. QR code comparison), so even signed keys only prove "the server vouched for this key," not "this is provably the device I think it is."
-- **Recovery methods weaken the key's secrecy guarantee.** The master key can be recovered via password, phone OTP, email OTP, security question, or recovery-key file — each is a `WrappedKeyRecovery` blob. The overall confidentiality of the master key is only as strong as the *weakest* enabled recovery method's derivation (see [KeyRecoveryService iteration counts](security-architecture.md#device-master-key-setup-password--wrapped-key)); a weak security-question answer (300k iterations, but low-entropy input) is a plausible offline-guessing target if a `WrappedKeyRecovery` blob for that method is exfiltrated from the server.
+- **Recovery methods weaken the key's secrecy guarantee.** The master key can be recovered via password, phone OTP, email OTP, security question, or recovery-key file — each is a `WrappedKeyRecovery` blob. The overall confidentiality of the master key is only as strong as the *weakest* enabled recovery method's derivation (see [KeyRecoveryService iteration counts](security-architecture.md#devicemaster-key-setup-password--wrapped-key)); a weak security-question answer (300k iterations, but low-entropy input) is a plausible offline-guessing target if a `WrappedKeyRecovery` blob for that method is exfiltrated from the server.
 - **Server never sees plaintext, but does see metadata.** Who is talking to whom, when, and how often is visible to the server (and to anyone who compromises it) even though content is opaque. This is an accepted tradeoff of the sync/relay design, not a bug.
 
 ---
@@ -118,8 +118,8 @@ flowchart TB
 | Risk | Status |
 |---|---|
 | No LAN segmentation (rescuer/admin/civilian devices share one broadcast domain) | Accepted for now — segmentation requires router-level VLAN config not currently documented or automated. |
-| `testing` router reachable when `ENVIRONMENT=development` | Accepted — intentionally dev-gated per C1 in [docs-todo.md](../docs-todo.md); operational discipline (never deploy with `ENVIRONMENT=development`) is the control, not code. |
-| GSM module DB credentials hardcoded default in `config.py` | Open — tracked in [SECURITY.md](../../SECURITY.md#other-known-gaps-not-yet-resolved). |
+| `testing` router reachable when `ENVIRONMENT=development` | Accepted — intentionally dev-gated per C1 in the former documentation audit tracker; operational discipline (never deploy with `ENVIRONMENT=development`) is the control, not code. |
+| GSM module DB credentials hardcoded default in `config.py` | Open — tracked in the repo-root `SECURITY.md`. |
 | No remote session/device revocation UI for end users | Open — see [Device theft](#device-theft). |
 | Optional (not enforced) server-side `PeerKey` signing | Open — see [E2E encryption design risks](#e2e-encryption-design-risks). Recommend making `SERVER_ED25519_SEED` mandatory in production as a follow-up. |
 
@@ -127,4 +127,4 @@ flowchart TB
 
 ## Reporting
 
-See [SECURITY.md](../../SECURITY.md) for the vulnerability-disclosure process.
+See the repo-root `SECURITY.md` for the vulnerability-disclosure process.

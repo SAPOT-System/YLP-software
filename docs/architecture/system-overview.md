@@ -33,7 +33,7 @@ The primary user-facing component. An Expo/React Native Android app.
 
 **Key dependencies:** Expo Router, `react-native-webrtc`, `react-native-tcp-socket` (TLS), `react-native-zeroconf`, WatermelonDB, `tweetnacl`, `expo-secure-store`, `@maplibre/maplibre-react-native`.
 
-See [mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md](../../mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md) for the full service map, DI wiring, and encryption details.
+See [the mobile app architecture](pathname:///mobile-docs/ARCHITECTURE) for the full service map, DI wiring, and encryption details.
 
 ---
 
@@ -63,7 +63,7 @@ The FastAPI backend. Deployed as a Gunicorn process behind an Nginx reverse prox
 
 API routers: `admin`, `auth`, `captive_portal`, `download`, `forgot_password`, `gps`, `gsm`, `keys`, `mikrotik`, `peer_connection`, `ping`, `profile_picture`, `public_chat`, `sync`, `testing` (dev only), `update_info`, `user_keys`, `user_utils`, `verify_email`, `wrapped_key`.
 
-> Note: The `testing` router is only mounted when `ENVIRONMENT=development` (see `app/main.py`); it is excluded from production builds by default. See [SECURITY.md](../../SECURITY.md) for the fix history.
+> Note: The `testing` router is only mounted when `ENVIRONMENT=development` (see `app/main.py`); it is excluded from production builds by default. See the repo-root `SECURITY.md` for the fix history.
 
 ---
 
@@ -195,6 +195,6 @@ Resolution is split across two mechanisms — `_resolve_role` does **not** cover
 
 See [threat-model.md](threat-model.md) for attack surfaces in scope, trust boundaries, and known risks (insider threat on the LAN, physical access to the router, device theft, E2E encryption design risks).
 
-See [deployment/runbooks.md](../deployment/runbooks.md#disaster-recovery-server-hardware-fails-at-incident-site) for the fallback procedure if the server hardware fails at an incident site.
+See [deployment/runbooks.md](../deployment/runbooks.md#disaster-recovery--server-hardware-fails-at-incident-site) for the fallback procedure if the server hardware fails at an incident site.
 
 > **TODO (human input required):** Document disaster-scenario operating constraints not yet captured elsewhere — expected number of concurrent users and expected geographic area / radio range assumptions.

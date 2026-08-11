@@ -1,0 +1,29 @@
+name: Documentation Link Check
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mobile-app/sapot-mobile-app/docs/**'
+      - 'lychee.toml'
+  push:
+    branches: [develop, main]
+    paths:
+      - 'docs/**'
+      - 'mobile-app/sapot-mobile-app/docs/**'
+      - 'lychee.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress .

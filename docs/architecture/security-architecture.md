@@ -41,7 +41,7 @@ SAPOT uses NaCl box (ECDH + XSalsa20-Poly1305) for message content. The server c
 
 All wrapping and unwrapping is done client-side. The server stores and retrieves opaque blobs only.
 
-See [mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md](../../mobile-app/sapot-mobile-app/docs/ARCHITECTURE.md) for implementation details.
+See [the mobile app architecture](pathname:///mobile-docs/ARCHITECTURE) for implementation details.
 
 ### Device/master key setup (password → wrapped key)
 
@@ -128,7 +128,7 @@ Nginx enforces **TLS 1.2/1.3** with `HIGH:!aNULL:!MD5` cipher suite.
 
 ## Known security concerns
 
-See [SECURITY.md](../../SECURITY.md) at the repo root for the canonical, up-to-date list of resolved and outstanding security gaps — do not duplicate that table here.
+See the repo-root `SECURITY.md` for the canonical, up-to-date list of resolved and outstanding security gaps — do not duplicate that table here.
 
 ---
 

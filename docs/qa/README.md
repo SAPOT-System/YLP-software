@@ -1,3 +1,7 @@
+---
+slug: overview
+---
+
 # QA: Landing Page
 
 Entry point for testing SAPOT — where test docs live, how to run each component's test suite, and where to look when a test fails or a bug needs filing.
@@ -49,7 +53,7 @@ There is no dedicated E2E test suite doc yet. For manual multi-device verificati
 
 ## Filing bugs
 
-This repo does not yet have a documented bug-report template or issue-tracker convention distinct from normal feature work — file issues the same way as any other change, per [CONTRIBUTING.md](../../CONTRIBUTING.md).
+This repo does not yet have a documented bug-report template or issue-tracker convention distinct from normal feature work — file issues the same way as any other change, per the repo-root `CONTRIBUTING.md`.
 
 ## Known gap
 
