@@ -7,12 +7,18 @@ import sys
 import jsonschema
 
 ROOT = Path(__file__).resolve().parents[1]
+FORBIDDEN_CA_FILENAMES = {"server_ca.key", "server_ca.pem"}
 
 def digest(path: Path) -> str:
     value = hashlib.sha256()
     with path.open("rb") as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b""): value.update(chunk)
     return value.hexdigest()
+
+def contains_forbidden_ca_material(root: Path) -> bool:
+    return (root / "docker/gen-certs.sh").exists() or any(
+        path.name in FORBIDDEN_CA_FILENAMES for path in root.rglob("*")
+    )
 
 def validate(root: Path, version: str, commit: str, metadata_path: Path) -> None:
     manifest = json.loads((root / "manifest.json").read_text())
@@ -22,7 +28,7 @@ def validate(root: Path, version: str, commit: str, metadata_path: Path) -> None
     map_contract = json.loads(metadata_path.read_text())
     if manifest["mapData"] != {key: map_contract[key] for key in manifest["mapData"]}: raise ValueError("manifest map provenance does not match map artifact contract")
     if manifest["gsmFirmware"]["compatibleGsmFastapiVersion"] != "=" + manifest["componentVersions"]["gsmFastapi"]: raise ValueError("firmware compatibility does not match GSM service")
-    if (root / "docker/gen-certs.sh").exists() or any(root.rglob(name) for name in ("server_ca.key", "server_ca.pem")): raise ValueError("bundle contains forbidden CA material")
+    if contains_forbidden_ca_material(root): raise ValueError("bundle contains forbidden CA material")
     regular = set(); entries = {}
     for path in root.rglob("*"):
         mode = path.lstat().st_mode
