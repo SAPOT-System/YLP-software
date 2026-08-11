@@ -8,7 +8,7 @@ Common failures when setting up or running SAPOT locally, grouped by symptom. Se
 
 **Symptom:** `RuntimeError` raised immediately when running `uvicorn app.main:app`.
 
-**Cause:** One of `DATABASE_URL`, `JWT_SECRET_KEY`, or `CORS_ALLOWED_ORIGINS` is unset. All three are required and fail fast at import time — see [SECURITY.md](../SECURITY.md) for why.
+**Cause:** One of `DATABASE_URL`, `JWT_SECRET_KEY`, or `CORS_ALLOWED_ORIGINS` is unset. All three are required and fail fast at import time — see the repo-root `SECURITY.md` for why.
 
 **Fix:** Set all three in `server/.env` (or your shell environment) before starting. See [environment-config.md](deployment/environment-config.md#fastapi-server-server) for the full list and [quickstart.md](getting-started/quickstart.md#2-start-the-server) for a working example.
 
@@ -94,4 +94,4 @@ If this fails, check MariaDB is running (`sudo systemctl status mariadb`) and th
 
 ## Still stuck?
 
-Check [SECURITY.md](../SECURITY.md) for known required env vars, [environment-config.md](deployment/environment-config.md) for the full variable reference across every component, and [architecture/system-overview.md](architecture/system-overview.md) for how the components are expected to talk to each other.
+Check the repo-root `SECURITY.md` for known required env vars, [environment-config.md](deployment/environment-config.md) for the full variable reference across every component, and [architecture/system-overview.md](architecture/system-overview.md) for how the components are expected to talk to each other.

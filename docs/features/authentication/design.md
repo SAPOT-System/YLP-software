@@ -93,7 +93,7 @@ Tokens are stored in `expo-secure-store` (encrypted, hardware-backed on Android)
 
 ## Security considerations
 
-See [SECURITY.md](../../../SECURITY.md) at the repo root for the canonical list of resolved and outstanding security gaps.
+See the repo-root `SECURITY.md` for the canonical list of resolved and outstanding security gaps.
 
 - Re-auth tokens are scoped to sensitive operations only and expire quickly.
 

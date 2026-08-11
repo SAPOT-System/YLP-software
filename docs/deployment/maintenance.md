@@ -14,14 +14,14 @@ Routine, scheduled upkeep for a running SAPOT deployment, as opposed to [runbook
 | Review GSM module log size | Weekly | `GSM-module/GSM-fastapi/sapot.log` has no automatic rotation configured — see [monitoring-logging.md](monitoring-logging.md#gsm-module-logs); truncate or `logrotate` it manually |
 | Check TLS server-leaf cert expiry | Monthly, and always before a new field deployment | `openssl x509 -in <cert> -noout -dates` — leaf is issued for ~825 days. Cert path is `/opt/sapot/shared/certs/server.crt` (docker bundle, where `doctor.sh` checks this for you) or `/home/sapot/certs/server.crt` (bare metal). Rotation: [runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf](runbooks.md#tls-certificate-rotation-ca-pinned-server-leaf) |
 | Check offline root CA expiry | Yearly | CA is issued for 10 years ([runbooks.md#offline-ca-setup](runbooks.md#offline-ca-setup)) — rotating the CA (not just the leaf) requires rebuilding and redistributing the mobile app |
-| Review dependency updates | Before each release (see [VERSIONING.md](../../VERSIONING.md)), not ad hoc mid-deployment | See [Dependency updates](#dependency-updates) below |
+| Review dependency updates | Before each release (see the repo-root `VERSIONING.md`), not ad hoc mid-deployment | See [Dependency updates](#dependency-updates) below |
 | Confirm systemd units are enabled (survive reboot) | After any host maintenance/reboot | `systemctl is-enabled server-main-api server-GSM-api tileserver mariadb redis nginx` |
 
 ---
 
 ## Dependency updates
 
-Each component owns its own dependency file — there is no repo-wide update mechanism (see [CLAUDE.md](../../CLAUDE.md), "Repository Shape"):
+Each component owns its own dependency file — there is no repo-wide update mechanism (see "Repository Shape" in the repo-root `CLAUDE.md`):
 
 | Component | File | Notes |
 |---|---|---|

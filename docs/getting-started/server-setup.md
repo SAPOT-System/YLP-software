@@ -41,7 +41,7 @@ QA_API_TOKEN=<any shared secret; required while ENVIRONMENT=development or stagi
 > The shipped `JWT_SECRET_KEY` and `SERVER_ED25519_SEED` are committed placeholders. They are fine
 > for a laptop, but regenerate both before the server is reachable by anyone else.
 
-See [environment-config.md](../deployment/environment-config.md) for the full variable list and [SECURITY.md](../../SECURITY.md) for why these are required.
+See [environment-config.md](../deployment/environment-config.md) for the full variable list and the repo-root `SECURITY.md` for why these are required.
 
 ## Run
 

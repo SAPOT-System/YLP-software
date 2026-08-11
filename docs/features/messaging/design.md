@@ -164,7 +164,7 @@ For users without the app, a rescuer can use `POST /gsm/send` to send an SMS via
 
 - **Recipient offline (server mode):** the server stores the encrypted payload in the `queue` table and delivers it on the recipient's next WebSocket connection — see [Queue drain on reconnect](#queue-drain-on-reconnect). No message is dropped as long as the sender's push to the server succeeds.
 - **`lan` mode with no open data channel:** sending fails outright with no fallback — the mobile app must surface this as a distinct failed-send state rather than silently queuing (per [Transport selection](#transport-selection-via-connectionservice)).
-- **Ack never received for a queued message:** the queue row is never deleted, so the payload is redelivered on the recipient's *next* reconnect too — this makes delivery at-least-once, not exactly-once; the client's local UUID-based idempotent upsert (see [Data model](#data-model-mobile-watermelondb)) is what prevents duplicate display.
+- **Ack never received for a queued message:** the queue row is never deleted, so the payload is redelivered on the recipient's *next* reconnect too — this makes delivery at-least-once, not exactly-once; the client's local UUID-based idempotent upsert (see [Data model](#data-model-mobile--watermelondb)) is what prevents duplicate display.
 - **Orphaned `MessageReceipt` for a LAN-only message:** rejected by the sync push endpoint's FK guard rather than silently accepted, preventing referential-integrity corruption (see [P2P receipt guard](#message-sync)).
 - **Decryption failure on receive:** see [e2e-encryption design](../e2e-encryption/design.md#failure-handling) — the message is persisted but flagged as undecryptable, never discarded.
 

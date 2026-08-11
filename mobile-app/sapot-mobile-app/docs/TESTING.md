@@ -27,10 +27,10 @@ If you are testing the GPS map:
 Use one of the two supported paths:
 
 - **Docker (recommended)** — the Nginx TLS terminator in
-  [`docs/getting-started/docker-setup.md`](../../../docs/getting-started/docker-setup.md) handles
+  [the Docker setup guide](pathname:///docs/getting-started/docker-setup) handles
   certificates for you.
 - **Bare metal** — follow "Configure TLS trust for local development" in
-  [`docs/getting-started/mobile-app-setup.md`](../../../docs/getting-started/mobile-app-setup.md#configure-tls-trust-for-local-development)
+  [the mobile app setup guide](pathname:///docs/getting-started/mobile-app-setup#configure-tls-trust-for-local-development)
   *before* starting the server. The dev build trusts either a CA in the device's user store or a
   leaf signed by the bundled `server_ca.pem`.
 
