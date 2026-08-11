@@ -136,6 +136,14 @@ paths:
         schema:
           type: string
           title: Scenario
+      - name: x-qa-token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Qa-Token
       responses:
         '200':
           description: Successful Response
@@ -165,6 +173,14 @@ paths:
         schema:
           type: string
           title: Username
+      - name: x-qa-token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Qa-Token
       responses:
         '200':
           description: Successful Response
@@ -194,6 +210,14 @@ paths:
         schema:
           type: string
           title: Username
+      - name: x-qa-token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Qa-Token
       responses:
         '200':
           description: Successful Response

@@ -1,20 +1,16 @@
 """
-Regression tests for TC-247 and the GH #273 `/testing/*` production guard.
+Regression tests for TC-247 and the GH #276 `/testing/*` production guard.
 
 TC-247: /gps/ws/monitor/rescuers/{id} must require a valid rescuer token.
 
-GH #273 (`require_qa_env`): every `/testing/*` route must 404 outside
-ENVIRONMENT=development, even though this repo's test suite normally runs with
-ENVIRONMENT=development (so the router is mounted at all — see main.py). Tested
-against the dependency function directly rather than reimporting `app.main` under a
-different ENVIRONMENT, since the router-inclusion decision is baked in at process
-import time and re-importing it mid-suite is not meaningfully different from a unit
-test of the guard itself.
+GH #276 (`require_qa_env`): every `/testing/*` route must 404 in a production process,
+including when the router is deliberately mis-mounted.
 """
 import os
 from pathlib import Path
 import subprocess
 import sys
+import textwrap
 import uuid
 import pytest
 from fastapi import HTTPException
@@ -147,10 +143,90 @@ class TestTC247MonitorWebSocketRequiresRescuerAuth:
 
 
 # ---------------------------------------------------------------------------
-# GH #273 — /testing/* must 404 outside ENVIRONMENT=development
+# GH #276: /testing/* must 404 outside a QA-enabled environment
 # ---------------------------------------------------------------------------
 
 class TestQAGuardProductionLockout:
+
+    def test_qa_api_token_is_required_at_import_time(self):
+        env = os.environ.copy()
+        env.update(
+            {
+                "DATABASE_URL": "sqlite:////tmp/qa-token-import-test.db",
+                "JWT_SECRET_KEY": "qa-token-import-test",
+                "CORS_ALLOWED_ORIGINS": "http://testserver",
+                "ENVIRONMENT": "development",
+            }
+        )
+        env.pop("QA_API_TOKEN", None)
+
+        result = subprocess.run(
+            [sys.executable, "-c", "import app.api.testing"],
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert "QA_API_TOKEN environment variable is not set" in result.stderr
+
+    def test_every_testing_path_returns_404_in_production_process(self):
+        env = os.environ.copy()
+        env.update(
+            {
+                "DATABASE_URL": "sqlite:////tmp/qa-production-lockout-test.db",
+                "JWT_SECRET_KEY": "qa-production-lockout-test",
+                "CORS_ALLOWED_ORIGINS": "http://testserver",
+                "GSM_SECRET": "qa-production-lockout-test",
+                "SERVER_ED25519_SEED": (
+                    "0123456789abcdef0123456789abcdef"
+                    "0123456789abcdef0123456789abcdef"
+                ),
+                "ENVIRONMENT": "production",
+            }
+        )
+        env.pop("QA_API_TOKEN", None)
+
+        script = textwrap.dedent(
+            """
+            import re
+
+            from fastapi import FastAPI
+            from fastapi.routing import APIRoute
+            from fastapi.testclient import TestClient
+
+            from app.main import app
+            from app.api import testing
+
+            routes = [route for route in testing.router.routes if isinstance(route, APIRoute)]
+
+            def assert_all_routes_return_404(client):
+                for route in routes:
+                    path = re.sub(r"{[^}]+}", "fixture", route.path)
+                    for method in route.methods:
+                        response = client.request(method, path)
+                        assert response.status_code == 404, (method, path, response.status_code)
+
+            assert_all_routes_return_404(TestClient(app))
+
+            mis_mounted_app = FastAPI()
+            mis_mounted_app.include_router(testing.router)
+            assert_all_routes_return_404(TestClient(mis_mounted_app))
+            """
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
 
     def test_require_qa_env_raises_404_when_qa_disabled(self, monkeypatch):
         from app.api import testing as testing_module
@@ -186,12 +262,21 @@ class TestQAGuardProductionLockout:
         testing_module.require_qa_token(x_qa_token=testing_module.QA_API_TOKEN)  # must not raise
 
     def test_every_testing_route_depends_on_require_qa_env(self):
-        """Belt-and-suspenders: catches a route added to testing.py that forgets the
-        dependency, independent of any single route's behaviour above."""
         from app.api import testing as testing_module
 
         for route in testing_module.router.routes:
             dependant_calls = {dep.call for dep in route.dependant.dependencies}
             assert testing_module.require_qa_env in dependant_calls, (
                 f"{route.path} is missing Depends(require_qa_env)"
+            )
+
+    def test_every_mutating_testing_route_depends_on_require_qa_token(self):
+        from app.api import testing as testing_module
+
+        for route in testing_module.router.routes:
+            if route.methods == {"GET"}:
+                continue
+            dependant_calls = {dep.call for dep in route.dependant.dependencies}
+            assert testing_module.require_qa_token in dependant_calls, (
+                f"{route.path} is missing Depends(require_qa_token)"
             )

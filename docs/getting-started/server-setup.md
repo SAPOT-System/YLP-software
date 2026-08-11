@@ -20,7 +20,7 @@ the variable:
 | `JWT_SECRET_KEY` | `app/db_operations/token.py` |
 | `CORS_ALLOWED_ORIGINS` | `app/main.py` |
 | `SERVER_ED25519_SEED` | `app/db_operations/signing.py` |
-| `QA_API_TOKEN` | `app/api/testing.py`, **only** when `ENVIRONMENT=development` or `staging`, which also mounts the `/testing/*` routes |
+| `QA_API_TOKEN` | `app/api/testing.py`, only when `ENVIRONMENT=development` or `staging`; every state-changing `/testing/*` request must send it as `X-QA-Token` |
 
 Copy `server/.env.example` to `server/.env` and fill it in. The example ships a usable value for
 every variable above except the database host, so the only edits a local run needs are the two
