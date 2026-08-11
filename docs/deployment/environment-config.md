@@ -15,7 +15,7 @@ All SAPOT components are configured via environment variables. This document lis
 | `QA_API_TOKEN` | None — required, raises `RuntimeError` at import if unset **when `ENVIRONMENT=development`** | Only relevant in development; the `X-QA-Token` header value `/testing/reset` and `/testing/login-as/{handle}` require |
 | `REDIS_URL` | `redis://localhost:6379` | Set if Redis is on a non-default host/port |
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
-| `GSM_SECRET` | `""` (empty — webhook auth disabled) | Set to a shared secret to authenticate GSM module webhooks |
+| `GSM_SECRET` | `""` (empty; inbound callbacks rejected) | Set to a shared secret to authenticate GSM module callbacks |
 
 See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` became required.
 
@@ -52,14 +52,14 @@ GSM_SECRET=<shared secret with GSM module>
 |---|---|---|
 | `SERIAL_PORT` | `/dev/ttyACM0` | USB serial device path |
 | `SERIAL_BAUD` | `9600` | Serial baud rate |
-| `DB_PATH` | `mysql+pymysql://sapot:sapot@localhost:3306/sapot_db` (hardcoded default in `config.py`) | MariaDB connection string |
+| `DB_PATH` | None; startup raises `RuntimeError` when unset | MariaDB connection string; required |
 | `HOST` | `127.0.0.1` | FastAPI bind host |
 | `PORT` | `8000` (code default in `config.py`), but **not actually read** — `GSM-fastapi/main.py` hardcodes `uvicorn.run(..., port=8001, ...)` regardless of this variable. The service always listens on `8001` in practice, which is what avoids colliding with the main SAPOT server on `127.0.0.1:8000` — not the `PORT` variable. | Not a real configuration knob today — see `GSM-module/CLAUDE.md`'s "Common Pitfalls" |
 | `LOG_LEVEL` | `INFO` | Python logging level (`config.py`) |
 | `SAPOT_API_URL` | `http://localhost:8000` | Base URL the GSM module uses to call back into the SAPOT server (`database.py`) — must match wherever the server actually listens |
-| `GSM_SECRET` | `""` (empty — webhook auth disabled) | Shared secret sent as `X-GSM-Secret` on both directions of the server↔GSM webhook calls (`database.py`). **Must match the server's `GSM_SECRET`** (see above) |
+| `GSM_SECRET` | `""` (empty) | Shared secret sent by the GSM module when it calls the server's `/gsm/inbound` route. **Must match the server's `GSM_SECRET`** (see above) |
 | `SMS_BOT_USER_ID` | unset | User ID the GSM module attributes inbound SMS-originated messages to, when the sender can't be resolved to a registered user (`database.py`) |
-| `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum waiting outbound requests. Must be an integer greater than or equal to `1`; zero, negatives, blanks, and non-integers fail startup. The one in-flight request is excluded, so resident outbound work is this capacity plus one. |
+| `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum waiting outbound requests. Integers from `1` through `20` are accepted; other values fail startup. The upper bound leaves capacity in FastAPI's default 40-thread worker pool so overload requests can reach the non-blocking admission check. |
 
 ### Recommended production `gsm.env`
 
@@ -70,7 +70,7 @@ DB_PATH=mysql+pymysql://<user>:<password>@127.0.0.1:3306/sapot_db
 HOST=127.0.0.1
 PORT=8001  # harmless to set, but has no real effect — main.py always binds 8001
 LOG_LEVEL=INFO
-SAPOT_API_URL=https://<sapot-server-host>
+SAPOT_API_URL=http://127.0.0.1:8000
 GSM_SECRET=<same shared secret as server's GSM_SECRET>
 SMS_BOT_USER_ID=<uuid of the SMS bot user, if applicable>
 SMS_SEND_QUEUE_MAXSIZE=10

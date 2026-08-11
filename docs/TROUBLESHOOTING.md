@@ -72,9 +72,9 @@ If this fails, check MariaDB is running (`sudo systemctl status mariadb`) and th
 
 ---
 
-## GSM module and server can't authenticate each other
+## Server rejects GSM inbound callbacks
 
-**Symptom:** SMS send/receive fails; server logs show a rejected `X-GSM-Secret` header, or the GSM module logs show the reverse.
+**Symptom:** Inbound SMS forwarding fails and the server logs show a rejected `X-GSM-Secret` header.
 
 **Cause:** `GSM_SECRET` differs between the two components' env files.
 

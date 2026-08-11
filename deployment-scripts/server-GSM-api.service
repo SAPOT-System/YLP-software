@@ -7,8 +7,8 @@ User=sapot
 Group=sapot 
 WorkingDirectory=/home/sapot/YLP-software/GSM-module/GSM-fastapi
 ExecStart=/home/sapot/YLP-software/GSM-module/GSM-fastapi/run-api.sh
+EnvironmentFile=/etc/sapot/gsm.env
 Restart=always
-TimeoutStopSec=150
 
 # Automatic restart logic
 RestartSec=3
