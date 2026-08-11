@@ -136,7 +136,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${GSM_FASTAPI_PORT:-8001}:8001"
+      - "127.0.0.1:${GSM_FASTAPI_PORT:-8001}:8001"
 
 volumes:
   db-data:

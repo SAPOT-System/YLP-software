@@ -86,8 +86,9 @@ that includes:
   (through `nginx`), **not** at the bare `/`, which 404s.
 - `tileserver`: offline map tiles. Not published to the host: `docker-compose.yml` only `expose`s
   port 8080 on the internal network, so reach it at `https://localhost/tiles/` through `nginx`.
-- `gsm-fastapi`: the SMS gateway, `http://localhost:8001` (starts without the GSM modem; add
-  `docker-compose.gsm-hardware.yml` per the [Configure](#configure) section above for real SMS)
+- `gsm-fastapi`: the SMS gateway, `http://localhost:8001` on host loopback only (starts without the
+  GSM modem; add `docker-compose.gsm-hardware.yml` per the [Configure](#configure) section above for
+  real SMS)
 
 `nginx` declares `depends_on` on `admin` and `tileserver` (both proxied by `nginx.docker.conf` as
 static upstreams, which nginx resolves at config-load time and refuses to start without). Naming
@@ -180,7 +181,8 @@ both running at once:
   directory name, so a worktree gets its own containers, network, and `db-data` volume automatically
   — no shared state with the main checkout's stack.
 - **Host ports are not automatically isolated.** Two stacks (main checkout + a worktree, or two
-  worktrees) both bind `443`/`80`/`3000`/`8001` on the host by default, so bringing up a
+  worktrees) both bind `443`/`80`/`3000`/`8001` on the host by default. GSM port 8001 binds only to
+  loopback, while the other published services keep their configured interfaces. Bringing up a
   second stack while the first is still running fails with "port is already allocated". If you want
   them running concurrently, give the worktree its own `.env` (root-level, copied from
   `.env.example`) with different port values, e.g.:

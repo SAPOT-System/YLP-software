@@ -34,7 +34,7 @@ bash run-api.sh
 
 ### Docker (dev/test alternative)
 
-The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md)) includes a `gsm-fastapi` service alongside the rest of the stack. The base file does not pass through `/dev/ttyACM0`, which lets development stacks start without GSM hardware. Add `docker-compose.gsm-hardware.yml` when the modem is attached. The Compose service already sets `HOST=0.0.0.0` so its published port is reachable from the host.
+The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md)) includes a `gsm-fastapi` service alongside the rest of the stack. The base file does not pass through `/dev/ttyACM0`, which lets development stacks start without GSM hardware. Add `docker-compose.gsm-hardware.yml` when the modem is attached. The service listens on all interfaces inside its container, but Compose publishes port 8001 only on host loopback because the direct API is unauthenticated.
 
 ---
 
