@@ -59,5 +59,5 @@ Before standing up SAPOT at a new incident site (fresh hardware, not a restore �
 
 1. Confirm the offline root CA is still valid (see schedule above) and re-issue a server leaf if needed.
 2. Confirm all required secrets are set per [environment-config.md](environment-config.md) and [SECURITY.md](../../SECURITY.md) — the server fails fast at import if `DATABASE_URL`, `JWT_SECRET_KEY`, or `CORS_ALLOWED_ORIGINS` are missing.
-3. Confirm `ENVIRONMENT` is **not** set to `development` in the field deployment's env — that gate exists specifically to keep `/testing/*` endpoints out of production (see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#testing-endpoints-return-404-in-dev)).
+3. Confirm `ENVIRONMENT` is **not** set to `development` or `staging` in the field deployment's env — those values enable `/testing/*` endpoints (see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#testing-endpoints-return-404-in-development-or-staging)).
 4. Confirm `sapot-db-backup.timer` is enabled (a docker-bundle `install.sh` does this for you; bare-metal is a manual step, see [runbooks.md](runbooks.md#backup-automated)) and run `backup-db.sh` once by hand to take a baseline before real data accumulates only on this host.

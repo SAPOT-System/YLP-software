@@ -10,7 +10,7 @@ FastAPI + SQLModel backend, Python 3.13. Provides auth, sync, WebSocket signalli
 
 Entry point `app/main.py` (mounted as `app.main:app`). Request flow: Nginx (TLS) → Gunicorn/Uvicorn workers → FastAPI app → `SlowAPIMiddleware` (rate limiting) → activity-tracking middleware → route handler (`app/api/*.py`) → `SessionDep` (DB session dependency, `app/db_operations/auth.py`) → SQLModel query against MariaDB.
 
-- One router module per feature area in `app/api/`: `auth`, `gps`, `sync`, `admin`, `gsm`, `mikrotik`, `captive_portal`, `keys`, `wrapped_key`, `user_keys`, `peer_connection`, `public_chat`, `profile_picture`, `download`, etc. `app/api/testing.py` is conditionally imported only when `ENVIRONMENT=development` (see `app/main.py`).
+- One router module per feature area in `app/api/`: `auth`, `gps`, `sync`, `admin`, `gsm`, `mikrotik`, `captive_portal`, `keys`, `wrapped_key`, `user_keys`, `peer_connection`, `public_chat`, `profile_picture`, `download`, etc. `app/api/testing.py` is conditionally imported only when `ENVIRONMENT=development` or `staging` (see `app/main.py`).
 - `app/db_operations/*.py` holds DB-facing logic (auth/session handling, GPS manager, sync tokens, router client/metrics, key recovery, etc.) — route handlers call into these rather than querying models directly.
 - `app/models/*.py` — one SQLModel per file (users, messages, calls, keys, recovery, router, captive_portal, etc.).
 - Rate limiting is a cross-cutting concern via `slowapi` (`app/limiter.py`, `@limiter.limit(...)` decorators on individual routes) — not middleware-only, it's applied per-endpoint.
@@ -53,7 +53,7 @@ Entry point `app/main.py` (mounted as `app.main:app`). Request flow: Nginx (TLS)
 ## Common Pitfalls
 
 - Adding a default/fallback value for a required secret env var — this repo has a documented incident (hardcoded DB credentials, hardcoded JWT secret fallback, CORS wildcard) that this fail-fast pattern exists specifically to prevent. See `../SECURITY.md`.
-- Making `app/api/testing.py` reachable outside `ENVIRONMENT=development` — it's conditionally imported in `app/main.py` specifically to keep `test-make-admin`/`test-make-rescuer` out of production.
+- Making `app/api/testing.py` reachable outside `ENVIRONMENT=development` or `staging` — it's conditionally imported in `app/main.py` specifically to keep its endpoints out of production.
 - Hand-editing `../docs/api/openapi/*.yaml`, `../docs/database/tables.md`, or `../docs/database/erd.md` — these are generated; CI fails on drift between them and the source.
 - Hand-editing `app/version.py` instead of using `./scripts/release.sh server <version>` (repo root) — `scripts/set_version.py` alone bumps the file but skips the commit/tag/release-notes steps.
 - Changing an endpoint's request/response shape without checking `../docs/api/openapi/` and the mobile/admin clients that depend on it — this server has no consumers of its own; both other components assume the current contract.

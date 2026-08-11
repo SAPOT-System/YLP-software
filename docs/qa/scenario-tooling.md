@@ -32,9 +32,9 @@ Router: [`server/app/api/testing.py`](../../server/app/api/testing.py). Scenario
 
 This surface can reset a database and mint auth tokens without a password, so it's gated defense-in-depth style — see the file header in `testing.py` and `SECURITY.md`:
 
-1. **Import gating** — `app/main.py` only imports this router when `ENVIRONMENT=development`; in a production build the code never loads.
+1. **Import gating** — `app/main.py` only imports this router when `ENVIRONMENT=development` or `staging`; in a production build the code never loads.
 2. **`require_qa_env()`** — every route re-checks `IS_QA_ENABLED` at request time and 404s otherwise, in case the router is ever mounted somewhere unexpected.
-3. **`require_qa_token()`** — `/testing/reset` and `/testing/login-as/{handle}` additionally require an `X-QA-Token` header matching the `QA_API_TOKEN` env var (constant-time compare). `QA_API_TOKEN` has no default and fails fast at import time if unset in a dev environment — mirrors the `JWT_SECRET_KEY` pattern (`SECURITY.md`).
+3. **`require_qa_token()`** — `/testing/reset` and `/testing/login-as/{handle}` additionally require an `X-QA-Token` header matching the `QA_API_TOKEN` env var (constant-time compare). `QA_API_TOKEN` has no default and fails fast at import time if unset in a development or staging environment — mirrors the `JWT_SECRET_KEY` pattern (`SECURITY.md`).
 4. **Fixed fixture allowlist** — `/testing/login-as/{handle}` only ever mints a token for a handle in the `FIXTURE_HANDLES` set baked into `testing.py`; it can never be used to log in as an arbitrary or real user's account.
 
 Set `QA_API_TOKEN` in `server/.env` (see `server/.env.example`); documented alongside other env vars in [`deployment/environment-config.md`](../deployment/environment-config.md).
@@ -49,7 +49,7 @@ Set `QA_API_TOKEN` in `server/.env` (see `server/.env.example`); documented alon
 
 ## Typical QA workflow
 
-1. Run the stack against `ENVIRONMENT=development` with `QA_API_TOKEN` set (see [Set up an environment to test against](README.md#set-up-an-environment-to-test-against)).
+1. Run the stack against `ENVIRONMENT=development` or `staging` with `QA_API_TOKEN` set (see [Set up an environment to test against](README.md#set-up-an-environment-to-test-against)).
 2. `POST /testing/reset` to clear the database, then `POST /testing/seed/roles` (or whichever scenario the test plan calls for).
 3. In the mobile app, open the debug FAB → Auth section → tap the fixture account you need (e.g. `qa_rescuer`, `qa_admin`).
 4. The app wipes local data, logs in as that fixture identity, and restarts — ready to test the role-gated flow without manual registration.

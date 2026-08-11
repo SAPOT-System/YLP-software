@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi import Request
 from starlette.responses import JSONResponse
 
+from app.env import IS_QA_ENABLED
 from app.limiter import limiter
 from app.version import __version__
 
@@ -24,8 +25,7 @@ from app.db_operations.activity import activity_tracking_middleware
 from app.db_operations.auth import SessionDep
 from app.api import auth, forgot_password, verify_email, peer_connection, ping, update_info, sync, profile_picture, gps, admin, public_chat, mikrotik, captive_portal, download
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "production")
-if ENVIRONMENT == "development":
+if IS_QA_ENABLED:
     from app.api import testing
 from app.api import keys, wrapped_key, user_keys
 from app.models.peer_key import PeerKey
@@ -255,7 +255,7 @@ app.include_router(sync.router)
 app.include_router(profile_picture.router)
 app.include_router(gps.router)
 app.include_router(admin.router)
-if ENVIRONMENT == "development":
+if IS_QA_ENABLED:
     app.include_router(testing.router)
 app.include_router(public_chat.router)
 app.include_router(gsm.router)

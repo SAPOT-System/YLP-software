@@ -138,7 +138,7 @@ docker compose ps                    # is api running, exited, or restarting?
 docker compose logs api --tail=50    # look for a traceback right before "Application startup failed"
 ```
 - **`api` is running and the 502s stop on their own within a few seconds of `up -d`**: expected. The dev stack gives `api` no healthcheck, so `nginx` starts as soon as the `api` *process* does, which is before Uvicorn finishes importing the app. Just retry.
-- **`api` is running and the 502s persist**: read the logs. An unset required env var (`DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, `SERVER_ED25519_SEED`, or `QA_API_TOKEN` when `ENVIRONMENT=development`) raises at import time and the container exits before serving anything.
+- **`api` is running and the 502s persist**: read the logs. An unset required env var (`DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, `SERVER_ED25519_SEED`, or `QA_API_TOKEN` when `ENVIRONMENT=development` or `staging`) raises at import time and the container exits before serving anything. An unrecognised `ENVIRONMENT` value also stops the app at import time.
 
 **Requests reach `api` but fail on missing tables (`1146 Table ... doesn't exist`).** Migrations were never applied to this `db-data` volume. Run [Apply database migrations](#apply-database-migrations).
 
