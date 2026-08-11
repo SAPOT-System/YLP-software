@@ -1,33 +1,55 @@
-# SMS Gateway — Requirements
+# SMS Gateway: Requirements
 
 ## Overview
 
-The SMS gateway bridges the main server and an Arduino-based GSM module over a serial connection, letting the server send and receive SMS for OTP delivery and rescuer-initiated outreach to users without app connectivity.
+The SMS gateway must let SAPOT send and receive SMS through one serial-attached modem without allowing HTTP load to create an unbounded in-memory backlog.
 
----
+These requirements describe the deployed `GSM-module/GSM-fastapi/` service and its HTTP integration with the main server.
 
-## User Stories
+## User outcomes
 
-| ID     | As a…    | I want to…                                              | So that…                                                        |
-|--------|----------|---------------------------------------------------------|-----------------------------------------------------------------|
-| SG-01  | rescuer  | send an SMS to a registered user's phone number         | I can reach them even if they are not connected to the LAN      |
-| SG-02  | user     | receive a one-time password via SMS                     | I can verify my phone number or recover my account              |
-| SG-03  | user     | resend an OTP if I did not receive it                   | I am not locked out due to delivery failure                     |
-| SG-04  | system   | receive inbound SMS from the GSM module                 | Users can send text commands or replies back to the system      |
-| SG-05  | admin    | see whether the GSM module is online                    | I can confirm SMS delivery capability before relying on it      |
+| ID | User | Outcome |
+|---|---|---|
+| SG-01 | Rescuer | Send an SMS to a registered phone number |
+| SG-02 | User | Receive phone-verification and recovery codes |
+| SG-03 | User | Send an SMS reply through the gateway |
+| SG-04 | Administrator | Observe modem readiness and queue saturation |
 
----
+## Functional requirements
 
-## Functional Requirements
+### FR-SG-01: Direct outbound SMS
 
-### FR-SG-01 — Outbound SMS
+`POST /sms/send` accepts:
 
-- The direct GSM route is `POST /sms/send` with `{ "number": "+639171234567", "body": "message" }`.
-- One serial send is in flight at a time. At most `SMS_SEND_QUEUE_MAXSIZE` additional requests wait in FIFO order.
-- Admission is non-blocking. Work beyond capacity receives HTTP 503 with `reason: "QUEUE_FULL"`, is logged as failed, and is never written to serial.
-- Unsent work rejected during shutdown receives HTTP 503 with `reason: "SERVICE_STOPPING"`. An in-flight request keeps its actual modem result, `TIMEOUT`, or a reason beginning `WRITE_ERROR: `.
+```json
+{
+  "number": "+639171234567",
+  "body": "message"
+}
+```
 
-Queue saturation response:
+The number must use E.164 format. The submitted body must not exceed 160 characters and must remain nonempty after trimming.
+
+A successful modem confirmation returns HTTP 200:
+
+```json
+{
+  "ok": true,
+  "msg_id": "<sms_log UUID>",
+  "to": "+639171234567"
+}
+```
+
+A modem failure, write failure, or confirmation timeout returns HTTP 502 and records the failure in `sms_log`.
+
+### FR-SG-02: Bounded outbound admission
+
+- One outbound request may be active in the serial sender.
+- `SMS_SEND_QUEUE_MAXSIZE` permits 1 through 20 additional waiting requests and defaults to 10.
+- Waiting requests retain first-in, first-out order.
+- Admission must not block when the queue is full.
+- Work beyond capacity must never reach the serial port.
+- Saturated requests must be logged as failed and return HTTP 503 with `reason: "QUEUE_FULL"`.
 
 ```json
 {
@@ -39,67 +61,73 @@ Queue saturation response:
 }
 ```
 
-The stopping response has the same shape with `message` set to `SMS service is stopping` and `reason` set to `SERVICE_STOPPING`. These contracts apply to the direct GSM service. The main server currently does not preserve its upstream HTTP status.
+### FR-SG-03: Lifecycle cutoff
 
-### FR-SG-02 — OTP Request
+`SerialWorker.stop()` must close admission atomically. Waiting and active requests must resolve with `SERVICE_STOPPING`, and a new request after the cutoff must receive HTTP 503.
 
-- `POST /gsm/otp/request` accepts `{ phone: string, purpose: "verification" | "recovery" }`.
-- The main server generates a 6-digit OTP, stores it in `phone_verification` table with a 10-minute TTL, and calls the GSM API `POST /sms/send` to deliver it.
-- A phone number may request at most one OTP per 60 seconds (rate-limited by Slowapi).
-- Response: `{ success: true, expires_in: 600 }`.
+A request completed before the cutoff must not be overwritten. A request failed before its serial write must never be written after modem recovery.
 
-### FR-SG-03 — OTP Verify
+### FR-SG-04: Health and diagnostics
 
-- `POST /gsm/otp/verify` accepts `{ phone: string, otp: string }`.
-- Looks up the most recent non-expired `phone_verification` row for the phone number.
-- Returns 200 `{ verified: true }` if the OTP matches and has not expired.
-- Returns 401 if the OTP is wrong.
-- Returns 401 if the OTP has expired.
-- Marks the row as used after a successful verification (prevents replay).
+- `GET /health` must remain responsive while synchronous send requests occupy worker threads.
+- `GET /health` returns modem readiness and serial connection state.
+- `GET /health/detailed` reports inbound queue depth, outbound waiting depth, outbound capacity, and whether a serial request is in flight.
+- Queue saturation must log depth and capacity without including SMS content in the saturation warning.
 
-### FR-SG-04 — OTP Resend
+### FR-SG-05: Serial protocol
 
-- `POST /gsm/otp/resend` accepts `{ phone: string }`.
-- Invalidates any existing OTP for that phone and generates a new one.
-- Subject to the same 60-second rate limit as `/gsm/otp/request`.
+The service must send and receive these frames:
 
-### FR-SG-05 — Inbound SMS
+```text
+SEND_SMS|<number>|<body>
+SMS_RECEIVED|<number>|<body>
+SMS_SENT|<number>
+SMS_FAILED|<number>|<reason>
+GSM_READY
+NETWORK_OK
+NETWORK_LOST
+SIM_MISSING
+```
 
-- The Arduino receives inbound SMS from the SIM module and forwards it over serial to the GSM FastAPI service.
-- The GSM FastAPI service POSTs the SMS content to the main server webhook: `POST /gsm/inbound`.
-- The webhook is authenticated with a shared `GSM_SECRET` environment variable (sent as `X-GSM-Secret` header).
-- A request without the correct `GSM_SECRET` is rejected with 401.
-- The main server processes the inbound SMS content (e.g. parse OTP replies, store message).
+Only one request may await a modem confirmation. A confirmation received before a new request starts its serial write must not complete that request.
 
-### FR-SG-06 — Hardware
+### FR-SG-06: Inbound SMS
 
-- GSM module: Arduino Uno (or compatible) connected to a SIM800L or SIM900 GSM shield.
-- Serial interface: `/dev/ttyACM0` at 9600 baud.
-- The GSM FastAPI service runs as a separate systemd unit: `server-GSM-api.service`.
-- The service is co-located on the same server host as the main FastAPI application.
+- The serial reader must enqueue `SMS_RECEIVED` events for application processing.
+- `handle_incoming_sms()` must apply the registered-user, banned-user, verified-phone, session, and target rules.
+- The GSM service must call the main server's `POST /gsm/inbound` route with `X-GSM-Secret` when forwarding into the app.
+- Failed callbacks are logged. Automatic callback retry is not required.
 
-### FR-SG-07 — GSM Module Storage
+### FR-SG-07: Configuration and storage
 
-- The GSM FastAPI service uses a local SQLite database (`sapot.db`) for state (pending outbox, delivery receipts).
-- In production this is replaced by a MariaDB connection configured via the `DB_PATH` environment variable.
+- `DB_PATH` is required. Startup must raise `RuntimeError` when it is missing.
+- Invalid `SMS_SEND_QUEUE_MAXSIZE` values must fail startup.
+- `sms_log` stores inbound and outbound audit records.
+- `sms_session` stores per-phone relay state.
+- The committed `sapot.db` file must not be used as the deployment datastore.
 
----
+### FR-SG-08: Main server integration
 
-## Non-Functional Requirements
+- The user-facing `/gsm/sms/send` route remains on the main server and requires its normal JWT authentication.
+- The main server calls the direct gateway at `http://localhost:8001/sms/send`.
+- The direct gateway is a trusted local service and must not be exposed to untrusted networks.
+- Preserving the gateway's HTTP status through the main server proxy is a known limitation, not part of this change.
 
-| ID       | Requirement                                                                 |
-|----------|-----------------------------------------------------------------------------|
-| NFR-SG-01 | `GET /health` remains responsive during outbound saturation and does not wait on a lock held across serial or other blocking I/O |
-| NFR-SG-02 | OTP must expire after exactly 10 minutes                                   |
-| NFR-SG-03 | Inbound webhook must respond within 5 seconds to avoid Arduino timeout     |
-| NFR-SG-04 | Tests must never use a real serial port or SIM module                      |
-| NFR-SG-05 | `GSM_SECRET` must be set via environment variable; never hardcoded         |
+## Non-functional requirements
 
----
+| ID | Requirement |
+|---|---|
+| NFR-SG-01 | Memory used by outbound waiting work is bounded by the configured queue |
+| NFR-SG-02 | The default 40-thread FastAPI worker pool retains headroom at maximum queue capacity |
+| NFR-SG-03 | `GET /health` does not wait on serial I/O or synchronous endpoint capacity |
+| NFR-SG-04 | Serial writes time out after five seconds |
+| NFR-SG-05 | Automated tests never open a real serial device or contact a real modem |
+| NFR-SG-06 | Production secrets are supplied through restricted environment files |
 
-## Out of Scope
+## Out of scope
 
-- MMS support.
-- SMS delivery receipts from the carrier network.
-- Multi-SIM failover.
-- Direct SIM module management via the admin UI (v1 is send/receive only).
+- Bulk SMS and multi-modem scheduling
+- Multimedia Messaging Service (MMS)
+- Carrier delivery or read receipts
+- Automatic retry of failed main-server callbacks
+- Preserving direct-gateway HTTP status through the current main-server proxy

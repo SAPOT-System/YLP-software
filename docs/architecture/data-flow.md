@@ -112,8 +112,8 @@ sequenceDiagram
     participant C as Carrier network
     participant P as Recipient phone
 
-    A->>S: POST /gsm/send-sms (target user has no app presence)
-    S->>G: POST http://localhost:8001/sms/send (X-GSM-Secret header)
+    A->>S: POST /gsm/sms/send with JWT
+    S->>G: POST http://localhost:8001/sms/send
     G->>M: AT command: send SMS (serial_worker.py)
     M->>C: SMS PDU
     C->>P: SMS delivered
@@ -122,11 +122,11 @@ sequenceDiagram
     P->>C: SMS reply
     C->>M: SMS PDU
     M->>G: serial_worker reads modem, sms_handler.py parses
-    G->>S: POST /gsm/inbound-sms (X-GSM-Secret header)
+    G->>S: POST /gsm/inbound with X-GSM-Secret
     S->>S: resolve sender/target user, create/append SMS conversation
 ```
 
-The server and GSM module authenticate each other with a shared `GSM_SECRET` header (`X-GSM-Secret`), not a user session token — see [environment-config.md](../deployment/environment-config.md).
+The main server authenticates user-facing outbound requests with a JSON Web Token (JWT). The direct GSM send endpoint is restricted to the trusted host or Compose network and does not require `X-GSM-Secret`. The shared secret authenticates only the GSM module's inbound callback to `/gsm/inbound`; see [environment-config.md](../deployment/environment-config.md).
 
 ---
 

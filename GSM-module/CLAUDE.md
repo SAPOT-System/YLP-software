@@ -4,21 +4,21 @@ Instructions for Claude Code working in `GSM-module/` — SAPOT's SMS gateway, b
 
 ## Project Overview
 
-Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem over serial; a Python (FastAPI) service on the same machine talking to the Arduino over USB serial; the main `server/` proxying to that Python service over HTTP with a shared secret. There are **two parallel Python implementations** in this directory — they are not both live (see Architecture).
+Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem over serial; a Python (FastAPI) service on the same machine talking to the Arduino over USB serial; the main `server/` proxying outbound calls over trusted HTTP and authenticating inbound callbacks with a shared secret. There are **two parallel Python implementations** in this directory; they are not both live (see Architecture).
 
 ## Architecture — which implementation is live
 
-**`GSM-fastapi/` is the current implementation and intended deployment target.** Evidence: `docs/deployment/gsm-module.md`, `docs/getting-started/gsm-module-setup.md`, and `docs/features/sms-gateway/README.md` all reference only `GSM-fastapi/`; `server/app/api/gsm.py` proxies to `http://localhost:8001`, and `GSM-fastapi/main.py` hardcodes `uvicorn.run("api:app", port=8001, ...)`.
+**`GSM-fastapi/` is the deployed, current implementation.** Evidence: `docs/deployment/gsm-module.md`, `docs/getting-started/gsm-module-setup.md`, and `docs/features/sms-gateway/README.md` all reference only `GSM-fastapi/`; `server/app/api/gsm.py` proxies to `http://localhost:8001`, and `GSM-fastapi/main.py` hardcodes `uvicorn.run("api:app", port=8001, ...)`, an exact match.
 
-**`GSM-API/` is a separate, incomplete rewrite — not deployed, not referenced by any doc or by `server/`.** It has in-memory-only session state (no DB persistence), fire-and-forget SMS sends (no delivery confirmation), and an unsynchronized global (`app/gsm/gsm_runtime.py`'s module-level `ser`) shared across threads with no lock. Default to editing `GSM-fastapi/` for SMS-gateway work; only touch `GSM-API/` if a task explicitly asks for it.
+**`GSM-API/` is a separate, incomplete rewrite that is not deployed or referenced by `server/`.** It has in-memory-only session state (no DB persistence), fire-and-forget SMS sends (no delivery confirmation), and an unsynchronized global (`app/gsm/gsm_runtime.py`'s module-level `ser`) shared across threads with no lock. Default to editing `GSM-fastapi/` for SMS-gateway work; only touch `GSM-API/` if a task explicitly asks for it.
 
-**Documentation source of truth:** use `GSM-fastapi/protocol.py` and the Arduino firmware for serial frames. The design document describes the current `SEND_SMS|` protocol and `/sms/send` route.
+**Documentation source of truth:** `docs/features/sms-gateway/design.md` describes the deployed HTTP routes, queue, lifecycle, and serial flow. Use `GSM-fastapi/protocol.py` and the Arduino firmware as the authoritative definitions for individual serial frames.
 
 ### Data flow (GSM-fastapi, the live path)
 
 **Inbound:** Arduino emits `SMS_RECEIVED|<num>|<body>` over serial → `serial_worker.py`'s `SerialWorker._reader_loop` parses it via `protocol.py` → queued → `api.py`'s async `_inbox_drain()` task offloads to a thread pool → `sms_handler.handle_incoming_sms()` (session/target flow, ban/verified checks against MariaDB) → `database.py`'s `notify_app()` POSTs to the main server's `/gsm/inbound` with an `X-GSM-Secret` header.
 
-**Outbound:** caller (main server or admin frontend's `gsm` page) calls `POST /sms/send` on port 8001. `SerialWorker.send_sms()` atomically admits it to a bounded FIFO queue or rejects saturation with HTTP 503. One sender registers an in-flight request, writes `SEND_SMS|<num>|<body>`, and owns its confirmation timeout. The reader resolves the request from `SMS_SENT|` or `SMS_FAILED|`. Shutdown stops admission and drains unsent work, but preserves the in-flight request's real result.
+**Outbound:** the main server calls `POST /sms/send` on port 8001. `SerialWorker.send_sms()` atomically admits the request to a bounded FIFO queue or rejects saturation with HTTP 503. The sender writes `SEND_SMS|<num>|<body>`, and the reader resolves the request from `SMS_SENT|` or `SMS_FAILED|`. The admin GSM page reads health and message history through the main server. Shutdown rejects queued and active work with `SERVICE_STOPPING`.
 
 `SerialWorker` runs two dedicated threads (`_reader_loop`, `_sender_loop`) with proper request/response correlation over the async serial stream, and auto-reconnects every 10s on disconnect.
 
