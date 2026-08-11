@@ -23,7 +23,9 @@ jobs:
 
       - name: Validate tag and release metadata
         run: |
-          git fetch --no-tags origin main:refs/remotes/origin/main
+          git fetch --no-tags origin \
+            "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME" \
+            main:refs/remotes/origin/main
           scripts/validate_bundle_release_ci.sh "$GITHUB_REF_NAME" "$GITHUB_SHA" origin/main notes.md
           echo "VERSION=${GITHUB_REF_NAME#bundle/v}" >> "$GITHUB_ENV"
 
