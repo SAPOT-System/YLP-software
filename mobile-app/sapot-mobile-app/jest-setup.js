@@ -150,23 +150,7 @@ jest.mock('expo-router', () => {
   };
 });
 
-// Mock Expo task APIs used by background signaling task
-jest.mock('expo-task-manager', () => ({
-  defineTask: jest.fn(),
-  isTaskRegisteredAsync: jest.fn().mockResolvedValue(false),
-  isTaskDefined: jest.fn().mockReturnValue(true),
-}));
-
-jest.mock('expo-background-task', () => ({
-  registerTaskAsync: jest.fn().mockResolvedValue(undefined),
-  unregisterTaskAsync: jest.fn().mockResolvedValue(undefined),
-  BackgroundTaskResult: {
-    Success: 'Success',
-    Failed: 'Failed',
-  },
-}));
-
-// Mock the Android foreground-service wrapper used by use-background-task.ts.
+// Mock the Android foreground-service wrapper used by use-foreground-service.ts.
 // Its real module touches a native event emitter that doesn't exist in the
 // Node test environment.
 jest.mock('react-native-background-actions', () => ({

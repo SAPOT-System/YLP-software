@@ -2,7 +2,6 @@ import { toAppError, captureAppError } from "@/features/shared/core/errors";
 import NetInfo from "@react-native-community/netinfo";
 import { NetworkInfo } from "react-native-network-info";
 import { networkLog } from "../utils/logger";
-import { saveLocalIp, saveLocalPort } from "./secure-config";
 
 networkLog.debug("[network-config] module loaded");
 
@@ -59,10 +58,6 @@ export class NetworkConfig {
       }
       this.ipAddress = ip;
 
-      // Persist so background task always reads the latest values
-      await saveLocalIp(ip);
-      await saveLocalPort(this.port);
-
       networkLog.info("network › init complete", {
         hasIp: Boolean(this.ipAddress),
       });
@@ -104,9 +99,6 @@ export class NetworkConfig {
             hasNewIp: true,
           });
           this.ipAddress = newIp;
-          // Persist immediately so background task picks it up on next wake
-          await saveLocalIp(newIp);
-
           // Notify (debounced) so listeners can re-advertise mDNS / rebind TCP.
           if (this.ipChangeDebounceTimer) {
             clearTimeout(this.ipChangeDebounceTimer);

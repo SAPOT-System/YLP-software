@@ -29,7 +29,7 @@ The primary user-facing component. An Expo/React Native Android app.
 - Local database (WatermelonDB/SQLite) with incremental pull/push sync
 - E2E encryption (NaCl box, per-conversation ECDH keys, at-rest encryption)
 - Guest-to-authenticated account migration
-- Background WebSocket connectivity maintenance (Android background task)
+- Foreground-service connectivity while the Android app process remains alive
 
 **Key dependencies:** Expo Router, `react-native-webrtc`, `react-native-tcp-socket` (TLS), `react-native-zeroconf`, WatermelonDB, `tweetnacl`, `expo-secure-store`, `@maplibre/maplibre-react-native`.
 

@@ -6,7 +6,7 @@ Instructions for Claude Code working in the SAPOT mobile app. See root `../../CL
 
 React Native / Expo (Expo Router) Android app — the primary client of the SAPOT platform. Provides LAN-first messaging (P2P + WebSocket relay fallback), voice/video calls (WebRTC), live GPS sharing, announcements, and offline-first local storage, so the app keeps working when internet/server connectivity is unavailable.
 
-Stack: Expo, React Native, TypeScript, WatermelonDB (SQLite), WebRTC, `react-native-tcp-socket`, `tweetnacl` (E2E crypto), `expo-background-task`.
+Stack: Expo, React Native, TypeScript, WatermelonDB (SQLite), WebRTC, `react-native-tcp-socket`, `tweetnacl` (E2E crypto), `react-native-background-actions`.
 
 Use the `app-commands` skill for the full CLI reference beyond the quality-gate commands listed in "When Modifying This Project" below.
 
@@ -48,11 +48,9 @@ Thin injectable wrappers around native modules, for testability: `TcpServerAdapt
 
 ### Background connectivity
 
-`expo-background-task` + `expo-task-manager` (`task/signaling-task.ts`). Two coordination mechanisms:
-1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down; `setAppAlive(false)` on cleanup lets it resume.
-2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, local IP via `expo-secure-store`. `NetworkConfig` writes the updated IP immediately on WiFi change so the background task reads current config on wake.
+`features/shared/hooks/use-foreground-service.ts` starts an Android foreground service when the app enters the background. `ConnectionService` and `DiscoveryService` continue running in the existing JavaScript process, so no second transport stack or secure-storage handoff is needed.
 
-The task wakes every 15 minutes (Android minimum) using stored config to maintain connectivity when the app is killed.
+Force-killing the app stops connectivity. Firebase Cloud Messaging (FCM) is the planned replacement for killed-app signaling and notification delivery.
 
 ## Directory Guide
 
@@ -71,7 +69,6 @@ Features: `announcements`, `auth`, `call`, `chat`, `debug`, `getting-started`, `
 - `features/shared/` — cross-feature services, DI containers, connection/crypto/database infrastructure. Check here first before writing a new util/service.
 - `docs/` — project-specific architecture docs (see Development Conventions — keep in sync).
 - `test/` — test utilities (builders, factories, mocks); `jest-setup.js` has global mocks for WatermelonDB, TCP sockets, WebRTC, Zeroconf, Expo modules, react-native-paper.
-- `task/` — background task registration (`signaling-task.ts`).
 
 ## Key Concepts
 
@@ -118,14 +115,14 @@ Before writing any new file, read `docs/ARCHITECTURE.md` (service/adapter landsc
 - `features/shared/core/database/schema.ts` — WatermelonDB schema (version 11) and column reference.
 - `features/shared/core/database/migrations.ts` — schema migration history.
 - `config/runtime.ts` — API/WS base URL resolution per build variant.
-- `task/signaling-task.ts` — background connectivity task.
+- `features/shared/hooks/use-foreground-service.ts`: Android foreground-service lifecycle.
 
 ## Common Pitfalls
 
 - Changing `ConnectionService`'s callback wiring to `.bind()` instead of closures — breaks `jest.spyOn` instance replacement in tests.
 - Editing a shared service/hook without auditing all `features/<name>/` consumers first (see Decision Rule 4) — this codebase has many features sharing `features/shared/`.
 - Introducing a second pattern for something `features/shared/` already solves (a second HTTP client, a second logger, a second encryption helper) instead of extending the existing one.
-- Forgetting the background task depends on `secure-config.ts` being written *before* the app is backgrounded — stale secure storage means the background task reconnects to an old IP/peerId.
+- Assuming the Android foreground service survives a force-kill. Killed-app delivery requires the planned FCM replacement.
 - Assuming `server/` changes propagate automatically — the mobile app has its own API client; a backend contract change must be applied here too (see Decision Rule 5).
 
 ## When Modifying This Project

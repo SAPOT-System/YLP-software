@@ -376,14 +376,11 @@ Server-fetched announcement board — no WatermelonDB, purely React Query.
 
 ---
 
-## Background Task
+## Android Background Connectivity
 
-On Android, a background task (`task/signaling-task.ts`) maintains WebSocket connectivity when the app is killed. It wakes every 15 minutes (Android minimum).
+When the app enters the background on Android, `useForegroundService()` starts `react-native-background-actions`. This keeps the existing JavaScript process alive, allowing `ConnectionService` and `DiscoveryService` to continue owning WebSocket, TCP, and Zeroconf transports without creating duplicate adapters.
 
-Two mechanisms coordinate foreground ↔ background:
-
-1. **App-alive flag** — `setAppAlive(true)` in `MainContainer.initialize()` tells the background task to stand down. `setAppAlive(false)` on cleanup lets it resume.
-2. **Secure storage handoff** — `features/shared/core/stores/secure-config.ts` persists `peerId`, `wsUrl`, TCP host/port, and local IP via `expo-secure-store`. `NetworkConfig` writes the latest IP immediately on WiFi change so the background task always reads fresh config. Background Zeroconf cleanup also uses the adapter-tracked published service name so teardown can unpublish the correct mDNS registration.
+The foreground service stops when the app becomes active or its layout unmounts. It does not survive a force-kill. Incoming signaling and notifications after a force-kill require the planned Firebase Cloud Messaging (FCM) replacement.
 
 ---
 

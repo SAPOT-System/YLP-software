@@ -1,6 +1,6 @@
 import type { CallService } from "@/features/call/services/call-service";
 import type { ConnectionService } from "@/features/shared/connection/services/connection-service";
-import { stopForegroundService } from "@/features/shared/hooks/use-background-task";
+import { stopForegroundService } from "@/features/shared/hooks/use-foreground-service";
 import { callLog, uiLog } from "@/features/shared/core/utils/logger";
 import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";

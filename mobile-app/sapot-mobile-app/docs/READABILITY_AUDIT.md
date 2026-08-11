@@ -387,7 +387,7 @@ connectionService.setTcpCallbacks({
 | Peripheral features (settings, announcements) | 3–5 days | Low complexity, isolated |
 | Chat / sync flows | 2–3 weeks | Requires understanding DI + service wiring + DB |
 | Core P2P: connection, signaling, call lifecycle, WebRTC | 4–6 weeks | 290-line function is a hurdle; ADRs help |
-| Full confidence (incl. encryption + background tasks) | 6–8 weeks | Crypto stack + background-task coordination needed |
+| Full confidence (including encryption + foreground-service lifecycle) | 6–8 weeks | Crypto stack + Android lifecycle coordination needed |
 | **First meaningful PR touching core services** | 4–6 weeks | Can write code sooner, but confidence takes time |
 
 **The docs realistically shave ~30% off what this complexity would otherwise demand.**

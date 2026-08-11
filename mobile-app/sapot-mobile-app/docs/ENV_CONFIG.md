@@ -183,20 +183,11 @@ Sensitive runtime config is stored via `expo-secure-store` (not AsyncStorage).
 
 Managed in `features/shared/core/stores/secure-config.ts`:
 
-All 18 keys are declared in that file's `KEYS` constant:
+All nine keys are declared in that file's `KEYS` constant:
 
 | Key | Value |
 |---|---|
-| `peerId` | Current user's ID |
-| `wsUrl` | WebSocket server URL |
-| `tcpHost` | Peer TCP host |
-| `tcpPort` | Peer TCP port |
-| `localIp` | Device's current LAN IP |
 | `access_token` | Current session's JWT (read via `getStoredAccessToken`; written via `saveAccessToken`/cleared via `clearAccessToken`) |
-| `appAlive` | App-alive flag the background task checks to decide whether to stand down |
-| `username` | Cached profile username |
-| `firstName` | Cached profile first name |
-| `lastName` | Cached profile last name (optional) |
 | `syncLastPulledAt` | Last successful sync pull timestamp (Unix ms, stored as string) |
 | `serverHostOverride` | Dev/QA host override consumed by `config/runtime.ts` (`setRuntimeHostOverride`) |
 | `appMode` | Persisted transport mode (`auto` / `server` / `lan`) |
@@ -206,7 +197,7 @@ All 18 keys are declared in that file's `KEYS` constant:
 | `recoveryTokenHex` | Recovery session token, hex-encoded |
 | `guestMigrationState` | Guest→registered-account migration progress state |
 
-This config is also read by the background task (`task/signaling-task.ts`) on Android when the app is killed.
+Connection details and profile fields stay in memory while the app runs. They are not copied to secure storage because the Android foreground service keeps the existing JavaScript process alive instead of constructing a second transport stack.
 
 `saveAccessToken`/`clearAccessToken` are also used by the gated Auth debug section (`features/debug/services/debug-auth-service.ts`) to inject/clear a fake JWT for testing — see `docs/TESTING.md`.
 

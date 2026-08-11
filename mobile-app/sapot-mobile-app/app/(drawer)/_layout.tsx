@@ -16,7 +16,7 @@ import { ServerDownReloginTransition } from "@/features/shared/components/server
 import { ServerStatusBanner } from "@/features/shared/components/server-status-banner";
 import { ZeroconfStatusIndicator } from "@/features/shared/components/zeroconf-status-indicator";
 import { HealthProvider, MainContainerProvider, ServerHealthProvider, useAppMode } from "@/features/shared/core/context";
-import { useBackgroundTask } from "@/features/shared/hooks/use-background-task";
+import { useForegroundService } from "@/features/shared/hooks/use-foreground-service";
 import { useForegroundSync } from "@/features/shared/hooks/use-foreground-sync";
 import { useNotifications } from "@/features/shared/hooks/use-notifications";
 import { useZeroconfPublished } from "@/features/shared/hooks/use-zeroconf-published";
@@ -31,7 +31,6 @@ import { Platform, TouchableOpacity, View } from "react-native";
 import { Icon, Text, useTheme } from "react-native-paper";
 import { PageLoader } from "@/features/shared/components/page-loader";
 import { SafeAreaView } from "react-native-safe-area-context";
-import "../../task/signaling-task";
 
 const queryClient = new QueryClient();
 function GpsStreamingEffect() {
@@ -103,8 +102,7 @@ function HeaderRight() {
 export default function DrawerLayout() {
   const { isAuthenticated, loading, isGuest } = useAuth();
   const theme = useTheme();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { unregister } = useBackgroundTask();
+  useForegroundService();
   const handledNotifIdRef = useRef<string | null>(null);
   const handledNotifTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

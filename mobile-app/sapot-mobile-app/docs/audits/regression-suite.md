@@ -79,13 +79,13 @@ Before merging to `main` or tagging a release:
 | REG-043 | Max 5 retry attempts | Auto-reconnect stops after 5 failures | Jest unit | `features/chat/hooks/__tests__/use-chat-connection.test.ts` |
 | REG-044 | Exponential backoff timing | Delays: 1s, 1.8s, 3.2s, 5.8s, 10.4s (±20% jitter) | Jest unit | `features/chat/hooks/__tests__/use-chat-connection.test.ts` |
 
-### Background Task & Notifications
+### Background Connectivity & Notifications
 
 | ID | Name | What It Verifies | Test Type | Target File |
 |----|------|-----------------|-----------|-------------|
-| REG-050 | App-alive prevents duplicate transport | `appAlive=true` → background task skips transport start | Jest unit | `task/__tests__/signaling-task.test.ts` |
-| REG-051 | Background task starts transport when killed | `appAlive=false` → TCP + WS + Zeroconf start | Jest unit | `task/__tests__/signaling-task.test.ts` |
-| REG-052 | Background call notification fires | `audio-call` → `incoming-call` notification with ringtone | Maestro E2E | `flows/notifications/background-call.yaml` |
+| REG-050 | Foreground service starts on background | Background app state starts `react-native-background-actions` | Jest unit | `features/shared/hooks/__tests__/use-foreground-service.test.ts` |
+| REG-051 | Foreground service stops on active | Active app state stops `react-native-background-actions` | Jest unit | `features/shared/hooks/__tests__/use-foreground-service.test.ts` |
+| REG-052 | Background call notification fires while process is alive | `audio-call` produces an `incoming-call` notification with ringtone | Maestro E2E | `flows/notifications/background-call.yaml` |
 | REG-053 | Cold-start from notification | `getLastNotificationResponseAsync()` → Incoming Call screen | Maestro E2E | `flows/notifications/cold-start-call.yaml` |
 | REG-054 | Notification deduplication | Two identical notifications → one navigation in 30 s | Jest unit | `features/shared/connection/services/__tests__/notification-service.test.ts` |
 

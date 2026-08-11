@@ -113,8 +113,6 @@ Global mocks are set up in `jest-setup.js`. These run before every test file.
 | `react-native-reanimated` | Native animation driver |
 | `react-native-background-actions` | Native module |
 | `lottie-react-native` | Native animation module |
-| `expo-background-task` | Native module |
-| `expo-task-manager` | Native module |
 | `expo-notifications` | Native module |
 | `expo-file-system` | Touches the real filesystem (log files) |
 | `@react-native-documents/picker` | Native file picker |

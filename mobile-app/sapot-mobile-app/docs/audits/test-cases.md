@@ -304,18 +304,18 @@ The table below is a quick-reference for precondition states. Full setup procedu
 
 ---
 
-## 16. Background Task & Notifications
+## 16. Background Connectivity & Notifications
 
 | ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
 |----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
-| TC-220 | Background Task | Registered on app start | | 1. Launch app | SIGNALING_TASK registered | P0 | Critical | Jest |
-| TC-221 | Background Task | App-alive flag prevents duplicate transport | Foreground app | 1. App in foreground | `appAlive=true`; background task skips | P0 | Critical | Jest |
-| TC-222 | Background Task | Starts transport when app killed | App killed | 1. Background task fires | TcpServer + WsSignaling + Zeroconf start | P0 | Critical | Jest |
-| TC-223 | Background Task | Incoming call notification fires | App killed on real device | 1. Kill app 2. Peer sends audio-call message | `incoming-call` notification appears with ringtone | P0 | Critical | MANUAL (physical device) |
-| TC-224 | Background Task | Notification dismissed on call-ended | Notification shown, real device | 1. Leave notification 2. Caller hangs up | Notification dismissed automatically | P0 | Critical | MANUAL (physical device) |
+| TC-220 | Foreground Service | Starts when app is backgrounded | Android app active | 1. Send app to background | Foreground-service notification appears; existing transports remain connected | P0 | Critical | Jest + MANUAL |
+| TC-221 | Foreground Service | Stops when app becomes active | Foreground service running | 1. Return to app | Foreground-service notification disappears; transports remain owned by `MainContainer` | P0 | Critical | Jest + MANUAL |
+| TC-222 | Foreground Service | Stops when drawer layout unmounts | Foreground service running | 1. Log out | Foreground service stops | P0 | Critical | Jest |
+| TC-223 | Notifications | Incoming call notification fires while process is alive | App backgrounded on real device | 1. Peer sends audio-call message | `incoming-call` notification appears with ringtone | P0 | Critical | MANUAL (physical device) |
+| TC-224 | Notifications | Notification dismissed on call-ended | Notification shown, real device | 1. Leave notification 2. Caller hangs up | Notification dismissed automatically | P0 | Critical | MANUAL (physical device) |
 | TC-225 | Notifications | Tap call notification → Incoming Call screen | App in background, real device | 1. Receive call notification 2. Tap it | Opens `/call/incoming` with caller info | P0 | Critical | MANUAL (physical device) |
 | TC-226 | Notifications | Tap message notification → Chat Room | App in background, real device | 1. Receive message notification 2. Tap it | Opens `/chat/[id]` | P1 | High | MANUAL (physical device) |
-| TC-227 | Notifications | Cold start from killed app | App killed, real device | 1. Kill app 2. Receive call 3. Tap notification | `getLastNotificationResponseAsync()` used; Incoming Call shown | P0 | Critical | MANUAL (physical device) |
+| TC-227 | Notifications | Cold start from existing notification | Call notification already shown | 1. Force-close app 2. Tap the existing notification | `getLastNotificationResponseAsync()` used; Incoming Call shown | P0 | Critical | MANUAL (physical device) |
 | TC-228 | Notifications | Deduplication prevents double navigation | Duplicate notification | 1. Both foreground + background arrive | Navigation fires once only | P0 | Critical | Jest |
 
 ---
@@ -368,8 +368,8 @@ The table below is a quick-reference for precondition states. Full setup procedu
 
 | ID | Feature | Scenario | Preconditions | Steps | Expected Result | Priority | Severity | Automate |
 |----|---------|----------|---------------|-------|-----------------|----------|----------|----------|
-| TC-270 | App Lifecycle | App-alive flag cleared on kill | App running | 1. Force-close app | `appAlive=false` in secure storage | P0 | Critical | Jest |
-| TC-271 | App Lifecycle | IP change updates secure storage | WiFi changes | 1. Switch networks | `NetworkConfig.ipAddress` + port updated in secure storage | P0 | Critical | Jest |
+| TC-270 | App Lifecycle | Foreground service stops on layout cleanup | App running in background | 1. Log out | Foreground service stops | P0 | Critical | Jest |
+| TC-271 | App Lifecycle | IP change updates in-memory config | WiFi changes | 1. Switch networks | `NetworkConfig.ipAddress` updates and transports rebind after debounce | P0 | Critical | Jest |
 | TC-272 | App Lifecycle | Debounced IP callback fires once | Multiple rapid IP events | 1. Simulate rapid events | Callback fires once after debounce | P1 | High | Jest |
 | TC-273 | App Lifecycle | Safe-area insets on all screens | Physical notched device | 1. Navigate all screens on a device with display cutout | No content clipped behind notch or home bar | P1 | High | MANUAL (physical notched device) |
 | TC-274 | App Lifecycle | Dark mode uses theme colors throughout | Dark mode enabled | 1. Enable dark mode 2. Navigate all screens | No hardcoded white/black colors visible; all colors from theme | P1 | High | MANUAL (physical device) |
