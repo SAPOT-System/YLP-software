@@ -15,9 +15,9 @@ All SAPOT components are configured via environment variables. This document lis
 | `QA_API_TOKEN` | None — required, raises `RuntimeError` at import if unset **when `ENVIRONMENT=development`** | Only relevant in development; the `X-QA-Token` header value `/testing/reset` and `/testing/login-as/{handle}` require |
 | `REDIS_URL` | `redis://localhost:6379` | Set if Redis is on a non-default host/port |
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
-| `GSM_SECRET` | `""` (empty — webhook auth disabled) | Set to a shared secret to authenticate GSM module webhooks |
+| `GSM_SECRET` | None — required, raises `RuntimeError` at import if unset | **MUST** be set — shared secret for GSM module webhooks |
 
-See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` became required.
+See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `GSM_SECRET` are required.
 
 > **Note:** `server/.env.example` has since been synced to include `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`,
 > `ENVIRONMENT`, and `REDIS_URL` (previously flagged here as missing). It still lists `TLS_CERT`/`TLS_KEY`,

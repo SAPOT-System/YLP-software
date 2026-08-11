@@ -11,6 +11,10 @@ different ENVIRONMENT, since the router-inclusion decision is baked in at proces
 import time and re-importing it mid-suite is not meaningfully different from a unit
 test of the guard itself.
 """
+import os
+from pathlib import Path
+import subprocess
+import sys
 import uuid
 import pytest
 from fastapi import HTTPException
@@ -21,6 +25,32 @@ from app.models.users import User
 from app.models.rescuer import Rescuer
 from app.db_operations.auth import get_password_hash
 from app.tests.test_db_utils import get_auth_headers
+
+
+def test_gsm_secret_is_required_at_import_time():
+    """GH #244: a missing GSM webhook secret must prevent server startup."""
+    env = os.environ.copy()
+    env.update(
+        {
+            "DATABASE_URL": "sqlite:////tmp/gsm-secret-import-test.db",
+            "JWT_SECRET_KEY": "gsm-secret-import-test",
+            "CORS_ALLOWED_ORIGINS": "http://testserver",
+            "SERVER_ED25519_SEED": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        }
+    )
+    env.pop("GSM_SECRET", None)
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import app.api.gsm"],
+        cwd=Path(__file__).resolve().parents[2],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "GSM_SECRET environment variable is not set" in result.stderr
 
 
 # ---------------------------------------------------------------------------
