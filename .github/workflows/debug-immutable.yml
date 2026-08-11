@@ -1,0 +1,25 @@
+name: Debug Immutable Releases
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  debug:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Repository: $GITHUB_REPOSITORY"
+          gh api "repos/$GITHUB_REPOSITORY" --jq '.full_name'
+
+      - name: Check immutable releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/immutable-releases"
