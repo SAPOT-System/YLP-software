@@ -45,6 +45,14 @@ jobs:
           deploy/scripts/tests/run-tests.sh
           bash -n scripts/build-bundle.sh scripts/release.sh scripts/validate_bundle_release_ci.sh scripts/publish_bundle_release.sh tileserver/download-script.sh
           bash -n scripts/lib/*.sh deploy/scripts/*.sh deploy/scripts/lib/*.sh
+      - name: Debug GitHub token
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -x
+          gh api user
+          gh api "repos/$GITHUB_REPOSITORY"
+          gh api "repos/$GITHUB_REPOSITORY/immutable-releases"
 
       - name: Download and validate Batangas map data
         env:
