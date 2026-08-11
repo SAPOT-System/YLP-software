@@ -37,6 +37,30 @@ else
   if [ "$backup_age_hours" -lt "$max_age_hours" ]; then check db-backup PASS "newest ${backup_age_hours}h ago; $offhost_detail"
   else check db-backup FAIL "newest ${backup_age_hours}h ago exceeds ${max_age_hours}h threshold; $offhost_detail"; fi
 fi
+verification_state="$backup_dir/verification-status.json"
+verify_max_age_hours=${SAPOT_BACKUP_VERIFY_MAX_AGE_HOURS:-36}
+if ! verify_detail=$(python3 - "$SELF/lib/verification-state.py" "$verification_state" "$backup_dir" "$verify_max_age_hours" <<'PY'
+import json, os, sys, time
+reader, state_path, backup_dir, maximum = sys.argv[1:]
+import subprocess
+try:
+ state=json.loads(subprocess.check_output([sys.executable, reader, state_path], text=True))
+ now=time.time()
+ if state['status'] != 'PASS': raise ValueError('latest verification failed: ' + str(state['reason']))
+ if state['checkedAtEpoch'] > now + 300: raise ValueError('verification timestamp is future-dated')
+ if now - state['checkedAtEpoch'] > int(maximum) * 3600: raise ValueError('verification is stale')
+ path=os.path.join(backup_dir, state['backupFilename'])
+ if not os.path.isfile(path) or os.path.islink(path): raise ValueError('verified backup is missing')
+ if os.path.getsize(path) != state['compressedSize'] or int(os.path.getmtime(path)) != state['backupMtimeEpoch']: raise ValueError('verified backup changed')
+ names=sorted(n for n in os.listdir(backup_dir) if n.startswith('sapot_db_') and n.endswith('.sql.gz'))
+ if not names or names[-1] != state['backupFilename']: raise ValueError('verification is not for newest backup')
+ print('PASS|' + '%s; %dh ago; schema %s; %s tables; %s rows' % (state['backupFilename'], (now-state['checkedAtEpoch'])//3600, state['schemaRevision'], state['tablesChecked'], state['rowsChecked']))
+except Exception as error:
+ print('FAIL|' + str(error))
+PY
+); then verify_detail='FAIL|verification state could not be read'; fi
+IFS='|' read -r verify_status verify_text <<< "$verify_detail"
+check db-backup-restore "$verify_status" "$verify_text"
 check_certificate() {
   local cert="$SAPOT_ROOT/shared/certs/server.crt"
   local key="$SAPOT_ROOT/shared/certs/server.key"

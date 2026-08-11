@@ -191,7 +191,8 @@ cp "$map_file" "$bundle/data/"
 cp -a server/static "$bundle/data/static"
 cp docker/detect-ip.sh "$bundle/certs/"
 cp -a deploy/scripts/. "$bundle/scripts/"
-cp deployment-scripts/sapot-db-backup.service deployment-scripts/sapot-db-backup.timer "$bundle/systemd/"
+cp deployment-scripts/sapot-db-backup.service deployment-scripts/sapot-db-backup.timer \
+  deployment-scripts/sapot-db-backup-verify.service deployment-scripts/sapot-db-backup-verify.timer "$bundle/systemd/"
 
 check_no_ca_material() {
   local hit

@@ -39,8 +39,13 @@ install_systemd_units "$target"
 # and a bundle built before units shipped.
 if [ -e "${SAPOT_SYSTEMD_DIR:-/etc/systemd/system}/sapot-db-backup.timer" ]; then
   provision_service_account
-  systemctl enable --now sapot-db-backup.timer
-  log_info "scheduled database backups enabled (sapot-db-backup.timer)"
+  systemctl enable --now sapot-db-backup.timer sapot-db-backup-verify.timer
+  python3 - "$SAPOT_ROOT/shared/state.json" <<'PY'
+import json, os, sys
+path=sys.argv[1]; state=json.load(open(path)); state['dbBackupVerifyTimerEnabled']=True
+tmp=path+'.tmp'; open(tmp,'w').write(json.dumps(state, indent=2)+'\n'); os.replace(tmp,path)
+PY
+  log_info "scheduled database backup and verification enabled"
 fi
 "$SELF/lib/retention.sh"; log_pass "installed SAPOT v$version"
 # The install is complete and recorded by this point. Release the lock before an

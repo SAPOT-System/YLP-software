@@ -277,7 +277,7 @@ The installer, in order:
 8. Starts the full stack and polls `https://localhost/version` for up to three
    minutes.
 9. Points `/opt/sapot/releases/current` at the new release, installs the
-   systemd units, and enables the daily database backup timer.
+systemd units, and enables the daily database backup and restore-verification timers.
 10. Prompts you to create the first administrator.
 
 Three prompts need an answer:
@@ -329,6 +329,7 @@ Three results are expected on a fresh install and are not faults:
 | Result | Why | What to do |
 |---|---|---|
 | `db-backup: FAIL - no backups in /opt/sapot/shared/db-backups` | The backup timer fires daily and has not run yet | Take one now: `sudo systemctl start sapot-db-backup.service`, then rerun `doctor.sh` |
+| `db-backup-restore: FAIL` | The newest dump has not yet been proven restorable | Run `sudo systemctl start sapot-db-backup-verify.service` after a backup, then inspect its journal if it fails |
 | `gsm-fastapi: PASS - no modem attached, degraded health expected` | The service reports unhealthy without a modem, and the installer recorded that this site has none | Nothing |
 | `administrator: PASS - initial password not yet changed` | The one-shot password is still in place | Clears itself at first dashboard login (Step 8) |
 

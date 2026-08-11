@@ -14,3 +14,20 @@ test_resolve_backup_paths() {
     assert_eq /mnt/backups "${fields[2]}" 'backup override'
     assert_eq /etc/sapot.env "${fields[3]}" 'env override' )
 }
+
+test_newest_finalized_backup_uses_filename_timestamp() {
+  local dir path; dir=$(mktemp -d); trap 'rm -rf "$dir"' RETURN
+  : > "$dir/sapot_db_20260101T000000Z.sql.gz"
+  : > "$dir/sapot_db_20260102T000000Z.sql.gz"
+  touch -d '2020-01-01' "$dir/sapot_db_20260102T000000Z.sql.gz"
+  path=$(newest_finalized_backup "$dir")
+  assert_eq "$dir/sapot_db_20260102T000000Z.sql.gz" "$path" 'verification selects by filename timestamp, not mtime'
+}
+
+test_newest_finalized_backup_rejects_future_artifact() {
+  local dir stamp; dir=$(mktemp -d); trap 'rm -rf "$dir"' RETURN
+  stamp=$(date -u -d '10 minutes' +%Y%m%dT%H%M%SZ)
+  : > "$dir/sapot_db_${stamp}.sql.gz"
+  newest_finalized_backup "$dir" >/dev/null 2>&1
+  assert_rc 2 $? 'future-dated finalized artifact is invalid'
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=SAPOT MariaDB backup restore verification
+After=sapot-db-backup.service network.target
+Documentation=https://github.com/Emman-pip/YLP-software/blob/main/docs/deployment/runbooks.md
+
+[Service]
+Type=oneshot
+User=sapot
+Group=sapot
+EnvironmentFile=-/etc/sapot/backup.env
+UMask=0077
+RuntimeMaxSec=2h
+TimeoutStopSec=5m
+KillMode=control-group
+ExecStart=/bin/sh -c 'root=${SAPOT_ROOT:-/opt/sapot}; if [ -x "$root/releases/current/scripts/verify-db-backup.sh" ]; then exec "$root/releases/current/scripts/verify-db-backup.sh"; else exec /home/sapot/YLP-software/deploy/scripts/verify-db-backup.sh; fi'
+StandardOutput=journal
+StandardError=journal

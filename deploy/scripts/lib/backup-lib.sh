@@ -144,3 +144,23 @@ newest_backup_epoch() {
   find "$dir" -maxdepth 1 -type f -name 'sapot_db_*.sql.gz' -printf '%T@\n' 2>/dev/null \
     | sort -rn | head -n 1 | cut -d. -f1
 }
+
+# newest_finalized_backup <dir>
+# Prints the selected regular, non-symlink backup path.  The timestamp in its
+# name, rather than mtime, is the ordering contract for restore verification.
+newest_finalized_backup() {
+  local dir=$1 now stamp name path selected="" selected_stamp=""
+  now=$(date -u +%s)
+  while IFS= read -r -d '' name; do
+    [[ $name =~ ^sapot_db_([0-9]{8}T[0-9]{6}Z)\.sql\.gz$ ]] || continue
+    stamp=${BASH_REMATCH[1]}
+    if ! epoch=$(date -u -d "${stamp:0:4}-${stamp:4:2}-${stamp:6:2} ${stamp:9:2}:${stamp:11:2}:${stamp:13:2} UTC" +%s 2>/dev/null) || [ "$epoch" -gt $((now + 300)) ]; then
+      log_error "invalid or future-dated backup filename: $name"; return 2
+    fi
+    if [[ -z $selected_stamp || $stamp > $selected_stamp ]]; then selected=$name; selected_stamp=$stamp; fi
+  done < <(find "$dir" -maxdepth 1 -type f -printf '%f\0' 2>/dev/null)
+  [ -n "$selected" ] || return 1
+  path=$(realpath -e -- "$dir/$selected") || return 2
+  [[ $path == "$(realpath -e -- "$dir")"/* ]] && [ -f "$path" ] && [ ! -L "$dir/$selected" ] || return 2
+  printf '%s\n' "$path"
+}

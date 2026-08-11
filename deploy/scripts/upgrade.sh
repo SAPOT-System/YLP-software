@@ -23,5 +23,10 @@ curl -kfsS https://localhost/version >/dev/null || { log_error "nginx/api did no
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent); ln -sfn "$target" "$SAPOT_ROOT/releases/current"; write_state upgrade "$current_version" "$version" "$hardware"
 # Refresh the unit files only. An operator who deliberately disabled a timer
 # should not have an upgrade switch it back on, so nothing is enabled here.
+verify_was_installed=false
+[ -e "${SAPOT_SYSTEMD_DIR:-/etc/systemd/system}/sapot-db-backup-verify.timer" ] && verify_was_installed=true
 install_systemd_units "$target"
+if ! "$verify_was_installed" && [ -e "$target/systemd/sapot-db-backup-verify.timer" ] && systemctl is-enabled --quiet sapot-db-backup.timer; then
+  systemctl enable --now sapot-db-backup-verify.timer
+fi
 "$SELF/lib/retention.sh"; log_pass "upgraded SAPOT from v$current_version to v$version"

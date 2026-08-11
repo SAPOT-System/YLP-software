@@ -31,8 +31,8 @@ flowchart LR
         CE["certs/detect-ip.sh"]
         F["firmware/gsm-arduino-*.hex"]
         D["data/static"]
-        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · backup-db · lib/"]
-        SD["systemd/ sapot-db-backup.service<br/>sapot-db-backup.timer"]
+        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · backup-db · verify-db-backup · lib/"]
+        SD["systemd/ backup and verification<br/>service/timer pairs"]
     end
 
     subgraph target["Target (offline, LAN-only)"]
@@ -47,7 +47,7 @@ flowchart LR
 ### On-target lifecycle
 
 Every operator script (`install.sh`, `upgrade.sh`, `rollback.sh`, `status.sh`,
-`doctor.sh`, `backup-db.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
+`doctor.sh`, `backup-db.sh`, `verify-db-backup.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
 which provides `check_schema`, `acquire_lock`, `compose`, `verify_checksums`,
 `disk_preflight`, `wait_healthy`, and `write_state`.
 
@@ -127,8 +127,8 @@ upgrade/rollback validate Alembic revisions ([ADR 0007](../adr/0007-alembic-for-
 `releases/current` is only repointed after the new stack passes a `/version`
 health check, so a failed cutover leaves the previous release live.
 
-`backup-db.sh` is driven by a host systemd timer rather than by a running
-container, but it takes the same `$SAPOT_ROOT/.lock` as install, upgrade,
+`backup-db.sh` and `verify-db-backup.sh` are driven by host systemd timers rather than by a running
+container. Verification uses a disposable, network-isolated MariaDB and never touches the production database. Backup takes the same `$SAPOT_ROOT/.lock` as install, upgrade,
 rollback, and firmware flash. A backup therefore cannot run while `alembic
 upgrade head` is mid-migration. On lock contention it skips that run and the
 next timer cycle retries.
@@ -223,7 +223,7 @@ their image IDs and recent firmware backups, are retained. Run
 `scripts/lib/retention.sh --dry-run` to preview cleanup.
 
 `doctor.sh` checks release checksums, image IDs, services, certificate, ports,
-disk, expected hardware, and the `db-backup` row for on-host backup age and
+disk, expected hardware, and `db-backup` plus `db-backup-restore` rows for on-host backup age and restore verification,
 off-host-copy status. Add `--json` for structured output. A site with
 no GSM modem normally shows `gsm-fastapi` as `unhealthy` in raw Docker output:
 that is expected because its `/health` endpoint signals no modem. When the

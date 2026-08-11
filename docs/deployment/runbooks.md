@@ -10,7 +10,7 @@ Step-by-step procedures for operating SAPOT in production. Each runbook includes
 
 ### Backup (automated)
 
-Backups run unattended via `sapot-db-backup.timer`. Both deployment paths use the same two unit files and the same script; only how they reach the host differs.
+Backups and restore verification run unattended via separate systemd timers. Verification proves the newest finalized dump can be restored into a disposable MariaDB instance. It never reads production database credentials, mounts production data, or connects to the production database.
 
 **Docker bundle: nothing to do.** The bundle carries the units in its `systemd/` directory, and `install.sh` copies them to `/etc/systemd/system/`, creates the `sapot` account they run as, and enables the timer. `upgrade.sh` and `rollback.sh` refresh the unit files so a changed unit travels with its release, but neither enables anything — a timer you deliberately disable stays disabled.
 
@@ -18,8 +18,9 @@ Backups run unattended via `sapot-db-backup.timer`. Both deployment paths use th
 
 ```bash
 sudo cp /home/sapot/YLP-software/deployment-scripts/sapot-db-backup.{service,timer} /etc/systemd/system/
+sudo cp /home/sapot/YLP-software/deployment-scripts/sapot-db-backup-verify.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now sapot-db-backup.timer
+sudo systemctl enable --now sapot-db-backup.timer sapot-db-backup-verify.timer
 systemctl list-timers sapot-db-backup.timer
 ```
 
@@ -54,6 +55,10 @@ Settings go in `/etc/sapot/backup.env` (mode 600, optional; all have defaults):
 | `SAPOT_BACKUP_MIN_KEEP` | `3` | Newest N dumps are kept regardless of age |
 | `SAPOT_BACKUP_OFFHOST_DIR` | unset | Mountpoint of the removable drive to copy to |
 | `SAPOT_BACKUP_MAX_AGE_HOURS` | `36` | Age at which `doctor.sh` reports the backup stale |
+| `SAPOT_BACKUP_VERIFY_TMPDIR` | `/var/tmp` | Bare-metal disposable MariaDB location |
+| `SAPOT_BACKUP_VERIFY_DISK_MULTIPLIER` | `2` | Uncompressed-dump multiplier reserved for verification |
+| `SAPOT_BACKUP_VERIFY_MIN_FREE_BYTES` | `1073741824` | Minimum bytes available for verification |
+| `SAPOT_BACKUP_VERIFY_MAX_AGE_HOURS` | `36` | Age at which restore verification is stale |
 
 Dumps are named `sapot_db_<UTC timestamp>.sql.gz`. Each is verified for gzip integrity and mysqldump's completion footer before receiving its final name.
 
@@ -62,6 +67,19 @@ systemctl status sapot-db-backup.timer
 journalctl -u sapot-db-backup.service -n 50 --no-pager
 /opt/sapot/releases/current/scripts/doctor.sh
 ```
+
+### Restore verification
+
+The verifier runs daily at 02:00 with up to 30 minutes of jitter. Run it manually after a backup or before relying on an artifact:
+
+```bash
+/opt/sapot/releases/current/scripts/verify-db-backup.sh --dry-run
+/opt/sapot/releases/current/scripts/verify-db-backup.sh
+/opt/sapot/releases/current/scripts/verify-db-backup.sh --status
+journalctl -u sapot-db-backup-verify.service -n 50 --no-pager
+```
+
+Its state is `<backup-directory>/verification-status.json`. A failure means the newest dump is unverified. Inspect the unit and journal, run `--dry-run`, check free space and only the exact verifier leftovers under `.verify-runs`, retain the failed dump for diagnosis, then create and immediately verify a new dump. Repeated failures are degraded backup protection and require escalation. For weekly backups, override both timers to weekly and set `SAPOT_BACKUP_VERIFY_MAX_AGE_HOURS=192`.
 
 #### Off-host copies
 

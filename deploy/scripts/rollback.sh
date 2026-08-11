@@ -22,5 +22,10 @@ ln -sfn "$target" "$SAPOT_ROOT/releases/current"; compose "$target" up -d
 # Restore the rolled-back release's units so they match the code now running.
 # Like upgrade, this refreshes without enabling anything.
 install_systemd_units "$target"
+if [ ! -e "$target/systemd/sapot-db-backup-verify.timer" ] && [ -e "${SAPOT_SYSTEMD_DIR:-/etc/systemd/system}/sapot-db-backup-verify.timer" ]; then
+  systemctl disable --now sapot-db-backup-verify.timer || true
+  rm -f -- "${SAPOT_SYSTEMD_DIR:-/etc/systemd/system}/sapot-db-backup-verify.timer" "${SAPOT_SYSTEMD_DIR:-/etc/systemd/system}/sapot-db-backup-verify.service"
+  systemctl daemon-reload
+fi
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent); write_state rollback "$current_version" "$target_version" "$hardware"
 log_pass "rolled back from v$current_version to v$target_version"

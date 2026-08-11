@@ -33,4 +33,5 @@ for fn in $(declare -F | awk '{print $3}' | grep '^test_' | sort); do
 done
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
-[ "$FAIL" -eq 0 ]
+[ "$FAIL" -eq 0 ] || exit 1
+python3 -m unittest discover -s "$SELF" -p 'test_*.py'
