@@ -1,8 +1,8 @@
 # Versioning Guide
 
-This repo uses git-tag-driven versioning for five independent components: **mobile**, **server**, **admin**, **portal** (captive portal), and **gsm** (GSM-module: `GSM-fastapi` + the production Arduino firmware, versioned together since they implement one wire-protocol contract).
+This repo uses git-tag-driven versioning for five application components and one deployment artifact: **mobile**, **server**, **admin**, **portal** (captive portal), **gsm** (GSM-module: `GSM-fastapi` + the production Arduino firmware), and the independent offline deployment **bundle**.
 
-`GSM-module/GSM-API/` and `GSM-trial-code/` are not covered — neither is deployed (see `GSM-module/CLAUDE.md`). `tileserver/` has no source of its own (deploy scripts + `.mbtiles` data only) and isn't versioned.
+`GSM-module/GSM-API/` and `GSM-trial-code/` are not covered — neither is deployed (see `GSM-module/CLAUDE.md`). TileServer GL deployment scripts are unversioned, but the reviewed map data is independently identified by immutable `map/v*` release tags.
 
 ---
 
@@ -15,13 +15,15 @@ This repo uses git-tag-driven versioning for five independent components: **mobi
 | Admin | `admin/vX.Y.Z` | `admin/v0.2.0` |
 | Captive Portal | `portal/vX.Y.Z` | `portal/v0.2.0` |
 | GSM Module | `gsm/vX.Y.Z` | `gsm/v0.2.0` |
+| Deployment Bundle | `bundle/vX.Y.Z` | `bundle/v0.0.1` |
 
 **Pre-release suffix:** append `-(alpha|beta|rc).N` — e.g. `mobile/v1.0.0-beta.2`.  
 A tag with any `-` suffix is published as a GitHub **pre-release**. A tag without one is a full release.
 
 Tags are immutable release identifiers. Never move, delete, or reuse a published
-component tag to point at a newer commit. Each component is versioned independently:
-a new server release does not require a new mobile, admin, portal, or GSM release.
+component tag to point at a newer commit. Every release unit is versioned independently.
+A new server release does not require a new bundle release, and a bundle release does
+not change any bundled component's version.
 
 ---
 
@@ -69,7 +71,7 @@ preflight above:
 
 ```bash
 # From the repo root, on a clean release branch:
-./scripts/release.sh <mobile|server|admin|portal|gsm> <X.Y.Z[-(alpha|beta|rc).N]>
+./scripts/release.sh <mobile|server|admin|portal|gsm|bundle> <X.Y.Z[-(alpha|beta|rc).N]>
 
 # Examples:
 ./scripts/release.sh mobile 1.0.0-beta.1
@@ -77,11 +79,13 @@ preflight above:
 ./scripts/release.sh admin 0.2.0
 ./scripts/release.sh portal 0.2.0
 ./scripts/release.sh gsm 0.2.0-beta.1
+./scripts/release.sh bundle 0.0.1
 ```
 
 The script will:
-1. Bump the component's version file(s) (`package.json` for mobile and admin, `server/app/version.py` for server, `captive-portal/VERSION` for portal, `GSM-module/GSM-fastapi/app_version.py` **and** the Arduino firmware's `FIRMWARE_VERSION` define for gsm).
-2. Commit the bump: `chore(version): <component> <version>`.
+1. Bump the release unit's version file(s) (`package.json` for mobile and admin, `server/app/version.py` for server, `captive-portal/VERSION` for portal, `GSM-module/GSM-fastapi/app_version.py` **and** the Arduino firmware's `FIRMWARE_VERSION` define for gsm, or `deploy/VERSION` for the bundle).
+2. Commit the bump: `chore(version): <component> <version>`, or
+   `chore(deploy-version): bump bundle to <version>` for the bundle.
 3. Create a local **annotated git tag** (`<component>/vX.Y.Z`).
 4. Print the push command — **it does NOT push automatically**.
 
@@ -148,6 +152,7 @@ Generated Docs Check fails even when no endpoint shape changed.
 | Admin | `admin-frontend/sapot-admin/package.json` → `version` |
 | Captive Portal | `captive-portal/VERSION` (plain text) |
 | GSM Module | `GSM-module/GSM-fastapi/app_version.py` → `__version__` **and** `GSM-module/GSM-arduino-actual-code/GSM-arduino-actual-code.ino` → `FIRMWARE_VERSION` (kept in lockstep by `GSM-module/scripts/set_version.py`) |
+| Deployment Bundle | `deploy/VERSION` (independent of all component versions) |
 
 `app.config.ts` (`version` and `extra.displayVersion`) is kept in sync by `set-version.js` — do not edit it manually.
 
@@ -155,13 +160,26 @@ Generated Docs Check fails even when no endpoint shape changed.
 
 ## CI Behaviour
 
-When a tag is pushed, the corresponding GitHub Actions workflow:
+When an application component tag is pushed, the corresponding GitHub Actions workflow:
 1. Derives the version from the tag name.
 2. **Asserts** the version in the source file matches the tag (fails loudly if not).
 3. Extracts the annotated tag message (`<component> <version>`) as the GitHub Release body.
 4. Creates a GitHub Release (pre-release if the tag has a `-` suffix).
 
 CI does not draft or edit notes — it only reads the tag message and publishes it, using the default `GITHUB_TOKEN`.
+
+For `bundle/v*`, CI validates the committed compatibility policy, downloads the pinned
+immutable `map/v1.0.0` asset, builds the offline bundle, and publishes the archive plus
+its SHA-256 file only after both remote asset digests are verified. Bundle versions use
+canonical SAPOT SemVer. The `0.0.1` prerelease and stable family is fresh-install-only,
+so both compatibility floors must equal the exact candidate. Later releases require
+`minimumRollbackVersion <= minimumUpgradeVersion < bundle version`.
+
+Repository immutable releases are a publication prerequisite. A repository administrator
+must enable them and approve the protected `bundle-release` environment before a map or
+bundle publication. This locks every future repository release tag and asset, not only
+bundle releases. Build hosts need a GitHub CLI with `gh release verify` and
+`gh release verify-asset`, plus `python3-jsonschema` for bundle-content validation.
 
 ---
 
@@ -170,5 +188,4 @@ CI does not draft or edit notes — it only reads the tag message and publishes 
 This versioning system covers **only** version strings and GitHub Releases. The following are handled separately:
 
 - EAS builds and OTA updates
-- Offline Docker bundles: a bundle uses the server `__version__` at build time and records its exact artifact metadata in `manifest.json`; see [the Docker bundle deployment guide](docs/deployment/docker-bundle.md)
 - In-app update banners and client-version gating

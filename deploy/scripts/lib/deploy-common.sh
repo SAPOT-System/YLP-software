@@ -26,7 +26,7 @@ PY
 check_schema() {
   local manifest=$1 actual
   actual=$(manifest_value "$manifest" schemaVersion)
-  [ "$actual" = "1.0" ] || { log_error "Unsupported manifest schema version: got $actual, expected 1.0"; return 1; }
+  [ "$actual" = "2.0" ] || { log_error "Unsupported manifest schema version: got $actual, expected 2.0"; return 1; }
 }
 compose() {
   local release=$1; shift

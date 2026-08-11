@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "region": "batangas",
+  "repository": "SAPOT-System/YLP-software",
+  "releaseTag": "map/v1.0.0",
+  "assetName": "osm-batangas.mbtiles",
+  "sha256": "4ff05f69e78ff4a4751e7c1c9afdd63d803cc5a6d9b340bb6a0523cac093a598",
+  "size": 28549120,
+  "bounds": [120.45, 13.4, 121.6, 14.32],
+  "minZoom": 9,
+  "maxZoom": 14,
+  "scheme": "tms",
+  "format": "pbf"
+}

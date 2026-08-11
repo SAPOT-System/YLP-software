@@ -3,7 +3,7 @@
 import re
 import sys
 
-PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$")
+PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc)\.(0|[1-9]\d*))?$")
 STAGES = {"alpha": 0, "beta": 1, "rc": 2}
 
 

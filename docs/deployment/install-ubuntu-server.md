@@ -170,18 +170,20 @@ From the repository root, on a **clean** checkout of the tagged commit you want
 to release:
 
 ```bash
-./scripts/build-bundle.sh --min-upgrade-version 1.4.0 --max-rollback-version 1.4.0
+./tileserver/download-script.sh
+./scripts/build-bundle.sh
 ```
 
 The build refuses to start if tracked files are modified, so that the recorded
 git SHA describes exactly what is inside the bundle.
 
-| Flag | Meaning |
-|---|---|
-| `--min-upgrade-version` | The oldest installed release `upgrade.sh` will upgrade from. Prevents a jump from an unsupported ancient release. |
-| `--max-rollback-version` | The newest release this one may be rolled back to. |
+Compatibility bounds come from the reviewed `deploy/bundle-release-policy.json`
+file. `minimumUpgradeVersion` is the oldest installed bundle accepted by
+`upgrade.sh`; `minimumRollbackVersion` is the oldest retained bundle accepted by
+`rollback.sh`.
 
-Both default to the version being built, taken from `server/app/version.py`.
+The bundle version comes from `deploy/VERSION` and is independent of the server,
+admin, and GSM component versions recorded in the generated manifest.
 
 **Bump the version for every rebuild**, even a config-only or frontend-only
 change. `upgrade.sh` targets `releases/v$version` and skips copying if that

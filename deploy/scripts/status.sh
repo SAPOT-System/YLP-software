@@ -4,7 +4,7 @@ SELF=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd); source "$SELF/lib/deploy-com
 current=$(readlink -f "$SAPOT_ROOT/releases/current" 2>/dev/null || true)
 [ -n "$current" ] || { log_error "SAPOT is not installed"; exit 1; }
 manifest="$current/manifest.json"; check_schema "$manifest"
-echo "SAPOT v$(manifest_value "$manifest" version) ($(manifest_value "$manifest" bundleId))"
+echo "SAPOT bundle v$(manifest_value "$manifest" version) ($(manifest_value "$manifest" bundleId))"
 echo "Git: $(manifest_value "$manifest" gitSha)  Built: $(manifest_value "$manifest" builtAt)"
 echo "Disk: $(df -h "$SAPOT_ROOT" | awk 'NR==2 {print $4 " free of " $2}')"
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent)
