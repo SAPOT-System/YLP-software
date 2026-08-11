@@ -141,7 +141,9 @@ build_and_save() {
   docker build -t "$tag" "$context"
   save_image "$name" "$tag"
   cleanup_images "$tag"
-  "$low_disk" && check_free_space
+  if "$low_disk"; then
+    check_free_space
+  fi
 }
 
 pull_and_save() {
@@ -150,7 +152,9 @@ pull_and_save() {
   docker tag "$source" "$tag"
   save_image "$name" "$tag"
   cleanup_images "$tag" "$source"
-  "$low_disk" && check_free_space
+  if "$low_disk"; then
+    check_free_space
+  fi
 }
 
 build_and_save api server
