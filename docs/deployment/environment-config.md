@@ -15,9 +15,9 @@ All SAPOT components are configured via environment variables. This document lis
 | `QA_API_TOKEN` | None — required, raises `RuntimeError` at import if unset **when `ENVIRONMENT=development` or `staging`** | Required in QA-enabled environments; the `X-QA-Token` header value protects `/testing/reset` and `/testing/login-as/{handle}` |
 | `REDIS_URL` | `redis://localhost:6379` | Set if Redis is on a non-default host/port |
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
-| `GSM_SECRET` | `""` (empty — webhook auth disabled) | Set to a shared secret to authenticate GSM module webhooks |
+| `GSM_SECRET` | None — required, raises `RuntimeError` at import if unset | **MUST** be set — shared secret for GSM module webhooks |
 
-See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` became required.
+See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `GSM_SECRET` are required.
 
 > **Deployment note:** `ENVIRONMENT` is validated at import time. A typo such as `Development` or `dev` stops the server rather than silently applying production behaviour. Correct the value in the service environment file, then restart the service.
 

@@ -21,6 +21,7 @@ Set these in the server's env file (see [environment-config.md](docs/deployment/
 DATABASE_URL=mysql+pymysql://<user>:<rotated-password>@127.0.0.1:3306/sapot_db
 JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
 CORS_ALLOWED_ORIGINS=http://192.168.0.100:3000
+GSM_SECRET=<shared secret with the GSM module>
 ```
 
 ## Reporting a vulnerability
