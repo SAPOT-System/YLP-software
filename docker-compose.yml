@@ -121,6 +121,7 @@ services:
     build:
       context: ./GSM-module/GSM-fastapi
     restart: unless-stopped
+    stop_grace_period: 150s
     env_file:
       - ./GSM-module/GSM-fastapi/.env
     environment:

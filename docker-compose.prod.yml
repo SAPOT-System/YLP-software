@@ -70,6 +70,7 @@ services:
   gsm-fastapi:
     image: sapot/gsm-fastapi:bundle
     restart: unless-stopped
+    stop_grace_period: 150s
     env_file: [../../../shared/gsm-fastapi.env]
     environment:
       HOST: 0.0.0.0
