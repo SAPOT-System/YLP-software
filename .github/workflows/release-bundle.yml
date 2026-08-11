@@ -46,6 +46,16 @@ jobs:
           bash -n scripts/build-bundle.sh scripts/release.sh scripts/validate_bundle_release_ci.sh scripts/publish_bundle_release.sh tileserver/download-script.sh
           bash -n scripts/lib/*.sh deploy/scripts/*.sh deploy/scripts/lib/*.sh
 
+      - name: Create immutable-policy reader token
+        id: policy-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BUNDLE_RELEASE_POLICY_APP_ID }}
+          private-key: ${{ secrets.BUNDLE_RELEASE_POLICY_PRIVATE_KEY }}
+          owner: SAPOT-System
+          repositories: YLP-software
+          permission-administration: read
+
       - name: Download and validate Batangas map data
         env:
           GH_TOKEN: ${{ github.token }}
@@ -65,16 +75,6 @@ jobs:
           (cd "$VERIFY_DIR/$ROOT" && sha256sum --check CHECKSUMS.sha256)
           rm -rf "$VERIFY_DIR"
           (cd dist && sha256sum "sapot-bundle-v$VERSION.tar.zst" > "sapot-bundle-v$VERSION.tar.zst.sha256")
-
-      - name: Create immutable-policy reader token
-        id: policy-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.BUNDLE_RELEASE_POLICY_APP_ID }}
-          private-key: ${{ secrets.BUNDLE_RELEASE_POLICY_PRIVATE_KEY }}
-          owner: SAPOT-System
-          repositories: YLP-software
-          permission-administration: read
 
       - name: Stage and publish verified release assets
         env:
