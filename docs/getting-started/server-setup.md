@@ -20,7 +20,7 @@ the variable:
 | `JWT_SECRET_KEY` | `app/db_operations/token.py` |
 | `CORS_ALLOWED_ORIGINS` | `app/main.py` |
 | `SERVER_ED25519_SEED` | `app/db_operations/signing.py` |
-| `QA_API_TOKEN` | `app/api/testing.py`, **only** when `ENVIRONMENT=development`, which also mounts the `/testing/*` routes |
+| `QA_API_TOKEN` | `app/api/testing.py`, **only** when `ENVIRONMENT=development` or `staging`, which also mounts the `/testing/*` routes |
 
 Copy `server/.env.example` to `server/.env` and fill it in. The example ships a usable value for
 every variable above except the database host, so the only edits a local run needs are the two
@@ -33,7 +33,7 @@ JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
 SERVER_ED25519_SEED=<generate with: openssl rand -hex 32>
 CORS_ALLOWED_ORIGINS=http://192.168.1.x:3000
 ENVIRONMENT=development
-QA_API_TOKEN=<any shared secret; required while ENVIRONMENT=development>
+QA_API_TOKEN=<any shared secret; required while ENVIRONMENT=development or staging>
 ```
 
 > **`.env.example`'s shipped `DATABASE_URL`/`REDIS_URL` point at the Docker Compose service names (`db`/`redis`)** — they only resolve inside the Docker network. Change both to `127.0.0.1`/`localhost` (as above) for this bare-metal path.

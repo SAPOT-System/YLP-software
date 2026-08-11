@@ -11,13 +11,15 @@ All SAPOT components are configured via environment variables. This document lis
 | `DATABASE_URL` | None — required, raises `RuntimeError` at import if unset | **MUST** be set (MariaDB connection string) |
 | `JWT_SECRET_KEY` | None — required, raises `RuntimeError` at import if unset | **MUST** be set — generate a strong random secret |
 | `CORS_ALLOWED_ORIGINS` | None — required, raises `RuntimeError` at startup if unset | **MUST** be set — comma-separated explicit origin allowlist |
-| `ENVIRONMENT` | `production` | Set to `development` to enable the `/testing/*` router; never set to `development` in production |
-| `QA_API_TOKEN` | None — required, raises `RuntimeError` at import if unset **when `ENVIRONMENT=development`** | Only relevant in development; the `X-QA-Token` header value `/testing/reset` and `/testing/login-as/{handle}` require |
+| `ENVIRONMENT` | `production` | One of `development`, `staging`, or `production`. `development` and `staging` enable the `/testing/*` router; never use either in a production deployment. Any other value raises `ValueError` at import time. |
+| `QA_API_TOKEN` | None — required, raises `RuntimeError` at import if unset **when `ENVIRONMENT=development` or `staging`** | Required in QA-enabled environments; the `X-QA-Token` header value protects `/testing/reset` and `/testing/login-as/{handle}` |
 | `REDIS_URL` | `redis://localhost:6379` | Set if Redis is on a non-default host/port |
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
 | `GSM_SECRET` | `""` (empty — webhook auth disabled) | Set to a shared secret to authenticate GSM module webhooks |
 
 See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, and `CORS_ALLOWED_ORIGINS` became required.
+
+> **Deployment note:** `ENVIRONMENT` is validated at import time. A typo such as `Development` or `dev` stops the server rather than silently applying production behaviour. Correct the value in the service environment file, then restart the service.
 
 > **Note:** `server/.env.example` has since been synced to include `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`,
 > `ENVIRONMENT`, and `REDIS_URL` (previously flagged here as missing). It still lists `TLS_CERT`/`TLS_KEY`,

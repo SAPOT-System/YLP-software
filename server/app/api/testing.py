@@ -1,4 +1,4 @@
-"""Dev/staging-only QA tooling surface. Never imported outside `ENVIRONMENT=development`
+"""Dev/staging-only QA tooling surface. Never imported outside a QA-enabled environment
 (see `app/main.py`) — every route additionally re-checks that at request time via
 `require_qa_env`, and the mutating routes require a shared-secret header on top of that.
 See `SECURITY.md` and the design doc referenced from GH #271-274 for the full rationale.
@@ -13,10 +13,8 @@ from app.api.admin import makeAdmin, makeRescuer
 from app.db_operations.auth import SessionDep, get_user_by_username
 from app.db_operations.qa_scenarios import SCENARIOS, apply_scenario, reset_database
 from app.db_operations.token import create_token_pair, get_current_user
+from app.env import IS_QA_ENABLED
 from app.models.users import User, UserPublic
-
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "production")
-IS_QA_ENABLED = ENVIRONMENT == "development"
 
 # Fail-fast, no default — mirrors JWT_SECRET_KEY/CORS_ALLOWED_ORIGINS (see SECURITY.md).
 # Only required when this router is actually reachable; a production import never runs
@@ -25,7 +23,7 @@ QA_API_TOKEN = os.environ.get("QA_API_TOKEN")
 if IS_QA_ENABLED and not QA_API_TOKEN:
     raise RuntimeError(
         "QA_API_TOKEN environment variable is not set. Required whenever "
-        "ENVIRONMENT=development so /testing/reset and /testing/login-as aren't a "
+        "ENVIRONMENT=development or staging so /testing/reset and /testing/login-as aren't a "
         "LAN-wide auth bypass with no secret at all."
     )
 
