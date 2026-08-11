@@ -36,6 +36,14 @@ logger = logging.getLogger("sapot.serial")
 RECONNECT_DELAY = 10   # seconds between reconnect attempts
 
 
+class OutboundQueueFullError(RuntimeError):
+    """Raised when no outbound waiting slot is available."""
+
+
+class WorkerStoppingError(RuntimeError):
+    """Raised when a request arrives after the shutdown admission cutoff."""
+
+
 @dataclass
 class _SendRequest:
     """One pending send_sms() call, passed through the internal queue."""
@@ -59,7 +67,8 @@ class SerialWorker:
       Arduino confirms →  reader thread resolves _SendRequest  →  caller unblocks
     """
 
-    def __init__(self, port: str, baud: int = 9600):
+    def __init__(self, port: str, baud: int = 9600,
+                 send_queue_maxsize: int = 10):
         self._port = port
         self._baud = baud
 
@@ -67,9 +76,12 @@ class SerialWorker:
         self._ser_lock = threading.Lock()   # guards writes to _ser
 
         self._stop = threading.Event()
+        self._lifecycle_lock = threading.Lock()
+        self._accepting = True
+        self._stop_lock = threading.Lock()
 
-        # Outbound queue: send_sms() puts requests here; sender thread consumes
-        self._send_queue: queue.Queue[_SendRequest] = queue.Queue()
+        self._send_queue: queue.Queue[_SendRequest] = queue.Queue(
+            maxsize=send_queue_maxsize)
 
         # The one request currently being sent (set by sender, read by reader)
         self._in_flight: Optional[_SendRequest] = None
@@ -95,11 +107,27 @@ class SerialWorker:
         self._sender_thread.start()
 
     def stop(self):
-        self._stop.set()
-        # Unblock sender thread if waiting on empty queue
-        self._send_queue.put(_SendRequest(number="", body="", timeout=0))
-        self._reader_thread.join(timeout=5)
-        self._sender_thread.join(timeout=5)
+        """Stop admission first, then preserve the current send's true result."""
+        with self._stop_lock:
+            if self._stop.is_set():
+                return
+
+            with self._lifecycle_lock:
+                self._accepting = False
+
+            self._drain_queued_requests()
+
+            # Once admission is closed, a sender can no longer move a dequeued
+            # request into flight. A request observed here is therefore the only
+            # one that can still reach the serial port.
+            with self._in_flight_lock:
+                in_flight = self._in_flight
+            if in_flight is not None:
+                in_flight.done.wait()
+
+            self._stop.set()
+            self._reader_thread.join(timeout=5)
+            self._sender_thread.join(timeout=5)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -114,13 +142,21 @@ class SerialWorker:
         Returns {"ok": bool, "reason": str|None}
         Raises RuntimeError if modem not ready or port not connected.
         """
-        if not self.connected:
-            raise RuntimeError("Serial port not connected")
-        if not self.gsm_ready:
-            raise RuntimeError("GSM modem not ready")
-
         req = _SendRequest(number=number, body=body, timeout=timeout)
-        self._send_queue.put(req)
+        with self._lifecycle_lock:
+            if not self._accepting:
+                raise WorkerStoppingError("SMS service is stopping")
+            if not self.connected:
+                raise RuntimeError("Serial port not connected")
+            if not self.gsm_ready:
+                raise RuntimeError("GSM modem not ready")
+            try:
+                self._send_queue.put_nowait(req)
+            except queue.Full as error:
+                logger.warning(
+                    "Outbound SMS queue full (depth=%d capacity=%d)",
+                    self._send_queue.qsize(), self.outbound_queue_capacity)
+                raise OutboundQueueFullError("Outbound SMS queue is full") from error
         logger.info("SMS enqueued to %s (queue depth %d)",
                     number, self._send_queue.qsize())
 
@@ -129,6 +165,19 @@ class SerialWorker:
         if not delivered:
             return {"ok": False, "reason": "CLIENT_TIMEOUT"}
         return {"ok": req.success, "reason": req.reason}
+
+    @property
+    def outbound_queue_depth(self) -> int:
+        return self._send_queue.qsize()
+
+    @property
+    def outbound_queue_capacity(self) -> int:
+        return self._send_queue.maxsize
+
+    @property
+    def outbound_in_flight(self) -> bool:
+        with self._in_flight_lock:
+            return self._in_flight is not None
 
     # ── Sender thread: one at a time, in order ────────────────────────────────
 
@@ -144,8 +193,13 @@ class SerialWorker:
             except queue.Empty:
                 continue
 
-            if self._stop.is_set() or not req.number:
-                break   # sentinel or stop
+            with self._lifecycle_lock:
+                if not self._accepting:
+                    self._complete_request(req, False, "SERVICE_STOPPING")
+                    continue
+                # Register before writing so the reader never misses an event.
+                with self._in_flight_lock:
+                    self._in_flight = req
 
             # Wait until modem is ready (e.g. after reconnect)
             deadline = time.time() + req.timeout
@@ -153,16 +207,9 @@ class SerialWorker:
                 time.sleep(0.5)
 
             if not self.gsm_ready:
-                req.success = False
-                req.reason  = "MODEM_NOT_READY"
-                req.done.set()
+                self._complete_in_flight(req, False, "MODEM_NOT_READY")
                 logger.warning("SMS to %s dropped — modem not ready", req.number)
                 continue
-
-            # Register as in-flight BEFORE writing to serial,
-            # so the reader never misses the SMS_SENT event
-            with self._in_flight_lock:
-                self._in_flight = req
 
             cmd = build_send_sms(req.number, req.body)
             try:
@@ -175,24 +222,15 @@ class SerialWorker:
                         raise OSError("Serial port not open")
             except Exception as e:
                 logger.error("Serial write failed: %s", e)
-                with self._in_flight_lock:
-                    self._in_flight = None
-                req.success = False
-                req.reason  = f"WRITE_ERROR: {e}"
-                req.done.set()
+                self._complete_in_flight(req, False, f"WRITE_ERROR: {e}")
                 continue
 
             # Block here until the reader resolves this request
             # (or until the per-SMS timeout expires)
             resolved = req.done.wait(timeout=req.timeout)
             if not resolved:
-                with self._in_flight_lock:
-                    if self._in_flight is req:
-                        self._in_flight = None
-                req.success = False
-                req.reason  = "TIMEOUT"
-                req.done.set()
-                logger.error("SMS to %s timed out", req.number)
+                if self._complete_in_flight(req, False, "TIMEOUT"):
+                    logger.error("SMS to %s timed out", req.number)
 
     # ── Reader thread: serial → events ────────────────────────────────────────
 
@@ -220,7 +258,8 @@ class SerialWorker:
     def _connect_and_read(self):
         logger.info("Opening %s @ %d baud", self._port, self._baud)
         try:
-            ser = serial.Serial(self._port, self._baud, timeout=1)
+            ser = serial.Serial(self._port, self._baud, timeout=1,
+                                write_timeout=5.0)
         except serial.SerialException as e:
             logger.error("Cannot open %s: %s", self._port, e)
             self.last_status = f"port error: {e}"
@@ -327,19 +366,38 @@ class SerialWorker:
                     "SMS_SENT/FAILED number mismatch: expected %s got %s",
                     req.number, number)
                 # Still resolve it — the Arduino only handles one at a time
-            self._in_flight = None
-
-        req.success = success
-        req.reason  = reason
-        req.done.set()
+        self._complete_in_flight(req, success, reason)
 
     def _fail_in_flight(self, reason: str):
         with self._in_flight_lock:
             req = self._in_flight
             if req is None:
                 return
+        if self._complete_in_flight(req, False, reason):
+            logger.warning("In-flight SMS to %s failed: %s", req.number, reason)
+
+    def _complete_in_flight(self, req: _SendRequest, success: bool,
+                            reason: Optional[str]) -> bool:
+        with self._in_flight_lock:
+            if self._in_flight is not req:
+                return False
             self._in_flight = None
-        req.success = False
-        req.reason  = reason
+            req.success = success
+            req.reason = reason
+            req.done.set()
+            return True
+
+    @staticmethod
+    def _complete_request(req: _SendRequest, success: bool,
+                          reason: Optional[str]):
+        req.success = success
+        req.reason = reason
         req.done.set()
-        logger.warning("In-flight SMS to %s failed: %s", req.number, reason)
+
+    def _drain_queued_requests(self):
+        while True:
+            try:
+                req = self._send_queue.get_nowait()
+            except queue.Empty:
+                return
+            self._complete_request(req, False, "SERVICE_STOPPING")

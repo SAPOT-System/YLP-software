@@ -13,6 +13,23 @@ import os
 from dotenv import load_dotenv
 
 
+def positive_integer_env(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise RuntimeError(
+            f"Environment variable '{name}' must be an integer greater than or equal to 1."
+        ) from error
+    if parsed < 1:
+        raise RuntimeError(
+            f"Environment variable '{name}' must be an integer greater than or equal to 1."
+        )
+    return parsed
+
+
 class Settings:
     load_dotenv()
     # Serial port the Arduino is connected to
@@ -33,6 +50,9 @@ class Settings:
 
     # Logging level
     log_level: str = os.environ.get("LOG_LEVEL", "INFO")
+
+    # Maximum number of outbound SMS requests waiting behind the in-flight send
+    sms_send_queue_maxsize: int = positive_integer_env("SMS_SEND_QUEUE_MAXSIZE", 10)
 
 
 settings = Settings()
