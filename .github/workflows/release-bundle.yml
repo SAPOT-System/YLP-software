@@ -1,6 +1,7 @@
 name: Release Deployment Bundle
 
 on:
+  workflow_dispatch:
   push:
     tags: ["bundle/v*"]
 
