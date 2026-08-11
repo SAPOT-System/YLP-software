@@ -85,4 +85,4 @@ quickest way to confirm the `.env` was picked up.
 
 - [docker-setup.md](docker-setup.md): the server must have a matching `GSM_SECRET` for inbound GSM callbacks.
 - [data-flow.md](../architecture/data-flow.md#sms-fallback) — the end-to-end SMS fallback flow diagram.
-- [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#gsm-module-and-server-cant-authenticate-each-other): when the two sides reject each other's webhooks.
+- [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#server-rejects-gsm-inbound-callbacks): when the server rejects the gateway's callback secret.
