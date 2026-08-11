@@ -155,7 +155,7 @@ git push origin bundle/v0.0.1
 ```
 
 For a manual build on a clean, tagged checkout with Docker, Compose v2, `python3`,
-`zstd`, `arduino-cli`, and the map data installed, run:
+`python3-jsonschema`, `zstd`, `arduino-cli`, and GitHub CLI, run:
 
 ```bash
 ./tileserver/download-script.sh
@@ -169,8 +169,10 @@ preserved.
 
 The result is `dist/sapot-bundle-vX.Y.Z.tar.zst`. Its `manifest.json` records
 the version, source commit, image IDs, firmware checksum, compatibility gates,
-and disk requirement. `CHECKSUMS.sha256` detects accidental corruption during
-transport. It is not a tamper-evident signature.
+and immutable map-release provenance. The connected build host downloads the pinned
+map release; the offline host receives it inside the bundle and never downloads it.
+`CHECKSUMS.sha256` detects accidental corruption during transport. It is not a
+tamper-evident signature.
 
 The policy's `minimumUpgradeVersion` prevents an upgrade from an unsupported old
 bundle. `minimumRollbackVersion` is the oldest bundle to which this release may

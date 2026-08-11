@@ -14,6 +14,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-24.04
+    environment: bundle-release
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
@@ -22,30 +23,14 @@ jobs:
 
       - name: Validate tag and release metadata
         run: |
-          python3 scripts/validate_bundle_release.py --tag "$GITHUB_REF_NAME"
-          VERSION=${GITHUB_REF_NAME#bundle/v}
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          [ "$(git cat-file -t "$GITHUB_REF_NAME")" = tag ] || {
-            echo "Bundle releases require an annotated tag." >&2
-            exit 1
-          }
-          if [[ "$VERSION" != *-* ]]; then
-            git fetch --no-tags origin main:refs/remotes/origin/main
-            git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
-              echo "Stable bundle tags must point to a commit on main." >&2
-              exit 1
-            }
-          fi
-          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
-          [ -s notes.md ] || {
-            echo "Release notes are empty. Use an annotated bundle tag." >&2
-            exit 1
-          }
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          scripts/validate_bundle_release_ci.sh "$GITHUB_REF_NAME" "$GITHUB_SHA" origin/main notes.md
+          echo "VERSION=${GITHUB_REF_NAME#bundle/v}" >> "$GITHUB_ENV"
 
       - name: Install bundle build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq zstd
+          sudo apt-get install -y jq zstd python3-jsonschema
           docker compose version
           df -h /
 
@@ -53,13 +38,16 @@ jobs:
 
       - name: Run release metadata and deployment script tests
         run: |
-          python3 -m unittest scripts.tests.test_validate_bundle_release -v
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+          python3 -m unittest discover -s tileserver/tests -p 'test_*.py' -v
           deploy/scripts/tests/run-tests.sh
-          bash -n scripts/build-bundle.sh scripts/release.sh tileserver/download-script.sh
-          bash -n deploy/scripts/*.sh deploy/scripts/lib/*.sh
+          bash -n scripts/build-bundle.sh scripts/release.sh scripts/validate_bundle_release_ci.sh scripts/publish_bundle_release.sh tileserver/download-script.sh
+          bash -n scripts/lib/*.sh deploy/scripts/*.sh deploy/scripts/lib/*.sh
 
       - name: Download and validate Batangas map data
-        run: ./tileserver/download-script.sh --cleanup-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./tileserver/download-script.sh
 
       - name: Build deployment bundle
         run: ./scripts/build-bundle.sh --low-disk
@@ -67,62 +55,27 @@ jobs:
       - name: Validate release assets
         run: |
           ARCHIVE="dist/sapot-bundle-v$VERSION.tar.zst"
-          [ -f "$ARCHIVE" ] || { echo "Missing $ARCHIVE" >&2; exit 1; }
-          SIZE=$(stat -c '%s' "$ARCHIVE")
-          [ "$SIZE" -lt 2147483648 ] || {
-            echo "Bundle is too large for a GitHub release asset: $SIZE bytes" >&2
-            exit 1
-          }
+          python3 scripts/validate_archive_size.py "$ARCHIVE"
           ROOT="sapot-bundle-v$VERSION"
-          tar --use-compress-program=unzstd -xOf "$ARCHIVE" "$ROOT/manifest.json" > manifest.json
-          python3 - "$GITHUB_SHA" "$VERSION" <<'PY'
-          import json
-          import sys
-
-          expected_sha, expected_version = sys.argv[1:]
-          manifest = json.load(open("manifest.json", encoding="utf-8"))
-          if manifest["schemaVersion"] != "2.0":
-              raise SystemExit("unexpected manifest schema")
-          if manifest["gitSha"] != expected_sha:
-              raise SystemExit("manifest git SHA does not match the tag commit")
-          if manifest["version"] != expected_version:
-              raise SystemExit("manifest version does not match the bundle tag")
-          if manifest["gsmFirmware"]["compatibleGsmFastapiVersion"] != f"={manifest['componentVersions']['gsmFastapi']}":
-              raise SystemExit("firmware compatibility does not match the GSM service version")
-          suffix = f"bundle-v{expected_version}"
-          for image in manifest["images"].values():
-              if not image["tag"].endswith(suffix):
-                  raise SystemExit(f"image tag is not bundle-versioned: {image['tag']}")
-          PY
-          tar --use-compress-program=unzstd -tf "$ARCHIVE" | grep -q "/CHECKSUMS.sha256$"
           VERIFY_DIR=$(mktemp -d)
           tar --use-compress-program=unzstd -xf "$ARCHIVE" -C "$VERIFY_DIR"
+          scripts/validate_extracted_bundle.py "$VERIFY_DIR/$ROOT" --version "$VERSION" --commit "$GITHUB_SHA"
           (cd "$VERIFY_DIR/$ROOT" && sha256sum --check CHECKSUMS.sha256)
           rm -rf "$VERIFY_DIR"
-          (
-            cd dist
-            sha256sum "sapot-bundle-v$VERSION.tar.zst" > "sapot-bundle-v$VERSION.tar.zst.sha256"
-          )
+          (cd dist && sha256sum "sapot-bundle-v$VERSION.tar.zst" > "sapot-bundle-v$VERSION.tar.zst.sha256")
 
-      - name: Create or resume draft release
+      - name: Create immutable-policy reader token
+        id: policy-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BUNDLE_RELEASE_POLICY_APP_ID }}
+          private-key: ${{ secrets.BUNDLE_RELEASE_POLICY_PRIVATE_KEY }}
+          owner: SAPOT-System
+          repositories: YLP-software
+          permission-administration: read
+
+      - name: Stage and publish verified release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          ARCHIVE="dist/sapot-bundle-v$VERSION.tar.zst"
-          CHECKSUM="$ARCHIVE.sha256"
-          ENCODED_TAG=$(jq -rn --arg value "$GITHUB_REF_NAME" '$value | @uri')
-          EXISTING=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$ENCODED_TAG" 2>/dev/null || true)
-          if [ -n "$EXISTING" ]; then
-            if [ "$(jq -r .draft <<<"$EXISTING")" != true ]; then
-              echo "Published release $GITHUB_REF_NAME already exists; refusing to replace it." >&2
-              exit 1
-            fi
-            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
-          else
-            PRERELEASE=()
-            case "$VERSION" in *-*) PRERELEASE=(--prerelease) ;; esac
-            gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
-              --title "$GITHUB_REF_NAME" --notes-file notes.md "${PRERELEASE[@]}"
-          fi
-          gh release upload "$GITHUB_REF_NAME" "$ARCHIVE" "$CHECKSUM" --clobber
-          gh release edit "$GITHUB_REF_NAME" --draft=false
+          SAPOT_RELEASE_POLICY_TOKEN: ${{ steps.policy-token.outputs.token }}
+        run: scripts/publish_bundle_release.sh "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$VERSION" "$GITHUB_SHA" notes.md "dist/sapot-bundle-v$VERSION.tar.zst" "dist/sapot-bundle-v$VERSION.tar.zst.sha256"

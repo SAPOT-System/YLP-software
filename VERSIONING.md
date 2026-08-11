@@ -2,7 +2,7 @@
 
 This repo uses git-tag-driven versioning for five application components and one deployment artifact: **mobile**, **server**, **admin**, **portal** (captive portal), **gsm** (GSM-module: `GSM-fastapi` + the production Arduino firmware), and the independent offline deployment **bundle**.
 
-`GSM-module/GSM-API/` and `GSM-trial-code/` are not covered — neither is deployed (see `GSM-module/CLAUDE.md`). `tileserver/` has no source of its own (deploy scripts + `.mbtiles` data only) and isn't versioned.
+`GSM-module/GSM-API/` and `GSM-trial-code/` are not covered — neither is deployed (see `GSM-module/CLAUDE.md`). TileServer GL deployment scripts are unversioned, but the reviewed map data is independently identified by immutable `map/v*` release tags.
 
 ---
 
@@ -168,11 +168,18 @@ When an application component tag is pushed, the corresponding GitHub Actions wo
 
 CI does not draft or edit notes — it only reads the tag message and publishes it, using the default `GITHUB_TOKEN`.
 
-For `bundle/v*`, CI additionally validates the committed compatibility policy,
-downloads and verifies the pinned map source, builds the offline bundle, and publishes
-`sapot-bundle-vX.Y.Z.tar.zst` plus its SHA-256 file. The release remains a draft until
-both assets upload successfully. Bundle `0.0.1` starts manifest schema `2.0` and is a
-fresh-install release; older locally built server-derived bundles are not compatible.
+For `bundle/v*`, CI validates the committed compatibility policy, downloads the pinned
+immutable `map/v1.0.0` asset, builds the offline bundle, and publishes the archive plus
+its SHA-256 file only after both remote asset digests are verified. Bundle versions use
+canonical SAPOT SemVer. The `0.0.1` prerelease and stable family is fresh-install-only,
+so both compatibility floors must equal the exact candidate. Later releases require
+`minimumRollbackVersion <= minimumUpgradeVersion < bundle version`.
+
+Repository immutable releases are a publication prerequisite. A repository administrator
+must enable them and approve the protected `bundle-release` environment before a map or
+bundle publication. This locks every future repository release tag and asset, not only
+bundle releases. Build hosts need a GitHub CLI with `gh release verify` and
+`gh release verify-asset`, plus `python3-jsonschema` for bundle-content validation.
 
 ---
 

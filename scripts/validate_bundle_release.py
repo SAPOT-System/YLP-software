@@ -25,10 +25,17 @@ def load_semver_module():
     return module
 
 
-def validate(version_file: Path, policy_file: Path, tag: str | None = None) -> dict[str, str]:
+def validate(
+    version_file: Path,
+    policy_file: Path,
+    tag: str | None = None,
+    candidate_version: str | None = None,
+) -> dict[str, str]:
     semver = load_semver_module()
-    version = version_file.read_text(encoding="utf-8").strip()
+    version = candidate_version or version_file.read_text(encoding="utf-8").strip()
     semver.parse(version)
+    if semver.parse(version)[:3] < (0, 0, 1):
+        raise ValueError(f"bundle version ({version}) must have a core version of at least 0.0.1")
 
     policy = json.loads(policy_file.read_text(encoding="utf-8"))
     expected_keys = {
@@ -46,8 +53,30 @@ def validate(version_file: Path, policy_file: Path, tag: str | None = None) -> d
     for field in ("minimumUpgradeVersion", "minimumRollbackVersion"):
         value = policy[field]
         semver.parse(value)
-        if semver.compare(value, version) > 0:
-            raise ValueError(f"{field} ({value}) cannot exceed bundle version ({version})")
+        if semver.parse(value)[:3] < (0, 0, 1):
+            raise ValueError(f"{field} ({value}) must have a core version of at least 0.0.1")
+
+    initial_family = version.startswith("0.0.1") and (
+        version == "0.0.1" or re.fullmatch(r"0\.0\.1-(alpha|beta|rc)\.(0|[1-9]\d*)", version)
+    )
+    upgrade = policy["minimumUpgradeVersion"]
+    rollback = policy["minimumRollbackVersion"]
+    if initial_family:
+        if upgrade != version or rollback != version:
+            raise ValueError(
+                "fresh-install 0.0.1 releases require minimumUpgradeVersion and "
+                "minimumRollbackVersion to equal the bundle version"
+            )
+    else:
+        if semver.compare(upgrade, version) >= 0:
+            raise ValueError(
+                f"minimumUpgradeVersion ({upgrade}) must be older than bundle version ({version})"
+            )
+        if semver.compare(rollback, upgrade) > 0:
+            raise ValueError(
+                f"minimumRollbackVersion ({rollback}) cannot be newer than "
+                f"minimumUpgradeVersion ({upgrade})"
+            )
 
     if tag is not None:
         match = TAG_PATTERN.fullmatch(tag)
@@ -68,11 +97,12 @@ def main() -> int:
     parser.add_argument("--version-file", type=Path, default=ROOT / "deploy" / "VERSION")
     parser.add_argument("--policy", type=Path, default=ROOT / "deploy" / "bundle-release-policy.json")
     parser.add_argument("--tag")
+    parser.add_argument("--candidate-version")
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args()
 
     try:
-        values = validate(args.version_file, args.policy, args.tag)
+        values = validate(args.version_file, args.policy, args.tag, args.candidate_version)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"bundle release validation failed: {error}", file=sys.stderr)
         return 1

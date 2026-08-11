@@ -47,14 +47,15 @@ case "$component" in
     git -C "$root" add GSM-module/GSM-fastapi/app_version.py GSM-module/GSM-arduino-actual-code/GSM-arduino-actual-code.ino
     tag="gsm/v$version" ;;
   bundle)
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
-      echo "Invalid version '$version' - expected X.Y.Z[-(alpha|beta|rc).N]" >&2
+    tag="bundle/v$version"
+    if git -C "$root" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+      echo "Tag $tag already exists - delete it first with: git tag -d $tag" >&2
       exit 1
     fi
+    python3 "$root/scripts/validate_bundle_release.py" --candidate-version "$version"
     printf '%s\n' "$version" > "$root/deploy/VERSION"
-    python3 "$root/scripts/validate_bundle_release.py"
     git -C "$root" add deploy/VERSION
-    tag="bundle/v$version" ;;
+    ;;
   *)
     echo "Unknown component '$component' (expected mobile|server|admin|portal|gsm|bundle)" >&2
     exit 1 ;;

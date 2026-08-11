@@ -55,35 +55,26 @@ firmware_version=$(sed -n 's/^#define FIRMWARE_VERSION "\([^"]*\)"/\1/p' "$firmw
   exit 1
 }
 
+map_metadata=tileserver/map-artifact.json
 map_file=tileserver/osm-batangas.mbtiles
 [ -f "$map_file" ] || {
   echo "missing $map_file; run tileserver/download-script.sh first" >&2
   exit 1
 }
-map_source_sha=$(awk 'NR == 1 {print $1}' tileserver/osm-source.sha256)
-python3 - "$map_file" "$map_source_sha" <<'PY'
-import sqlite3
-import sys
-
-with sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True) as database:
-    integrity = database.execute("PRAGMA integrity_check").fetchone()[0]
-    metadata = dict(database.execute("SELECT name, value FROM metadata"))
-if integrity != "ok":
-    raise SystemExit(f"MBTiles integrity check failed: {integrity}")
-expected = {
-    "sapot:region": "batangas",
-    "sapot:source_sha256": sys.argv[2],
-    "minzoom": "9",
-    "maxzoom": "14",
-    "scheme": "tms",
-}
-for key, value in expected.items():
-    if metadata.get(key) != value:
-        raise SystemExit(f"MBTiles metadata {key}={metadata.get(key)!r}, expected {value!r}")
+python3 tileserver/validate-map-artifact.py "$map_file" --metadata "$map_metadata"
+readarray -t map_values < <(python3 - "$map_metadata" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("map_validator", "tileserver/validate-map-artifact.py")
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+for key, value in module.load_contract(__import__("pathlib").Path(sys.argv[1])).items():
+    if key in {"repository", "releaseTag", "assetName", "sha256", "size", "region", "bounds", "minZoom", "maxZoom", "scheme", "format"}:
+        print(f"{key}={value}")
 PY
-map_artifact_sha=$(sha256sum "$map_file" | awk '{print $1}')
+)
+declare -A map
+for value in "${map_values[@]}"; do map[${value%%=*}]=${value#*=}; done
 
-if "$low_disk"; then
+check_free_space() {
   minimum_free=${SAPOT_BUNDLE_MIN_FREE_BYTES:-10737418240}
   docker_root=$(docker info --format '{{.DockerRootDir}}')
   for path in "$repo_root" "$docker_root"; do
@@ -93,7 +84,8 @@ if "$low_disk"; then
       exit 1
     }
   done
-fi
+}
+"$low_disk" && check_free_space
 
 git_sha=$(git rev-parse HEAD)
 built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -124,7 +116,17 @@ declare -A tags=(
 save_image() {
   local name=$1 tag=$2 digest
   digest=$(docker image inspect --format '{{.Id}}' "$tag")
-  docker save -o "$bundle/images/$name.tar" "$tag"
+  local partial="$bundle/images/$name.tar.partial"
+  local error_file="$scratch/$name.save.stderr"
+  if ! docker save -o "$partial" "$tag" 2>"$error_file"; then
+    if grep -qi 'ENOSPC\|no space left' "$error_file"; then
+      echo "docker save ran out of disk space while writing $name" >&2
+    fi
+    rm -f "$partial" "$error_file"
+    return 1
+  fi
+  rm -f "$error_file"
+  mv "$partial" "$bundle/images/$name.tar"
   printf '%s\t%s\t%s\n' "$name" "$tag" "$digest" >> "$digest_file"
 }
 
@@ -139,6 +141,7 @@ build_and_save() {
   docker build -t "$tag" "$context"
   save_image "$name" "$tag"
   cleanup_images "$tag"
+  "$low_disk" && check_free_space
 }
 
 pull_and_save() {
@@ -147,6 +150,7 @@ pull_and_save() {
   docker tag "$source" "$tag"
   save_image "$name" "$tag"
   cleanup_images "$tag" "$source"
+  "$low_disk" && check_free_space
 }
 
 build_and_save api server
@@ -197,7 +201,7 @@ check_no_ca_material() {
 check_no_ca_material
 chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
 
-python3 - "$bundle/manifest.json" "$version" "$git_sha" "$built_at" "$minimum_upgrade" "$minimum_rollback" "$server_version" "$admin_version" "$gsm_version" "$firmware_version" "$fqbn" "$firmware_sha" "$map_source_sha" "$map_artifact_sha" "$bundle" "$digest_file" <<'PY'
+python3 - "$bundle/manifest.json" "$version" "$git_sha" "$built_at" "$minimum_upgrade" "$minimum_rollback" "$server_version" "$admin_version" "$gsm_version" "$firmware_version" "$fqbn" "$firmware_sha" "${map[repository]}" "${map[releaseTag]}" "${map[assetName]}" "${map[sha256]}" "${map[size]}" "${map[region]}" "${map[bounds]}" "${map[minZoom]}" "${map[maxZoom]}" "${map[scheme]}" "${map[format]}" "$bundle" "$digest_file" <<'PY'
 import json
 import os
 import subprocess
@@ -216,8 +220,8 @@ import sys
     firmware_version,
     fqbn,
     firmware_sha,
-    map_source_sha,
-    map_artifact_sha,
+    map_repository, map_release_tag, map_asset_name, map_sha, map_size, map_region,
+    map_bounds, map_min_zoom, map_max_zoom, map_scheme, map_format,
     root,
     digest_file,
 ) = sys.argv[1:]
@@ -259,9 +263,10 @@ manifest = {
     },
     "images": images,
     "mapData": {
-        "region": "batangas",
-        "sourceSha256": map_source_sha,
-        "artifactSha256": map_artifact_sha,
+        "repository": map_repository, "releaseTag": map_release_tag, "assetName": map_asset_name,
+        "sha256": map_sha, "size": int(map_size), "region": map_region,
+        "bounds": json.loads(map_bounds), "minZoom": int(map_min_zoom), "maxZoom": int(map_max_zoom),
+        "scheme": map_scheme, "format": map_format,
     },
     "gsmFirmware": {
         "version": firmware_version,
@@ -319,9 +324,11 @@ check_no_ca_material
 checksums="$scratch/CHECKSUMS.sha256"
 (cd "$bundle" && find . -type f -print0 | sort -z | xargs -0 sha256sum > "$checksums")
 mv "$checksums" "$bundle/CHECKSUMS.sha256"
+python3 scripts/validate_extracted_bundle.py "$bundle" --version "$version" --commit "$git_sha" --metadata "$map_metadata"
 mkdir -p dist
 temporary_output="$output.tmp.$$"
 tar -C "$scratch" -cf - "$(basename "$bundle")" | zstd -T0 -19 -o "$temporary_output"
+python3 scripts/validate_archive_size.py "$temporary_output"
 mv "$temporary_output" "$output"
 temporary_output=
 echo "built $output"

@@ -45,25 +45,26 @@ full stack for local dev.
 
 ## MBTiles file
 
-`.mbtiles` files are gitignored — a fresh checkout has no map data. Two files are involved:
-
-1. The national source (`osm-2020-02-10-v3.11_asia_philippines.mbtiles`, OSM 2020-02-10 v3.11, ~432 MB) — a download artifact, never served directly.
-2. The regional crop (`osm-batangas.mbtiles`, ~27 MB) — what the deploy scripts and `docker-compose.yml` actually point at.
-
-To (re)generate the served file:
+`.mbtiles` files are gitignored. The production file is the reviewed
+`map/v1.0.0` GitHub Release asset, `osm-batangas.mbtiles`. Its exact SHA-256,
+size, bounds, zoom range, and MBTiles metadata are pinned in
+`tileserver/map-artifact.json`.
 
 ```bash
-bash tileserver/download-script.sh            # fetches the national source, then crops it (default region: batangas)
-# or, if the national source is already present:
-python3 tileserver/crop-mbtiles.py --region batangas --no-overview --min-zoom 9
+tileserver/download-script.sh
 ```
 
-The download script verifies the national extract against the committed
-`tileserver/osm-source.sha256` before cropping. Release CI uses
-`--cleanup-source` to remove the 432 MB source after producing and validating the
-Batangas database.
+The downloader rejects draft or mutable releases, duplicate or invalid assets, and an
+invalid local cache. It writes downloads to a temporary file and replaces the cache only
+after the shared validator succeeds. A connected build host downloads the map before
+building the bundle. The disconnected deployment host receives the same bytes inside
+the bundle and never downloads or crops map data.
 
-To change the deployment region, add a bbox to `REGIONS` in `crop-mbtiles.py`, re-run the crop for the new region, and update the hardcoded filename in **both** `deploy-tiling-server-detached.sh` and `docker-compose.yml`'s `tileserver.command` — plus the matching `REGION_MAX_BOUNDS`/`REGION_MIN_ZOOM` client constants in `admin-frontend/sapot-admin/ui/components/MapLibre.tsx` and `mobile-app/sapot-mobile-app/app/(drawer)/(tabs)/map.tsx`. See `tileserver/CLAUDE.md` for the full detail, including the zoom-floor pitfall (stored min-zoom must be one below the clients' `minZoom`).
+`crop-mbtiles.py` remains a developer-only preparation tool for a future map release.
+Changed map bytes require a new immutable `map/vX.Y.Z` release and a matching contract
+update, rather than a release-time crop.
+
+To change the deployment region, prepare and validate a new artifact with the developer-only crop tool, publish it under a new immutable `map/vX.Y.Z` tag, and update the contract plus the hardcoded filename in **both** `deploy-tiling-server-detached.sh` and `docker-compose.yml`'s `tileserver.command` — plus the matching `REGION_MAX_BOUNDS`/`REGION_MIN_ZOOM` client constants in `admin-frontend/sapot-admin/ui/components/MapLibre.tsx` and `mobile-app/sapot-mobile-app/app/(drawer)/(tabs)/map.tsx`. See `tileserver/CLAUDE.md` for the zoom-floor requirement.
 
 ---
 

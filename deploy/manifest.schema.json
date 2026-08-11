@@ -1,37 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
+  "type": "object", "additionalProperties": false,
   "required": ["schemaVersion", "bundleId", "version", "gitSha", "builtAt", "minimumUpgradeVersion", "minimumRollbackVersion", "requiredDiskBytes", "componentVersions", "images", "mapData", "gsmFirmware", "buildEnvironment"],
   "properties": {
-    "schemaVersion": {"const": "2.0"},
-    "bundleId": {"type": "string"},
-    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.\\d+)?$"},
-    "gitSha": {"type": "string"}, "builtAt": {"type": "string"},
-    "minimumUpgradeVersion": {"type": "string"}, "minimumRollbackVersion": {"type": "string"},
-    "requiredDiskBytes": {"type": "integer", "minimum": 1},
-    "componentVersions": {
-      "type": "object",
-      "required": ["server", "admin", "gsmFastapi", "gsmFirmware"],
-      "properties": {
-        "server": {"type": "string"},
-        "admin": {"type": "string"},
-        "gsmFastapi": {"type": "string"},
-        "gsmFirmware": {"type": "string"}
-      },
-      "additionalProperties": false
-    },
-    "images": {"type": "object"},
-    "mapData": {
-      "type": "object",
-      "required": ["region", "sourceSha256", "artifactSha256"],
-      "properties": {
-        "region": {"const": "batangas"},
-        "sourceSha256": {"type": "string"},
-        "artifactSha256": {"type": "string"}
-      },
-      "additionalProperties": false
-    },
-    "gsmFirmware": {"type": "object"},
-    "buildEnvironment": {"type": "object"}
-  }
+    "schemaVersion": {"const": "2.0"}, "bundleId": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-(alpha|beta|rc)\\.(0|[1-9]\\d*))?$"},
+    "gitSha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "builtAt": {"type": "string", "minLength": 1},
+    "minimumUpgradeVersion": {"type": "string"}, "minimumRollbackVersion": {"type": "string"}, "requiredDiskBytes": {"type": "integer", "minimum": 1},
+    "componentVersions": {"type":"object","additionalProperties":false,"required":["server","admin","gsmFastapi","gsmFirmware"],"properties":{"server":{"type":"string"},"admin":{"type":"string"},"gsmFastapi":{"type":"string"},"gsmFirmware":{"type":"string"}}},
+    "images": {"type":"object","additionalProperties":false,"required":["api","admin","gsm-fastapi","arduino-flasher","mariadb","redis","nginx","tileserver-gl"],"properties":{"api":{"$ref":"#/$defs/image"},"admin":{"$ref":"#/$defs/image"},"gsm-fastapi":{"$ref":"#/$defs/image"},"arduino-flasher":{"$ref":"#/$defs/image"},"mariadb":{"$ref":"#/$defs/image"},"redis":{"$ref":"#/$defs/image"},"nginx":{"$ref":"#/$defs/image"},"tileserver-gl":{"$ref":"#/$defs/image"}}},
+    "mapData": {"type":"object","additionalProperties":false,"required":["repository","releaseTag","assetName","sha256","size","region","bounds","minZoom","maxZoom","scheme","format"],"properties":{"repository":{"const":"SAPOT-System/YLP-software"},"releaseTag":{"pattern":"^map/v","type":"string"},"assetName":{"const":"osm-batangas.mbtiles"},"sha256":{"pattern":"^[0-9a-f]{64}$","type":"string"},"size":{"type":"integer","minimum":1},"region":{"const":"batangas"},"bounds":{"type":"array","items":{"type":"number"},"minItems":4,"maxItems":4},"minZoom":{"type":"integer"},"maxZoom":{"type":"integer"},"scheme":{"const":"tms"},"format":{"const":"pbf"}}},
+    "gsmFirmware":{"type":"object"}, "buildEnvironment":{"type":"object"}
+  },
+  "$defs":{"image":{"type":"object","additionalProperties":false,"required":["tag","digest"],"properties":{"tag":{"type":"string"},"digest":{"type":"string"}}}}
 }
