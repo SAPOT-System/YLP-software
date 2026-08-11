@@ -36,6 +36,10 @@ Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.
 cp server/.env.example server/.env
 ```
 
+Before starting the stack, replace the `JWT_SECRET_KEY` and `SERVER_ED25519_SEED` placeholders in
+`server/.env`. Generate a separate value for each with `openssl rand -hex 32`; also replace the
+other `change-me-*` secrets with values appropriate for your environment.
+
 Optional — override the stack's host-side ports (default: `nginx` 443/80, `admin` 3000,
 `gsm-fastapi` 8001) by copying the repo-root env file too:
 
@@ -68,7 +72,7 @@ whole `docker compose up` would abort on any machine without the GSM modem attac
 Without the GSM modem, just run the normal `./docker/up.sh up --build -d` below — `gsm-fastapi` still
 starts, it just won't have serial access.
 
-See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `SERVER_ED25519_SEED` are required at import time. `server/.env.example` ships a working value for each, so the copy above is enough for local dev.
+See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `SERVER_ED25519_SEED` are required at import time. `server/.env.example` supplies safe defaults only for local service addresses; it never supplies usable secrets.
 
 ## Run
 
