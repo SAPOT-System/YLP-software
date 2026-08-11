@@ -1,3 +1,6 @@
+import threading
+import time
+
 import pytest
 
 from serial_worker import (
@@ -43,6 +46,7 @@ def test_stop_drains_waiting_requests_without_sentinel():
     worker = ready_worker()
     request = _SendRequest("+639171234567", "queued", 1)
     worker._send_queue.put_nowait(request)
+
     class JoinedThread:
         def join(self, timeout):
             assert timeout == 5
@@ -55,6 +59,26 @@ def test_stop_drains_waiting_requests_without_sentinel():
     assert request.done.is_set()
     assert request.reason == "SERVICE_STOPPING"
     assert worker.outbound_queue_depth == 0
+
+
+def test_stop_fails_active_request():
+    worker = ready_worker()
+    request = _SendRequest("+639171234567", "active", 1)
+    with worker._active_lock:
+        worker._active_request = request
+
+    class JoinedThread:
+        def join(self, timeout):
+            assert timeout == 5
+
+    worker._reader_thread = JoinedThread()
+    worker._sender_thread = JoinedThread()
+
+    worker.stop()
+
+    assert request.done.is_set()
+    assert request.reason == "SERVICE_STOPPING"
+    assert worker.outbound_in_flight is False
 
 
 def test_admission_rejects_after_shutdown_cutoff():
@@ -76,6 +100,86 @@ def test_in_flight_completion_is_exact_once():
     assert worker._complete_in_flight(request, False, "TIMEOUT") is False
     assert request.success is True
     assert request.reason is None
+
+
+def test_failure_before_write_prevents_late_serial_send():
+    writes = []
+
+    class FakeSerial:
+        is_open = True
+
+        def write(self, payload):
+            writes.append(payload)
+
+    worker = ready_worker()
+    worker.gsm_ready = False
+    worker._ser = FakeSerial()
+    request = _SendRequest("+639171234567", "message", 1)
+    worker._send_queue.put_nowait(request)
+    sender = threading.Thread(target=worker._sender_loop)
+    sender.start()
+
+    for _ in range(100):
+        with worker._active_lock:
+            if worker._active_request is request:
+                break
+        time.sleep(0.01)
+
+    worker._fail_active_request("NETWORK_LOST")
+    worker.gsm_ready = True
+    time.sleep(0.1)
+    worker._stop.set()
+    sender.join(timeout=2)
+
+    assert request.done.is_set()
+    assert request.reason == "NETWORK_LOST"
+    assert writes == []
+
+
+def test_stale_confirmation_cannot_complete_request_before_write():
+    writes = []
+
+    class FakeSerial:
+        is_open = True
+
+        def write(self, payload):
+            writes.append(payload)
+
+    worker = ready_worker()
+    worker.gsm_ready = False
+    worker._ser = FakeSerial()
+    request = _SendRequest("+639171234568", "message", 1)
+    worker._send_queue.put_nowait(request)
+    sender = threading.Thread(target=worker._sender_loop)
+    sender.start()
+
+    for _ in range(100):
+        with worker._active_lock:
+            if worker._active_request is request:
+                break
+        time.sleep(0.01)
+
+    worker._resolve_in_flight("+639171234567", True, None)
+    assert request.done.is_set() is False
+
+    worker.gsm_ready = True
+    for _ in range(100):
+        if writes:
+            break
+        time.sleep(0.01)
+    worker._resolve_in_flight(request.number, True, None)
+    worker._stop.set()
+    sender.join(timeout=2)
+
+    assert writes == [b"SEND_SMS|+639171234568|message\n"]
+    assert request.success is True
+    assert sender.is_alive() is False
+
+
+@pytest.mark.parametrize("capacity", [0, 21])
+def test_constructor_rejects_capacity_outside_threadpool_safe_range(capacity):
+    with pytest.raises(ValueError, match="between 1 and 20"):
+        SerialWorker("fake", send_queue_maxsize=capacity)
 
 
 def test_serial_connection_uses_finite_write_timeout(monkeypatch):
