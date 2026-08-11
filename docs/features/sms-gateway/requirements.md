@@ -22,16 +22,29 @@ The SMS gateway bridges the main server and an Arduino-based GSM module over a s
 
 ### FR-SG-01 — Outbound SMS
 
-- `POST /gsm/send` accepts `{ phone: string, message: string }`.
-- Requires a valid user or admin JWT (rescuer role for sending arbitrary SMS; system for OTP).
-- The GSM API forwards the message to the Arduino over the serial port (`/dev/ttyACM0`).
-- The Arduino commands the SIM800L / SIM900 module to send the SMS.
-- Response: `{ success: true, message_id: string }` on success; error detail on failure.
+- The direct GSM route is `POST /sms/send` with `{ "number": "+639171234567", "body": "message" }`.
+- One serial send is in flight at a time. At most `SMS_SEND_QUEUE_MAXSIZE` additional requests wait in FIFO order.
+- Admission is non-blocking. Work beyond capacity receives HTTP 503 with `reason: "QUEUE_FULL"`, is logged as failed, and is never written to serial.
+- Unsent work rejected during shutdown receives HTTP 503 with `reason: "SERVICE_STOPPING"`. An in-flight request keeps its actual modem result, `TIMEOUT`, or a reason beginning `WRITE_ERROR: `.
+
+Queue saturation response:
+
+```json
+{
+  "detail": {
+    "message": "Outbound SMS queue is full",
+    "reason": "QUEUE_FULL",
+    "msg_id": "<sms_log UUID>"
+  }
+}
+```
+
+The stopping response has the same shape with `message` set to `SMS service is stopping` and `reason` set to `SERVICE_STOPPING`. These contracts apply to the direct GSM service. The main server currently does not preserve its upstream HTTP status.
 
 ### FR-SG-02 — OTP Request
 
 - `POST /gsm/otp/request` accepts `{ phone: string, purpose: "verification" | "recovery" }`.
-- The main server generates a 6-digit OTP, stores it in `phone_verification` table with a 10-minute TTL, and calls the GSM API `POST /gsm/send` to deliver it.
+- The main server generates a 6-digit OTP, stores it in `phone_verification` table with a 10-minute TTL, and calls the GSM API `POST /sms/send` to deliver it.
 - A phone number may request at most one OTP per 60 seconds (rate-limited by Slowapi).
 - Response: `{ success: true, expires_in: 600 }`.
 
@@ -76,7 +89,7 @@ The SMS gateway bridges the main server and an Arduino-based GSM module over a s
 
 | ID       | Requirement                                                                 |
 |----------|-----------------------------------------------------------------------------|
-| NFR-SG-01 | SMS delivery attempt must complete or fail within 30 seconds               |
+| NFR-SG-01 | `GET /health` remains responsive during outbound saturation and does not wait on a lock held across serial or other blocking I/O |
 | NFR-SG-02 | OTP must expire after exactly 10 minutes                                   |
 | NFR-SG-03 | Inbound webhook must respond within 5 seconds to avoid Arduino timeout     |
 | NFR-SG-04 | Tests must never use a real serial port or SIM module                      |

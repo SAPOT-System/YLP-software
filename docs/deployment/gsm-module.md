@@ -45,6 +45,7 @@ actually reachable from outside the container.
 | Variable | Default | Purpose |
 |---|---|---|
 | `SERIAL_PORT` | `/dev/ttyACM0` | USB serial device for the Arduino/GSM modem |
+| `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum outbound requests waiting behind the one in-flight request. Must be an integer greater than or equal to `1`. |
 | `SERIAL_BAUD` | `9600` | Serial baud rate |
 | `DB_PATH` | `mysql+pymysql://sapot:sapot@localhost:3306/sapot_db` | Database connection (hardcoded default — override in production) |
 | `HOST` | `127.0.0.1` | FastAPI bind host |
@@ -62,28 +63,31 @@ The module ships a pre-seeded SQLite development database at `GSM-module/GSM-fas
 
 ## Production systemd
 
-Create `/etc/systemd/system/server-GSM-api.service`:
-
-```ini
-[Unit]
-Description=SAPOT GSM API
-After=network.target
-
-[Service]
-WorkingDirectory=/home/sapot/YLP-software/GSM-module/GSM-fastapi
-ExecStart=/home/sapot/YLP-software/GSM-module/GSM-fastapi/venv/bin/python3 main.py
-Restart=always
-User=sapot
-EnvironmentFile=/etc/sapot/gsm.env
-
-[Install]
-WantedBy=multi-user.target
-```
+For a first bare-metal host, copy the tracked reference unit `deployment-scripts/server-GSM-api.service` to `/etc/systemd/system/server-GSM-api.service`. Then reload systemd before enabling or starting it. The tracked unit is not installed automatically.
 
 ```bash
+sudo cp deployment-scripts/server-GSM-api.service /etc/systemd/system/server-GSM-api.service
+sudo systemctl daemon-reload
 sudo systemctl enable server-GSM-api
 sudo systemctl start server-GSM-api
 ```
+
+## Outbound capacity and overload
+
+The intended deployment accepts 10 waiting outbound requests and one in-flight serial request by default. Configure `SMS_SEND_QUEUE_MAXSIZE` before the first deployment to change the waiting capacity. When the queue is full, `POST /sms/send` returns HTTP 503 with `QUEUE_FULL`; callers should use bounded backoff and must not retry in a tight loop. Saturation does not cancel an accepted in-flight SMS.
+
+## Queue diagnostics
+
+| Field | Meaning |
+|---|---|
+| `outbound_queue_depth` | Accepted requests waiting for the sender |
+| `outbound_queue_capacity` | Configured maximum waiting requests |
+| `outbound_in_flight` | Whether a request is being written or awaiting modem confirmation |
+| `queue_depth` | Existing inbound queue depth, not outbound capacity |
+
+## Graceful shutdown
+
+Shutdown first rejects new work, then resolves queued unsent work with `SERVICE_STOPPING`. It does not relabel the in-flight SMS, which remains active until its modem outcome or sender-owned timeout. The tracked systemd unit and both Compose files set a 150-second stop budget: 5 seconds serial write timeout + 120 seconds maximum internal confirmation timeout + two joins of up to 5 seconds = 135 seconds, plus a 15-second service-manager margin. Recalculate this budget whenever those timeout or join constants change.
 
 ---
 

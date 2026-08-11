@@ -13,7 +13,7 @@ This feature is server-mediated; it has no P2P path.
 ```
 Main Server (FastAPI)
   ├── POST /gsm/otp/request ──► generate OTP, store in phone_verification
-  │                          └► POST /gsm/send ──────────────────────────────►┐
+  │                          └► POST /sms/send ──────────────────────────────►┐
   │                                                                            │
   └── POST /gsm/inbound ◄── (webhook with X-GSM-Secret) ◄────────────────────┤
                                                                                │
@@ -35,11 +35,11 @@ sequenceDiagram
     participant Ard as Arduino / modem
 
     Note over Main,Ard: Outbound SMS
-    Main->>GSM: POST /gsm/send { phone, message }
-    GSM->>GSM: encode SEND:<phone>:<message> frame
-    GSM->>Ard: serial write (SEND frame)
-    Ard-->>GSM: ACK:<message_id> or ERR:<code>:<detail>
-    GSM->>GSM: mark sms_outbox delivered/failed
+    Main->>GSM: POST /sms/send { number, body }
+    GSM->>GSM: create pending sms_log and admit to bounded FIFO queue
+    GSM->>Ard: SEND_SMS|number|body
+    Ard-->>GSM: SMS_SENT|number or SMS_FAILED|number|reason
+    GSM->>GSM: persist one final sms_log result
 
     Note over Main,Ard: Inbound SMS
     Ard->>GSM: serial RECV:<from_number>:<message_body>
@@ -52,6 +52,10 @@ sequenceDiagram
 ## GSM FastAPI Service — `GSM-module/GSM-fastapi/`
 
 ### `serial_worker.py`
+
+Outbound work uses a bounded FIFO queue. `SMS_SEND_QUEUE_MAXSIZE` limits waiting work only; one request can additionally be in flight. Admission checks lifecycle state, connection, and modem readiness, then calls `put_nowait()` while holding one short-lived lifecycle lock. Full queues return `QUEUE_FULL`; shutdown rejects unsent work with `SERVICE_STOPPING`.
+
+The sender writes `SEND_SMS|<number>|<body>` with a five-second serial write timeout, then owns the modem confirmation timeout. The HTTP caller has a separate wait. Completion clears the in-flight request before signalling it, so late modem events are ignored. During shutdown, the service drains unsent work, preserves the in-flight result, and lets the polling threads stop without a sentinel.
 
 Owns the serial connection lifecycle:
 
@@ -67,69 +71,39 @@ Defines the serial communication protocol between the GSM service and the Arduin
 
 ```
 Outbound (service → Arduino):
-  SEND:<phone>:<message>\n
+  SEND_SMS|<number>|<body>\n
 
 Inbound (Arduino → service):
-  RECV:<from_number>:<message_body>\n
-  ACK:<message_id>\n
-  ERR:<code>:<detail>\n
+  SMS_RECEIVED|<number>|<body>\n
+  SMS_SENT|<number>\n
+  SMS_FAILED|<number>|<reason>\n
 ```
 
-The protocol layer encodes/decodes these frames and validates that all required fields are present before passing to the handler.
+The protocol parser turns valid frames into serial events for the reader thread. The queue and lifecycle state are in memory; `sms_log` is the delivery audit record.
 
 ### `sms_handler.py`
 
-Processes both directions:
-
-**Outbound flow:**
-
-```python
-async def send_sms(phone: str, message: str) -> str:
-    message_id = uuid4().hex
-    frame = protocol.encode_send(phone, message, message_id)
-    serial_worker.serial_send(frame)
-    db.insert_pending(message_id, phone, message)
-    return message_id  # returned to caller for tracking
-```
-
-**Inbound flow:**
-
-```python
-def handle_inbound(line: str):
-    frame = protocol.decode(line)
-    if frame.type == "RECV":
-        # POST to main server webhook
-        requests.post(
-            f"{MAIN_SERVER_URL}/gsm/inbound",
-            json={"from": frame.from_number, "body": frame.message_body},
-            headers={"X-GSM-Secret": GSM_SECRET},
-            timeout=5
-        )
-    elif frame.type == "ACK":
-        db.mark_delivered(frame.message_id)
-    elif frame.type == "ERR":
-        db.mark_failed(frame.message_id, frame.detail)
-```
+Processes inbound messages and determines any reply or forwarded outbound message. The API or internal sender path creates and updates the `sms_log` entry; the serial reader never writes delivery state.
 
 ### GSM FastAPI Routes
 
 | Method | Path       | Description                            |
 |--------|------------|----------------------------------------|
-| POST   | /gsm/send  | Accept send request; enqueue via serial |
-| GET    | /gsm/status| Return service health and serial state |
+| POST   | /sms/send  | Create a message log and enqueue a bounded serial send |
+| GET    | /status | Return service health and serial state |
 
-`/gsm/send` is called by the main server; it is not exposed to mobile clients directly.
+`/sms/send` is called by the main server; it is not exposed to mobile clients directly.
 
-### Storage — `sapot.db`
+### Storage
 
-The GSM service uses a local SQLite database for outbox state:
+The GSM service stores its relay-owned state in the database configured by `DB_PATH`:
 
 | Table        | Purpose                                    |
 |--------------|--------------------------------------------|
-| sms_outbox   | Pending and delivered outbound messages    |
-| sms_inbound  | Log of received inbound messages           |
+| sms_log   | Inbound and outbound message audit records |
+| sms_session  | Per-number conversation state |
 
-In production, `DB_PATH` environment variable points to a MariaDB connection string to replace SQLite.
+The committed `sapot.db` is stale and is not the deployment datastore.
 
 ---
 
@@ -180,7 +154,7 @@ sequenceDiagram
 
     User->>Main: POST /gsm/otp/request { phone }
     Main->>Main: generate 6-digit OTP, bcrypt hash,<br/>upsert phone_verification (expires_at +10min)
-    Main->>GSM: POST /gsm/send { phone, "Your SAPOT code is..." }
+    Main->>GSM: POST /sms/send { number, body }
     GSM->>Ard: serial SEND frame
     Ard-->>User: SMS delivered
 
@@ -269,7 +243,7 @@ OTP endpoints use Slowapi on the main server:
 ## Scalability
 
 - Designed for low SMS volume (OTPs and occasional fallback messages), not bulk SMS — a single serial-attached modem has a hard throughput ceiling unsuitable for high-volume sending.
-- `sms_outbox`/`sms_inbound` grow unboundedly with no documented retention policy; the sqlite-vs-MariaDB storage note in [migrations.md](../../database/migrations.md#gsm-module-database-note) means production data must be in the MariaDB path, not the stale committed `sapot.db`.
+- `sms_log` records grow without a documented retention policy. The deployment datastore is the MariaDB path configured through `DB_PATH`, not the stale committed `sapot.db`.
 
 ## Acceptance criteria
 

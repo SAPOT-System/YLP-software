@@ -43,7 +43,8 @@ GSM_SECRET=<shared secret with GSM module>
 
 > **Note:** `GSM-module/` also contains a separate, undocumented `GSM-API/` directory with its own
 > app code and a committed `.env.example` (`SAPOT_API_URL`, `GSM_SECRET` only). It is not referenced
-> by any doc, systemd unit, or setup guide in this repo — `GSM-fastapi/` is the deployed component
+> by any doc, systemd unit, or setup guide in this repo. `GSM-fastapi/` is the current implementation
+> and intended deployment target.
 > (see [gsm-module.md](gsm-module.md) and [gsm-module-setup.md](../getting-started/gsm-module-setup.md)).
 > Not resolved as part of this pass; flagged for a follow-up doc/architecture decision.
 
@@ -58,6 +59,7 @@ GSM_SECRET=<shared secret with GSM module>
 | `SAPOT_API_URL` | `http://localhost:8000` | Base URL the GSM module uses to call back into the SAPOT server (`database.py`) — must match wherever the server actually listens |
 | `GSM_SECRET` | `""` (empty — webhook auth disabled) | Shared secret sent as `X-GSM-Secret` on both directions of the server↔GSM webhook calls (`database.py`). **Must match the server's `GSM_SECRET`** (see above) |
 | `SMS_BOT_USER_ID` | unset | User ID the GSM module attributes inbound SMS-originated messages to, when the sender can't be resolved to a registered user (`database.py`) |
+| `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum waiting outbound requests. Must be an integer greater than or equal to `1`; zero, negatives, blanks, and non-integers fail startup. The one in-flight request is excluded, so resident outbound work is this capacity plus one. |
 
 ### Recommended production `gsm.env`
 
@@ -71,6 +73,7 @@ LOG_LEVEL=INFO
 SAPOT_API_URL=https://<sapot-server-host>
 GSM_SECRET=<same shared secret as server's GSM_SECRET>
 SMS_BOT_USER_ID=<uuid of the SMS bot user, if applicable>
+SMS_SEND_QUEUE_MAXSIZE=10
 ```
 
 ---

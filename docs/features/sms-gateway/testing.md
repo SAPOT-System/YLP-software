@@ -2,6 +2,8 @@
 
 ## Strategy
 
+The current implementation has focused automated tests under `GSM-module/GSM-fastapi/tests/`. They mock serial I/O and database calls and must never open a real serial device.
+
 | Layer       | Tooling                          | Scope                                                              |
 |-------------|----------------------------------|--------------------------------------------------------------------|
 | Unit        | pytest                           | `protocol.py` encode/decode, `sms_handler` outbound/inbound logic |
@@ -28,7 +30,7 @@
 
 - **Serial port** — mock `serial_worker.serial_send`; never open a real `/dev/ttyACM0`. Use `unittest.mock.patch`.
 - **GSM API HTTP calls** — mock `requests.post` in `sms_handler.handle_inbound`; never hit the real main server.
-- **Main server → GSM API calls** — mock the GSM API `POST /gsm/send` with `respx` or `responses`; never hit the real GSM service.
+- **Main server → GSM API calls** — mock the GSM API `POST /sms/send` with `respx` or `responses`; never hit the real GSM service.
 - **Database** — use in-memory SQLite for both the GSM service (`sapot.db`) and main server tests.
 - **Time** — use `freezegun` for OTP expiry assertions.
 - **GSM_SECRET** — set via `os.environ` in fixture setup; use a fixed test value `"test-gsm-secret-value"`.
@@ -38,25 +40,35 @@
 
 ## Test Cases
 
+### Outbound queue and shutdown
+
+| Scenario | Expected result |
+|---|---|
+| Capacity is reached | The next request fails immediately with `QUEUE_FULL` and no serial write |
+| Shutdown drains waiting work | Unsent requests resolve as `SERVICE_STOPPING`; the in-flight request keeps its actual result |
+| Modem event races timeout | Completion occurs once and late events are ignored |
+| Serial write stalls | The finite write timeout produces a reason beginning `WRITE_ERROR: ` |
+| Saturated service health check | `/health` remains responsive and detailed health reports outbound depth, capacity, and in-flight state |
+
 ### `protocol.py` — Unit
 
 | Scenario | Expected result |
 |----------|-----------------|
-| `encode_send("+639171234567", "hello", "msg-1")` | Returns `"SEND:+639171234567:hello:msg-1\n"` |
+| `build_send_sms("+639171234567", "hello")` | Returns `"SEND_SMS|+639171234567|hello\n"` |
 | `decode("RECV:+639171234567:test message\n")` | Returns frame with `type="RECV"`, `from_number="+639171234567"`, `message_body="test message"` |
-| `decode("ACK:msg-1\n")` | Returns frame with `type="ACK"`, `message_id="msg-1"` |
+| `parse_line("SMS_SENT|+639171234567\n")` | Returns an `SMS_SENT` event |
 | `decode("ERR:101:module timeout\n")` | Returns frame with `type="ERR"`, `code="101"`, `detail="module timeout"` |
 | `decode("INVALID\n")` | Raises `ProtocolError` |
 | Message body containing colon character | Encoded and decoded without truncation |
 
-### GSM Service — `POST /gsm/send` (Integration)
+### GSM Service — `POST /sms/send` (Integration)
 
 | Scenario | Expected result |
 |----------|-----------------|
 | Valid `{ phone, message }` payload | `serial_worker.serial_send` called with correct encoded frame; row inserted in `sms_outbox` with status `pending`; response `{ success: true, message_id }` |
 | Arduino ACK received via serial | `sms_outbox` row updated to `delivered` |
 | Arduino ERR received via serial | `sms_outbox` row updated to `failed` with error detail |
-| Serial port unavailable at startup | Service returns 503 on `/gsm/send`; error logged |
+| Serial port unavailable at startup | Service returns 503 on `/sms/send`; error logged |
 | Missing `phone` field | Returns 422 |
 | `message` exceeds 160 characters | Returns 400 or splits into multiple frames depending on config |
 
@@ -103,7 +115,7 @@
 |----------|-----------------|
 | `handle_inbound("RECV:+639171234567:hello\n")` | `requests.post` called to main server `/gsm/inbound` with correct payload and `X-GSM-Secret` header |
 | Main server webhook call times out | Error logged; no retry in v1; service continues |
-| `handle_inbound("ACK:msg-1\n")` | `sms_outbox` row for `msg-1` updated to `delivered` |
+| `SMS_SENT|+639171234567` | Resolves the one in-flight request; the waiting sender persists the final result |
 | `handle_inbound("ERR:101:timeout\n")` | Matching outbox row updated to `failed` |
 | Serial line that does not parse | `ProtocolError` caught; error logged; service continues |
 
@@ -111,12 +123,16 @@
 
 ## Test File Locations
 
+- `tests/test_config.py`: queue-capacity defaults and invalid settings.
+- `tests/test_serial_worker.py`: capacity, lifecycle cutoff, exact-once completion, shutdown draining, and serial write timeout.
+- `tests/test_api_queue.py`: 503 queue and shutdown contracts plus saturation diagnostics.
+
 ```
 GSM-module/GSM-fastapi/
   tests/
-    test_protocol.py
-    test_sms_handler.py
-    test_gsm_api.py
+    test_config.py
+    test_serial_worker.py
+    test_api_queue.py
 
 server/
   tests/

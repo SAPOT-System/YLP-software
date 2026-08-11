@@ -62,6 +62,8 @@ A second background thread (`expire_announcements_loop`) periodically marks anno
 
 The GSM module logs to `GSM-module/GSM-fastapi/sapot.log`. Rotate or clear this file periodically in production.
 
+When outbound admission returns `QUEUE_FULL`, the service logs the outbound queue depth and configured capacity at warning level. It must not log the SMS body. Operators should check modem readiness and throughput, allow the queue to drain, and investigate callers before increasing capacity; raising the limit increases waiting time and worker occupancy.
+
 ---
 
 ## Health checks
