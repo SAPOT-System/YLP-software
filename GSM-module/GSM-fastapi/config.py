@@ -11,9 +11,10 @@ Examples:
 
 import os
 from dotenv import load_dotenv
+from serial_worker import MAX_SEND_QUEUE_SIZE
 
 
-def positive_integer_env(name: str, default: int) -> int:
+def bounded_integer_env(name: str, default: int, maximum: int) -> int:
     value = os.environ.get(name)
     if value is None:
         return default
@@ -21,11 +22,11 @@ def positive_integer_env(name: str, default: int) -> int:
         parsed = int(value)
     except ValueError as error:
         raise RuntimeError(
-            f"Environment variable '{name}' must be an integer greater than or equal to 1."
+            f"Environment variable '{name}' must be an integer between 1 and {maximum}."
         ) from error
-    if parsed < 1:
+    if not 1 <= parsed <= maximum:
         raise RuntimeError(
-            f"Environment variable '{name}' must be an integer greater than or equal to 1."
+            f"Environment variable '{name}' must be an integer between 1 and {maximum}."
         )
     return parsed
 
@@ -38,7 +39,6 @@ class Settings:
     # Baud rate — must match PC_BAUD in the Arduino sketch (9600)
     serial_baud: int = int(os.environ.get("SERIAL_BAUD", "9600"))
 
-    # SQLite database file path
     db_path: str | None = os.environ.get("DB_PATH")
 
     if not db_path:
@@ -51,8 +51,9 @@ class Settings:
     # Logging level
     log_level: str = os.environ.get("LOG_LEVEL", "INFO")
 
-    # Maximum number of outbound SMS requests waiting behind the in-flight send
-    sms_send_queue_maxsize: int = positive_integer_env("SMS_SEND_QUEUE_MAXSIZE", 10)
+    sms_send_queue_maxsize: int = bounded_integer_env(
+        "SMS_SEND_QUEUE_MAXSIZE", 10, MAX_SEND_QUEUE_SIZE
+    )
 
 
 settings = Settings()
