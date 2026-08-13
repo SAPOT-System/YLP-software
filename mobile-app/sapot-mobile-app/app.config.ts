@@ -260,18 +260,6 @@ export default ({ config }: ConfigContext) => ({
       },
     ],
     [
-      "expo-background-task",
-      {
-        android: {
-          foregroundService: {
-            notificationTitle: "App is running",
-            notificationBody: "Listening for incoming calls...",
-            notificationColor: "#ffffff",
-          },
-        },
-      },
-    ],
-    [
       "@lovesworking/watermelondb-expo-plugin-sdk-52-plus",
       {
         disableJsi: true,

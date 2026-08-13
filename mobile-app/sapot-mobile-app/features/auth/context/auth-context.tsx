@@ -214,9 +214,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       authLog.debug("auth › bootstrap start");
       setLoading(true);
       try {
-        // Check guest status first: `syncGuestUser` also writes `userUUID`
-        // (so the background task can find it), so a persisted guest looks
-        // identical to an authenticated user by that key alone. Guest status
+        // Check guest status first: `syncGuestUser` also writes `userUUID`,
+        // so a persisted guest looks identical to an authenticated user by
+        // that key alone. Guest status
         // is the more specific signal — a guest_user row only exists for
         // guests — so it must be checked before falling into the
         // authenticated-user branch below, or a restored guest would

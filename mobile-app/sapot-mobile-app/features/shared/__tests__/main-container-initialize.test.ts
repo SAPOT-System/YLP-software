@@ -12,10 +12,6 @@ jest.mock("@/config/runtime", () => ({
   getServerVerifyKey: jest.fn(() => null),
 }));
 
-jest.mock("@/task/signaling-task", () => ({
-  setAppAlive: jest.fn(),
-}));
-
 jest.mock("@react-native-community/netinfo", () => ({
   __esModule: true,
   default: { addEventListener: jest.fn(() => jest.fn()) },
@@ -36,8 +32,6 @@ jest.mock("../core/stores/secure-config", () => ({
   getStoredAccessToken: jest.fn().mockResolvedValue(null),
   getMigrationState: jest.fn().mockResolvedValue(null),
   clearMigrationState: jest.fn().mockResolvedValue(undefined),
-  saveConnectionConfig: jest.fn().mockResolvedValue(undefined),
-  saveUserProfile: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../crypto/local-encryption-service", () => ({

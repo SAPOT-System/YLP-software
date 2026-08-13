@@ -173,13 +173,11 @@ Both `HealthProvider` (`health-context.tsx`) and `ServerHealthProvider` (`server
 
 **Risk:** if a service-side state change doesn't emit, the UI is stale. If an event fires out of order (e.g., late `call-ended` after a timeout), the guard refs (`hasTerminated.current`) must prevent double-processing. See [CallContext debugging](#1-callcontext-the-worst).
 
-### d) Connection config in-memory + secure-store
-`NetworkConfig` generates a port and reads the IP on init, then keeps both in-memory. On IP change, it immediately writes to secure-store (for the background task to pick up):
-- `network-config.ts:54` — `saveLocalIp()` on init
-- `network-config.ts:83` — `saveLocalIp()` debounced 3s on change
-- `network-config.ts:89–97` — calls `onIpChange` callback after debounce
+### d) Connection config in memory
 
-**Risk:** background task reads stale IP if foreground app crashes before the debounce fires. Low risk in practice (3s window), but a race.
+`NetworkConfig` generates a port and reads the IP on initialization, then keeps both in memory. On an IP change, it updates `ipAddress` immediately and calls the registered `onIpChange` callback after a three-second debounce so transports can rebind once.
+
+Connection state is not handed to a second background process. The Android foreground service keeps the existing process and service instances alive while the app is backgrounded.
 
 ---
 
@@ -196,10 +194,9 @@ Services emit events; `CallContext` and other components subscribe in `useEffect
 ### In-memory ↔ secure-store (eager writes)
 When a user changes a setting or a system value updates, write immediately to secure-store:
 - `AppModeStore.setMode()` → `saveAppMode()` async
-- `NetworkConfig.startWatching()` → `saveLocalIp()` on IP change
 - `UserService.syncAuthenticatedUser()` → `setItemAsync("userUUID", ...)`
 
-**Cost:** async writes that might fail silently (errors are logged but not propagated). Background task might read fresh values even if write fails.
+**Cost:** async writes that might fail silently because errors are logged but not propagated.
 
 ### DB ↔ Server (SyncService)
 `SyncService` polls the server every 60s (or on demand), using `lastPulledAt` (stored in secure-store) to fetch only recent changes. Reads write back to WatermelonDB. See `docs/SYNC.md`.
@@ -225,9 +222,7 @@ Similarly for password recovery (`setPendingPassword`). This is **implicit, muta
 
 1. **WatermelonDB** is the offline cache for domain data. UI reads from it regardless of network. Sync updates it when connectivity returns.
 
-2. **secure-store** caches identity (`userUUID`, `username`, profile) and config (tokens, peerId, IP/port) so that:
-   - The app can boot and authenticate locally if offline
-   - The background signaling task can read config without waking the main app
+2. **secure-store** persists credentials, encryption keys, transport mode, sync progress, and the optional server host override. Authentication state can be rebuilt locally when the server is unavailable.
 
 3. **Offline-auth fallback** (`auth-context.tsx:181–204`): when `refreshSession` fails with a network error, rebuild the session from the local `peers` row. Set `isOfflineWithExpiredToken` to warn the user.
 
