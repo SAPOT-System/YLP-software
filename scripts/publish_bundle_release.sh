@@ -5,7 +5,7 @@ repository=${1:?repository}; tag=${2:?tag}; version=${3:?version}; commit=${4:?c
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$root/scripts/lib/github-api.sh"
 [[ -n "${SAPOT_RELEASE_POLICY_TOKEN:-}" ]] || { echo "missing SAPOT_RELEASE_POLICY_TOKEN" >&2; exit 1; }
-for command in "verify" "verify-asset"; do gh release --help | grep -Eq "(^|[[:space:]])$command([[:space:]]|$)" || { echo "installed gh lacks gh release $command" >&2; exit 1; }; done
+for command in "verify" "verify-asset"; do gh release --help | grep -Eq "(^|[[:space:]])$command(:|[[:space:]]|$)" || { echo "installed gh lacks gh release $command" >&2; exit 1; }; done
 check_immutable() { GH_TOKEN="$SAPOT_RELEASE_POLICY_TOKEN" github_api "repos/$repository/immutable-releases" --jq '.enabled' | grep -qx true; }
 check_immutable || { echo "repository immutable releases must be enabled" >&2; exit 1; }
 [[ -f "$archive" && -f "$checksum" && -f "$notes" ]] || { echo "release inputs are missing" >&2; exit 1; }
