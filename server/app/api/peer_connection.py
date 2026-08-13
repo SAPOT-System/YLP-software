@@ -1,25 +1,23 @@
 import asyncio
-import json
 import logging
 import re
-
 import ast
-import enum
-from typing import Annotated
-from uuid import UUID
 import json
-import ast
+from uuid import UUID
 
-from sqlmodel import except_, select, Session
+from sqlmodel import select, Session
 from app.db_operations.auth import SessionDep, engine
-from fastapi import APIRouter, Depends, WebSocket
-from fastapi.responses import HTMLResponse
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
-from app.db_operations.token import verify_token
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.models.queued import Queue
 from app.models.signalling import SignalMessage
-from fastapi import Query, WebSocketDisconnect
-from app.db_operations.websockets import authenticate_websocket, relay_message, relay_public_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message, WebSocketAuthError
+from app.db_operations.websocket_auth import WebSocketAuthError, authenticate_websocket
+from app.db_operations.websockets import (
+    receive_signal_message,
+    relay_message,
+    relay_public_message,
+    relay_signal,
+    validate_sender,
+)
 from app.db_operations.connection_manager import manager
 from app.db_operations.activity import set_user_status
 from app.models.websocketComms import MessageData, PublicMessageData
@@ -76,55 +74,6 @@ router = APIRouter(
 # }));
 
 
-html = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>Chat</title>
-    </head>
-    <body>
-        <h1>WebSocket Chat</h1>
-        <h2>Your ID: <span id="ws-id"></span></h2>
-        <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off" value='  { "type": "offer", "data":  { "sender": "550e8400e29b41d4a716446655440000", "ipAddress": "192.168.254.32", "port": 8000, "to": "619176107fed4af4abb235dc9663136d" } }'/>
-            <button>Send</button>
-        </form>
-        <ul id='messages'>
-        </ul>
-        <script>
-            const urlParams = new URLSearchParams(window.location.search);
-            const id = urlParams.get('my_id');
-            const client_id = urlParams.get('target_id');
-            var my_id = id
-            var token = urlParams.get('token');
-            document.querySelector("#ws-id").textContent = my_id;
-            var ws = new WebSocket(`ws://localhost:8000/ws/?target_id=${client_id}&token=${token}`);
-            ws.onmessage = function(event) {
-            console.log("RECEIVED")
-                var messages = document.getElementById('messages')
-                var message = document.createElement('li')
-                var content = document.createTextNode(event.data)
-                message.appendChild(content)
-                messages.appendChild(message)
-            };
-            function sendMessage(event) {
-                var input = document.getElementById("messageText")
-                ws.send(input.value)
-                console.log("clicked", input.value)
-                input.value = ''
-                event.preventDefault()
-            }
-        </script>
-    </body>
-</html>
-"""
-
-
-@router.get("/")
-async def testing_area(target_id: UUID, my_id: UUID, token: str):
-    return HTMLResponse(html)
-
-
 def get_queued_messages(user_id: UUID, session: SessionDep, limit: int = 100):
     try:
         statement = select(Queue).where(Queue.to == user_id).limit(limit)
@@ -167,7 +116,7 @@ def deep_parse_dict(data):
 
 
 @router.websocket("/")
-async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None = None):
+async def main_web_socket(websocket: WebSocket, target_id: UUID|None = None):
     """
     will relay the sdp between different users
     can handle
@@ -177,13 +126,13 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
     handshakes
     """
     try:
-        user_id = await authenticate_websocket(websocket, token)
+        user_id = await authenticate_websocket(websocket)
     except WebSocketAuthError:
         logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
         return
 
-    await manager.connect(UUID(user_id), websocket)
-    asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Active")
+    await manager.connect(user_id, websocket)
+    asyncio.get_event_loop().run_in_executor(None, _set_status_bg, user_id, "Active")
     try:
         await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
     except:
@@ -191,7 +140,7 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
 
     try:
         with Session(engine) as session:
-            messages = get_queued_messages(UUID(user_id), session)
+            messages = get_queued_messages(user_id, session)
             if messages:
                 for message in messages:
                     try:
@@ -238,10 +187,10 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
                     except Exception:
                         payload = raw_payload
             if isinstance(payload, dict) and payload.get("type") == "ping":
-                await manager.send_personal_message(UUID(user_id), {"type": "pong"})
+                await manager.send_personal_message(user_id, {"type": "pong"})
             # get online users
             elif isinstance(payload, dict) and payload.get("type") == "get-active-users":
-                await manager.send_personal_message(UUID(user_id), await manager.get_active_connections())
+                await manager.send_personal_message(user_id, await manager.get_active_connections())
             # relay public chat data
             elif isinstance(payload, PublicMessageData):                
                 with Session(engine) as session:
@@ -263,5 +212,5 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
             await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
         except:
             pass
-        asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Inactive")
-        await manager.disconnect(UUID(user_id))
+        asyncio.get_event_loop().run_in_executor(None, _set_status_bg, user_id, "Inactive")
+        await manager.disconnect(user_id)

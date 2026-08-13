@@ -6,7 +6,7 @@ Machine-readable spec: [`openapi/messaging-and-websocket.yaml`](openapi/messagin
 
 | Method | Path | Auth | Summary |
 |---|---|---|---|
-| WS | `/ws/` | `token` query param (JWT); optional `target_id` | Real-time hub: chat relay, WebRTC signalling, presence, public chat. |
+| WS | `/ws/` | `Sec-WebSocket-Protocol: sapot.jwt, <JWT>`; optional `target_id` | Real-time hub: chat relay, WebRTC signalling, presence, public chat. |
 | GET | `/public-chat` | JWT Bearer | Paginated public chat history. Query params: `limit` (default 100), `before` (created_at cursor, epoch ms). |
 
 ## Overview
@@ -23,15 +23,18 @@ The server does **not** read message content — it relays encrypted blobs. The 
 
 ## WebSocket /ws/
 
-**Auth:** `token` query parameter (JWT)
+**Auth:** ordered WebSocket subprotocol offer `sapot.jwt`, then the access token
 
-```
-wss://<host>/ws/?token=<access_token>
-wss://<host>/ws/?token=<access_token>&target_id=<uuid>
+```javascript
+const socket = new WebSocket("wss://<host>/ws/", ["sapot.jwt", accessToken]);
+const targetedSocket = new WebSocket("wss://<host>/ws/?target_id=<uuid>", [
+  "sapot.jwt",
+  accessToken,
+]);
 ```
 
 **On connect:**
-1. Token is validated; connection is rejected (code 1008) if invalid.
+1. The subprotocol offer and token are validated; the server selects `sapot.jwt`. Invalid or ambiguous offers close with code 1008.
 2. Queued messages for this user are drained and delivered.
 3. A `status-update` broadcast (`online`) is sent to all connected users.
 
@@ -45,7 +48,7 @@ sequenceDiagram
     participant Server as /ws/
     participant Others as Other connected clients
 
-    Client->>Server: connect wss://host/ws/?token=<jwt>
+    Client->>Server: connect wss://host/ws/<br/>protocols: sapot.jwt, JWT
     alt token invalid
         Server-->>Client: close (code 1008)
     else token valid

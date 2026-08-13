@@ -13,6 +13,12 @@ The server uses a dual-token system (access + refresh):
 
 JWT signing uses `PyJWT`. Token expiry constants are in `db_operations/token.py`.
 
+### WebSocket authentication
+
+WebSocket clients send no JWT in the request URL. They offer exactly two subprotocol values in order: `sapot.jwt` and the access token. The server validates the token, then accepts the connection with `sapot.jwt` selected.
+
+The server closes the handshake with code 1008 when the protocols are missing, malformed, expired, or ambiguous. It also rejects every `token` query parameter, including requests that also provide valid subprotocol credentials. Production and preview clients use `wss://`; plaintext `ws://` is limited to explicit local development.
+
 ---
 
 ## Password hashing

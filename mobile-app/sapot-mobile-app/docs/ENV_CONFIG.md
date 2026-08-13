@@ -133,7 +133,7 @@ Logic in `config/runtime.ts`:
 
 | Condition | API Base URL | WS Base URL | Tile Server URL |
 |---|---|---|---|
-| Host override set | `https://<override>` | `wss://<override>` | `https://<override>/tiles` |
+| Host override set | `https://<override>` | normalized override, secure unless explicit local development | `https://<override>/tiles` |
 | `__DEV__ === true` | `https://<DEV_HOST>` | `wss://<DEV_HOST>` | `https://<DEV_HOST>/tiles` |
 | EAS channel `preview` | `https://server.sapot.lan` | `wss://server.sapot.lan` | `https://server.sapot.lan/tiles` |
 | EAS channel `production` | `https://server.sapot.lan` | `wss://server.sapot.lan` | `https://server.sapot.lan/tiles` |
@@ -141,7 +141,9 @@ Logic in `config/runtime.ts`:
 
 `server.sapot.lan` is a stable, build-time-fixed hostname (`config/runtime.ts`'s `SERVER_NAME` constant), resolved via normal DNS/hosts on the network — it is not baked to a literal IP, so the server's IP can change without a mobile rebuild as long as `server.sapot.lan` still resolves to it (see the cert-rotation runbook's SAN, which includes both the DNS name and the LAN IP). To point to a different backend locally, update `DEV_HOST` in `config/runtime.ts` or set `EXPO_PUBLIC_DEV_HOST`, or use the dev/QA host override (`setRuntimeHostOverride`, persisted via `secure-config.ts`).
 
-The app always speaks HTTPS/WSS, including in `__DEV__` — there is no plaintext HTTP fallback. Your local dev server must terminate TLS with a cert the dev build's network-security-config trusts (system/user CA store, or the bundled default CA); see `docs/getting-started/mobile-app-setup.md`'s "Configure TLS trust for local development" section.
+Preview and production builds require WSS. `normalizeWebSocketUrl()` rejects `ws://` and `http://` outside `__DEV__`. Local development still defaults to WSS, but may use an explicit `ws://` or `http://` origin when a TLS terminator is unavailable. Production REST and tile URLs remain HTTPS-only.
+
+The mobile signaling and GPS clients both use this shared normalization. They connect to token-free paths and pass `["sapot.jwt", accessToken]` to the WebSocket constructor. Reconnects reuse the current token through the same contract.
 
 ---
 

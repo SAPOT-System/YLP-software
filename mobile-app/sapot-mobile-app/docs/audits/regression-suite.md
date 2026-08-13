@@ -160,7 +160,7 @@ Before merging to `main` or tagging a release:
 1. GET /                                       → {"state": "running"} ✓
 2. POST /auth/ (register)                      → 200 + tokens ✓
 3. POST /auth/token (login)                    → 200 + tokens ✓
-4. WS /ws/?token=<access_token>               → connected + status-update:online ✓
+4. WS /ws/ with protocols [sapot.jwt, token]  → connected + status-update:online ✓
 5. Send {type: "ping"}                         → {type: "pong"} ✓
 6. GET /sync/pull?last_pulled_at=0             → {changes, timestamp} ✓
 7. GET /user-utils/get-announcements           → 200 ✓

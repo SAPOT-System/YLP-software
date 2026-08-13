@@ -326,10 +326,10 @@ requires token url parameter sent to a user email. Responds with an html page
 requires user to be authenticated
 
 ** Websocket/signalling
-*** SDP relay example ~/ws GET~
+*** SDP relay example ~/ws WebSocket~
 - access like
-  ~https://ylp-software.onrender.com/ws/?target_id=8380dbb9-482e-42fa-a1fd-fafedd9f918d&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwOWM4ZDRlYS00OGYwLTRiN2UtYWY1Mi0yZDNmY2FkMGU2OGQiLCJleHAiOjE3NzI0NTU2MDh9.aD-vGqlRHdx_-zHm9Oev12VKCvOoU9MhLm-7rTLnNok&my_id=09c8d4ea-48f0-4b7e-af52-2d3fcad0e68d~.
-  Notice the url parameters of my_id, target_id, and token (access_token).
+  ~wss://server.sapot.lan/ws/?target_id=8380dbb9-482e-42fa-a1fd-fafedd9f918d~.
+  Offer ~sapot.jwt~ followed by the access token as WebSocket subprotocols.
 
 *** SDP relay ~ws://localhost:8000/ws/~ (not visible on the docs)
 - this is an endpoint that will be used for relaying SDP offers, answers, and
@@ -338,7 +338,7 @@ requires user to be authenticated
   Anything else will be rejected.
 **** Sample Connection to websocket
   #+BEGIN_SRC json
-  ws://localhost:8000/ws/?target_id=${client_id}&token=${token}
+  ws://localhost:8000/ws/?target_id=${client_id}
   #+END_SRC
   Put this link url (change domain as needed but it needs ws:// or wss:// at the
   protocol) inside a WebSocket object, then send a sdp message like
@@ -351,7 +351,7 @@ requires user to be authenticated
     }
   #+END_SRC
 
-  *Note that the ~from~ and ~to~ should be the same as the connection parameters*
+  *Note that the ~from~ and ~to~ should match the authenticated user and target.*
 
 ***** TODO
 ****** ADD TYPES
@@ -1175,12 +1175,12 @@ use the web socket like:
   const WebSocket = require('ws');
 
   // 1. Configuration
-  const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlNTA1OGIwZS0xOTYxLTRiOWItODVmZC02NmU4Yjk3MzMwYjMiLCJqdGkiOiJlYjcwNjI4Ny1hNDA2LTQzMTYtOGQwNi0wMmI4YTFkZWJlODAiLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc2OTkyNzA5fQ.TTOr7rSLK9rSYuDB2iefyTw0Z11WARzm9Y7enfI_EIk";
-  const WS_URL = `ws://localhost:8000/ws/?token=${TOKEN}`;
+  const TOKEN = "<access-token>";
+  const WS_URL = "ws://localhost:8000/ws/";
 
   const MY_USER_ID = "e5058b0e-1961-4b9b-85fd-66e8b97330b3"; 
 
-  const socket = new WebSocket(WS_URL);
+  const socket = new WebSocket(WS_URL, ["sapot.jwt", TOKEN]);
 
   socket.on('open', () => {
       console.log("✅ Connected to Public Chat Server");
@@ -1221,5 +1221,3 @@ use the web socket like:
 #+END_SRC
 
 This public chat can be retrieved through ~/sync/pull~ endpoint. Public chat records must have conversation_id as ~null~.
-
-

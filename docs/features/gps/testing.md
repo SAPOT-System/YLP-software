@@ -40,6 +40,8 @@
 | Scenario | Expected result |
 |----------|-----------------|
 | User connects to `WS /gps/ws/{user_id}` with valid JWT | Connection accepted; user added to `streaming_connections` |
+| User offers `sapot.jwt` followed by a valid JWT | Connection accepted with `sapot.jwt` selected; URL contains no credential |
+| User sends a query token or malformed subprotocol list | Connection closes with code 1008 |
 | User sends `{ "lat": 14.5995, "lng": 120.9842 }` | Row inserted in `user_locations` with correct user_id and timestamp |
 | User sends malformed frame (missing `lng`) | Connection receives error frame; no DB write |
 | User disconnects | Removed from `streaming_connections`; no error |
@@ -69,6 +71,7 @@
 | Hook unmounts | WebSocket `close()` called; `locationSub.remove()` called |
 | Permission denied on mount | `permissionDenied` state set to `true`; WebSocket never opened |
 | WebSocket closes unexpectedly | Reconnect attempted after 3 s; exponential back-off applied |
+| WebSocket reconnects | Constructor receives `["sapot.jwt", currentToken]`; URL still contains no token |
 | Component unmounts before reconnect fires | Reconnect timer cleared; no further connection attempts |
 | GPS update fires while WS is not yet open | Frame queued or skipped; no crash |
 

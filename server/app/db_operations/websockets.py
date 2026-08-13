@@ -8,24 +8,9 @@ from app.db_operations.auth import SessionDep
 from app.models.message import Message
 from app.models.queued import Queue
 from app.models.signalling import SignalMessage
-from app.db_operations.token import verify_token
 from app.db_operations.connection_manager import manager
 from app.models.users import User
 from app.models.websocketComms import MessageData, PublicMessageData
-
-
-class WebSocketAuthError(Exception):
-    pass
-
-
-async def authenticate_websocket(websocket: WebSocket, token: str) -> UUID:
-    user_id = verify_token(token)
-
-    if not user_id:
-        await websocket.close(code=1008)
-        raise WebSocketAuthError("Unauthorized")
-
-    return user_id
 
 def validate_sender(payload: SignalMessage, user_id: UUID) -> bool:
     data = payload.data.model_dump()

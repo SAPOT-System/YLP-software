@@ -90,6 +90,29 @@ describe("getWsUrl", () => {
     jest.resetModules();
   });
 
+  it("allows an explicit plaintext websocket URL in development", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = true;
+    const { normalizeWebSocketUrl } = require("../runtime");
+
+    expect(normalizeWebSocketUrl("http://127.0.0.1:8000/")).toBe(
+      "ws://127.0.0.1:8000"
+    );
+  });
+
+  it("rejects plaintext websocket URLs outside development", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = false;
+    const { normalizeWebSocketUrl } = require("../runtime");
+
+    expect(() => normalizeWebSocketUrl("ws://server.sapot.lan")).toThrow(
+      "Plaintext WebSocket URLs are only allowed in development"
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__DEV__ = true;
+  });
+
   it("should return development websocket URL when in development mode", () => {
     const { getWsUrl } = require("../runtime");
     const result = getWsUrl();

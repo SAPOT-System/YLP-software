@@ -792,7 +792,8 @@ the start of history has been reached.
 
 Location history and last-known positions for the map screen. Live streaming does **not** go
 through REST — it uses a dedicated WebSocket (`/gps/ws/<userId>`), independent of
-`ConnectionService`.
+`ConnectionService`. The WebSocket URL contains no token. The client offers `sapot.jwt` and the
+access token as its two subprotocol values.
 
 ### `GET /gps/latest` — Latest Location Per User
 **Auth:** Required

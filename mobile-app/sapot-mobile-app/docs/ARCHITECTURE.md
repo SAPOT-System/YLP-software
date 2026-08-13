@@ -265,7 +265,7 @@ Thin injectable wrappers around native modules, allowing them to be replaced wit
 |---|---|
 | `TcpServerAdapter` | `react-native-tcp-socket` (server) |
 | `TcpClientAdapter` | `react-native-tcp-socket` (client, one per peer) |
-| `WsSignalingAdapter` | WebSocket with auto-reconnect + heartbeat — shared by `SignalingService`, `ConnectionService`, and `PublicChatService` |
+| `WsSignalingAdapter` | WebSocket with auto-reconnect and heartbeat, shared by `SignalingService`, `ConnectionService`, and `PublicChatService`. Offers `sapot.jwt` and the access token as subprotocols so credentials never enter the URL. |
 | `WebrtcAdapter` | **Facade.** `react-native-webrtc` (RTCPeerConnection, one per peer). Liveness ping/pong probing now delegated to `LivenessMonitor`; ICE-restart backoff delegated to `IceRestartController`. Both sub-units are driven by the adapter via injected closures (no direct adapter reference). `// TODO(refactor): extract local-media-controls` — `initializeLocalStream*`, `toggleMic`, `toggleCamera`, `switchCamera`, `getLocalStream` share `peerConnection`/`localStream` with `createPeerConnection`/`cleanup`, so this split is deferred to avoid a PC-core split; reaching <800 lines is possible once that seam is clean. |
 | `LivenessMonitor` | Application-level data-channel ping/pong probe, extracted from `WebrtcAdapter`. Detects half-open links and triggers ICE restart via closures. |
 | `IceRestartController` | ICE-restart scheduling and exponential-backoff logic, extracted from `WebrtcAdapter`. Drives `createOffer({ iceRestart: true })` and emits `signal-offer`/`ice-restarting`/`connection-failed` via closures. |

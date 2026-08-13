@@ -201,15 +201,16 @@ Admin tests seed the DB directly (do not rely on the unauthenticated `/testing/*
 
 | ID | Endpoint | Scenario | Request | Expected Response | Priority | Severity | Automate |
 |----|----------|----------|---------|-------------------|----------|----------|----------|
-| API-150 | WS `/gps/ws/{user_id}` | Auth matches user_id | `?token=own_token` + own user_id | Connected; location saved on message | P0 | Critical | Pytest |
-| API-151 | WS `/gps/ws/{user_id}` | Auth mismatch (spoofing) | `?token=user_a_token` + user_b_id | Close 1008 | P0 | Critical | Pytest |
+| API-150 | WS `/gps/ws/{user_id}` | Auth matches user_id | Protocols `["sapot.jwt", own_token]` + own user_id | Connected with `sapot.jwt`; location saved on message | P0 | Critical | Pytest |
+| API-151 | WS `/gps/ws/{user_id}` | Auth mismatch (spoofing) | Protocols `["sapot.jwt", user_a_token]` + user_b_id | Close 1008 | P0 | Critical | Pytest |
 | API-152 | WS `/gps/ws/{user_id}` | Stream valid coordinates | `{"lat": 14.5, "lng": 121.0}` | Saved to DB; broadcast to monitors | P0 | Critical | Pytest |
 | API-153 | WS `/gps/ws/{user_id}` | Stream invalid coords | `{"lat": "bad", "lng": null}` | Handled gracefully (not crash) | P1 | High | Pytest |
 | API-154 | GET `/gps/latest` | Rescuer gets latest | Bearer (rescuer) | 200 list of `{user_id, lat, lng, timestamp}` | P0 | Critical | Pytest |
 | API-155 | GET `/gps/latest` | Regular user blocked | Bearer (non-rescuer) | 403 | P0 | Critical | Pytest |
 | API-156 | GET `/gps/history/{user_id}` | Valid history | Bearer (rescuer) | 200 list of locations | P1 | High | Pytest |
 | API-157 | GET `/gps/history/{user_id}` | No history | Bearer (rescuer) + user with no GPS | 404 | P1 | High | Pytest |
-| API-158 | WS `/gps/ws/monitor/rescuers/{id}` | No auth required (BUG) | No token | Currently connects — MUST be 1008/401 | P0 | Critical | Pytest |
+| API-158 | WS `/gps/ws/monitor/rescuers/{id}` | Missing or non-rescuer auth | No protocols or non-rescuer JWT | Close 1008 | P0 | Critical | Pytest |
+| API-159 | WS `/gps/ws/monitor/rescuers/{id}` | Valid rescuer auth | Protocols `["sapot.jwt", rescuer_token]` + matching ID | Connected with `sapot.jwt` selected | P0 | Critical | Pytest |
 
 ---
 
@@ -217,9 +218,9 @@ Admin tests seed the DB directly (do not rely on the unauthenticated `/testing/*
 
 | ID | Endpoint | Scenario | Request | Expected Response | Priority | Severity | Automate |
 |----|----------|----------|---------|-------------------|----------|----------|----------|
-| API-160 | WS `/ws/` | Connect with valid access token | `?token=valid` | Connected; `{type: "status-update", status: "online"}` broadcast | P0 | Critical | Pytest |
-| API-161 | WS `/ws/` | Connect with expired token | `?token=expired` | Close 1008 | P0 | Critical | Pytest |
-| API-162 | WS `/ws/` | Connect without token | No `?token` | Close 1008 | P0 | Critical | Pytest |
+| API-160 | WS `/ws/` | Connect with valid access token | Protocols `["sapot.jwt", valid_token]`; token-free URL | Connected with `sapot.jwt`; online status broadcast | P0 | Critical | Pytest |
+| API-161 | WS `/ws/` | Connect with expired token | Protocols `["sapot.jwt", expired_token]` | Close 1008 | P0 | Critical | Pytest |
+| API-162 | WS `/ws/` | Connect without protocols | No subprotocol offer | Close 1008 | P0 | Critical | Pytest |
 | API-163 | WS `/ws/` | Ping → pong | `{type: "ping"}` | `{type: "pong"}` | P0 | Critical | Pytest |
 | API-164 | WS `/ws/` | Get active users | `{type: "get-active-users"}` | List of connected user UUIDs | P1 | High | Pytest |
 | API-165 | WS `/ws/` | Chat to online peer | `{type: "chat", data: {to: online_peer}}` | Peer receives; no server-ack | P0 | Critical | Pytest |
@@ -233,6 +234,8 @@ Admin tests seed the DB directly (do not rely on the unauthenticated `/testing/*
 | API-173 | WS `/ws/` | Queued messages drained on connect | Messages in queue | All delivered immediately on connect | P0 | Critical | Pytest |
 | API-174 | WS `/ws/` | Stale ACK-type entries deleted on drain | ACK in queue | Deleted without delivery | P1 | High | Pytest |
 | API-175 | WS `/ws/` | Seen-type delivered then deleted | Seen in queue | Delivered then removed | P1 | High | Pytest |
+| API-176 | WS `/ws/` | Ambiguous subprotocol offer | Missing marker/token, reversed order, or extra protocol | Close 1008 | P0 | Critical | Pytest |
+| API-177 | WS `/ws/` | Query-token downgrade attempt | Query token alone or combined with valid subprotocols | Close 1008 | P0 | Critical | Pytest |
 
 ---
 

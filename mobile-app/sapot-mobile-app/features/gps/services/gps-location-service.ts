@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { normalizeWebSocketUrl } from "@/config/runtime";
 import { toAppError } from "@/features/shared/core/errors";
 import { gpsLog } from "@/features/shared/core/utils/logger";
 import { haversineMeters } from "../utils/haversine";
@@ -10,6 +11,7 @@ const MIN_SEND_INTERVAL_MS = 3_000;
 const SIGNIFICANT_MOVE_METERS = 10;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const RECONNECT_DELAY_MS = 3_000;
+const WEBSOCKET_AUTH_PROTOCOL = "sapot.jwt";
 
 export class GpsLocationService {
   private ws: WebSocket | null = null;
@@ -143,10 +145,10 @@ export class GpsLocationService {
   private connectWs() {
     if (this.stopped) return;
 
-    const base = this.wsBaseUrl.replace(/\/+$/, "");
-    const url = `${base}/gps/ws/${this.userId}?token=${encodeURIComponent(this.token)}`;
+    const base = normalizeWebSocketUrl(this.wsBaseUrl);
+    const url = `${base}/gps/ws/${encodeURIComponent(this.userId)}`;
     gpsLog.info("gps › ws connect", { url });
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, [WEBSOCKET_AUTH_PROTOCOL, this.token]);
 
     ws.onopen = () => {
       gpsLog.info("gps › ws open");

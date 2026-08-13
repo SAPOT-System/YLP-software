@@ -346,10 +346,11 @@ The table below is a quick-reference for precondition states. Full setup procedu
 | TC-244 | Key Recovery | PBKDF2 is deterministic | Known inputs | 1. Derive key twice | Same key both times | P0 | Critical | Jest |
 | TC-245 | Key Recovery | Wrong recovery key rejected | | 1. Provide wrong key | Recovery blocked | P0 | Critical | Jest |
 | TC-246 | Security | Testing endpoints require admin auth | Admin token required | 1. POST `/testing/test-make-admin` without token 2. POST with non-admin token 3. POST with admin token | Steps 1–2 return 401/403; step 3 returns 200 | P0 | Critical | Pytest |
-| TC-247 | Security | GPS monitor WS requires valid rescuer token | | 1. Connect to `/gps/ws/monitor/rescuers/{id}` without token 2. Connect with non-rescuer token 3. Connect with mismatched rescuer ID 4. Connect with valid rescuer token and matching ID | Steps 1–3 close with code 1008; step 4 connects successfully | P0 | Critical | Pytest |
+| TC-247 | Security | GPS monitor WS requires valid rescuer token | | 1. Connect without subprotocols 2. Connect with `["sapot.jwt", non_rescuer_token]` 3. Connect with a mismatched rescuer ID 4. Connect with `["sapot.jwt", rescuer_token]` and matching ID | Steps 1–3 close with code 1008; step 4 selects `sapot.jwt` and connects | P0 | Critical | Pytest |
 | TC-248 | Security | `/auth/exists` rate-limited | | 1. Send 100 req/min | Rate limit applied | P0 | Critical | Pytest |
 | TC-249 | Security | Server Host Override not in production build | Prod build | 1. Open drawer | URL override field absent | P0 | Critical | Maestro |
 | TC-250 | Security | JWT uses environment secret | Production | 1. Check env | `JWT_SECRET_KEY` set; no hardcoded fallback | P0 | Critical | Pytest |
+| TC-251 | Security | WebSocket JWT never enters a URL (issue #225) | Updated server and clients | 1. Connect signaling and GPS 2. Trigger reconnect 3. Inspect request paths and constructor args 4. Attempt a query token | Paths contain no secret; constructor protocols are `["sapot.jwt", token]`; query attempt closes 1008 | P0 | Critical | Jest + Pytest |
 
 ---
 

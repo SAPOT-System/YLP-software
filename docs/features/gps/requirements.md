@@ -23,7 +23,7 @@ GPS location sharing uses a dedicated, server-mediated WebSocket layer independe
 ### FR-GP-01 — Location Streaming (Any User)
 
 - Any authenticated user may stream their GPS location to the server.
-- The mobile app opens a WebSocket connection to `WS /gps/ws/{user_id}?token=<JWT>`.
+- The mobile app opens `WS /gps/ws/{user_id}` and offers `sapot.jwt` followed by the access token as WebSocket subprotocols.
 - The app sends location frames at a configurable interval (default 5 seconds):
 
   ```json
@@ -58,7 +58,7 @@ GPS location sharing uses a dedicated, server-mediated WebSocket layer independe
 
 ### FR-GP-05 — Rescuer Monitor WebSocket
 
-- Rescuers open a separate WebSocket `WS /gps/ws/monitor/rescuers/{rescuer_id}?token=<JWT>` to receive live location broadcasts.
+- Rescuers open a separate `WS /gps/ws/monitor/rescuers/{rescuer_id}` connection with the same `sapot.jwt` subprotocol contract to receive live location broadcasts.
 - The server pushes each new `UserLocation` frame to all connected rescuer monitors immediately after saving.
 - Monitor connection is independent of the main messaging WebSocket.
 
@@ -93,6 +93,7 @@ GPS location sharing uses a dedicated, server-mediated WebSocket layer independe
 | NFR-GP-02 | Server must handle 50 concurrent streaming users without degradation     |
 | NFR-GP-03 | GPS WebSocket must reconnect automatically after network interruption    |
 | NFR-GP-04 | Location data must not be transmitted over unencrypted connections       |
+| NFR-GP-05 | WebSocket request URLs must not contain access tokens                    |
 
 ---
 

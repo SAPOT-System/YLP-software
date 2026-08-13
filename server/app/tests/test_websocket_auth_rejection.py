@@ -19,17 +19,37 @@ severity) — see `test_websocket_403_access_log_is_suppressed`.
 """
 import logging
 import uuid
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+
+import app.api.peer_connection as peer_connection
+from app.db_operations.connection_manager import manager
+from app.db_operations.token import create_access_token
+from app.db_operations.websocket_auth import WEBSOCKET_AUTH_PROTOCOL
+
+
+def _protocols(token: str) -> list[str]:
+    return [WEBSOCKET_AUTH_PROTOCOL, token]
+
+
+@pytest.fixture
+def signaling_handshake_only(monkeypatch):
+    async def connect(user_id, websocket):
+        await websocket.accept(subprotocol=WEBSOCKET_AUTH_PROTOCOL)
+
+    monkeypatch.setattr(manager, "connect", connect)
+    monkeypatch.setattr(peer_connection, "get_queued_messages", lambda *args: [])
+    monkeypatch.setattr(peer_connection, "_set_status_bg", lambda *args: None)
 
 
 def test_invalid_token_rejects_cleanly_without_unhandled_exception(client: TestClient):
     # Arrange / Act / Assert: an invalid token must close the socket (1008)
     # without the raw auth exception escaping the ASGI app unhandled.
     with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect("/ws/?token=not-a-real-token"):
+        with client.websocket_connect("/ws/", subprotocols=_protocols("not-a-real-token")):
             pass
 
     assert exc_info.value.code == 1008
@@ -41,7 +61,7 @@ def test_invalid_token_logs_concise_warning_not_error(client: TestClient, caplog
 
     # Act
     with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/ws/?token=not-a-real-token"):
+        with client.websocket_connect("/ws/", subprotocols=_protocols("not-a-real-token")):
             pass
 
     # Assert: a concise warning was logged, and nothing at ERROR level
@@ -60,7 +80,9 @@ def test_gps_stream_invalid_token_rejects_cleanly_without_unhandled_exception(cl
     # Act / Assert: an invalid token on the GPS stream socket must close
     # cleanly (1008) rather than letting WebSocketAuthError escape unhandled.
     with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect(f"/gps/ws/{user_id}?token=not-a-real-token"):
+        with client.websocket_connect(
+            f"/gps/ws/{user_id}", subprotocols=_protocols("not-a-real-token")
+        ):
             pass
 
     assert exc_info.value.code == 1008
@@ -73,7 +95,9 @@ def test_gps_stream_invalid_token_logs_concise_warning_not_error(client: TestCli
 
     # Act
     with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect(f"/gps/ws/{user_id}?token=not-a-real-token"):
+        with client.websocket_connect(
+            f"/gps/ws/{user_id}", subprotocols=_protocols("not-a-real-token")
+        ):
             pass
 
     # Assert
@@ -90,7 +114,10 @@ def test_gps_monitor_invalid_token_rejects_cleanly_without_unhandled_exception(c
 
     # Act / Assert
     with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect(f"/gps/ws/monitor/rescuers/{rescuer_id}?token=not-a-real-token"):
+        with client.websocket_connect(
+            f"/gps/ws/monitor/rescuers/{rescuer_id}",
+            subprotocols=_protocols("not-a-real-token"),
+        ):
             pass
 
     assert exc_info.value.code == 1008
@@ -103,7 +130,10 @@ def test_gps_monitor_invalid_token_logs_concise_warning_not_error(client: TestCl
 
     # Act
     with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect(f"/gps/ws/monitor/rescuers/{rescuer_id}?token=not-a-real-token"):
+        with client.websocket_connect(
+            f"/gps/ws/monitor/rescuers/{rescuer_id}",
+            subprotocols=_protocols("not-a-real-token"),
+        ):
             pass
 
     # Assert
@@ -125,7 +155,7 @@ def _make_ws_403_record() -> logging.LogRecord:
         pathname=__file__,
         lineno=1,
         msg='%s - "WebSocket %s" 403',
-        args=(("127.0.0.1", 54321), "/ws/?token=not-a-real-token"),
+        args=(("127.0.0.1", 54321), "/ws/"),
         exc_info=None,
     )
 
@@ -163,3 +193,88 @@ def test_uvicorn_ws_403_filter_leaves_other_uvicorn_error_records_alone():
     )
 
     assert filt.filter(record) is True
+
+
+@pytest.mark.parametrize(
+    "protocols",
+    [
+        [],
+        [WEBSOCKET_AUTH_PROTOCOL],
+        ["not-sapot.jwt", "token"],
+        [WEBSOCKET_AUTH_PROTOCOL, "token", "extra"],
+        ["token", WEBSOCKET_AUTH_PROTOCOL],
+    ],
+)
+def test_missing_or_ambiguous_protocols_close_with_1008(
+    client: TestClient, protocols: list[str]
+):
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/ws/", subprotocols=protocols):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_expired_subprotocol_token_closes_with_1008(client: TestClient):
+    token = create_access_token(
+        {"sub": str(uuid.uuid4())}, expires_delta=timedelta(seconds=-1)
+    )
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/ws/", subprotocols=_protocols(token)):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_signed_token_without_subject_closes_with_1008(client: TestClient):
+    token = create_access_token({})
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/ws/", subprotocols=_protocols(token)):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_query_only_token_closes_with_1008(client: TestClient):
+    token = create_access_token({"sub": str(uuid.uuid4())})
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(f"/ws/?token={token}"):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_query_token_with_valid_subprotocol_auth_closes_with_1008(client: TestClient):
+    token = create_access_token({"sub": str(uuid.uuid4())})
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(
+            f"/ws/?token={token}", subprotocols=_protocols(token)
+        ):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_valid_subprotocol_is_selected_and_target_id_remains_supported(
+    client: TestClient, signaling_handshake_only
+):
+    token = create_access_token({"sub": str(uuid.uuid4())})
+    target_id = uuid.uuid4()
+
+    with client.websocket_connect(
+        f"/ws/?target_id={target_id}", subprotocols=_protocols(token)
+    ) as websocket:
+        assert websocket.accepted_subprotocol == WEBSOCKET_AUTH_PROTOCOL
+        assert websocket.scope["query_string"] == f"target_id={target_id}".encode()
+
+
+def test_obsolete_websocket_html_test_route_is_not_reachable(client: TestClient):
+    response = client.get(
+        f"/ws/?target_id={uuid.uuid4()}&my_id={uuid.uuid4()}"
+    )
+
+    assert response.status_code == 404
