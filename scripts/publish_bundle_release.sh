@@ -23,7 +23,12 @@ else
   args=(release create "$tag" --verify-tag --draft --title "$tag" --notes-file "$notes")
   [[ "$version" == *-* ]] && args+=(--prerelease)
   gh "${args[@]}" >/dev/null
-  release_id=$(github_api "repos/$repository/releases" --paginate --jq ".[] | select(.tag_name == \"$tag\") | .id" | head -n 1)
+  for i in {1..15}; do
+    release_id=$(github_api "repos/$repository/releases" --paginate --jq ".[] | select(.tag_name == \"$tag\") | .id" | head -n 1)
+    [[ -n "$release_id" ]] && break
+    sleep 2
+  done
+  [[ -n "$release_id" ]] || { echo "failed to retrieve release ID after creation" >&2; exit 1; }
 fi
 assets=$(github_api "repos/$repository/releases/$release_id/assets")
 for id in $(ASSETS="$assets" python3 - "$archive_name" "$checksum_name" <<'PY'
