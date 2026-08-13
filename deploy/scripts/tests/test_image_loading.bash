@@ -92,8 +92,20 @@ test_disk_preflight_aggregates_release_and_containerd_space() {
   local dir; dir=$(mktemp -d); trap 'rm -rf "$dir"' RETURN
   mkdir -p "$dir/release/images" "$dir/sapot" "$dir/docker" "$dir/containerd"
   truncate -s 1000 "$dir/release/images/api.tar"
+  printf '%s\n' '{"images":{"api":{}}}' > "$dir/release/manifest.json"
   _run_disk_preflight 4199 "$dir/release" "$dir/sapot/releases/v1" "$dir/sapot" "$dir/docker" "$dir/containerd"
   assert_rc 1 $? 'combined release and image unpack estimate enforced'
   _run_disk_preflight 4200 "$dir/release" "$dir/sapot/releases/v1" "$dir/sapot" "$dir/docker" "$dir/containerd"
   assert_rc 0 $? 'combined estimate accepted at exact threshold'
+}
+
+test_disk_preflight_uses_recorded_unpacked_sizes() {
+  local dir; dir=$(mktemp -d); trap 'rm -rf "$dir"' RETURN
+  mkdir -p "$dir/release/images" "$dir/sapot" "$dir/docker" "$dir/containerd"
+  truncate -s 1000 "$dir/release/images/api.tar"
+  printf '%s\n' '{"images":{"api":{"unpackedSize":3000}}}' > "$dir/release/manifest.json"
+  _run_disk_preflight 6599 "$dir/release" "$dir/sapot/releases/v1" "$dir/sapot" "$dir/docker" "$dir/containerd"
+  assert_rc 1 $? 'compressed archive estimate includes unpacked image size'
+  _run_disk_preflight 6600 "$dir/release" "$dir/sapot/releases/v1" "$dir/sapot" "$dir/docker" "$dir/containerd"
+  assert_rc 0 $? 'recorded unpacked estimate accepted at exact threshold'
 }

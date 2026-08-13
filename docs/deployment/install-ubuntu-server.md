@@ -21,7 +21,7 @@ Three things, and they are not interchangeable:
 
 | Thing | What it is | Why |
 |---|---|---|
-| **Build host** | A connected machine. Usually, you only need this to download the pre-built bundle from GitHub Releases. To build manually, it needs a clean checkout of this repository, Docker, Compose v2, `python3`, `zstd`, and `arduino-cli` | Downloads or builds the bundle. It is the only machine that needs internet. |
+| **Build host** | A connected machine. Usually, you only need this to download the pre-built bundle from GitHub Releases. A manual build also needs a clean checkout, Docker's containerd image store, Compose v2, `python3`, `zstd`, and `arduino-cli` | Downloads or builds the bundle. It is the only machine that needs internet. |
 | **Target server** | The site's Ubuntu Server 24.04 LTS machine, on the LAN | Runs SAPOT. Needs internet once, to install Docker Engine. |
 | **CA USB stick** | A removable drive holding `server_ca.key` and `server_ca.pem` | Signs the server's TLS certificate. Without it, installation aborts. |
 
@@ -111,11 +111,11 @@ Before installing SAPOT:
 - **Check the clock.** `timedatectl` should show the clock synchronized. A
   server with a badly wrong clock issues a certificate that clients reject as
   not-yet-valid.
-- **Check free disk.** The installer reserves space for the copied release and
-  twice the image archive size for Docker's content and unpacked layers, then
-  adds a 20% margin. When those paths share a filesystem, it adds their needs
-  before checking free space. Containerd-backed Docker is checked at
-  `/var/lib/containerd`, where its snapshots are actually stored.
+- **Check free disk.** The installer reserves space for the copied release,
+  compressed Docker content, and the unpacked image sizes recorded during the
+  build, then adds a 20% margin. When those paths share a filesystem, it adds
+  their needs before checking free space. Containerd-backed Docker is checked
+  at `/var/lib/containerd`, where its snapshots are actually stored.
 
 ### Install Docker Engine from Docker's own apt repository
 
@@ -184,6 +184,11 @@ checkout of the tagged commit:
 ./tileserver/download-script.sh
 ./scripts/build-bundle.sh
 ```
+
+The manual build requires Docker's containerd image store so its layer archives
+match the compressed GitHub bundle format. See
+[Offline Docker Deployment Bundle](docker-bundle.md#build-and-transport) for the
+check and setup instructions.
 
 The build refuses to start if tracked files are modified, so that the recorded
 git SHA describes exactly what is inside the bundle.

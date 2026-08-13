@@ -162,17 +162,41 @@ For a manual build on a clean, tagged checkout with Docker, Compose v2, `python3
 ./scripts/build-bundle.sh
 ```
 
-Release CI passes `--low-disk`, which removes each saved image tag and prunes
-Docker build cache as it proceeds. Use that mode only on an ephemeral or dedicated
-build host, not on a workstation whose Docker cache or local image tags must be
-preserved.
+Bundle builds require Docker's containerd image store. It preserves compressed
+layers when `docker save` creates the offline archives, keeping CI and manual
+bundle sizes consistent. Confirm the build host reports the required driver:
+
+```bash
+docker info --format '{{range .DriverStatus}}{{if eq (index . 0) "driver-type"}}{{index . 1}}{{end}}{{end}}'
+# io.containerd.snapshotter.v1
+```
+
+If the check does not report that driver, merge the following feature into
+`/etc/docker/daemon.json`, restart Docker, then rerun the check:
+
+```json
+{
+  "features": {
+    "containerd-snapshotter": true
+  }
+}
+```
+
+Switching image stores makes images and containers from the other store hidden
+until its setting is restored. Use a dedicated build host if it already runs
+unrelated workloads.
+
+Release CI also passes `--low-disk`, which removes each saved image tag and
+prunes Docker build cache as it proceeds. This flag reduces build-host usage. It
+does not change the bundle format. Use it only on an ephemeral or dedicated
+build host whose Docker cache and local image tags can be removed.
 
 The result is `dist/sapot-bundle-vX.Y.Z.tar.zst`. Its `manifest.json` records
-the version, source commit, image config digests, firmware checksum, compatibility gates,
-and immutable map-release provenance. The connected build host downloads the pinned
-map release; the offline host receives it inside the bundle and never downloads it.
-`CHECKSUMS.sha256` detects accidental corruption during transport. It is not a
-tamper-evident signature.
+the version, source commit, image config digests and unpacked sizes, firmware
+checksum, compatibility gates, and immutable map-release provenance. The
+connected build host downloads the pinned map release; the offline host receives
+it inside the bundle and never downloads it. `CHECKSUMS.sha256` detects
+accidental corruption during transport. It is not a tamper-evident signature.
 
 The policy's `minimumUpgradeVersion` prevents an upgrade from an unsupported old
 bundle. `minimumRollbackVersion` is the oldest bundle to which this release may
