@@ -103,14 +103,50 @@ provision_service_account() {
   chown "$user:$(id -gn "$user")" "$SAPOT_ROOT/shared/server.env" "$SAPOT_ROOT/shared/db-backups" "$SAPOT_ROOT/.lock"
 }
 prepare_env_files() {
-  local release=$1 generated secret mysql_password
-  mkdir -p "$SAPOT_ROOT/shared" "$SAPOT_ROOT/shared/certs" "$SAPOT_ROOT/shared/db-data" "$SAPOT_ROOT/shared/gsm-arduino-backups" "$SAPOT_ROOT/shared/db-backups"
-  secret=$(openssl rand -hex 32); mysql_password=$(openssl rand -hex 32)
-  for name in server admin gsm-fastapi gsm-arduino; do
+  local release=$1 generated secret mysql_password status_password
+  mkdir -p "$SAPOT_ROOT/shared" "$SAPOT_ROOT/shared/certs" "$SAPOT_ROOT/shared/db-data" "$SAPOT_ROOT/shared/gsm-arduino-backups"
+  secret=$(openssl rand -hex 32); mysql_password=$(openssl rand -hex 32); status_password=$(openssl rand -hex 32)
+  for name in server admin gsm-fastapi gsm-arduino status; do
     generated="$SAPOT_ROOT/shared/$name.env"
     [ -e "$generated" ] && continue
-    sed -e "s/__GENERATE__/$secret/g" -e "s/__FROM_SERVER_GSM_SECRET__/$secret/g" -e "s/__FROM_SERVER_MYSQL_PASSWORD__/$mysql_password/g" -e "s/mysql+pymysql:\/\/sapot:$secret@db/mysql+pymysql:\/\/sapot:$mysql_password@db/" "$release/config/$name.env.example" > "$generated"
+    sed -e "s/__GENERATE__/$secret/g" -e "s/__FROM_SERVER_GSM_SECRET__/$secret/g" -e "s/__FROM_SERVER_MYSQL_PASSWORD__/$mysql_password/g" -e "s/__STATUS_DB_PASSWORD__/$status_password/g" -e "s/mysql+pymysql:\/\/sapot:$secret@db/mysql+pymysql:\/\/sapot:$mysql_password@db/" "$release/config/$name.env.example" > "$generated"
     [ "$name" = server ] && sed -i "s|mysql+pymysql://sapot:$secret@db|mysql+pymysql://sapot:$mysql_password@db|" "$generated"
     chmod 600 "$generated"
   done
+}
+prepare_shared_dirs() {
+  local uid gid
+  mkdir -p "$SAPOT_ROOT/shared/status" "$SAPOT_ROOT/shared/logs/api" "$SAPOT_ROOT/shared/logs/gsm"
+  uid=$(docker run --rm --entrypoint id sapot/api:bundle -u 2>/dev/null || true)
+  gid=$(docker run --rm --entrypoint id sapot/api:bundle -g 2>/dev/null || true)
+  if [ -n "$uid" ] && [ -n "$gid" ]; then
+    chown -R "$uid:$gid" "$SAPOT_ROOT/shared/status" "$SAPOT_ROOT/shared/logs/api" 2>/dev/null || log_error "could not chown shared writable directories"
+  else log_error "could not determine api image uid"; fi
+}
+provision_status_db_user() {
+  local release=$1 root_password status_password attempts=24
+  root_password=$(grep '^MYSQL_ROOT_PASSWORD=' "$SAPOT_ROOT/shared/server.env" | cut -d= -f2-)
+  status_password=$(sed -n 's|^STATUS_DATABASE_URL=mysql+pymysql://sapot_status:\([^@]*\)@.*|\1|p' "$SAPOT_ROOT/shared/status.env")
+  [ -n "$root_password" ] && [ -n "$status_password" ] || { log_error "missing status database credentials"; return 1; }
+  compose "$release" exec -T -e MYSQL_PWD="$root_password" db mariadb -uroot <<SQL
+CREATE USER IF NOT EXISTS 'sapot_status'@'%' IDENTIFIED BY '$status_password';
+ALTER USER 'sapot_status'@'%' IDENTIFIED BY '$status_password';
+GRANT SELECT ON sapot.message TO 'sapot_status'@'%';
+GRANT SELECT ON sapot.activity_logs TO 'sapot_status'@'%';
+FLUSH PRIVILEGES;
+SQL
+  while [ "$attempts" -gt 0 ]; do
+    if compose "$release" exec -T -e MYSQL_PWD="$root_password" db mariadb -uroot -N -B -e "SELECT 1 FROM information_schema.tables WHERE table_schema='sapot' AND table_name='sms_log'" 2>/dev/null | grep -q 1; then
+      compose "$release" exec -T -e MYSQL_PWD="$root_password" db mariadb -uroot -e "GRANT SELECT ON sapot.sms_log TO 'sapot_status'@'%'; FLUSH PRIVILEGES;"
+      return 0
+    fi
+    sleep 5; attempts=$((attempts - 1))
+  done
+  log_error "sms_log did not appear; GSM pending count unavailable until reprovisioned"
+}
+write_integrity() {
+  local status=$1 dir="$SAPOT_ROOT/shared/status" tmp
+  mkdir -p "$dir"; tmp="$dir/.integrity.json.tmp"
+  printf '{"status": "%s", "verifiedAt": "%s"}\n' "$status" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp"
+  mv -f "$tmp" "$dir/integrity.json"
 }

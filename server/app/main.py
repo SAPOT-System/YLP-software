@@ -36,14 +36,13 @@ from app.models.email_recovery_token import EmailRecoveryToken
 from app.models.login_attempt import LoginAttempt, RecoveryAttempt  # noqa: F401
 
 import logging
-from logging.handlers import RotatingFileHandler
-from pythonjsonlogger import jsonlogger
 import time
 from app.db_operations.auth import SessionDep, engine
 from app.db_operations.expire_announcements import expire_announcements_loop
 from app.db_operations.router_metrics_collector import collect_metrics, collect_metrics_loop
 from app.models.activity import ActivityLog
 from app.db_operations.token import get_user_id_from_header
+from app.logging_config import configure_activity_logging
 
 
 @asynccontextmanager
@@ -136,30 +135,9 @@ def get_version():
 logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
 
-# On Windows: "C:/logs/fastapi_app"
-LOG_DIR = os.path.abspath("../logs")
-
-# Create the directory if it doesn't exist
-os.makedirs(LOG_DIR, exist_ok=True)
-
-# Define full file paths
+LOG_DIR = configure_activity_logging(logger)
 TEXT_LOG_PATH = os.path.join(LOG_DIR, "activity.log")
 JSON_LOG_PATH = os.path.join(LOG_DIR, "activity.json")
-
-# --- Setup Handlers with the new paths ---
-text_handler = RotatingFileHandler(TEXT_LOG_PATH, maxBytes=10**6, backupCount=3)
-json_handler = RotatingFileHandler(JSON_LOG_PATH, maxBytes=10**6, backupCount=3)
-
-# --- JSON Handler (Captures everything) ---
-# The format string defines which 'extra' keys to include in the JSON
-json_fmt = jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(user_id)s %(action)s %(entity_id)s %(metadata_json)s %(message)s")
-json_handler.setFormatter(json_fmt)
-logger.addHandler(json_handler)
-
-# --- Text Handler (Human Readable) ---
-text_fmt = logging.Formatter("%(asctime)s | %(levelname)s | USER: %(user_id)s | ACTION: %(action)s | %(message)s")
-text_handler.setFormatter(text_fmt)
-logger.addHandler(text_handler)
 
 
 class UvicornWebSocket403Filter(logging.Filter):

@@ -82,7 +82,7 @@ check_no_ca_material() {
   [ -z "$hit" ] || { echo "refusing to ship CA key material in a bundle: $hit" >&2; exit 1; }
 }
 check_no_ca_material
-chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
+chmod +x "$bundle/scripts"/*.sh "$bundle/scripts"/*.py "$bundle/scripts"/lib/*.sh "$bundle/scripts"/lib/*.py
 
 python3 - "$bundle/manifest.json" "$version" "$git_sha" "$built_at" "$min_version" "$max_version" "$firmware_version" "$fqbn" "$firmware_sha" "$bundle" <<'PY'
 import json, os, subprocess, sys

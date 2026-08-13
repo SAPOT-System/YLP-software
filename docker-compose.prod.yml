@@ -24,6 +24,10 @@ services:
     image: sapot/api:bundle
     restart: unless-stopped
     env_file: [../../../shared/server.env]
+    environment:
+      SAPOT_LOG_DIR: /home/app/logs
+    volumes:
+      - ../../../shared/logs/api:/home/app/logs
     depends_on:
       db: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -38,7 +42,7 @@ services:
     image: sapot/nginx:bundle
     restart: unless-stopped
     depends_on:
-      api: {condition: service_healthy}
+      api: {condition: service_started}
       tileserver: {condition: service_started}
       admin: {condition: service_started}
     ports: ["80:80", "443:443"]
@@ -46,6 +50,8 @@ services:
       - ../config/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
       - ../../../shared/certs:/certs:ro
       - ../data/static:/usr/share/nginx/static:ro
+      - ../config/status.html:/usr/share/nginx/status/status.html:ro
+      - ../../../shared/status:/usr/share/nginx/state:ro
   admin:
     image: sapot/admin:bundle
     restart: unless-stopped
@@ -74,6 +80,9 @@ services:
     environment:
       HOST: 0.0.0.0
       SAPOT_API_URL: https://nginx
+      GSM_LOG_DIR: /var/log/sapot
+    volumes:
+      - ../../../shared/logs/gsm:/var/log/sapot
     depends_on:
       db: {condition: service_healthy}
     expose: ["8001"]
@@ -82,3 +91,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+  # This service intentionally has no dependencies and is not depended on.
+  # It must continue producing a diagnostic snapshot when peers are down.
+  status-collector:
+    image: sapot/api:bundle
+    restart: unless-stopped
+    env_file: [../../../shared/status.env]
+    entrypoint: ["python", "/opt/sapot/collect-status.py"]
+    volumes:
+      - ../scripts/collect-status.py:/opt/sapot/collect-status.py:ro
+      - ../../../shared/status:/status
+      - ../../../shared/certs:/certs:ro
