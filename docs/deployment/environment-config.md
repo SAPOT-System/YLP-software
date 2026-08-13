@@ -12,7 +12,7 @@ All SAPOT components are configured via environment variables. This document lis
 | `JWT_SECRET_KEY` | None — required, raises `RuntimeError` at import if unset | **MUST** be set — generate a strong random secret |
 | `CORS_ALLOWED_ORIGINS` | None — required, raises `RuntimeError` at startup if unset | **MUST** be set — comma-separated explicit origin allowlist |
 | `ENVIRONMENT` | `production` | One of `development`, `staging`, or `production`. `development` and `staging` enable the `/testing/*` router; never use either in a production deployment. Any other value raises `ValueError` at import time. |
-| `QA_API_TOKEN` | None — required, raises `RuntimeError` at import if unset **when `ENVIRONMENT=development` or `staging`** | Required in QA-enabled environments; the `X-QA-Token` header value protects `/testing/reset` and `/testing/login-as/{handle}` |
+| `QA_API_TOKEN` | None; raises `RuntimeError` at import if unset when `ENVIRONMENT=development` or `staging` | Required in QA-enabled environments; every state-changing `/testing/*` request must send it in the `X-QA-Token` header |
 | `REDIS_URL` | `redis://localhost:6379` | Set if Redis is on a non-default host/port |
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
 | `GSM_SECRET` | None — required, raises `RuntimeError` at import if unset | **MUST** be set — shared secret for GSM module webhooks |

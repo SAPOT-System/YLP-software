@@ -20,7 +20,7 @@ the variable:
 | `JWT_SECRET_KEY` | `app/db_operations/token.py` |
 | `CORS_ALLOWED_ORIGINS` | `app/main.py` |
 | `SERVER_ED25519_SEED` | `app/db_operations/signing.py` |
-| `QA_API_TOKEN` | `app/api/testing.py`, **only** when `ENVIRONMENT=development` or `staging`, which also mounts the `/testing/*` routes |
+| `QA_API_TOKEN` | `app/api/testing.py`, only when `ENVIRONMENT=development` or `staging`; every state-changing `/testing/*` request must send it as `X-QA-Token` |
 
 Copy `server/.env.example` to `server/.env` and replace every placeholder secret before starting
 the server. The example's database and Redis hosts target the Docker Compose network, so change

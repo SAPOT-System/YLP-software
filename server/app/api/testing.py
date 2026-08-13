@@ -1,7 +1,7 @@
-"""Dev/staging-only QA tooling surface. Never imported outside a QA-enabled environment
-(see `app/main.py`) — every route additionally re-checks that at request time via
-`require_qa_env`, and the mutating routes require a shared-secret header on top of that.
-See `SECURITY.md` and the design doc referenced from GH #271-274 for the full rationale.
+"""QA tooling mounted only in development and staging by `app.main`.
+
+Every route re-checks the environment at request time, and state-changing routes require
+a shared-secret header. See `SECURITY.md` and GH #271 through #276 for the rationale.
 """
 import hmac
 import os
@@ -17,14 +17,12 @@ from app.env import IS_QA_ENABLED
 from app.models.users import User, UserPublic
 
 # Fail-fast, no default — mirrors JWT_SECRET_KEY/CORS_ALLOWED_ORIGINS (see SECURITY.md).
-# Only required when this router is actually reachable; a production import never runs
-# this module at all (see app/main.py's conditional import).
 QA_API_TOKEN = os.environ.get("QA_API_TOKEN")
 if IS_QA_ENABLED and not QA_API_TOKEN:
     raise RuntimeError(
         "QA_API_TOKEN environment variable is not set. Required whenever "
-        "ENVIRONMENT=development or staging so /testing/reset and /testing/login-as aren't a "
-        "LAN-wide auth bypass with no secret at all."
+        "ENVIRONMENT=development or staging so state-changing /testing routes aren't a "
+        "LAN-wide privilege bypass with no secret at all."
     )
 
 # Fixture handles the scenario builders in qa_scenarios.py are known to create.
@@ -57,11 +55,6 @@ FIXTURE_HANDLES = frozenset(
     }
 )
 
-router = APIRouter(
-    prefix="/testing", tags=["testing endpoint"], responses={404: {"description": "Not Found"}}
-)
-
-
 def require_qa_env() -> None:
     """Layer 2 of the guard: even if this router somehow gets mounted, every route
     404s outside development/staging instead of behaving like a live endpoint."""
@@ -70,18 +63,30 @@ def require_qa_env() -> None:
 
 
 def require_qa_token(x_qa_token: Annotated[str | None, Header()] = None) -> None:
-    """Layer 3: /reset and /login-as additionally require a shared secret so a plain
-    device on the LAN can't drop the DB or mint an admin token unattended."""
-    if not x_qa_token or not hmac.compare_digest(x_qa_token, QA_API_TOKEN):
+    """Layer 3: mutations require a shared secret so a LAN client cannot alter QA data
+    or privileges unattended."""
+    if (
+        QA_API_TOKEN is None
+        or x_qa_token is None
+        or not hmac.compare_digest(x_qa_token, QA_API_TOKEN)
+    ):
         raise HTTPException(404)
 
 
-@router.get("/scenarios", dependencies=[Depends(require_qa_env)])
+router = APIRouter(
+    prefix="/testing",
+    tags=["testing endpoint"],
+    dependencies=[Depends(require_qa_env)],
+    responses={404: {"description": "Not Found"}},
+)
+
+
+@router.get("/scenarios")
 def list_scenarios():
     return {name: scenario.description for name, scenario in SCENARIOS.items()}
 
 
-@router.post("/seed/{scenario}", dependencies=[Depends(require_qa_env)])
+@router.post("/seed/{scenario}", dependencies=[Depends(require_qa_token)])
 def seed_scenario(scenario: str, session: SessionDep):
     try:
         summary = apply_scenario(session, scenario)
@@ -92,7 +97,7 @@ def seed_scenario(scenario: str, session: SessionDep):
 
 @router.post(
     "/reset",
-    dependencies=[Depends(require_qa_env), Depends(require_qa_token)],
+    dependencies=[Depends(require_qa_token)],
 )
 def reset(session: SessionDep):
     return reset_database(session)
@@ -100,7 +105,7 @@ def reset(session: SessionDep):
 
 @router.post(
     "/login-as/{handle}",
-    dependencies=[Depends(require_qa_env), Depends(require_qa_token)],
+    dependencies=[Depends(require_qa_token)],
     response_model=UserPublic,
 )
 def login_as(handle: str, session: SessionDep):
@@ -125,7 +130,7 @@ def login_as(handle: str, session: SessionDep):
     )
 
 
-@router.post("/test-make-admin", dependencies=[Depends(require_qa_env)])
+@router.post("/test-make-admin", dependencies=[Depends(require_qa_token)])
 def make_user_admin(
     username: str,
     session: SessionDep,
@@ -138,7 +143,7 @@ def make_user_admin(
     return {"status": "ok"}
 
 
-@router.post("/test-make-rescuer", dependencies=[Depends(require_qa_env)])
+@router.post("/test-make-rescuer", dependencies=[Depends(require_qa_token)])
 def make_user_rescuer(
     username: str,
     session: SessionDep,
