@@ -46,12 +46,21 @@ jobs:
           bash -n scripts/build-bundle.sh scripts/release.sh scripts/validate_bundle_release_ci.sh scripts/publish_bundle_release.sh tileserver/download-script.sh
           bash -n scripts/lib/*.sh deploy/scripts/*.sh deploy/scripts/lib/*.sh
 
+      - name: Decode immutable-policy private key
+        id: decode-key
+        env:
+          B64_KEY: ${{ secrets.BUNDLE_RELEASE_POLICY_PRIVATE_KEY }}
+        run: |
+          echo "key<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$B64_KEY" | base64 -d >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Create immutable-policy reader token
         id: policy-token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.BUNDLE_RELEASE_POLICY_APP_ID }}
-          private-key: ${{ secrets.BUNDLE_RELEASE_POLICY_PRIVATE_KEY }}
+          private-key: ${{ steps.decode-key.outputs.key }}
           owner: SAPOT-System
           repositories: YLP-software
           permission-administration: read
