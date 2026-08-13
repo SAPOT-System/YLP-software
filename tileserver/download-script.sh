@@ -25,7 +25,7 @@ PY
 repository=${values[0]}; release_tag=${values[1]}; asset_name=${values[2]}; expected_sha=${values[3]}
 encoded_tag=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$release_tag")
 
-immutable=$(github_api "repos/$repository/immutable-releases" --jq '.enabled')
+immutable=$(GH_TOKEN="${SAPOT_RELEASE_POLICY_TOKEN:-$GH_TOKEN}" github_api "repos/$repository/immutable-releases" --jq '.enabled')
 [[ "$immutable" = true ]] || { echo "map release requires repository immutable releases to be enabled" >&2; exit 1; }
 release=$(github_api "repos/$repository/releases/tags/$encoded_tag" 2>/dev/null) || { echo "map release $release_tag was not found" >&2; exit 1; }
 RELEASE_JSON="$release" python3 - "$asset_name" "$expected_sha" <<'PY'

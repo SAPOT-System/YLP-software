@@ -80,6 +80,7 @@ jobs:
       - name: Download and validate Batangas map data
         env:
           GH_TOKEN: ${{ github.token }}
+          SAPOT_RELEASE_POLICY_TOKEN: ${{ steps.policy-token.outputs.token }}
         run: ./tileserver/download-script.sh
 
       - name: Build deployment bundle
