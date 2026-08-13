@@ -21,7 +21,7 @@ Three things, and they are not interchangeable:
 
 | Thing | What it is | Why |
 |---|---|---|
-| **Build host** | A connected machine with a clean checkout of this repository, Docker, Compose v2, `python3`, `zstd`, and `arduino-cli` | Builds the bundle. It is the only machine that needs internet during a release. |
+| **Build host** | A connected machine. Usually, you only need this to download the pre-built bundle from GitHub Releases. To build manually, it needs a clean checkout of this repository, Docker, Compose v2, `python3`, `zstd`, and `arduino-cli` | Downloads or builds the bundle. It is the only machine that needs internet. |
 | **Target server** | The site's Ubuntu Server 24.04 LTS machine, on the LAN | Runs SAPOT. Needs internet once, to install Docker Engine. |
 | **CA USB stick** | A removable drive holding `server_ca.key` and `server_ca.pem` | Signs the server's TLS certificate. Without it, installation aborts. |
 
@@ -31,7 +31,7 @@ that machine can be taken online to build. In practice they are separate.
 ```mermaid
 flowchart LR
     A["Step 0<br/>create CA USB stick<br/>(once per fleet)"] --> D
-    B["Step 2<br/>build-bundle.sh<br/>on the build host"] --> C["Step 3<br/>transfer<br/>.tar.zst"]
+    B["Step 2<br/>download from GitHub<br/>or build bundle"] --> C["Step 3<br/>transfer<br/>.tar.zst"]
     C --> D["Step 5<br/>install.sh<br/>on the server"]
     E["Step 1<br/>prepare server<br/>+ Docker Engine"] --> D
     D --> F["Step 6<br/>status.sh<br/>doctor.sh"]
@@ -165,10 +165,20 @@ already present on a standard Ubuntu Server 24.04 install.
 
 ---
 
-## Step 2: Build the bundle on the build host
+## Step 2: Download or build the bundle
 
-From the repository root, on a **clean** checkout of the tagged commit you want
-to release:
+The standard way to get a bundle is through the GitHub Releases page. The
+release workflow builds it automatically when a `bundle/vX.Y.Z` tag is pushed.
+
+On your connected machine, find the required bundle release and download both:
+
+- `sapot-bundle-vX.Y.Z.tar.zst`
+- `sapot-bundle-vX.Y.Z.tar.zst.sha256`
+
+### Alternative: Build the bundle manually
+
+If you cannot use the pre-built GitHub release, build it from a **clean**
+checkout of the tagged commit:
 
 ```bash
 ./tileserver/download-script.sh
@@ -198,29 +208,32 @@ compiles the Arduino firmware, and compresses everything. The result is:
 dist/sapot-bundle-vX.Y.Z.tar.zst
 ```
 
-Record its checksum now so you can prove the transfer was clean:
+Create the checksum file that travels with the archive:
 
 ```bash
-sha256sum dist/sapot-bundle-vX.Y.Z.tar.zst
+(cd dist && sha256sum sapot-bundle-vX.Y.Z.tar.zst > sapot-bundle-vX.Y.Z.tar.zst.sha256)
 ```
+
+GitHub Releases already provides this `.sha256` file.
 
 ---
 
 ## Step 3: Transfer the bundle to the server
 
-Over the LAN, if the two machines can see each other:
+From the directory containing both files, transfer them over the LAN:
 
 ```bash
-scp dist/sapot-bundle-vX.Y.Z.tar.zst <server-name>@<server-ip>:/var/tmp/
+scp sapot-bundle-vX.Y.Z.tar.zst sapot-bundle-vX.Y.Z.tar.zst.sha256 <server-name>@<server-ip>:/var/tmp/
 ```
 
 Or by removable media, for a genuinely disconnected site. Use a different stick
 from the CA stick.
 
-On the server, confirm the checksum matches what Step 2 printed:
+On the server, verify the archive against the downloaded checksum file:
 
 ```bash
-sha256sum /var/tmp/sapot-bundle-vX.Y.Z.tar.zst
+cd /var/tmp
+sha256sum -c sapot-bundle-vX.Y.Z.tar.zst.sha256
 ```
 
 If it differs, re-copy. Do not install a bundle that failed this check.

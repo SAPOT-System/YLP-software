@@ -179,10 +179,11 @@ bundle. `minimumRollbackVersion` is the oldest bundle to which this release may
 roll back. Bundle `0.0.1` sets both values to `0.0.1` because it is the first release
 in a fresh version line and is intended only for new installations.
 
-Copy the tarball to the offline host by removable media, extract it, and run
-the bundled scripts from the extracted release. The host needs Docker Engine,
-Compose v2, `python3`, `openssl`, and sufficient local disk. It never needs
-internet access during installation or upgrade.
+Download the tarball and checksum from GitHub Releases, or use a manually built
+pair. Transfer both files to the offline host, verify the checksum, then extract
+the tarball and run its bundled scripts. The host needs Docker Engine, Compose
+v2, `python3`, `openssl`, and sufficient local disk. It never needs internet
+access during installation or upgrade.
 
 ## Install and operate
 
