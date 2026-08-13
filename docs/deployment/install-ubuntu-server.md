@@ -21,7 +21,7 @@ Three things, and they are not interchangeable:
 
 | Thing | What it is | Why |
 |---|---|---|
-| **Build host** | A connected machine with a clean checkout of this repository, Docker, Compose v2, `python3`, `zstd`, and `arduino-cli` | Builds the bundle. It is the only machine that needs internet during a release. |
+| **Build host** | A connected machine. Usually, you only need this to download the pre-built bundle from GitHub Releases. A manual build also needs a clean checkout, Docker's containerd image store, Compose v2, `python3`, `zstd`, and `arduino-cli` | Downloads or builds the bundle. It is the only machine that needs internet. |
 | **Target server** | The site's Ubuntu Server 24.04 LTS machine, on the LAN | Runs SAPOT. Needs internet once, to install Docker Engine. |
 | **CA USB stick** | A removable drive holding `server_ca.key` and `server_ca.pem` | Signs the server's TLS certificate. Without it, installation aborts. |
 
@@ -31,7 +31,7 @@ that machine can be taken online to build. In practice they are separate.
 ```mermaid
 flowchart LR
     A["Step 0<br/>create CA USB stick<br/>(once per fleet)"] --> D
-    B["Step 2<br/>build-bundle.sh<br/>on the build host"] --> C["Step 3<br/>transfer<br/>.tar.zst"]
+    B["Step 2<br/>download from GitHub<br/>or build bundle"] --> C["Step 3<br/>transfer<br/>.tar.zst"]
     C --> D["Step 5<br/>install.sh<br/>on the server"]
     E["Step 1<br/>prepare server<br/>+ Docker Engine"] --> D
     D --> F["Step 6<br/>status.sh<br/>doctor.sh"]
@@ -111,10 +111,11 @@ Before installing SAPOT:
 - **Check the clock.** `timedatectl` should show the clock synchronized. A
   server with a badly wrong clock issues a certificate that clients reject as
   not-yet-valid.
-- **Check free disk.** The installer refuses to proceed unless both `/opt` and
-  Docker's data root have the bundle's `requiredDiskBytes` plus a 20% margin
-  free. That figure is in the bundle's `manifest.json`; images and map tiles
-  dominate it.
+- **Check free disk.** The installer reserves space for the copied release,
+  compressed Docker content, and the unpacked image sizes recorded during the
+  build, then adds a 20% margin. When those paths share a filesystem, it adds
+  their needs before checking free space. Containerd-backed Docker is checked
+  at `/var/lib/containerd`, where its snapshots are actually stored.
 
 ### Install Docker Engine from Docker's own apt repository
 
@@ -164,15 +165,30 @@ already present on a standard Ubuntu Server 24.04 install.
 
 ---
 
-## Step 2: Build the bundle on the build host
+## Step 2: Download or build the bundle
 
-From the repository root, on a **clean** checkout of the tagged commit you want
-to release:
+The standard way to get a bundle is through the GitHub Releases page. The
+release workflow builds it automatically when a `bundle/vX.Y.Z` tag is pushed.
+
+On your connected machine, find the required bundle release and download both:
+
+- `sapot-bundle-vX.Y.Z.tar.zst`
+- `sapot-bundle-vX.Y.Z.tar.zst.sha256`
+
+### Alternative: Build the bundle manually
+
+If you cannot use the pre-built GitHub release, build it from a **clean**
+checkout of the tagged commit:
 
 ```bash
 ./tileserver/download-script.sh
 ./scripts/build-bundle.sh
 ```
+
+The manual build requires Docker's containerd image store so its layer archives
+match the compressed GitHub bundle format. See
+[Offline Docker Deployment Bundle](docker-bundle.md#build-and-transport) for the
+check and setup instructions.
 
 The build refuses to start if tracked files are modified, so that the recorded
 git SHA describes exactly what is inside the bundle.
@@ -197,29 +213,32 @@ compiles the Arduino firmware, and compresses everything. The result is:
 dist/sapot-bundle-vX.Y.Z.tar.zst
 ```
 
-Record its checksum now so you can prove the transfer was clean:
+Create the checksum file that travels with the archive:
 
 ```bash
-sha256sum dist/sapot-bundle-vX.Y.Z.tar.zst
+(cd dist && sha256sum sapot-bundle-vX.Y.Z.tar.zst > sapot-bundle-vX.Y.Z.tar.zst.sha256)
 ```
+
+GitHub Releases already provides this `.sha256` file.
 
 ---
 
 ## Step 3: Transfer the bundle to the server
 
-Over the LAN, if the two machines can see each other:
+From the directory containing both files, transfer them over the LAN:
 
 ```bash
-scp dist/sapot-bundle-vX.Y.Z.tar.zst <server-name>@<server-ip>:/var/tmp/
+scp sapot-bundle-vX.Y.Z.tar.zst sapot-bundle-vX.Y.Z.tar.zst.sha256 <server-name>@<server-ip>:/var/tmp/
 ```
 
 Or by removable media, for a genuinely disconnected site. Use a different stick
 from the CA stick.
 
-On the server, confirm the checksum matches what Step 2 printed:
+On the server, verify the archive against the downloaded checksum file:
 
 ```bash
-sha256sum /var/tmp/sapot-bundle-vX.Y.Z.tar.zst
+cd /var/tmp
+sha256sum -c sapot-bundle-vX.Y.Z.tar.zst.sha256
 ```
 
 If it differs, re-copy. Do not install a bundle that failed this check.
@@ -265,13 +284,14 @@ The installer, in order:
    you can confirm which CA is about to sign. **It aborts here if the stick is
    missing, read-only, mounted stale, or carries mismatched CA material.**
    There is no self-signed fallback.
-3. Checks free disk on `/opt` and on Docker's data root.
+3. Checks the combined release, Docker content, and unpacked-layer disk
+   requirement on every filesystem involved.
 4. Copies the release to `/opt/sapot/releases/vX.Y.Z` and generates
    `/opt/sapot/shared/*.env` with fresh random secrets. You do not need to edit
    these by hand for a standard site.
 5. Detects the LAN IP and issues the TLS certificate from the CA stick.
-6. Loads the container images and verifies each one against the digest pinned
-   in `manifest.json`.
+6. Loads the container images and verifies each image identity against both the
+   bundle archive and the digest pinned in `manifest.json`.
 7. Starts MariaDB and Redis, waits for both to be healthy, then runs
    `alembic upgrade head` to build the schema.
 8. Starts the full stack and polls `https://localhost/version` for up to three
@@ -319,7 +339,7 @@ sudo /opt/sapot/releases/current/scripts/doctor.sh
 service. All seven should read `healthy`, except `nginx` (`up`) and, on a site
 with no modem, `gsm-fastapi` (`up (no modem attached)`).
 
-`doctor.sh` checks release checksums, image digests, disk, every service, the
+`doctor.sh` checks release checksums, image identities, disk, every service, the
 certificate chain and SANs, ports 80 and 443, the GSM device if one is
 expected, backup age, and the administrator account. Add `--json` for
 machine-readable output.
@@ -406,7 +426,8 @@ Failures specific to a first install. The wider table lives in
 | `refusing to sign: <dir> is on the root filesystem` | The stick was never mounted, or a stale mountpoint was left behind by an unplugged drive | Mount the stick properly. Do not set `SAPOT_CA_ALLOW_LOCAL=1` on a production server |
 | `CA USB stick at <dir> is not writable` | Mounted read-only, so the serial file and issuance log cannot be updated | `sudo mount -o remount,rw <mount>` |
 | `bundle checksum verification failed` | The transfer corrupted the archive | Re-copy from Step 3 and re-extract. Do not bypass the check |
-| `insufficient free space on <path>` | `requiredDiskBytes` plus the 20% margin exceeds what is free on `/opt` or Docker's data root | Free space, or move Docker's data root to a larger disk |
+| `insufficient free space on <filesystem>` | The copied release, Docker content, estimated unpacked layers, and 20% margin exceed the available space | Free space, or move Docker and containerd storage to a larger disk |
+| `Docker image store ran out of space while unpacking` | Docker accepted the archive but containerd could not extract a layer | Free space under `/var/lib/containerd`, then rerun `install.sh` |
 | `nginx/api did not become ready` | The stack started but `/version` never answered within three minutes | `sudo docker compose -p sapot -f /opt/sapot/releases/vX.Y.Z/compose/docker-compose.yml logs api nginx` |
 | Ports 80/443 fail to bind | Another web server is installed on the host | `sudo ss -ltnp 'sport = :443'`, then stop and disable whatever holds them |
 | `doctor.sh` reports `certificate SAN does not cover server.sapot.lan` | The certificate was issued outside the bundle workflow | Reissue with `request-cert.sh`. Production handsets cannot connect until this is fixed |

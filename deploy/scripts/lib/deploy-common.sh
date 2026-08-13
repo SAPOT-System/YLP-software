@@ -38,13 +38,64 @@ compose() {
 }
 verify_checksums() { (cd "$1" && sha256sum -c CHECKSUMS.sha256); }
 disk_preflight() {
-  local required=$1 margin docker_root free
-  margin=$((required * (100 + SAFETY_PERCENT) / 100))
+  local release=$1 target=$2 release_required=$3 image_bytes unpacked_bytes docker_root docker_store driver_type
+  local path required margin free filesystem
+  declare -A required_by_filesystem=() path_by_filesystem=()
+
+  image_bytes=$(find "$release/images" -maxdepth 1 -type f -name '*.tar' -printf '%s\n' | awk '{total += $1} END {print total + 0}')
+  unpacked_bytes=$(python3 - "$release/manifest.json" "$image_bytes" <<'PY'
+import json
+import sys
+
+images = json.load(open(sys.argv[1], encoding="utf-8"))["images"].values()
+sizes = [image.get("unpackedSize") for image in images]
+print(sum(sizes) if sizes and all(isinstance(size, int) and size > 0 for size in sizes) else sys.argv[2])
+PY
+)
   docker_root=$(docker info --format '{{.DockerRootDir}}')
-  for path in "$SAPOT_ROOT" "$docker_root"; do
-    free=$(df -PB1 "$path" | awk 'NR==2 {print $4}')
-    if [ "$free" -lt "$margin" ]; then log_error "insufficient free space on $path: need $margin bytes, have $free"; return 1; fi
+  driver_type=$(docker info --format '{{range .DriverStatus}}{{if eq (index . 0) "driver-type"}}{{index . 1}}{{end}}{{end}}' 2>/dev/null || true)
+  docker_store=$docker_root
+  if [ "$driver_type" = io.containerd.snapshotter.v1 ] && [ -d "${SAPOT_CONTAINERD_ROOT:-/var/lib/containerd}" ]; then
+    docker_store=${SAPOT_CONTAINERD_ROOT:-/var/lib/containerd}
+  fi
+
+  [ -e "$target" ] && release_required=0
+  for path in "$SAPOT_ROOT:$release_required" "$docker_store:$((image_bytes + unpacked_bytes))"; do
+    required=${path##*:}
+    path=${path%:*}
+    filesystem=$(df -PB1 "$path" | awk 'NR==2 {print $1 " mounted on " $6}')
+    required_by_filesystem["$filesystem"]=$(( ${required_by_filesystem["$filesystem"]:-0} + required ))
+    path_by_filesystem["$filesystem"]=$path
   done
+
+  for filesystem in "${!required_by_filesystem[@]}"; do
+    required=${required_by_filesystem["$filesystem"]}
+    margin=$((required * (100 + SAFETY_PERCENT) / 100))
+    path=${path_by_filesystem["$filesystem"]}
+    free=$(df -PB1 "$path" | awk 'NR==2 {print $4}')
+    if [ "$free" -lt "$margin" ]; then
+      log_error "insufficient free space on $filesystem: need $margin bytes, have $free"
+      return 1
+    fi
+  done
+}
+load_image_archive() {
+  local archive=$1 output status=0
+  output=$(docker load -i "$archive" 2>&1) || status=$?
+  [ -z "$output" ] || printf '%s\n' "$output"
+  if [ "$status" -ne 0 ]; then
+    log_error "failed to load Docker image archive $archive"
+    return "$status"
+  fi
+  # Containerd-backed Docker can return success after reporting an unpack error.
+  if grep -qi 'error unpacking image' <<< "$output"; then
+    if grep -qi 'no space left on device' <<< "$output"; then
+      log_error "Docker image store ran out of space while unpacking $archive"
+    else
+      log_error "Docker could not unpack image archive $archive"
+    fi
+    return 1
+  fi
 }
 wait_healthy() {
   local release=$1 service=$2 attempts=${3:-36} status

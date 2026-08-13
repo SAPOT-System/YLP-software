@@ -40,6 +40,30 @@ jobs:
           docker compose version
           df -h /
 
+      - name: Configure compressed Docker image store
+        run: |
+          sudo python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("/etc/docker/daemon.json")
+          contents = path.read_text().strip() if path.exists() else ""
+          config = json.loads(contents) if contents else {}
+          config.setdefault("features", {})["containerd-snapshotter"] = True
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(config, indent=2) + "\n")
+          PY
+          sudo systemctl restart docker
+          for _ in {1..30}; do
+            docker info >/dev/null 2>&1 && break
+            sleep 1
+          done
+          DRIVER_TYPE=$(docker info --format '{{range .DriverStatus}}{{if eq (index . 0) "driver-type"}}{{index . 1}}{{end}}{{end}}')
+          if [ "$DRIVER_TYPE" != io.containerd.snapshotter.v1 ]; then
+            echo "expected containerd image store, got: ${DRIVER_TYPE:-none}" >&2
+            exit 1
+          fi
+
       - uses: arduino/setup-arduino-cli@v2
 
       - name: Run release metadata and deployment script tests

@@ -24,6 +24,11 @@ for command in arduino-cli docker python3 zstd sha256sum tar; do
   command -v "$command" >/dev/null || { echo "missing required command: $command" >&2; exit 1; }
 done
 docker compose version >/dev/null || { echo "Docker Compose v2 is required" >&2; exit 1; }
+image_store_driver=$(docker info --format '{{range .DriverStatus}}{{if eq (index . 0) "driver-type"}}{{index . 1}}{{end}}{{end}}' 2>/dev/null || true)
+[ "$image_store_driver" = io.containerd.snapshotter.v1 ] || {
+  echo "Docker's containerd image store is required so bundle layers remain compressed" >&2
+  exit 1
+}
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "refusing to build from a dirty tracked worktree" >&2
   exit 1
@@ -114,8 +119,8 @@ declare -A tags=(
 )
 
 save_image() {
-  local name=$1 tag=$2 digest
-  digest=$(docker image inspect --format '{{.Id}}' "$tag")
+  local name=$1 tag=$2 digest unpacked_size metadata
+  local -a image_metadata
   local partial="$bundle/images/$name.tar.partial"
   local error_file="$scratch/$name.save.stderr"
   if ! docker save -o "$partial" "$tag" 2>"$error_file"; then
@@ -126,8 +131,12 @@ save_image() {
     return 1
   fi
   rm -f "$error_file"
+  metadata=$(python3 scripts/image_archive_metadata.py "$partial" "$tag")
+  readarray -t image_metadata <<< "$metadata"
+  digest=${image_metadata[0]}
+  unpacked_size=${image_metadata[1]}
   mv "$partial" "$bundle/images/$name.tar"
-  printf '%s\t%s\t%s\n' "$name" "$tag" "$digest" >> "$digest_file"
+  printf '%s\t%s\t%s\t%s\n' "$name" "$tag" "$digest" "$unpacked_size" >> "$digest_file"
 }
 
 cleanup_images() {
@@ -233,8 +242,8 @@ import sys
 images = {}
 with open(digest_file, encoding="utf-8") as lines:
     for line in lines:
-        name, tag, digest = line.rstrip("\n").split("\t")
-        images[name] = {"tag": tag, "digest": digest}
+        name, tag, digest, unpacked_size = line.rstrip("\n").split("\t")
+        images[name] = {"tag": tag, "digest": digest, "unpackedSize": int(unpacked_size)}
 
 required = sum(os.path.getsize(os.path.join(root, "images", f"{name}.tar")) for name in images)
 for directory in ("data", "firmware"):
