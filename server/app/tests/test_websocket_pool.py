@@ -20,7 +20,9 @@ from fastapi.testclient import TestClient
 import app.api.peer_connection as peer_connection
 from app.main import app
 from app.db_operations.auth import get_session
+from app.db_operations.connection_manager import manager
 from app.db_operations.token import create_access_token
+from app.db_operations.websocket_auth import WEBSOCKET_AUTH_PROTOCOL
 
 
 @pytest.fixture(name="pool_engine")
@@ -47,6 +49,12 @@ def pool_engine_fixture(tmp_path, monkeypatch):
     # _set_status_bg and the connect-time drain reach the module-level engine.
     monkeypatch.setattr(peer_connection, "engine", engine)
 
+    async def connect_without_redis(user_id, websocket):
+        await websocket.accept(subprotocol=WEBSOCKET_AUTH_PROTOCOL)
+        manager._local[user_id] = websocket
+
+    monkeypatch.setattr(manager, "connect", connect_without_redis)
+
     yield engine
 
     app.dependency_overrides.clear()
@@ -71,12 +79,10 @@ def test_idle_websocket_holds_no_pool_connection(pool_engine):
 
     # Act: connect and reach the idle receive loop (ping/pong proves the
     # connect-time drain has completed and the handler is waiting).
-    with client.websocket_connect(f"/ws/?token={token}") as ws:
-        # The handler broadcasts an "online" status-update to all peers
-        # (including the connecting one) on connect — drain it first.
-        first = ws.receive_json()
-        assert first["type"] == "status-update"
-
+    with client.websocket_connect(
+        "/ws/", subprotocols=[WEBSOCKET_AUTH_PROTOCOL, token]
+    ) as ws:
+        assert ws.accepted_subprotocol == WEBSOCKET_AUTH_PROTOCOL
         ws.send_json({"type": "ping"})
         assert ws.receive_json() == {"type": "pong"}
 

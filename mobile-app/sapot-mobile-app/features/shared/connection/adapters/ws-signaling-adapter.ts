@@ -1,4 +1,5 @@
 import EventEmitter from "events";
+import { normalizeWebSocketUrl } from "@/config/runtime";
 import { SendPublicChatPayload } from "@/features/shared/core/messaging-types";
 import {
   AckMessage,
@@ -41,7 +42,7 @@ interface WsLike {
 }
 
 interface WsConstructor {
-  new (url: string): WsLike;
+  new (url: string, protocols?: string | string[]): WsLike;
   OPEN: number;
 }
 
@@ -55,7 +56,7 @@ interface ConnectOptions {
   reconnectMaxDelayMs?: number;
   heartbeatIntervalMs?: number;
   heartbeatTimeoutMs?: number;
-  extraQuery?: Record<string, string | number | boolean | undefined>;
+  extraQuery?: { target_id?: string };
 }
 
 type AdapterState = "idle" | "connecting" | "open" | "closing";
@@ -70,6 +71,7 @@ interface QueuedSignalingMessage {
 
 /** WebRTC negotiation traffic — meaningless once its session is gone. */
 const NEGOTIATION_TYPES = new Set(["offer", "answer", "ice-candidate"]);
+const WEBSOCKET_AUTH_PROTOCOL = "sapot.jwt";
 
 /**
  * WsSignalingAdapter handles websocket signaling for WebRTC negotiation.
@@ -144,7 +146,10 @@ export class WsSignalingAdapter extends EventEmitter {
         hasToken: Boolean(options.token),
       });
 
-      const socket = new (this.getWebSocketCtor())(wsUrl);
+      const socket = new (this.getWebSocketCtor())(wsUrl, [
+        WEBSOCKET_AUTH_PROTOCOL,
+        options.token,
+      ]);
       this.socket = socket;
       this.state = "connecting";
       const socketEpoch = ++this.socketEpoch;
@@ -749,10 +754,8 @@ export class WsSignalingAdapter extends EventEmitter {
 
   private buildWsUrl(options: ConnectOptions) {
     const path = options.path ?? "/ws/";
-    const normalizedBase = this.normalizeBaseUrl(options.baseUrl);
-    const query: Record<string, string | number | boolean | undefined> = {
-      token: options.token,
-    };
+    const normalizedBase = normalizeWebSocketUrl(options.baseUrl);
+    const query = { target_id: options.extraQuery?.target_id };
 
     const queryString = Object.entries(query)
       .filter(([, value]) => value !== undefined)
@@ -764,24 +767,6 @@ export class WsSignalingAdapter extends EventEmitter {
       .join("&");
 
     return `${normalizedBase}${path}${queryString ? `?${queryString}` : ""}`;
-  }
-
-  private normalizeBaseUrl(baseUrl: string) {
-    const trimmedBase = baseUrl.replace(/\/+$/, "");
-
-    if (trimmedBase.startsWith("ws://") || trimmedBase.startsWith("wss://")) {
-      return trimmedBase;
-    }
-
-    if (trimmedBase.startsWith("https://")) {
-      return `wss://${trimmedBase.slice("https://".length)}`;
-    }
-
-    if (trimmedBase.startsWith("http://")) {
-      return `ws://${trimmedBase.slice("http://".length)}`;
-    }
-
-    return `ws://${trimmedBase}`;
   }
 
   private getWebSocketCtor(): WsConstructor {

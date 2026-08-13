@@ -1,6 +1,7 @@
-import json
 from fastapi import WebSocket
 from typing import Dict
+from app.db_operations.websocket_auth import WEBSOCKET_AUTH_PROTOCOL
+
 
 class GPSManager:
     def __init__(self):
@@ -8,7 +9,7 @@ class GPSManager:
         self.active_monitors: Dict[str, WebSocket] = {}
 
     async def connect_monitor(self, user_id: str, websocket: WebSocket):
-        await websocket.accept()
+        await websocket.accept(subprotocol=WEBSOCKET_AUTH_PROTOCOL)
         self.active_monitors[user_id] = websocket
 
     def disconnect_monitor(self, user_id: str):

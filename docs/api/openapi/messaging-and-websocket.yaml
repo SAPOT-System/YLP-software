@@ -41,48 +41,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /ws/:
-    get:
-      tags:
-      - websockets
-      - peer connection
-      summary: Testing Area
-      operationId: testing_area_ws__get
-      parameters:
-      - name: target_id
-        in: query
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Target Id
-      - name: my_id
-        in: query
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: My Id
-      - name: token
-        in: query
-        required: true
-        schema:
-          type: string
-          title: Token
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: Not Found
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     HTTPValidationError:

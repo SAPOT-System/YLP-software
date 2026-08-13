@@ -2,14 +2,14 @@
 
 Machine-readable spec: [`openapi/gps.yaml`](openapi/gps.yaml) (generated from the live FastAPI app — REST routes only; WebSocket routes are not representable in OpenAPI and are documented in prose below). Note: neither REST route declares a `response_model`, so the generated YAML's `200` response schema is empty (`{}`) — the JSON examples below are the only documented shape for these responses.
 
-GPS endpoints stream and query user location data (router in `server/app/api/gps.py`, prefix `/gps`). All GPS endpoints require JWT Bearer auth (via `token` query param for WebSocket routes).
+GPS endpoints stream and query user location data (router in `server/app/api/gps.py`, prefix `/gps`). REST endpoints use JWT Bearer auth. WebSocket routes use the `sapot.jwt` subprotocol contract.
 
 ## Endpoints at a glance
 
 | Method | Path | Auth | Summary |
 |---|---|---|---|
-| WS | `/gps/ws/{user_id}` | `token` query param (JWT) | Stream live GPS coordinates from a user's device; server persists and fans out to monitoring rescuers. |
-| WS | `/gps/ws/monitor/rescuers/{rescuer_id}` | `token` query param (JWT, rescuer role) | Live feed of every user's GPS updates, for rescuers. |
+| WS | `/gps/ws/{user_id}` | `Sec-WebSocket-Protocol: sapot.jwt, <JWT>` | Stream live GPS coordinates from a user's device; server persists and fans out to monitoring rescuers. |
+| WS | `/gps/ws/monitor/rescuers/{rescuer_id}` | `Sec-WebSocket-Protocol: sapot.jwt, <JWT>`; rescuer role | Live feed of every user's GPS updates, for rescuers. |
 | GET | `/gps/latest` | JWT Bearer (rescuer role) | Most recent location for every user who has sent at least one ping. |
 | GET | `/gps/history/{user_id}` | JWT Bearer (rescuer role) | Location history for a specific user, most recent first. |
 
@@ -19,10 +19,13 @@ GPS endpoints stream and query user location data (router in `server/app/api/gps
 
 Stream live GPS coordinates from a user's device to the server. The server persists each ping and fans out to all monitoring rescuers in real time.
 
-**Auth:** `token` query parameter (JWT)
+**Auth:** ordered WebSocket subprotocol offer `sapot.jwt`, then the access token
 
-```
-wss://<host>/gps/ws/<user_uuid>?token=<access_token>
+```javascript
+const socket = new WebSocket("wss://<host>/gps/ws/<user_uuid>", [
+  "sapot.jwt",
+  accessToken,
+]);
 ```
 
 **Validation:**
@@ -62,10 +65,13 @@ users based on this field.
 
 Open a live feed of all users' GPS updates. Rescuers only.
 
-**Auth:** `token` query parameter (JWT)
+**Auth:** ordered WebSocket subprotocol offer `sapot.jwt`, then the access token
 
-```
-wss://<host>/gps/ws/monitor/rescuers/<rescuer_uuid>?token=<access_token>
+```javascript
+const socket = new WebSocket(
+  "wss://<host>/gps/ws/monitor/rescuers/<rescuer_uuid>",
+  ["sapot.jwt", accessToken],
+);
 ```
 
 **Validation:**

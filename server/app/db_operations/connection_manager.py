@@ -7,6 +7,7 @@ from fastapi import WebSocket
 from typing import Dict, Optional
 
 import redis.asyncio as aioredis
+from app.db_operations.websocket_auth import WEBSOCKET_AUTH_PROTOCOL
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class ConnectionManager:
     # ------------------------------------------------------------------
 
     async def connect(self, user_id: UUID, websocket: WebSocket) -> None:
-        await websocket.accept()
+        await websocket.accept(subprotocol=WEBSOCKET_AUTH_PROTOCOL)
         self._local[user_id] = websocket
         await self._set_presence(user_id)
         pubsub = self._redis.pubsub()

@@ -65,7 +65,7 @@ useEffect(() => {
     const { status } = await Location.requestForegroundPermissionsAsync()
     if (status !== 'granted') { setPermissionDenied(true); return }
 
-    ws = new WebSocket(`ws://${serverHost}/gps/ws/${userId}?token=${jwt}`)
+    ws = new WebSocket(`wss://${serverHost}/gps/ws/${userId}`, ['sapot.jwt', jwt])
     ws.onopen = () => {
       locationSub = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.Balanced, timeInterval: 5000 },
@@ -112,8 +112,10 @@ monitorWs.onmessage = (e) => {
 
 | Path                              | Role       | Direction      | Description                           |
 |-----------------------------------|------------|----------------|---------------------------------------|
-| `/gps/ws/{user_id}?token=JWT`     | Any user   | client → server| Receive location frames; save + relay |
-| `/gps/ws/monitor/rescuers/{id}?token=JWT` | Rescuer | server → client | Push live location frames             |
+| `/gps/ws/{user_id}`     | Any user   | client → server| Receive location frames; save + relay |
+| `/gps/ws/monitor/rescuers/{id}` | Rescuer | server → client | Push live location frames             |
+
+Both endpoints require the ordered WebSocket subprotocols `sapot.jwt` and the access token. The server selects `sapot.jwt` after authentication. A query token or an ambiguous protocol offer closes with code 1008.
 
 ### Connection Manager
 
@@ -188,6 +190,7 @@ sequenceDiagram
 
 The GPS WebSocket is managed entirely within `useGpsStreaming` and `gps.py`. It:
 - Uses a separate WebSocket URL path (`/gps/ws/*` vs `/ws`).
+- Keeps credentials out of the URL by sending the access token as the second `Sec-WebSocket-Protocol` value.
 - Has its own reconnection logic independent of `ConnectionService`.
 - Does not share state with the messaging or signalling layers.
 - Can remain connected even if the messaging WebSocket is disconnected.

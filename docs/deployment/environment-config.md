@@ -85,7 +85,7 @@ Set in EAS project secrets or a local `.env` file (not committed).
 |---|---|---|
 | `APP_VARIANT` | Build variant: `development`, `preview`, or unset for production | EAS build |
 | `SERVER_CA` | Base64-encoded **private CA** PEM, materialized into `server_ca.pem` at prebuild by `app.config.ts`'s `withServerCa` | EAS cloud builds only |
-| `EXPO_PUBLIC_DEV_HOST` | Dev-only server hostname/IP used by `config/runtime.ts` to build the API/WS/tile-server URLs (`https://<DEV_HOST>`, `wss://<DEV_HOST>`) | `__DEV__` builds only |
+| `EXPO_PUBLIC_DEV_HOST` | Dev-only server hostname/IP used by `config/runtime.ts` to build the API/WS/tile-server URLs. WSS is the default; an explicit plaintext WebSocket origin is accepted only in `__DEV__`. | `__DEV__` builds only |
 | `EXPO_PUBLIC_SERVER_VERIFY_KEY` | Public key used to verify the server's identity/signature (`config/runtime.ts` → `getServerVerifyKey()`) | All builds, if server signing is enabled |
 | `EXPO_PUBLIC_ENABLED_LOG_MODULES` | Comma-separated log scopes; unset = all | Development only |
 | `EXPO_PUBLIC_LOG_TO_FILE` | Set to `1` to force file logging in dev (always on in non-dev builds) | Development only |
@@ -115,7 +115,7 @@ Set in EAS project secrets or a local `.env` file (not committed).
 |---|---|---|
 | `API_DOMAIN` | SAPOT server base URL, read server-side only (`api/fetch.ts`, `api/login.ts`, `app/api/**/route.ts`, `actions/auth.ts`) — **not** prefixed `NEXT_PUBLIC_`, so it never reaches the client bundle | Yes |
 | `NEXT_PUBLIC_MAP_STYLE` | MapLibre tile style URL (`ui/components/MapLibre.tsx`) | Yes |
-| `NEXT_PUBLIC_WEBSOCKET_DOMAIN` | WebSocket server domain (`lib/ws/Websocketmanager.ts`, non-null asserted — required) | Yes |
+| `NEXT_PUBLIC_WEBSOCKET_DOMAIN` | Browser-facing WebSocket origin used by `lib/ws/Websocketmanager.ts`. Production must use `wss://`; local development may explicitly use `ws://` or `http://`. Keep this separate from internal `API_DOMAIN` Docker hostnames. | Yes |
 | `NODE_ENV` | Toggles the `secure` flag on auth cookies (production vs dev) | Set by the Node runtime; not usually hand-set |
 
 Set in `.env.local` (not committed) or the host service manager. `admin-frontend/sapot-admin/.env.example`

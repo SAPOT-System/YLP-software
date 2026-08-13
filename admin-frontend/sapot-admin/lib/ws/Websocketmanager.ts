@@ -81,6 +81,29 @@ export async function getToken(): Promise<string> {
   return data.token;
 }
 
+export function normalizeWebSocketDomain(
+  configuredDomain: string | undefined,
+  fallbackHost: string,
+  isDevelopment = process.env.NODE_ENV === "development",
+): string {
+  const value = configuredDomain?.trim() || `wss://${fallbackHost}`;
+  const withProtocol = value.includes("://") ? value : `wss://${value}`;
+  const normalized = withProtocol
+    .replace(/^http:\/\//, "ws://")
+    .replace(/^https:\/\//, "wss://")
+    .replace(/\/+$/, "");
+
+  if (!isDevelopment && normalized.startsWith("ws://")) {
+    throw new Error("Plaintext WebSocket URLs are only allowed in development");
+  }
+
+  if (!normalized.startsWith("ws://") && !normalized.startsWith("wss://")) {
+    throw new Error("WebSocket domain must use ws:// or wss://");
+  }
+
+  return normalized;
+}
+
 /* =========================
    SEND HELPERS
 ========================= */
@@ -221,14 +244,13 @@ export async function connectWebSocket(userId: string) {
 
   try {
     const token = await getToken();
-    const raw = process.env.NEXT_PUBLIC_WEBSOCKET_DOMAIN;
-    const wsDomain = (raw || `wss://${window.location.host}`)
-      .replace(/^http:\/\//, "ws://")
-      .replace(/^https:\/\//, "wss://");
+    const wsDomain = normalizeWebSocketDomain(
+      process.env.NEXT_PUBLIC_WEBSOCKET_DOMAIN,
+      window.location.host,
+    );
+    const url = `${wsDomain}/ws/`;
 
-    const url = `${wsDomain}/ws/?token=${token}`;
-
-    socket = new WebSocket(url);
+    socket = new WebSocket(url, ["sapot.jwt", token]);
 
     socket.onopen = () => {
       console.log("[WS] Connected");
@@ -262,7 +284,7 @@ export async function connectWebSocket(userId: string) {
           await handleSeen(parsed.data as SeenPayload);
           break;
         default:
-          console.warn("[WS] Unknown message type:", (parsed as any).type);
+          console.warn("[WS] Unknown message type");
       }
     };
 

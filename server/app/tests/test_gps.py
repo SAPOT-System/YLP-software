@@ -10,18 +10,29 @@ import uuid
 import json
 
 from app.tests.test_db_utils import get_auth_headers
+from app.db_operations.token import create_access_token
+from app.db_operations.websocket_auth import WEBSOCKET_AUTH_PROTOCOL
 
 
-def test_stream_gps_location_success(client: TestClient):
+def _protocols(user_id: uuid.UUID) -> list[str]:
+    token = create_access_token({"sub": str(user_id)})
+    return [WEBSOCKET_AUTH_PROTOCOL, token]
+
+
+def test_stream_gps_location_success(client: TestClient, test_user_instance):
     """
     Test that a user can connect to the GPS WebSocket and send coordinates.
     """
-    test_user_id = str(uuid.uuid4())
+    test_user_id = str(test_user_instance.id)
     payload = {"lat": 14.4589, "lng": 120.9486}
 
     # 1. Open the WebSocket connection
     # Note: the path must match your router's path
-    with client.websocket_connect(f"/gps/ws/{test_user_id}") as websocket:
+    with client.websocket_connect(
+        f"/gps/ws/{test_user_id}",
+        subprotocols=_protocols(test_user_instance.id),
+    ) as websocket:
+        assert websocket.accepted_subprotocol == WEBSOCKET_AUTH_PROTOCOL
 
         # 2. Send the JSON data (Simulating the React Native 'send')
         websocket.send_json(payload)
@@ -34,13 +45,16 @@ def test_stream_gps_location_success(client: TestClient):
 
         assert websocket.scope["path"] == f"/gps/ws/{test_user_id}"
 
-def test_stream_gps_invalid_data(client: TestClient):
+def test_stream_gps_invalid_data(client: TestClient, test_user_instance):
     """
     Test how the WebSocket handles garbage data.
     """
-    test_user_id = str(uuid.uuid4())
+    test_user_id = str(test_user_instance.id)
 
-    with client.websocket_connect(f"/gps/ws/{test_user_id}") as websocket:
+    with client.websocket_connect(
+        f"/gps/ws/{test_user_id}",
+        subprotocols=_protocols(test_user_instance.id),
+    ) as websocket:
         # Sending a string instead of the expected JSON object
         websocket.send_text("not-a-json")
 
@@ -166,15 +180,21 @@ def test_get_history_not_found(client: TestClient, test_user_instance, test_resc
 
 def test_gps_broadcast_to_rescuer(client, session, test_user_instance, test_rescuer):
     user_id_str = str(test_user_instance.id)
-    rescuer_id_str = str(test_rescuer.id)
+    rescuer_id_str = user_id_str
     payload = {"lat": 14.5, "lng": 121.0}
+    protocols = _protocols(test_user_instance.id)
 
     # 1. Start the Rescuer monitor
-    with client.websocket_connect(f"/gps/ws/monitor/rescuers/{rescuer_id_str}") as rescuer_ws:
+    with client.websocket_connect(
+        f"/gps/ws/monitor/rescuers/{rescuer_id_str}", subprotocols=protocols
+    ) as rescuer_ws:
+        assert rescuer_ws.accepted_subprotocol == WEBSOCKET_AUTH_PROTOCOL
         
         # 2. Open AND CLOSE the user connection
         # This triggers the broadcast while the rescuer is still 'alive' inside the 'with' block
-        with client.websocket_connect(f"/gps/ws/{user_id_str}") as user_ws:
+        with client.websocket_connect(
+            f"/gps/ws/{user_id_str}", subprotocols=protocols
+        ) as user_ws:
             user_ws.send_json(payload)
             
         # 3. Verify the broadcasted data was received
@@ -184,4 +204,3 @@ def test_gps_broadcast_to_rescuer(client, session, test_user_instance, test_resc
         
     # After exiting the block, the rescuer is disconnected 
     # and the 'raise' inside your endpoint is handled by the TestClient
-

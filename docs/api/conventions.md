@@ -170,10 +170,10 @@ Profile pictures are served at `/static/profile_pictures/<filename>` directly by
 
 ## WebSocket Authentication
 
-WebSocket endpoints authenticate via a `token` query parameter (browsers cannot set custom headers on WS upgrades):
+WebSocket endpoints authenticate through the standard subprotocol offer because browser clients cannot set an `Authorization` header on the upgrade request:
 
-```
-wss://<host>/ws/?token=<access_token>
+```javascript
+const socket = new WebSocket("wss://<host>/ws/", ["sapot.jwt", accessToken]);
 ```
 
-The server closes the connection with code 1008 (policy violation) if the token is invalid.
+The offer must contain exactly `sapot.jwt` followed by the access token. The server selects `sapot.jwt` after validating the token. Missing, malformed, expired, or extra protocols close with code 1008 (policy violation). Any `token` query parameter is rejected, even when the subprotocol credentials are valid.

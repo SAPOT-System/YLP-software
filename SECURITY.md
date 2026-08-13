@@ -12,6 +12,7 @@ This is the canonical source of truth for SAPOT's known security-relevant config
 | Hardcoded JWT secret fallback | `server/app/db_operations/token.py` (`SECRET_KEY`) | The default value has been removed; `JWT_SECRET_KEY` is now required, and the app raises `RuntimeError` at import time if unset. **Rotate to a newly generated secret** (`openssl rand -hex 32`) — the old hardcoded value must be considered compromised since it was committed to source. |
 | CORS wildcard + credentials | `server/app/main.py` | `allow_origins=["*"]` replaced with an explicit allowlist read from `CORS_ALLOWED_ORIGINS` (comma-separated). The app raises `RuntimeError` at import time if unset. |
 | Testing router in production | `server/app/main.py`, `server/app/api/testing.py` | The router is imported and mounted only in `development` or `staging`. A router-wide dependency also returns 404 outside those environments if the router is mis-mounted. Every state-changing route requires the `X-QA-Token` shared secret. A production-process regression test exercises every testing path. |
+| WebSocket JWTs exposed in request URLs (issue #225) | Server `/ws/` and `/gps/ws/*`; mobile and admin clients | WebSocket URLs no longer contain JWTs. Clients offer exactly `sapot.jwt` and the access token through `Sec-WebSocket-Protocol`; the server selects `sapot.jwt`. Query-token compatibility was removed, and non-development clients require `wss://`. |
 
 ## Required environment variables (new)
 

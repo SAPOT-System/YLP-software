@@ -15,12 +15,14 @@ import uuid
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 from sqlmodel import Session
 
 from app.models.users import User
 from app.models.rescuer import Rescuer
 from app.db_operations.auth import get_password_hash
-from app.tests.test_db_utils import get_auth_headers
+from app.db_operations.token import create_access_token
+from app.db_operations.websocket_auth import WEBSOCKET_AUTH_PROTOCOL
 
 
 def test_gsm_secret_is_required_at_import_time():
@@ -86,9 +88,9 @@ def rescuer_user(session: Session) -> User:
     return user
 
 
-def _token(client: TestClient, username: str, password: str) -> str:
-    headers = get_auth_headers(client, username, password)
-    return headers["Authorization"].removeprefix("Bearer ")
+def _protocols(user: User) -> list[str]:
+    token = create_access_token({"sub": str(user.id)})
+    return [WEBSOCKET_AUTH_PROTOCOL, token]
 
 
 # ---------------------------------------------------------------------------
@@ -99,47 +101,65 @@ class TestTC247MonitorWebSocketRequiresRescuerAuth:
 
     def test_rejects_missing_token(self, client: TestClient, rescuer_user: User):
         rescuer_id = str(rescuer_user.id)
-        with pytest.raises(Exception):
+        with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect(
-                f"/gps/ws/monitor/rescuers/{rescuer_id}"  # no ?token=
+                f"/gps/ws/monitor/rescuers/{rescuer_id}"
             ) as ws:
                 ws.receive_text()
+        assert exc_info.value.code == 1008
 
     def test_rejects_invalid_token(self, client: TestClient, rescuer_user: User):
         rescuer_id = str(rescuer_user.id)
-        with pytest.raises(Exception):
+        with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect(
-                f"/gps/ws/monitor/rescuers/{rescuer_id}?token=not-a-real-token"
+                f"/gps/ws/monitor/rescuers/{rescuer_id}",
+                subprotocols=[WEBSOCKET_AUTH_PROTOCOL, "not-a-real-token"],
             ) as ws:
                 ws.receive_text()
+        assert exc_info.value.code == 1008
 
     def test_rejects_non_rescuer_token(self, client: TestClient, plain_user: User):
-        token = _token(client, plain_user.username, "PlainPass1")
         # Use the plain user's own ID so the ID check would pass — rescuer check must still reject
-        with pytest.raises(Exception):
+        with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect(
-                f"/gps/ws/monitor/rescuers/{plain_user.id}?token={token}"
+                f"/gps/ws/monitor/rescuers/{plain_user.id}",
+                subprotocols=_protocols(plain_user),
             ) as ws:
                 ws.receive_text()
+        assert exc_info.value.code == 1008
 
     def test_rejects_rescuer_token_with_mismatched_id(
         self, client: TestClient, rescuer_user: User
     ):
-        token = _token(client, rescuer_user.username, "RescuerPass1")
         wrong_id = str(uuid.uuid4())
-        with pytest.raises(Exception):
+        with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect(
-                f"/gps/ws/monitor/rescuers/{wrong_id}?token={token}"
+                f"/gps/ws/monitor/rescuers/{wrong_id}",
+                subprotocols=_protocols(rescuer_user),
             ) as ws:
                 ws.receive_text()
+        assert exc_info.value.code == 1008
 
     def test_accepts_valid_rescuer_token(self, client: TestClient, rescuer_user: User):
-        token = _token(client, rescuer_user.username, "RescuerPass1")
         rescuer_id = str(rescuer_user.id)
         with client.websocket_connect(
-            f"/gps/ws/monitor/rescuers/{rescuer_id}?token={token}"
+            f"/gps/ws/monitor/rescuers/{rescuer_id}",
+            subprotocols=_protocols(rescuer_user),
         ) as ws:
             assert ws.scope["path"] == f"/gps/ws/monitor/rescuers/{rescuer_id}"
+            assert ws.accepted_subprotocol == WEBSOCKET_AUTH_PROTOCOL
+
+
+def test_gps_stream_rejects_token_for_a_different_user(
+    client: TestClient, plain_user: User
+):
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(
+            f"/gps/ws/{uuid.uuid4()}", subprotocols=_protocols(plain_user)
+        ):
+            pass
+
+    assert exc_info.value.code == 1008
 
 
 # ---------------------------------------------------------------------------

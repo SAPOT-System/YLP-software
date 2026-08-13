@@ -74,7 +74,7 @@ sequenceDiagram
 
 ## Server connectivity
 
-The SAPOT server is a fixed node on the LAN (static IP or DHCP reservation). Nginx listens on port 443 (TLS). All mobile REST and WebSocket connections go to this server via `https://<server-LAN-IP>/`.
+The SAPOT server is a fixed node on the LAN (static IP or DHCP reservation). Nginx listens on port 443 (TLS). Mobile REST connections use `https://<server-LAN-IP>/`, and WebSocket connections use `wss://<server-LAN-IP>/`.
 
 ---
 

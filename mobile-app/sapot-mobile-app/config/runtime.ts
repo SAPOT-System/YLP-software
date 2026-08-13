@@ -66,23 +66,44 @@ export function getServerVerifyKey(): string | undefined {
   return process.env.EXPO_PUBLIC_SERVER_VERIFY_KEY;
 }
 
+export const normalizeWebSocketUrl = (baseUrl: string) => {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  let normalized: string;
+
+  if (trimmed.startsWith("wss://") || trimmed.startsWith("ws://")) {
+    normalized = trimmed;
+  } else if (trimmed.startsWith("https://")) {
+    normalized = `wss://${trimmed.slice("https://".length)}`;
+  } else if (trimmed.startsWith("http://")) {
+    normalized = `ws://${trimmed.slice("http://".length)}`;
+  } else {
+    normalized = `wss://${trimmed}`;
+  }
+
+  if (!__DEV__ && normalized.startsWith("ws://")) {
+    throw new Error("Plaintext WebSocket URLs are only allowed in development");
+  }
+
+  return normalized;
+};
+
 export const getWsUrl = () => {
-  if (_hostOverride) return `wss://${_hostOverride}`;
+  if (_hostOverride) return normalizeWebSocketUrl(_hostOverride);
 
   if (__DEV__) {
-    return `wss://${DEV_HOST}`;
+    return normalizeWebSocketUrl(DEV_HOST ?? "");
   }
 
   const channel = Updates.channel;
 
   switch (channel) {
     case "preview":
-      return `wss://${SERVER_NAME}`;
+      return normalizeWebSocketUrl(SERVER_NAME);
 
     case "production":
-      return `wss://${SERVER_NAME}`;
+      return normalizeWebSocketUrl(SERVER_NAME);
 
     default:
-      return `wss://${DEV_HOST}`;
+      return normalizeWebSocketUrl(DEV_HOST ?? "");
   }
 };

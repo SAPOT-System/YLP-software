@@ -225,7 +225,7 @@ Scope: React Native / Expo frontend + FastAPI backend
 ## Critical Security Issues (Found During Inventory)
 
 1. **`/testing/test-make-admin` and `/testing/test-make-rescuer`** — no authentication, included in production router. Any unauthenticated request can grant admin or rescuer privileges.
-2. **`/gps/ws/monitor/rescuers/{rescuer_id}`** — GPS location monitor WebSocket has no authentication. Any client can receive all user GPS coordinates.
+2. **Resolved (TC-247, issue #225):** `/gps/ws/monitor/rescuers/{rescuer_id}` now requires a matching rescuer JWT through the `sapot.jwt` subprotocol contract. Missing, malformed, or query-string credentials close with code 1008.
 3. **`/auth/exists`** — no rate limiting; enables username and email enumeration at scale.
 4. **JWT secret fallback** — hardcoded fallback value used when `JWT_SECRET_KEY` env var is not set in production.
 5. **CORS fully open** — `allow_origins=["*"]` combined with `allow_credentials=True` is an invalid CORS configuration per spec; credentials are silently dropped by browsers.
