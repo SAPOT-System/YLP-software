@@ -51,8 +51,16 @@ jobs:
         env:
           B64_KEY: ${{ secrets.BUNDLE_RELEASE_POLICY_PRIVATE_KEY }}
         run: |
+          DECODED=$(echo "$B64_KEY" | base64 -d)
+          if [[ "$DECODED" != *"BEGIN RSA PRIVATE KEY"* ]]; then
+            DECODED="-----BEGIN RSA PRIVATE KEY-----
+          $DECODED
+          -----END RSA PRIVATE KEY-----"
+            # Strip the indentation we just added to the variable to keep PEM format valid
+            DECODED=$(echo "$DECODED" | sed 's/^[ \t]*//')
+          fi
           echo "key<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$B64_KEY" | base64 -d >> "$GITHUB_OUTPUT"
+          echo "$DECODED" >> "$GITHUB_OUTPUT"
           echo "" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
