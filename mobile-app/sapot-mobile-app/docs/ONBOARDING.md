@@ -84,7 +84,7 @@ These are the most complex parts of the codebase. Don't start here — come back
 | Stores (app state) | `shared/core/stores/` |
 | API client | `shared/core/api/client.ts` |
 | Screen routing | `app/` (Expo Router file-based routing) |
-| Background connectivity | `task/signaling-task.ts` |
+| Android foreground connectivity | `features/shared/hooks/use-foreground-service.ts` |
 | GPS / location sharing | `features/gps/` (independent WS, not `ConnectionService`) |
 
 ---

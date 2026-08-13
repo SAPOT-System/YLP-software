@@ -27,6 +27,10 @@ import json
 _gsm_http_client: httpx.AsyncClient | None = None
 logger = logging.getLogger("app")
 
+GSM_SECRET = os.environ.get("GSM_SECRET")
+if not GSM_SECRET:
+    raise RuntimeError("GSM_SECRET environment variable is not set")
+
 
 def _get_gsm_client() -> httpx.AsyncClient:
     global _gsm_http_client
@@ -69,8 +73,7 @@ class InboundSMSPayload(BaseModel):
 
 
 def _gsm_secret_ok(request: Request) -> bool:
-    secret = os.getenv("GSM_SECRET", "")
-    return secret and request.headers.get("X-GSM-Secret") == secret
+    return request.headers.get("X-GSM-Secret") == GSM_SECRET
 
 
 def _create_sms_conversation(session, convo_id: UUID, user_a_id: UUID, user_b_id: UUID) -> Conversation:

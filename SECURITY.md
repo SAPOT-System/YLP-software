@@ -12,7 +12,7 @@ This is the canonical source of truth for SAPOT's known security-relevant config
 | Hardcoded GSM MariaDB credentials | `GSM-module/GSM-fastapi/config.py` (`db_path`) | Now required via `DB_PATH`; the GSM service raises `RuntimeError` at import time if unset. **Rotate the previously-hardcoded DB password before deploying this fix.** |
 | Hardcoded JWT secret fallback | `server/app/db_operations/token.py` (`SECRET_KEY`) | The default value has been removed; `JWT_SECRET_KEY` is now required, and the app raises `RuntimeError` at import time if unset. **Rotate to a newly generated secret** (`openssl rand -hex 32`) — the old hardcoded value must be considered compromised since it was committed to source. |
 | CORS wildcard + credentials | `server/app/main.py` | `allow_origins=["*"]` replaced with an explicit allowlist read from `CORS_ALLOWED_ORIGINS` (comma-separated). The app raises `RuntimeError` at import time if unset. |
-| Testing router in production | `server/app/main.py` | `app.include_router(testing.router)` is now gated behind `ENVIRONMENT=development` (see `app/main.py`). The `/testing/*` endpoints (`test-make-admin`, `test-make-rescuer`) are unreachable unless the server is explicitly started in development mode. |
+| Testing router in production | `server/app/main.py`, `server/app/api/testing.py` | The router is imported and mounted only in `development` or `staging`. A router-wide dependency also returns 404 outside those environments if the router is mis-mounted. Every state-changing route requires the `X-QA-Token` shared secret. A production-process regression test exercises every testing path. |
 
 ## Required environment variables (new)
 
@@ -22,6 +22,7 @@ Set these in the server's env file (see [environment-config.md](docs/deployment/
 DATABASE_URL=mysql+pymysql://<user>:<rotated-password>@127.0.0.1:3306/sapot_db
 JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
 CORS_ALLOWED_ORIGINS=http://192.168.0.100:3000
+GSM_SECRET=<shared secret with the GSM module>
 ```
 
 Set this in `/etc/sapot/gsm.env` before starting the GSM service:
@@ -29,6 +30,8 @@ Set this in `/etc/sapot/gsm.env` before starting the GSM service:
 ```dotenv
 DB_PATH=mysql+pymysql://<user>:<rotated-password>@127.0.0.1:3306/sapot_db
 ```
+QA-enabled environments also require `QA_API_TOKEN`. Generate a strong random value and send it
+as `X-QA-Token` for state-changing `/testing/*` requests. Production does not load this secret.
 
 ## Reporting a vulnerability
 

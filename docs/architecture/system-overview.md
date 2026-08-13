@@ -29,7 +29,7 @@ The primary user-facing component. An Expo/React Native Android app.
 - Local database (WatermelonDB/SQLite) with incremental pull/push sync
 - E2E encryption (NaCl box, per-conversation ECDH keys, at-rest encryption)
 - Guest-to-authenticated account migration
-- Background WebSocket connectivity maintenance (Android background task)
+- Foreground-service connectivity while the Android app process remains alive
 
 **Key dependencies:** Expo Router, `react-native-webrtc`, `react-native-tcp-socket` (TLS), `react-native-zeroconf`, WatermelonDB, `tweetnacl`, `expo-secure-store`, `@maplibre/maplibre-react-native`.
 
@@ -63,7 +63,7 @@ The FastAPI backend. Deployed as a Gunicorn process behind an Nginx reverse prox
 
 API routers: `admin`, `auth`, `captive_portal`, `download`, `forgot_password`, `gps`, `gsm`, `keys`, `mikrotik`, `peer_connection`, `ping`, `profile_picture`, `public_chat`, `sync`, `testing` (dev only), `update_info`, `user_keys`, `user_utils`, `verify_email`, `wrapped_key`.
 
-> Note: The `testing` router is only mounted when `ENVIRONMENT=development` (see `app/main.py`); it is excluded from production builds by default. See the repo-root `SECURITY.md` for the fix history.
+> Note: The `testing` router is only mounted when `ENVIRONMENT=development` or `staging` (see `app/main.py`); it is excluded from production builds by default. See [SECURITY.md](../../SECURITY.md) for the fix history.
 
 ---
 

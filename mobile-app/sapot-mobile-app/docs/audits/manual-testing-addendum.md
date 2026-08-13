@@ -199,15 +199,15 @@ All P0 manual tests must pass on all three tiers. P1 tests require at least mid-
 
 ---
 
-### MT-024 — Incoming Call While App is Killed
+### MT-024: Incoming Call While App is Backgrounded
 
 **Priority:** P0 | **Device:** Real Android device
 
-1. Log in, then force-stop the app (swipe away from recents)
+1. Log in, then send the app to the background without force-stopping it
 2. From a second device, call Device A
 
 **Expected:**
-- Background task has maintained connectivity
+- The foreground service has maintained connectivity
 - `incoming-call` notification appears with ringtone
 - Tapping notification opens the app to Incoming Call screen with correct caller info
 
@@ -429,7 +429,7 @@ Run before every release. Record device model and Android version for each row.
 | 4 | Send + receive message (WebRTC data channel) | Two devices | | |
 | 5 | Audio call: voice audible both directions | Two devices | | |
 | 6 | Video call: camera visible on both ends | Two devices | | |
-| 7 | Incoming call notification (app killed) | Real device | | |
+| 7 | Incoming call notification (app backgrounded, process alive) | Real device | | |
 | 8 | Cold-start from call notification | Real device | | |
 | 9 | GPS toggle persists across restart | Any | | |
 | 10 | Map markers appear (rescuer account) | Any | | |
@@ -439,7 +439,7 @@ Run before every release. Record device model and Android version for each row.
 | 14 | Change password end-to-end | Any | | |
 | 15 | Recovery key generate + use for reset | Any | | |
 | 16 | Server Host Override absent in prod build | Prod build | | |
-| 17 | Message delivered after 15 min Doze idle | Real device | | |
+| 17 | Foreground service keeps connectivity while app is backgrounded | Real device | | |
 | 18 | LAN chat works with server offline | Two devices | | |
 | 19 | Camera permission: 3 distinct states | Fresh install | | |
 | 20 | Mic permission: denied → graceful error on call accept | Real device | | |

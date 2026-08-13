@@ -97,8 +97,8 @@ Grouped in [`openapi/system.yaml`](openapi/system.yaml); no dedicated `.md` file
 | `/ping` | GET | Any | Returns `{"status": "ok", "timestamp": <unix float>}` — use for latency measurement |
 | `/static/*` | GET | None | Static file serving (profile pictures, downloads) |
 | `/download/download-apk` | GET | None | Serves the current mobile app APK build |
-| `/testing/test-make-admin` | POST | Any | Dev/testing only — grants the admin role to `username` |
-| `/testing/test-make-rescuer` | POST | Any | Dev/testing only — grants the rescuer role to `username` |
+| `/testing/test-make-admin` | POST | Authenticated + `X-QA-Token` | Dev/testing only; grants the admin role to `username` |
+| `/testing/test-make-rescuer` | POST | Authenticated + `X-QA-Token` | Dev/testing only; grants the rescuer role to `username` |
 | `/update/profile/` | POST | Any | Updates the calling user's own profile fields |
 | `/user-utils/current-user-info` | GET | Any | Returns the calling user's own `UserInfo` |
 | `/user-utils/get-announcements` | GET | Any | Paginated announcements targeted at the calling user |

@@ -33,7 +33,7 @@
       "name": "Seed roles scenario",
       "request": {
         "method": "POST",
-        "header": [],
+        "header": [{ "key": "X-QA-Token", "value": "{{qaToken}}" }],
         "url": {
           "raw": "{{baseUrl}}/testing/seed/roles",
           "host": ["{{baseUrl}}"],

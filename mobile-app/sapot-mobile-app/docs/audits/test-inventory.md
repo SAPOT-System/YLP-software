@@ -162,14 +162,12 @@ Scope: React Native / Expo frontend + FastAPI backend
 | useAnnouncementNewCount | `announcements/hooks/use-announcement-new-count.ts` | None | Missing | AUTOMATED |
 | format-announcement-date | `announcements/utils/format-announcement-date.ts` | None | Missing | AUTOMATED |
 
-### 10. Background Task (zero coverage)
+### 10. Android Foreground Service (zero coverage)
 
 | Sub-Feature | File(s) | Test File | Status | Execution Type | Risk |
 |-------------|---------|-----------|--------|----------------|------|
-| SIGNALING_TASK | `task/signaling-task.ts` | None | Missing | AUTOMATED | HIGH |
-| App-alive handoff | `MainContainer + signaling-task.ts` | None | Missing | AUTOMATED | HIGH |
-| Background task under Android Doze | Real device, battery saver | None | Missing | MANUAL | HIGH |
-| Background task after Android LMK kill | Real device, low RAM | None | Missing | MANUAL | HIGH |
+| Android foreground-service lifecycle | `hooks/use-foreground-service.ts` | None | Missing | AUTOMATED | HIGH |
+| Foreground service under Android Doze | Real device, battery saver | None | Missing | MANUAL | HIGH |
 
 ---
 
