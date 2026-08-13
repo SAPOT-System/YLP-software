@@ -47,5 +47,5 @@ if found[sys.argv[1]].get('digest') != 'sha256:'+sys.argv[3]: raise SystemExit('
 PY
 check_immutable || { echo "repository immutable releases were disabled before publication" >&2; exit 1; }
 github_api -X PATCH "repos/$repository/releases/$release_id" -f draft=false >/dev/null
-gh release verify-asset "$tag" "$archive_name" --repo "$repository"
-gh release verify-asset "$tag" "$checksum_name" --repo "$repository"
+gh release verify-asset "$tag" "$archive" --repo "$repository"
+gh release verify-asset "$tag" "$checksum" --repo "$repository"
