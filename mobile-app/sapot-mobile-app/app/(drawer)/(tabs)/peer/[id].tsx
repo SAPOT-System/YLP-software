@@ -1,10 +1,10 @@
-import { usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { useDelayedLoading, usePeerService, useProfilePhoto } from "@/features/shared/hooks";
+import { PeerProfileSkeleton } from "@/features/shared/components/peer-profile-skeleton";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
-import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 export default function PeerProfile() {
   const theme = useTheme();
@@ -14,6 +14,7 @@ export default function PeerProfile() {
   const [peerName, setPeerName] = useState("Unknown user");
   const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const showSkeleton = useDelayedLoading(isLoading, { resetKey: id });
 
   useEffect(() => {
     uiLog.info("[PeerProfile] mounted");
@@ -27,6 +28,9 @@ export default function PeerProfile() {
     let isMounted = true;
 
     const loadPeer = async () => {
+      setIsLoading(true);
+      setPeerName("Unknown user");
+      setUsername("");
       if (!id) {
         uiLog.warn("[PeerProfile] missing peer id");
         if (isMounted) setIsLoading(false);
@@ -62,8 +66,8 @@ export default function PeerProfile() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.secondary }}>
       <View style={{ padding: 34, alignItems: "center" }}>
-        {isLoading ? (
-          <LoadingSpinner />
+        {showSkeleton ? (
+          <PeerProfileSkeleton />
         ) : (
           <>
             <View style={{ alignItems: "center", gap: 20 }}>

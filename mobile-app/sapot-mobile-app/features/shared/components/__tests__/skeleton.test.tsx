@@ -13,4 +13,8 @@ describe("Skeleton", () => {
     );
     expect(toJSON()).toBeTruthy();
   });
+
+  it("passes testID through to its placeholder box", () => {
+    expect(render(<Skeleton testID="box" />).getByTestId("box")).toBeTruthy();
+  });
 });

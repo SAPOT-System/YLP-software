@@ -17,6 +17,7 @@ interface SkeletonProps {
   height?: number;
   borderRadius?: number;
   style?: StyleProp<ViewStyle>;
+  testID?: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export function Skeleton({
   height = 16,
   borderRadius = 6,
   style,
+  testID,
 }: SkeletonProps) {
   const theme = useTheme();
   const opacity = useSharedValue(0.4);
@@ -58,6 +60,7 @@ export function Skeleton({
 
   return (
     <Animated.View
+      testID={testID}
       style={[
         {
           width,

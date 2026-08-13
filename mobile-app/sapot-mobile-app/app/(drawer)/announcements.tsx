@@ -1,5 +1,6 @@
 import { APP_ROUTES } from "@/config/routes";
 import { AnnouncementCard } from "@/features/announcements/components/announcement-card";
+import { AnnouncementListSkeleton } from "@/features/announcements/components/announcement-list-skeleton";
 import { useAnnouncementNewCount } from "@/features/announcements/hooks/use-announcement-new-count";
 import { useAnnouncements } from "@/features/announcements/hooks/use-announcements";
 import {
@@ -8,7 +9,7 @@ import {
 } from "@/features/announcements/types";
 import motion from "@/constants/motion";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
-import { useReducedMotion, useToast } from "@/features/shared/hooks";
+import { useDelayedLoading, useReducedMotion, useToast } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -21,7 +22,6 @@ import {
 } from "react-native";
 import Animated, { Easing, FadeInUp } from "react-native-reanimated";
 import { Appbar, Chip, Text, useTheme } from "react-native-paper";
-import { LoadingSpinner } from "@/features/shared/components/loading-spinner";
 
 const FILTERS: { key: AnnouncementFilter; label: string }[] = [
   { key: "all", label: "All" },
@@ -40,6 +40,7 @@ export default function AnnouncementsScreen() {
   const theme = useTheme();
   const [activeFilter, setActiveFilter] = useState<AnnouncementFilter>("all");
   const { data, isLoading, isError, refetch } = useAnnouncements();
+  const showSkeleton = useDelayedLoading(isLoading);
   const { newCount, markAllSeen } = useAnnouncementNewCount(
     data?.announcements ?? []
   );
@@ -170,8 +171,8 @@ export default function AnnouncementsScreen() {
         ))}
       </ScrollView>
 
-      {isLoading ? (
-        <LoadingSpinner style={styles.loader} />
+      {showSkeleton ? (
+        <AnnouncementListSkeleton />
       ) : (
         <FlatList
           data={filtered}
@@ -258,9 +259,6 @@ const styles = StyleSheet.create({
   },
   chipTextSelected: {
     color: "#fff",
-  },
-  loader: {
-    marginTop: 40,
   },
   listContent: {
     paddingTop: 8,

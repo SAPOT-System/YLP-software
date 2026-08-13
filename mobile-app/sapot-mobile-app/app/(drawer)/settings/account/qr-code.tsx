@@ -1,6 +1,7 @@
 import { useAppMode } from "@/features/shared/core/context/app-mode-context";
 import { useUserProfile } from "@/features/shared/hooks";
 import { useMainContainer } from "@/features/shared/hooks/use-main-container";
+import { QrCodeSkeleton } from "@/features/settings/components/qr-code-skeleton";
 import { QRPayload } from "@/features/shared/types";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { useEffect, useMemo } from "react";
@@ -40,7 +41,7 @@ export default function QrCodeScreen() {
     return JSON.stringify(payload);
   }, [user, mode, container.networkConfig.ipAddress, container.networkConfig.port]);
 
-  if (!user) return <LoadingSpinner />;
+  if (!user) return <QrCodeSkeleton />;
 
   const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ");
 
