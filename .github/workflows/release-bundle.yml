@@ -53,6 +53,7 @@ jobs:
         run: |
           echo "key<<EOF" >> "$GITHUB_OUTPUT"
           echo "$B64_KEY" | base64 -d >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create immutable-policy reader token
