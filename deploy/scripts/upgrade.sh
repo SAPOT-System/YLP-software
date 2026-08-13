@@ -8,8 +8,10 @@ check_schema "$current/manifest.json"
 verify_checksums "$source_release" || { log_error "bundle checksum verification failed"; exit 1; }
 current_version=$(manifest_value "$current/manifest.json" version); minimum=$(manifest_value "$source_manifest" minimumUpgradeVersion)
 [ "$(python3 "$SEMVER" compare "$current_version" "$minimum")" -ge 0 ] || { log_error "current v$current_version is older than minimum upgrade version v$minimum"; exit 1; }
+version=$(manifest_value "$source_manifest" version)
+[ "$(python3 "$SEMVER" compare "$version" "$current_version")" -gt 0 ] || { log_error "upgrade target v$version must be newer than current v$current_version"; exit 1; }
 disk_preflight "$(manifest_value "$source_manifest" requiredDiskBytes)"
-version=$(manifest_value "$source_manifest" version); target="$SAPOT_ROOT/releases/v$version"; mkdir -p "$SAPOT_ROOT/releases"; [ -e "$target" ] || cp -a "$source_release" "$target"
+target="$SAPOT_ROOT/releases/v$version"; mkdir -p "$SAPOT_ROOT/releases"; [ -e "$target" ] || cp -a "$source_release" "$target"
 for image in "$target"/images/*.tar; do docker load -i "$image"; done; "$VERIFY_DIGESTS" "$target/manifest.json"
 compose "$target" up -d db redis; wait_healthy "$target" db; wait_healthy "$target" redis
 live=$(compose "$current" run --rm api alembic current 2>/dev/null | awk '/^[0-9a-f]+/ {print $1; exit}')
@@ -21,5 +23,10 @@ curl -kfsS https://localhost/version >/dev/null || { log_error "nginx/api did no
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent); ln -sfn "$target" "$SAPOT_ROOT/releases/current"; write_state upgrade "$current_version" "$version" "$hardware"
 # Refresh the unit files only. An operator who deliberately disabled a timer
 # should not have an upgrade switch it back on, so nothing is enabled here.
+verify_was_installed=false
+[ -e "${SAPOT_SYSTEMD_DIR:-/etc/systemd/system}/sapot-db-backup-verify.timer" ] && verify_was_installed=true
 install_systemd_units "$target"
+if ! "$verify_was_installed" && [ -e "$target/systemd/sapot-db-backup-verify.timer" ] && systemctl is-enabled --quiet sapot-db-backup.timer; then
+  systemctl enable --now sapot-db-backup-verify.timer
+fi
 "$SELF/lib/retention.sh"; log_pass "upgraded SAPOT from v$current_version to v$version"

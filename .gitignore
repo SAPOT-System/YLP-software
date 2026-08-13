@@ -1,6 +1,8 @@
 logs/*
 .worktrees/
 node_modules/
+__pycache__/
+*.py[cod]
 docs/superpowers/
 reports/
 .pnpm-store/

@@ -99,6 +99,8 @@ HTTP (port 80) redirects to HTTPS with 301.
 | `server-main-api.service` | SAPOT FastAPI server |
 | `server-GSM-api.service` | GSM module API |
 | `tileserver.service` | Offline tile server |
+| `sapot-db-backup.service` / `.timer` | MariaDB backup |
+| `sapot-db-backup-verify.service` / `.timer` | Disposable restore verification |
 
 > **Note:** Verify exact unit names from `deployment-scripts/` or the server directory.
 

@@ -17,7 +17,7 @@ sequence from creating the CA USB stick to verifying the running stack.
 ```mermaid
 flowchart LR
     subgraph dev["Dev machine"]
-        RS["scripts/release.sh<br/>tags version (semver)"]
+        RS["scripts/release.sh bundle<br/>tags independent bundle version"]
         BB["scripts/build-bundle.sh<br/>builds images, manifest.json,<br/>CHECKSUMS.sha256, firmware .hex"]
     end
 
@@ -31,8 +31,8 @@ flowchart LR
         CE["certs/detect-ip.sh"]
         F["firmware/gsm-arduino-*.hex"]
         D["data/static"]
-        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · backup-db · lib/"]
-        SD["systemd/ sapot-db-backup.service<br/>sapot-db-backup.timer"]
+        SC["scripts/ install · upgrade · rollback<br/>status · doctor · request-cert<br/>flash-gsm-firmware · backup-db · verify-db-backup · lib/"]
+        SD["systemd/ backup and verification<br/>service/timer pairs"]
     end
 
     subgraph target["Target (offline, LAN-only)"]
@@ -47,7 +47,7 @@ flowchart LR
 ### On-target lifecycle
 
 Every operator script (`install.sh`, `upgrade.sh`, `rollback.sh`, `status.sh`,
-`doctor.sh`, `backup-db.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
+`doctor.sh`, `backup-db.sh`, `verify-db-backup.sh`) is a thin wrapper around `scripts/lib/deploy-common.sh`,
 which provides `check_schema`, `acquire_lock`, `compose`, `verify_checksums`,
 `disk_preflight`, `wait_healthy`, and `write_state`.
 
@@ -127,8 +127,8 @@ upgrade/rollback validate Alembic revisions ([ADR 0007](../adr/0007-alembic-for-
 `releases/current` is only repointed after the new stack passes a `/version`
 health check, so a failed cutover leaves the previous release live.
 
-`backup-db.sh` is driven by a host systemd timer rather than by a running
-container, but it takes the same `$SAPOT_ROOT/.lock` as install, upgrade,
+`backup-db.sh` and `verify-db-backup.sh` are driven by host systemd timers rather than by a running
+container. Verification uses a disposable, network-isolated MariaDB and never touches the production database. Backup takes the same `$SAPOT_ROOT/.lock` as install, upgrade,
 rollback, and firmware flash. A backup therefore cannot run while `alembic
 upgrade head` is mid-migration. On lock contention it skips that run and the
 next timer cycle retries.
@@ -140,23 +140,44 @@ tarball itself.
 
 ## Build and transport
 
-On a clean, tagged checkout with Docker, Compose v2, `python3`, `zstd`, and
-`arduino-cli` installed, run:
+The bundle has its own version in `deploy/VERSION`; it does not inherit the server
+version. Its committed compatibility bounds live in
+`deploy/bundle-release-policy.json`.
+
+For the normal release path, prepare and merge the version change, then push the
+annotated bundle tag. The GitHub workflow downloads and validates the map data,
+builds the bundle, and attaches the archive and SHA-256 file to a dedicated release:
 
 ```bash
-./scripts/build-bundle.sh --min-upgrade-version 1.4.0 --max-rollback-version 1.4.0
+./scripts/release.sh bundle 0.0.1
+git push origin HEAD
+git push origin bundle/v0.0.1
 ```
+
+For a manual build on a clean, tagged checkout with Docker, Compose v2, `python3`,
+`python3-jsonschema`, `zstd`, `arduino-cli`, and GitHub CLI, run:
+
+```bash
+./tileserver/download-script.sh
+./scripts/build-bundle.sh
+```
+
+Release CI passes `--low-disk`, which removes each saved image tag and prunes
+Docker build cache as it proceeds. Use that mode only on an ephemeral or dedicated
+build host, not on a workstation whose Docker cache or local image tags must be
+preserved.
 
 The result is `dist/sapot-bundle-vX.Y.Z.tar.zst`. Its `manifest.json` records
 the version, source commit, image IDs, firmware checksum, compatibility gates,
-and disk requirement. `CHECKSUMS.sha256` detects accidental corruption during
-transport. It is not a tamper-evident signature.
+and immutable map-release provenance. The connected build host downloads the pinned
+map release; the offline host receives it inside the bundle and never downloads it.
+`CHECKSUMS.sha256` detects accidental corruption during transport. It is not a
+tamper-evident signature.
 
-`--min-upgrade-version` sets the manifest's `minimumUpgradeVersion` gate:
-`upgrade.sh` refuses to upgrade a target whose installed release is older than
-this version, so operators aren't allowed to skip straight from an
-unsupported ancient release into this one. `--max-rollback-version` sets
-`maximumRollbackVersion`, described below under rollback.
+The policy's `minimumUpgradeVersion` prevents an upgrade from an unsupported old
+bundle. `minimumRollbackVersion` is the oldest bundle to which this release may
+roll back. Bundle `0.0.1` sets both values to `0.0.1` because it is the first release
+in a fresh version line and is intended only for new installations.
 
 Copy the tarball to the offline host by removable media, extract it, and run
 the bundled scripts from the extracted release. The host needs Docker Engine,
@@ -196,13 +217,13 @@ sudo /opt/sapot/releases/current/scripts/rollback.sh 1.4.0
 ```
 
 Rollback never runs `alembic downgrade`. It requires the target to be retained
-locally, permitted by `maximumRollbackVersion`, and an ancestor of the live DB
+locally, permitted by `minimumRollbackVersion`, and an ancestor of the live DB
 revision. By default the current release and two prior releases, along with
 their image IDs and recent firmware backups, are retained. Run
 `scripts/lib/retention.sh --dry-run` to preview cleanup.
 
 `doctor.sh` checks release checksums, image IDs, services, certificate, ports,
-disk, expected hardware, and the `db-backup` row for on-host backup age and
+disk, expected hardware, and `db-backup` plus `db-backup-restore` rows for on-host backup age and restore verification,
 off-host-copy status. Add `--json` for structured output. A site with
 no GSM modem normally shows `gsm-fastapi` as `unhealthy` in raw Docker output:
 that is expected because its `/health` endpoint signals no modem. When the
@@ -279,7 +300,8 @@ At the end of a new install, `bootstrap-admin.sh` creates the first administrato
 
 ## Pitfalls
 
-- **Bump the version for every rebuild**, even for a config/frontend-only fix.
+- **Bump the bundle version for every rebuild**, even when all component versions
+  remain unchanged.
   `upgrade.sh` targets `releases/v$version`; if that directory already exists
   it skips copying the new bundle in, so a same-version rebuild silently
   fails to deploy.

@@ -170,18 +170,20 @@ From the repository root, on a **clean** checkout of the tagged commit you want
 to release:
 
 ```bash
-./scripts/build-bundle.sh --min-upgrade-version 1.4.0 --max-rollback-version 1.4.0
+./tileserver/download-script.sh
+./scripts/build-bundle.sh
 ```
 
 The build refuses to start if tracked files are modified, so that the recorded
 git SHA describes exactly what is inside the bundle.
 
-| Flag | Meaning |
-|---|---|
-| `--min-upgrade-version` | The oldest installed release `upgrade.sh` will upgrade from. Prevents a jump from an unsupported ancient release. |
-| `--max-rollback-version` | The newest release this one may be rolled back to. |
+Compatibility bounds come from the reviewed `deploy/bundle-release-policy.json`
+file. `minimumUpgradeVersion` is the oldest installed bundle accepted by
+`upgrade.sh`; `minimumRollbackVersion` is the oldest retained bundle accepted by
+`rollback.sh`.
 
-Both default to the version being built, taken from `server/app/version.py`.
+The bundle version comes from `deploy/VERSION` and is independent of the server,
+admin, and GSM component versions recorded in the generated manifest.
 
 **Bump the version for every rebuild**, even a config-only or frontend-only
 change. `upgrade.sh` targets `releases/v$version` and skips copying if that
@@ -275,7 +277,7 @@ The installer, in order:
 8. Starts the full stack and polls `https://localhost/version` for up to three
    minutes.
 9. Points `/opt/sapot/releases/current` at the new release, installs the
-   systemd units, and enables the daily database backup timer.
+systemd units, and enables the daily database backup and restore-verification timers.
 10. Prompts you to create the first administrator.
 
 Three prompts need an answer:
@@ -327,6 +329,7 @@ Three results are expected on a fresh install and are not faults:
 | Result | Why | What to do |
 |---|---|---|
 | `db-backup: FAIL - no backups in /opt/sapot/shared/db-backups` | The backup timer fires daily and has not run yet | Take one now: `sudo systemctl start sapot-db-backup.service`, then rerun `doctor.sh` |
+| `db-backup-restore: FAIL` | The newest dump has not yet been proven restorable | Run `sudo systemctl start sapot-db-backup-verify.service` after a backup, then inspect its journal if it fails |
 | `gsm-fastapi: PASS - no modem attached, degraded health expected` | The service reports unhealthy without a modem, and the installer recorded that this site has none | Nothing |
 | `administrator: PASS - initial password not yet changed` | The one-shot password is still in place | Clears itself at first dashboard login (Step 8) |
 

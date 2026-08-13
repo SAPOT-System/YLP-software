@@ -9,6 +9,7 @@ Routine, scheduled upkeep for a running SAPOT deployment, as opposed to [runbook
 | Task | Frequency | Reference |
 |---|---|---|
 | Confirm the backup timer is firing | Weekly | `systemctl list-timers sapot-db-backup.timer` and `journalctl -u sapot-db-backup.service --since '7 days ago'`. Bundle installs enable this timer automatically, and `doctor.sh` reports a `db-backup` row |
+| Review backup restore verification | Daily during an active field deployment; weekly for a standing/dev environment | `systemctl status sapot-db-backup-verify.timer`, `journalctl -u sapot-db-backup-verify.service --since '7 days ago'`, and the `db-backup-restore` doctor row |
 | Swap or verify the off-host backup drive | Daily during an active field deployment; weekly for a standing/dev environment | The script copies each dump to `SAPOT_BACKUP_OFFHOST_DIR` but never deletes from it, so capacity is managed by hand. `doctor.sh` reports the off-host copy's age |
 | Check disk space on the server host | Weekly | `df -h` — MariaDB and journald logs grow without rotation; database backups are bounded by `SAPOT_BACKUP_RETENTION_DAYS` (default 14, newest 3 always kept) |
 | Review GSM module log size | Weekly | `GSM-module/GSM-fastapi/sapot.log` has no automatic rotation configured — see [monitoring-logging.md](monitoring-logging.md#gsm-module-logs); truncate or `logrotate` it manually |
