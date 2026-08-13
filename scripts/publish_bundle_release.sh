@@ -15,14 +15,15 @@ archive_sha=$(sha256sum "$archive" | awk '{print $1}')
 encoded_tag=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$tag")
 remote_commit=$(github_api "repos/$repository/git/ref/tags/$encoded_tag" --jq .object.sha)
 [[ "$(github_api "repos/$repository/git/tags/$remote_commit" --jq .object.sha)" = "$commit" ]] || { echo "remote annotated tag does not match build commit" >&2; exit 1; }
-if existing=$(github_api "repos/$repository/releases/tags/$encoded_tag" 2>/dev/null); then
+existing=$(github_api "repos/$repository/releases" --paginate --jq ".[] | select(.tag_name == \"$tag\")" | head -n 1)
+if [[ -n "$existing" ]]; then
   [[ "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["draft"])' <<<"$existing")" = True ]] || { echo "published release exists" >&2; exit 1; }
   release_id=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$existing")
 else
   args=(release create "$tag" --verify-tag --draft --title "$tag" --notes-file "$notes")
   [[ "$version" == *-* ]] && args+=(--prerelease)
   gh "${args[@]}" >/dev/null
-  release_id=$(github_api "repos/$repository/releases/tags/$encoded_tag" --jq .id)
+  release_id=$(github_api "repos/$repository/releases" --paginate --jq ".[] | select(.tag_name == \"$tag\") | .id" | head -n 1)
 fi
 assets=$(github_api "repos/$repository/releases/$release_id/assets")
 for id in $(ASSETS="$assets" python3 - "$archive_name" "$checksum_name" <<'PY'
