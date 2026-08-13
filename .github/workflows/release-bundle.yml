@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -99,6 +101,11 @@ jobs:
           (cd "$VERIFY_DIR/$ROOT" && sha256sum --check CHECKSUMS.sha256)
           rm -rf "$VERIFY_DIR"
           (cd dist && sha256sum "sapot-bundle-v$VERSION.tar.zst" > "sapot-bundle-v$VERSION.tar.zst.sha256")
+
+      - name: Generate artifact attestations
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*'
 
       - name: Stage and publish verified release assets
         env:
