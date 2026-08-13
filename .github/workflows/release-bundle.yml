@@ -46,6 +46,14 @@ jobs:
           bash -n scripts/build-bundle.sh scripts/release.sh scripts/validate_bundle_release_ci.sh scripts/publish_bundle_release.sh tileserver/download-script.sh
           bash -n scripts/lib/*.sh deploy/scripts/*.sh deploy/scripts/lib/*.sh
 
+      - name: Debug Key
+        env:
+          KEY: ${{ secrets.BUNDLE_RELEASE_POLICY_PRIVATE_KEY }}
+        run: |
+          echo "Length: ${#KEY}"
+          if [[ "$KEY" == *"BEGIN"* ]]; then echo "Contains BEGIN"; fi
+          if [[ "$KEY" == *"RSA"* ]]; then echo "Contains RSA"; fi
+
       - name: Create immutable-policy reader token
         id: policy-token
         uses: actions/create-github-app-token@v1
