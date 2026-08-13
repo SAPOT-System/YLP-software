@@ -9,7 +9,7 @@ check_schema "$current/manifest.json"
 checks=(); failed=0
 check() { local name=$1 status=$2 detail=$3; checks+=("$name|$status|$detail"); [ "$status" = PASS ] || failed=1; }
 verify_checksums "$current" >/dev/null 2>&1 && check checksums PASS "release files match CHECKSUMS.sha256" || check checksums FAIL "release checksum mismatch"
-"$VERIFY_DIGESTS" "$current/manifest.json" >/dev/null 2>&1 && check images PASS "loaded image digests match manifest" || check images FAIL "missing or mismatched image digest"
+"$VERIFY_DIGESTS" "$current/manifest.json" >/dev/null 2>&1 && check images PASS "loaded image identities match bundle" || check images FAIL "missing or mismatched image identity"
 free=$(df -h "$SAPOT_ROOT" | awk 'NR==2 {print $4}'); check disk PASS "$free free on $SAPOT_ROOT"
 hardware=$(manifest_value "$SAPOT_ROOT/shared/state.json" gsmHardwarePresent)
 for service in db redis api admin gsm-fastapi tileserver nginx; do

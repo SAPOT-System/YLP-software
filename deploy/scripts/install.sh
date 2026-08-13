@@ -13,8 +13,9 @@ verify_checksums "$source_release" || { log_error "bundle checksum verification 
 # There is no self-signed fallback: the mobile app pins this CA, so a leaf it
 # did not issue leaves every production handset unable to connect.
 ca_dir=$(ca_find_dir); ca_verify_dir "$ca_dir"
-disk_preflight "$(manifest_value "$source_manifest" requiredDiskBytes)"
-target="$SAPOT_ROOT/releases/v$version"; mkdir -p "$SAPOT_ROOT/releases"
+target="$SAPOT_ROOT/releases/v$version"
+disk_preflight "$source_release" "$target" "$(manifest_value "$source_manifest" requiredDiskBytes)"
+mkdir -p "$SAPOT_ROOT/releases"
 [ ! -e "$target" ] && cp -a "$source_release" "$target"
 prepare_env_files "$target"
 ip=$($target/certs/detect-ip.sh 2>/dev/null || true)
@@ -23,7 +24,7 @@ ca_issue_leaf "$SAPOT_ROOT/shared/certs" "$ip" "$ca_dir" false
 log_info "certificate issued - the CA USB stick can be unplugged now"
 read -r -p "Is the GSM Arduino connected at $(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2)? [y/N] " answer
 hardware=false; [[ "$answer" =~ ^[Yy]$ ]] && hardware=true
-for image in "$target"/images/*.tar; do docker load -i "$image"; done
+for image in "$target"/images/*.tar; do load_image_archive "$image"; done
 "$VERIFY_DIGESTS" "$target/manifest.json"
 compose "$target" up -d db redis; wait_healthy "$target" db; wait_healthy "$target" redis
 compose "$target" run --rm api alembic upgrade head

@@ -111,10 +111,11 @@ Before installing SAPOT:
 - **Check the clock.** `timedatectl` should show the clock synchronized. A
   server with a badly wrong clock issues a certificate that clients reject as
   not-yet-valid.
-- **Check free disk.** The installer refuses to proceed unless both `/opt` and
-  Docker's data root have the bundle's `requiredDiskBytes` plus a 20% margin
-  free. That figure is in the bundle's `manifest.json`; images and map tiles
-  dominate it.
+- **Check free disk.** The installer reserves space for the copied release and
+  twice the image archive size for Docker's content and unpacked layers, then
+  adds a 20% margin. When those paths share a filesystem, it adds their needs
+  before checking free space. Containerd-backed Docker is checked at
+  `/var/lib/containerd`, where its snapshots are actually stored.
 
 ### Install Docker Engine from Docker's own apt repository
 
@@ -265,13 +266,14 @@ The installer, in order:
    you can confirm which CA is about to sign. **It aborts here if the stick is
    missing, read-only, mounted stale, or carries mismatched CA material.**
    There is no self-signed fallback.
-3. Checks free disk on `/opt` and on Docker's data root.
+3. Checks the combined release, Docker content, and unpacked-layer disk
+   requirement on every filesystem involved.
 4. Copies the release to `/opt/sapot/releases/vX.Y.Z` and generates
    `/opt/sapot/shared/*.env` with fresh random secrets. You do not need to edit
    these by hand for a standard site.
 5. Detects the LAN IP and issues the TLS certificate from the CA stick.
-6. Loads the container images and verifies each one against the digest pinned
-   in `manifest.json`.
+6. Loads the container images and verifies each image identity against both the
+   bundle archive and the digest pinned in `manifest.json`.
 7. Starts MariaDB and Redis, waits for both to be healthy, then runs
    `alembic upgrade head` to build the schema.
 8. Starts the full stack and polls `https://localhost/version` for up to three
@@ -319,7 +321,7 @@ sudo /opt/sapot/releases/current/scripts/doctor.sh
 service. All seven should read `healthy`, except `nginx` (`up`) and, on a site
 with no modem, `gsm-fastapi` (`up (no modem attached)`).
 
-`doctor.sh` checks release checksums, image digests, disk, every service, the
+`doctor.sh` checks release checksums, image identities, disk, every service, the
 certificate chain and SANs, ports 80 and 443, the GSM device if one is
 expected, backup age, and the administrator account. Add `--json` for
 machine-readable output.
@@ -406,7 +408,8 @@ Failures specific to a first install. The wider table lives in
 | `refusing to sign: <dir> is on the root filesystem` | The stick was never mounted, or a stale mountpoint was left behind by an unplugged drive | Mount the stick properly. Do not set `SAPOT_CA_ALLOW_LOCAL=1` on a production server |
 | `CA USB stick at <dir> is not writable` | Mounted read-only, so the serial file and issuance log cannot be updated | `sudo mount -o remount,rw <mount>` |
 | `bundle checksum verification failed` | The transfer corrupted the archive | Re-copy from Step 3 and re-extract. Do not bypass the check |
-| `insufficient free space on <path>` | `requiredDiskBytes` plus the 20% margin exceeds what is free on `/opt` or Docker's data root | Free space, or move Docker's data root to a larger disk |
+| `insufficient free space on <filesystem>` | The copied release, Docker content, estimated unpacked layers, and 20% margin exceed the available space | Free space, or move Docker and containerd storage to a larger disk |
+| `Docker image store ran out of space while unpacking` | Docker accepted the archive but containerd could not extract a layer | Free space under `/var/lib/containerd`, then rerun `install.sh` |
 | `nginx/api did not become ready` | The stack started but `/version` never answered within three minutes | `sudo docker compose -p sapot -f /opt/sapot/releases/vX.Y.Z/compose/docker-compose.yml logs api nginx` |
 | Ports 80/443 fail to bind | Another web server is installed on the host | `sudo ss -ltnp 'sport = :443'`, then stop and disable whatever holds them |
 | `doctor.sh` reports `certificate SAN does not cover server.sapot.lan` | The certificate was issued outside the bundle workflow | Reissue with `request-cert.sh`. Production handsets cannot connect until this is fixed |

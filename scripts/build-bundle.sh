@@ -115,7 +115,6 @@ declare -A tags=(
 
 save_image() {
   local name=$1 tag=$2 digest
-  digest=$(docker image inspect --format '{{.Id}}' "$tag")
   local partial="$bundle/images/$name.tar.partial"
   local error_file="$scratch/$name.save.stderr"
   if ! docker save -o "$partial" "$tag" 2>"$error_file"; then
@@ -126,6 +125,21 @@ save_image() {
     return 1
   fi
   rm -f "$error_file"
+  digest=$(python3 - "$partial" "$tag" <<'PY'
+import json
+import pathlib
+import sys
+import tarfile
+
+archive_path, tag = sys.argv[1:]
+with tarfile.open(archive_path) as archive:
+    manifest = json.load(archive.extractfile("manifest.json"))
+entries = [entry for entry in manifest if tag in entry.get("RepoTags", [])]
+if len(entries) != 1:
+    raise SystemExit(f"cannot resolve {tag} in {archive_path}")
+print("sha256:" + pathlib.PurePosixPath(entries[0]["Config"]).name)
+PY
+)
   mv "$partial" "$bundle/images/$name.tar"
   printf '%s\t%s\t%s\n' "$name" "$tag" "$digest" >> "$digest_file"
 }

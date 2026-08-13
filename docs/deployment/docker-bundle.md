@@ -63,9 +63,9 @@ flowchart TD
 
     Common --> Lock["acquire_lock<br/>(serializes lifecycle ops)"]
     Lock --> Checksums["verify_checksums<br/>(CHECKSUMS.sha256)"]
-    Common --> Disk["disk_preflight<br/>(SAPOT_ROOT + docker root,<br/>20% safety margin)"]
+    Common --> Disk["disk_preflight<br/>(release + Docker content +<br/>unpacked layers, 20% margin)"]
 
-    Checksums --> LoadImages["docker load images/*.tar<br/>→ verify-digests.sh<br/>(manifest-pinned digests)"]
+    Checksums --> LoadImages["validated docker load images/*.tar<br/>→ verify-digests.sh<br/>(config or OCI manifest identity)"]
     Disk --> LoadImages
 
     LoadImages --> ComposeDeps["compose up -d db redis<br/>→ wait_healthy"]
@@ -122,7 +122,7 @@ flowchart TD
 
 Safety mechanisms tying it together: `acquire_lock` serializes install/upgrade/
 rollback/flash so only one lifecycle operation runs at a time; checksums and
-manifest-pinned image digests mean the target never runs unverified images;
+manifest-pinned image identities mean the target never runs unverified images;
 upgrade/rollback validate Alembic revisions ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) before migrating or reverting; and
 `releases/current` is only repointed after the new stack passes a `/version`
 health check, so a failed cutover leaves the previous release live.
@@ -168,7 +168,7 @@ build host, not on a workstation whose Docker cache or local image tags must be
 preserved.
 
 The result is `dist/sapot-bundle-vX.Y.Z.tar.zst`. Its `manifest.json` records
-the version, source commit, image IDs, firmware checksum, compatibility gates,
+the version, source commit, image config digests, firmware checksum, compatibility gates,
 and immutable map-release provenance. The connected build host downloads the pinned
 map release; the offline host receives it inside the bundle and never downloads it.
 `CHECKSUMS.sha256` detects accidental corruption during transport. It is not a
@@ -219,10 +219,10 @@ sudo /opt/sapot/releases/current/scripts/rollback.sh 1.4.0
 Rollback never runs `alembic downgrade`. It requires the target to be retained
 locally, permitted by `minimumRollbackVersion`, and an ancestor of the live DB
 revision. By default the current release and two prior releases, along with
-their image IDs and recent firmware backups, are retained. Run
+their images and recent firmware backups, are retained. Run
 `scripts/lib/retention.sh --dry-run` to preview cleanup.
 
-`doctor.sh` checks release checksums, image IDs, services, certificate, ports,
+`doctor.sh` checks release checksums, image identities, services, certificate, ports,
 disk, expected hardware, and the `db-backup` row for on-host backup age and
 off-host-copy status. Add `--json` for structured output. A site with
 no GSM modem normally shows `gsm-fastapi` as `unhealthy` in raw Docker output:
@@ -316,9 +316,9 @@ At the end of a new install, `bootstrap-admin.sh` creates the first administrato
 - **Don't extract a bundle under `$HOME`** and run compose from there —
   `env_file` paths are relative to `$SAPOT_ROOT` and only resolve correctly
   once installed under `/opt/sapot/releases/...`.
-- After any deploy, confirm `docker inspect <container> --format '{{.Image}}'`
-  matches the digest in that release's `manifest.json` — a container showing
-  "Up (healthy)" does not prove it's running the code you expect.
+- After any deploy, run the release's `doctor.sh`. Its image check handles both
+  the config digest reported by Docker's classic image store and the OCI
+  manifest digest reported by its containerd image store.
 
 ## GSM firmware
 
@@ -341,7 +341,9 @@ renewal remains a manual operation when the LAN IP or expiry requires it.
 |---|---|---|
 | `already installed (vX) - use upgrade.sh instead` | `install.sh` run on a host that already has `releases/current` | Run `upgrade.sh` from the new bundle instead |
 | `bundle checksum verification failed` | Corrupted transfer, or the bundle was modified after build | Re-copy the tarball from source media and re-extract; do not bypass the check |
-| `insufficient free space on <path>` | `requiredDiskBytes` plus the 20% margin exceeds free space on `$SAPOT_ROOT` or the Docker root | Free space or prune old releases with `scripts/lib/retention.sh` |
+| `insufficient free space on <filesystem>` | The copied release, Docker content, estimated unpacked layers, and 20% margin exceed available space | Free space, prune old releases with `scripts/lib/retention.sh`, or move Docker and containerd storage to a larger disk |
+| `Docker image store ran out of space while unpacking` | Containerd could not extract a layer even though `docker load` returned success | Free space under `/var/lib/containerd`, then rerun the lifecycle script |
+| `image identity mismatch` | The loaded tag does not match either identity recorded by the checked bundle archive | Remove the conflicting tag and rerun the lifecycle script from an intact bundle |
 | `nginx/api did not become ready` | Stack came up but `/version` never answered within 3 minutes | `docker compose -p sapot logs api nginx`; the previous release is still live, so the cutover has not happened |
 | Upgrade appears to succeed but nothing changed | The bundle reuses a version already in `releases/` | Rebuild with a bumped version (see Pitfalls) |
 | `doctor.sh` reports `certificate SAN does not cover server.sapot.lan` | Leaf issued without the required DNS SAN | Reissue with `request-cert.sh`; mobile production builds cannot connect until fixed |
