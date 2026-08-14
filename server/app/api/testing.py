@@ -39,6 +39,7 @@ FIXTURE_HANDLES = frozenset(
         "qa_large",
         "qa_banned",
         "qa_locked",
+        "qa_phone_verified",
         "qa_gps",
         "qa_map_user",
         "qa_map_user_2",

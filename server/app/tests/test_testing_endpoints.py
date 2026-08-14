@@ -43,6 +43,16 @@ def test_seed_gps_roles_scenario_creates_multi_role_fixtures(client):
     assert body["result"]["rescuers"] == ["qa_map_rescuer", "qa_map_rescuer_2"]
 
 
+def test_seed_verified_phone_scenario_creates_login_fixture(client):
+    response = client.post("/testing/seed/verified-phone", headers=QA_HEADERS)
+    assert response.status_code == 200
+    assert response.json()["result"] == {"user": "qa_phone_verified", "phone_verified": True}
+
+    login = client.post("/testing/login-as/qa_phone_verified", headers=QA_HEADERS)
+    assert login.status_code == 200
+    assert login.json()["username"] == "qa_phone_verified"
+
+
 def test_login_as_qa_map_rescuer_mints_usable_tokens(client):
     client.post("/testing/seed/gps-roles", headers=QA_HEADERS)
 
