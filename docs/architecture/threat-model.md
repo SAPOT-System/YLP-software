@@ -66,7 +66,7 @@ flowchart TB
 | mDNS/Zeroconf discovery | Broadcasts peer presence and connection info on the LAN; unauthenticated by design (mDNS has no auth mechanism) |
 | Captive portal | The first thing an unauthenticated device interacts with; controls initial network admission |
 | Admin frontend | Higher-privilege surface — user management, announcements, network config |
-| GSM module webhook (`/gsm/inbound`) | Authenticated via shared secret (`GSM_SECRET`/`X-GSM-Secret`); reachable from the server, and from the GSM module's own network segment |
+| GSM service HTTP boundary (`/sms/send`, `/gsm/inbound`) | Authenticated in both directions via shared secret (`GSM_SECRET`/`X-GSM-Secret`); reachable from the server and the GSM module's network segment |
 | MariaDB, Redis | Server-internal; in scope only via server compromise (not directly LAN-reachable in the documented deployment) |
 
 ## Attack surfaces explicitly out of scope

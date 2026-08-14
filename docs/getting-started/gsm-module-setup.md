@@ -42,7 +42,7 @@ cp .env.example .env
 | Variable | Default | Notes |
 |---|---|---|
 | `DB_PATH` | none, **required** | SQLModel URL for the server's MariaDB, e.g. `mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_dev`. `config.py` raises `RuntimeError` at import if unset. |
-| `GSM_SECRET` | `""` | Must match the server's `GSM_SECRET`. The gateway sends it as `X-GSM-Secret` when calling `/gsm/inbound`; the server rejects a missing or mismatched value. |
+| `GSM_SECRET` | None | Required at startup and must match the server's `GSM_SECRET`. Both services send it as `X-GSM-Secret` when calling the other service. |
 | `SAPOT_API_URL` | `http://localhost:8000` | Base URL of the SAPOT server this gateway forwards inbound SMS to (`POST /gsm/inbound`). The Docker service overrides it to `https://nginx`. |
 | `SERIAL_PORT` | `/dev/ttyACM0` | Serial device the Arduino is on. `COM3`-style on Windows. |
 | `SERIAL_BAUD` | `9600` | Must match `PC_BAUD` in the Arduino sketch. |

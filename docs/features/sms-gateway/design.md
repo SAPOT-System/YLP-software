@@ -22,7 +22,7 @@ sequenceDiagram
     participant Arduino
 
     Client->>Main: POST /gsm/sms/send
-    Main->>GSM: POST /sms/send {number, body}
+    Main->>GSM: POST /sms/send with X-GSM-Secret
     GSM->>GSM: log pending and admit to bounded queue
     GSM->>Arduino: SEND_SMS|number|body
     Arduino-->>GSM: SMS_SENT|number or SMS_FAILED|number|reason
@@ -33,7 +33,7 @@ sequenceDiagram
     GSM->>Main: POST /gsm/inbound with X-GSM-Secret
 ```
 
-The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT). The GSM service normally listens on `127.0.0.1:8001` and translates trusted local HTTP calls into serial commands.
+The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT). It authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` before logging or queueing a send, which prevents another container on the internal network from occupying the serial modem.
 
 ## How does outbound admission work?
 
@@ -53,15 +53,20 @@ Admission uses `put_nowait()` while the lifecycle lock is held. A full queue rai
 
 The upper limit leaves worker threads available for overload responses and other synchronous FastAPI routes. `GET /health` is asynchronous, so liveness remains responsive while admitted sends wait for modem results.
 
+Each request receives a pre-write deadline when it is admitted. Queue wait and modem-readiness wait share that deadline. If the caller reaches it first, it marks the request complete while synchronized with the active-to-in-flight transition, so the sender cannot write that request later.
+
+Starting the serial write moves the request to a separate confirmation deadline. The caller follows that transition even when the serial write crosses the pre-write deadline, so it cannot report a retryable queue timeout after bytes have reached the Arduino.
+
 ## How is one SMS sent?
 
 The sender owns one active request at a time:
 
 1. Dequeue and register the request as active.
-2. Wait for modem readiness up to the request timeout.
+2. Wait for modem readiness within the remaining admission deadline.
 3. Atomically transition the request to in-flight while writing `SEND_SMS|<number>|<body>`.
-4. Wait for `SMS_SENT` or `SMS_FAILED` from the reader thread.
-5. Complete the matching caller and let the API update `sms_log`.
+4. Start a fresh confirmation deadline after the serial write completes.
+5. Wait for `SMS_SENT` or `SMS_FAILED` within the confirmation deadline.
+6. Complete the matching caller and let the API update `sms_log`.
 
 The serial connection has a five-second write timeout. Reader events cannot complete a request before its serial write begins. Queue depth excludes the active request.
 
@@ -106,6 +111,12 @@ The GSM service uses the database configured by required `DB_PATH`.
 
 The committed `sapot.db` file is stale and is not used by the deployed service.
 
+## How does startup recover interrupted work?
+
+After database initialization and before constructing `SerialWorker`, the lifespan calls `fail_orphaned_pending_messages()`. One database update changes every `pending` `sms_log` row to `failed` with `SERVICE_CRASHED`.
+
+The gateway does not re-queue these rows. A crash can happen after the modem transmits an SMS but before the process records its confirmation, so replay could deliver duplicate emergency messages.
+
 ## How are failures reported?
 
 | Failure | Result |
@@ -115,14 +126,17 @@ The committed `sapot.db` file is stale and is not used by the deployed service.
 | Serial port or modem unavailable before admission | HTTP 503 |
 | Serial write error | HTTP 502 with a reason beginning `WRITE_ERROR:` |
 | Modem reports failure or confirmation times out | HTTP 502 with the modem or timeout reason |
+| Caller deadline expires while waiting in the queue | Request fails and is never written later |
 | Main server cannot reach the GSM service | Main server health route returns HTTP 503 |
 
-The main server currently returns the GSM response body without preserving the upstream status from `POST /sms/send`. Callers using the main server route cannot rely on the gateway's 503 status until that proxy behavior is corrected.
+The main server preserves the gateway status and error detail for synchronous SMS operations. Its 135-second read timeout covers the gateway's 125-second worst case plus HTTP overhead. Nginx allows 155 seconds so the one-second pool, five-second connect, five-second write, and 135-second read phase limits all fit inside the outer proxy limit. The main server permits 22 GSM connections, enough for 21 admitted gateway requests plus one request that observes `QUEUE_FULL`. Further requests fail pool admission within one second and never reach the gateway later.
+
+The mobile app maps `QUEUE_FULL` to a busy message, keeps a rejected chat message as `not_sent`, and offers its existing manual resend action. Phone verification, resend, and first-contact screens remain in place and show the gateway failure instead of reporting success.
 
 ## Security and deployment assumptions
 
 - Set `DB_PATH` and `GSM_SECRET` in restricted environment files. Bare-metal systemd deployments use `/etc/sapot/gsm.env`.
-- The main server checks `X-GSM-Secret` on inbound callbacks.
-- The direct GSM service does not authenticate `/sms/send`; keep port 8001 restricted to the host or trusted Compose network.
+- The main server and GSM service check `X-GSM-Secret` on both directions of their HTTP integration.
+- Keep port 8001 restricted to the host or trusted Compose network as an additional boundary.
 - SMS content is plaintext on the carrier network and should not be treated as end-to-end encrypted.
 - The design supports one serial modem. Multi-modem failover and bulk SMS are out of scope.

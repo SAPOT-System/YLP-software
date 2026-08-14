@@ -16,8 +16,8 @@ The GSM module (`GSM-module/GSM-fastapi/`) is a FastAPI application that bridges
 
 ```bash
 cd GSM-module/GSM-fastapi/
-python3 -m venv venv
-source venv/bin/activate
+nix develop --command python -m venv venv
+nix develop
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env and set DB_PATH, GSM_SECRET, SAPOT_API_URL, and the serial device.
@@ -34,7 +34,7 @@ bash run-api.sh
 
 ### Docker (dev/test alternative)
 
-The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md)) includes a `gsm-fastapi` service alongside the rest of the stack. The base file does not pass through `/dev/ttyACM0`, which lets development stacks start without GSM hardware. Add `docker-compose.gsm-hardware.yml` when the modem is attached. The service listens on all interfaces inside its container, but Compose publishes port 8001 only on host loopback because the direct API is unauthenticated.
+The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md)) includes a `gsm-fastapi` service alongside the rest of the stack. The base file does not pass through `/dev/ttyACM0`, which lets development stacks start without GSM hardware. Add `docker-compose.gsm-hardware.yml` when the modem is attached. The service listens on all interfaces inside its container, validates `X-GSM-Secret` for direct sends, and publishes port 8001 only on host loopback as an additional network boundary.
 
 ---
 
@@ -49,7 +49,7 @@ The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-s
 | `HOST` | `127.0.0.1` | FastAPI bind host |
 | `PORT` | `8000` in `config.py`, but not used for binding | `main.py` always binds port `8001`; do not rely on this setting |
 | `SAPOT_API_URL` | `http://localhost:8000` | Base URL for authenticated inbound callbacks to the main server |
-| `GSM_SECRET` | Empty string | Must match the main server value in production |
+| `GSM_SECRET` | None | Required at startup; must match the main server value |
 
 > **Security note:** Set `DB_PATH` and `GSM_SECRET` explicitly before startup. Never deploy the placeholder credentials from `.env.example`. See [secrets-management.md](secrets-management.md).
 

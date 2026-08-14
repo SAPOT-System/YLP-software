@@ -28,6 +28,10 @@ These requirements describe the deployed `GSM-module/GSM-fastapi/` service and i
 }
 ```
 
+The request must include `X-GSM-Secret` matching the required `GSM_SECRET`
+configuration. Missing or invalid credentials return HTTP 401 before the
+gateway creates a log row or admits work to the serial queue.
+
 The number must use E.164 format. The submitted body must not exceed 160 characters and must remain nonempty after trimming.
 
 A successful modem confirmation returns HTTP 200:
@@ -49,6 +53,9 @@ A modem failure, write failure, or confirmation timeout returns HTTP 502 and rec
 - Waiting requests retain first-in, first-out order.
 - Admission must not block when the queue is full.
 - Work beyond capacity must never reach the serial port.
+- The pre-write timeout starts at admission, not when the request reaches the front of the queue.
+- A waiting request whose caller-visible deadline expires must never be written later.
+- Once a serial write starts, the caller must wait for modem confirmation or the post-write confirmation timeout instead of reporting the pre-write timeout.
 - Saturated requests must be logged as failed and return HTTP 503 with `reason: "QUEUE_FULL"`.
 
 ```json
@@ -95,23 +102,28 @@ Only one request may await a modem confirmation. A confirmation received before 
 
 - The serial reader must enqueue `SMS_RECEIVED` events for application processing.
 - `handle_incoming_sms()` must apply the registered-user, banned-user, verified-phone, session, and target rules.
+- Sender eligibility failures must set the inbound `sms_log` row to `rejected` with `NO_ACCOUNT`, `BANNED_SENDER`, or `UNVERIFIED_SENDER` as the failure reason.
 - The GSM service must call the main server's `POST /gsm/inbound` route with `X-GSM-Secret` when forwarding into the app.
 - Failed callbacks are logged. Automatic callback retry is not required.
 
 ### FR-SG-07: Configuration and storage
 
 - `DB_PATH` is required. Startup must raise `RuntimeError` when it is missing.
+- `GSM_SECRET` is required. Startup must raise `RuntimeError` when it is missing.
 - Invalid `SMS_SEND_QUEUE_MAXSIZE` values must fail startup.
 - `sms_log` stores inbound and outbound audit records.
 - `sms_session` stores per-phone relay state.
+- Before starting `SerialWorker`, startup must change every orphaned `pending` log row to `failed` with `SERVICE_CRASHED`.
+- Startup reconciliation must not re-queue orphaned messages because the modem may have transmitted them before the prior process stopped.
 - The committed `sapot.db` file must not be used as the deployment datastore.
 
 ### FR-SG-08: Main server integration
 
 - The user-facing `/gsm/sms/send` route remains on the main server and requires its normal JWT authentication.
-- The main server calls the direct gateway at `http://localhost:8001/sms/send`.
+- The main server calls the direct gateway at `http://localhost:8001/sms/send` with `X-GSM-Secret`.
 - The direct gateway is a trusted local service and must not be exposed to untrusted networks.
-- Preserving the gateway's HTTP status through the main server proxy is a known limitation, not part of this change.
+- The main server must preserve gateway HTTP 502 and 503 failures for user-facing send, verification, resend, and first-contact requests.
+- The mobile app must retain rejected chat messages as `not_sent` and distinguish queue saturation from a generic delivery failure.
 
 ## Non-functional requirements
 
@@ -130,4 +142,3 @@ Only one request may await a modem confirmation. A confirmation received before 
 - Multimedia Messaging Service (MMS)
 - Carrier delivery or read receipts
 - Automatic retry of failed main-server callbacks
-- Preserving direct-gateway HTTP status through the current main-server proxy

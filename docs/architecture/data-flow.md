@@ -126,7 +126,7 @@ sequenceDiagram
     S->>S: resolve sender/target user, create/append SMS conversation
 ```
 
-The main server authenticates user-facing outbound requests with a JSON Web Token (JWT). The direct GSM send endpoint is restricted to the trusted host or Compose network and does not require `X-GSM-Secret`. The shared secret authenticates only the GSM module's inbound callback to `/gsm/inbound`; see [environment-config.md](../deployment/environment-config.md).
+The main server authenticates user-facing outbound requests with a JSON Web Token (JWT). Calls across the server and GSM service boundary use `X-GSM-Secret` in both directions: the main server sends it to `/sms/send`, and the GSM service sends it to `/gsm/inbound`. Network restriction to the host or trusted Compose network remains an additional boundary; see [environment-config.md](../deployment/environment-config.md).
 
 ---
 

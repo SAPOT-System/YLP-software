@@ -59,7 +59,7 @@ GSM_SECRET=<shared secret with GSM module>
 | `PORT` | `8000` (code default in `config.py`), but **not actually read** — `GSM-fastapi/main.py` hardcodes `uvicorn.run(..., port=8001, ...)` regardless of this variable. The service always listens on `8001` in practice, which is what avoids colliding with the main SAPOT server on `127.0.0.1:8000` — not the `PORT` variable. | Not a real configuration knob today — see `GSM-module/CLAUDE.md`'s "Common Pitfalls" |
 | `LOG_LEVEL` | `INFO` | Python logging level (`config.py`) |
 | `SAPOT_API_URL` | `http://localhost:8000` | Base URL the GSM module uses to call back into the SAPOT server (`database.py`) — must match wherever the server actually listens |
-| `GSM_SECRET` | `""` (empty) | Shared secret sent by the GSM module when it calls the server's `/gsm/inbound` route. **Must match the server's `GSM_SECRET`** (see above) |
+| `GSM_SECRET` | None; startup raises `RuntimeError` when unset | Shared secret validated for server calls to `/sms/send` and sent by the GSM module on `/gsm/inbound` callbacks. **Must match the server's `GSM_SECRET`** (see above) |
 | `SMS_BOT_USER_ID` | unset | User ID the GSM module attributes inbound SMS-originated messages to, when the sender can't be resolved to a registered user (`database.py`) |
 | `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum waiting outbound requests. Integers from `1` through `20` are accepted; other values fail startup. The upper bound leaves capacity in FastAPI's default 40-thread worker pool so overload requests can reach the non-blocking admission check. |
 
