@@ -7,15 +7,16 @@ causing Starlette/uvicorn to log a full ERROR-level traceback for what is
 an expected, routine rejection.
 
 The fix: `authenticate_websocket` raises a dedicated `WebSocketAuthError`,
-which `main_web_socket` catches and logs as a concise warning instead of
-letting it propagate as an unhandled exception.
+which each route catches instead of letting it propagate as an unhandled
+exception. Invalid tokens are expected client input, so the rejection stays
+silent after the socket is closed.
 
 #326 found the same unhandled-exception gap on the GPS WebSocket routes
 (`/gps/ws/{user_id}` and `/gps/ws/monitor/rescuers/{rescuer_id}`), which
 call `authenticate_websocket` without catching `WebSocketAuthError` at
 all, and it flagged that uvicorn's own access log still emits a `403`
-line for every rejection (duplicating the app-level warning at a second
-severity) — see `test_websocket_403_access_log_is_suppressed`.
+line for every rejection. That line is also suppressed so routine invalid
+tokens do not create log noise.
 """
 import logging
 import uuid
@@ -35,22 +36,16 @@ def test_invalid_token_rejects_cleanly_without_unhandled_exception(client: TestC
     assert exc_info.value.code == 1008
 
 
-def test_invalid_token_logs_concise_warning_not_error(client: TestClient, caplog):
-    # Arrange
+def test_invalid_token_rejection_is_silent(client: TestClient, caplog):
     caplog.set_level(logging.WARNING, logger="app.api.peer_connection")
 
-    # Act
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect("/ws/?token=not-a-real-token"):
             pass
 
-    # Assert: a concise warning was logged, and nothing at ERROR level
-    # (no unhandled-exception traceback) came out of this rejection.
-    assert any(
-        record.levelno == logging.WARNING and "auth rejected" in record.message
-        for record in caplog.records
+    assert not any(
+        record.name == "app.api.peer_connection" for record in caplog.records
     )
-    assert not any(record.levelno >= logging.ERROR for record in caplog.records)
 
 
 def test_gps_stream_invalid_token_rejects_cleanly_without_unhandled_exception(client: TestClient):
@@ -66,22 +61,15 @@ def test_gps_stream_invalid_token_rejects_cleanly_without_unhandled_exception(cl
     assert exc_info.value.code == 1008
 
 
-def test_gps_stream_invalid_token_logs_concise_warning_not_error(client: TestClient, caplog):
-    # Arrange
+def test_gps_stream_invalid_token_rejection_is_silent(client: TestClient, caplog):
     user_id = str(uuid.uuid4())
     caplog.set_level(logging.WARNING, logger="app.api.gps")
 
-    # Act
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect(f"/gps/ws/{user_id}?token=not-a-real-token"):
             pass
 
-    # Assert
-    assert any(
-        record.levelno == logging.WARNING and "auth rejected" in record.message
-        for record in caplog.records
-    )
-    assert not any(record.levelno >= logging.ERROR for record in caplog.records)
+    assert not any(record.name == "app.api.gps" for record in caplog.records)
 
 
 def test_gps_monitor_invalid_token_rejects_cleanly_without_unhandled_exception(client: TestClient):
@@ -96,22 +84,15 @@ def test_gps_monitor_invalid_token_rejects_cleanly_without_unhandled_exception(c
     assert exc_info.value.code == 1008
 
 
-def test_gps_monitor_invalid_token_logs_concise_warning_not_error(client: TestClient, caplog):
-    # Arrange
+def test_gps_monitor_invalid_token_rejection_is_silent(client: TestClient, caplog):
     rescuer_id = str(uuid.uuid4())
     caplog.set_level(logging.WARNING, logger="app.api.gps")
 
-    # Act
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect(f"/gps/ws/monitor/rescuers/{rescuer_id}?token=not-a-real-token"):
             pass
 
-    # Assert
-    assert any(
-        record.levelno == logging.WARNING and "auth rejected" in record.message
-        for record in caplog.records
-    )
-    assert not any(record.levelno >= logging.ERROR for record in caplog.records)
+    assert not any(record.name == "app.api.gps" for record in caplog.records)
 
 
 def _make_ws_403_record() -> logging.LogRecord:
@@ -130,14 +111,8 @@ def _make_ws_403_record() -> logging.LogRecord:
     )
 
 
-def test_uvicorn_ws_403_filter_downgrades_duplicate_rejection_line():
-    """uvicorn logs its own `"WebSocket ..." 403` line (INFO, logger
-    "uvicorn.error") for every handshake rejected before accept — the same
-    event our app-level warning already reports at WARNING with more
-    context. The filter installed in `app.main` must suppress that
-    specific line from propagating at INFO so it doesn't double up the
-    rejection at two severities.
-    """
+def test_uvicorn_ws_403_filter_suppresses_rejection_line():
+    """The filter keeps uvicorn's handshake rejection line silent."""
     from app.main import UvicornWebSocket403Filter
 
     filt = UvicornWebSocket403Filter()

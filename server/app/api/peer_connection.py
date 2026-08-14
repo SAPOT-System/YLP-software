@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 import re
 
 import ast
@@ -23,9 +22,6 @@ from app.db_operations.websockets import authenticate_websocket, relay_message, 
 from app.db_operations.connection_manager import manager
 from app.db_operations.activity import set_user_status
 from app.models.websocketComms import MessageData, PublicMessageData
-
-logger = logging.getLogger(__name__)
-
 
 def _set_status_bg(user_id: UUID, status: str) -> None:
     try:
@@ -179,7 +175,6 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
     try:
         user_id = await authenticate_websocket(websocket, token)
     except WebSocketAuthError:
-        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
         return
 
     await manager.connect(UUID(user_id), websocket)
