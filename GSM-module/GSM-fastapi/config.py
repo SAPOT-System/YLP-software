@@ -44,6 +44,11 @@ class Settings:
     if not db_path:
         raise RuntimeError("Environment variable 'DB_PATH' is not set.")
 
+    gsm_secret: str = os.environ.get("GSM_SECRET", "")
+
+    if not gsm_secret:
+        raise RuntimeError("Environment variable 'GSM_SECRET' is not set.")
+
     # FastAPI host and port
     host: str = os.environ.get("HOST", "127.0.0.1")
     port: int = int(os.environ.get("PORT", "8000"))

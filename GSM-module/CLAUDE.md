@@ -4,7 +4,7 @@ Instructions for Claude Code working in `GSM-module/` — SAPOT's SMS gateway, b
 
 ## Project Overview
 
-Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem over serial; a Python (FastAPI) service on the same machine talking to the Arduino over USB serial; the main `server/` proxying outbound calls over trusted HTTP and authenticating inbound callbacks with a shared secret. There are **two parallel Python implementations** in this directory; they are not both live (see Architecture).
+Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem over serial; a Python (FastAPI) service on the same machine talking to the Arduino over USB serial; the main `server/` proxying outbound calls and receiving inbound callbacks over HTTP authenticated with a shared secret. There are **two parallel Python implementations** in this directory; they are not both live (see Architecture).
 
 ## Architecture — which implementation is live
 
@@ -18,7 +18,7 @@ Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem ove
 
 **Inbound:** Arduino emits `SMS_RECEIVED|<num>|<body>` over serial → `serial_worker.py`'s `SerialWorker._reader_loop` parses it via `protocol.py` → queued → `api.py`'s async `_inbox_drain()` task offloads to a thread pool → `sms_handler.handle_incoming_sms()` (session/target flow, ban/verified checks against MariaDB) → `database.py`'s `notify_app()` POSTs to the main server's `/gsm/inbound` with an `X-GSM-Secret` header.
 
-**Outbound:** the main server calls `POST /sms/send` on port 8001. `SerialWorker.send_sms()` atomically admits the request to a bounded FIFO queue or rejects saturation with HTTP 503. The sender writes `SEND_SMS|<num>|<body>`, and the reader resolves the request from `SMS_SENT|` or `SMS_FAILED|`. The admin GSM page reads health and message history through the main server. Shutdown rejects queued and active work with `SERVICE_STOPPING`.
+**Outbound:** the main server calls `POST /sms/send` on port 8001 with `X-GSM-Secret`. The gateway validates the secret before `SerialWorker.send_sms()` atomically admits the request to a bounded FIFO queue or rejects saturation with HTTP 503. The sender writes `SEND_SMS|<num>|<body>`, and the reader resolves the request from `SMS_SENT|` or `SMS_FAILED|`. The admin GSM page reads health and message history through the main server. Shutdown rejects queued and active work with `SERVICE_STOPPING`.
 
 `SerialWorker` runs two dedicated threads (`_reader_loop`, `_sender_loop`) with proper request/response correlation over the async serial stream, and auto-reconnects every 10s on disconnect.
 
@@ -33,7 +33,7 @@ Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem ove
 
 - **Wire protocol** — pipe-delimited lines: `SEND_SMS|<num>|<body>` (PC → Arduino), `SMS_RECEIVED|<num>|<body>`, `SMS_SENT|<num>`, `SMS_FAILED|<num>|<reason>`, `GSM_READY`, `NETWORK_OK`/`NETWORK_LOST`, `SIM_MISSING` (Arduino → PC). Implemented identically in `GSM-fastapi/protocol.py`. Any change to this format must be mirrored in the `.ino` firmware's parser/emitter — they are independent implementations of the same contract, not shared code.
 - **Session/target flow** — inbound SMS starts a session (`NEW`), the sender texts `[target] +63...` to select a recipient (`AWAITING_TARGET` → `ACTIVE`), then messages relay through. `GSM-fastapi` persists this to MariaDB (`SmsSession` table) and checks `banned`/`phone_is_verified` on both sender and target; `GSM-API`'s equivalent is in-memory only and skips those checks.
-- **Shared-secret webhook auth** (`X-GSM-Secret` header) — how this service calls back into the main server (`/gsm/inbound`); distinct from the JWT auth used elsewhere in SAPOT (see `../server/CLAUDE.md`).
+- **Shared-secret service auth** (`X-GSM-Secret` header) — authenticates main-server calls to `/sms/send` and GSM callbacks to `/gsm/inbound`; distinct from the JWT auth used elsewhere in SAPOT (see `../server/CLAUDE.md`).
 
 ## Development Conventions
 

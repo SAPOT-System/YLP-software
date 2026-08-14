@@ -1,3 +1,8 @@
+import os
+from pathlib import Path
+import subprocess
+import sys
+
 import pytest
 
 from config import bounded_integer_env
@@ -22,3 +27,22 @@ def test_bounded_integer_env_accepts_value_in_range(monkeypatch, value):
     monkeypatch.setenv("TEST_QUEUE_SIZE", value)
 
     assert bounded_integer_env("TEST_QUEUE_SIZE", 10, 20) == int(value)
+
+
+def test_config_rejects_missing_gsm_secret(tmp_path):
+    env = os.environ.copy()
+    env["DB_PATH"] = "sqlite:///test.db"
+    env.pop("GSM_SECRET", None)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import config"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Environment variable 'GSM_SECRET' is not set." in result.stderr

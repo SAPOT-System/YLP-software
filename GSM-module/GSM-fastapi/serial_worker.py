@@ -52,8 +52,14 @@ class _SendRequest:
     body:    str
     timeout: float
     done:    threading.Event = field(default_factory=threading.Event)
+    completion_lock: threading.Lock = field(default_factory=threading.Lock)
     success: bool            = False
     reason:  Optional[str]   = None
+    deadline: float          = field(init=False)
+    write_started: bool      = False
+
+    def __post_init__(self):
+        self.deadline = time.monotonic() + max(0, self.timeout)
 
 
 class SerialWorker:
@@ -151,6 +157,7 @@ class SerialWorker:
                 raise RuntimeError("GSM modem not ready")
             try:
                 self._send_queue.put_nowait(req)
+                req.deadline = time.monotonic() + max(0, req.timeout)
             except queue.Full as error:
                 logger.warning(
                     "Outbound SMS queue full (depth=%d capacity=%d)",
@@ -159,10 +166,12 @@ class SerialWorker:
         logger.info("SMS enqueued to %s (queue depth %d)",
                     number, self._send_queue.qsize())
 
-        # Block until the sender + reader threads resolve this request
-        delivered = req.done.wait(timeout=timeout + 5)  # +5 s buffer
-        if not delivered:
-            return {"ok": False, "reason": "CLIENT_TIMEOUT"}
+        while not req.done.is_set():
+            remaining = max(0, req.deadline - time.monotonic())
+            if req.done.wait(timeout=remaining):
+                break
+            if not self._timeout_request(req):
+                req.done.wait(timeout=0.01)
         return {"ok": req.success, "reason": req.reason}
 
     @property
@@ -199,13 +208,17 @@ class SerialWorker:
                 with self._active_lock:
                     self._active_request = req
 
-            # Wait until modem is ready (e.g. after reconnect)
-            deadline = time.time() + req.timeout
-            while not self.gsm_ready and time.time() < deadline:
-                time.sleep(0.5)
+            while (not self.gsm_ready and not req.done.is_set()
+                   and time.monotonic() < req.deadline):
+                remaining = req.deadline - time.monotonic()
+                req.done.wait(timeout=min(0.5, max(0, remaining)))
+
+            if req.done.is_set():
+                self._clear_active_request(req)
+                continue
 
             if not self.gsm_ready:
-                self._complete_active_request(req, False, "MODEM_NOT_READY")
+                self._complete_active_request(req, False, "TIMEOUT")
                 logger.warning("SMS to %s dropped: modem not ready", req.number)
                 continue
 
@@ -214,9 +227,8 @@ class SerialWorker:
                 self._clear_active_request(req)
                 continue
 
-            # Block here until the reader resolves this request
-            # (or until the per-SMS timeout expires)
-            resolved = req.done.wait(timeout=req.timeout)
+            remaining = max(0, req.deadline - time.monotonic())
+            resolved = req.done.wait(timeout=remaining)
             if not resolved:
                 if self._complete_in_flight(req, False, "TIMEOUT"):
                     logger.error("SMS to %s timed out", req.number)
@@ -363,8 +375,12 @@ class SerialWorker:
         with self._active_lock:
             if self._active_request is not req or req.done.is_set():
                 return False
+            if time.monotonic() >= req.deadline:
+                self._complete_request(req, False, "TIMEOUT")
+                return False
             with self._in_flight_lock:
                 self._in_flight = req
+                req.write_started = True
                 try:
                     with self._ser_lock:
                         if not self._ser or not self._ser.is_open:
@@ -375,9 +391,22 @@ class SerialWorker:
                     self._in_flight = None
                     self._complete_request(req, False, f"WRITE_ERROR: {error}")
                     return False
+                req.deadline = time.monotonic() + max(0, req.timeout)
 
         logger.info("SMS sent to serial: to=%s body=%r", req.number, req.body)
         return True
+
+    def _timeout_request(self, req: _SendRequest) -> bool:
+        with self._active_lock:
+            if req.done.is_set():
+                return True
+            if req.write_started:
+                return False
+            with self._in_flight_lock:
+                if self._in_flight is req:
+                    self._in_flight = None
+                self._complete_request(req, False, "CLIENT_TIMEOUT")
+                return True
 
     def _fail_active_request(self, reason: str):
         with self._active_lock:
@@ -418,10 +447,14 @@ class SerialWorker:
 
     @staticmethod
     def _complete_request(req: _SendRequest, success: bool,
-                          reason: Optional[str]):
-        req.success = success
-        req.reason = reason
-        req.done.set()
+                          reason: Optional[str]) -> bool:
+        with req.completion_lock:
+            if req.done.is_set():
+                return False
+            req.success = success
+            req.reason = reason
+            req.done.set()
+            return True
 
     def _drain_queued_requests(self):
         while True:

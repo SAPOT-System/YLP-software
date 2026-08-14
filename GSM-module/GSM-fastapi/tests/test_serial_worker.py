@@ -136,6 +136,101 @@ def test_failure_before_write_prevents_late_serial_send():
     assert writes == []
 
 
+def test_queued_request_timed_out_by_caller_is_never_written():
+    writes = []
+
+    class FakeSerial:
+        is_open = True
+
+        def write(self, payload):
+            writes.append(payload)
+
+    worker = ready_worker(capacity=2)
+    worker._ser = FakeSerial()
+    first = _SendRequest("+639171234567", "first", 10)
+    worker._send_queue.put_nowait(first)
+    sender = threading.Thread(target=worker._sender_loop)
+    sender.start()
+
+    for _ in range(100):
+        if writes:
+            break
+        time.sleep(0.01)
+
+    result = worker.send_sms("+639171234568", "second", timeout=0.01)
+    worker._complete_in_flight(first, True, None)
+
+    for _ in range(100):
+        if worker.outbound_queue_depth == 0:
+            break
+        time.sleep(0.01)
+    worker._stop.set()
+    sender.join(timeout=2)
+
+    assert result == {"ok": False, "reason": "CLIENT_TIMEOUT"}
+    assert writes == [b"SEND_SMS|+639171234567|first\n"]
+    assert sender.is_alive() is False
+
+
+def test_stop_does_not_overwrite_completed_queue_timeout():
+    worker = ready_worker()
+
+    result = worker.send_sms("+639171234568", "message", timeout=0.01)
+    request = worker._send_queue.get_nowait()
+    worker._send_queue.put_nowait(request)
+
+    class JoinedThread:
+        def join(self, timeout):
+            assert timeout == 5
+
+    worker._reader_thread = JoinedThread()
+    worker._sender_thread = JoinedThread()
+    worker.stop()
+
+    assert result == {"ok": False, "reason": "CLIENT_TIMEOUT"}
+    assert request.reason == "CLIENT_TIMEOUT"
+
+
+def test_write_crossing_admission_deadline_waits_for_confirmation():
+    writes = []
+    write_started = threading.Event()
+    release_write = threading.Event()
+
+    class BlockingSerial:
+        is_open = True
+
+        def write(self, payload):
+            write_started.set()
+            release_write.wait(timeout=1)
+            writes.append(payload)
+
+    worker = ready_worker()
+    worker._ser = BlockingSerial()
+    sender = threading.Thread(target=worker._sender_loop)
+    sender.start()
+    result = {}
+
+    def send():
+        result.update(
+            worker.send_sms("+639171234568", "message", timeout=0.05)
+        )
+
+    caller = threading.Thread(target=send)
+    caller.start()
+    assert write_started.wait(timeout=1)
+    time.sleep(0.06)
+    release_write.set()
+    worker._resolve_in_flight("+639171234568", True, None)
+    caller.join(timeout=1)
+    worker._stop.set()
+    sender.join(timeout=2)
+
+    assert result == {"ok": True, "reason": None}
+    assert writes == [b"SEND_SMS|+639171234568|message\n"]
+    assert caller.is_alive() is False
+    assert sender.is_alive() is False
+
+
 def test_stale_confirmation_cannot_complete_request_before_write():
     writes = []
 

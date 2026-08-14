@@ -27,12 +27,13 @@ Endpoints
 """
 
 import asyncio
+import hmac
 import logging
 import re
 from contextlib import asynccontextmanager
-from typing import Counter, Optional
+from typing import Annotated, Counter, Optional
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
@@ -61,6 +62,12 @@ async def lifespan(app: FastAPI):
     # Database
     database.init(settings.db_path)
     logger.info("Database ready")
+    orphaned_count = database.fail_orphaned_pending_messages()
+    if orphaned_count:
+        logger.warning(
+            "Marked %d orphaned SMS messages as failed after service restart",
+            orphaned_count,
+        )
 
     # Serial worker
     _worker = SerialWorker(
@@ -127,7 +134,12 @@ def _process_incoming(event):
         status="received",
     )
 
-    reply, forward_number, forward_body = handle_incoming_sms(number, body)
+    reply, forward_number, forward_body, rejection_reason = handle_incoming_sms(
+        number, body
+    )
+
+    if rejection_reason:
+        database.update_message_status(msg_id, "rejected", rejection_reason)
 
     # Forward to target via SMS
     if forward_number and forward_body and _worker:
@@ -215,6 +227,17 @@ class AddUserRequest(BaseModel):
         if not re.match(r"^\+\d{7,15}$", v):
             raise ValueError("phone must be E.164 format")
         return v
+
+
+def require_gsm_secret(
+    x_gsm_secret: Annotated[
+        Optional[str], Header(alias="X-GSM-Secret")
+    ] = None,
+):
+    if x_gsm_secret is None or not hmac.compare_digest(
+        x_gsm_secret, settings.gsm_secret
+    ):
+        raise HTTPException(status_code=401, detail="Invalid GSM secret")
 
 
 # ── Health endpoints ──────────────────────────────────────────────────────────
@@ -320,7 +343,11 @@ def status():
 
 # ── SMS endpoints ─────────────────────────────────────────────────────────────
 
-@app.post("/sms/send", tags=["sms"])
+@app.post(
+    "/sms/send",
+    tags=["sms"],
+    dependencies=[Depends(require_gsm_secret)],
+)
 def send_sms(req: SendSMSRequest):
     """
     Send an SMS directly. Blocks until the modem confirms delivery.

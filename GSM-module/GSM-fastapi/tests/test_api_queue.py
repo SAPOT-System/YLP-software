@@ -6,11 +6,14 @@ import httpx
 import pytest
 
 import api
+from config import settings
 from serial_worker import (
     MAX_SEND_QUEUE_SIZE,
     OutboundQueueFullError,
     WorkerStoppingError,
 )
+
+AUTH_HEADERS = {"X-GSM-Secret": settings.gsm_secret}
 
 
 @pytest.fixture(autouse=True)
@@ -41,9 +44,11 @@ def test_queue_full_returns_nested_503_and_updates_log(monkeypatch):
     monkeypatch.setattr(api.database, "update_message_status", lambda *args: updates.append(args))
     api._worker = RejectingWorker(OutboundQueueFullError())
 
-    response = TestClient(api.app).post("/sms/send", json={
-        "number": "+639171234567", "body": "message"
-    })
+    response = TestClient(api.app).post(
+        "/sms/send",
+        json={"number": "+639171234567", "body": "message"},
+        headers=AUTH_HEADERS,
+    )
 
     assert response.status_code == 503
     assert response.json()["detail"] == {
@@ -60,9 +65,11 @@ def test_stopping_returns_nested_503_and_updates_log(monkeypatch):
     monkeypatch.setattr(api.database, "update_message_status", lambda *args: updates.append(args))
     api._worker = RejectingWorker(WorkerStoppingError())
 
-    response = TestClient(api.app).post("/sms/send", json={
-        "number": "+639171234567", "body": "message"
-    })
+    response = TestClient(api.app).post(
+        "/sms/send",
+        json={"number": "+639171234567", "body": "message"},
+        headers=AUTH_HEADERS,
+    )
 
     assert response.status_code == 503
     assert response.json()["detail"]["reason"] == "SERVICE_STOPPING"
@@ -116,7 +123,9 @@ def test_maximum_capacity_still_rejects_and_serves_health(monkeypatch):
         transport = httpx.ASGITransport(app=api.app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             payload = {"number": "+639171234567", "body": "message"}
-            admitted = [asyncio.create_task(client.post("/sms/send", json=payload))
+            admitted = [asyncio.create_task(client.post(
+                "/sms/send", json=payload, headers=AUTH_HEADERS
+            ))
                         for _ in range(worker.capacity)]
 
             for _ in range(100):
@@ -126,7 +135,8 @@ def test_maximum_capacity_still_rejects_and_serves_health(monkeypatch):
                 await asyncio.sleep(0.01)
 
             rejected = await asyncio.wait_for(
-                client.post("/sms/send", json=payload), timeout=1
+                client.post("/sms/send", json=payload, headers=AUTH_HEADERS),
+                timeout=1,
             )
             health = await asyncio.wait_for(client.get("/health"), timeout=1)
             worker.release.set()
@@ -140,3 +150,24 @@ def test_maximum_capacity_still_rejects_and_serves_health(monkeypatch):
     assert rejected.json()["detail"]["reason"] == "QUEUE_FULL"
     assert health.status_code == 200
     assert all(response.status_code == 200 for response in completed)
+
+
+@pytest.mark.parametrize("headers", [{}, {"X-GSM-Secret": "wrong-secret"}])
+def test_send_rejects_missing_or_invalid_secret_before_side_effects(
+    monkeypatch, headers
+):
+    calls = []
+    monkeypatch.setattr(
+        api.database, "log_message", lambda **_kwargs: calls.append("logged")
+    )
+    api._worker = RejectingWorker(AssertionError("worker must not be called"))
+
+    response = TestClient(api.app).post(
+        "/sms/send",
+        json={"number": "+639171234567", "body": "message"},
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid GSM secret"}
+    assert calls == []
