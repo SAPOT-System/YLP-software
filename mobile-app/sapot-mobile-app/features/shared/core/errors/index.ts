@@ -4,3 +4,10 @@ export { toAppError } from "./to-app-error";
 export { KeyInitError, toKeyInitError } from "./key-init-error";
 export type { KeyInitErrorCode } from "./key-init-error";
 export { captureAppError } from "./sentry-capture";
+export {
+  GsmGatewayError,
+  getGsmErrorMessage,
+  getGsmFailure,
+  toGsmGatewayError,
+} from "./gsm-error";
+export type { GsmFailure } from "./gsm-error";

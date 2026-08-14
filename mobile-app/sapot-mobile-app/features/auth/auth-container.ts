@@ -8,6 +8,7 @@ import { SessionStore } from "../shared/core/stores/session-store";
 import { UserStore } from "../shared/core/stores/user-store";
 import { authLog } from "../shared/core/utils/logger";
 import { GuestMigrationService } from "./services/guest-migration-service";
+import { PhoneVerificationService } from "./services/phone-verification-service";
 
 authLog.debug("[auth-container] module loaded");
 
@@ -17,6 +18,7 @@ export class AuthContainer {
   readonly peerRepository: PeerRepository;
   readonly guestUserRepository: GuestUserRepository;
   readonly guestMigrationService: GuestMigrationService;
+  readonly phoneVerificationService: PhoneVerificationService;
   readonly userStore: UserStore;
   readonly sessionStore: SessionStore;
   private initPromise?: Promise<void>;
@@ -33,6 +35,7 @@ export class AuthContainer {
     this.guestMigrationService = new GuestMigrationService(
       this.guestUserRepository
     );
+    this.phoneVerificationService = new PhoneVerificationService();
 
     this.userService = new UserService(
       this.userStore,

@@ -21,6 +21,7 @@ and takes no arguments:
 - `guestUserRepository` — guest profile row
 - `guestMigrationService` — guest→auth conversion
 - `userService` — login/logout; `MainContainer` injects the `CleanUpService` into it so logout purges local data
+- `phoneVerificationService`: phone verification request/resend, code verification, and ghost-user migration. Screens access it through `usePhoneVerificationService()`; GSM availability comes from the shared `GsmService`.
 
 ### MainContainer (`features/shared/main-container.ts`)
 
@@ -142,6 +143,8 @@ Crypto stack: `tweetnacl` + `tweetnacl-util`, `@noble/hashes`, `expo-crypto`, `r
 | `NotificationService` | Local incoming-call notifications via `expo-notifications`. Constructed inline in `main-container.ts` and passed to `ConnectionService`; not exposed as a container field. |
 | `CallMessageRouter` | Pure decision layer for inbound call messages. Maps a `CallMessage` + busy/active state to a `CallRouterResult` (`emit` / suppress), keeping glare handling out of `ConnectionService`. |
 | `PublicChatService` | Server-relayed public chat over `WsSignalingAdapter`, with history loaded from `GET /public-chat`. Independent of the P2P chat path. |
+| `GsmService` | Owned by `MainContainer`. Reads GSM health, sends chat SMS, and sends first-contact onboarding requests through the GSM API. UI and chat hooks access it through `useGsmService()` so screens do not call API modules directly. |
+| `PhoneVerificationService` | Owned by `AuthContainer`. Coordinates phone verification request/resend, code verification, and ghost-user migration through the auth API module. GSM health remains centralized in `GsmService`. |
 
 ---
 

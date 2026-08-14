@@ -97,6 +97,7 @@ jest.mock("../connection/services", () => ({
     republish: jest.fn().mockResolvedValue(undefined),
     destroy: jest.fn().mockResolvedValue(undefined),
   })),
+  GsmService: jest.fn().mockImplementation(() => ({})),
   SignalingService: jest.fn().mockImplementation(() => ({})),
   WebrtcSessionManager: jest.fn().mockImplementation(() => ({
     getWebrtcAdapter: jest.fn(),

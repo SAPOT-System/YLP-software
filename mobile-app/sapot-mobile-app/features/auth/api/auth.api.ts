@@ -1,5 +1,5 @@
 import { QA_API_TOKEN } from "@/config/debug";
-import { toAppError } from "@/features/shared/core/errors";
+import { toAppError, toGsmGatewayError } from "@/features/shared/core/errors";
 import { apiClient } from "@/features/shared";
 import { apiLog } from "@/features/shared/core/utils/logger";
 import { AxiosResponse } from "axios";
@@ -327,32 +327,23 @@ export const verifyCodeEmail = async (code: string) => {
   return res.data;
 };
 
-export const checkGsmHealth = async (): Promise<boolean> => {
-  try {
-    apiLog.info("[AuthApi] Calling /gsm/health");
-    const res = await apiClient.get<{ status: string }>("/gsm/health");
-    apiLog.info("[AuthApi] GSM health response", { status: res.status });
-    return res.status === 200;
-  } catch (error) {
-    const appErr = toAppError(error, "auth");
-    apiLog.warn("[AuthApi] GSM health check failed", appErr);
-    return false;
-  }
-};
-
 export const requestPhoneVerification = async (
   phoneNumber?: string,
   reauthToken?: string
 ) => {
   apiLog.info("[AuthApi] Calling /gsm/request", { hasPhoneNumber: Boolean(phoneNumber) });
-  const res = await apiClient.post<{ message: string }>(
-    "/gsm/request",
-    { phone_number: phoneNumber },
-    reauthToken ? { headers: { "X-Reauth-Token": reauthToken } } : undefined
-  );
+  try {
+    const res = await apiClient.post<{ message: string }>(
+      "/gsm/request",
+      { phone_number: phoneNumber },
+      reauthToken ? { headers: { "X-Reauth-Token": reauthToken } } : undefined
+    );
 
-  apiLog.info("[AuthApi] Response received", { status: res.status });
-  return res.data;
+    apiLog.info("[AuthApi] Response received", { status: res.status });
+    return res.data;
+  } catch (error) {
+    throw toGsmGatewayError(error);
+  }
 };
 
 export const verifyCodePhone = async (code: string) => {
@@ -396,10 +387,14 @@ export const fetchTermsContent = async (): Promise<string> => {
 
 export const resendVerificationCodePhone = async () => {
   apiLog.info("[AuthApi] Calling /gsm/resend");
-  const res = await apiClient.post<{ message: string }>("/gsm/resend");
+  try {
+    const res = await apiClient.post<{ message: string }>("/gsm/resend");
 
-  apiLog.info("[AuthApi] Response received", { status: res.status });
-  return res.data;
+    apiLog.info("[AuthApi] Response received", { status: res.status });
+    return res.data;
+  } catch (error) {
+    throw toGsmGatewayError(error);
+  }
 };
 
 export const migratePhoneUserApi = async (): Promise<{

@@ -1,18 +1,13 @@
 import { SETTINGS_ROUTES } from "@/config/routes";
-import { useUserService } from "@/features/auth";
-import {
-  checkGsmHealth,
-  migratePhoneUserApi,
-  requestPhoneVerification,
-  resendVerificationCodePhone,
-  verifyCodePhone,
-} from "@/features/auth/api/auth.api";
+import { usePhoneVerificationService, useUserService } from "@/features/auth";
 import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { useRecoveryKeySetup } from "@/features/auth/hooks/use-recovery-key-setup";
 import { VerificationCodeContent } from "@/features/settings";
 import AppSnackbar from "@/features/shared/components/app-snackbar";
 import { useSyncService } from "@/features/shared/hooks/use-sync-service";
+import { useGsmService } from "@/features/shared/hooks";
 import { uiLog } from "@/features/shared/core/utils/logger";
+import { getGsmErrorMessage } from "@/features/shared/core/errors";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -35,6 +30,8 @@ export default function VerifyPhone() {
     variant: "neutral",
   });
   const userService = useUserService();
+  const gsmService = useGsmService();
+  const phoneVerificationService = usePhoneVerificationService();
   const { setupPhoneBlob } = useRecoveryKeySetup();
   const syncService = useSyncService();
 
@@ -50,8 +47,8 @@ export default function VerifyPhone() {
   const sendCode = async () => {
     setIsSending(true);
     setSendFailed(false);
-    const gsmOnline = await checkGsmHealth();
-    if (!gsmOnline) {
+    const gsmHealth = await gsmService.getHealth().catch(() => null);
+    if (!gsmHealth?.gsm_ready) {
       setSnackbar({
         visible: true,
         message:
@@ -64,7 +61,7 @@ export default function VerifyPhone() {
     }
     try {
       setIsSending(false);
-      await requestPhoneVerification(
+      await phoneVerificationService.requestVerification(
         phone ? toInternationalPhone(phone) : undefined,
         reauth_token || undefined
       );
@@ -76,7 +73,10 @@ export default function VerifyPhone() {
       setSendFailed(true);
       setSnackbar({
         visible: true,
-        message: "Failed to send verification code. Please try again.",
+        message: getGsmErrorMessage(
+          error,
+          "Failed to send verification code. Please try again."
+        ),
         variant: "error",
       });
     } 
@@ -91,14 +91,14 @@ export default function VerifyPhone() {
     setCodeError(undefined);
 
     try {
-      await verifyCodePhone(code);
+      await phoneVerificationService.verifyCode(code);
       await userService.updateAuthenticatedUser({
         phoneNumber: toInternationalPhone(phone),
         phoneNumberVerified: true,
       });
       await setupPhoneBlob(phone);
       try {
-        const migration = await migratePhoneUserApi();
+        const migration = await phoneVerificationService.migratePhoneUser();
         if (migration.migrated) {
           uiLog.info("[VerifyPhone] ghost user migrated", {
             ghostUserId: migration.ghost_user_id,
@@ -127,10 +127,12 @@ export default function VerifyPhone() {
     setCodeError(undefined);
 
     try {
-      await resendVerificationCodePhone();
+      await phoneVerificationService.resendCode();
     } catch (error) {
       uiLog.error("[VerifyPhone] Error resending code", { error });
-      setCodeError("Failed to resend code. Please try again.");
+      setCodeError(
+        getGsmErrorMessage(error, "Failed to resend code. Please try again.")
+      );
     }
   };
 

@@ -14,6 +14,7 @@ import {
   CleanUpService,
   ConnectionService,
   DiscoveryService,
+  GsmService,
   NotificationService,
   SignalingService,
   WebrtcSessionManager,
@@ -79,6 +80,7 @@ export class MainContainer {
   readonly zeroconfAdapter: ZeroconfAdapter;
   readonly networkConfig: NetworkConfig;
   readonly discoveryService: DiscoveryService;
+  readonly gsmService: GsmService;
   readonly tcpServerAdapter: TcpServerAdapter;
   readonly webrtcSessionManager: WebrtcSessionManager;
   readonly signalingService: SignalingService;
@@ -126,6 +128,7 @@ export class MainContainer {
     this.appModeStore = appModeStore;
 
     this.networkConfig = new NetworkConfig();
+    this.gsmService = new GsmService();
 
     this.localEncryptionService = new LocalEncryptionService({
       getPassword: () => _pendingRawPassword,

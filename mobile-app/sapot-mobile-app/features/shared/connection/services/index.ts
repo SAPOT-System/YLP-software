@@ -6,6 +6,7 @@ export { CallMediaService } from "./call-media-service";
 export * from "./clean-up-service";
 export { ConnectionService } from "./connection-service";
 export { DiscoveryService } from "./discovery-service";
+export { GsmService } from "./gsm-service";
 export { NotificationService } from "./notification-service";
 export * from "./service-interfaces";
 export { SignalingService } from "./signaling-service";

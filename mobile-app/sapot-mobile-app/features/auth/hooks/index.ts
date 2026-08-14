@@ -13,4 +13,4 @@ export * from "./use-validate-identifier";
 export * from "./use-verify-question";
 export * from "./use-verify-recovery-key";
 export * from "./use-password-reset-key-recovery";
-
+export * from "./use-phone-verification-service";

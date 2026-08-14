@@ -6,13 +6,13 @@ import { ChatRoomSource } from "@/features/chat/types";
 import { toInternationalPhone } from "@/features/auth/utils/validation";
 import { ChatList, useChats } from "@/features/chat";
 import { useChatService } from "@/features/chat/hooks/use-chat-service";
-import { contactUnknownUser } from "@/features/shared/core/api/gsm.api";
 import { AppSnackbar } from "@/features/shared/components/app-snackbar";
 import PeerList from "@/features/shared/components/peer-list";
 import { Peer } from "@/features/shared/core/database";
 import {
   useConnectionService,
   useDiscoveryService,
+  useGsmService,
   usePeerService,
   useToast,
 } from "@/features/shared/hooks";
@@ -21,6 +21,7 @@ import { useGsmHealth } from "@/features/shared/hooks/use-gsm-health";
 import { useSyncService } from "@/features/shared/hooks/use-sync-service";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { uiLog } from "@/features/shared/core/utils/logger";
+import { getGsmErrorMessage } from "@/features/shared/core/errors";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -94,6 +95,7 @@ export default function Chat() {
   const connectionService = useConnectionService();
   const peerService = usePeerService();
   const chatService = useChatService();
+  const gsmService = useGsmService();
 
   useEffect(() => {
     uiLog.debug("[Chat] useEffect triggered, deps:", {
@@ -252,7 +254,7 @@ export default function Chat() {
                 setContacting(true);
                 try {
                   const phone = toInternationalPhone(targetPhone.trim());
-                  const res = await contactUnknownUser(phone);
+                  const res = await gsmService.contactUnknownUser(phone);
                   await peerService.upsertPeer({
                     id: res.user_id,
                     username: phone,
@@ -284,9 +286,12 @@ export default function Chat() {
                       source: ChatRoomSource.PEER,
                     },
                   });
-                } catch {
+                } catch (error) {
                   showError(
-                    "Failed to contact user. Check phone number format (+63...)."
+                    getGsmErrorMessage(
+                      error,
+                      "Failed to contact user. Check phone number format (+63...)."
+                    )
                   );
                 } finally {
                   setContacting(false);
