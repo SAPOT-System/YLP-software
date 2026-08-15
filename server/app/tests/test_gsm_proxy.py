@@ -69,7 +69,7 @@ def _authenticated_user(session):
     return session.exec(select(User)).first()
 
 
-def test_proxy_capacity_and_timeouts_cover_gateway_contract(monkeypatch):
+def test_proxy_capacity_timeouts_and_gateway_url_cover_gateway_contract(monkeypatch):
     captured = {}
 
     class CapturingClient:
@@ -90,6 +90,25 @@ def test_proxy_capacity_and_timeouts_cover_gateway_contract(monkeypatch):
     assert timeout.pool == gsm.GSM_PROXY_POOL_TIMEOUT_SECONDS
     assert limits.max_connections == gsm.GSM_PROXY_MAX_CONNECTIONS
     assert limits.max_connections > gsm.GSM_GATEWAY_MAX_ADMITTED_REQUESTS
+    assert captured["base_url"] == gsm.GSM_GATEWAY_URL
+
+
+def test_proxy_uses_configured_gateway_url(monkeypatch):
+    captured = {}
+
+    class CapturingClient:
+        is_closed = False
+
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(gsm, "_gsm_http_client", None)
+    monkeypatch.setattr(gsm, "GSM_GATEWAY_URL", "http://gsm-fastapi:8001")
+    monkeypatch.setattr(gsm.httpx, "AsyncClient", CapturingClient)
+
+    gsm._get_gsm_client()
+
+    assert captured["base_url"] == "http://gsm-fastapi:8001"
 
 
 def test_send_to_module_authenticates_with_shared_secret(monkeypatch):

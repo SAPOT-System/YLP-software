@@ -31,20 +31,21 @@ GSM_GATEWAY_MAX_ADMITTED_REQUESTS = 21
 GSM_PROXY_MAX_CONNECTIONS = GSM_GATEWAY_MAX_ADMITTED_REQUESTS + 1
 GSM_PROXY_POOL_TIMEOUT_SECONDS = 1.0
 
-# Module-level client reuses TCP connections to localhost:8001 across requests.
+# Module-level client reuses TCP connections to the configured GSM gateway.
 _gsm_http_client: httpx.AsyncClient | None = None
 logger = logging.getLogger("app")
 
 GSM_SECRET = os.environ.get("GSM_SECRET")
 if not GSM_SECRET:
     raise RuntimeError("GSM_SECRET environment variable is not set")
+GSM_GATEWAY_URL = os.environ.get("GSM_GATEWAY_URL", "http://localhost:8001").rstrip("/")
 
 
 def _get_gsm_client() -> httpx.AsyncClient:
     global _gsm_http_client
     if _gsm_http_client is None or _gsm_http_client.is_closed:
         _gsm_http_client = httpx.AsyncClient(
-            base_url="http://localhost:8001",
+            base_url=GSM_GATEWAY_URL,
             timeout=httpx.Timeout(
                 connect=5.0,
                 read=GSM_PROXY_READ_TIMEOUT_SECONDS,

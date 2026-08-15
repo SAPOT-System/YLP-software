@@ -59,6 +59,10 @@ cp GSM-module/GSM-fastapi/.env.example GSM-module/GSM-fastapi/.env
 
 `gsm-fastapi`'s `GSM_SECRET` must match `server/.env`'s `GSM_SECRET` — they authenticate the
 webhook calls between the two services (see [environment-config.md](../deployment/environment-config.md)).
+
+Compose sets the server's `GSM_GATEWAY_URL` to `http://gsm-fastapi:8001`, which resolves through the
+internal Docker network. Do not replace it with `localhost`: inside the `api` container, that address
+refers to the API container rather than the separate GSM gateway container.
 The `gsm-fastapi` container passes through the GSM modem at `/dev/ttyACM0`, but only when
 `docker-compose.gsm-hardware.yml` is explicitly merged in (Compose has no "optional device" syntax,
 so this stays out of the base `docker-compose.yml`/`docker-compose.override.yml` — otherwise the
