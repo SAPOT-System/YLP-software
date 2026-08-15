@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import HTTPException, Request
 import jwt
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from app.db_operations.token import ALGORITHM, SECRET_KEY
 from app.models.activity import UserActivity
@@ -48,6 +49,8 @@ def _write_user_activity_sync(user_id: UUID, ip: str, user_agent: str) -> None:
             activity.ip_address = ip
             session.add(activity)
             session.commit()
+    except IntegrityError:
+        pass
     except Exception as e:
         print(f"[activity] write failed: {e}")
 
