@@ -46,6 +46,7 @@ pnpm run testAll
 | `tests/test_database_reconciliation.py` | Idempotent startup recovery of orphaned pending log rows |
 | `tests/test_incoming_sms.py` | Sender rejection reason codes and inbound log status updates |
 | `tests/test_lifespan.py` | Reconciliation ordering before serial worker startup |
+| `tests/test_mock_modem.py` | Virtual-phone validation, firmware-compatible normalization, modem state transitions, HTTP responses, PTY framing, reconnects, and subprocess cleanup |
 | `server/app/tests/test_gsm_proxy.py` | Main-server shared-secret header, status preservation, and timeout headroom for chat, verification, resend, and first-contact requests |
 | `mobile-app/sapot-mobile-app/features/shared/core/errors/__tests__/gsm-error.test.ts` | Typed `QUEUE_FULL` parsing and user-visible error messages |
 | `mobile-app/sapot-mobile-app/features/chat/components/__tests__/message-list.test.tsx` | Manual resend rejection and `not_sent` restoration |
@@ -83,7 +84,37 @@ The saturation test starts 21 blocking send requests, representing 20 waiting re
 
 This covers the thread-pool exhaustion described by issue #252. A test with only a rejecting fake would verify the response shape but would not prove that the rejection handler can still obtain a worker thread.
 
-## Manual modem smoke test
+## Software-only PTY smoke test
+
+Use this Linux host workflow to validate the real `SerialWorker` and outbound FastAPI path without
+an Arduino or carrier account. It still needs development `DB_PATH` and `GSM_SECRET` values because
+the emulator replaces only the serial device.
+
+1. In one terminal, run `python mock_modem.py` from `GSM-module/GSM-fastapi/` and copy its printed `/dev/pts/<n>` path. The virtual phone is available at `http://127.0.0.1:8002`.
+2. In another terminal, start the gateway with `SERIAL_PORT=/dev/pts/<n> python main.py`.
+3. Confirm `curl http://127.0.0.1:8001/health` reports `connected: true` and `gsm_ready: true`.
+4. Send an authenticated request:
+
+   ```bash
+   curl -X POST http://127.0.0.1:8001/sms/send \
+     -H 'Content-Type: application/json' \
+     -H 'X-GSM-Secret: <value from GSM_SECRET>' \
+     -d '{"number":"+639171234567","body":"SAPOT PTY smoke test"}'
+   ```
+
+5. Confirm the API reports success and the selected virtual-phone inbox shows the message from SAPOT Gateway.
+6. Reply from that inbox and confirm the gateway processes it through the normal inbound session and callback path.
+7. Set the virtual-phone network or SIM control to unavailable, confirm the gateway health degrades, then restore it and confirm it becomes ready again.
+8. Restart only the gateway, using the same PTY path, and confirm it becomes ready again.
+
+The emulator can also return `NO_PROMPT` or withhold a confirmation (`TIMEOUT`) from its browser controls.
+It cannot validate USB access, real SIM state, signal, carrier acceptance, or physical-phone delivery.
+
+For Compose-based testing, start the stack with
+`docker-compose.gsm-emulator.yml`. The overlay runs the emulator inside the gateway container because
+a host-created PTY is not visible to that container.
+
+## Real-modem smoke test
 
 Run this only on a host with the configured Arduino and SIM:
 

@@ -1,10 +1,13 @@
 # Opt-in overlay: passes the GSM modem through to gsm-fastapi. Not
 # auto-loaded (unlike docker-compose.override.yml) — only merge this in on
-# a machine that actually has the modem attached at /dev/ttyACM0, otherwise
+# a machine that actually has the modem attached, otherwise
 # `docker compose up` aborts and leaves nginx/admin stuck in "Created".
 #
 # Usage: docker/up.sh -f docker-compose.yml -f docker-compose.gsm-hardware.yml up -d
+# docker/up.sh loads GSM-module/GSM-fastapi/.env for SERIAL_PORT substitution.
 services:
   gsm-fastapi:
+    environment:
+      SERIAL_PORT: ${SERIAL_PORT:-/dev/ttyACM0}
     devices:
-      - "/dev/ttyACM0:/dev/ttyACM0"
+      - "${SERIAL_PORT:-/dev/ttyACM0}:${SERIAL_PORT:-/dev/ttyACM0}"

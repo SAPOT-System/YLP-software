@@ -76,6 +76,20 @@ whole `docker compose up` would abort on any machine without the GSM modem attac
 Without the GSM modem, just run the normal `./docker/up.sh up --build -d` below — `gsm-fastapi` still
 starts, it just won't have serial access.
 
+To exercise outbound SMS flow in Docker without hardware, merge the PTY emulator overlay instead.
+It starts the emulator in the `gsm-fastapi` container, so its generated device path is visible to the
+gateway process. Do not set `SERIAL_PORT` to a host `/dev/pts/<n>` path: containers have separate PTY
+namespaces.
+
+```bash
+./docker/up.sh -f docker-compose.yml -f docker-compose.gsm-emulator.yml up --build -d
+docker compose logs -f gsm-fastapi
+```
+
+The gateway logs the generated port and becomes ready after the emulator handshake. The emulator
+prints each valid outbound destination and body in the same service logs. Do not merge the emulator
+overlay with `docker-compose.gsm-hardware.yml`; use the hardware overlay for real modem testing.
+
 See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `SERVER_ED25519_SEED` are required at import time. `server/.env.example` supplies safe defaults only for local service addresses; it never supplies usable secrets.
 
 ## Run
@@ -168,6 +182,17 @@ The new stack runs under a different project name (derived from the repo root di
 ```bash
 docker compose up -d db redis api certgen nginx   # pulls in admin + tileserver, skips gsm-fastapi
 ```
+
+**`gsm-fastapi` logs `Cannot open /dev/ttyACM0: No such file or directory`.** The Arduino may be connected to the host, but the running container was created without the hardware overlay, so Docker did not expose the serial device inside it. Confirm the host sees the device, then recreate only the gateway with the overlay:
+```bash
+ls -l /dev/ttyACM* /dev/ttyUSB*
+./docker/up.sh -f docker-compose.yml -f docker-compose.gsm-hardware.yml up -d --force-recreate gsm-fastapi
+```
+If the first command reports a port other than `/dev/ttyACM0`, update `SERIAL_PORT` in
+`GSM-module/GSM-fastapi/.env`. The `docker/up.sh` wrapper reads that file when the hardware overlay is
+selected, so Compose maps the same device path into the gateway container.
+This overlay accepts host serial devices such as `/dev/ttyACM0` and `/dev/ttyUSB0`. It cannot pass a
+host `/dev/pts/<n>` pseudo-terminal into Docker. Use `docker-compose.gsm-emulator.yml` for PTY testing.
 
 **`https://localhost/admin` works but `http://localhost:3000` returns 404.** Expected. The admin app sets `basePath: "/admin"` in `next.config.ts`, so its published port serves the dashboard at `http://localhost:3000/admin`, not at the root path.
 
