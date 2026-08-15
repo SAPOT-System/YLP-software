@@ -1,4 +1,10 @@
-import { loginAsFixtureApi, resetPasswordApi } from "../auth.api";
+import { GsmGatewayError } from "@/features/shared/core/errors/gsm-error";
+import {
+  loginAsFixtureApi,
+  requestPhoneVerification,
+  resendVerificationCodePhone,
+  resetPasswordApi,
+} from "../auth.api";
 
 jest.mock("@/features/shared", () => ({
   apiClient: { post: jest.fn(), get: jest.fn() },
@@ -54,5 +60,42 @@ describe("loginAsFixtureApi", () => {
       null,
       expect.anything()
     );
+  });
+});
+
+describe("GSM verification API", () => {
+  const queueFullError = {
+    response: {
+      status: 503,
+      data: {
+        detail: {
+          message: "Outbound SMS queue is full",
+          reason: "QUEUE_FULL",
+          msg_id: "sms-log-id",
+        },
+      },
+    },
+  };
+
+  it("wraps verification saturation as a typed GSM gateway error", async () => {
+    mockPost.mockRejectedValue(queueFullError);
+
+    await expect(
+      requestPhoneVerification("+639171234567")
+    ).rejects.toMatchObject({
+      name: "GsmGatewayError",
+      status: 503,
+      reason: "QUEUE_FULL",
+    } satisfies Partial<GsmGatewayError>);
+  });
+
+  it("wraps resend saturation as a typed GSM gateway error", async () => {
+    mockPost.mockRejectedValue(queueFullError);
+
+    await expect(resendVerificationCodePhone()).rejects.toMatchObject({
+      name: "GsmGatewayError",
+      status: 503,
+      reason: "QUEUE_FULL",
+    } satisfies Partial<GsmGatewayError>);
   });
 });

@@ -1,8 +1,11 @@
 import { renderHook, act } from "@testing-library/react-native";
+import { GsmGatewayError } from "@/features/shared/core/errors/gsm-error";
 import { useSendMessage } from "./use-send-message";
 
-jest.mock("@/features/shared/core/api/gsm.api", () => ({
-  sendSmsToUser: jest.fn().mockResolvedValue({ ok: true }),
+const mockSendSmsToUser = jest.fn();
+
+jest.mock("@/features/shared/hooks", () => ({
+  useGsmService: () => ({ sendSmsToUser: mockSendSmsToUser }),
 }));
 
 jest.mock("@/features/shared/core/utils/logger", () => ({
@@ -44,6 +47,15 @@ function makeParams(overrides: Record<string, unknown> = {}) {
 }
 
 describe("useSendMessage", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSendSmsToUser.mockResolvedValue({
+      ok: true,
+      msg_id: "sms-log-id",
+      to: "+639171234567",
+    });
+  });
+
   it("returns synchronously before sendChatMessage resolves", () => {
     let resolveDeferred!: (v: { conversationId: string; messageId: string }) => void;
     const deferred = new Promise<{ conversationId: string; messageId: string }>(
@@ -136,5 +148,35 @@ describe("useSendMessage", () => {
     });
 
     expect(params.showError).toHaveBeenCalledWith("Failed to send message");
+  });
+
+  it("shows a busy message and marks SMS not sent when the queue is full", async () => {
+    mockSendSmsToUser.mockRejectedValue(
+      new GsmGatewayError({
+        status: 503,
+        reason: "QUEUE_FULL",
+        message: "Outbound SMS queue is full",
+        messageId: "sms-log-id",
+      })
+    );
+    const params = makeParams({ isSmsMode: true });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    act(() => {
+      result.current();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(params.chatService.updateMessageStatus).toHaveBeenCalledWith(
+      "sms-1",
+      "not_sent"
+    );
+    expect(params.showError).toHaveBeenCalledWith(
+      "SMS service is busy. Please try again shortly."
+    );
   });
 });

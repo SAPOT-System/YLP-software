@@ -12,6 +12,19 @@ class UnavailableGsmClient:
         raise httpx.ConnectError("All connection attempts failed")
 
 
+class DegradedGsmClient:
+    async def get(self, path: str):
+        return httpx.Response(
+            503,
+            json={
+                "status": "degraded",
+                "gsm_ready": False,
+                "connected": True,
+                "detail": "network unavailable",
+            },
+        )
+
+
 def test_gsm_health_reports_unavailable_gateway(client, monkeypatch, caplog):
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: UnavailableGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: None)
@@ -26,3 +39,18 @@ def test_gsm_health_reports_unavailable_gateway(client, monkeypatch, caplog):
     assert log_record.user_id == "ANONYMOUS"
     assert log_record.action == "gsm_health_unavailable"
     assert log_record.metadata_json == {"path": "/health"}
+
+
+def test_gsm_health_preserves_degraded_gateway_status(client, monkeypatch):
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: DegradedGsmClient())
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: None)
+
+    response = client.get("/gsm/health")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "degraded",
+        "gsm_ready": False,
+        "connected": True,
+        "detail": "network unavailable",
+    }

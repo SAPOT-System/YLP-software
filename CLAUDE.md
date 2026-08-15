@@ -60,7 +60,7 @@ Run for each component actually touched — don't assume one component's green b
 | `server/app/models/` changed | `alembic upgrade head && alembic check` — **run from `server/`** (not `server/app/`) with `DATABASE_URL` set. `alembic check` must report no new operations. Note `pytest` builds its schema with `create_all()` and cannot detect migration drift. |
 | `mobile-app/sapot-mobile-app/` | `pnpm run testAll` (= test + typecheck + lint + expo-doctor), or the individual `pnpm test` / `pnpm run typecheck` / `pnpm run lint` |
 | `admin-frontend/sapot-admin/` | `pnpm run lint && pnpm run build` — **no test script exists in this component**; don't claim test coverage that isn't there |
-| `GSM-module/` | No automated tests exist — verify manually per `docs/getting-started/gsm-module-setup.md` |
+| `GSM-module/` | `pytest` (from `GSM-module/GSM-fastapi/`; serial I/O and database calls are mocked) |
 
 If the change is release-relevant (server), `server/app/version.py` must match the git tag per `VERSIONING.md` before tagging — not typically a per-commit concern, but relevant if asked to prepare a release.
 

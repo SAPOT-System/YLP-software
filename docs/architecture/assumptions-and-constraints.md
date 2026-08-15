@@ -59,7 +59,6 @@ Risks the project has consciously decided to carry rather than fix, reproduced f
 
 - No LAN segmentation — requires router-level VLAN config not currently documented or automated.
 - `testing` router reachable when `ENVIRONMENT=development` or `staging` is accepted for QA. Production uses conditional mounting, a route-level environment guard, shared-secret authentication on mutations, and regression coverage.
-- GSM module DB credentials hardcoded default in `config.py` — open, tracked in [SECURITY.md](../../SECURITY.md#other-known-gaps-not-yet-resolved).
 - No remote session/device revocation UI — open.
 - Optional (not enforced) server-side `PeerKey` signing — open.
 

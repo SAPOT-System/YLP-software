@@ -41,14 +41,15 @@ cp .env.example .env
 
 | Variable | Default | Notes |
 |---|---|---|
-| `DB_PATH` | none, **required** | SQLModel URL for the server's MariaDB, e.g. `mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_dev`. `config.py` raises `RuntimeError` at import if unset. (Its source comment says "SQLite"; that is stale; the deployed value is MariaDB.) |
-| `GSM_SECRET` | `""` | Must match the server's `GSM_SECRET`. The two components authenticate each other's webhook calls with it via the `X-GSM-Secret` header. Left empty, the server rejects this gateway's calls. |
+| `DB_PATH` | none, **required** | SQLModel URL for the server's MariaDB, e.g. `mysql+pymysql://sapot:sapot@127.0.0.1:3306/sapot_dev`. `config.py` raises `RuntimeError` at import if unset. |
+| `GSM_SECRET` | None | Required at startup and must match the server's `GSM_SECRET`. Both services send it as `X-GSM-Secret` when calling the other service. |
 | `SAPOT_API_URL` | `http://localhost:8000` | Base URL of the SAPOT server this gateway forwards inbound SMS to (`POST /gsm/inbound`). The Docker service overrides it to `https://nginx`. |
 | `SERIAL_PORT` | `/dev/ttyACM0` | Serial device the Arduino is on. `COM3`-style on Windows. |
 | `SERIAL_BAUD` | `9600` | Must match `PC_BAUD` in the Arduino sketch. |
 | `HOST` | `127.0.0.1` | Bind address. The Docker service overrides this to `0.0.0.0`. |
 | `PORT` | `8000` | **Not read.** See [Run](#run) below. |
 | `LOG_LEVEL` | `INFO` | |
+| `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum waiting outbound SMS requests. Values from `1` through `20` preserve FastAPI worker capacity; startup fails for other values. |
 | `SMS_BOT_USER_ID` | unset | UUID of the "SMS Bot" user in the SAPOT database. Inbound SMS is written into the app's conversation/message tables as coming from this user, so create it once on the server and paste the UUID here. |
 
 See [environment-config.md](../deployment/environment-config.md) for the cross-component view.
@@ -82,6 +83,6 @@ quickest way to confirm the `.env` was picked up.
 
 ## Next
 
-- [docker-setup.md](docker-setup.md) — the server must have a matching `GSM_SECRET` set for inbound/outbound SMS to authenticate.
+- [docker-setup.md](docker-setup.md): the server must have a matching `GSM_SECRET` for inbound GSM callbacks.
 - [data-flow.md](../architecture/data-flow.md#sms-fallback) — the end-to-end SMS fallback flow diagram.
-- [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#gsm-module-and-server-cant-authenticate-each-other): when the two sides reject each other's webhooks.
+- [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#server-rejects-gsm-inbound-callbacks): when the server rejects the gateway's callback secret.

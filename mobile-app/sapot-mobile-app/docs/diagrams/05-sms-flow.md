@@ -16,7 +16,9 @@ flowchart TD
     F --> Z([End])
     E -->|Yes| G[Forward message to server]
     G --> H[Server sends message to GSM module]
-    H --> I[GSM module transmits SMS over cellular network]
+    H --> Q{Outbound queue has capacity?}
+    Q -->|No| K[Keep message as not sent and display busy error]
+    Q -->|Yes| I[GSM module transmits SMS over cellular network]
     I --> J{Transmission successful?}
     J -->|No| K[Display send failure]
     K --> Z

@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID, uuid4, uuid5
 from fastapi import Depends, HTTPException, Query, Request
 from fastapi.routing import APIRouter
+from fastapi.responses import JSONResponse
 import time
 
 from pydantic import BaseModel
@@ -22,8 +23,15 @@ from app.models.users import PhoneStr, User
 import httpx
 import json
 
+# The gateway allows 60 seconds before write, a 5-second serial write, and a
+# fresh 60-second confirmation window. The proxy adds 10 seconds for HTTP overhead.
+GSM_GATEWAY_WORST_CASE_SECONDS = 60.0 + 5.0 + 60.0
+GSM_PROXY_READ_TIMEOUT_SECONDS = GSM_GATEWAY_WORST_CASE_SECONDS + 10.0
+GSM_GATEWAY_MAX_ADMITTED_REQUESTS = 21
+GSM_PROXY_MAX_CONNECTIONS = GSM_GATEWAY_MAX_ADMITTED_REQUESTS + 1
+GSM_PROXY_POOL_TIMEOUT_SECONDS = 1.0
+
 # Module-level client reuses TCP connections to localhost:8001 across requests.
-# The 120s timeout matches the SMS send worst-case; health checks are much faster.
 _gsm_http_client: httpx.AsyncClient | None = None
 logger = logging.getLogger("app")
 
@@ -37,8 +45,16 @@ def _get_gsm_client() -> httpx.AsyncClient:
     if _gsm_http_client is None or _gsm_http_client.is_closed:
         _gsm_http_client = httpx.AsyncClient(
             base_url="http://localhost:8001",
-            timeout=120.0,
-            limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
+            timeout=httpx.Timeout(
+                connect=5.0,
+                read=GSM_PROXY_READ_TIMEOUT_SECONDS,
+                write=5.0,
+                pool=GSM_PROXY_POOL_TIMEOUT_SECONDS,
+            ),
+            limits=httpx.Limits(
+                max_connections=GSM_PROXY_MAX_CONNECTIONS,
+                max_keepalive_connections=4,
+            ),
         )
     return _gsm_http_client
 
@@ -52,7 +68,7 @@ def _gsm_log_extra(current_user: User | None, path: str) -> dict:
     }
 
 
-async def _get_gsm_health(path: str, current_user: User) -> dict:
+async def _get_gsm_health(path: str, current_user: User) -> dict | JSONResponse:
     try:
         response = await _get_gsm_client().get(path)
     except httpx.RequestError as exc:
@@ -63,13 +79,56 @@ async def _get_gsm_health(path: str, current_user: User) -> dict:
         )
         raise HTTPException(status_code=503, detail="GSM gateway is unavailable") from exc
 
-    return response.json()
+    payload = response.json()
+    if response.status_code >= 400:
+        return JSONResponse(status_code=response.status_code, content=payload)
+    return payload
 
 
 class InboundSMSPayload(BaseModel):
     sender_phone: str
     target_phone: str
     body: str
+
+
+class GsmFailureDetail(BaseModel):
+    message: str
+    reason: str
+    msg_id: str | None = None
+
+
+class GsmFailureResponse(BaseModel):
+    detail: GsmFailureDetail
+
+
+class GsmHealthResponse(BaseModel):
+    status: str
+    gsm_ready: bool
+    connected: bool
+    detail: str
+
+
+class GsmHealthUnavailableResponse(BaseModel):
+    detail: str
+
+
+GSM_SEND_ERROR_RESPONSES = {
+    502: {
+        "model": GsmFailureResponse,
+        "description": "The modem rejected the SMS or delivery confirmation timed out.",
+    },
+    503: {
+        "model": GsmFailureResponse | GsmHealthUnavailableResponse,
+        "description": "The GSM gateway is unavailable, stopping, or at queue capacity.",
+    },
+}
+
+GSM_HEALTH_ERROR_RESPONSES = {
+    503: {
+        "model": GsmHealthResponse | GsmHealthUnavailableResponse,
+        "description": "The GSM gateway is unavailable or reports degraded health.",
+    }
+}
 
 
 def _gsm_secret_ok(request: Request) -> bool:
@@ -202,14 +261,14 @@ async def inbound_sms(
     return {"ok": True, "message_id": str(msg.id)}
 
 
-@router.get("/health")
+@router.get("/health", responses=GSM_HEALTH_ERROR_RESPONSES)
 async def gsm_health(
         current_user : Annotated[User, Depends(get_current_user)],
         ):
     return await _get_gsm_health("/health", current_user)
 
 
-@router.get("/health/detailed")
+@router.get("/health/detailed", responses=GSM_HEALTH_ERROR_RESPONSES)
 async def gsm_health_detailed(
         current_user : Annotated[User, Depends(get_current_user_admin)],
         ):
@@ -236,7 +295,7 @@ async def gsm_messages(
     response = await client.get("/sms/messages", params=params)
     return response.json()
 
-@router.post("/sms/send")
+@router.post("/sms/send", responses=GSM_SEND_ERROR_RESPONSES)
 async def send_sms(
         current_user : Annotated[User, Depends(get_current_user)],
         user_id: UUID, 
@@ -260,13 +319,25 @@ async def send_sms(
 
 async def sendToModule(phone_number: str, message: str):
     client = _get_gsm_client()
-    response = await client.post(
-        "/sms/send",
-        json={"number": phone_number, "body": f"FROM {phone_number}: " + message},
-    )
-    return response.json()
+    try:
+        response = await client.post(
+            "/sms/send",
+            json={"number": phone_number, "body": f"FROM {phone_number}: " + message},
+            headers={"X-GSM-Secret": GSM_SECRET},
+        )
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail={
+            "message": "GSM gateway is unavailable",
+            "reason": "GATEWAY_UNAVAILABLE",
+        }) from exc
 
-@router.post("/request")
+    payload = response.json()
+    if response.status_code >= 400:
+        detail = payload.get("detail", payload) if isinstance(payload, dict) else payload
+        raise HTTPException(status_code=response.status_code, detail=detail)
+    return payload
+
+@router.post("/request", responses=GSM_SEND_ERROR_RESPONSES)
 async def request_phone_verification(
     data: RequestPhoneVerification,
     request: Request,
@@ -402,7 +473,7 @@ def verify_phone_code(
 # RESEND CODE
 # =============================================================================
 
-@router.post("/resend")
+@router.post("/resend", responses=GSM_SEND_ERROR_RESPONSES)
 async def resend_phone_code(
     current_user : Annotated[User, Depends(get_current_user)],
     session: SessionDep
@@ -574,7 +645,7 @@ def sms_conversation_id(user_id_a: str, user_id_b: str) -> str:
 
 
 
-@router.post("/contact-unknown-user")
+@router.post("/contact-unknown-user", responses=GSM_SEND_ERROR_RESPONSES)
 async def contact_unknown_user(
     current_user : Annotated[User, Depends(get_current_user)],
     target_phone_number: Annotated[str, Query(pattern=r"^\+639\d{9}$")],

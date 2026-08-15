@@ -1,279 +1,142 @@
-# SMS Gateway — Design
+# SMS Gateway: Design
 
 ## Overview
 
-The SMS gateway is a separate FastAPI microservice (`GSM-module/GSM-fastapi/`) that bridges the main server and an Arduino-based GSM module over a serial port. The main server calls the GSM API to send SMS; the Arduino forwards inbound SMS back to the main server via a webhook.
+The SMS gateway connects SAPOT to an Arduino-controlled GSM modem. The main server sends HTTP requests to the GSM FastAPI service, which serializes outbound SMS commands over USB. Inbound modem events travel back through the GSM service to the main server.
 
-This feature is server-mediated; it has no P2P path.
+The deployed implementation is `GSM-module/GSM-fastapi/`. The parallel `GSM-module/GSM-API/` directory is incomplete and is not part of this design.
 
----
+## Why is the gateway a separate service?
 
-## Architecture
+Serial communication is stateful and permits only one outbound command at a time. Keeping it outside the main server gives one process ownership of the serial port and prevents concurrent HTTP requests from interleaving modem commands.
 
-```
-Main Server (FastAPI)
-  ├── POST /gsm/otp/request ──► generate OTP, store in phone_verification
-  │                          └► POST /gsm/send ──────────────────────────────►┐
-  │                                                                            │
-  └── POST /gsm/inbound ◄── (webhook with X-GSM-Secret) ◄────────────────────┤
-                                                                               │
-                                                           GSM FastAPI Service │
-                                                           GSM-module/GSM-fastapi/
-                                                             ├── serial_worker.py
-                                                             ├── sms_handler.py
-                                                             └── protocol.py
-                                                                    │ serial /dev/ttyACM0
-                                                                    ▼
-                                                             Arduino Uno
-                                                             SIM800L / SIM900
-```
+The boundary also lets the main server remain available when the modem disconnects. The gateway reports readiness and delivery failures without making GSM hardware a dependency of the main API process.
+
+## How do the components interact?
 
 ```mermaid
 sequenceDiagram
-    participant Main as Main Server
-    participant GSM as GSM FastAPI service
-    participant Ard as Arduino / modem
+    participant Client
+    participant Main as Main server
+    participant GSM as GSM FastAPI
+    participant Arduino
 
-    Note over Main,Ard: Outbound SMS
-    Main->>GSM: POST /gsm/send { phone, message }
-    GSM->>GSM: encode SEND:<phone>:<message> frame
-    GSM->>Ard: serial write (SEND frame)
-    Ard-->>GSM: ACK:<message_id> or ERR:<code>:<detail>
-    GSM->>GSM: mark sms_outbox delivered/failed
+    Client->>Main: POST /gsm/sms/send
+    Main->>GSM: POST /sms/send with X-GSM-Secret
+    GSM->>GSM: log pending and admit to bounded queue
+    GSM->>Arduino: SEND_SMS|number|body
+    Arduino-->>GSM: SMS_SENT|number or SMS_FAILED|number|reason
+    GSM-->>Main: HTTP result
 
-    Note over Main,Ard: Inbound SMS
-    Ard->>GSM: serial RECV:<from_number>:<message_body>
-    GSM->>Main: POST /gsm/inbound { from, body }<br/>header X-GSM-Secret
-    Main->>Main: verify X-GSM-Secret, process inbound SMS
+    Arduino->>GSM: SMS_RECEIVED|number|body
+    GSM->>GSM: apply session and target rules
+    GSM->>Main: POST /gsm/inbound with X-GSM-Secret
 ```
 
----
+The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT). It authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` before logging or queueing a send, which prevents another container on the internal network from occupying the serial modem.
 
-## GSM FastAPI Service — `GSM-module/GSM-fastapi/`
+## How does outbound admission work?
 
-### `serial_worker.py`
+`SerialWorker` owns a bounded first-in, first-out queue. `SMS_SEND_QUEUE_MAXSIZE` configures between 1 and 20 waiting requests, with a default of 10. One additional request may be active in the sender.
 
-Owns the serial connection lifecycle:
+Admission uses `put_nowait()` while the lifecycle lock is held. A full queue raises `OutboundQueueFullError`, and `POST /sms/send` returns HTTP 503:
 
-- Opens `/dev/ttyACM0` at 9600 baud on startup.
-- Runs a background thread that reads lines from the serial port.
-- Forwards inbound lines to `sms_handler.handle_inbound(line)`.
-- Exposes `serial_send(command: str)` for outbound AT commands.
-- Reconnects automatically if the serial port closes unexpectedly.
-
-### `protocol.py`
-
-Defines the serial communication protocol between the GSM service and the Arduino:
-
-```
-Outbound (service → Arduino):
-  SEND:<phone>:<message>\n
-
-Inbound (Arduino → service):
-  RECV:<from_number>:<message_body>\n
-  ACK:<message_id>\n
-  ERR:<code>:<detail>\n
+```json
+{
+  "detail": {
+    "message": "Outbound SMS queue is full",
+    "reason": "QUEUE_FULL",
+    "msg_id": "<sms_log UUID>"
+  }
+}
 ```
 
-The protocol layer encodes/decodes these frames and validates that all required fields are present before passing to the handler.
+The upper limit leaves worker threads available for overload responses and other synchronous FastAPI routes. `GET /health` is asynchronous, so liveness remains responsive while admitted sends wait for modem results.
 
-### `sms_handler.py`
+Each request receives a pre-write deadline when it is admitted. Queue wait and modem-readiness wait share that deadline. If the caller reaches it first, it marks the request complete while synchronized with the active-to-in-flight transition, so the sender cannot write that request later.
 
-Processes both directions:
+Starting the serial write moves the request to a separate confirmation deadline. The caller follows that transition even when the serial write crosses the pre-write deadline, so it cannot report a retryable queue timeout after bytes have reached the Arduino.
 
-**Outbound flow:**
+## How is one SMS sent?
 
-```python
-async def send_sms(phone: str, message: str) -> str:
-    message_id = uuid4().hex
-    frame = protocol.encode_send(phone, message, message_id)
-    serial_worker.serial_send(frame)
-    db.insert_pending(message_id, phone, message)
-    return message_id  # returned to caller for tracking
+The sender owns one active request at a time:
+
+1. Dequeue and register the request as active.
+2. Wait for modem readiness within the remaining admission deadline.
+3. Atomically transition the request to in-flight while writing `SEND_SMS|<number>|<body>`.
+4. Start a fresh confirmation deadline after the serial write completes.
+5. Wait for `SMS_SENT` or `SMS_FAILED` within the confirmation deadline.
+6. Complete the matching caller and let the API update `sms_log`.
+
+The serial connection has a five-second write timeout. Reader events cannot complete a request before its serial write begins. Queue depth excludes the active request.
+
+Shutdown closes admission, drains waiting work, and resolves active work with `SERVICE_STOPPING`. This avoids blocking on a sentinel when the bounded queue is full.
+
+## What is the serial protocol?
+
+`GSM-fastapi/protocol.py` and the production Arduino firmware are the sources of truth.
+
+```text
+Python to Arduino:
+  SEND_SMS|<number>|<body>\n
+
+Arduino to Python:
+  GSM_READY
+  NETWORK_OK
+  NETWORK_LOST
+  SIM_MISSING
+  SMS_RECEIVED|<number>|<body>\n
+  SMS_SENT|<number>\n
+  SMS_FAILED|<number>|<reason>\n
+  LOG|<message>\n
 ```
 
-**Inbound flow:**
+Message bodies may contain pipe characters. `parse_line()` preserves them for `SMS_RECEIVED`. Newlines in outbound bodies are replaced with spaces by `build_send_sms()`.
 
-```python
-def handle_inbound(line: str):
-    frame = protocol.decode(line)
-    if frame.type == "RECV":
-        # POST to main server webhook
-        requests.post(
-            f"{MAIN_SERVER_URL}/gsm/inbound",
-            json={"from": frame.from_number, "body": frame.message_body},
-            headers={"X-GSM-Secret": GSM_SECRET},
-            timeout=5
-        )
-    elif frame.type == "ACK":
-        db.mark_delivered(frame.message_id)
-    elif frame.type == "ERR":
-        db.mark_failed(frame.message_id, frame.detail)
-```
+## How are inbound messages handled?
 
-### GSM FastAPI Routes
+The reader places `SMS_RECEIVED` events on `incoming_queue`. The API lifespan task passes each event to `handle_incoming_sms()`, which applies registration, ban, phone-verification, session, and target checks.
 
-| Method | Path       | Description                            |
-|--------|------------|----------------------------------------|
-| POST   | /gsm/send  | Accept send request; enqueue via serial |
-| GET    | /gsm/status| Return service health and serial state |
+The handler can return a reply to the sender and a forwarded message for the selected target. Both use the same bounded outbound queue. `database.notify_app()` also calls the main server's `POST /gsm/inbound` route with `X-GSM-Secret`.
 
-`/gsm/send` is called by the main server; it is not exposed to mobile clients directly.
+## What is persisted?
 
-### Storage — `sapot.db`
+The GSM service uses the database configured by required `DB_PATH`.
 
-The GSM service uses a local SQLite database for outbox state:
+| Table | Responsibility |
+|---|---|
+| `sms_log` | Inbound and outbound audit rows, delivery status, and failure reason |
+| `sms_session` | Per-phone conversation stage and selected target |
+| Shared user and conversation tables | Lookup and delivery integration with the main server |
 
-| Table        | Purpose                                    |
-|--------------|--------------------------------------------|
-| sms_outbox   | Pending and delivered outbound messages    |
-| sms_inbound  | Log of received inbound messages           |
+The committed `sapot.db` file is stale and is not used by the deployed service.
 
-In production, `DB_PATH` environment variable points to a MariaDB connection string to replace SQLite.
+## How does startup recover interrupted work?
 
----
+After database initialization and before constructing `SerialWorker`, the lifespan calls `fail_orphaned_pending_messages()`. One database update changes every `pending` `sms_log` row to `failed` with `SERVICE_CRASHED`.
 
-## Main Server — OTP Flow
+The gateway does not re-queue these rows. A crash can happen after the modem transmits an SMS but before the process records its confirmation, so replay could deliver duplicate emergency messages.
 
-### `POST /gsm/otp/request`
+## How are failures reported?
 
-```python
-otp = generate_otp(6)  # cryptographically random 6-digit string
-expires_at = datetime.utcnow() + timedelta(minutes=10)
-db.upsert(PhoneVerification(phone=phone, otp_hash=bcrypt(otp), expires_at=expires_at, used=False))
-gsm_api.send(phone=phone, message=f"Your SAPOT code is {otp}. Valid for 10 minutes.")
-```
+| Failure | Result |
+|---|---|
+| Queue at capacity | HTTP 503 with `QUEUE_FULL`; no serial write |
+| Worker stopping | HTTP 503 with `SERVICE_STOPPING` |
+| Serial port or modem unavailable before admission | HTTP 503 |
+| Serial write error | HTTP 502 with a reason beginning `WRITE_ERROR:` |
+| Modem reports failure or confirmation times out | HTTP 502 with the modem or timeout reason |
+| Caller deadline expires while waiting in the queue | Request fails and is never written later |
+| Main server cannot reach the GSM service | Main server health route returns HTTP 503 |
 
-`phone_verification` table:
+The main server preserves the gateway status and error detail for synchronous SMS operations. Its 135-second read timeout covers the gateway's 125-second worst case plus HTTP overhead. Nginx allows 155 seconds so the one-second pool, five-second connect, five-second write, and 135-second read phase limits all fit inside the outer proxy limit. The main server permits 22 GSM connections, enough for 21 admitted gateway requests plus one request that observes `QUEUE_FULL`. Further requests fail pool admission within one second and never reach the gateway later.
 
-| Column     | Type     | Notes                           |
-|------------|----------|---------------------------------|
-| id         | UUID     |                                 |
-| phone      | string   | E.164 format                    |
-| otp_hash   | string   | bcrypt hash; never store raw OTP|
-| expires_at | datetime | UTC                             |
-| used       | boolean  | Set true after successful verify|
-| created_at | datetime |                                 |
+The mobile app maps `QUEUE_FULL` to a busy message, keeps a rejected chat message as `not_sent`, and offers its existing manual resend action. Phone verification, resend, and first-contact screens remain in place and show the gateway failure instead of reporting success.
 
-### `POST /gsm/otp/verify`
+## Security and deployment assumptions
 
-```python
-row = db.query(PhoneVerification).filter(
-    phone=phone,
-    used=False,
-    expires_at > datetime.utcnow()
-).order_by(created_at.desc()).first()
-
-if not row or not bcrypt.check(otp, row.otp_hash):
-    raise HTTPException(401)
-
-row.used = True
-db.commit()
-```
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Main as Main Server
-    participant GSM as GSM FastAPI service
-    participant Ard as Arduino / modem
-
-    User->>Main: POST /gsm/otp/request { phone }
-    Main->>Main: generate 6-digit OTP, bcrypt hash,<br/>upsert phone_verification (expires_at +10min)
-    Main->>GSM: POST /gsm/send { phone, "Your SAPOT code is..." }
-    GSM->>Ard: serial SEND frame
-    Ard-->>User: SMS delivered
-
-    User->>Main: POST /gsm/otp/verify { phone, otp }
-    Main->>Main: lookup unused, unexpired phone_verification row
-    alt otp matches hash
-        Main->>Main: mark used = true
-        Main-->>User: 200 OK
-    else no match / expired / not found
-        Main-->>User: 401
-    end
-```
-
-### `POST /gsm/inbound` (Webhook)
-
-```python
-@router.post("/gsm/inbound")
-async def receive_inbound(request: Request, payload: InboundSmsPayload):
-    secret = request.headers.get("X-GSM-Secret")
-    if secret != GSM_SECRET:
-        raise HTTPException(401)
-    # process inbound SMS: store, parse commands, etc.
-```
-
-`GSM_SECRET` is loaded from the environment at startup; the application refuses to start if it is not set.
-
----
-
-## Webhook Authentication
-
-```
-GSM FastAPI service  ──POST /gsm/inbound──►  Main Server
-                       X-GSM-Secret: <value>
-```
-
-- `GSM_SECRET` is a shared secret set as an environment variable on both services.
-- The main server rejects any `/gsm/inbound` request where the header is absent or does not match.
-- In production this secret should be at least 32 random bytes, base64-encoded.
-
----
-
-## Rate Limiting
-
-OTP endpoints use Slowapi on the main server:
-
-| Endpoint              | Limit             |
-|-----------------------|-------------------|
-| `/gsm/otp/request`    | 1 per 60 s per IP |
-| `/gsm/otp/resend`     | 1 per 60 s per IP |
-| `/gsm/otp/verify`     | 5 per 60 s per IP |
-
----
-
-## Dependencies
-
-| Component              | Purpose                                       |
-|------------------------|-----------------------------------------------|
-| pyserial               | Serial port communication with Arduino        |
-| FastAPI (GSM service)  | HTTP API for send/status endpoints            |
-| SQLite / MariaDB       | GSM service outbox state                      |
-| Slowapi                | Rate limiting on OTP endpoints (main server)  |
-| bcrypt                 | OTP hashing in `phone_verification`           |
-
----
-
-## Non-goals
-
-- Not a two-way in-app messaging replacement — SMS is a fallback for OTP delivery and reaching users without the app installed, not a full-featured SMS inbox/thread UI.
-- No multi-modem/multi-line support — the current design assumes a single serial-attached modem (`serial_worker.py` owns one connection); sending to multiple numbers concurrently is serialized through that one channel.
-- No delivery-status UI beyond `db.mark_delivered`/`db.mark_failed` — there is no user-facing "message delivered/read" indicator for SMS, unlike in-app messages.
-- Not encrypted — SMS content is plaintext by the nature of the SMS protocol; see [messaging design's SMS fallback note](../messaging/design.md#sms-fallback).
-
-## Failure handling
-
-- **Serial port closes unexpectedly:** `serial_worker.py` reconnects automatically; any AT command in flight when the port closes is presumed lost — `sms_handler.py`'s outbox (`sms_outbox` table, `pending`/`delivered`/`failed` states) is the source of truth for what still needs resending, but automatic resend of `pending` rows after a reconnect is not described in the current design — worth confirming as a follow-up.
-- **`ERR` frame from the Arduino:** `handle_inbound` marks the corresponding outbox row `failed` with the modem's detail code — the main server's OTP flow surfaces this as an OTP-send failure rather than silently leaving the user waiting.
-- **Webhook call to the main server fails** (network blip, main server down): `requests.post(...)` to `/gsm/inbound` has a 5s timeout; a failed webhook call means an inbound SMS is acknowledged to the modem but never reaches the main server — there is no retry/dead-letter queue for this today.
-- **`GSM_SECRET` mismatch or missing:** the main server rejects the webhook with 401; the GSM service has no visibility into *why* it was rejected beyond the HTTP status.
-- **GSM module fully unreachable from the main server:** phone OTP requests fail; per [account-recovery design](../account-recovery/design.md#failure-handling), other recovery/verification methods remain usable.
-
-## Performance impact
-
-- SMS delivery latency is bounded by the modem's own network round-trip (cellular network, typically seconds) — orders of magnitude slower than in-app message delivery; the OTP flow's 10-minute expiry window is sized to tolerate this.
-- The serial channel is a single sequential bottleneck — `serial_send` calls queue behind whatever is currently in flight on `/dev/ttyACM0`, so send throughput is capped by modem + serial round-trip time, not by the FastAPI service itself.
-
-## Scalability
-
-- Designed for low SMS volume (OTPs and occasional fallback messages), not bulk SMS — a single serial-attached modem has a hard throughput ceiling unsuitable for high-volume sending.
-- `sms_outbox`/`sms_inbound` grow unboundedly with no documented retention policy; the sqlite-vs-MariaDB storage note in [migrations.md](../../database/migrations.md#gsm-module-database-note) means production data must be in the MariaDB path, not the stale committed `sapot.db`.
-
-## Acceptance criteria
-
-- An OTP requested via `/gsm/otp/request` is delivered as an SMS and successfully verified via `/gsm/otp/verify` within its 10-minute validity window.
-- An unauthenticated (`X-GSM-Secret` mismatch or missing) call to `/gsm/inbound` is rejected with 401 and has no side effects.
-- A failed outbound send is reflected in `sms_outbox` as `failed`, not left indefinitely `pending`.
-- OTP endpoints enforce their documented rate limits (`1 per 60s` for request/resend, `5 per 60s` for verify).
+- Set `DB_PATH` and `GSM_SECRET` in restricted environment files. Bare-metal systemd deployments use `/etc/sapot/gsm.env`.
+- The main server and GSM service check `X-GSM-Secret` on both directions of their HTTP integration.
+- Keep port 8001 restricted to the host or trusted Compose network as an additional boundary.
+- SMS content is plaintext on the carrier network and should not be treated as end-to-end encrypted.
+- The design supports one serial modem. Multi-modem failover and bulk SMS are out of scope.

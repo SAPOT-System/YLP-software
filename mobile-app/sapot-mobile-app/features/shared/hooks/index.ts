@@ -8,6 +8,7 @@ export * from "./use-connection-service";
 export * from "./use-dialog-visibility";
 export * from "./use-discovery-service";
 export * from "./use-foreground-sync";
+export * from "./use-gsm-service";
 export * from "./use-health-poll";
 export * from "./use-loading-overlay";
 export * from "./use-main-container";
@@ -24,4 +25,3 @@ export * from "./use-user-profile";
 export * from "./use-user-search";
 export * from "./use-user-store";
 export * from "./use-zeroconf-published";
-

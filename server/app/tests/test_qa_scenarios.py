@@ -14,6 +14,7 @@ from app.models.guest import Guest
 from app.models.location import UserLocation
 from app.models.login_attempt import LoginAttempt
 from app.models.message import Message
+from app.models.phone_verification import PhoneVerified
 from app.models.rescuer import Rescuer
 from app.models.users import User
 
@@ -77,6 +78,16 @@ def test_build_locked_out_sets_attempt_count_and_lock(session: Session):
     attempt = session.exec(select(LoginAttempt).where(LoginAttempt.user_id == user.id)).first()
     assert attempt.attempt_count == 5
     assert attempt.locked_until.replace(tzinfo=None) > datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def test_build_verified_phone_creates_verified_user(session: Session):
+    result = qa_scenarios.build_verified_phone(session)
+
+    user = session.exec(select(User).where(User.username == "qa_phone_verified")).first()
+    assert user is not None
+    assert user.phone_number == "+639300000751"
+    assert session.exec(select(PhoneVerified).where(PhoneVerified.user_id == user.id)).first()
+    assert result == {"user": "qa_phone_verified", "phone_verified": True}
 
 
 def test_build_announcements_covers_priority_and_audience_matrix(session: Session):

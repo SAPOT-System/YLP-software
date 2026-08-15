@@ -24,6 +24,7 @@ Router: [`server/app/api/testing.py`](../../server/app/api/testing.py). Scenario
 | `large` | `qa_large` + many peers/messages/GPS points, for list perf and sync-cursor testing |
 | `banned` | `qa_banned` with an active `BannedUser` row |
 | `locked-out` | `qa_locked` with a `LoginAttempt` row at the lockout threshold |
+| `verified-phone` | `qa_phone_verified` with a `PhoneVerified` row, for phone-verification-gated flows |
 | `announcements` | Active + expired announcements across all priorities and audiences |
 | `gps-track` | `qa_gps` with a 60-point location history along a route |
 | `calls` | `qa_calls_a` / `qa_calls_b` with completed/missed/rejected call rows |

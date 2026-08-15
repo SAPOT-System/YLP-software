@@ -24,7 +24,7 @@ import {
 } from "@/features/shared";
 import { MessageType } from "@/features/shared/core/database/model/Message";
 import { CallType } from "@/features/shared/core/database/model/Call";
-import { useMainContainer, useReducedMotion } from "@/features/shared/hooks";
+import { useGsmService, useMainContainer, useReducedMotion } from "@/features/shared/hooks";
 import { ECDH_PREFIX } from "@/features/chat/repositories/message-repository";
 import { useUserStore } from "@/features/shared/hooks/use-user-store";
 import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
@@ -33,7 +33,7 @@ import { uiLog } from "@/features/shared/core/utils/logger";
 import { useChatService } from "@/features/chat/hooks/use-chat-service";
 import { useTheme } from "react-native-paper";
 import { useInformCall } from "@/features/call";
-import { sendSmsToUser } from "@/features/shared/core/api/gsm.api";
+import { getGsmErrorMessage } from "@/features/shared/core/errors";
 import { toLocalPhone } from "@/features/auth/utils/validation";
 uiLog.debug("[message-list] module loaded");
 
@@ -63,10 +63,12 @@ const MessageListWithData = enhanceMessages(
   ({
     messages,
     peerId,
+    showError,
     onLoadOlderMessages,
   }: {
     messages: Message[];
     peerId: string;
+    showError: (message: string) => void;
     onLoadOlderMessages: () => void;
   }) => {
     const hasUserScrolledRef = useRef(false);
@@ -91,7 +93,13 @@ const MessageListWithData = enhanceMessages(
             seenIdsRef.current!.add(item.id);
 
             if (reducedMotion || !isNewMessage) {
-              return <MessageListItem message={item} peerId={peerId} />;
+              return (
+                <MessageListItem
+                  message={item}
+                  peerId={peerId}
+                  showError={showError}
+                />
+              );
             }
 
             return (
@@ -100,7 +108,11 @@ const MessageListWithData = enhanceMessages(
                   Easing.bezier(...motion.easing.standard)
                 )}
               >
-                <MessageListItem message={item} peerId={peerId} />
+                <MessageListItem
+                  message={item}
+                  peerId={peerId}
+                  showError={showError}
+                />
               </Animated.View>
             );
           }}
@@ -129,9 +141,11 @@ const MessageListWithData = enhanceMessages(
 const MessageList = ({
   conversationId,
   peerId,
+  showError,
 }: {
   conversationId: string;
   peerId: string;
+  showError: (message: string) => void;
 }) => {
   const [messageLimit, setMessageLimit] = useState(MESSAGE_PAGE_SIZE);
 
@@ -148,6 +162,7 @@ const MessageList = ({
       key={conversationId}
       conversationId={conversationId}
       peerId={peerId}
+      showError={showError}
       messageLimit={messageLimit}
       onLoadOlderMessages={handleLoadOlderMessages}
     />
@@ -354,6 +369,7 @@ type MessageListItemProps = {
   guestSender?: GuestUser | null;
   status: MessageStatus[];
   peerId: string;
+  showError: (message: string) => void;
 };
 
 const useDecryptedContent = (message: Message): string => {
@@ -379,6 +395,7 @@ const MessageListItemInner = memo(
     guestSender,
     status,
     peerId,
+    showError,
   }: MessageListItemProps) => {
     const statusObj = status?.[0];
     const senderName = getSenderName(sender ?? guestSender);
@@ -387,6 +404,7 @@ const MessageListItemInner = memo(
     const theme = useTheme();
     const isCurrentUserMessage = message.sender?.id === userStore.user?.id;
     const chatService = useChatService();
+    const gsmService = useGsmService();
     const peerService = usePeerService();
     const [isResending, setIsResending] = useState(false);
     const { callRepository } = useMainContainer();
@@ -412,7 +430,7 @@ const MessageListItemInner = memo(
       try {
         if (message.messageType === MessageType.SMS) {
           await chatService.updateMessageStatus(message.id, MessageStatusType.SENDING);
-          const res = await sendSmsToUser(peerId, content);
+          const res = await gsmService.sendSmsToUser(peerId, content);
           const status = res.ok
             ? MessageStatusType.DELIVERED
             : MessageStatusType.NOT_SENT;
@@ -431,6 +449,9 @@ const MessageListItemInner = memo(
         uiLog.warn("[message-list] resend failed", { peerId, err });
         if (message.messageType === MessageType.SMS) {
           await chatService.updateMessageStatus(message.id, MessageStatusType.NOT_SENT).catch((error) => uiLog.warn("[message-list] reset message status failed", { error }));
+          showError(
+            getGsmErrorMessage(err, "SMS could not be delivered. Please try again.")
+          );
         }
       } finally {
         setIsResending(false);

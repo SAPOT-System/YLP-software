@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { render } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
+import { GsmGatewayError } from "@/features/shared/core/errors/gsm-error";
+
+const mockTryResendMessage = jest.fn();
+const mockUpdateMessageStatus = jest.fn();
+const mockSendSmsToUser = jest.fn();
 
 // Mock withObservables to synchronously unwrap simple observables returned
 // by the mapping function so the enhanced components receive plain values.
@@ -31,7 +36,8 @@ jest.mock("@nozbe/watermelondb/react", () => {
 
 jest.mock("@/features/chat/hooks/use-chat-service", () => ({
   useChatService: () => ({
-    tryResendMessage: jest.fn(),
+    tryResendMessage: mockTryResendMessage,
+    updateMessageStatus: mockUpdateMessageStatus,
   }),
 }));
 
@@ -49,6 +55,9 @@ jest.mock("@/features/shared/hooks", () => ({
     },
   }),
   useReducedMotion: () => false,
+  useGsmService: () => ({
+    sendSmsToUser: mockSendSmsToUser,
+  }),
 }));
 
 jest.mock("@/features/shared/hooks/use-user-store", () => ({
@@ -66,10 +75,6 @@ jest.mock("react-native-paper", () => ({
 // load and times out the first test on CI, so stub the one hook we use.
 jest.mock("@/features/call", () => ({
   useInformCall: () => jest.fn(),
-}));
-
-jest.mock("@/features/shared/core/api/gsm.api", () => ({
-  sendSmsToUser: jest.fn().mockResolvedValue({ ok: true }),
 }));
 
 // Track query args so tests can assert the newest-first + pagination fix
@@ -103,6 +108,16 @@ jest.mock("@/features/shared", () => {
 
   // Newest-first order, matching a `Q.sortBy("created_at", Q.desc)` query.
   const messagesNewestFirst = [
+    {
+      ...makeMessage("sms-retry", "2024-01-03T00:00:00Z"),
+      messageType: "sms",
+      content: "Retry SMS",
+      sender: {
+        id: "current-user",
+        observe: () => of({ username: "Current user" }),
+      },
+      _raw: { sender: "current-user" },
+    },
     makeMessage("msg-2", "2024-01-02T00:00:00Z"),
     makeMessage("msg-1", "2024-01-01T00:00:00Z"),
   ];
@@ -117,7 +132,7 @@ jest.mock("@/features/shared", () => {
               // Return RxJS observables for observes so the
               // withObservables HOC receives expected observable inputs.
               observe: () => (table === "messages" ? of(messagesNewestFirst) : of([])),
-              observeWithColumns: () => of([{ status: "sent" }]),
+              observeWithColumns: () => of([{ status: "not_sent" }]),
             };
           },
         };
@@ -144,11 +159,18 @@ describe("MessageList", () => {
 
   beforeEach(() => {
     messagesQueryCalls.length = 0;
+    jest.clearAllMocks();
+    mockUpdateMessageStatus.mockResolvedValue(undefined);
+    mockSendSmsToUser.mockResolvedValue({ ok: true });
   });
 
   it("renders messages", async () => {
     const { findByText } = render(
-      <MessageList conversationId="conversation-1" peerId="peer-1" />
+      <MessageList
+        conversationId="conversation-1"
+        peerId="peer-1"
+        showError={jest.fn()}
+      />
     );
 
     expect(await findByText(/Content msg-2/)).toBeTruthy();
@@ -158,7 +180,11 @@ describe("MessageList", () => {
     const { Q } = require("@nozbe/watermelondb");
 
     const { findByText } = render(
-      <MessageList conversationId="conversation-1" peerId="peer-1" />
+      <MessageList
+        conversationId="conversation-1"
+        peerId="peer-1"
+        showError={jest.fn()}
+      />
     );
     await findByText(/Content msg-2/);
 
@@ -169,7 +195,11 @@ describe("MessageList", () => {
 
   it("opens a conversation on the newest message", async () => {
     const { findByText, getAllByText } = render(
-      <MessageList conversationId="conversation-1" peerId="peer-1" />
+      <MessageList
+        conversationId="conversation-1"
+        peerId="peer-1"
+        showError={jest.fn()}
+      />
     );
     await findByText(/Content msg-2/);
 
@@ -177,5 +207,41 @@ describe("MessageList", () => {
     expect(rendered).toHaveLength(2);
     expect(rendered[0].props.children).toContain("msg-2");
     expect(rendered[1].props.children).toContain("msg-1");
+  });
+
+  it("shows the queue-full error when manual SMS resend is rejected", async () => {
+    mockSendSmsToUser.mockRejectedValue(
+      new GsmGatewayError({
+        status: 503,
+        reason: "QUEUE_FULL",
+        message: "Outbound SMS queue is full",
+      })
+    );
+    const showError = jest.fn();
+    const { findByText } = render(
+      <MessageList
+        conversationId="conversation-1"
+        peerId="peer-1"
+        showError={showError}
+      />
+    );
+
+    fireEvent.press(await findByText("Resend"));
+
+    await waitFor(() => {
+      expect(showError).toHaveBeenCalledWith(
+        "SMS service is busy. Please try again shortly."
+      );
+    });
+    expect(mockUpdateMessageStatus).toHaveBeenNthCalledWith(
+      1,
+      "sms-retry",
+      "sending"
+    );
+    expect(mockUpdateMessageStatus).toHaveBeenNthCalledWith(
+      2,
+      "sms-retry",
+      "not_sent"
+    );
   });
 });

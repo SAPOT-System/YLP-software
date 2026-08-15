@@ -661,7 +661,11 @@ const ChatRoom = () => {
 
       <View style={styles.body}>
         {conversationId ? (
-          <MessageList conversationId={conversationId} peerId={peerId ?? ""} />
+          <MessageList
+            conversationId={conversationId}
+            peerId={peerId ?? ""}
+            showError={showError}
+          />
         ) : (
           <View style={styles.emptyStateContainer}>
             <Text style={styles.emptyStateText}>No messages yet</Text>

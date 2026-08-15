@@ -41,6 +41,22 @@ Webhook endpoint the GSM hardware gateway calls when it receives an SMS. Protect
 
 ---
 
-The GSM module's own standalone hardware-facing API (separate service) is documented in [`docs/deployment/gsm-module.md`](../deployment/gsm-module.md).
+The GSM module's own standalone hardware-facing API is documented in [`docs/deployment/gsm-module.md`](../deployment/gsm-module.md). Its `POST /sms/send` route requires the same `X-GSM-Secret` shared secret that protects the main server's inbound webhook.
+
+## Gateway failure contract
+
+The main server preserves synchronous gateway failures for `/gsm/sms/send`, `/gsm/request`, `/gsm/resend`, and `/gsm/contact-unknown-user`. Queue saturation returns HTTP 503:
+
+```json
+{
+  "detail": {
+    "message": "Outbound SMS queue is full",
+    "reason": "QUEUE_FULL",
+    "msg_id": "<sms_log UUID>"
+  }
+}
+```
+
+An unreachable gateway also returns HTTP 503 with `reason: "GATEWAY_UNAVAILABLE"`. Clients should keep rejected messages available for manual retry and should not report verification or onboarding SMS as sent.
 
 See [gsm-sms.yaml](openapi/gsm-sms.yaml) for exact field-level request/response schemas, or the live server's `/docs` / `/openapi.json`.

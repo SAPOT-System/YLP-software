@@ -27,18 +27,23 @@ Endpoints
 """
 
 import asyncio
+import hmac
 import logging
 import re
 from contextlib import asynccontextmanager
-from typing import Counter, Optional
+from typing import Annotated, Counter, Optional
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
 import database
 from app_version import __version__
-from serial_worker import SerialWorker
+from serial_worker import (
+    OutboundQueueFullError,
+    SerialWorker,
+    WorkerStoppingError,
+)
 from sms_handler import handle_incoming_sms
 from config import settings
 
@@ -57,9 +62,19 @@ async def lifespan(app: FastAPI):
     # Database
     database.init(settings.db_path)
     logger.info("Database ready")
+    orphaned_count = database.fail_orphaned_pending_messages()
+    if orphaned_count:
+        logger.warning(
+            "Marked %d orphaned SMS messages as failed after service restart",
+            orphaned_count,
+        )
 
     # Serial worker
-    _worker = SerialWorker(settings.serial_port, settings.serial_baud)
+    _worker = SerialWorker(
+        settings.serial_port,
+        settings.serial_baud,
+        settings.sms_send_queue_maxsize,
+    )
     _worker.start()
     logger.info("Serial worker started on %s", settings.serial_port)
 
@@ -119,7 +134,12 @@ def _process_incoming(event):
         status="received",
     )
 
-    reply, forward_number, forward_body = handle_incoming_sms(number, body)
+    reply, forward_number, forward_body, rejection_reason = handle_incoming_sms(
+        number, body
+    )
+
+    if rejection_reason:
+        database.update_message_status(msg_id, "rejected", rejection_reason)
 
     # Forward to target via SMS
     if forward_number and forward_body and _worker:
@@ -153,6 +173,12 @@ def _send_and_log(from_number: str, to_number: str, body: str):
         result = _worker.send_sms(to_number, body, timeout=120)
         status = "sent" if result["ok"] else "failed"
         database.update_message_status(msg_id, status, result.get("reason"))
+    except OutboundQueueFullError:
+        logger.warning("Internal outbound SMS rejected: QUEUE_FULL")
+        database.update_message_status(msg_id, "failed", "QUEUE_FULL")
+    except WorkerStoppingError:
+        logger.info("Internal outbound SMS rejected: SERVICE_STOPPING")
+        database.update_message_status(msg_id, "failed", "SERVICE_STOPPING")
     except Exception as e:
         logger.error("send_sms error: %s", e)
         database.update_message_status(msg_id, "failed", str(e))
@@ -203,10 +229,21 @@ class AddUserRequest(BaseModel):
         return v
 
 
+def require_gsm_secret(
+    x_gsm_secret: Annotated[
+        Optional[str], Header(alias="X-GSM-Secret")
+    ] = None,
+):
+    if x_gsm_secret is None or not hmac.compare_digest(
+        x_gsm_secret, settings.gsm_secret
+    ):
+        raise HTTPException(status_code=401, detail="Invalid GSM secret")
+
+
 # ── Health endpoints ──────────────────────────────────────────────────────────
 
 @app.get("/health", tags=["health"])
-def health():
+async def health():
     """
     Liveness check. Returns 200 if the API is running.
     Returns 503 if the GSM modem is not ready (so load balancers can react).
@@ -257,6 +294,9 @@ def health_detailed(
         "connected":    _worker.connected,
         "last_status":  _worker.last_status,
         "queue_depth":  _worker.incoming_queue.qsize(),
+        "outbound_queue_depth": _worker.outbound_queue_depth,
+        "outbound_queue_capacity": _worker.outbound_queue_capacity,
+        "outbound_in_flight": _worker.outbound_in_flight,
         "port":         settings.serial_port,
         "baud":         settings.serial_baud,
         "total_messages": total,
@@ -303,7 +343,11 @@ def status():
 
 # ── SMS endpoints ─────────────────────────────────────────────────────────────
 
-@app.post("/sms/send", tags=["sms"])
+@app.post(
+    "/sms/send",
+    tags=["sms"],
+    dependencies=[Depends(require_gsm_secret)],
+)
 def send_sms(req: SendSMSRequest):
     """
     Send an SMS directly. Blocks until the modem confirms delivery.
@@ -323,6 +367,20 @@ def send_sms(req: SendSMSRequest):
 
     try:
         result = _worker.send_sms(req.number, req.body, timeout=60)
+    except OutboundQueueFullError:
+        database.update_message_status(msg_id, "failed", "QUEUE_FULL")
+        raise HTTPException(503, {
+            "message": "Outbound SMS queue is full",
+            "reason": "QUEUE_FULL",
+            "msg_id": msg_id,
+        })
+    except WorkerStoppingError:
+        database.update_message_status(msg_id, "failed", "SERVICE_STOPPING")
+        raise HTTPException(503, {
+            "message": "SMS service is stopping",
+            "reason": "SERVICE_STOPPING",
+            "msg_id": msg_id,
+        })
     except RuntimeError as e:
         database.update_message_status(msg_id, "failed", str(e))
         raise HTTPException(503, str(e))
@@ -331,6 +389,12 @@ def send_sms(req: SendSMSRequest):
     database.update_message_status(msg_id, status, result.get("reason"))
 
     if not result["ok"]:
+        if result["reason"] == "SERVICE_STOPPING":
+            raise HTTPException(503, {
+                "message": "SMS service is stopping",
+                "reason": "SERVICE_STOPPING",
+                "msg_id": msg_id,
+            })
         raise HTTPException(502, {
             "message": "SMS delivery failed",
             "reason":  result["reason"],
