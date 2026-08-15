@@ -109,7 +109,7 @@ cd GSM-module/GSM-fastapi
 python main.py
 ```
 
-Open <http://127.0.0.1:8002> to use the virtual phone. Enter any E.164 phone number, such as
+Open `http://127.0.0.1:8002` to use the virtual phone. Enter any E.164 phone number, such as
 `+639171234567`, then send through the normal SAPOT API. The accepted message appears as an incoming
 message from **SAPOT Gateway**. Reply in the browser to inject `SMS_RECEIVED` into the unchanged serial
 worker, so account checks, `[target]` sessions, message logging, and callbacks still run in the gateway.

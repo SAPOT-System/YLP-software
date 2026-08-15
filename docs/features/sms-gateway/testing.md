@@ -90,7 +90,7 @@ Use this Linux host workflow to validate the real `SerialWorker` and outbound Fa
 an Arduino or carrier account. It still needs development `DB_PATH` and `GSM_SECRET` values because
 the emulator replaces only the serial device.
 
-1. In one terminal, run `python mock_modem.py` from `GSM-module/GSM-fastapi/` and copy its printed `/dev/pts/<n>` path. The virtual phone is available at <http://127.0.0.1:8002>.
+1. In one terminal, run `python mock_modem.py` from `GSM-module/GSM-fastapi/` and copy its printed `/dev/pts/<n>` path. The virtual phone is available at `http://127.0.0.1:8002`.
 2. In another terminal, start the gateway with `SERIAL_PORT=/dev/pts/<n> python main.py`.
 3. Confirm `curl http://127.0.0.1:8001/health` reports `connected: true` and `gsm_ready: true`.
 4. Send an authenticated request:
