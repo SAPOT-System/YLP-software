@@ -16,6 +16,7 @@ All SAPOT components are configured via environment variables. This document lis
 | `REDIS_URL` | `redis://localhost:6379` | Set if Redis is on a non-default host/port |
 | `SERVER_ED25519_SEED` | `None` (server key signing disabled if unset) | Set to enable server-signed peer keys |
 | `GSM_SECRET` | None — required, raises `RuntimeError` at import if unset | **MUST** be set — shared secret for GSM module webhooks |
+| `GSM_GATEWAY_URL` | `http://localhost:8001` | Base URL of the deployed GSM FastAPI gateway. Set `http://gsm-fastapi:8001` in Docker Compose. |
 
 See [SECURITY.md](../../SECURITY.md) for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `GSM_SECRET` are required.
 
@@ -37,6 +38,7 @@ ENVIRONMENT=production
 REDIS_URL=redis://127.0.0.1:6379/0
 SERVER_ED25519_SEED=<generate with: openssl rand -hex 32>
 GSM_SECRET=<shared secret with GSM module>
+GSM_GATEWAY_URL=http://127.0.0.1:8001
 ```
 
 ---
