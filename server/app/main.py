@@ -163,15 +163,13 @@ logger.addHandler(text_handler)
 
 
 class UvicornWebSocket403Filter(logging.Filter):
-    """Downgrade uvicorn's own `"WebSocket ... " 403` access line.
+    """Suppress uvicorn's own `"WebSocket ... " 403` access line.
 
     uvicorn logs this INFO-level line (on "uvicorn.error") for every
     WebSocket handshake that closes before being accepted — which includes
-    our routine, expected auth rejections (invalid/expired token). Those
-    rejections are already logged once, with more context, by the route
-    handlers (see app/api/peer_connection.py, app/api/gps.py). Without this
-    filter the same rejection is reported twice, at two different
-    severities, drowning genuine faults in access-log noise (#326).
+    routine, expected auth rejections (invalid/expired token). The route
+    handlers intentionally leave those rejections silent, so this filter
+    prevents them from surfacing as access-log noise (#326).
     """
 
     def filter(self, record: logging.LogRecord) -> bool:

@@ -1,5 +1,4 @@
 from typing import Annotated
-import logging
 from fastapi import WebSocketException, status
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from app.db_operations.auth import SessionDep, get_user_by_ID
@@ -21,8 +20,6 @@ from app.models.users import User
 from app.models.location import UserLocation
 from app.db_operations.GPS_manager import gps_manager
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(
     prefix='/gps',
     tags=['GPS'],
@@ -42,7 +39,6 @@ async def stream_gps_location(
     try:
         authed_id = await authenticate_websocket(websocket, token)
     except WebSocketAuthError:
-        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
         return
 
     if str(authed_id) != user_id:
@@ -182,7 +178,6 @@ async def monitor_live_feed(
     try:
         authed_id = await authenticate_websocket(websocket, token)
     except WebSocketAuthError:
-        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
         return
 
     if str(authed_id) != rescuer_id:
