@@ -33,7 +33,7 @@ sequenceDiagram
     GSM->>Main: POST /gsm/inbound with X-GSM-Secret
 ```
 
-The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT). It authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` before logging or queueing a send, which prevents another container on the internal network from occupying the serial modem.
+The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT) and requires the sender to have a verified phone number. It rejects an unverified sender before contacting the gateway. The main server authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` before logging or queueing a send, which prevents another container on the internal network from occupying the serial modem.
 
 ## How does outbound admission work?
 
