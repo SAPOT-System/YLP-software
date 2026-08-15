@@ -564,7 +564,8 @@ Failure is non-fatal — the client logs and retries on next login.
 ---
 
 ### `POST /user-utils/search-user` — Search Users
-**Auth:** Required  
+**Auth:** Required; the authenticated account must have a verified phone number
+
 **Query params:** `identifier_string=<string>&limit=<number=20>&offset=<number=0>`
 
 **Response `200`:**
@@ -862,6 +863,16 @@ independently — surface them separately rather than collapsing to one "offline
 **Response `200`:**
 ```json
 { "msg_id": "string", "ok": "boolean", "to": "string" }
+```
+
+**Response `403` when the sender's phone number is not verified:**
+```json
+{
+  "detail": {
+    "reason": "PHONE_VERIFICATION_REQUIRED",
+    "message": "Verify your phone number before sending SMS."
+  }
+}
 ```
 
 **Response `503` when the outbound queue is full:**

@@ -119,7 +119,8 @@ Only one request may await a modem confirmation. A confirmation received before 
 
 ### FR-SG-08: Main server integration
 
-- The user-facing `/gsm/sms/send` route remains on the main server and requires its normal JWT authentication.
+- The user-facing `/gsm/sms/send` route remains on the main server and requires its normal JWT authentication and a verified phone number for the sending account.
+- An authenticated account without a verified phone number receives HTTP 403 with `reason: "PHONE_VERIFICATION_REQUIRED"` before the main server calls the GSM service.
 - The main server calls the direct gateway at `http://localhost:8001/sms/send` with `X-GSM-Secret`.
 - The direct gateway is a trusted local service and must not be exposed to untrusted networks.
 - The main server must preserve gateway HTTP 502 and 503 failures for user-facing send, verification, resend, and first-contact requests.

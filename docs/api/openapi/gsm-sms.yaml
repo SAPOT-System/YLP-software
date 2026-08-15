@@ -366,6 +366,12 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '403':
+          description: The sending account does not have a verified phone number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
         '422':
           description: Validation Error
           content:
@@ -592,6 +598,12 @@ paths:
                 - $ref: '#/components/schemas/GsmFailureResponse'
                 - $ref: '#/components/schemas/GsmHealthUnavailableResponse'
                 title: Response 503 Send Sms Gsm Sms Send Post
+        '403':
+          description: The sending account does not have a verified phone number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
         '422':
           description: Validation Error
           content:
