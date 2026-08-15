@@ -123,6 +123,18 @@ GSM_SEND_ERROR_RESPONSES = {
     },
 }
 
+GSM_PHONE_VERIFICATION_ERROR_RESPONSES = {
+    403: {
+        "model": GsmFailureResponse,
+        "description": "The sending account does not have a verified phone number.",
+    },
+}
+
+GSM_SMS_SEND_ERROR_RESPONSES = {
+    **GSM_SEND_ERROR_RESPONSES,
+    **GSM_PHONE_VERIFICATION_ERROR_RESPONSES,
+}
+
 GSM_HEALTH_ERROR_RESPONSES = {
     503: {
         "model": GsmHealthResponse | GsmHealthUnavailableResponse,
@@ -295,7 +307,19 @@ async def gsm_messages(
     response = await client.get("/sms/messages", params=params)
     return response.json()
 
-@router.post("/sms/send", responses=GSM_SEND_ERROR_RESPONSES)
+
+def _require_verified_phone(user: User) -> None:
+    if not user.phone_is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason": "PHONE_VERIFICATION_REQUIRED",
+                "message": "Verify your phone number before sending SMS.",
+            },
+        )
+
+
+@router.post("/sms/send", responses=GSM_SMS_SEND_ERROR_RESPONSES)
 async def send_sms(
         current_user : Annotated[User, Depends(get_current_user)],
         user_id: UUID, 
@@ -305,6 +329,8 @@ async def send_sms(
 
     if current_user.banned:
         raise HTTPException(403)
+
+    _require_verified_phone(current_user)
 
     target = session.get(User, user_id)
 
@@ -769,7 +795,7 @@ async def MOCK_gsm_messages(
     """Admin only"""
     return "Admin only!"
 
-@router.post("/mock/sms/send")
+@router.post("/mock/sms/send", responses=GSM_PHONE_VERIFICATION_ERROR_RESPONSES)
 async def MOCK_send_sms(
         current_user : Annotated[User, Depends(get_current_user)],
         user_id: UUID, 
@@ -779,6 +805,8 @@ async def MOCK_send_sms(
 
     if current_user.banned:
         raise HTTPException(403)
+
+    _require_verified_phone(current_user)
 
     target = session.get(User, user_id)
 
