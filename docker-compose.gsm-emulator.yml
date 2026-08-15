@@ -1,0 +1,15 @@
+# Opt-in local development overlay. The emulator and gateway must run in the
+# same container because a PTY path belongs to one Linux device namespace.
+#
+# Usage: docker/up.sh -f docker-compose.yml -f docker-compose.gsm-emulator.yml up --build -d
+services:
+  gsm-fastapi:
+    build:
+      context: ./GSM-module/GSM-fastapi
+      target: emulator
+    command: ["./run-with-mock-modem.sh"]
+    environment:
+      VIRTUAL_PHONE_HOST: 0.0.0.0
+      VIRTUAL_PHONE_PORT: 8002
+    ports:
+      - "127.0.0.1:${VIRTUAL_PHONE_PORT:-8002}:8002"
