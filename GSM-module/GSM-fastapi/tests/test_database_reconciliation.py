@@ -28,3 +28,15 @@ def test_fail_orphaned_pending_messages_marks_only_pending_rows(tmp_path):
     assert messages[received_id]["status"] == "received"
     assert messages[received_id]["failure_reason"] is None
     assert database.fail_orphaned_pending_messages() == 0
+
+
+def test_unregistered_warning_survives_session_reset(tmp_path):
+    database.init(f"sqlite:///{tmp_path / 'gsm.db'}")
+    phone = "+639171234567"
+
+    assert not database.has_unregistered_warning(phone)
+
+    database.mark_unregistered_warning(phone)
+    database.reset_session(phone)
+
+    assert database.has_unregistered_warning(phone)

@@ -33,7 +33,7 @@ sequenceDiagram
     GSM->>Main: POST /gsm/inbound with X-GSM-Secret
 ```
 
-The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT) and requires the sender to have a verified phone number. It rejects an unverified sender before contacting the gateway. The main server authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` before logging or queueing a send, which prevents another container on the internal network from occupying the serial modem.
+The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT) and requires both sender and recipient to have verified phone numbers. It rejects ineligible requests before contacting the gateway. The main server authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` on every endpoint except the liveness-only `/health` route, which prevents another container on the internal network from reading SMS data, resetting sessions, or occupying the serial modem.
 
 ## How does outbound admission work?
 
@@ -95,7 +95,7 @@ Message bodies may contain pipe characters. `parse_line()` preserves them for `S
 
 ## How are inbound messages handled?
 
-The reader places `SMS_RECEIVED` events on `incoming_queue`. The API lifespan task passes each event to `handle_incoming_sms()`, which applies registration, ban, phone-verification, session, and target checks.
+The reader places `SMS_RECEIVED` events on a bounded `incoming_queue`. When full, it drops the new event, increments an overflow counter exposed through `/health/detailed`, and continues reading the modem. The API lifespan task passes each accepted event to `handle_incoming_sms()`, which normalizes Philippine mobile numbers and applies registration, ban, phone-verification, session, target, opt-out, and sender-target quota checks. The API also applies sender-wide and response-category cooldowns before it sends a reply. Gateway logs retain only redacted message metadata, rotate by size, and are purged after the configured retention period.
 
 The handler can return a reply to the sender and a forwarded message for the selected target. Both use the same bounded outbound queue. `database.notify_app()` also calls the main server's `POST /gsm/inbound` route with `X-GSM-Secret`.
 
@@ -107,6 +107,10 @@ The GSM service uses the database configured by required `DB_PATH`.
 |---|---|
 | `sms_log` | Inbound and outbound audit rows, delivery status, and failure reason |
 | `sms_session` | Per-phone conversation stage and selected target |
+| `sms_unregistered_warning` | Numbers that received the unregistered-account warning |
+| `sms_rate_counter` | Sliding-window rate limit counters and daily quota tracking |
+| `sms_recipient_preference` | Per-phone opt-out status for inbound and outbound SMS relay |
+| `sms_outbound_permission` | Permission granted to external numbers contacted by verified SAPOT users |
 | Shared user and conversation tables | Lookup and delivery integration with the main server |
 
 The committed `sapot.db` file is stale and is not used by the deployed service.
@@ -128,6 +132,9 @@ The gateway does not re-queue these rows. A crash can happen after the modem tra
 | Modem reports failure or confirmation times out | HTTP 502 with the modem or timeout reason |
 | Caller deadline expires while waiting in the queue | Request fails and is never written later |
 | Main server cannot reach the GSM service | Main server health route returns HTTP 503 |
+| Recipient has opted out | HTTP 400 with `RECIPIENT_OPTED_OUT` |
+| Daily send limit reached | HTTP 429 with `DAILY_SEND_LIMIT` |
+| External number not authorized | `NOT_PERMITTED` / `TARGET_NOT_PERMITTED` / HTTP 403 at `/gsm/inbound` |
 
 The main server preserves the gateway status and error detail for synchronous SMS operations. Its 135-second read timeout covers the gateway's 125-second worst case plus HTTP overhead. Nginx allows 155 seconds so the one-second pool, five-second connect, five-second write, and 135-second read phase limits all fit inside the outer proxy limit. The main server permits 22 GSM connections, enough for 21 admitted gateway requests plus one request that observes `QUEUE_FULL`. Further requests fail pool admission within one second and never reach the gateway later.
 

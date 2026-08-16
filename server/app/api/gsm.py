@@ -13,6 +13,7 @@ from sqlmodel import select
 from app.db_operations.auth import SessionDep
 from app.db_operations.connection_manager import manager
 from app.db_operations.token import get_current_user, get_current_user_admin, get_current_user_rescuer, verify_reauth_token
+from app.limiter import limiter
 from app.models.conversation import Conversation, ConversationParticipant, ConversationType
 from app.models.guest import Guest
 from app.models.message import Message, MessageType
@@ -71,7 +72,9 @@ def _gsm_log_extra(current_user: User | None, path: str) -> dict:
 
 async def _get_gsm_health(path: str, current_user: User) -> dict | JSONResponse:
     try:
-        response = await _get_gsm_client().get(path)
+        response = await _get_gsm_client().get(
+            path, headers={"X-GSM-Secret": GSM_SECRET}
+        )
     except httpx.RequestError as exc:
         logger.warning(
             "GSM gateway health check unavailable: %s",
@@ -187,7 +190,12 @@ async def inbound_sms(
     request: Request,
     session: SessionDep,
 ):
-    """Internal endpoint: receives an inbound SMS from the GSM-API and delivers it to the target user via WebSocket."""
+    """Internal endpoint: receives an inbound SMS from the GSM-API and delivers it
+    to the target user via WebSocket.
+
+    Enforces the outbound-permission rule: the sender-target pair is only accepted
+    if the target previously sent an outbound SMS to the sender via the relay.
+    """
     if not _gsm_secret_ok(request):
         raise HTTPException(403)
 
@@ -197,7 +205,28 @@ async def inbound_sms(
     if not sender or not target:
         raise HTTPException(404, "User not found")
 
-    # Look up the existing conversation where both users are participants
+    # Enforce authorization: target must have previously contacted sender via relay
+    try:
+        perm_resp = await _get_gsm_client().get(
+            "/has-permission",
+            params={
+                "sapot_phone": payload.target_phone,
+                "external_phone": payload.sender_phone,
+            },
+            headers={"X-GSM-Secret": GSM_SECRET},
+        )
+        if perm_resp.status_code != 200 or not perm_resp.json().get("permitted"):
+            logger.warning(
+                "inbound_sms: unauthorized pair sender=*** target=***"
+            )
+            raise HTTPException(403, "Sender is not authorized to contact this target")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("inbound_sms: permission check failed: %s", exc)
+        raise HTTPException(502, "Permission check failed") from exc
+
+    # Look up or create the shared conversation
     conversation = session.exec(
         select(Conversation)
         .join(ConversationParticipant, Conversation.id == ConversationParticipant.conversation_id)
@@ -209,15 +238,12 @@ async def inbound_sms(
             )
         )
     ).first()
-    print("senderid", sender.id)
-    print("targetId", target.id)
 
     if not conversation:
         convo_id = UUID(sms_conversation_id(str(sender.id), str(target.id)))
         conversation = _create_sms_conversation(session, convo_id, sender.id, target.id)
 
     convo_id = conversation.id
-    print("convoid", convo_id)
 
     msg = Message(
         conversation_id=convo_id,
@@ -226,7 +252,7 @@ async def inbound_sms(
         message_type=MessageType.sms,
     )
     session.add(msg)
-    session.flush()  # get msg.id before commit
+    session.flush()
 
     receipt = MessageReceipt(
         message_id=msg.id,
@@ -238,7 +264,6 @@ async def inbound_sms(
     session.refresh(msg)
 
     is_connected = await manager.is_user_connected(target.id)
-    print(f"[gsm/inbound] sender={sender.username} target={target.username} connected={is_connected} msg_id={msg.id}")
 
     ws_payload = {
         "type": "chat",
@@ -305,7 +330,9 @@ async def gsm_messages(
         params["phone"] = phone
 
     client = _get_gsm_client()
-    response = await client.get("/sms/messages", params=params)
+    response = await client.get(
+        "/sms/messages", params=params, headers={"X-GSM-Secret": GSM_SECRET}
+    )
     return response.json()
 
 
@@ -320,8 +347,30 @@ def _require_verified_phone(user: User) -> None:
         )
 
 
+async def _grant_outbound_permission(sapot_phone: str, external_phone: str) -> None:
+    """Notify the GSM gateway to record the outbound permission.
+
+    Fire-and-forget -- a failure is logged but does not fail the SMS response.
+    """
+    try:
+        client = _get_gsm_client()
+        r = await client.post(
+            "/grant-permission",
+            json={"sapot_phone": sapot_phone, "external_phone": external_phone},
+            headers={"X-GSM-Secret": GSM_SECRET},
+        )
+        if r.status_code != 200:
+            logger.warning(
+                "grant_outbound_permission: gateway returned %s", r.status_code
+            )
+    except Exception as exc:
+        logger.warning("grant_outbound_permission failed: %s", exc)
+
+
 @router.post("/sms/send", responses=GSM_SMS_SEND_ERROR_RESPONSES)
+@limiter.limit("10/minute")
 async def send_sms(
+        request: Request,
         current_user : Annotated[User, Depends(get_current_user)],
         user_id: UUID, 
         message: str,
@@ -339,17 +388,32 @@ async def send_sms(
         return { "detail": { "msg": "This user does not exist." }}
     if not target.phone_number:
         return { "detail": { "msg": "This user does not have a phone number attached to his/her account." }}
+    if not target.phone_is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason": "TARGET_PHONE_VERIFICATION_REQUIRED",
+                "message": "The recipient must verify their phone number before receiving SMS.",
+            },
+        )
 
 
-    return await sendToModule(target.phone_number, message)
+    result = await sendToModule(target.phone_number, message, current_user.phone_number)
+    if current_user.phone_number and target.phone_number:
+        await _grant_outbound_permission(
+            sapot_phone=current_user.phone_number,
+            external_phone=target.phone_number,
+        )
+    return result
 
 
-async def sendToModule(phone_number: str, message: str):
+async def sendToModule(phone_number: str, message: str, sender_phone: str | None = None):
+    from_number = sender_phone if sender_phone else phone_number
     client = _get_gsm_client()
     try:
         response = await client.post(
             "/sms/send",
-            json={"number": phone_number, "body": f"FROM {phone_number}: " + message},
+            json={"number": phone_number, "body": f"FROM {from_number}: " + message},
             headers={"X-GSM-Secret": GSM_SECRET},
         )
     except httpx.RequestError as exc:
@@ -365,6 +429,7 @@ async def sendToModule(phone_number: str, message: str):
     return payload
 
 @router.post("/request", responses=GSM_SEND_ERROR_RESPONSES)
+@limiter.limit("3/minute")
 async def request_phone_verification(
     data: RequestPhoneVerification,
     request: Request,
@@ -501,7 +566,9 @@ def verify_phone_code(
 # =============================================================================
 
 @router.post("/resend", responses=GSM_SEND_ERROR_RESPONSES)
+@limiter.limit("3/minute")
 async def resend_phone_code(
+    request: Request,
     current_user : Annotated[User, Depends(get_current_user)],
     session: SessionDep
 ):
@@ -673,7 +740,9 @@ def sms_conversation_id(user_id_a: str, user_id_b: str) -> str:
 
 
 @router.post("/contact-unknown-user", responses=GSM_SEND_ERROR_RESPONSES)
+@limiter.limit("3/minute")
 async def contact_unknown_user(
+    request: Request,
     current_user : Annotated[User, Depends(get_current_user)],
     target_phone_number: Annotated[str, Query(pattern=r"^\+639\d{9}$")],
     session: SessionDep,
@@ -684,6 +753,10 @@ async def contact_unknown_user(
     the conversation between an authenticated user and a user without an account.
     This does not send any message to the target user.
     """
+    if current_user.banned:
+        raise HTTPException(403)
+    _require_verified_phone(current_user)
+
     registered_user = session.exec(select(User).where(User.phone_number == target_phone_number)).first()
 
     if registered_user:
@@ -817,7 +890,13 @@ async def MOCK_send_sms(
         return { "detail": { "msg": "This user does not have a phone number attached to his/her account." }}
 
 
-    return await MOCK_sendToModule(target.phone_number, message)
+    result = await MOCK_sendToModule(target.phone_number, message)
+    if current_user.phone_number and target.phone_number:
+        await _grant_outbound_permission(
+            sapot_phone=current_user.phone_number,
+            external_phone=target.phone_number,
+        )
+    return result
 
 
 

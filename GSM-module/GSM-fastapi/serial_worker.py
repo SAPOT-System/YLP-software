@@ -7,7 +7,7 @@ Public interface (thread-safe):
   worker.send_sms(number, body, timeout=30) -> dict
     Enqueues the SMS and blocks until delivery confirmed or timeout.
     Returns {"ok": True/False, "reason": str|None}
-    Multiple callers are safe — they queue and execute one at a time.
+    Multiple callers are safe -- they queue and execute one at a time.
 
   worker.gsm_ready   -> bool
   worker.connected   -> bool
@@ -22,6 +22,7 @@ Auto-reconnect:
 
 import logging
 import queue
+import database
 import threading
 import time
 from dataclasses import dataclass, field
@@ -66,7 +67,7 @@ class SerialWorker:
     """
     Owns the serial port in one dedicated reader thread.
     A separate sender thread drains the outbound queue so that
-    multiple callers to send_sms() always serialise correctly —
+    multiple callers to send_sms() always serialise correctly --
     no "another SMS in flight" errors, no dropped forwards.
 
     Flow for each send_sms() call:
@@ -75,7 +76,7 @@ class SerialWorker:
     """
 
     def __init__(self, port: str, baud: int = 9600,
-                 send_queue_maxsize: int = 10):
+                 send_queue_maxsize: int = 10, incoming_queue_maxsize: int = 100):
         if not 1 <= send_queue_maxsize <= MAX_SEND_QUEUE_SIZE:
             raise ValueError(
                 f"send_queue_maxsize must be between 1 and {MAX_SEND_QUEUE_SIZE}"
@@ -102,7 +103,10 @@ class SerialWorker:
         self._in_flight_lock = threading.Lock()
 
         # Inbound SMS for the application layer
-        self.incoming_queue: queue.Queue[SerialEvent] = queue.Queue()
+        self.incoming_queue: queue.Queue[SerialEvent] = queue.Queue(
+            maxsize=incoming_queue_maxsize
+        )
+        self.incoming_queue_dropped = 0
 
         # Public status flags
         self.connected   = False
@@ -141,7 +145,7 @@ class SerialWorker:
         """
         Queue an SMS for delivery and block until the modem confirms it.
 
-        Multiple concurrent callers are safe — they queue up and each
+        Multiple concurrent callers are safe -- they queue up and each
         waits for their own confirmation.
 
         Returns {"ok": bool, "reason": str|None}
@@ -340,15 +344,20 @@ class SerialWorker:
             return
 
         if etype == EventType.SMS_FAILED:
-            logger.error("SMS_FAILED for %s reason=%s", event.number,
+            logger.error("SMS_FAILED for %s reason=%s", database._redact_phone(event.number),
                          event.reason)
             self._resolve_in_flight(event.number, success=False,
                                     reason=event.reason)
             return
 
         if etype == EventType.SMS_RECEIVED:
-            logger.info("SMS_RECEIVED from %s: %r", event.number, event.body)
-            self.incoming_queue.put(event)
+            _redacted = database._redact_phone(event.number)
+            logger.info("SMS_RECEIVED from %s (%d characters)", _redacted, len(event.body))
+            try:
+                self.incoming_queue.put_nowait(event)
+            except queue.Full:
+                self.incoming_queue_dropped += 1
+                logger.warning("Inbound SMS dropped because the queue is full")
             return
 
         logger.debug("Unhandled: %r", event.raw)

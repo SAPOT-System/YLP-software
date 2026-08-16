@@ -8,12 +8,12 @@ from app.main import app
 
 
 class UnavailableGsmClient:
-    async def get(self, path: str):
+    async def get(self, path: str, **_kwargs):
         raise httpx.ConnectError("All connection attempts failed")
 
 
 class DegradedGsmClient:
-    async def get(self, path: str):
+    async def get(self, path: str, **_kwargs):
         return httpx.Response(
             503,
             json={

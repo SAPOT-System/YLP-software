@@ -74,6 +74,13 @@ def _authenticated_user(session, *, phone_verified=False):
     return user
 
 
+def _verified_target(session, current_user):
+    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    session.add(PhoneVerified(user_id=target.id))
+    session.commit()
+    return target
+
+
 def test_proxy_capacity_timeouts_and_gateway_url_cover_gateway_contract(monkeypatch):
     captured = {}
 
@@ -136,7 +143,7 @@ def test_send_to_module_authenticates_with_shared_secret(monkeypatch):
 
 def test_send_sms_preserves_queue_full_status(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: SaturatedGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -151,7 +158,7 @@ def test_send_sms_preserves_queue_full_status(client, session, monkeypatch):
 
 def test_send_sms_preserves_service_stopping_status(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: StoppingGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -201,7 +208,7 @@ def test_phone_verification_resend_preserves_queue_full_status(
 
 
 def test_contact_unknown_user_preserves_queue_full_status(client, session, monkeypatch):
-    current_user = _authenticated_user(session)
+    current_user = _authenticated_user(session, phone_verified=True)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: SaturatedGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -216,7 +223,7 @@ def test_contact_unknown_user_preserves_queue_full_status(client, session, monke
 
 def test_send_sms_reports_unavailable_gateway(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: UnavailableGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -236,7 +243,7 @@ def test_send_sms_reports_unavailable_gateway(client, session, monkeypatch):
 
 def test_send_sms_preserves_modem_not_ready_status(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: ModemNotReadyGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -253,7 +260,7 @@ def test_send_sms_rejects_proxy_pool_exhaustion_without_gateway_send(
     client, session, monkeypatch
 ):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: PoolExhaustedGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -309,3 +316,156 @@ def test_mock_send_sms_rejects_unverified_sender(client, session, monkeypatch):
 
     assert response.status_code == 403
     assert response.json()["detail"]["reason"] == "PHONE_VERIFICATION_REQUIRED"
+
+
+def test_successful_send_sms_grants_outbound_permission(client, session, monkeypatch):
+    """After a successful send, the server calls /grant-permission on the gateway."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    grant_calls = []
+
+    class SuccessGsmClient:
+        async def post(self, path: str, json: dict = None, **kwargs):
+            if path == "/sms/send":
+                return FakeGsmResponse(200, {"ok": True, "msg_id": "abc"})
+            if path == "/grant-permission":
+                grant_calls.append(json)
+                return FakeGsmResponse(200, {"ok": True})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: SuccessGsmClient())
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
+
+    response = client.post(
+        "/gsm/sms/send",
+        params={"user_id": str(target.id), "message": "Hello"},
+    )
+
+    assert response.status_code == 200
+    assert len(grant_calls) == 1
+    assert grant_calls[0]["sapot_phone"] == "+639171111111"
+    assert grant_calls[0]["external_phone"] == "+639172222222"
+
+
+def test_failed_send_sms_does_not_grant_permission(client, session, monkeypatch):
+    """A failed send must NOT call /grant-permission."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    grant_calls = []
+
+    class FailGsmClient:
+        async def post(self, path: str, json: dict = None, **kwargs):
+            if path == "/sms/send":
+                return FakeGsmResponse(502, {
+                    "detail": {"message": "Delivery failed", "reason": "MODEM_ERROR", "msg_id": "x"}
+                })
+            if path == "/grant-permission":
+                grant_calls.append(json)
+            return FakeGsmResponse(200, {"ok": True})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: FailGsmClient())
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
+
+    response = client.post(
+        "/gsm/sms/send",
+        params={"user_id": str(target.id), "message": "Hello"},
+    )
+
+    assert response.status_code == 502
+    assert len(grant_calls) == 0
+
+
+
+def test_successful_send_sms_returns_200_when_grant_fails(client, session, monkeypatch):
+    """A failed /grant-permission should not abort the main send_sms loop."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    class GrantFailGsmClient:
+        async def post(self, path: str, json: dict = None, **kwargs):
+            if path == "/sms/send":
+                return FakeGsmResponse(200, {"ok": True, "msg_id": "abc"})
+            if path == "/grant-permission":
+                return FakeGsmResponse(500, {"detail": "Internal server error"})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: GrantFailGsmClient())
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
+
+    response = client.post(
+        "/gsm/sms/send",
+        params={"user_id": str(target.id), "message": "Hello"},
+    )
+
+    assert response.status_code == 200
+
+
+
+def test_inbound_sms_rejected_when_no_permission(client, session, monkeypatch):
+    """POST /gsm/inbound must 403 when the target has not previously contacted the sender."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    class UnauthorizedPermissionClient:
+        async def get(self, path: str, **kwargs):
+            if path == "/has-permission":
+                return FakeGsmResponse(200, {"permitted": False})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: UnauthorizedPermissionClient())
+
+    response = client.post(
+        "/gsm/inbound",
+        json={
+            "sender_phone": current_user.phone_number,
+            "target_phone": target.phone_number,
+            "body": "Hello",
+        },
+        headers={"X-GSM-Secret": gsm.GSM_SECRET},
+    )
+
+    assert response.status_code == 403
+
+
+def test_inbound_sms_allowed_when_permission_exists(client, session, monkeypatch):
+    """POST /gsm/inbound must 200 when permission exists."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    class AuthorizedPermissionClient:
+        async def get(self, path: str, **kwargs):
+            if path == "/has-permission":
+                return FakeGsmResponse(200, {"permitted": True})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: AuthorizedPermissionClient())
+
+    response = client.post(
+        "/gsm/inbound",
+        json={
+            "sender_phone": current_user.phone_number,
+            "target_phone": target.phone_number,
+            "body": "Hello",
+        },
+        headers={"X-GSM-Secret": gsm.GSM_SECRET},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True

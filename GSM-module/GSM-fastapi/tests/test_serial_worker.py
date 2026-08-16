@@ -42,6 +42,16 @@ def test_capacity_excludes_registered_in_flight_request():
     assert worker.outbound_queue_capacity == 1
 
 
+def test_inbound_queue_drops_excess_messages_without_blocking_reader():
+    worker = SerialWorker("fake", incoming_queue_maxsize=1)
+
+    worker._handle_line("SMS_RECEIVED|+639171234567|first")
+    worker._handle_line("SMS_RECEIVED|+639171234568|second")
+
+    assert worker.incoming_queue.qsize() == 1
+    assert worker.incoming_queue_dropped == 1
+
+
 def test_stop_drains_waiting_requests_without_sentinel():
     worker = ready_worker()
     request = _SendRequest("+639171234567", "queued", 1)

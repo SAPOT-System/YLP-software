@@ -14,6 +14,7 @@ environment variable if you need LAN access.
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 
 import uvicorn
 
@@ -28,7 +29,12 @@ def setup_logging():
         format=fmt,
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler("sapot.log", encoding="utf-8"),
+            RotatingFileHandler(
+                "sapot.log",
+                maxBytes=settings.log_max_bytes,
+                backupCount=settings.log_backup_count,
+                encoding="utf-8",
+            ),
         ],
     )
     # Quiet down uvicorn's access log a little
