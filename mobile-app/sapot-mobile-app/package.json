@@ -1,7 +1,7 @@
 {
   "name": "sapot-mobile-app",
   "main": "index.js",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "scripts": {
     "test": "jest",
     "testAll": "npm run test && npm run typecheck && npm run lint && npx expo-doctor",

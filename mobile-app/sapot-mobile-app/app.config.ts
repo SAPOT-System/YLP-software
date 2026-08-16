@@ -206,7 +206,7 @@ export default ({ config }: ConfigContext) => ({
   ...config,
   name: getAppName(),
   slug: "sapot-mobile-app",
-  version: "0.10.1",
+  version: "0.10.2",
   orientation: "portrait",
   icon: "./assets/images/logo.png",
   scheme: "sapotmobileapp",
@@ -336,6 +336,6 @@ export default ({ config }: ConfigContext) => ({
     eas: {
       projectId: "ee940ed5-5653-43cb-8938-d5f54a830c59",
     },
-    displayVersion: "0.10.1",
+    displayVersion: "0.10.2",
   },
 });
