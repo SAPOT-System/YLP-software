@@ -10,7 +10,10 @@ The expiry worker and activity-status updates then timed out.
 The fix: open short-lived sessions per DB operation so an idle peer holds
 zero connections.
 """
+import asyncio
+import logging
 import time
+from uuid import uuid4
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
@@ -21,6 +24,28 @@ import app.api.peer_connection as peer_connection
 from app.main import app
 from app.db_operations.auth import get_session
 from app.db_operations.token import create_access_token
+from app.db_operations.connection_manager import ConnectionManager
+
+
+class FailingWebSocket:
+    async def send_json(self, message: dict) -> None:
+        raise RuntimeError("connection closed")
+
+
+def test_personal_delivery_failure_is_logged_and_disconnects(caplog):
+    manager = ConnectionManager()
+    user_id = uuid4()
+    manager._local[user_id] = FailingWebSocket()
+    caplog.set_level(logging.INFO, logger="app")
+
+    asyncio.run(manager.send_personal_message(user_id, {"type": "ping"}))
+
+    assert user_id not in manager._local
+    record = next(record for record in caplog.records if "WebSocket delivery failed" in record.message)
+    assert record.user_id == str(user_id)
+    assert record.action == "websocket_user_disconnected"
+    assert record.entity_id is None
+    assert record.metadata_json == {}
 
 
 @pytest.fixture(name="pool_engine")

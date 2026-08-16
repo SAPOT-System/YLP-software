@@ -1,16 +1,19 @@
 import os
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, Dict
 from uuid import UUID
 from fastapi import Depends, HTTPException, Request
 from pwdlib import PasswordHash
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlmodel import SQLModel, Session, create_engine, select, or_
 
 from app.models.users import User, UserCreate
 from app.models.users import UserUpdate, UserPasswordUpdate
+from app.structured_logging import log_context
 
+logger = logging.getLogger("app")
 
 
 # Reduced from recommended() defaults (time_cost=2, memory_cost=65536)
@@ -60,7 +63,12 @@ def db_create_user(user: UserCreate, session: SessionDep):
         user_in_db = get_user_by_ID(session, user.id) if user.id else None
     except HTTPException:
         user_in_db = None
-    except:
+    except SQLAlchemyError:
+        session.rollback()
+        logger.exception(
+            "Failed to look up existing user during user creation",
+            extra=log_context(None, "user_creation_lookup_failed"),
+        )
         raise HTTPException(500, "Internal server error.")
         
     errors: Dict[str, str] = {}
@@ -192,15 +200,18 @@ def authenticate_user(
     return user
 
 
-def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDep):
+def update_user_info(
+    user: User, new_user_data: UserUpdate, session: SessionDep, commit: bool = True
+):
     new_user_dump = new_user_data.model_dump(exclude_unset=True)
 
     for field, value in new_user_dump.items():
         setattr(user, field, value)
 
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    if commit:
+        session.commit()
+        session.refresh(user)
 
 
 PASSWORD_MIN_LENGTH = 8

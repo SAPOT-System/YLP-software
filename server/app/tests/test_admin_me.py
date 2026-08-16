@@ -1,8 +1,12 @@
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
+import pytest
 from sqlmodel import Session, select
 
+from app.api import admin
 from app.models.admin import Admin
-from app.models.users import User
+from app.models.rescuer import Rescuer
+from app.models.users import User, UserUpdateThroughAdmin
 
 
 def _login_as_admin(client: TestClient, session: Session, username: str, password: str) -> str:
@@ -74,3 +78,48 @@ def test_logout_without_refresh_token_cookie_returns_401_not_500(client: TestCli
     )
 
     assert response.status_code == 401
+
+
+def test_admin_edit_rolls_back_profile_when_role_change_fails(session: Session, monkeypatch):
+    user = session.exec(select(User).where(User.username == "test")).one()
+    user_id = user.id
+    original_username = user.username
+    update = UserUpdateThroughAdmin(
+        id=user_id,
+        username="updated-admin-user",
+        is_admin=True,
+        is_rescuer=False,
+    )
+
+    def fail_role_grant(*args, **kwargs):
+        raise RuntimeError("role write failed")
+
+    monkeypatch.setattr(admin, "makeAdmin", fail_role_grant)
+
+    with pytest.raises(HTTPException) as exc_info:
+        admin.edit_user(user, update, session)
+
+    assert exc_info.value.status_code == 500
+    session.expire_all()
+    persisted_user = session.exec(select(User).where(User.id == user_id)).one()
+    assert persisted_user.username == original_username
+
+
+def test_admin_edit_preserves_roles_when_role_fields_are_omitted(session: Session):
+    user = session.exec(select(User).where(User.username == "test")).one()
+    session.add_all([Admin(user_id=user.id), Rescuer(user_id=user.id)])
+    session.commit()
+    session.expire_all()
+    user = session.exec(select(User).where(User.username == "test")).one()
+
+    result = admin.edit_user(
+        user,
+        UserUpdateThroughAdmin(id=user.id, username="renamed-admin-user"),
+        session,
+    )
+
+    assert result == {"status": "ok"}
+    session.expire_all()
+    persisted_user = session.exec(select(User).where(User.id == user.id)).one()
+    assert persisted_user.admin is not None
+    assert persisted_user.rescuer is not None
