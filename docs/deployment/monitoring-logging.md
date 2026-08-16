@@ -62,11 +62,22 @@ A second background thread (`expire_announcements_loop`) periodically marks anno
 
 The GSM module logs to `GSM-module/GSM-fastapi/sapot.log`. Rotate or clear this file periodically in production.
 
+When outbound admission returns `QUEUE_FULL`, the service logs the outbound queue depth and configured capacity at warning level. The saturation warning contains no SMS content. Operators should check modem readiness and throughput, allow the queue to drain, and investigate callers before increasing capacity; raising the limit increases waiting time and worker occupancy.
+
 ---
 
 ## Health checks
 
-No dedicated health-check endpoints are documented. The Nginx proxy (port 443 → Gunicorn :8000) can be used as a liveness check:
+The GSM service exposes dedicated liveness and diagnostic endpoints:
+
+```bash
+curl http://127.0.0.1:8001/health
+curl http://127.0.0.1:8001/health/detailed
+```
+
+The first route remains asynchronous during outbound saturation. The detailed route includes modem state and outbound queue depth, capacity, and in-flight state.
+
+For the main server, the Nginx proxy (port 443 → Gunicorn :8000) can be used as a liveness check:
 
 ```bash
 curl -k https://localhost/auth/exists?identifier=probe@example.com

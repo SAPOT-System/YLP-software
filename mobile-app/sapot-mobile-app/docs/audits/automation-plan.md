@@ -122,7 +122,7 @@ describe('ConnectionService', () => {
 | `GpsLocationService` | `features/gps/services/__tests__/gps-location-service.test.ts` |
 | `GuestMigrationService` | `features/auth/services/__tests__/guest-migration-service.test.ts` |
 | `SignalingService` | `features/shared/connection/services/__tests__/signaling-service.test.ts` |
-| `SIGNALING_TASK` | `task/__tests__/signaling-task.test.ts` |
+| Android foreground-service lifecycle | `features/shared/hooks/__tests__/use-foreground-service.test.ts` |
 | `use-lockout-timer` | `features/auth/hooks/__tests__/use-lockout-timer.test.ts` |
 
 ### Pure functions — highest ROI, lowest effort (< 30 min each)

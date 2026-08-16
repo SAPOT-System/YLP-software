@@ -520,6 +520,17 @@ def update_message_status(msg_id: str, status: str,
         s.commit()
 
 
+def fail_orphaned_pending_messages() -> int:
+    with new_get_session() as s:
+        result = s.execute(
+            update(SmsLog)
+            .where(SmsLog.status == "pending")
+            .values(status="failed", failure_reason="SERVICE_CRASHED")
+        )
+        s.commit()
+        return result.rowcount
+
+
 def get_messages(limit: int = 50, offset: int = 0, direction: Optional[str] = None,
                  phone: Optional[str] = None) -> dict:
     with new_get_session() as s:

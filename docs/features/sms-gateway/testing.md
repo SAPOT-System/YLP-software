@@ -1,136 +1,144 @@
-# SMS Gateway — Testing
+# SMS Gateway: Testing
 
-## Strategy
+## Overview
 
-| Layer       | Tooling                          | Scope                                                              |
-|-------------|----------------------------------|--------------------------------------------------------------------|
-| Unit        | pytest                           | `protocol.py` encode/decode, `sms_handler` outbound/inbound logic |
-| Integration | pytest + HTTPX + in-memory SQLite| GSM FastAPI endpoints, main server OTP endpoints, webhook handler  |
-| Hardware    | **Never tested against real HW** | Serial port and SIM module are always mocked                       |
+The GSM FastAPI tests verify queue admission, lifecycle races, API responses, and configuration without opening a real serial port or connecting to the production database. Hardware behavior still requires a modem smoke test because unit tests cannot prove Arduino timing or carrier delivery.
 
----
+## Prerequisites
 
-## Coverage Targets
+Run each touched component in its pinned environment.
 
-| Area                              | Target |
-|-----------------------------------|--------|
-| `protocol.py` encode/decode       | 100%   |
-| `sms_handler` outbound path       | 100%   |
-| `sms_handler` inbound path        | 100%   |
-| OTP request / verify / resend     | 100%   |
-| Webhook authentication            | 100%   |
-| Rate limiting enforcement         | 90%+   |
-| Overall SMS gateway coverage      | ≥ 80%  |
+GSM gateway:
 
----
-
-## Mocking Rules
-
-- **Serial port** — mock `serial_worker.serial_send`; never open a real `/dev/ttyACM0`. Use `unittest.mock.patch`.
-- **GSM API HTTP calls** — mock `requests.post` in `sms_handler.handle_inbound`; never hit the real main server.
-- **Main server → GSM API calls** — mock the GSM API `POST /gsm/send` with `respx` or `responses`; never hit the real GSM service.
-- **Database** — use in-memory SQLite for both the GSM service (`sapot.db`) and main server tests.
-- **Time** — use `freezegun` for OTP expiry assertions.
-- **GSM_SECRET** — set via `os.environ` in fixture setup; use a fixed test value `"test-gsm-secret-value"`.
-- **OTP generation** — mock `generate_otp` to return a fixed value (`"123456"`) in integration tests for predictable assertions.
-
----
-
-## Test Cases
-
-### `protocol.py` — Unit
-
-| Scenario | Expected result |
-|----------|-----------------|
-| `encode_send("+639171234567", "hello", "msg-1")` | Returns `"SEND:+639171234567:hello:msg-1\n"` |
-| `decode("RECV:+639171234567:test message\n")` | Returns frame with `type="RECV"`, `from_number="+639171234567"`, `message_body="test message"` |
-| `decode("ACK:msg-1\n")` | Returns frame with `type="ACK"`, `message_id="msg-1"` |
-| `decode("ERR:101:module timeout\n")` | Returns frame with `type="ERR"`, `code="101"`, `detail="module timeout"` |
-| `decode("INVALID\n")` | Raises `ProtocolError` |
-| Message body containing colon character | Encoded and decoded without truncation |
-
-### GSM Service — `POST /gsm/send` (Integration)
-
-| Scenario | Expected result |
-|----------|-----------------|
-| Valid `{ phone, message }` payload | `serial_worker.serial_send` called with correct encoded frame; row inserted in `sms_outbox` with status `pending`; response `{ success: true, message_id }` |
-| Arduino ACK received via serial | `sms_outbox` row updated to `delivered` |
-| Arduino ERR received via serial | `sms_outbox` row updated to `failed` with error detail |
-| Serial port unavailable at startup | Service returns 503 on `/gsm/send`; error logged |
-| Missing `phone` field | Returns 422 |
-| `message` exceeds 160 characters | Returns 400 or splits into multiple frames depending on config |
-
-### Main Server — OTP Request (Integration)
-
-| Scenario | Expected result |
-|----------|-----------------|
-| `POST /gsm/otp/request` with valid phone, purpose `"verification"` | `phone_verification` row created with hashed OTP; `expires_at = now + 10 min`; GSM API send called |
-| Second request within 60 s for same phone | Returns 429 (rate limit) |
-| Request after 60 s | New OTP generated; old row marked superseded |
-| GSM API send fails | Returns 503; `phone_verification` row not created |
-| Missing `phone` field | Returns 422 |
-
-### Main Server — OTP Verify (Integration)
-
-| Scenario | Expected result |
-|----------|-----------------|
-| Correct OTP within expiry window | Returns 200 `{ verified: true }`; `phone_verification.used` set to `true` |
-| Correct OTP reused after first verify | Returns 401 (row is marked `used`) |
-| Wrong OTP | Returns 401 |
-| OTP expired (`expires_at` in past) | Returns 401 |
-| No OTP row exists for phone | Returns 401 |
-| `POST /gsm/otp/verify` 6 times in 60 s | 6th request returns 429 (rate limit) |
-
-### Main Server — OTP Resend (Integration)
-
-| Scenario | Expected result |
-|----------|-----------------|
-| `POST /gsm/otp/resend` for phone with existing OTP | Old row invalidated; new `phone_verification` row created; GSM API send called with new OTP |
-| Resend within 60 s of last request | Returns 429 |
-
-### Inbound Webhook — Main Server (Integration)
-
-| Scenario | Expected result |
-|----------|-----------------|
-| `POST /gsm/inbound` with correct `X-GSM-Secret` | Returns 200; inbound SMS processed |
-| `POST /gsm/inbound` with wrong secret | Returns 401; SMS not processed |
-| `POST /gsm/inbound` with missing `X-GSM-Secret` header | Returns 401 |
-| `POST /gsm/inbound` with valid secret and OTP-reply body | OTP reply matched to pending verification; user notified |
-
-### GSM Service — Inbound SMS Path (Unit)
-
-| Scenario | Expected result |
-|----------|-----------------|
-| `handle_inbound("RECV:+639171234567:hello\n")` | `requests.post` called to main server `/gsm/inbound` with correct payload and `X-GSM-Secret` header |
-| Main server webhook call times out | Error logged; no retry in v1; service continues |
-| `handle_inbound("ACK:msg-1\n")` | `sms_outbox` row for `msg-1` updated to `delivered` |
-| `handle_inbound("ERR:101:timeout\n")` | Matching outbox row updated to `failed` |
-| Serial line that does not parse | `ProtocolError` caught; error logged; service continues |
-
----
-
-## Test File Locations
-
-```
-GSM-module/GSM-fastapi/
-  tests/
-    test_protocol.py
-    test_sms_handler.py
-    test_gsm_api.py
-
-server/
-  tests/
-    test_gsm_otp.py
-    test_gsm_inbound_webhook.py
+```bash
+cd GSM-module/GSM-fastapi
+nix develop
+pytest
 ```
 
-## Important: No Real Hardware in CI
+Main server proxy contract:
 
-All CI runs must set:
-```
-MOCK_SERIAL=true
-GSM_SECRET=test-gsm-secret-value
-DB_PATH=:memory:
+```bash
+cd server
+nix develop
+cd app
+pytest tests/test_gsm_health.py tests/test_gsm_proxy.py
 ```
 
-Any test that attempts to open `/dev/ttyACM0` or make an outbound HTTP call to a non-mocked host must fail the test suite with a clear error message.
+Mobile full component gate, including GSM error handling and dependency injection wiring:
+
+```bash
+cd mobile-app
+nix develop
+cd sapot-mobile-app
+pnpm run testAll
+```
+
+`tests/conftest.py` supplies test `DB_PATH` and `GSM_SECRET` values before importing application settings. Tests that reach API handlers replace database operations with fakes, so they do not create or mutate production records.
+
+## What is covered?
+
+| File | Responsibility |
+|---|---|
+| `tests/test_config.py` | Default queue capacity, valid range, and startup rejection |
+| `tests/test_serial_worker.py` | Queue capacity, admission deadlines, lifecycle cutoff, exact-once completion, pre-write races, and serial write timeout |
+| `tests/test_api_queue.py` | HTTP 503 contracts, message-log updates, diagnostics, worker-pool headroom, and health responsiveness |
+| `tests/test_database_reconciliation.py` | Idempotent startup recovery of orphaned pending log rows |
+| `tests/test_incoming_sms.py` | Sender rejection reason codes and inbound log status updates |
+| `tests/test_lifespan.py` | Reconciliation ordering before serial worker startup |
+| `tests/test_mock_modem.py` | Virtual-phone validation, firmware-compatible normalization, modem state transitions, HTTP responses, PTY framing, reconnects, and subprocess cleanup |
+| `server/app/tests/test_gsm_proxy.py` | Main-server shared-secret header, status preservation, and timeout headroom for chat, verification, resend, and first-contact requests |
+| `mobile-app/sapot-mobile-app/features/shared/core/errors/__tests__/gsm-error.test.ts` | Typed `QUEUE_FULL` parsing and user-visible error messages |
+| `mobile-app/sapot-mobile-app/features/chat/components/__tests__/message-list.test.tsx` | Manual resend rejection and `not_sent` restoration |
+| `mobile-app/sapot-mobile-app/features/auth/auth-container.test.ts` | Phone-verification service construction |
+| `mobile-app/sapot-mobile-app/features/shared/__tests__/main-container-initialize.test.ts` | GSM service construction within the runtime container |
+
+## How is serial I/O isolated?
+
+Most worker tests do not start the reader or sender threads. Tests that need a serial write assign a small fake object to `worker._ser`. The connection test replaces `serial_worker.serial.Serial` before calling `_connect_and_read()`.
+
+No test may rely on `/dev/ttyACM0`, a SIM card, or a carrier network. A test that starts a thread must signal it to stop and join it before returning.
+
+## Queue and lifecycle cases
+
+| Scenario | Expected result |
+|---|---|
+| Waiting queue reaches configured capacity | Next admission raises `OutboundQueueFullError` without a serial write |
+| Capacity is outside 1 through 20 | Configuration or worker construction fails |
+| Shutdown begins with waiting work | Waiting requests complete with `SERVICE_STOPPING` |
+| Shutdown begins with active work | Active request completes with `SERVICE_STOPPING` |
+| Network loss completes active work before writing | Recovery does not write the failed request |
+| Caller deadline expires while a request is queued | The request returns `CLIENT_TIMEOUT` and is never written |
+| Serial write crosses the admission deadline | The caller waits for modem confirmation instead of returning the pre-write timeout |
+| Stale confirmation arrives before a new write | New request remains pending and is written normally |
+| Two completions race for one request | First completion wins |
+| Serial connection opens | PySerial receives the configured five-second write timeout |
+
+## API saturation cases
+
+The saturation test starts 21 blocking send requests, representing 20 waiting requests plus one active request. It then verifies that:
+
+1. A further `POST /sms/send` reaches the handler and returns HTTP 503 with `QUEUE_FULL`.
+2. `GET /health` returns while those sends remain blocked.
+3. Releasing the admitted requests lets every pending HTTP request complete.
+
+This covers the thread-pool exhaustion described by issue #252. A test with only a rejecting fake would verify the response shape but would not prove that the rejection handler can still obtain a worker thread.
+
+## Software-only PTY smoke test
+
+Use this Linux host workflow to validate the real `SerialWorker` and outbound FastAPI path without
+an Arduino or carrier account. It still needs development `DB_PATH` and `GSM_SECRET` values because
+the emulator replaces only the serial device.
+
+1. In one terminal, run `python mock_modem.py` from `GSM-module/GSM-fastapi/` and copy its printed `/dev/pts/<n>` path. The virtual phone is available at `http://127.0.0.1:8002`.
+2. In another terminal, start the gateway with `SERIAL_PORT=/dev/pts/<n> python main.py`.
+3. Confirm `curl http://127.0.0.1:8001/health` reports `connected: true` and `gsm_ready: true`.
+4. Send an authenticated request:
+
+   ```bash
+   curl -X POST http://127.0.0.1:8001/sms/send \
+     -H 'Content-Type: application/json' \
+     -H 'X-GSM-Secret: <value from GSM_SECRET>' \
+     -d '{"number":"+639171234567","body":"SAPOT PTY smoke test"}'
+   ```
+
+5. Confirm the API reports success and the selected virtual-phone inbox shows the message from SAPOT Gateway.
+6. Reply from that inbox and confirm the gateway processes it through the normal inbound session and callback path.
+7. Set the virtual-phone network or SIM control to unavailable, confirm the gateway health degrades, then restore it and confirm it becomes ready again.
+8. Restart only the gateway, using the same PTY path, and confirm it becomes ready again.
+
+The emulator can also return `NO_PROMPT` or withhold a confirmation (`TIMEOUT`) from its browser controls.
+It cannot validate USB access, real SIM state, signal, carrier acceptance, or physical-phone delivery.
+
+For Compose-based testing, start the stack with
+`docker-compose.gsm-emulator.yml`. The overlay runs the emulator inside the gateway container because
+a host-created PTY is not visible to that container.
+
+## Real-modem smoke test
+
+Run this only on a host with the configured Arduino and SIM:
+
+1. Set `DB_PATH`, `GSM_SECRET`, `SERIAL_PORT`, and `SMS_SEND_QUEUE_MAXSIZE` in the host environment file.
+2. Start the GSM service and wait for `GSM_READY`.
+3. Check liveness:
+
+   ```bash
+   curl http://127.0.0.1:8001/health
+   ```
+
+4. Send one SMS to a controlled test number:
+
+   ```bash
+   curl -X POST http://127.0.0.1:8001/sms/send \
+     -H 'Content-Type: application/json' \
+     -H 'X-GSM-Secret: <value from GSM_SECRET>' \
+     -d '{"number":"+639171234567","body":"SAPOT GSM smoke test"}'
+   ```
+
+5. Confirm the API response, `sms_log` status, Arduino event, and receipt on the test phone.
+
+## Limitations
+
+- Automated tests do not prove USB permissions, modem readiness, SIM balance, signal quality, or carrier delivery.
+- API tests mock message-log persistence; they do not validate the MariaDB schema.
+- Real-hardware testing must use a controlled phone number and must not run in shared CI.

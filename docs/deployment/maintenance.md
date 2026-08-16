@@ -28,7 +28,7 @@ Each component owns its own dependency file — there is no repo-wide update mec
 | `server/` | `requirements.txt` | Schema is Alembic-managed ([ADR 0007](../adr/0007-alembic-for-server-migrations.md)) — a dependency bump that changes SQLModel/SQLAlchemy/DB-driver behavior can shift what autogenerate emits, so re-run `alembic check` and follow [runbooks.md](runbooks.md#applying-schema-migrations-alembic) if it touches schema. Pin `alembic` itself deliberately. |
 | `mobile-app/sapot-mobile-app/` | `package.json` | Expo SDK bumps need `expo-doctor` (`pnpm run testAll` includes it) — do not hand-edit `pnpm-lock.yaml` |
 | `admin-frontend/sapot-admin/` | `package.json` | `pnpm run lint && pnpm run build` after any bump — no test script exists in this component |
-| `GSM-module/GSM-fastapi/` | `requirements.txt` | No automated tests — verify manually per [gsm-module-setup.md](../getting-started/gsm-module-setup.md) after any bump |
+| `GSM-module/GSM-fastapi/` | `requirements.txt` | Run `cd GSM-module/GSM-fastapi && pytest`; serial I/O and database calls are mocked |
 | Nix flakes (per component) | `flake.lock` | Never hand-edit; only `nix flake update` should touch it |
 
 Never bundle a dependency bump with an unrelated feature change — if it breaks something, you want to be able to tell which caused it.
@@ -58,6 +58,6 @@ Never bundle a dependency bump with an unrelated feature change — if it breaks
 Before standing up SAPOT at a new incident site (fresh hardware, not a restore — see [runbooks.md's disaster recovery](runbooks.md#disaster-recovery--server-hardware-fails-at-incident-site) for that case):
 
 1. Confirm the offline root CA is still valid (see schedule above) and re-issue a server leaf if needed.
-2. Confirm all required secrets are set per [environment-config.md](environment-config.md) and the repo-root `SECURITY.md` — the server fails fast at import if `DATABASE_URL`, `JWT_SECRET_KEY`, or `CORS_ALLOWED_ORIGINS` are missing.
-3. Confirm `ENVIRONMENT` is **not** set to `development` in the field deployment's env — that gate exists specifically to keep `/testing/*` endpoints out of production (see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#testing-endpoints-return-404-in-dev)).
+2. Confirm all required secrets are set per [environment-config.md](environment-config.md) and [SECURITY.md](../../SECURITY.md) — the server fails fast at import if `DATABASE_URL`, `JWT_SECRET_KEY`, or `CORS_ALLOWED_ORIGINS` are missing.
+3. Confirm `ENVIRONMENT` is **not** set to `development` or `staging` in the field deployment's env — those values enable `/testing/*` endpoints (see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#testing-endpoints-return-404-in-development-or-staging)).
 4. Confirm `sapot-db-backup.timer` is enabled (a docker-bundle `install.sh` does this for you; bare-metal is a manual step, see [runbooks.md](runbooks.md#backup-automated)) and run `backup-db.sh` once by hand to take a baseline before real data accumulates only on this host.

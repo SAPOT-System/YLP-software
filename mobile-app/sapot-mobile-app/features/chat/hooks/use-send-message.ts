@@ -1,8 +1,9 @@
 import { useCallback } from "react";
-import { sendSmsToUser } from "@/features/shared/core/api/gsm.api";
 import { MessageStatusType } from "@/features/shared/core/database/model/MessageStatus";
+import { getGsmErrorMessage } from "@/features/shared/core/errors";
 import { uiLog } from "@/features/shared/core/utils/logger";
 import { ChatService } from "@/features/chat/services/chat-service";
+import { useGsmService } from "@/features/shared/hooks";
 
 type Params = {
   message: string;
@@ -27,6 +28,8 @@ export function useSendMessage({
   peerId,
   showError,
 }: Params): () => void {
+  const gsmService = useGsmService();
+
   return useCallback(() => {
     const textToSend = message.trim();
     if (!textToSend) return;
@@ -42,7 +45,7 @@ export function useSendMessage({
       void chatService
         .sendSmsChannelMessage(textToSend)
         .then(({ messageId: smsMessageId }) => {
-          sendSmsToUser(peerId, textToSend)
+          gsmService.sendSmsToUser(peerId, textToSend)
             .then((res) => {
               const status = res.ok
                 ? MessageStatusType.DELIVERED
@@ -50,11 +53,16 @@ export function useSendMessage({
               chatService.updateMessageStatus(smsMessageId, status).catch((error) => uiLog.warn("use-send-message › SMS status update failed", { error }));
               if (!res.ok) showError("SMS could not be delivered");
             })
-            .catch(() => {
+            .catch((error) => {
               chatService
                 .updateMessageStatus(smsMessageId, MessageStatusType.NOT_SENT)
                 .catch((error) => uiLog.warn("use-send-message › SMS not_sent status update failed", { error }));
-              showError("Message sent, but SMS delivery failed.");
+              showError(
+                getGsmErrorMessage(
+                  error,
+                  "Message sent, but SMS delivery failed."
+                )
+              );
             });
         })
         .catch((error) => {
@@ -85,5 +93,6 @@ export function useSendMessage({
     isSmsConversation,
     peerId,
     showError,
+    gsmService,
   ]);
 }

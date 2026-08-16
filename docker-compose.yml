@@ -35,6 +35,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./server/.env
+    environment:
+      GSM_GATEWAY_URL: http://gsm-fastapi:8001
     depends_on:
       db:
         condition: service_healthy
@@ -78,6 +80,7 @@ services:
   admin:
     build:
       context: ./admin-frontend/sapot-admin
+      target: development
     command: pnpm dev
     restart: unless-stopped
     env_file:
@@ -125,7 +128,9 @@ services:
       - ./GSM-module/GSM-fastapi/.env
     environment:
       HOST: 0.0.0.0
-      SAPOT_API_URL: https://nginx
+      # The callback stays on Docker's private network. Going through nginx
+      # would require the gateway image to trust the development TLS CA.
+      SAPOT_API_URL: http://api:8000
     # No /dev/ttyACM0 device passthrough here — the modem isn't present on
     # most dev machines, and Compose has no "optional device" syntax, so
     # declaring it here would abort the whole `docker compose up` (nginx/
@@ -136,7 +141,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${GSM_FASTAPI_PORT:-8001}:8001"
+      - "127.0.0.1:${GSM_FASTAPI_PORT:-8001}:8001"
 
 volumes:
   db-data:

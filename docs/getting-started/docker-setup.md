@@ -36,6 +36,10 @@ Everything below works from a WSL2 distro's bash shell as-is — use `docker/up.
 cp server/.env.example server/.env
 ```
 
+Before starting the stack, replace the `JWT_SECRET_KEY` and `SERVER_ED25519_SEED` placeholders in
+`server/.env`. Generate a separate value for each with `openssl rand -hex 32`; also replace the
+other `change-me-*` secrets with values appropriate for your environment.
+
 Optional — override the stack's host-side ports (default: `nginx` 443/80, `admin` 3000,
 `gsm-fastapi` 8001) by copying the repo-root env file too:
 
@@ -55,6 +59,10 @@ cp GSM-module/GSM-fastapi/.env.example GSM-module/GSM-fastapi/.env
 
 `gsm-fastapi`'s `GSM_SECRET` must match `server/.env`'s `GSM_SECRET` — they authenticate the
 webhook calls between the two services (see [environment-config.md](../deployment/environment-config.md)).
+
+Compose sets the server's `GSM_GATEWAY_URL` to `http://gsm-fastapi:8001`, which resolves through the
+internal Docker network. Do not replace it with `localhost`: inside the `api` container, that address
+refers to the API container rather than the separate GSM gateway container.
 The `gsm-fastapi` container passes through the GSM modem at `/dev/ttyACM0`, but only when
 `docker-compose.gsm-hardware.yml` is explicitly merged in (Compose has no "optional device" syntax,
 so this stays out of the base `docker-compose.yml`/`docker-compose.override.yml` — otherwise the
@@ -68,7 +76,21 @@ whole `docker compose up` would abort on any machine without the GSM modem attac
 Without the GSM modem, just run the normal `./docker/up.sh up --build -d` below — `gsm-fastapi` still
 starts, it just won't have serial access.
 
-See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `SERVER_ED25519_SEED` are required at import time. `server/.env.example` ships a working value for each, so the copy above is enough for local dev.
+To exercise outbound SMS flow in Docker without hardware, merge the PTY emulator overlay instead.
+It starts the emulator in the `gsm-fastapi` container, so its generated device path is visible to the
+gateway process. Do not set `SERIAL_PORT` to a host `/dev/pts/<n>` path: containers have separate PTY
+namespaces.
+
+```bash
+./docker/up.sh -f docker-compose.yml -f docker-compose.gsm-emulator.yml up --build -d
+docker compose logs -f gsm-fastapi
+```
+
+The gateway logs the generated port and becomes ready after the emulator handshake. The emulator
+prints each valid outbound destination and body in the same service logs. Do not merge the emulator
+overlay with `docker-compose.gsm-hardware.yml`; use the hardware overlay for real modem testing.
+
+See the repo-root `SECURITY.md` for why `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, and `SERVER_ED25519_SEED` are required at import time. `server/.env.example` supplies safe defaults only for local service addresses; it never supplies usable secrets.
 
 ## Run
 
@@ -86,8 +108,9 @@ that includes:
   (through `nginx`), **not** at the bare `/`, which 404s.
 - `tileserver`: offline map tiles. Not published to the host: `docker-compose.yml` only `expose`s
   port 8080 on the internal network, so reach it at `https://localhost/tiles/` through `nginx`.
-- `gsm-fastapi`: the SMS gateway, `http://localhost:8001` (starts without the GSM modem; add
-  `docker-compose.gsm-hardware.yml` per the [Configure](#configure) section above for real SMS)
+- `gsm-fastapi`: the SMS gateway, `http://localhost:8001` on host loopback only (starts without the
+  GSM modem; add `docker-compose.gsm-hardware.yml` per the [Configure](#configure) section above for
+  real SMS)
 
 `nginx` declares `depends_on` on `admin` and `tileserver` (both proxied by `nginx.docker.conf` as
 static upstreams, which nginx resolves at config-load time and refuses to start without). Naming
@@ -138,7 +161,7 @@ docker compose ps                    # is api running, exited, or restarting?
 docker compose logs api --tail=50    # look for a traceback right before "Application startup failed"
 ```
 - **`api` is running and the 502s stop on their own within a few seconds of `up -d`**: expected. The dev stack gives `api` no healthcheck, so `nginx` starts as soon as the `api` *process* does, which is before Uvicorn finishes importing the app. Just retry.
-- **`api` is running and the 502s persist**: read the logs. An unset required env var (`DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, `SERVER_ED25519_SEED`, or `QA_API_TOKEN` when `ENVIRONMENT=development`) raises at import time and the container exits before serving anything.
+- **`api` is running and the 502s persist**: read the logs. An unset required env var (`DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ALLOWED_ORIGINS`, `SERVER_ED25519_SEED`, or `QA_API_TOKEN` when `ENVIRONMENT=development` or `staging`) raises at import time and the container exits before serving anything. An unrecognised `ENVIRONMENT` value also stops the app at import time.
 
 **Requests reach `api` but fail on missing tables (`1146 Table ... doesn't exist`).** Migrations were never applied to this `db-data` volume. Run [Apply database migrations](#apply-database-migrations).
 
@@ -160,6 +183,17 @@ The new stack runs under a different project name (derived from the repo root di
 docker compose up -d db redis api certgen nginx   # pulls in admin + tileserver, skips gsm-fastapi
 ```
 
+**`gsm-fastapi` logs `Cannot open /dev/ttyACM0: No such file or directory`.** The Arduino may be connected to the host, but the running container was created without the hardware overlay, so Docker did not expose the serial device inside it. Confirm the host sees the device, then recreate only the gateway with the overlay:
+```bash
+ls -l /dev/ttyACM* /dev/ttyUSB*
+./docker/up.sh -f docker-compose.yml -f docker-compose.gsm-hardware.yml up -d --force-recreate gsm-fastapi
+```
+If the first command reports a port other than `/dev/ttyACM0`, update `SERIAL_PORT` in
+`GSM-module/GSM-fastapi/.env`. The `docker/up.sh` wrapper reads that file when the hardware overlay is
+selected, so Compose maps the same device path into the gateway container.
+This overlay accepts host serial devices such as `/dev/ttyACM0` and `/dev/ttyUSB0`. It cannot pass a
+host `/dev/pts/<n>` pseudo-terminal into Docker. Use `docker-compose.gsm-emulator.yml` for PTY testing.
+
 **`https://localhost/admin` works but `http://localhost:3000` returns 404.** Expected. The admin app sets `basePath: "/admin"` in `next.config.ts`, so its published port serves the dashboard at `http://localhost:3000/admin`, not at the root path.
 
 **`nginx` logs `host not found in upstream "api"` even though `api` is running.** The `nginx` container was created against a stale image/config and never recreated (Compose reuses an existing container if it thinks nothing relevant changed). Force it:
@@ -180,7 +214,8 @@ both running at once:
   directory name, so a worktree gets its own containers, network, and `db-data` volume automatically
   — no shared state with the main checkout's stack.
 - **Host ports are not automatically isolated.** Two stacks (main checkout + a worktree, or two
-  worktrees) both bind `443`/`80`/`3000`/`8001` on the host by default, so bringing up a
+  worktrees) both bind `443`/`80`/`3000`/`8001` on the host by default. GSM port 8001 binds only to
+  loopback, while the other published services keep their configured interfaces. Bringing up a
   second stack while the first is still running fails with "port is already allocated". If you want
   them running concurrently, give the worktree its own `.env` (root-level, copied from
   `.env.example`) with different port values, e.g.:

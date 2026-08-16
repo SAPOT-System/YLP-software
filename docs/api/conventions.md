@@ -95,6 +95,7 @@ set (every decorated route in `server/app/api/`):
 | `POST /auth/token` | 5/minute |
 | `POST /auth/` | 3/minute |
 | `POST /auth/refresh` | 10/minute |
+| `POST /api/admin/refresh` | 10/minute |
 | `POST /auth/reauthenticate` | 5/minute |
 | `POST /auth/change-password` | 3/minute |
 | `POST /auth/forgot-password/otp/send` | 3/minute |

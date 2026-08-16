@@ -1,12 +1,21 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22-slim AS builder
+FROM node:22-slim AS base
 
 RUN corepack enable
 
 WORKDIR /app
+
+FROM base AS dependencies
+
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
+
+FROM dependencies AS development
+ENV NODE_ENV=development
+COPY . .
+
+FROM dependencies AS builder
 
 COPY . .
 RUN pnpm build

@@ -1,4 +1,5 @@
 import { apiClient } from "@/features/shared/core/api/client";
+import { toGsmGatewayError } from "@/features/shared/core/errors";
 import { apiLog } from "@/features/shared/core/utils/logger";
 
 export type GsmHealthResponse = {
@@ -32,20 +33,28 @@ export const sendSmsToUser = async (
   message: string
 ): Promise<SendSmsResponse> => {
   apiLog.debug("api › gsm sms send", { userId });
-  const res = await apiClient.post<SendSmsResponse>("/gsm/sms/send", null, {
-    params: { user_id: userId, message },
-  });
-  return res.data;
+  try {
+    const res = await apiClient.post<SendSmsResponse>("/gsm/sms/send", null, {
+      params: { user_id: userId, message },
+    });
+    return res.data;
+  } catch (error) {
+    throw toGsmGatewayError(error);
+  }
 };
 
 export const contactUnknownUser = async (
   targetPhoneNumber: string
 ): Promise<ContactUnknownUserResponse> => {
   apiLog.debug("api › gsm contact unknown user", { targetPhoneNumber });
-  const res = await apiClient.post<ContactUnknownUserResponse>(
-    "/gsm/contact-unknown-user",
-    null,
-    { params: { target_phone_number: targetPhoneNumber } }
-  );
-  return res.data;
+  try {
+    const res = await apiClient.post<ContactUnknownUserResponse>(
+      "/gsm/contact-unknown-user",
+      null,
+      { params: { target_phone_number: targetPhoneNumber } }
+    );
+    return res.data;
+  } catch (error) {
+    throw toGsmGatewayError(error);
+  }
 };

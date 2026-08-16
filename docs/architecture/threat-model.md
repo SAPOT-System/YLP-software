@@ -66,7 +66,7 @@ flowchart TB
 | mDNS/Zeroconf discovery | Broadcasts peer presence and connection info on the LAN; unauthenticated by design (mDNS has no auth mechanism) |
 | Captive portal | The first thing an unauthenticated device interacts with; controls initial network admission |
 | Admin frontend | Higher-privilege surface — user management, announcements, network config |
-| GSM module webhook (`/gsm/inbound`) | Authenticated via shared secret (`GSM_SECRET`/`X-GSM-Secret`); reachable from the server, and from the GSM module's own network segment |
+| GSM service HTTP boundary (`/sms/send`, `/gsm/inbound`) | Authenticated in both directions via shared secret (`GSM_SECRET`/`X-GSM-Secret`); reachable from the server and the GSM module's network segment |
 | MariaDB, Redis | Server-internal; in scope only via server compromise (not directly LAN-reachable in the documented deployment) |
 
 ## Attack surfaces explicitly out of scope
@@ -118,8 +118,7 @@ flowchart TB
 | Risk | Status |
 |---|---|
 | No LAN segmentation (rescuer/admin/civilian devices share one broadcast domain) | Accepted for now — segmentation requires router-level VLAN config not currently documented or automated. |
-| `testing` router reachable when `ENVIRONMENT=development` | Accepted — intentionally dev-gated per C1 in the former documentation audit tracker; operational discipline (never deploy with `ENVIRONMENT=development`) is the control, not code. |
-| GSM module DB credentials hardcoded default in `config.py` | Open — tracked in the repo-root `SECURITY.md`. |
+| `testing` router reachable when `ENVIRONMENT=development` or `staging` | Accepted for QA. Production is protected by conditional mounting, a route-level environment guard, shared-secret authentication on mutations, and a production-process regression test. |
 | No remote session/device revocation UI for end users | Open — see [Device theft](#device-theft). |
 | Optional (not enforced) server-side `PeerKey` signing | Open — see [E2E encryption design risks](#e2e-encryption-design-risks). Recommend making `SERVER_ED25519_SEED` mandatory in production as a follow-up. |
 

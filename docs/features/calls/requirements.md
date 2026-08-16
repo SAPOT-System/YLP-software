@@ -49,8 +49,8 @@ SAPOT supports peer-to-peer voice and video calls using WebRTC. The server relay
 
 ### FR-CA-04 — Background calls
 
-- Incoming call notifications via `expo-notifications` (foreground) and `expo-background-task` (background).
-- The background task maintains the WebSocket connection so the device can receive call signalling while the app is not in the foreground.
+- An Android foreground service keeps the current WebSocket connection and call notification handling active while the app process remains alive in the background.
+- Force-killing the app stops call signaling. Killed-app notifications require the planned Firebase Cloud Messaging (FCM) replacement.
 
 ### FR-CA-05 — Call history
 

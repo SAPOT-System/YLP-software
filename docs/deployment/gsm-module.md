@@ -1,6 +1,6 @@
 # GSM Module Deployment
 
-The GSM module (`GSM-module/GSM-fastapi/`) is a FastAPI application that bridges an Arduino-connected SIM800L/SIM900 GSM modem to the SAPOT server's SMS webhook. It exposes SMS send/receive endpoints and forwards inbound SMS to the main server.
+The GSM module (`GSM-module/GSM-fastapi/`) is a FastAPI application that bridges an Arduino-connected SIM800L/SIM900 GSM modem to the SAPOT server's SMS webhook. It exposes send, message-history, and health endpoints, then forwards serially received SMS to the main server.
 
 ---
 
@@ -16,10 +16,12 @@ The GSM module (`GSM-module/GSM-fastapi/`) is a FastAPI application that bridges
 
 ```bash
 cd GSM-module/GSM-fastapi/
-python3 -m venv venv
-source venv/bin/activate
+nix develop --command python -m venv venv
+nix develop
 pip install -r requirements.txt
-SERIAL_PORT=/dev/ttyACM0 python3 main.py
+cp .env.example .env
+# Edit .env and set DB_PATH, GSM_SECRET, SAPOT_API_URL, and the serial device.
+python3 main.py
 ```
 
 Or use the helper script:
@@ -28,15 +30,11 @@ Or use the helper script:
 bash run-api.sh
 ```
 
-`main.py` starts FastAPI on `settings.host` (from `config.py`, default `127.0.0.1`) — **but the port is hardcoded to `8001`** in the `uvicorn.run(...)` call, not read from `settings.port`/`PORT`. Setting `PORT` has no effect on the bound port (it only affects the startup log line, which will report the wrong port — see `GSM-module/CLAUDE.md`'s "Common Pitfalls"). `HOST` is honored via `config.py`.
+`main.py` starts FastAPI on `settings.host` (from `config.py`, default `127.0.0.1`), but the port is hardcoded to `8001` in the `uvicorn.run(...)` call. It does not read `settings.port` or `PORT`. Setting `PORT` only changes the startup log line. `HOST` is honored via `config.py`.
 
 ### Docker (dev/test alternative)
 
-The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md))
-includes a `gsm-fastapi` service alongside the rest of the stack. It passes through the host's
-`/dev/ttyACM0` device, so it only starts successfully on a machine with the modem attached — set
-`HOST=0.0.0.0` inside the container (already set in the compose service) so the published port is
-actually reachable from outside the container.
+The root `docker-compose.yml` (see [docker-setup.md](../getting-started/docker-setup.md)) includes a `gsm-fastapi` service alongside the rest of the stack. The base file does not pass through `/dev/ttyACM0`, which lets development stacks start without GSM hardware. Add `docker-compose.gsm-hardware.yml` when the modem is attached. The service listens on all interfaces inside its container, validates `X-GSM-Secret` for direct sends, and publishes port 8001 only on host loopback as an additional network boundary.
 
 ---
 
@@ -45,45 +43,57 @@ actually reachable from outside the container.
 | Variable | Default | Purpose |
 |---|---|---|
 | `SERIAL_PORT` | `/dev/ttyACM0` | USB serial device for the Arduino/GSM modem |
+| `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum outbound requests waiting behind the one in-flight request. Accepts `1` through `20`. |
 | `SERIAL_BAUD` | `9600` | Serial baud rate |
-| `DB_PATH` | `mysql+pymysql://sapot:sapot@localhost:3306/sapot_db` | Database connection (hardcoded default — override in production) |
+| `DB_PATH` | None | Required database connection URL; startup fails when unset |
 | `HOST` | `127.0.0.1` | FastAPI bind host |
-| `PORT` | `8000` in `config.py`, but **not actually used** — `main.py` hardcodes port `8001` regardless of this variable | Documented for completeness only; do not rely on it to change the bound port |
+| `PORT` | `8000` in `config.py`, but not used for binding | `main.py` always binds port `8001`; do not rely on this setting |
+| `SAPOT_API_URL` | `http://localhost:8000` | Base URL for authenticated inbound callbacks to the main server |
+| `GSM_SECRET` | None | Required at startup; must match the main server value |
 
-> **Security note:** `DB_PATH` has a hardcoded default with plaintext credentials. Always set it explicitly in production. See [secrets-management.md](secrets-management.md).
+> **Security note:** Set `DB_PATH` and `GSM_SECRET` explicitly before startup. Never deploy the placeholder credentials from `.env.example`. See [secrets-management.md](secrets-management.md).
 
 ---
 
 ## Database
 
-The module ships a pre-seeded SQLite development database at `GSM-module/GSM-fastapi/sapot.db`. Replace it with an empty database or configure `DB_PATH` to point to the production MariaDB instance before deploying.
+The committed `GSM-module/GSM-fastapi/sapot.db` file is stale and unused. Set `DB_PATH` to the production MariaDB instance before deploying.
 
 ---
 
 ## Production systemd
 
-Create `/etc/systemd/system/server-GSM-api.service`:
-
-```ini
-[Unit]
-Description=SAPOT GSM API
-After=network.target
-
-[Service]
-WorkingDirectory=/home/sapot/YLP-software/GSM-module/GSM-fastapi
-ExecStart=/home/sapot/YLP-software/GSM-module/GSM-fastapi/venv/bin/python3 main.py
-Restart=always
-User=sapot
-EnvironmentFile=/etc/sapot/gsm.env
-
-[Install]
-WantedBy=multi-user.target
-```
+The tracked unit loads `/etc/sapot/gsm.env` through `EnvironmentFile=`. Provision that restricted file from the committed example before installing the unit. The tracked unit is not installed automatically.
 
 ```bash
+sudo install -d -m 0700 -o sapot -g sapot /etc/sapot
+sudo install -m 0600 -o sapot -g sapot \
+  GSM-module/GSM-fastapi/.env.example /etc/sapot/gsm.env
+sudoedit /etc/sapot/gsm.env
+sudo cp deployment-scripts/server-GSM-api.service /etc/systemd/system/server-GSM-api.service
+sudo systemctl daemon-reload
 sudo systemctl enable server-GSM-api
 sudo systemctl start server-GSM-api
 ```
+
+This is a manual deployment step. Repository updates do not install the unit or refresh `/etc/sapot/gsm.env`; repeat the copy and restart the service when either artifact changes.
+
+## Outbound capacity and overload
+
+The intended deployment accepts 10 waiting outbound requests and one active serial request by default. Configure `SMS_SEND_QUEUE_MAXSIZE` from `1` through `20` before startup to change the waiting capacity. The upper bound keeps enough of FastAPI's default 40-thread worker pool available to reject overload. When the queue is full, `POST /sms/send` returns HTTP 503 with `QUEUE_FULL`; callers should use bounded backoff and must not retry in a tight loop.
+
+## Queue diagnostics
+
+| Field | Meaning |
+|---|---|
+| `outbound_queue_depth` | Accepted requests waiting for the sender |
+| `outbound_queue_capacity` | Configured maximum waiting requests |
+| `outbound_in_flight` | Whether a request is being written or awaiting modem confirmation |
+| `queue_depth` | Existing inbound queue depth, not outbound capacity |
+
+## Shutdown behavior
+
+Shutdown closes admission before draining waiting work. Queued and active requests resolve with `SERVICE_STOPPING`, allowing blocked callers to return without extending the service manager's normal stop budget.
 
 ---
 

@@ -14,6 +14,7 @@ import {
   CleanUpService,
   ConnectionService,
   DiscoveryService,
+  GsmService,
   NotificationService,
   SignalingService,
   WebrtcSessionManager,
@@ -37,15 +38,12 @@ import { MessageStatusRepository } from "@/features/chat/repositories/message-st
 import { ChatService } from "@/features/chat/services/chat-service";
 import { MessageReceiptManager } from "@/features/chat/services/message-receipt-manager";
 import { PublicChatService } from "@/features/chat/services/public-chat-service";
-import { setAppAlive } from "@/task/signaling-task";
 import { AuthContainer } from "../auth/auth-container";
 import { CallParticipantRepository } from "../call/repositories/call-participant-repository";
 import { CallRepository } from "../call/repositories/call-repository";
 import { SyncService } from "../sync";
 import {
   getStoredAccessToken,
-  saveConnectionConfig,
-  saveUserProfile,
   getMigrationState,
   clearMigrationState,
 } from "./core/stores/secure-config";
@@ -82,6 +80,7 @@ export class MainContainer {
   readonly zeroconfAdapter: ZeroconfAdapter;
   readonly networkConfig: NetworkConfig;
   readonly discoveryService: DiscoveryService;
+  readonly gsmService: GsmService;
   readonly tcpServerAdapter: TcpServerAdapter;
   readonly webrtcSessionManager: WebrtcSessionManager;
   readonly signalingService: SignalingService;
@@ -129,6 +128,7 @@ export class MainContainer {
     this.appModeStore = appModeStore;
 
     this.networkConfig = new NetworkConfig();
+    this.gsmService = new GsmService();
 
     this.localEncryptionService = new LocalEncryptionService({
       getPassword: () => _pendingRawPassword,
@@ -574,18 +574,6 @@ export class MainContainer {
       }
     });
     this.networkConfig.startWatching();
-
-    await saveConnectionConfig({
-      peerId: this.userContainer.userStore.user.id ?? "unknown",
-      wsUrl: getWsUrl(),
-    });
-    await saveUserProfile({
-      username: this.userContainer.userStore.user.username,
-      firstName: this.userContainer.userStore.user.firstName,
-      lastName: this.userContainer.userStore.user.lastName || undefined,
-    });
-
-    setAppAlive(true);
   }
 
   /**
@@ -609,9 +597,6 @@ export class MainContainer {
   async cleanup() {
     try {
       appLog.info("app › cleanup start");
-
-      // Release the lock — background task takes over transport ownership
-      setAppAlive(false);
 
       this.networkConfig.stopWatching();
 

@@ -16,7 +16,9 @@ set -eu
 # case unless you export CERT_SAN in the shell first.
 #
 # Passes --env-file server/.env explicitly: docker-compose.yml's
-# ${MYSQL_*} substitutions are read from this file. Passing --env-file at
+# ${MYSQL_*} substitutions are read from this file. When the optional GSM
+# hardware overlay is selected, its SERIAL_PORT substitution is read from the
+# gateway's .env too, so the device mapping matches the serial worker. Passing --env-file at
 # all disables Compose's default auto-load of a root-level .env, so we
 # also pass repo-root .env (port overrides, see .env.example) when present
 # — --env-file can be repeated, later ones win on overlapping keys, and
@@ -44,5 +46,25 @@ ENV_FILE_ARGS="--env-file server/.env"
 if [ -f .env ]; then
     ENV_FILE_ARGS="--env-file .env $ENV_FILE_ARGS"
 fi
+
+case " $* " in
+    *" docker-compose.gsm-hardware.yml "*)
+        if [ ! -f GSM-module/GSM-fastapi/.env ]; then
+            echo "docker/up.sh: GSM-module/GSM-fastapi/.env is required for the hardware overlay" >&2
+            exit 1
+        fi
+        serial_port="$(sed -n 's/^[[:space:]]*SERIAL_PORT[[:space:]]*=[[:space:]]*//p' GSM-module/GSM-fastapi/.env | tail -n 1)"
+        serial_port="${serial_port#\"}"
+        serial_port="${serial_port#\'}"
+        case "$serial_port" in
+            /dev/pts/*)
+                echo "docker/up.sh: SERIAL_PORT=$serial_port is a host PTY and cannot be passed through with the hardware overlay" >&2
+                echo "docker/up.sh: use docker-compose.gsm-emulator.yml for PTY testing, or set SERIAL_PORT to a host /dev/ttyACM* or /dev/ttyUSB* device" >&2
+                exit 1
+                ;;
+        esac
+        ENV_FILE_ARGS="$ENV_FILE_ARGS --env-file GSM-module/GSM-fastapi/.env"
+        ;;
+esac
 
 exec docker compose $ENV_FILE_ARGS "$@"

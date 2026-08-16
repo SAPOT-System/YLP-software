@@ -28,6 +28,7 @@ from app.models.guest import Guest
 from app.models.location import UserLocation
 from app.models.login_attempt import LoginAttempt
 from app.models.message import Message, MessageType
+from app.models.phone_verification import PhoneVerified
 from app.models.rescuer import Rescuer
 from app.models.users import User
 
@@ -423,6 +424,15 @@ def build_locked_out(session: Session) -> dict:
     return {"user": user.username, "locked_until": locked_until.isoformat()}
 
 
+def build_verified_phone(session: Session) -> dict:
+    user = get_or_create_user(session, "qa_phone_verified", phone_number="+639300000751")
+    verified = session.exec(select(PhoneVerified).where(PhoneVerified.user_id == user.id)).first()
+    if not verified:
+        session.add(PhoneVerified(user_id=user.id))
+        session.commit()
+    return {"user": user.username, "phone_verified": True}
+
+
 _ANNOUNCEMENT_PRIORITIES = (PriorityType.low, PriorityType.normal, PriorityType.high)
 _ANNOUNCEMENT_AUDIENCES = (AudienceType.user, AudienceType.rescuer, AudienceType.admin)
 
@@ -591,6 +601,10 @@ SCENARIOS: dict[str, Scenario] = {
     "locked-out": Scenario(
         "qa_locked with a LoginAttempt row at attempt_count=5, locked_until +6h.",
         build_locked_out,
+    ),
+    "verified-phone": Scenario(
+        "qa_phone_verified with a verified Philippine phone number.",
+        build_verified_phone,
     ),
     "announcements": Scenario(
         "Active + expired announcements across all 3 priorities x 3 audiences (18 rows).",

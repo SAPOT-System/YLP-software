@@ -52,13 +52,13 @@ If this fails, check MariaDB is running (`sudo systemctl status mariadb`) and th
 
 ---
 
-## `/testing/*` endpoints return 404 in dev
+## `/testing/*` endpoints return 404 in development or staging
 
 **Symptom:** A test helper endpoint like `/testing/test-make-admin` returns 404 even locally.
 
-**Cause:** The testing router is gated behind `ENVIRONMENT=development` (see the repo-root `SECURITY.md`) — it's unreachable unless that env var is set exactly to `development`.
+**Cause:** The testing router is gated behind `ENVIRONMENT=development` or `staging` (see [SECURITY.md](../SECURITY.md#resolved-issues-fixed-in-code)) — it's unreachable unless that env var is set to one of those values exactly.
 
-**Fix:** Set `ENVIRONMENT=development` in `server/.env` for local dev only. **Never** set this in a production deployment.
+**Fix:** Set `ENVIRONMENT=development` for local development or `ENVIRONMENT=staging` for a QA deployment. **Never** set either in a production deployment.
 
 ---
 
@@ -72,9 +72,9 @@ If this fails, check MariaDB is running (`sudo systemctl status mariadb`) and th
 
 ---
 
-## GSM module and server can't authenticate each other
+## Server rejects GSM inbound callbacks
 
-**Symptom:** SMS send/receive fails; server logs show a rejected `X-GSM-Secret` header, or the GSM module logs show the reverse.
+**Symptom:** Inbound SMS forwarding fails and the server logs show a rejected `X-GSM-Secret` header.
 
 **Cause:** `GSM_SECRET` differs between the two components' env files.
 

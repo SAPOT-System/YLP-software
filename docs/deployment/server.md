@@ -140,7 +140,7 @@ If you are pointing the server at a database created *before* Alembic was adopte
 |---|---|
 | `/ws/` | WebSocket proxy; no read timeout (86400 s) |
 | `/static/` | Filesystem; 30-day cache |
-| `/` | Standard proxy; 135 s read timeout |
+| `/` | Standard proxy; 155 s read timeout |
 
 Port 80 redirects to HTTPS (301). TLS 1.2/1.3, cipher `HIGH:!aNULL:!MD5`.
 

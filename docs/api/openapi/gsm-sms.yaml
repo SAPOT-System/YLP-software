@@ -31,6 +31,21 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '502':
+          description: The modem rejected the SMS or delivery confirmation timed out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
+        '503':
+          description: The GSM gateway is unavailable, stopping, or at queue capacity.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/GsmFailureResponse'
+                - $ref: '#/components/schemas/GsmHealthUnavailableResponse'
+                title: Response 503 Contact Unknown User Gsm Contact Unknown User Post
         '422':
           description: Validation Error
           content:
@@ -51,6 +66,15 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '503':
+          description: The GSM gateway is unavailable or reports degraded health.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/GsmHealthResponse'
+                - $ref: '#/components/schemas/GsmHealthUnavailableResponse'
+                title: Response 503 Gsm Health Gsm Health Get
       security:
       - OAuth2PasswordBearer: []
   /gsm/health/detailed:
@@ -68,6 +92,15 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '503':
+          description: The GSM gateway is unavailable or reports degraded health.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/GsmHealthResponse'
+                - $ref: '#/components/schemas/GsmHealthUnavailableResponse'
+                title: Response 503 Gsm Health Detailed Gsm Health Detailed Get
       security:
       - OAuth2PasswordBearer: []
   /gsm/inbound:
@@ -333,6 +366,12 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '403':
+          description: The sending account does not have a verified phone number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
         '422':
           description: Validation Error
           content:
@@ -405,6 +444,21 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '502':
+          description: The modem rejected the SMS or delivery confirmation timed out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
+        '503':
+          description: The GSM gateway is unavailable, stopping, or at queue capacity.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/GsmFailureResponse'
+                - $ref: '#/components/schemas/GsmHealthUnavailableResponse'
+                title: Response 503 Request Phone Verification Gsm Request Post
         '422':
           description: Validation Error
           content:
@@ -428,6 +482,21 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '502':
+          description: The modem rejected the SMS or delivery confirmation timed out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
+        '503':
+          description: The GSM gateway is unavailable, stopping, or at queue capacity.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/GsmFailureResponse'
+                - $ref: '#/components/schemas/GsmHealthUnavailableResponse'
+                title: Response 503 Resend Phone Code Gsm Resend Post
       security:
       - OAuth2PasswordBearer: []
   /gsm/sms/messages:
@@ -514,6 +583,27 @@ paths:
               schema: {}
         '404':
           description: Not Found
+        '502':
+          description: The modem rejected the SMS or delivery confirmation timed out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
+        '503':
+          description: The GSM gateway is unavailable, stopping, or at queue capacity.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/GsmFailureResponse'
+                - $ref: '#/components/schemas/GsmHealthUnavailableResponse'
+                title: Response 503 Send Sms Gsm Sms Send Post
+        '403':
+          description: The sending account does not have a verified phone number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GsmFailureResponse'
         '422':
           description: Validation Error
           content:
@@ -579,6 +669,62 @@ paths:
       - OAuth2PasswordBearer: []
 components:
   schemas:
+    GsmFailureDetail:
+      properties:
+        message:
+          type: string
+          title: Message
+        reason:
+          type: string
+          title: Reason
+        msg_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Msg Id
+      type: object
+      required:
+      - message
+      - reason
+      title: GsmFailureDetail
+    GsmFailureResponse:
+      properties:
+        detail:
+          $ref: '#/components/schemas/GsmFailureDetail'
+      type: object
+      required:
+      - detail
+      title: GsmFailureResponse
+    GsmHealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        gsm_ready:
+          type: boolean
+          title: Gsm Ready
+        connected:
+          type: boolean
+          title: Connected
+        detail:
+          type: string
+          title: Detail
+      type: object
+      required:
+      - status
+      - gsm_ready
+      - connected
+      - detail
+      title: GsmHealthResponse
+    GsmHealthUnavailableResponse:
+      properties:
+        detail:
+          type: string
+          title: Detail
+      type: object
+      required:
+      - detail
+      title: GsmHealthUnavailableResponse
     HTTPValidationError:
       properties:
         detail:

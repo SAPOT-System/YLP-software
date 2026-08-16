@@ -1,6 +1,6 @@
 """HTTP-level coverage for app/api/testing.py's QA scenario/reset/login-as surface
-(GH #272, #273). Assumes the shared `client`/`session` fixtures run with
-`ENVIRONMENT=development` (see conftest.py, server/.env.example) — the same
+(GH #272, #273, #276). Assumes the shared `client`/`session` fixtures run with
+`ENVIRONMENT=development` (see conftest.py, server/.env.example), the same
 precondition every other `/testing/*` test in this suite already relies on.
 """
 from app.api import testing as testing_module
@@ -17,12 +17,17 @@ def test_list_scenarios_returns_full_catalog(client):
 
 
 def test_seed_unknown_scenario_returns_404(client):
-    response = client.post("/testing/seed/does-not-exist")
+    response = client.post("/testing/seed/does-not-exist", headers=QA_HEADERS)
+    assert response.status_code == 404
+
+
+def test_seed_requires_qa_token(client):
+    response = client.post("/testing/seed/roles")
     assert response.status_code == 404
 
 
 def test_seed_roles_scenario_creates_fixtures(client):
-    response = client.post("/testing/seed/roles")
+    response = client.post("/testing/seed/roles", headers=QA_HEADERS)
     assert response.status_code == 200
     body = response.json()
     assert body["scenario"] == "roles"
@@ -30,7 +35,7 @@ def test_seed_roles_scenario_creates_fixtures(client):
 
 
 def test_seed_gps_roles_scenario_creates_multi_role_fixtures(client):
-    response = client.post("/testing/seed/gps-roles")
+    response = client.post("/testing/seed/gps-roles", headers=QA_HEADERS)
     assert response.status_code == 200
     body = response.json()
     assert body["scenario"] == "gps-roles"
@@ -38,8 +43,18 @@ def test_seed_gps_roles_scenario_creates_multi_role_fixtures(client):
     assert body["result"]["rescuers"] == ["qa_map_rescuer", "qa_map_rescuer_2"]
 
 
+def test_seed_verified_phone_scenario_creates_login_fixture(client):
+    response = client.post("/testing/seed/verified-phone", headers=QA_HEADERS)
+    assert response.status_code == 200
+    assert response.json()["result"] == {"user": "qa_phone_verified", "phone_verified": True}
+
+    login = client.post("/testing/login-as/qa_phone_verified", headers=QA_HEADERS)
+    assert login.status_code == 200
+    assert login.json()["username"] == "qa_phone_verified"
+
+
 def test_login_as_qa_map_rescuer_mints_usable_tokens(client):
-    client.post("/testing/seed/gps-roles")
+    client.post("/testing/seed/gps-roles", headers=QA_HEADERS)
 
     response = client.post("/testing/login-as/qa_map_rescuer", headers=QA_HEADERS)
     assert response.status_code == 200
@@ -73,7 +88,7 @@ def test_login_as_unseeded_fixture_returns_404(client):
 
 
 def test_login_as_mints_usable_tokens(client):
-    client.post("/testing/seed/roles")
+    client.post("/testing/seed/roles", headers=QA_HEADERS)
 
     response = client.post("/testing/login-as/qa_admin", headers=QA_HEADERS)
     assert response.status_code == 200

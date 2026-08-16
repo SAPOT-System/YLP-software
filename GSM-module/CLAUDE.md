@@ -4,21 +4,21 @@ Instructions for Claude Code working in `GSM-module/` — SAPOT's SMS gateway, b
 
 ## Project Overview
 
-Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem over serial; a Python (FastAPI) service on the same machine talking to the Arduino over USB serial; the main `server/` proxying to that Python service over HTTP with a shared secret. There are **two parallel Python implementations** in this directory — they are not both live (see Architecture).
+Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem over serial; a Python (FastAPI) service on the same machine talking to the Arduino over USB serial; the main `server/` proxying outbound calls and receiving inbound callbacks over HTTP authenticated with a shared secret. There are **two parallel Python implementations** in this directory; they are not both live (see Architecture).
 
 ## Architecture — which implementation is live
 
-**`GSM-fastapi/` is the deployed, current implementation.** Evidence: `docs/deployment/gsm-module.md`, `docs/getting-started/gsm-module-setup.md`, and `docs/features/sms-gateway/README.md` all reference only `GSM-fastapi/`; `server/app/api/gsm.py` proxies to `http://localhost:8001`, and `GSM-fastapi/main.py` hardcodes `uvicorn.run("api:app", port=8001, ...)` — an exact match.
+**`GSM-fastapi/` is the deployed, current implementation.** Evidence: `docs/deployment/gsm-module.md`, `docs/getting-started/gsm-module-setup.md`, and `docs/features/sms-gateway/README.md` all reference only `GSM-fastapi/`; `server/app/api/gsm.py` proxies to `http://localhost:8001`, and `GSM-fastapi/main.py` hardcodes `uvicorn.run("api:app", port=8001, ...)`, an exact match.
 
-**`GSM-API/` is a separate, incomplete rewrite — not deployed, not referenced by any doc or by `server/`.** It has in-memory-only session state (no DB persistence), fire-and-forget SMS sends (no delivery confirmation), and an unsynchronized global (`app/gsm/gsm_runtime.py`'s module-level `ser`) shared across threads with no lock. Default to editing `GSM-fastapi/` for SMS-gateway work; only touch `GSM-API/` if a task explicitly asks for it.
+**`GSM-API/` is a separate, incomplete rewrite that is not deployed or referenced by `server/`.** It has in-memory-only session state (no DB persistence), fire-and-forget SMS sends (no delivery confirmation), and an unsynchronized global (`app/gsm/gsm_runtime.py`'s module-level `ser`) shared across threads with no lock. Default to editing `GSM-fastapi/` for SMS-gateway work; only touch `GSM-API/` if a task explicitly asks for it.
 
-**Known doc/code mismatch:** `docs/features/sms-gateway/design.md` describes a different wire protocol (`SEND:`/`RECV:`/`ACK:`/`ERR:` frames, endpoints `/gsm/send`/`/gsm/status`, tables `sms_outbox`/`sms_inbound`) that matches neither actual Python service nor the Arduino firmware. Trust the code (`GSM-fastapi/protocol.py` + the `.ino` firmware) over that doc — treat `design.md` as aspirational/stale.
+**Documentation source of truth:** `docs/features/sms-gateway/design.md` describes the deployed HTTP routes, queue, lifecycle, and serial flow. Use `GSM-fastapi/protocol.py` and the Arduino firmware as the authoritative definitions for individual serial frames.
 
 ### Data flow (GSM-fastapi, the live path)
 
 **Inbound:** Arduino emits `SMS_RECEIVED|<num>|<body>` over serial → `serial_worker.py`'s `SerialWorker._reader_loop` parses it via `protocol.py` → queued → `api.py`'s async `_inbox_drain()` task offloads to a thread pool → `sms_handler.handle_incoming_sms()` (session/target flow, ban/verified checks against MariaDB) → `database.py`'s `notify_app()` POSTs to the main server's `/gsm/inbound` with an `X-GSM-Secret` header.
 
-**Outbound:** caller (main server or admin frontend's `gsm` page) calls `POST /sms/send` on port 8001 → `SerialWorker.send_sms()` enqueues `SEND_SMS|<num>|<body>` and blocks on an `Event` (timeout 60s) → `_sender_loop` writes to serial → Arduino replies `SMS_SENT|`/`SMS_FAILED|` → the reader thread resolves the waiting request.
+**Outbound:** the main server calls `POST /sms/send` on port 8001 with `X-GSM-Secret`. The gateway validates the secret before `SerialWorker.send_sms()` atomically admits the request to a bounded FIFO queue or rejects saturation with HTTP 503. The sender writes `SEND_SMS|<num>|<body>`, and the reader resolves the request from `SMS_SENT|` or `SMS_FAILED|`. The admin GSM page reads health and message history through the main server. Shutdown rejects queued and active work with `SERVICE_STOPPING`.
 
 `SerialWorker` runs two dedicated threads (`_reader_loop`, `_sender_loop`) with proper request/response correlation over the async serial stream, and auto-reconnects every 10s on disconnect.
 
@@ -33,7 +33,7 @@ Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem ove
 
 - **Wire protocol** — pipe-delimited lines: `SEND_SMS|<num>|<body>` (PC → Arduino), `SMS_RECEIVED|<num>|<body>`, `SMS_SENT|<num>`, `SMS_FAILED|<num>|<reason>`, `GSM_READY`, `NETWORK_OK`/`NETWORK_LOST`, `SIM_MISSING` (Arduino → PC). Implemented identically in `GSM-fastapi/protocol.py`. Any change to this format must be mirrored in the `.ino` firmware's parser/emitter — they are independent implementations of the same contract, not shared code.
 - **Session/target flow** — inbound SMS starts a session (`NEW`), the sender texts `[target] +63...` to select a recipient (`AWAITING_TARGET` → `ACTIVE`), then messages relay through. `GSM-fastapi` persists this to MariaDB (`SmsSession` table) and checks `banned`/`phone_is_verified` on both sender and target; `GSM-API`'s equivalent is in-memory only and skips those checks.
-- **Shared-secret webhook auth** (`X-GSM-Secret` header) — how this service calls back into the main server (`/gsm/inbound`); distinct from the JWT auth used elsewhere in SAPOT (see `../server/CLAUDE.md`).
+- **Shared-secret service auth** (`X-GSM-Secret` header) — authenticates main-server calls to `/sms/send` and GSM callbacks to `/gsm/inbound`; distinct from the JWT auth used elsewhere in SAPOT (see `../server/CLAUDE.md`).
 
 ## Development Conventions
 
@@ -55,7 +55,6 @@ Three layers: Arduino firmware talking AT commands to a SIM800L/SIM900 modem ove
 - `GSM-fastapi/sapot.db` is a stale, unused artifact (confirmed in `../docs/database/migrations.md`) — real storage is MariaDB via `config.py`'s `DB_PATH`. Never read from or write to `sapot.db`.
 - `GSM-API/app/gsm/gsm_runtime.py`'s module-level `ser` is a global shared across threads with no lock — if `GSM-API` is ever revived, this is a live race condition, not a style nit.
 - `GSM-trial-code.ino` is not wire-compatible with either Python service — never point a deployment at it, even for "quick testing."
-- Treating `docs/features/sms-gateway/design.md` as accurate — its protocol/endpoint descriptions don't match the real code (see Architecture).
 - `server/app/api/gsm.py`'s own code comments refer to "GSM-API" as a generic name for **the GSM service it proxies to** (i.e. the live `GSM-fastapi/`, port 8001) — not the literal `GSM-module/GSM-API/` directory documented above as non-deployed. Don't let those comments override the Architecture section above.
 
 ## When Modifying This Project

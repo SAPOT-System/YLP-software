@@ -20,6 +20,9 @@ jest.mock("../shared/peer/guest-user-repository", () => ({
 jest.mock("../shared/connection/services/user-service", () => ({
   UserService: jest.fn().mockImplementation(() => ({ initialize: jest.fn() })),
 }));
+jest.mock("./services/phone-verification-service", () => ({
+  PhoneVerificationService: jest.fn().mockImplementation(() => ({})),
+}));
 
 describe("AuthContainer", () => {
   it("constructs dependencies", () => {
@@ -34,6 +37,8 @@ describe("AuthContainer", () => {
     expect(shared.UserStore).toHaveBeenCalledTimes(1);
     expect(shared.GuestUserRepository).toHaveBeenCalledWith(shared.database);
     expect(shared.UserService).toHaveBeenCalledTimes(1);
+    const { PhoneVerificationService } = require("./services/phone-verification-service");
+    expect(PhoneVerificationService).toHaveBeenCalledTimes(1);
     expect(container).toBeInstanceOf(AuthContainer);
   });
 

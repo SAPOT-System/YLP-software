@@ -1,6 +1,7 @@
 from app.models.announcement import Announcement, PriorityType, AnnouncementStatusType, AudienceType
 from app.models.users import User
 from datetime import datetime, timedelta, timezone
+import logging
 import os
 from uuid import UUID, uuid4
 from math import ceil
@@ -46,6 +47,8 @@ from app.db_operations.token import (
     refresh_token,
 )
 from app.models.rescuer import Rescuer
+from app.structured_logging import log_context
+from app.limiter import limiter
 from app.models.token import Token
 from app.models.users import (
     User,
@@ -59,6 +62,7 @@ from app.models.users import (
 router = APIRouter(
     prefix="/api/admin", tags=["admin"], responses={404: {"description": "Not Found"}}
 )
+logger = logging.getLogger("app")
 
 
 class AdminLoginResponse(BaseModel):
@@ -125,6 +129,7 @@ async def login_for_access_token(
 
 
 @router.post("/refresh")
+@limiter.limit("10/minute")
 async def refresh_access_token(
     request: Request, response: Response, session: SessionDep
 ):
@@ -156,8 +161,12 @@ async def refresh_access_token(
         #     max_age=604800,  # 7 days
         # )
         return {"status": "refreshed", "refresh_token": new_access_token.refresh_token, "access_token": new_access_token.access_token}
-    except:
-        raise HTTPException(status_code=401)
+    except Exception as exc:
+        logger.info(
+            "Admin refresh token validation failed",
+            extra=log_context(None, "admin_refresh_failed"),
+        )
+        raise HTTPException(status_code=401) from exc
 
 
 @router.post("/logout")
@@ -244,6 +253,11 @@ def perform_ping_probe():
         # Success if return code is 0
         ping_history.append(result.returncode == 0)
     except Exception:
+        logger.warning(
+            "Network ping probe failed",
+            exc_info=True,
+            extra=log_context(None, "network_ping_probe_failed"),
+        )
         ping_history.append(False)
 
 
@@ -343,7 +357,7 @@ def get_network_details():
                     struct.pack("256s", iface[:15].encode("utf-8")),
                 )[20:24]
             )
-        except Exception:
+        except OSError:
             # Likely no IPv4 assigned to this interface
             ip_addr = "N/A"
 
@@ -461,24 +475,26 @@ def get_admin_users(
     }
 
 
-def makeAdmin(user: User, session: SessionDep):
+def makeAdmin(user: User, session: SessionDep, commit: bool = True):
     if not user.id:
         raise HTTPException(500)
     admin = Admin(user_id=user.id)
     session.add(admin)
-    session.commit()
-    session.refresh(admin)
+    if commit:
+        session.commit()
+        session.refresh(admin)
 
 
-def makeRescuer(user: User, session: SessionDep):
+def makeRescuer(user: User, session: SessionDep, commit: bool = True):
     if not user.id:
         raise HTTPException(500)
     rescuer = Rescuer(
         user_id=user.id,
     )
     session.add(rescuer)
-    session.commit()
-    session.refresh(rescuer)
+    if commit:
+        session.commit()
+        session.refresh(rescuer)
 
 
 @router.post("/create/user/rescuer")
@@ -499,8 +515,14 @@ def create_rescuer(
         session.commit()
         return {"status": "ok"}
     except IntegrityError as _:
+        session.rollback()
         raise HTTPException(403, "user is already a rescuer")
-    except Exception as _:
+    except Exception:
+        session.rollback()
+        logger.exception(
+            "Failed to grant rescuer role",
+            extra=log_context(current_user.id, "admin_rescuer_grant_failed", user_id),
+        )
         raise HTTPException(500)
 
 
@@ -517,13 +539,18 @@ def create_admin(
         session.commit()
         return {"status": "ok"}
     except IntegrityError as _:
-        raise HTTPException(403, "user is already an admin")
-    except Exception as _:
         session.rollback()
+        raise HTTPException(403, "user is already an admin")
+    except Exception:
+        session.rollback()
+        logger.exception(
+            "Failed to grant admin role",
+            extra=log_context(current_user.id, "admin_role_grant_failed", user_id),
+        )
         raise HTTPException(500)
 
 
-def removeAdmin(user: User, session: SessionDep):
+def removeAdmin(user: User, session: SessionDep, commit: bool = True):
     if not user.id:
         raise HTTPException(500)
     if not user.id:
@@ -534,14 +561,15 @@ def removeAdmin(user: User, session: SessionDep):
     # 2. If it exists, delete it
     if admin:
         session.delete(admin)
-        session.commit()
+        if commit:
+            session.commit()
         return {"message": "Admin deleted successfully"}
 
     # 3. Handle the case where it doesn't exist
     raise HTTPException(404, "Admin not found")
 
 
-def removeRescuer(user: User, session: SessionDep):
+def removeRescuer(user: User, session: SessionDep, commit: bool = True):
     if not user.id:
         raise HTTPException(500)
     statement = select(Rescuer).where(Rescuer.user_id == user.id)
@@ -550,7 +578,8 @@ def removeRescuer(user: User, session: SessionDep):
     # 2. If it exists, delete it
     if rescuer:
         session.delete(rescuer)
-        session.commit()
+        if commit:
+            session.commit()
         return {"message": "Rescuer deleted successfully"}
 
     # 3. Handle the case where it doesn't exist
@@ -567,8 +596,15 @@ def remove_admin(
     try:
         removeAdmin(user, session)
         return {"status": "ok"}
-    except Exception as _:
+    except HTTPException:
         session.rollback()
+        raise
+    except Exception:
+        session.rollback()
+        logger.exception(
+            "Failed to remove admin role",
+            extra=log_context(current_user.id, "admin_role_removal_failed", user_id),
+        )
         raise HTTPException(500)
 
 
@@ -582,8 +618,15 @@ def remove_rescuer(
     try:
         removeRescuer(user, session)
         return {"status": "ok"}
-    except Exception as _:
+    except HTTPException:
         session.rollback()
+        raise
+    except Exception:
+        session.rollback()
+        logger.exception(
+            "Failed to remove rescuer role",
+            extra=log_context(current_user.id, "admin_rescuer_removal_failed", user_id),
+        )
         raise HTTPException(500)
 
 
@@ -594,23 +637,30 @@ def create_user(
     session: SessionDep,
 ):
     try:
-        user = db_create_user(userData, session)
+        user = db_create_user(userData, session, commit=False)
 
         if not user.id:
             raise HTTPException(500)
 
         if userData.is_rescuer:
-            makeRescuer(user, session)
+            makeRescuer(user, session, commit=False)
 
         if userData.is_admin:
-            makeAdmin(user, session)
+            makeAdmin(user, session, commit=False)
+
+        session.commit()
+        session.refresh(user)
 
         return user
     except HTTPException as e:
         session.rollback()
         raise e
-    except Exception as e:
+    except Exception:
         session.rollback()
+        logger.exception(
+            "Failed to create user through admin console",
+            extra=log_context(current_user.id, "admin_user_creation_failed"),
+        )
         raise HTTPException(500)
 
 
@@ -625,41 +675,38 @@ def edit_user(
 
         if not user or not user.id:
             raise HTTPException(404, "user not found")
-        print("here")
         update_user_info(
-            user, UserUpdate(**userData.model_dump(exclude_unset=True)), session
+            user, UserUpdate(**userData.model_dump(exclude_unset=True)), session, commit=False
         )
-        print("here after")
 
         updated_user = get_user_by_ID(session, userData.id)
         if not updated_user:
-            print("raise 500")
             raise HTTPException(500)
 
-        print("here after 500")
-        try:
-            if userData.is_rescuer:
-                makeRescuer(updated_user, session)
-            else:
-                removeRescuer(updated_user, session)
-        except:
-            pass
+        if userData.is_rescuer is not None:
+            if userData.is_rescuer and not updated_user.rescuer:
+                makeRescuer(updated_user, session, commit=False)
+            elif not userData.is_rescuer and updated_user.rescuer:
+                removeRescuer(updated_user, session, commit=False)
 
-        try:
-            if userData.is_admin:
-                makeAdmin(updated_user, session)
-            else:
-                removeAdmin(updated_user, session)
-        except:
-            pass
+        if userData.is_admin is not None:
+            if userData.is_admin and not updated_user.admin:
+                makeAdmin(updated_user, session, commit=False)
+            elif not userData.is_admin and updated_user.admin:
+                removeAdmin(updated_user, session, commit=False)
+
+        session.commit()
 
         return {"status": "ok"}
     except HTTPException as e:
         session.rollback()
         raise e
-    except Exception as e:
+    except Exception:
         session.rollback()
-        print("E", e)
+        logger.exception(
+            "Failed to update user",
+            extra=log_context(current_user.id, "admin_user_update_failed", userData.id),
+        )
         raise HTTPException(500)
 
 
@@ -677,7 +724,12 @@ def delete_user(
         session.commit()
     except HTTPException as e:
         raise e
-    except Exception as e:
+    except Exception:
+        session.rollback()
+        logger.exception(
+            "Failed to delete user",
+            extra=log_context(_.id, "admin_user_deletion_failed", user_id),
+        )
         raise HTTPException(500)
     return {"status": "ok"}
 
@@ -715,8 +767,12 @@ def ban_user(
             session.refresh(ban)
     except HTTPException as e:
         raise e
-    except Exception as e:
-        print(e)
+    except Exception:
+        session.rollback()
+        logger.exception(
+            "Failed to ban user",
+            extra=log_context(_.id, "admin_user_ban_failed", user_id),
+        )
         raise HTTPException(500)
     return {"status": "ok"}
 
@@ -734,14 +790,21 @@ def unban_user(
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         nowreal = datetime.now(timezone.utc)
         statement = (
-            update(BannedUser).where(BannedUser.until > now).values(until=nowreal)
+            update(BannedUser)
+            .where(BannedUser.user_id == user_id, BannedUser.until > now)
+            .values(until=nowreal)
         )
 
         session.exec(statement)
         session.commit()
     except HTTPException as e:
         raise e
-    except Exception as e:
+    except Exception:
+        session.rollback()
+        logger.exception(
+            "Failed to unban user",
+            extra=log_context(_.id, "admin_user_unban_failed", user_id),
+        )
         raise HTTPException(500)
     return {"status": "ok"}
 

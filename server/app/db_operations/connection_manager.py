@@ -5,10 +5,11 @@ import time
 from uuid import UUID, uuid4
 from fastapi import WebSocket
 from typing import Dict, Optional
+from app.structured_logging import log_context
 
 import redis.asyncio as aioredis
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app")
 
 _PRESENCE_KEY = "ws:online_users"       # Sorted set; score = expiry epoch (float)
 _BROADCAST_CHANNEL = "ws:broadcast"
@@ -74,7 +75,9 @@ class ConnectionManager:
             self._heartbeat_loop(user_id), name=f"ws-hb-{user_id}"
         )
 
-    async def disconnect(self, user_id: UUID) -> None:
+    async def disconnect(self, user_id: UUID, websocket: WebSocket | None = None) -> None:
+        if websocket is not None and self._local.get(user_id) is not websocket:
+            return
         self._local.pop(user_id, None)
         for tasks in (self._sub_tasks, self._hb_tasks):
             task = tasks.pop(user_id, None)
@@ -93,7 +96,11 @@ class ConnectionManager:
                 await ws.send_json(message)
                 return
             except Exception:
-                await self.disconnect(target_id)
+                logger.info(
+                    "WebSocket delivery failed for disconnected user",
+                    extra=log_context(target_id, "websocket_user_disconnected"),
+                )
+                await self.disconnect(target_id, websocket=ws)
         # Cross-worker: publish so the holding worker delivers it
         if self._redis:
             await self._redis.publish(
@@ -150,8 +157,11 @@ class ConnectionManager:
                 try:
                     data = json.loads(raw["data"])
                     await websocket.send_json(data)
-                except Exception as exc:
-                    logger.debug("[ws-sub] delivery failed user=%s: %s", user_id, exc)
+                except Exception:
+                    logger.info(
+                        "WebSocket subscription delivery failed for disconnected user",
+                        extra=log_context(user_id, "websocket_subscription_disconnected"),
+                    )
                     break
         except asyncio.CancelledError:
             pass
@@ -170,15 +180,24 @@ class ConnectionManager:
                         continue
                     message = envelope["msg"]
                 except Exception:
+                    logger.warning(
+                        "Discarded malformed WebSocket broadcast",
+                        exc_info=True,
+                        extra=log_context(None, "websocket_broadcast_malformed"),
+                    )
                     continue
-                stale: list[UUID] = []
+                stale: list[tuple[UUID, WebSocket]] = []
                 for uid, ws in list(self._local.items()):
                     try:
                         await ws.send_json(message)
                     except Exception:
-                        stale.append(uid)
-                for uid in stale:
-                    await self.disconnect(uid)
+                        logger.info(
+                            "WebSocket broadcast delivery failed for disconnected user",
+                            extra=log_context(uid, "websocket_broadcast_disconnected"),
+                        )
+                        stale.append((uid, ws))
+                for uid, websocket in stale:
+                    await self.disconnect(uid, websocket=websocket)
         except asyncio.CancelledError:
             pass
         finally:

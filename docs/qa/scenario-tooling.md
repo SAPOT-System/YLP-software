@@ -6,13 +6,13 @@ Dev/staging-only tooling that lets a QA tester reset the database to a known sta
 
 Router: [`server/app/api/testing.py`](../../server/app/api/testing.py). Scenario builders: [`server/app/db_operations/qa_scenarios.py`](../../server/app/db_operations/qa_scenarios.py) (shared by this router and the `seed_db.py` CLI seeder).
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/testing/scenarios` | GET | List available scenario names + descriptions |
-| `/testing/seed/{scenario}` | POST | Build one scenario's fixture data (additive, doesn't clear existing data) |
-| `/testing/reset` | POST | Wipe the database back to empty |
-| `/testing/login-as/{handle}` | POST | Mint a JWT pair for a seeded fixture handle, no password required |
-| `/testing/test-make-admin`, `/testing/test-make-rescuer` | POST | Promote an existing (real, authenticated) user — pre-existing endpoints, require normal auth |
+| Endpoint | Method | Authentication | Purpose |
+|---|---|---|---|
+| `/testing/scenarios` | GET | QA environment | List available scenario names and descriptions |
+| `/testing/seed/{scenario}` | POST | `X-QA-Token` | Build one scenario's fixture data without clearing existing data |
+| `/testing/reset` | POST | `X-QA-Token` | Wipe the database and reseed the baseline scenario |
+| `/testing/login-as/{handle}` | POST | `X-QA-Token` | Mint a JWT pair for a seeded fixture handle without a password |
+| `/testing/test-make-admin`, `/testing/test-make-rescuer` | POST | Normal auth + `X-QA-Token` | Promote an existing user |
 
 ### Available scenarios
 
@@ -24,6 +24,7 @@ Router: [`server/app/api/testing.py`](../../server/app/api/testing.py). Scenario
 | `large` | `qa_large` + many peers/messages/GPS points, for list perf and sync-cursor testing |
 | `banned` | `qa_banned` with an active `BannedUser` row |
 | `locked-out` | `qa_locked` with a `LoginAttempt` row at the lockout threshold |
+| `verified-phone` | `qa_phone_verified` with a `PhoneVerified` row, for phone-verification-gated flows |
 | `announcements` | Active + expired announcements across all priorities and audiences |
 | `gps-track` | `qa_gps` with a 60-point location history along a route |
 | `calls` | `qa_calls_a` / `qa_calls_b` with completed/missed/rejected call rows |
@@ -32,10 +33,12 @@ Router: [`server/app/api/testing.py`](../../server/app/api/testing.py). Scenario
 
 This surface can reset a database and mint auth tokens without a password, so it's gated defense-in-depth style — see the file header in `testing.py` and `SECURITY.md`:
 
-1. **Import gating** — `app/main.py` only imports this router when `ENVIRONMENT=development`; in a production build the code never loads.
-2. **`require_qa_env()`** — every route re-checks `IS_QA_ENABLED` at request time and 404s otherwise, in case the router is ever mounted somewhere unexpected.
-3. **`require_qa_token()`** — `/testing/reset` and `/testing/login-as/{handle}` additionally require an `X-QA-Token` header matching the `QA_API_TOKEN` env var (constant-time compare). `QA_API_TOKEN` has no default and fails fast at import time if unset in a dev environment — mirrors the `JWT_SECRET_KEY` pattern (`SECURITY.md`).
-4. **Fixed fixture allowlist** — `/testing/login-as/{handle}` only ever mints a token for a handle in the `FIXTURE_HANDLES` set baked into `testing.py`; it can never be used to log in as an arbitrary or real user's account.
+1. **Import gating:** `app/main.py` only imports and mounts this router when `ENVIRONMENT=development` or `staging`.
+2. **`require_qa_env()`:** a router-wide dependency re-checks `IS_QA_ENABLED` at request time and returns 404 if a future change accidentally mounts the router in production.
+3. **`require_qa_token()`:** every state-changing route requires an `X-QA-Token` header that matches `QA_API_TOKEN` using a constant-time comparison. The secret has no default and fails fast at import time when a QA environment enables the router.
+4. **Production regression:** `test_security_regression.py` starts a production-configured subprocess and asserts that every testing path returns 404 both through the assembled app and through a deliberately mis-mounted router.
+
+`/testing/login-as/{handle}` also uses a fixed fixture allowlist. It cannot mint a token for an arbitrary account, even when the caller has the QA token.
 
 Set `QA_API_TOKEN` in `server/.env` (see `server/.env.example`); documented alongside other env vars in [`deployment/environment-config.md`](../deployment/environment-config.md).
 
@@ -49,8 +52,8 @@ Set `QA_API_TOKEN` in `server/.env` (see `server/.env.example`); documented alon
 
 ## Typical QA workflow
 
-1. Run the stack against `ENVIRONMENT=development` with `QA_API_TOKEN` set (see [Set up an environment to test against](README.md#set-up-an-environment-to-test-against)).
-2. `POST /testing/reset` to clear the database, then `POST /testing/seed/roles` (or whichever scenario the test plan calls for).
+1. Run the stack against `ENVIRONMENT=development` or `staging` with `QA_API_TOKEN` set (see [Set up an environment to test against](README.md#set-up-an-environment-to-test-against)).
+2. Send `X-QA-Token` with `POST /testing/reset`, then with `POST /testing/seed/roles` or the scenario the test plan calls for.
 3. In the mobile app, open the debug FAB → Auth section → tap the fixture account you need (e.g. `qa_rescuer`, `qa_admin`).
 4. The app wipes local data, logs in as that fixture identity, and restarts — ready to test the role-gated flow without manual registration.
 

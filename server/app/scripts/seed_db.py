@@ -13,23 +13,27 @@ Bare-metal (docs/getting-started/server-setup.md), from `server/` using the proj
     cd server
     ENVIRONMENT=development ./app/venv/bin/python -m app.scripts.seed_db
 
+    # A QA deployment can use staging instead.
+    ENVIRONMENT=staging ./app/venv/bin/python -m app.scripts.seed_db
+
 Idempotent: re-running skips records that already exist (matched by username / conversation
 title), so it's safe to run after every `docker compose up` without duplicating data.
 
 Thin CLI over `app/db_operations/qa_scenarios.py`, which also backs the `/testing/*` HTTP
 scenario surface — see that module for the actual seeding logic.
 """
-import os
 import sys
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-if os.environ.get("ENVIRONMENT") != "development":
+from app.env import IS_QA_ENABLED
+
+if not IS_QA_ENABLED:
     sys.exit(
-        "Refusing to seed: ENVIRONMENT must be 'development' "
-        f"(got {os.environ.get('ENVIRONMENT')!r}). This script writes sample data "
+        "Refusing to seed: ENVIRONMENT must be 'development' or 'staging'. "
+        "This script writes sample data "
         "and must never run against a production database."
     )
 

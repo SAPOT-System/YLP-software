@@ -564,7 +564,8 @@ Failure is non-fatal — the client logs and retries on next login.
 ---
 
 ### `POST /user-utils/search-user` — Search Users
-**Auth:** Required  
+**Auth:** Required; the authenticated account must have a verified phone number
+
 **Query params:** `identifier_string=<string>&limit=<number=20>&offset=<number=0>`
 
 **Response `200`:**
@@ -848,6 +849,8 @@ directly.
 { "status": "string", "gsm_ready": "boolean", "connected": "boolean", "detail": "string" }
 ```
 
+The server preserves the gateway's HTTP 503 status when the modem is not ready. Callers treat that response as unavailable rather than relying only on the JSON status field.
+
 `gsm_ready` (modem registered on the network) and `connected` (API can reach the GSM service) fail
 independently — surface them separately rather than collapsing to one "offline" state.
 
@@ -861,6 +864,29 @@ independently — surface them separately rather than collapsing to one "offline
 ```json
 { "msg_id": "string", "ok": "boolean", "to": "string" }
 ```
+
+**Response `403` when the sender's phone number is not verified:**
+```json
+{
+  "detail": {
+    "reason": "PHONE_VERIFICATION_REQUIRED",
+    "message": "Verify your phone number before sending SMS."
+  }
+}
+```
+
+**Response `503` when the outbound queue is full:**
+```json
+{
+  "detail": {
+    "message": "Outbound SMS queue is full",
+    "reason": "QUEUE_FULL",
+    "msg_id": "string"
+  }
+}
+```
+
+The chat screen marks the local message `not_sent`, shows that the SMS service is busy, and keeps the manual resend action available.
 
 ---
 
@@ -879,6 +905,7 @@ independently — surface them separately rather than collapsing to one "offline
 ```
 
 `is_sapot_user` reports whether the number already belongs to a registered account.
+If the onboarding SMS is rejected, the endpoint preserves the gateway error and the app does not display its success confirmation.
 
 ---
 
@@ -899,6 +926,8 @@ independently — surface them separately rather than collapsing to one "offline
 ```json
 { "message": "string" }
 ```
+
+Phone verification request and resend calls preserve HTTP 503 gateway failures. The verification screen remains retryable and displays a busy or unavailable message.
 
 ---
 

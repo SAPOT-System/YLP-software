@@ -86,7 +86,7 @@ For the security trust boundaries overlaid on this same topology (which zones ar
 | `/static/` | Filesystem | Served directly by Nginx; 30-day cache |
 | `/tiles/` | `http://127.0.0.1:8080` | Tileserver styles; prefix stripped by trailing `/` on `proxy_pass` |
 | `/data/`, `/fonts/`, `/sprites/` | `http://127.0.0.1:8080` | TileServer GL assets referenced by its absolute style URLs |
-| `/` (all other) | `http://127.0.0.1:8000` | Standard proxy; 135 s read timeout |
+| `/` (all other) | `http://127.0.0.1:8000` | Standard proxy; 155 s read timeout |
 
 HTTP (port 80) redirects to HTTPS with 301.
 
