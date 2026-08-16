@@ -155,3 +155,40 @@ def test_get_permitted_contacts_empty_when_none():
     contacts = _db.get_permitted_contacts("+639299999999")
     assert contacts == []
 
+
+from fastapi.testclient import TestClient
+
+
+def test_grant_permission_endpoint_stores_permission(monkeypatch):
+    granted = []
+    monkeypatch.setattr(
+        "database.grant_outbound_permission",
+        lambda sapot, external: granted.append((sapot, external))
+    )
+    from api import app as gsm_app
+    client = TestClient(gsm_app)
+
+    resp = client.post(
+        "/grant-permission",
+        json={"sapot_phone": "+639171111111", "external_phone": "+639288888888"},
+        headers={"X-GSM-Secret": "test-gsm-secret"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert granted == [("+639171111111", "+639288888888")]
+
+
+def test_grant_permission_endpoint_rejects_wrong_secret(monkeypatch):
+    from api import app as gsm_app
+    client = TestClient(gsm_app)
+
+    resp = client.post(
+        "/grant-permission",
+        json={"sapot_phone": "+639171111111", "external_phone": "+639288888888"},
+        headers={"X-GSM-Secret": "wrong-secret"},
+    )
+
+    assert resp.status_code == 401
+
+

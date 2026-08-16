@@ -249,6 +249,18 @@ class SendSMSRequest(BaseModel):
         return v.strip()
 
 
+class GrantPermissionRequest(BaseModel):
+    sapot_phone: str
+    external_phone: str
+
+    @field_validator("sapot_phone", "external_phone")
+    @classmethod
+    def validate_phone(cls, v):
+        if not re.match(r"^\+\d{7,15}$", v):
+            raise ValueError("phone must be E.164 format")
+        return v
+
+
 class AddUserRequest(BaseModel):
     phone:      str
     username:   str
@@ -469,6 +481,20 @@ def list_messages(
 ):
     """Return message log, newest first."""
     return database.get_messages(limit=limit, direction=direction, phone=phone)
+
+
+@app.post(
+    "/grant-permission",
+    tags=["permissions"],
+    dependencies=[Depends(require_gsm_secret)],
+)
+def grant_permission(req: GrantPermissionRequest):
+    """Record that a SAPOT user sent an outbound SMS to an external number.
+
+    Called by the main server after a confirmed /sms/send delivery.
+    """
+    database.grant_outbound_permission(req.sapot_phone, req.external_phone)
+    return {"ok": True}
 
 
 # ── User endpoints ────────────────────────────────────────────────────────────
