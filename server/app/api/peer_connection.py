@@ -19,20 +19,25 @@ from app.db_operations.token import verify_token
 from app.models.queued import Queue
 from app.models.signalling import SignalMessage
 from fastapi import Query, WebSocketDisconnect
+from pydantic import ValidationError
 from app.db_operations.websockets import authenticate_websocket, relay_message, relay_public_message, validate_message_sender, validate_sender, relay_signal, receive_signal_message, WebSocketAuthError
 from app.db_operations.connection_manager import manager
 from app.db_operations.activity import set_user_status
 from app.models.websocketComms import MessageData, PublicMessageData
+from app.structured_logging import log_context
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app")
 
 
 def _set_status_bg(user_id: UUID, status: str) -> None:
     try:
         with Session(engine) as session:
             set_user_status(session, user_id, status)
-    except Exception as e:
-        print(f"[activity] status update failed for {user_id}: {e}")
+    except Exception:
+        logger.exception(
+            "Activity status update failed",
+            extra=log_context(user_id, "websocket_activity_status_update_failed", metadata={"status": status}),
+        )
 
 router = APIRouter(
     prefix='/ws',
@@ -129,8 +134,11 @@ def get_queued_messages(user_id: UUID, session: SessionDep, limit: int = 100):
     try:
         statement = select(Queue).where(Queue.to == user_id).limit(limit)
         return session.exec(statement).all()
-    except Exception as e:
-        print("EX", e)
+    except Exception:
+        logger.exception(
+            "Failed to fetch queued messages",
+            extra=log_context(user_id, "websocket_queue_fetch_failed"),
+        )
         return None
 
 
@@ -149,10 +157,10 @@ def deep_parse_dict(data):
         if (data.startswith('{') and data.endswith('}')) or (data.startswith('[') and data.endswith(']')):
             try:
                 data = json.loads(data)
-            except Exception:
+            except json.JSONDecodeError:
                 try:
                     data = ast.literal_eval(data)
-                except Exception:
+                except (ValueError, SyntaxError):
                     return data
         else:
             return data
@@ -179,15 +187,23 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
     try:
         user_id = await authenticate_websocket(websocket, token)
     except WebSocketAuthError:
-        logger.warning("WebSocket auth rejected: invalid or expired token client=%s", websocket.client)
+        logger.warning(
+            "WebSocket auth rejected: invalid or expired token client=%s",
+            websocket.client,
+            extra=log_context(None, "websocket_auth_rejected"),
+        )
         return
 
     await manager.connect(UUID(user_id), websocket)
     asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Active")
     try:
         await manager.broadcast({"type": "status-update", "user_id": user_id, 'status': "online"})
-    except:
-        pass
+    except Exception:
+        logger.warning(
+            "Failed to broadcast WebSocket online status",
+            exc_info=True,
+            extra=log_context(user_id, "websocket_online_status_broadcast_failed"),
+        )
 
     try:
         with Session(engine) as session:
@@ -211,10 +227,16 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
                         if message.payload_type == 'seen':
                             session.delete(message)
                             session.commit()
-                    except Exception as e:
-                        print(f"[drain] failed to deliver queued message {message.id}: {e}")
-    except Exception as e:
-        print(f"[drain] failed to fetch queued messages for {user_id}: {e}")
+                    except Exception:
+                        logger.exception(
+                            "Failed to deliver queued WebSocket message",
+                            extra=log_context(user_id, "websocket_queue_delivery_failed", message.id),
+                        )
+    except Exception:
+        logger.exception(
+            "Failed to drain queued WebSocket messages",
+            extra=log_context(user_id, "websocket_queue_drain_failed"),
+        )
 
     try:
         while True:
@@ -227,15 +249,23 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
             if raw_type == "public-chat":
                 try:
                     payload = PublicMessageData.model_validate(raw_payload)
-                except Exception:
+                except ValidationError:
+                    logger.debug(
+                        "Invalid public WebSocket payload",
+                        extra=log_context(user_id, "websocket_invalid_payload", metadata={"type": raw_type}),
+                    )
                     payload = raw_payload
             else:
                 try:
                     payload = MessageData.model_validate(raw_payload)
-                except Exception:
+                except ValidationError:
                     try:
-                        payload = SignalMessage(**raw_payload)
-                    except Exception:
+                        payload = SignalMessage.model_validate(raw_payload)
+                    except ValidationError:
+                        logger.debug(
+                            "Invalid WebSocket payload",
+                            extra=log_context(user_id, "websocket_invalid_payload", metadata={"type": raw_type}),
+                        )
                         payload = raw_payload
             if isinstance(payload, dict) and payload.get("type") == "ping":
                 await manager.send_personal_message(UUID(user_id), {"type": "pong"})
@@ -261,7 +291,11 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
     except WebSocketDisconnect:
         try:
             await manager.broadcast({"type": "status-update","user_id": user_id, 'status': "offline"})
-        except:
-            pass
+        except Exception:
+            logger.warning(
+                "Failed to broadcast WebSocket offline status",
+                exc_info=True,
+                extra=log_context(user_id, "websocket_offline_status_broadcast_failed"),
+            )
         asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Inactive")
-        await manager.disconnect(UUID(user_id))
+        await manager.disconnect(UUID(user_id), websocket=websocket)

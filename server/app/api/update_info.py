@@ -1,4 +1,5 @@
 from typing import Annotated
+import logging
 from sqlalchemy import or_
 from fastapi import Depends, HTTPException
 from fastapi.routing import APIRouter
@@ -9,6 +10,7 @@ from app.models.phone_verification import PhoneVerified
 from app.models.users import UserUpdate, User
 from app.db_operations.auth import update_user_info
 from app.db_operations.auth import SessionDep
+from app.structured_logging import log_context
 
 from sqlalchemy.exc import IntegrityError
 from fastapi import status
@@ -20,6 +22,7 @@ router = APIRouter(
         404: {'description': 'Not Found'}
     }
 )
+logger = logging.getLogger("app")
 
 
 @router.post("/", status_code=status.HTTP_200_OK)
@@ -73,8 +76,12 @@ def update_user(
             
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
-    except Exception as e:
+    except Exception:
         session.rollback()
+        logger.exception(
+            "Failed to update profile",
+            extra=log_context(current_user.id, "profile_update_failed", current_user.id),
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail="An unexpected error occurred"

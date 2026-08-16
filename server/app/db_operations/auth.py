@@ -1,16 +1,19 @@
 import os
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, Dict
 from uuid import UUID
 from fastapi import Depends, HTTPException, Request
 from pwdlib import PasswordHash
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlmodel import SQLModel, Session, create_engine, select, or_
 
 from app.models.users import User, UserCreate
 from app.models.users import UserUpdate, UserPasswordUpdate
+from app.structured_logging import log_context
 
+logger = logging.getLogger("app")
 
 
 # Reduced from recommended() defaults (time_cost=2, memory_cost=65536)
@@ -55,12 +58,17 @@ def verify_password(plain_password : str, hashed__password : str):
     return password_hash.verify(plain_password, hashed__password)
 
 
-def db_create_user(user: UserCreate, session: SessionDep):
+def db_create_user(user: UserCreate, session: SessionDep, commit: bool = True):
     try:
         user_in_db = get_user_by_ID(session, user.id) if user.id else None
     except HTTPException:
         user_in_db = None
-    except:
+    except SQLAlchemyError:
+        session.rollback()
+        logger.exception(
+            "Failed to look up existing user during user creation",
+            extra=log_context(None, "user_creation_lookup_failed"),
+        )
         raise HTTPException(500, "Internal server error.")
         
     errors: Dict[str, str] = {}
@@ -97,11 +105,15 @@ def db_create_user(user: UserCreate, session: SessionDep):
 
         session.add(db_user)
         try:
-            session.commit()
+            if commit:
+                session.commit()
+            else:
+                session.flush()
         except IntegrityError:
             session.rollback()
             raise HTTPException(status_code=400, detail={"username": "Username or contact already registered"})
-        session.refresh(db_user)
+        if commit:
+            session.refresh(db_user)
         return db_user
     elif user_in_db and user_in_db.guest:
         # modify existing user
@@ -121,8 +133,11 @@ def db_create_user(user: UserCreate, session: SessionDep):
         session.add(user_in_db)
         # delete guest record
         session.delete(user_in_db.guest)
-        session.commit()
-        session.refresh(user_in_db)
+        if commit:
+            session.commit()
+            session.refresh(user_in_db)
+        else:
+            session.flush()
         return user_in_db
         # TODO: all guest accounts are disabled from getting a token in any way shape or form
         
@@ -192,15 +207,18 @@ def authenticate_user(
     return user
 
 
-def update_user_info(user: User, new_user_data : UserUpdate, session : SessionDep):
+def update_user_info(
+    user: User, new_user_data: UserUpdate, session: SessionDep, commit: bool = True
+):
     new_user_dump = new_user_data.model_dump(exclude_unset=True)
 
     for field, value in new_user_dump.items():
         setattr(user, field, value)
 
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    if commit:
+        session.commit()
+        session.refresh(user)
 
 
 PASSWORD_MIN_LENGTH = 8

@@ -1,4 +1,6 @@
 import pytest
+import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
@@ -10,6 +12,43 @@ import uuid
 import json
 
 from app.tests.test_db_utils import get_auth_headers
+from app.db_operations.GPS_manager import GPSManager
+
+
+class FailingWebSocket:
+    async def send_json(self, message: dict) -> None:
+        raise RuntimeError("connection closed")
+
+
+def test_gps_broadcast_logs_and_removes_failed_monitor(caplog):
+    manager = GPSManager()
+    manager.active_monitors["rescuer-1"] = FailingWebSocket()
+    caplog.set_level(logging.INFO, logger="app")
+
+    asyncio.run(manager.broadcast_to_rescuers({"lat": 1, "lng": 2}))
+
+    assert manager.active_monitors == {}
+    record = next(record for record in caplog.records if "GPS broadcast delivery failed" in record.message)
+    assert record.user_id == "rescuer-1"
+    assert record.action == "gps_monitor_disconnected"
+    assert record.entity_id is None
+    assert record.metadata_json == {}
+
+
+def test_gps_broadcast_keeps_monitor_that_reconnects_during_delivery():
+    manager = GPSManager()
+    replacement = object()
+
+    class ReconnectingWebSocket:
+        async def send_json(self, message: dict) -> None:
+            manager.active_monitors["rescuer-1"] = replacement
+            raise RuntimeError("connection closed")
+
+    manager.active_monitors["rescuer-1"] = ReconnectingWebSocket()
+
+    asyncio.run(manager.broadcast_to_rescuers({"lat": 1, "lng": 2}))
+
+    assert manager.active_monitors["rescuer-1"] is replacement
 
 
 def test_stream_gps_location_success(client: TestClient):
@@ -184,4 +223,3 @@ def test_gps_broadcast_to_rescuer(client, session, test_user_instance, test_resc
         
     # After exiting the block, the rescuer is disconnected 
     # and the 'raise' inside your endpoint is handled by the TestClient
-

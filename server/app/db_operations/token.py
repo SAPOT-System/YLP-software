@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import threading
+import logging
 import redis as _redis_module
 from uuid import UUID, uuid4
 from pydantic import BaseModel
@@ -20,6 +21,9 @@ from app.models.token import TokenData
 from app.models.users import UserCreate
 from app.models.jti import BlacklistedToken
 from app.db_operations.auth import get_user, get_user_by_ID
+from app.structured_logging import log_context
+
+logger = logging.getLogger("app")
 
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
@@ -27,7 +31,12 @@ try:
     _redis: _redis_module.Redis = _redis_module.from_url(_REDIS_URL, decode_responses=True)
     _redis.ping()
     _REDIS_AVAILABLE = True
-except Exception:
+except _redis_module.RedisError:
+    logger.warning(
+        "Redis blacklist cache is unavailable; using database checks",
+        exc_info=True,
+        extra=log_context(None, "token_blacklist_cache_unavailable"),
+    )
     _redis = None  # type: ignore[assignment]
     _REDIS_AVAILABLE = False
 
@@ -90,7 +99,7 @@ def get_user_id_from_header(request: Request):
         token = auth_header.split(" ")[1]
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload.get("sub") # or payload.get("user_id")
-    except Exception:
+    except (IndexError, PyJWTError):
         return None
 
 def verify_token(token: str):
