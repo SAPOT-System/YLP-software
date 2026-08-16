@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 
 import api
 import sms_handler
@@ -157,7 +158,6 @@ def test_get_permitted_contacts_empty_when_none():
     assert contacts == []
 
 
-from fastapi.testclient import TestClient
 
 
 def test_grant_permission_endpoint_stores_permission(monkeypatch):
@@ -283,7 +283,6 @@ def test_has_permission_endpoint_returns_true_when_granted(monkeypatch):
         lambda sapot, external: sapot == "+639171111111" and external == "+639288888888"
     )
     from api import app as gsm_app
-    from fastapi.testclient import TestClient
     client = TestClient(gsm_app)
 
     resp = client.get(
@@ -299,7 +298,6 @@ def test_has_permission_endpoint_returns_true_when_granted(monkeypatch):
 def test_has_permission_endpoint_returns_false_when_not_granted(monkeypatch):
     monkeypatch.setattr("database.has_outbound_permission", lambda *_: False)
     from api import app as gsm_app
-    from fastapi.testclient import TestClient
     client = TestClient(gsm_app)
 
     resp = client.get(

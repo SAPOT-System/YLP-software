@@ -54,13 +54,6 @@ MSG_TARGET_NOT_PERMITTED = (
     "Only permitted SAPOT contacts can be targeted."
 )                                                          # 82 chars
 
-def _redact_phone(number: str) -> str:
-    """Redact all but the last 4 digits of a phone number for logging."""
-    if len(number) <= 4:
-        return "[redacted]"
-    return f"***{number[-4:]}"
-
-
 def _msg_target_set(username: str, phone: str) -> str:
     return f"Target: {username} ({phone}). Messages go to them now."
     # e.g. "Target: maria_santos (+639281234567). Messages go to them now." = 63
@@ -99,17 +92,17 @@ def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
         logger.warning("Rejected malformed sender number")
         return None, None, None, "MALFORMED_SENDER"
     body = " ".join(unicodedata.normalize("NFKC", body).split())
-    logger.info("SMS received from %s (%d characters)", _redact_phone(number), len(body))
+    logger.info("SMS received from %s (%d characters)", database._redact_phone(number), len(body))
     sender_user = database.get_user_by_phone(number)
     
     if not sender_user:
-        logger.warning("Account does not exist: %s", number)
+        logger.warning("Account does not exist: %s", database._redact_phone(number))
         if database.has_unregistered_warning(number):
             return None, None, None, "NO_ACCOUNT"
         return MSG_NO_ACCOUNT, None, None, "NO_ACCOUNT"
     
     if sender_user.get("banned"):
-        logger.warning("Banned: %s", number)
+        logger.warning("Banned: %s", database._redact_phone(number))
         return (
             "This number has been banned by the system",
             None,
@@ -117,7 +110,7 @@ def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
             "BANNED_SENDER",
         )
     if   not sender_user.get("phone_is_verified"):
-        logger.warning("Unverified number: %s", number)
+        logger.warning("Unverified number: %s", database._redact_phone(number))
         return (
             "Please verify your account first.",
             None,
@@ -231,14 +224,14 @@ def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
     target_user = database.get_user_by_phone(target_phone)
 
     if not target_user:
-        logger.warning("Target does not exist: %s", target_phone)
+        logger.warning("Target does not exist: %s", database._redact_phone(target_phone))
         return f"Target {target_phone} does not exist.", None, None, "TARGET_MISSING"
 
     if database.is_sms_opted_out(target_phone):
         return "That target has opted out of SMS relay messages.", None, None, "TARGET_OPTED_OUT"
 
     if target_user.get("banned"):
-        logger.warning("Banned: %s", target_phone)
+        logger.warning("Banned: %s", database._redact_phone(target_phone))
         return (
             f"This number ({target_phone}) has been banned by the system.",
             None,
@@ -246,7 +239,7 @@ def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
             "TARGET_BANNED",
         )
     if   not target_user.get("phone_is_verified"):
-        logger.warning("Unverified number: %s", target_phone)
+        logger.warning("Unverified number: %s", database._redact_phone(target_phone))
         return f"Target {target_phone} is not verified.", None, None, "TARGET_UNVERIFIED"
 
     if not target_phone:
@@ -259,7 +252,7 @@ def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
         return "Relay limit reached. Please try again tomorrow.", None, None, "RELAY_LIMIT"
 
     ok = database.notify_app(sender_phone, target_phone, body)
-    logger.info("notify_app result: %s (sender=%s target=%s)", ok, sender_phone, target_phone)
+    logger.info("notify_app result: %s (sender=%s target=%s)", ok, database._redact_phone(sender_phone), database._redact_phone(target_phone))
     if not ok:
         return MSG_FORWARD_FAIL, None, None, "APP_DELIVERY_FAILED"
 

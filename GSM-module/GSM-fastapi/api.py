@@ -10,20 +10,20 @@ Lifespan
   - Shuts everything down cleanly on exit
 
 Endpoints
-  GET  /health                 — liveness + GSM status
-  GET  /health/detailed        — full diagnostic info
+  GET  /health                 -- liveness + GSM status
+  GET  /health/detailed        -- full diagnostic info
 
-  POST /sms/send               — send an SMS (blocks until delivered)
-  GET  /sms/messages           — message log
+  POST /sms/send               -- send an SMS (blocks until delivered)
+  GET  /sms/messages           -- message log
 
-  GET  /users                  — list registered SAPOT users
-  POST /users                  — add a user
-  GET  /users/{phone}          — look up a user
+  GET  /users                  -- list registered SAPOT users
+  POST /users                  -- add a user
+  GET  /users/{phone}          -- look up a user
 
-  GET  /sessions               — all active sessions (debug)
-  DELETE /sessions/{phone}     — reset a session
+  GET  /sessions               -- all active sessions (debug)
+  DELETE /sessions/{phone}     -- reset a session
 
-  GET  /status                 — modem + serial status
+  GET  /status                 -- modem + serial status
 """
 
 import asyncio
@@ -318,7 +318,7 @@ async def health():
 def health_detailed(
     phone: Optional[str] = None,
         ):
-    """Full diagnostic — serial state, queue depth, pending SMS."""
+    """Full diagnostic -- serial state, queue depth, pending SMS."""
     if _worker is None:
         raise HTTPException(503, "Worker not initialised")
 

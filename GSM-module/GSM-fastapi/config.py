@@ -53,7 +53,7 @@ class Settings:
     # Serial port the Arduino is connected to
     serial_port: str = os.environ.get("SERIAL_PORT", "/dev/ttyACM0")
 
-    # Baud rate — must match PC_BAUD in the Arduino sketch (9600)
+    # Baud rate -- must match PC_BAUD in the Arduino sketch (9600)
     serial_baud: int = int(os.environ.get("SERIAL_BAUD", "9600"))
 
     db_path: str | None = os.environ.get("DB_PATH")

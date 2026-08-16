@@ -384,6 +384,34 @@ def test_failed_send_sms_does_not_grant_permission(client, session, monkeypatch)
 
 
 
+def test_successful_send_sms_returns_200_when_grant_fails(client, session, monkeypatch):
+    """A failed /grant-permission should not abort the main send_sms loop."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    class GrantFailGsmClient:
+        async def post(self, path: str, json: dict = None, **kwargs):
+            if path == "/sms/send":
+                return FakeGsmResponse(200, {"ok": True, "msg_id": "abc"})
+            if path == "/grant-permission":
+                return FakeGsmResponse(500, {"detail": "Internal server error"})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: GrantFailGsmClient())
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
+
+    response = client.post(
+        "/gsm/sms/send",
+        params={"user_id": str(target.id), "message": "Hello"},
+    )
+
+    assert response.status_code == 200
+
+
+
 def test_inbound_sms_rejected_when_no_permission(client, session, monkeypatch):
     """POST /gsm/inbound must 403 when the target has not previously contacted the sender."""
     current_user = _authenticated_user(session, phone_verified=True)

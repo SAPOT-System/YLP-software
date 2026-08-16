@@ -7,7 +7,7 @@ Public interface (thread-safe):
   worker.send_sms(number, body, timeout=30) -> dict
     Enqueues the SMS and blocks until delivery confirmed or timeout.
     Returns {"ok": True/False, "reason": str|None}
-    Multiple callers are safe — they queue and execute one at a time.
+    Multiple callers are safe -- they queue and execute one at a time.
 
   worker.gsm_ready   -> bool
   worker.connected   -> bool
@@ -22,6 +22,7 @@ Auto-reconnect:
 
 import logging
 import queue
+import database
 import threading
 import time
 from dataclasses import dataclass, field
@@ -66,7 +67,7 @@ class SerialWorker:
     """
     Owns the serial port in one dedicated reader thread.
     A separate sender thread drains the outbound queue so that
-    multiple callers to send_sms() always serialise correctly —
+    multiple callers to send_sms() always serialise correctly --
     no "another SMS in flight" errors, no dropped forwards.
 
     Flow for each send_sms() call:
@@ -144,7 +145,7 @@ class SerialWorker:
         """
         Queue an SMS for delivery and block until the modem confirms it.
 
-        Multiple concurrent callers are safe — they queue up and each
+        Multiple concurrent callers are safe -- they queue up and each
         waits for their own confirmation.
 
         Returns {"ok": bool, "reason": str|None}
@@ -343,14 +344,14 @@ class SerialWorker:
             return
 
         if etype == EventType.SMS_FAILED:
-            logger.error("SMS_FAILED for %s reason=%s", event.number,
+            logger.error("SMS_FAILED for %s reason=%s", database._redact_phone(event.number),
                          event.reason)
             self._resolve_in_flight(event.number, success=False,
                                     reason=event.reason)
             return
 
         if etype == EventType.SMS_RECEIVED:
-            _redacted = f"***{event.number[-4:]}" if len(event.number) > 4 else "[redacted]"
+            _redacted = database._redact_phone(event.number)
             logger.info("SMS_RECEIVED from %s (%d characters)", _redacted, len(event.body))
             try:
                 self.incoming_queue.put_nowait(event)
