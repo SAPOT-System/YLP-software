@@ -316,3 +316,69 @@ def test_mock_send_sms_rejects_unverified_sender(client, session, monkeypatch):
 
     assert response.status_code == 403
     assert response.json()["detail"]["reason"] == "PHONE_VERIFICATION_REQUIRED"
+
+
+def test_successful_send_sms_grants_outbound_permission(client, session, monkeypatch):
+    """After a successful send, the server calls /grant-permission on the gateway."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    grant_calls = []
+
+    class SuccessGsmClient:
+        async def post(self, path: str, json: dict = None, **kwargs):
+            if path == "/sms/send":
+                return FakeGsmResponse(200, {"ok": True, "msg_id": "abc"})
+            if path == "/grant-permission":
+                grant_calls.append(json)
+                return FakeGsmResponse(200, {"ok": True})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: SuccessGsmClient())
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
+
+    response = client.post(
+        "/gsm/sms/send",
+        params={"user_id": str(target.id), "message": "Hello"},
+    )
+
+    assert response.status_code == 200
+    assert len(grant_calls) == 1
+    assert grant_calls[0]["sapot_phone"] == "+639171111111"
+    assert grant_calls[0]["external_phone"] == "+639172222222"
+
+
+def test_failed_send_sms_does_not_grant_permission(client, session, monkeypatch):
+    """A failed send must NOT call /grant-permission."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    grant_calls = []
+
+    class FailGsmClient:
+        async def post(self, path: str, json: dict = None, **kwargs):
+            if path == "/sms/send":
+                return FakeGsmResponse(502, {
+                    "detail": {"message": "Delivery failed", "reason": "MODEM_ERROR", "msg_id": "x"}
+                })
+            if path == "/grant-permission":
+                grant_calls.append(json)
+            return FakeGsmResponse(200, {"ok": True})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: FailGsmClient())
+    monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
+
+    response = client.post(
+        "/gsm/sms/send",
+        params={"user_id": str(target.id), "message": "Hello"},
+    )
+
+    assert response.status_code == 502
+    assert len(grant_calls) == 0
+

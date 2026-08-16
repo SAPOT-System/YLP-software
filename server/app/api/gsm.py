@@ -325,6 +325,26 @@ def _require_verified_phone(user: User) -> None:
         )
 
 
+async def _grant_outbound_permission(sapot_phone: str, external_phone: str) -> None:
+    """Notify the GSM gateway to record the outbound permission.
+
+    Fire-and-forget -- a failure is logged but does not fail the SMS response.
+    """
+    try:
+        client = _get_gsm_client()
+        r = await client.post(
+            "/grant-permission",
+            json={"sapot_phone": sapot_phone, "external_phone": external_phone},
+            headers={"X-GSM-Secret": GSM_SECRET},
+        )
+        if r.status_code != 200:
+            logger.warning(
+                "grant_outbound_permission: gateway returned %s", r.status_code
+            )
+    except Exception as exc:
+        logger.warning("grant_outbound_permission failed: %s", exc)
+
+
 @router.post("/sms/send", responses=GSM_SMS_SEND_ERROR_RESPONSES)
 @limiter.limit("10/minute")
 async def send_sms(
@@ -356,15 +376,22 @@ async def send_sms(
         )
 
 
-    return await sendToModule(target.phone_number, message)
+    result = await sendToModule(target.phone_number, message, current_user.phone_number)
+    if current_user.phone_number and target.phone_number:
+        await _grant_outbound_permission(
+            sapot_phone=current_user.phone_number,
+            external_phone=target.phone_number,
+        )
+    return result
 
 
-async def sendToModule(phone_number: str, message: str):
+async def sendToModule(phone_number: str, message: str, sender_phone: str | None = None):
+    from_number = sender_phone if sender_phone else phone_number
     client = _get_gsm_client()
     try:
         response = await client.post(
             "/sms/send",
-            json={"number": phone_number, "body": f"FROM {phone_number}: " + message},
+            json={"number": phone_number, "body": f"FROM {from_number}: " + message},
             headers={"X-GSM-Secret": GSM_SECRET},
         )
     except httpx.RequestError as exc:
@@ -841,7 +868,13 @@ async def MOCK_send_sms(
         return { "detail": { "msg": "This user does not have a phone number attached to his/her account." }}
 
 
-    return await MOCK_sendToModule(target.phone_number, message)
+    result = await MOCK_sendToModule(target.phone_number, message)
+    if current_user.phone_number and target.phone_number:
+        await _grant_outbound_permission(
+            sapot_phone=current_user.phone_number,
+            external_phone=target.phone_number,
+        )
+    return result
 
 
 
