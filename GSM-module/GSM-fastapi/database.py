@@ -84,6 +84,7 @@ def init(db_url: str):
         SmsUnregisteredWarning.__table__,
         SmsRateCounter.__table__,
         SmsRecipientPreference.__table__,
+        SmsOutboundPermission.__table__,
     ])
     logger.info("Database ready: %s", db_url.split("@")[-1])  # hide credentials
 
@@ -410,6 +411,16 @@ class SmsRecipientPreference(Base):
     opted_out = Column(Boolean, default=False, nullable=False)
     updated_at = Column(BigInteger, default=_now_ms, nullable=False)
 
+
+class SmsOutboundPermission(Base):
+    __tablename__ = "sms_outbound_permission"
+
+    # sapot_phone: the verified SAPOT user who sent the outbound SMS
+    # external_phone: the non-SAPOT number they contacted
+    sapot_phone = Column(String(20), primary_key=True, nullable=False)
+    external_phone = Column(String(20), primary_key=True, nullable=False)
+    granted_at = Column(BigInteger, default=_now_ms, nullable=False)
+
 # =============================================================================
 # USER LOOKUPS  (reads from shared `user` table)
 # =============================================================================
@@ -702,6 +713,46 @@ def is_sms_opted_out(phone: str) -> bool:
     with new_get_session() as s:
         row = s.get(SmsRecipientPreference, phone)
         return bool(row and row.opted_out)
+
+
+def grant_outbound_permission(sapot_phone: str, external_phone: str) -> None:
+    """Record that sapot_phone has sent an outbound SMS to external_phone.
+
+    Safe to call multiple times -- upserts on the composite primary key.
+    """
+    with new_get_session() as s:
+        existing = s.execute(
+            select(SmsOutboundPermission)
+            .where(SmsOutboundPermission.sapot_phone == sapot_phone)
+            .where(SmsOutboundPermission.external_phone == external_phone)
+        ).scalar_one_or_none()
+        if existing is None:
+            s.add(SmsOutboundPermission(
+                sapot_phone=sapot_phone,
+                external_phone=external_phone,
+            ))
+            s.commit()
+
+
+def has_outbound_permission(sapot_phone: str, external_phone: str) -> bool:
+    """True iff sapot_phone previously sent an outbound SMS to external_phone."""
+    with new_get_session() as s:
+        row = s.execute(
+            select(SmsOutboundPermission)
+            .where(SmsOutboundPermission.sapot_phone == sapot_phone)
+            .where(SmsOutboundPermission.external_phone == external_phone)
+        ).scalar_one_or_none()
+        return row is not None
+
+
+def get_permitted_contacts(external_phone: str) -> list:
+    """Return the sapot_phone values that have permission to receive from external_phone."""
+    with new_get_session() as s:
+        rows = s.execute(
+            select(SmsOutboundPermission)
+            .where(SmsOutboundPermission.external_phone == external_phone)
+        ).scalars().all()
+        return [r.sapot_phone for r in rows]
 
 
 # =============================================================================

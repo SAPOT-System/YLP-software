@@ -109,3 +109,49 @@ def test_process_incoming_persists_rejection_reason(monkeypatch):
     )
 
     assert updates == [("message-id", "rejected", "BANNED_SENDER")]
+
+
+import database as _db
+
+
+def _init_test_db():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    _db.Base.metadata.create_all(engine)
+    _db._Session = sessionmaker(bind=engine, expire_on_commit=False)
+    _db._engine = engine
+
+
+def test_grant_and_check_outbound_permission():
+    _init_test_db()
+    sapot = "+639171111111"
+    external = "+639288888888"
+    assert _db.has_outbound_permission(sapot, external) is False
+    _db.grant_outbound_permission(sapot, external)
+    assert _db.has_outbound_permission(sapot, external) is True
+
+
+def test_grant_is_idempotent():
+    _init_test_db()
+    sapot = "+639171111111"
+    external = "+639288888888"
+    _db.grant_outbound_permission(sapot, external)
+    _db.grant_outbound_permission(sapot, external)  # must not raise
+    assert _db.has_outbound_permission(sapot, external) is True
+
+
+def test_get_permitted_contacts_returns_correct_set():
+    _init_test_db()
+    external = "+639288888888"
+    _db.grant_outbound_permission("+639171111111", external)
+    _db.grant_outbound_permission("+639172222222", external)
+    contacts = _db.get_permitted_contacts(external)
+    assert set(contacts) == {"+639171111111", "+639172222222"}
+
+
+def test_get_permitted_contacts_empty_when_none():
+    _init_test_db()
+    contacts = _db.get_permitted_contacts("+639299999999")
+    assert contacts == []
+
