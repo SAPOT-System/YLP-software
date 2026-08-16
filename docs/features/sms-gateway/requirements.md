@@ -102,6 +102,7 @@ Only one request may await a modem confirmation. A confirmation received before 
 
 - The serial reader must enqueue `SMS_RECEIVED` events for application processing.
 - `handle_incoming_sms()` must apply the registered-user, banned-user, verified-phone, session, and target rules.
+- An unregistered number must receive the registration warning only once after the gateway confirms it was sent. Later inbound messages from that number must be rejected without an outbound reply.
 - Sender eligibility failures must set the inbound `sms_log` row to `rejected` with `NO_ACCOUNT`, `BANNED_SENDER`, or `UNVERIFIED_SENDER` as the failure reason.
 - The GSM service must call the main server's `POST /gsm/inbound` route with `X-GSM-Secret` when forwarding into the app.
 - Failed callbacks are logged. Automatic callback retry is not required.

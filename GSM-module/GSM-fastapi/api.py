@@ -152,16 +152,18 @@ def _process_incoming(event):
 
     # Send reply back to sender
     if reply and _worker:
-        _send_and_log(
+        reply_sent = _send_and_log(
             from_number="SERVER",
             to_number=number,
             body=reply,
         )
+        if reply_sent and rejection_reason == "NO_ACCOUNT":
+            database.mark_unregistered_warning(number)
 
 
 
 def _send_and_log(from_number: str, to_number: str, body: str):
-    """Send one SMS via the worker and persist result to DB."""
+    """Send one SMS, persist its result, and return whether it was sent."""
     msg_id = database.log_message(
         direction="OUT",
         from_number=from_number,
@@ -173,6 +175,7 @@ def _send_and_log(from_number: str, to_number: str, body: str):
         result = _worker.send_sms(to_number, body, timeout=120)
         status = "sent" if result["ok"] else "failed"
         database.update_message_status(msg_id, status, result.get("reason"))
+        return result["ok"]
     except OutboundQueueFullError:
         logger.warning("Internal outbound SMS rejected: QUEUE_FULL")
         database.update_message_status(msg_id, "failed", "QUEUE_FULL")
@@ -182,6 +185,8 @@ def _send_and_log(from_number: str, to_number: str, body: str):
     except Exception as e:
         logger.error("send_sms error: %s", e)
         database.update_message_status(msg_id, "failed", str(e))
+
+    return False
 
 
 # ── App ───────────────────────────────────────────────────────────────────────

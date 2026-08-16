@@ -14,6 +14,7 @@ Two categories of tables
   RELAY-ONLY  (owned by this service, invisible to the main API)
     sms_session             — per-number conversation stage + current target
     sms_log                 — every SMS in/out with delivery status
+    sms_unregistered_warning — numbers that received the registration warning
 
 Engine is created once at startup via init().
 All public functions are thread-safe (SQLAlchemy handles connection pooling).
@@ -81,6 +82,7 @@ def init(db_url: str):
     Base.metadata.create_all(_engine, tables=[
         SmsSession.__table__,
         SmsLog.__table__,
+        SmsUnregisteredWarning.__table__,
     ])
     logger.info("Database ready: %s", db_url.split("@")[-1])  # hide credentials
 
@@ -386,6 +388,13 @@ class SmsLog(Base):
 
     created_at = Column(BigInteger, default=_now_ms, nullable=False)
 
+
+class SmsUnregisteredWarning(Base):
+    __tablename__ = "sms_unregistered_warning"
+
+    phone = Column(String(20), primary_key=True)
+    warned_at = Column(BigInteger, default=_now_ms, nullable=False)
+
 # =============================================================================
 # USER LOOKUPS  (reads from shared `user` table)
 # =============================================================================
@@ -430,6 +439,17 @@ def get_all_users() -> list[dict]:
 # =============================================================================
 # SESSION MANAGEMENT  (relay-only sms_session table)
 # =============================================================================
+
+def has_unregistered_warning(phone: str) -> bool:
+    with new_get_session() as s:
+        return s.get(SmsUnregisteredWarning, phone) is not None
+
+
+def mark_unregistered_warning(phone: str):
+    with new_get_session() as s:
+        if s.get(SmsUnregisteredWarning, phone) is None:
+            s.add(SmsUnregisteredWarning(phone=phone))
+            s.commit()
 
 def get_session_data(phone: str) -> dict:
     """Return session row for `phone`, creating it if absent."""

@@ -43,8 +43,8 @@ pnpm run testAll
 | `tests/test_config.py` | Default queue capacity, valid range, and startup rejection |
 | `tests/test_serial_worker.py` | Queue capacity, admission deadlines, lifecycle cutoff, exact-once completion, pre-write races, and serial write timeout |
 | `tests/test_api_queue.py` | HTTP 503 contracts, message-log updates, diagnostics, worker-pool headroom, and health responsiveness |
-| `tests/test_database_reconciliation.py` | Idempotent startup recovery of orphaned pending log rows |
-| `tests/test_incoming_sms.py` | Sender rejection reason codes and inbound log status updates |
+| `tests/test_database_reconciliation.py` | Idempotent startup recovery of orphaned pending log rows and unregistered-warning persistence across session resets |
+| `tests/test_incoming_sms.py` | Sender rejection reason codes, inbound log status updates, and warning marking only after a successful reply |
 | `tests/test_lifespan.py` | Reconciliation ordering before serial worker startup |
 | `tests/test_mock_modem.py` | Virtual-phone validation, firmware-compatible normalization, modem state transitions, HTTP responses, PTY framing, reconnects, and subprocess cleanup |
 | `server/app/tests/test_gsm_proxy.py` | Main-server shared-secret header, status preservation, and timeout headroom for chat, verification, resend, and first-contact requests |

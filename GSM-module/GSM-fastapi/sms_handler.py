@@ -41,7 +41,6 @@ MSG_INVALID_FMT   = "Bad format. Use:\n[target] +639XXXXXXXXX"     # 39 chars
 MSG_NO_ARG        = "Provide a number: [target] +639XXXXXXXXX"     # 40 chars
 MSG_FORWARD_FAIL  = "Could not forward your message. Please try again."  # 50
 
-
 def _msg_target_set(username: str, phone: str) -> str:
     return f"Target: {username} ({phone}). Messages go to them now."
     # e.g. "Target: maria_santos (+639281234567). Messages go to them now." = 63
@@ -81,6 +80,8 @@ def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
     
     if not sender_user:
         logger.warning("Account does not exist: %s", number)
+        if database.has_unregistered_warning(number):
+            return None, None, None, "NO_ACCOUNT"
         return MSG_NO_ACCOUNT, None, None, "NO_ACCOUNT"
     
     if sender_user.get("banned"):

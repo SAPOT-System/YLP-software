@@ -95,7 +95,7 @@ Message bodies may contain pipe characters. `parse_line()` preserves them for `S
 
 ## How are inbound messages handled?
 
-The reader places `SMS_RECEIVED` events on `incoming_queue`. The API lifespan task passes each event to `handle_incoming_sms()`, which applies registration, ban, phone-verification, session, and target checks.
+The reader places `SMS_RECEIVED` events on `incoming_queue`. The API lifespan task passes each event to `handle_incoming_sms()`, which applies registration, ban, phone-verification, session, and target checks. An unregistered number receives a registration warning on its first message. The gateway records the warning only after the modem confirms that reply was sent. It ignores later messages from that number, preventing repeat reply charges. A separate relay-only record preserves this behavior when an operator resets the number's normal relay session.
 
 The handler can return a reply to the sender and a forwarded message for the selected target. Both use the same bounded outbound queue. `database.notify_app()` also calls the main server's `POST /gsm/inbound` route with `X-GSM-Secret`.
 
@@ -107,6 +107,7 @@ The GSM service uses the database configured by required `DB_PATH`.
 |---|---|
 | `sms_log` | Inbound and outbound audit rows, delivery status, and failure reason |
 | `sms_session` | Per-phone conversation stage and selected target |
+| `sms_unregistered_warning` | Numbers that received the unregistered-account warning |
 | Shared user and conversation tables | Lookup and delivery integration with the main server |
 
 The committed `sapot.db` file is stale and is not used by the deployed service.
