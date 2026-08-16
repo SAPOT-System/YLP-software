@@ -54,6 +54,13 @@ MSG_TARGET_NOT_PERMITTED = (
     "Only permitted SAPOT contacts can be targeted."
 )                                                          # 82 chars
 
+def _redact_phone(number: str) -> str:
+    """Redact all but the last 4 digits of a phone number for logging."""
+    if len(number) <= 4:
+        return "[redacted]"
+    return f"***{number[-4:]}"
+
+
 def _msg_target_set(username: str, phone: str) -> str:
     return f"Target: {username} ({phone}). Messages go to them now."
     # e.g. "Target: maria_santos (+639281234567). Messages go to them now." = 63
@@ -92,7 +99,7 @@ def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
         logger.warning("Rejected malformed sender number")
         return None, None, None, "MALFORMED_SENDER"
     body = " ".join(unicodedata.normalize("NFKC", body).split())
-    logger.info("SMS received from %s (%d characters)", number, len(body))
+    logger.info("SMS received from %s (%d characters)", _redact_phone(number), len(body))
     sender_user = database.get_user_by_phone(number)
     
     if not sender_user:

@@ -108,6 +108,9 @@ The GSM service uses the database configured by required `DB_PATH`.
 | `sms_log` | Inbound and outbound audit rows, delivery status, and failure reason |
 | `sms_session` | Per-phone conversation stage and selected target |
 | `sms_unregistered_warning` | Numbers that received the unregistered-account warning |
+| `sms_rate_counter` | Sliding-window rate limit counters and daily quota tracking |
+| `sms_recipient_preference` | Per-phone opt-out status for inbound and outbound SMS relay |
+| `sms_outbound_permission` | Permission granted to external numbers contacted by verified SAPOT users |
 | Shared user and conversation tables | Lookup and delivery integration with the main server |
 
 The committed `sapot.db` file is stale and is not used by the deployed service.
@@ -129,6 +132,9 @@ The gateway does not re-queue these rows. A crash can happen after the modem tra
 | Modem reports failure or confirmation times out | HTTP 502 with the modem or timeout reason |
 | Caller deadline expires while waiting in the queue | Request fails and is never written later |
 | Main server cannot reach the GSM service | Main server health route returns HTTP 503 |
+| Recipient has opted out | HTTP 400 with `RECIPIENT_OPTED_OUT` |
+| Daily send limit reached | HTTP 429 with `DAILY_SEND_LIMIT` |
+| External number not authorized | `NOT_PERMITTED` / `TARGET_NOT_PERMITTED` / HTTP 403 at `/gsm/inbound` |
 
 The main server preserves the gateway status and error detail for synchronous SMS operations. Its 135-second read timeout covers the gateway's 125-second worst case plus HTTP overhead. Nginx allows 155 seconds so the one-second pool, five-second connect, five-second write, and 135-second read phase limits all fit inside the outer proxy limit. The main server permits 22 GSM connections, enough for 21 admitted gateway requests plus one request that observes `QUEUE_FULL`. Further requests fail pool admission within one second and never reach the gateway later.
 

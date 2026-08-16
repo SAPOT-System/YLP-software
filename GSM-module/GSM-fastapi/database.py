@@ -6,15 +6,15 @@ MariaDB-backed persistence for the SAPOT SMS relay.
 Two categories of tables
 ─────────────────────────
   SHARED  (defined by your main SAPOT API, relay reads/writes them)
-    user                    — registered accounts; relay looks up phone numbers
-    conversation            — relay creates one per SMS relay session
-    conversationparticipant — relay adds sender + server bot as participants
-    message                 — relay writes each forwarded message here
+    user                    -- registered accounts; relay looks up phone numbers
+    conversation            -- relay creates one per SMS relay session
+    conversationparticipant -- relay adds sender + server bot as participants
+    message                 -- relay writes each forwarded message here
 
-  RELAY-ONLY  (owned by this service, invisible to the main API)
-    sms_session             — per-number conversation stage + current target
-    sms_log                 — every SMS in/out with delivery status
-    sms_unregistered_warning — numbers that received the registration warning
+  RELAY-ONLY  (defined by this service -- invisible to the main API)
+    sms_session             -- per-number conversation stage + current target
+    sms_log                 -- every SMS in/out with delivery status
+    sms_unregistered_warning -- numbers that received the registration warning
 
 Engine is created once at startup via init().
 All public functions are thread-safe (SQLAlchemy handles connection pooling).
@@ -756,7 +756,7 @@ def get_permitted_contacts(external_phone: str) -> list:
 
 
 # =============================================================================
-# APP FORWARD  —  write message into shared Conversation + Message tables
+# APP FORWARD  --  write message into shared Conversation + Message tables
 # so the forwarded SMS appears inside the SAPOT app natively
 # =============================================================================
 

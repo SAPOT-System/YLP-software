@@ -350,7 +350,8 @@ class SerialWorker:
             return
 
         if etype == EventType.SMS_RECEIVED:
-            logger.info("SMS_RECEIVED from %s (%d characters)", event.number, len(event.body))
+            _redacted = f"***{event.number[-4:]}" if len(event.number) > 4 else "[redacted]"
+            logger.info("SMS_RECEIVED from %s (%d characters)", _redacted, len(event.body))
             try:
                 self.incoming_queue.put_nowait(event)
             except queue.Full:
