@@ -637,16 +637,19 @@ def create_user(
     session: SessionDep,
 ):
     try:
-        user = db_create_user(userData, session)
+        user = db_create_user(userData, session, commit=False)
 
         if not user.id:
             raise HTTPException(500)
 
         if userData.is_rescuer:
-            makeRescuer(user, session)
+            makeRescuer(user, session, commit=False)
 
         if userData.is_admin:
-            makeAdmin(user, session)
+            makeAdmin(user, session, commit=False)
+
+        session.commit()
+        session.refresh(user)
 
         return user
     except HTTPException as e:
@@ -787,7 +790,9 @@ def unban_user(
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         nowreal = datetime.now(timezone.utc)
         statement = (
-            update(BannedUser).where(BannedUser.until > now).values(until=nowreal)
+            update(BannedUser)
+            .where(BannedUser.user_id == user_id, BannedUser.until > now)
+            .values(until=nowreal)
         )
 
         session.exec(statement)

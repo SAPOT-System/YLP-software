@@ -298,4 +298,4 @@ async def main_web_socket(token: str, websocket: WebSocket, target_id: UUID|None
                 extra=log_context(user_id, "websocket_offline_status_broadcast_failed"),
             )
         asyncio.get_event_loop().run_in_executor(None, _set_status_bg, UUID(user_id), "Inactive")
-        await manager.disconnect(UUID(user_id))
+        await manager.disconnect(UUID(user_id), websocket=websocket)

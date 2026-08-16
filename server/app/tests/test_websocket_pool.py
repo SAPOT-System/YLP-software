@@ -48,6 +48,50 @@ def test_personal_delivery_failure_is_logged_and_disconnects(caplog):
     assert record.metadata_json == {}
 
 
+def test_personal_delivery_failure_keeps_reconnected_socket():
+    manager = ConnectionManager()
+    user_id = uuid4()
+    replacement = object()
+
+    class ReconnectingWebSocket:
+        async def send_json(self, message: dict) -> None:
+            manager._local[user_id] = replacement
+            raise RuntimeError("connection closed")
+
+    manager._local[user_id] = ReconnectingWebSocket()
+
+    asyncio.run(manager.send_personal_message(user_id, {"type": "ping"}))
+
+    assert manager._local[user_id] is replacement
+
+
+def test_broadcast_delivery_failure_keeps_reconnected_socket():
+    manager = ConnectionManager()
+    user_id = uuid4()
+    replacement = object()
+
+    class ReconnectingWebSocket:
+        async def send_json(self, message: dict) -> None:
+            manager._local[user_id] = replacement
+            raise RuntimeError("connection closed")
+
+    class OneMessagePubSub:
+        async def listen(self):
+            yield {"type": "message", "data": '{"_wid": "other", "msg": {"type": "ping"}}'}
+
+        async def unsubscribe(self, channel: str) -> None:
+            return None
+
+        async def aclose(self) -> None:
+            return None
+
+    manager._local[user_id] = ReconnectingWebSocket()
+
+    asyncio.run(manager._broadcast_loop(OneMessagePubSub()))
+
+    assert manager._local[user_id] is replacement
+
+
 @pytest.fixture(name="pool_engine")
 def pool_engine_fixture(tmp_path, monkeypatch):
     """A real QueuePool-backed SQLite engine so we can inspect checked-out

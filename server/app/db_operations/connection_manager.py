@@ -75,7 +75,9 @@ class ConnectionManager:
             self._heartbeat_loop(user_id), name=f"ws-hb-{user_id}"
         )
 
-    async def disconnect(self, user_id: UUID) -> None:
+    async def disconnect(self, user_id: UUID, websocket: WebSocket | None = None) -> None:
+        if websocket is not None and self._local.get(user_id) is not websocket:
+            return
         self._local.pop(user_id, None)
         for tasks in (self._sub_tasks, self._hb_tasks):
             task = tasks.pop(user_id, None)
@@ -98,7 +100,7 @@ class ConnectionManager:
                     "WebSocket delivery failed for disconnected user",
                     extra=log_context(target_id, "websocket_user_disconnected"),
                 )
-                await self.disconnect(target_id)
+                await self.disconnect(target_id, websocket=ws)
         # Cross-worker: publish so the holding worker delivers it
         if self._redis:
             await self._redis.publish(
@@ -184,7 +186,7 @@ class ConnectionManager:
                         extra=log_context(None, "websocket_broadcast_malformed"),
                     )
                     continue
-                stale: list[UUID] = []
+                stale: list[tuple[UUID, WebSocket]] = []
                 for uid, ws in list(self._local.items()):
                     try:
                         await ws.send_json(message)
@@ -193,9 +195,9 @@ class ConnectionManager:
                             "WebSocket broadcast delivery failed for disconnected user",
                             extra=log_context(uid, "websocket_broadcast_disconnected"),
                         )
-                        stale.append(uid)
-                for uid in stale:
-                    await self.disconnect(uid)
+                        stale.append((uid, ws))
+                for uid, websocket in stale:
+                    await self.disconnect(uid, websocket=websocket)
         except asyncio.CancelledError:
             pass
         finally:

@@ -58,7 +58,7 @@ def verify_password(plain_password : str, hashed__password : str):
     return password_hash.verify(plain_password, hashed__password)
 
 
-def db_create_user(user: UserCreate, session: SessionDep):
+def db_create_user(user: UserCreate, session: SessionDep, commit: bool = True):
     try:
         user_in_db = get_user_by_ID(session, user.id) if user.id else None
     except HTTPException:
@@ -105,11 +105,15 @@ def db_create_user(user: UserCreate, session: SessionDep):
 
         session.add(db_user)
         try:
-            session.commit()
+            if commit:
+                session.commit()
+            else:
+                session.flush()
         except IntegrityError:
             session.rollback()
             raise HTTPException(status_code=400, detail={"username": "Username or contact already registered"})
-        session.refresh(db_user)
+        if commit:
+            session.refresh(db_user)
         return db_user
     elif user_in_db and user_in_db.guest:
         # modify existing user
@@ -129,8 +133,11 @@ def db_create_user(user: UserCreate, session: SessionDep):
         session.add(user_in_db)
         # delete guest record
         session.delete(user_in_db.guest)
-        session.commit()
-        session.refresh(user_in_db)
+        if commit:
+            session.commit()
+            session.refresh(user_in_db)
+        else:
+            session.flush()
         return user_in_db
         # TODO: all guest accounts are disabled from getting a token in any way shape or form
         
