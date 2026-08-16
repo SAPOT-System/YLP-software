@@ -44,6 +44,16 @@ MSG_INVALID_FMT   = "Bad format. Use:\n[target] +639XXXXXXXXX"     # 39 chars
 MSG_NO_ARG        = "Provide a number: [target] +639XXXXXXXXX"     # 40 chars
 MSG_FORWARD_FAIL  = "Could not forward your message. Please try again."  # 50
 
+MSG_NOT_PERMITTED = (
+    "No SAPOT user has contacted this number. "
+    "Ask them to message you first."
+)                                                          # 72 chars
+
+MSG_TARGET_NOT_PERMITTED = (
+    "That number has not contacted you. "
+    "Only permitted SAPOT contacts can be targeted."
+)                                                          # 82 chars
+
 def _msg_target_set(username: str, phone: str) -> str:
     return f"Target: {username} ({phone}). Messages go to them now."
     # e.g. "Target: maria_santos (+639281234567). Messages go to them now." = 63
@@ -127,6 +137,25 @@ def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
         return _cmd_set_target(number, body)
 
     if stage == "NEW":
+        permitted = database.get_permitted_contacts(number)
+        if not permitted:
+            return MSG_NOT_PERMITTED, None, None, "NOT_PERMITTED"
+        if len(permitted) == 1:
+            target = database.lookup_number(permitted[0])
+            if target:
+                database.update_session(
+                    number,
+                    stage="ACTIVE",
+                    target_phone=permitted[0],
+                    target_username=target["username"],
+                )
+                return (
+                    f"Welcome. Routing to {target['username']}. "
+                    "Send any message to reach them.",
+                    None,
+                    None,
+                    "WELCOME",
+                )
         database.update_session(number, stage="AWAITING_TARGET")
         return MSG_WELCOME, None, None, "WELCOME"
 
@@ -169,6 +198,10 @@ def _cmd_set_target(number: str, body: str) -> ForwardTuple:
     # Sender cannot target themselves
     if target_phone == number:
         return "You cannot set yourself as the target.", None, None, "SELF_TARGET"
+
+    permitted = database.get_permitted_contacts(number)
+    if target_phone not in permitted:
+        return MSG_TARGET_NOT_PERMITTED, None, None, "TARGET_NOT_PERMITTED"
 
     target = database.lookup_number(target_phone)
     if target is None:

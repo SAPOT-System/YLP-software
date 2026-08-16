@@ -83,6 +83,7 @@ def test_process_incoming_marks_warning_only_after_successful_reply(
         "mark_unregistered_warning",
         lambda number: marked_numbers.append(number),
     )
+    monkeypatch.setattr(api.database, "allow_inbound_response", lambda *args: True)
 
     api._process_incoming(SimpleNamespace(number="+639171234567", body="help"))
 
@@ -192,3 +193,85 @@ def test_grant_permission_endpoint_rejects_wrong_secret(monkeypatch):
     assert resp.status_code == 401
 
 
+REGISTERED_USER = {
+    "id": "abc123",
+    "phone": "+639172222222",
+    "username": "maria",
+    "first_name": "Maria",
+    "last_name": "Santos",
+    "email": "m@s.com",
+    "app_active": True,
+}
+SENDER_VERIFIED = {"banned": False, "phone_is_verified": True}
+
+
+def test_new_session_with_no_permitted_contacts_is_rejected(monkeypatch):
+    """An external number with zero outbound permissions must get NOT_PERMITTED."""
+    monkeypatch.setattr(sms_handler.database, "get_user_by_phone", lambda _: SENDER_VERIFIED)
+    monkeypatch.setattr(sms_handler.database, "lookup_number", lambda p: REGISTERED_USER if p in ("+639172222222", "+639171234567") else None)
+    monkeypatch.setattr(sms_handler.database, "get_permitted_contacts", lambda _: [])
+    monkeypatch.setattr(sms_handler.database, "get_session", lambda _: {"stage": "NEW", "target_phone": None, "target_username": None})
+    monkeypatch.setattr(sms_handler.database, "update_session", lambda *_a, **_kw: None)
+    monkeypatch.setattr(sms_handler.database, "has_unregistered_warning", lambda _: False)
+
+    reply, fwd_num, fwd_body, reason = sms_handler.handle_incoming_sms(
+        "+639171234567", "Hello"
+    )
+
+    assert reason == "NOT_PERMITTED"
+    assert fwd_num is None
+
+
+def test_new_session_with_exactly_one_permitted_contact_auto_routes(monkeypatch):
+    """When there is exactly one permitted contact, the session goes ACTIVE immediately."""
+    permitted = ["+639172222222"]
+    monkeypatch.setattr(sms_handler.database, "get_user_by_phone", lambda _: SENDER_VERIFIED)
+    monkeypatch.setattr(sms_handler.database, "lookup_number", lambda p: REGISTERED_USER if p in ("+639172222222", "+639171234567") else None)
+    monkeypatch.setattr(sms_handler.database, "get_permitted_contacts", lambda _: permitted)
+    session_updates = []
+    monkeypatch.setattr(sms_handler.database, "get_session", lambda _: {"stage": "NEW", "target_phone": None, "target_username": None})
+    monkeypatch.setattr(sms_handler.database, "update_session", lambda _phone, **kw: session_updates.append(kw))
+    monkeypatch.setattr(sms_handler.database, "has_unregistered_warning", lambda _: False)
+
+    reply, fwd_num, fwd_body, reason = sms_handler.handle_incoming_sms(
+        "+639171234567", "Hello"
+    )
+
+    assert reason == "WELCOME"
+    assert any(u.get("stage") == "ACTIVE" for u in session_updates)
+    assert any(u.get("target_phone") == "+639172222222" for u in session_updates)
+
+
+def test_set_target_blocked_when_not_in_permitted_set(monkeypatch):
+    """[target] with a phone not in permitted contacts returns TARGET_NOT_PERMITTED."""
+    permitted = ["+639172222222"]
+    monkeypatch.setattr(sms_handler.database, "get_user_by_phone", lambda _: SENDER_VERIFIED)
+    monkeypatch.setattr(sms_handler.database, "lookup_number", lambda p: REGISTERED_USER if p in ("+639171234567", "+639179999999") else None)
+    monkeypatch.setattr(sms_handler.database, "get_permitted_contacts", lambda _: permitted)
+    monkeypatch.setattr(sms_handler.database, "get_session", lambda _: {"stage": "AWAITING_TARGET", "target_phone": None, "target_username": None})
+    monkeypatch.setattr(sms_handler.database, "update_session", lambda *_a, **_kw: None)
+    monkeypatch.setattr(sms_handler.database, "has_unregistered_warning", lambda _: False)
+
+    reply, fwd_num, fwd_body, reason = sms_handler.handle_incoming_sms(
+        "+639171234567", "[target] +639179999999"
+    )
+
+    assert reason == "TARGET_NOT_PERMITTED"
+    assert fwd_num is None
+
+
+def test_set_target_allowed_when_in_permitted_set(monkeypatch):
+    """[target] with a phone in the permitted set succeeds."""
+    permitted = ["+639172222222"]
+    monkeypatch.setattr(sms_handler.database, "get_user_by_phone", lambda _: SENDER_VERIFIED)
+    monkeypatch.setattr(sms_handler.database, "lookup_number", lambda p: REGISTERED_USER if p in ("+639172222222", "+639171234567") else None)
+    monkeypatch.setattr(sms_handler.database, "get_permitted_contacts", lambda _: permitted)
+    monkeypatch.setattr(sms_handler.database, "get_session", lambda _: {"stage": "AWAITING_TARGET", "target_phone": None, "target_username": None})
+    monkeypatch.setattr(sms_handler.database, "update_session", lambda *_a, **_kw: None)
+    monkeypatch.setattr(sms_handler.database, "has_unregistered_warning", lambda _: False)
+
+    reply, fwd_num, fwd_body, reason = sms_handler.handle_incoming_sms(
+        "+639171234567", "[target] +639172222222"
+    )
+
+    assert reason == "TARGET_SET"
