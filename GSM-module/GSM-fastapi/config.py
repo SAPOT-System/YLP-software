@@ -31,6 +31,23 @@ def bounded_integer_env(name: str, default: int, maximum: int) -> int:
     return parsed
 
 
+def nonnegative_integer_env(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise RuntimeError(
+            f"Environment variable '{name}' must be a non-negative integer."
+        ) from error
+    if parsed < 0:
+        raise RuntimeError(
+            f"Environment variable '{name}' must be a non-negative integer."
+        )
+    return parsed
+
+
 class Settings:
     load_dotenv()
     # Serial port the Arduino is connected to
@@ -59,6 +76,20 @@ class Settings:
     sms_send_queue_maxsize: int = bounded_integer_env(
         "SMS_SEND_QUEUE_MAXSIZE", 10, MAX_SEND_QUEUE_SIZE
     )
+    sms_incoming_queue_maxsize: int = bounded_integer_env(
+        "SMS_INCOMING_QUEUE_MAXSIZE", 100, 10_000
+    )
+    sms_daily_send_limit: int = nonnegative_integer_env("SMS_DAILY_SEND_LIMIT", 100)
+    sms_sender_daily_limit: int = nonnegative_integer_env("SMS_SENDER_DAILY_LIMIT", 20)
+    sms_sender_target_daily_limit: int = nonnegative_integer_env(
+        "SMS_SENDER_TARGET_DAILY_LIMIT", 10
+    )
+    sms_response_cooldown_seconds: int = nonnegative_integer_env(
+        "SMS_RESPONSE_COOLDOWN_SECONDS", 30
+    )
+    sms_log_retention_days: int = nonnegative_integer_env("SMS_LOG_RETENTION_DAYS", 30)
+    log_max_bytes: int = bounded_integer_env("LOG_MAX_BYTES", 1_000_000, 100_000_000)
+    log_backup_count: int = bounded_integer_env("LOG_BACKUP_COUNT", 3, 100)
 
 
 settings = Settings()

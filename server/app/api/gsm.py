@@ -13,6 +13,7 @@ from sqlmodel import select
 from app.db_operations.auth import SessionDep
 from app.db_operations.connection_manager import manager
 from app.db_operations.token import get_current_user, get_current_user_admin, get_current_user_rescuer, verify_reauth_token
+from app.limiter import limiter
 from app.models.conversation import Conversation, ConversationParticipant, ConversationType
 from app.models.guest import Guest
 from app.models.message import Message, MessageType
@@ -71,7 +72,9 @@ def _gsm_log_extra(current_user: User | None, path: str) -> dict:
 
 async def _get_gsm_health(path: str, current_user: User) -> dict | JSONResponse:
     try:
-        response = await _get_gsm_client().get(path)
+        response = await _get_gsm_client().get(
+            path, headers={"X-GSM-Secret": GSM_SECRET}
+        )
     except httpx.RequestError as exc:
         logger.warning(
             "GSM gateway health check unavailable: %s",
@@ -305,7 +308,9 @@ async def gsm_messages(
         params["phone"] = phone
 
     client = _get_gsm_client()
-    response = await client.get("/sms/messages", params=params)
+    response = await client.get(
+        "/sms/messages", params=params, headers={"X-GSM-Secret": GSM_SECRET}
+    )
     return response.json()
 
 
@@ -321,7 +326,9 @@ def _require_verified_phone(user: User) -> None:
 
 
 @router.post("/sms/send", responses=GSM_SMS_SEND_ERROR_RESPONSES)
+@limiter.limit("10/minute")
 async def send_sms(
+        request: Request,
         current_user : Annotated[User, Depends(get_current_user)],
         user_id: UUID, 
         message: str,
@@ -339,6 +346,14 @@ async def send_sms(
         return { "detail": { "msg": "This user does not exist." }}
     if not target.phone_number:
         return { "detail": { "msg": "This user does not have a phone number attached to his/her account." }}
+    if not target.phone_is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason": "TARGET_PHONE_VERIFICATION_REQUIRED",
+                "message": "The recipient must verify their phone number before receiving SMS.",
+            },
+        )
 
 
     return await sendToModule(target.phone_number, message)
@@ -365,6 +380,7 @@ async def sendToModule(phone_number: str, message: str):
     return payload
 
 @router.post("/request", responses=GSM_SEND_ERROR_RESPONSES)
+@limiter.limit("3/minute")
 async def request_phone_verification(
     data: RequestPhoneVerification,
     request: Request,
@@ -501,7 +517,9 @@ def verify_phone_code(
 # =============================================================================
 
 @router.post("/resend", responses=GSM_SEND_ERROR_RESPONSES)
+@limiter.limit("3/minute")
 async def resend_phone_code(
+    request: Request,
     current_user : Annotated[User, Depends(get_current_user)],
     session: SessionDep
 ):
@@ -673,7 +691,9 @@ def sms_conversation_id(user_id_a: str, user_id_b: str) -> str:
 
 
 @router.post("/contact-unknown-user", responses=GSM_SEND_ERROR_RESPONSES)
+@limiter.limit("3/minute")
 async def contact_unknown_user(
+    request: Request,
     current_user : Annotated[User, Depends(get_current_user)],
     target_phone_number: Annotated[str, Query(pattern=r"^\+639\d{9}$")],
     session: SessionDep,
@@ -684,6 +704,10 @@ async def contact_unknown_user(
     the conversation between an authenticated user and a user without an account.
     This does not send any message to the target user.
     """
+    if current_user.banned:
+        raise HTTPException(403)
+    _require_verified_phone(current_user)
+
     registered_user = session.exec(select(User).where(User.phone_number == target_phone_number)).first()
 
     if registered_user:

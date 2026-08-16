@@ -33,7 +33,7 @@ sequenceDiagram
     GSM->>Main: POST /gsm/inbound with X-GSM-Secret
 ```
 
-The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT) and requires the sender to have a verified phone number. It rejects an unverified sender before contacting the gateway. The main server authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` before logging or queueing a send, which prevents another container on the internal network from occupying the serial modem.
+The main server authenticates the user-facing `/gsm/sms/send` route with a JSON Web Token (JWT) and requires both sender and recipient to have verified phone numbers. It rejects ineligible requests before contacting the gateway. The main server authenticates its direct gateway call with the same shared `GSM_SECRET` used for callbacks. The GSM service validates `X-GSM-Secret` on every endpoint except the liveness-only `/health` route, which prevents another container on the internal network from reading SMS data, resetting sessions, or occupying the serial modem.
 
 ## How does outbound admission work?
 
@@ -95,7 +95,7 @@ Message bodies may contain pipe characters. `parse_line()` preserves them for `S
 
 ## How are inbound messages handled?
 
-The reader places `SMS_RECEIVED` events on `incoming_queue`. The API lifespan task passes each event to `handle_incoming_sms()`, which applies registration, ban, phone-verification, session, and target checks. An unregistered number receives a registration warning on its first message. The gateway records the warning only after the modem confirms that reply was sent. It ignores later messages from that number, preventing repeat reply charges. A separate relay-only record preserves this behavior when an operator resets the number's normal relay session.
+The reader places `SMS_RECEIVED` events on a bounded `incoming_queue`. When full, it drops the new event, increments an overflow counter exposed through `/health/detailed`, and continues reading the modem. The API lifespan task passes each accepted event to `handle_incoming_sms()`, which normalizes Philippine mobile numbers and applies registration, ban, phone-verification, session, target, opt-out, and sender-target quota checks. The API also applies sender-wide and response-category cooldowns before it sends a reply. Gateway logs retain only redacted message metadata, rotate by size, and are purged after the configured retention period.
 
 The handler can return a reply to the sender and a forwarded message for the selected target. Both use the same bounded outbound queue. `database.notify_app()` also calls the main server's `POST /gsm/inbound` route with `X-GSM-Secret`.
 

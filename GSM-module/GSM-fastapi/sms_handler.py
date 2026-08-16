@@ -11,9 +11,12 @@ Message length rule: every constant must stay under 160 chars
 """
 
 import logging
+import re
+import unicodedata
 from typing import Optional, Tuple
 
 import database
+from config import settings
 
 logger = logging.getLogger("sapot.handler")
 
@@ -74,8 +77,12 @@ ForwardTuple = Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
-    body = body.strip()
-    logger.info("SMS in  %s: %r", number, body)
+    number = _normalize_phone(number)
+    if number is None:
+        logger.warning("Rejected malformed sender number")
+        return None, None, None, "MALFORMED_SENDER"
+    body = " ".join(unicodedata.normalize("NFKC", body).split())
+    logger.info("SMS received from %s (%d characters)", number, len(body))
     sender_user = database.get_user_by_phone(number)
     
     if not sender_user:
@@ -105,6 +112,13 @@ def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
     if sender is None:
         return MSG_NO_ACCOUNT, None, None, "NO_ACCOUNT"
 
+    if body.upper() == "STOP":
+        database.set_sms_opt_out(number, True)
+        return "SMS relay messages are disabled for this number. Reply START to enable them.", None, None, "OPT_OUT"
+    if body.upper() == "START":
+        database.set_sms_opt_out(number, False)
+        return "SMS relay messages are enabled for this number.", None, None, "OPT_IN"
+
     session = database.get_session(number)
     stage   = session["stage"]
 
@@ -114,16 +128,29 @@ def handle_incoming_sms(number: str, body: str) -> ForwardTuple:
 
     if stage == "NEW":
         database.update_session(number, stage="AWAITING_TARGET")
-        return MSG_WELCOME, None, None, None
+        return MSG_WELCOME, None, None, "WELCOME"
 
     if stage == "AWAITING_TARGET":
-        return MSG_NEED_TARGET, None, None, None
+        return MSG_NEED_TARGET, None, None, "AWAITING_TARGET"
 
     if stage == "ACTIVE":
         return _do_forward(number, body, session)
 
     database.reset_session(number)
-    return MSG_WELCOME, None, None, None
+    return MSG_WELCOME, None, None, "WELCOME"
+
+
+def _normalize_phone(number: str) -> Optional[str]:
+    normalized = unicodedata.normalize("NFKC", number).strip().replace(" ", "")
+    if re.fullmatch(r"09\d{9}", normalized):
+        normalized = "+63" + normalized[1:]
+    elif re.fullmatch(r"639\d{9}", normalized):
+        normalized = "+" + normalized
+    if normalized.startswith("00"):
+        normalized = "+" + normalized[2:]
+    if re.fullmatch(r"\+639\d{9}", normalized):
+        return normalized
+    return None
 
 
 # ── Sub-handlers ──────────────────────────────────────────────────────────────
@@ -132,20 +159,20 @@ def _cmd_set_target(number: str, body: str) -> ForwardTuple:
     # body is like "[target] +639281234567" or "[target]" (no arg)
     parts = body.split(None, 1)
     if len(parts) < 2 or not parts[1].strip():
-        return MSG_NO_ARG, None, None, None
+        return MSG_NO_ARG, None, None, "TARGET_NO_ARGUMENT"
 
-    target_phone = parts[1].strip()
+    target_phone = _normalize_phone(parts[1])
 
-    if not target_phone.startswith("+") or not target_phone[1:].isdigit():
-        return MSG_INVALID_FMT, None, None, None
+    if target_phone is None:
+        return MSG_INVALID_FMT, None, None, "TARGET_INVALID_FORMAT"
 
     # Sender cannot target themselves
     if target_phone == number:
-        return "You cannot set yourself as the target.", None, None, None
+        return "You cannot set yourself as the target.", None, None, "SELF_TARGET"
 
     target = database.lookup_number(target_phone)
     if target is None:
-        return MSG_TARGET_NOT_FOUND, None, None, None
+        return MSG_TARGET_NOT_FOUND, None, None, "TARGET_NOT_FOUND"
 
     database.update_session(
         number,
@@ -154,7 +181,7 @@ def _cmd_set_target(number: str, body: str) -> ForwardTuple:
         target_username=target["username"],
     )
 
-    return _msg_target_set(target["username"], target_phone), None, None, None
+    return _msg_target_set(target["username"], target_phone), None, None, "TARGET_SET"
 
 
 def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
@@ -165,7 +192,10 @@ def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
 
     if not target_user:
         logger.warning("Target does not exist: %s", target_phone)
-        return f"Target {target_phone} does not exist.", sender_phone, None, None
+        return f"Target {target_phone} does not exist.", None, None, "TARGET_MISSING"
+
+    if database.is_sms_opted_out(target_phone):
+        return "That target has opted out of SMS relay messages.", None, None, "TARGET_OPTED_OUT"
 
     if target_user.get("banned"):
         logger.warning("Banned: %s", target_phone)
@@ -173,20 +203,27 @@ def _do_forward(sender_phone: str, body: str, session: dict) -> ForwardTuple:
             f"This number ({target_phone}) has been banned by the system.",
             None,
             None,
-            None,
+            "TARGET_BANNED",
         )
     if   not target_user.get("phone_is_verified"):
         logger.warning("Unverified number: %s", target_phone)
-        return f"Target {target_phone} is not verified.", None, None, None
+        return f"Target {target_phone} is not verified.", None, None, "TARGET_UNVERIFIED"
 
     if not target_phone:
         database.reset_session(sender_phone)
-        return MSG_WELCOME, None, None, None
+        return MSG_WELCOME, None, None, "WELCOME"
+
+    if not database.allow_sender_target(
+        sender_phone, target_phone, settings.sms_sender_target_daily_limit
+    ):
+        return "Relay limit reached. Please try again tomorrow.", None, None, "RELAY_LIMIT"
 
     ok = database.notify_app(sender_phone, target_phone, body)
     logger.info("notify_app result: %s (sender=%s target=%s)", ok, sender_phone, target_phone)
+    if not ok:
+        return MSG_FORWARD_FAIL, None, None, "APP_DELIVERY_FAILED"
 
     # Build clean forward body for the target's SMS
     fwd = _forward_body(sender_phone, body)
 
-    return _msg_forwarded(target_username), target_phone, fwd, None
+    return _msg_forwarded(target_username), target_phone, fwd, "FORWARDED"

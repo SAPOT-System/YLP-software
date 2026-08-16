@@ -17,8 +17,10 @@ AUTH_HEADERS = {"X-GSM-Secret": settings.gsm_secret}
 
 
 @pytest.fixture(autouse=True)
-def reset_worker():
+def reset_worker(monkeypatch):
     previous = api._worker
+    monkeypatch.setattr(api.database, "is_sms_opted_out", lambda _phone: False)
+    monkeypatch.setattr(api.database, "reserve_outbound_sms", lambda _limit: True)
     yield
     api._worker = previous
 
@@ -85,7 +87,7 @@ def test_detailed_health_keeps_inbound_queue_depth_and_adds_outbound_fields(monk
     api._worker = Worker()
     monkeypatch.setattr(api.database, "get_messages", lambda **_kwargs: {"messages": [], "total": 0})
 
-    response = TestClient(api.app).get("/health/detailed")
+    response = TestClient(api.app).get("/health/detailed", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json()["queue_depth"] == 1

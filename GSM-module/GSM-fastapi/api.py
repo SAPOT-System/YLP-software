@@ -68,12 +68,16 @@ async def lifespan(app: FastAPI):
             "Marked %d orphaned SMS messages as failed after service restart",
             orphaned_count,
         )
+    purged_count = database.purge_expired_sms_logs(settings.sms_log_retention_days)
+    if purged_count:
+        logger.info("Purged %d expired SMS log records", purged_count)
 
     # Serial worker
     _worker = SerialWorker(
         settings.serial_port,
         settings.serial_baud,
         settings.sms_send_queue_maxsize,
+        settings.sms_incoming_queue_maxsize,
     )
     _worker.start()
     logger.info("Serial worker started on %s", settings.serial_port)
@@ -141,13 +145,27 @@ def _process_incoming(event):
     if rejection_reason:
         database.update_message_status(msg_id, "rejected", rejection_reason)
 
-    # Forward to target via SMS
+    if reply and not database.allow_inbound_response(
+        number,
+        rejection_reason or "REPLY",
+        settings.sms_sender_daily_limit,
+        settings.sms_response_cooldown_seconds,
+    ):
+        database.update_message_status(msg_id, "rejected", "RATE_LIMITED")
+        return
+
+    # Forward to target via SMS. A confirmation is only sent if the target SMS
+    # was accepted by the modem, so users do not receive a false "Forwarded" state.
+    target_sent = True
     if forward_number and forward_body and _worker:
-        _send_and_log(
+        target_sent = _send_and_log(
             from_number="SERVER",
             to_number=forward_number,
             body=forward_body,
         )
+
+    if not target_sent:
+        reply = "Could not forward your message. Please try again."
 
 
     # Send reply back to sender
@@ -162,8 +180,8 @@ def _process_incoming(event):
 
 
 
-def _send_and_log(from_number: str, to_number: str, body: str):
-    """Send one SMS, persist its result, and return whether it was sent."""
+def _send_and_log(from_number: str, to_number: str, body: str) -> bool:
+    """Send one SMS via the worker and persist result to DB."""
     msg_id = database.log_message(
         direction="OUT",
         from_number=from_number,
@@ -171,6 +189,13 @@ def _send_and_log(from_number: str, to_number: str, body: str):
         body=body,
         status="pending",
     )
+    if database.is_sms_opted_out(to_number):
+        database.update_message_status(msg_id, "failed", "RECIPIENT_OPTED_OUT")
+        return False
+    if not database.reserve_outbound_sms(settings.sms_daily_send_limit):
+        logger.warning("Outbound SMS rejected: daily send limit reached")
+        database.update_message_status(msg_id, "failed", "DAILY_SEND_LIMIT")
+        return False
     try:
         result = _worker.send_sms(to_number, body, timeout=120)
         status = "sent" if result["ok"] else "failed"
@@ -179,12 +204,15 @@ def _send_and_log(from_number: str, to_number: str, body: str):
     except OutboundQueueFullError:
         logger.warning("Internal outbound SMS rejected: QUEUE_FULL")
         database.update_message_status(msg_id, "failed", "QUEUE_FULL")
+        return False
     except WorkerStoppingError:
         logger.info("Internal outbound SMS rejected: SERVICE_STOPPING")
         database.update_message_status(msg_id, "failed", "SERVICE_STOPPING")
+        return False
     except Exception as e:
         logger.error("send_sms error: %s", e)
         database.update_message_status(msg_id, "failed", str(e))
+        return False
 
     return False
 
@@ -272,7 +300,9 @@ async def health():
     )
 
 
-@app.get("/health/detailed", tags=["health"])
+@app.get(
+    "/health/detailed", tags=["health"], dependencies=[Depends(require_gsm_secret)]
+)
 def health_detailed(
     phone: Optional[str] = None,
         ):
@@ -299,6 +329,8 @@ def health_detailed(
         "connected":    _worker.connected,
         "last_status":  _worker.last_status,
         "queue_depth":  _worker.incoming_queue.qsize(),
+        "inbound_queue_capacity": _worker.incoming_queue.maxsize,
+        "inbound_queue_dropped": getattr(_worker, "incoming_queue_dropped", 0),
         "outbound_queue_depth": _worker.outbound_queue_depth,
         "outbound_queue_capacity": _worker.outbound_queue_capacity,
         "outbound_in_flight": _worker.outbound_in_flight,
@@ -334,7 +366,7 @@ def health_detailed(
 
 # ── Status ────────────────────────────────────────────────────────────────────
 
-@app.get("/status", tags=["modem"])
+@app.get("/status", tags=["modem"], dependencies=[Depends(require_gsm_secret)])
 def status():
     """Modem and serial connection status."""
     if _worker is None:
@@ -369,6 +401,22 @@ def send_sms(req: SendSMSRequest):
         body=req.body,
         status="pending",
     )
+
+    if database.is_sms_opted_out(req.number):
+        database.update_message_status(msg_id, "failed", "RECIPIENT_OPTED_OUT")
+        raise HTTPException(403, {
+            "message": "Recipient has opted out of SMS relay messages",
+            "reason": "RECIPIENT_OPTED_OUT",
+            "msg_id": msg_id,
+        })
+
+    if not database.reserve_outbound_sms(settings.sms_daily_send_limit):
+        database.update_message_status(msg_id, "failed", "DAILY_SEND_LIMIT")
+        raise HTTPException(503, {
+            "message": "Daily SMS send limit reached",
+            "reason": "DAILY_SEND_LIMIT",
+            "msg_id": msg_id,
+        })
 
     try:
         result = _worker.send_sms(req.number, req.body, timeout=60)
@@ -413,7 +461,7 @@ def send_sms(req: SendSMSRequest):
     }
 
 
-@app.get("/sms/messages", tags=["sms"])
+@app.get("/sms/messages", tags=["sms"], dependencies=[Depends(require_gsm_secret)])
 def list_messages(
     limit:     int           = Query(50, ge=1, le=500),
     direction: Optional[str] = Query(None, pattern="^(IN|OUT)$"),
@@ -425,12 +473,12 @@ def list_messages(
 
 # ── User endpoints ────────────────────────────────────────────────────────────
 
-@app.get("/users", tags=["users"])
+@app.get("/users", tags=["users"], dependencies=[Depends(require_gsm_secret)])
 def list_users():
     return database.get_all_users()
 
 
-@app.get("/users/{phone}", tags=["users"])
+@app.get("/users/{phone}", tags=["users"], dependencies=[Depends(require_gsm_secret)])
 def get_user(phone: str):
     user = database.lookup_number(phone)
     if not user:
@@ -438,7 +486,9 @@ def get_user(phone: str):
     return user
 
 
-@app.post("/users", tags=["users"], status_code=201)
+@app.post(
+    "/users", tags=["users"], status_code=201, dependencies=[Depends(require_gsm_secret)]
+)
 def add_user(req: AddUserRequest):
     try:
         return database.add_user(req.phone, req.username, req.app_active)
@@ -450,7 +500,7 @@ def add_user(req: AddUserRequest):
 
 # ── Session endpoints ─────────────────────────────────────────────────────────
 
-@app.get("/sessions", tags=["sessions"])
+@app.get("/sessions", tags=["sessions"], dependencies=[Depends(require_gsm_secret)])
 def list_sessions():
     """All sessions currently in the database (for debugging)."""
     with database._conn() as cx:
@@ -458,7 +508,9 @@ def list_sessions():
     return [dict(r) for r in rows]
 
 
-@app.delete("/sessions/{phone}", tags=["sessions"])
+@app.delete(
+    "/sessions/{phone}", tags=["sessions"], dependencies=[Depends(require_gsm_secret)]
+)
 def reset_session(phone: str):
     """Reset a user's conversation session back to NEW."""
     database.reset_session(phone)

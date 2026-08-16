@@ -64,6 +64,14 @@ GSM_GATEWAY_URL=http://127.0.0.1:8001
 | `GSM_SECRET` | None; startup raises `RuntimeError` when unset | Shared secret validated for server calls to `/sms/send` and sent by the GSM module on `/gsm/inbound` callbacks. **Must match the server's `GSM_SECRET`** (see above) |
 | `SMS_BOT_USER_ID` | unset | User ID the GSM module attributes inbound SMS-originated messages to, when the sender can't be resolved to a registered user (`database.py`) |
 | `SMS_SEND_QUEUE_MAXSIZE` | `10` | Maximum waiting outbound requests. Integers from `1` through `20` are accepted; other values fail startup. The upper bound leaves capacity in FastAPI's default 40-thread worker pool so overload requests can reach the non-blocking admission check. |
+| `SMS_INCOMING_QUEUE_MAXSIZE` | `100` | Maximum inbound SMS events waiting for relay processing. Excess events are dropped and reported by `/health/detailed`. |
+| `SMS_DAILY_SEND_LIMIT` | `100` | Gateway-wide daily outbound SMS ceiling. Set to `0` as an immediate carrier-spend kill switch. |
+| `SMS_SENDER_DAILY_LIMIT` | `20` | Daily cap on replies generated for one inbound sender. |
+| `SMS_SENDER_TARGET_DAILY_LIMIT` | `10` | Daily cap on relay attempts for one sender-target pair. |
+| `SMS_RESPONSE_COOLDOWN_SECONDS` | `30` | Minimum spacing between responses in the same category for one sender. |
+| `SMS_LOG_RETENTION_DAYS` | `30` | Number of days to retain redacted operational SMS logs. Set to `0` to purge logs on service start. |
+| `LOG_MAX_BYTES` | `1000000` | Maximum bytes in one gateway log file before rotation. |
+| `LOG_BACKUP_COUNT` | `3` | Number of rotated gateway log files retained. |
 
 ### Recommended production `gsm.env`
 
@@ -78,6 +86,14 @@ SAPOT_API_URL=http://127.0.0.1:8000
 GSM_SECRET=<same shared secret as server's GSM_SECRET>
 SMS_BOT_USER_ID=<uuid of the SMS bot user, if applicable>
 SMS_SEND_QUEUE_MAXSIZE=10
+SMS_INCOMING_QUEUE_MAXSIZE=100
+SMS_DAILY_SEND_LIMIT=100
+SMS_SENDER_DAILY_LIMIT=20
+SMS_SENDER_TARGET_DAILY_LIMIT=10
+SMS_RESPONSE_COOLDOWN_SECONDS=30
+SMS_LOG_RETENTION_DAYS=30
+LOG_MAX_BYTES=1000000
+LOG_BACKUP_COUNT=3
 ```
 
 ---

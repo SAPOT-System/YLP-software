@@ -74,6 +74,13 @@ def _authenticated_user(session, *, phone_verified=False):
     return user
 
 
+def _verified_target(session, current_user):
+    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    session.add(PhoneVerified(user_id=target.id))
+    session.commit()
+    return target
+
+
 def test_proxy_capacity_timeouts_and_gateway_url_cover_gateway_contract(monkeypatch):
     captured = {}
 
@@ -136,7 +143,7 @@ def test_send_to_module_authenticates_with_shared_secret(monkeypatch):
 
 def test_send_sms_preserves_queue_full_status(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: SaturatedGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -151,7 +158,7 @@ def test_send_sms_preserves_queue_full_status(client, session, monkeypatch):
 
 def test_send_sms_preserves_service_stopping_status(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: StoppingGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -201,7 +208,7 @@ def test_phone_verification_resend_preserves_queue_full_status(
 
 
 def test_contact_unknown_user_preserves_queue_full_status(client, session, monkeypatch):
-    current_user = _authenticated_user(session)
+    current_user = _authenticated_user(session, phone_verified=True)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: SaturatedGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -216,7 +223,7 @@ def test_contact_unknown_user_preserves_queue_full_status(client, session, monke
 
 def test_send_sms_reports_unavailable_gateway(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: UnavailableGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -236,7 +243,7 @@ def test_send_sms_reports_unavailable_gateway(client, session, monkeypatch):
 
 def test_send_sms_preserves_modem_not_ready_status(client, session, monkeypatch):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: ModemNotReadyGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 
@@ -253,7 +260,7 @@ def test_send_sms_rejects_proxy_pool_exhaustion_without_gateway_send(
     client, session, monkeypatch
 ):
     current_user = _authenticated_user(session, phone_verified=True)
-    target = session.exec(select(User).where(User.id != current_user.id)).first()
+    target = _verified_target(session, current_user)
     monkeypatch.setattr(gsm, "_get_gsm_client", lambda: PoolExhaustedGsmClient())
     monkeypatch.setitem(app.dependency_overrides, get_current_user, lambda: current_user)
 

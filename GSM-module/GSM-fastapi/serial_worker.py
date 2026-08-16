@@ -75,7 +75,7 @@ class SerialWorker:
     """
 
     def __init__(self, port: str, baud: int = 9600,
-                 send_queue_maxsize: int = 10):
+                 send_queue_maxsize: int = 10, incoming_queue_maxsize: int = 100):
         if not 1 <= send_queue_maxsize <= MAX_SEND_QUEUE_SIZE:
             raise ValueError(
                 f"send_queue_maxsize must be between 1 and {MAX_SEND_QUEUE_SIZE}"
@@ -102,7 +102,10 @@ class SerialWorker:
         self._in_flight_lock = threading.Lock()
 
         # Inbound SMS for the application layer
-        self.incoming_queue: queue.Queue[SerialEvent] = queue.Queue()
+        self.incoming_queue: queue.Queue[SerialEvent] = queue.Queue(
+            maxsize=incoming_queue_maxsize
+        )
+        self.incoming_queue_dropped = 0
 
         # Public status flags
         self.connected   = False
@@ -347,8 +350,12 @@ class SerialWorker:
             return
 
         if etype == EventType.SMS_RECEIVED:
-            logger.info("SMS_RECEIVED from %s: %r", event.number, event.body)
-            self.incoming_queue.put(event)
+            logger.info("SMS_RECEIVED from %s (%d characters)", event.number, len(event.body))
+            try:
+                self.incoming_queue.put_nowait(event)
+            except queue.Full:
+                self.incoming_queue_dropped += 1
+                logger.warning("Inbound SMS dropped because the queue is full")
             return
 
         logger.debug("Unhandled: %r", event.raw)

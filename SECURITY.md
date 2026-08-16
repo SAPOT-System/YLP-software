@@ -14,6 +14,9 @@ This is the canonical source of truth for SAPOT's known security-relevant config
 | CORS wildcard + credentials | `server/app/main.py` | `allow_origins=["*"]` replaced with an explicit allowlist read from `CORS_ALLOWED_ORIGINS` (comma-separated). The app raises `RuntimeError` at import time if unset. |
 | Testing router in production | `server/app/main.py`, `server/app/api/testing.py` | The router is imported and mounted only in `development` or `staging`. A router-wide dependency also returns 404 outside those environments if the router is mis-mounted. Every state-changing route requires the `X-QA-Token` shared secret. A production-process regression test exercises every testing path. |
 | Unauthenticated direct GSM sends | `GSM-module/GSM-fastapi/api.py`, `server/app/api/gsm.py` | `GSM_SECRET` is required by both services. The main server sends it as `X-GSM-Secret`, and the gateway validates it before logging or queueing `POST /sms/send`. |
+| SMS relay spend and reply abuse | `GSM-module/GSM-fastapi/` | The gateway now enforces a daily send ceiling, per-sender and sender-target limits, response cooldowns, recipient STOP/START preferences, and bounded inbound/outbound queues. The main server rate-limits paid SMS routes and requires verified sender and recipient phones for direct sends. |
+| Gateway diagnostic and mutation endpoint exposure | `GSM-module/GSM-fastapi/api.py` | Every application API route except liveness-only `/health` requires `X-GSM-Secret`, preventing internal-network callers from reading message history or resetting sessions. |
+| GSM log retention of message content | `GSM-module/GSM-fastapi/` | Operational SMS logs redact message bodies and phone numbers, rotate by size, and purge according to `SMS_LOG_RETENTION_DAYS`. |
 
 ## Required environment variables (new)
 

@@ -22,7 +22,6 @@ All public functions are thread-safe (SQLAlchemy handles connection pooling).
 from sqlalchemy import Column, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
-from datetime import datetime
 import logging
 import time
 import uuid
@@ -33,7 +32,7 @@ from sqlalchemy import (
     BigInteger, Boolean, Column, Enum as SAEnum,
     ForeignKey, String, Text, UniqueConstraint, text,
 )
-from sqlalchemy import create_engine, select, update, insert 
+from sqlalchemy import create_engine, delete, select, update
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 from sqlalchemy.dialects.mysql import CHAR
 import uuid
@@ -83,6 +82,8 @@ def init(db_url: str):
         SmsSession.__table__,
         SmsLog.__table__,
         SmsUnregisteredWarning.__table__,
+        SmsRateCounter.__table__,
+        SmsRecipientPreference.__table__,
     ])
     logger.info("Database ready: %s", db_url.split("@")[-1])  # hide credentials
 
@@ -394,6 +395,20 @@ class SmsUnregisteredWarning(Base):
 
     phone = Column(String(20), primary_key=True)
     warned_at = Column(BigInteger, default=_now_ms, nullable=False)
+class SmsRateCounter(Base):
+    __tablename__ = "sms_rate_counter"
+
+    key = Column(String(160), primary_key=True)
+    count = Column(BigInteger, default=0, nullable=False)
+    last_seen = Column(BigInteger, default=_now_ms, nullable=False)
+
+
+class SmsRecipientPreference(Base):
+    __tablename__ = "sms_recipient_preference"
+
+    phone = Column(String(20), primary_key=True)
+    opted_out = Column(Boolean, default=False, nullable=False)
+    updated_at = Column(BigInteger, default=_now_ms, nullable=False)
 
 # =============================================================================
 # USER LOOKUPS  (reads from shared `user` table)
@@ -515,18 +530,24 @@ def get_all_sessions() -> list[dict]:
 
 def log_message(direction: str, from_number: str, to_number: str,
                 body: str, status: str = "pending") -> str:
-    """Insert a log row and return its UUID string."""
+    """Insert operational metadata without retaining SMS message content."""
     row = SmsLog(
         direction=direction,
-        from_number=from_number,
-        to_number=to_number,
-        body=body,
+        from_number=_redact_phone(from_number),
+        to_number=_redact_phone(to_number),
+        body=f"[redacted: {len(body)} characters]",
         status=status,
     )
     with new_get_session() as s:
         s.add(row)
         s.commit()
         return str(row.id)
+
+
+def _redact_phone(phone: str) -> str:
+    if len(phone) <= 4:
+        return "[redacted]"
+    return f"***{phone[-4:]}"
 
 
 def update_message_status(msg_id: str, status: str,
@@ -551,6 +572,14 @@ def fail_orphaned_pending_messages() -> int:
         return result.rowcount
 
 
+def purge_expired_sms_logs(retention_days: int) -> int:
+    cutoff = _now_ms() - retention_days * 24 * 60 * 60 * 1000
+    with new_get_session() as s:
+        result = s.execute(delete(SmsLog).where(SmsLog.created_at < cutoff))
+        s.commit()
+        return result.rowcount
+
+
 def get_messages(limit: int = 50, offset: int = 0, direction: Optional[str] = None,
                  phone: Optional[str] = None) -> dict:
     with new_get_session() as s:
@@ -558,6 +587,7 @@ def get_messages(limit: int = 50, offset: int = 0, direction: Optional[str] = No
         if direction:
             q = q.where(SmsLog.direction == direction)
         if phone:
+            phone = _redact_phone(phone)
             q = q.where(
                 (SmsLog.from_number == phone) | (SmsLog.to_number == phone)
             )
@@ -586,6 +616,92 @@ def get_messages(limit: int = 50, offset: int = 0, direction: Optional[str] = No
             "limit": limit,
             "offset": offset
         }
+
+
+def _counter(session: Session, key: str) -> SmsRateCounter:
+    row = session.execute(
+        select(SmsRateCounter).where(SmsRateCounter.key == key).with_for_update()
+    ).scalar_one_or_none()
+    if row is None:
+        row = SmsRateCounter(key=key)
+        session.add(row)
+        session.flush()
+    return row
+
+
+def _day_key() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def reserve_outbound_sms(limit: int) -> bool:
+    """Reserve one daily carrier-send slot before queueing a modem operation."""
+    with new_get_session() as s:
+        row = _counter(s, f"outbound:{_day_key()}")
+        if limit <= 0 or row.count >= limit:
+            s.rollback()
+            return False
+        row.count += 1
+        row.last_seen = _now_ms()
+        s.commit()
+        return True
+
+
+def allow_inbound_response(
+    phone: str, category: str, daily_limit: int, cooldown_seconds: int
+) -> bool:
+    """Apply both a sender-wide ceiling and a response-category cooldown."""
+    now = _now_ms()
+    day = _day_key()
+    with new_get_session() as s:
+        sender = _counter(s, f"inbound:{day}:{phone}")
+        category_counter = _counter(s, f"response:{phone}:{category}")
+        if (
+            daily_limit <= 0
+            or sender.count >= daily_limit
+            or (
+                category_counter.count > 0
+                and now - category_counter.last_seen < cooldown_seconds * 1000
+            )
+        ):
+            s.rollback()
+            return False
+        sender.count += 1
+        category_counter.count += 1
+        category_counter.last_seen = now
+        s.commit()
+        return True
+
+
+def allow_sender_target(
+    sender_phone: str, target_phone: str, daily_limit: int
+) -> bool:
+    """Limit relay attempts for a sender-target pair within the current UTC day."""
+    with new_get_session() as s:
+        row = _counter(s, f"relay:{_day_key()}:{sender_phone}:{target_phone}")
+        if daily_limit <= 0 or row.count >= daily_limit:
+            s.rollback()
+            return False
+        row.count += 1
+        row.last_seen = _now_ms()
+        s.commit()
+        return True
+
+
+def set_sms_opt_out(phone: str, opted_out: bool) -> None:
+    with new_get_session() as s:
+        row = s.get(SmsRecipientPreference, phone)
+        if row is None:
+            row = SmsRecipientPreference(phone=phone)
+            s.add(row)
+        row.opted_out = opted_out
+        row.updated_at = _now_ms()
+        s.commit()
+
+
+def is_sms_opted_out(phone: str) -> bool:
+    with new_get_session() as s:
+        row = s.get(SmsRecipientPreference, phone)
+        return bool(row and row.opted_out)
 
 
 # =============================================================================

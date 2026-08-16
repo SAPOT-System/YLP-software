@@ -21,7 +21,7 @@ The GSM endpoints proxy SMS operations from the SAPOT server to the GSM module (
 | POST | `/gsm/resend` | None | Resend an SMS OTP. |
 | GET | `/gsm/phone-is-verified` | JWT Bearer | Check whether the current user's phone number is verified. |
 | POST | `/gsm/migrate-phone-user` | JWT Bearer | Migrate a guest user's data onto a phone-registered account. |
-| POST | `/gsm/contact-unknown-user` | JWT Bearer | Send an onboarding SMS to a phone number not yet registered. |
+| POST | `/gsm/contact-unknown-user` | JWT Bearer + verified phone | Send an onboarding SMS to a phone number not yet registered. |
 | GET | `/gsm/mock/health` | JWT Bearer | Mock variant of `/gsm/health`. |
 | GET | `/gsm/mock/health/detailed` | JWT Bearer | Mock variant of `/gsm/health/detailed`. |
 | GET | `/gsm/mock/sms/messages` | JWT Bearer | Mock variant of `/gsm/sms/messages`. |
@@ -45,7 +45,7 @@ The GSM module's own standalone hardware-facing API is documented in [`docs/depl
 
 ## Outbound sender eligibility
 
-`POST /gsm/sms/send` and its mock variant require a `PhoneVerified` record for the authenticated account. The server checks this before looking up the recipient or contacting the GSM gateway. An unverified account receives HTTP 403:
+`POST /gsm/sms/send` and its mock variant require a `PhoneVerified` record for the authenticated account. The production send route also requires the recipient to be phone-verified. The server checks eligibility before contacting the GSM gateway. An unverified account receives HTTP 403:
 
 ```json
 {
@@ -71,5 +71,7 @@ The main server preserves synchronous gateway failures for `/gsm/sms/send`, `/gs
 ```
 
 An unreachable gateway also returns HTTP 503 with `reason: "GATEWAY_UNAVAILABLE"`. Clients should keep rejected messages available for manual retry and should not report verification or onboarding SMS as sent.
+
+The server rate-limits paid SMS routes. The gateway independently enforces a daily send ceiling, sender limits, sender-target limits, and per-response cooldowns, so a client cannot bypass these controls by calling a different paid-send route.
 
 See [gsm-sms.yaml](openapi/gsm-sms.yaml) for exact field-level request/response schemas, or the live server's `/docs` / `/openapi.json`.
