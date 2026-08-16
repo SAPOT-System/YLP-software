@@ -108,7 +108,12 @@ paths:
       tags:
       - gsm
       summary: Inbound Sms
-      description: 'Internal endpoint: receives an inbound SMS from the GSM-API and delivers it to the target user via WebSocket.'
+      description: |-
+        Internal endpoint: receives an inbound SMS from the GSM-API and delivers it
+        to the target user via WebSocket.
+
+        Enforces the outbound-permission rule: the sender-target pair is only accepted
+        if the target previously sent an outbound SMS to the sender via the relay.
       operationId: inbound_sms_gsm_inbound_post
       requestBody:
         content:
