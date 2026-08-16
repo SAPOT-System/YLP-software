@@ -190,7 +190,12 @@ async def inbound_sms(
     request: Request,
     session: SessionDep,
 ):
-    """Internal endpoint: receives an inbound SMS from the GSM-API and delivers it to the target user via WebSocket."""
+    """Internal endpoint: receives an inbound SMS from the GSM-API and delivers it
+    to the target user via WebSocket.
+
+    Enforces the outbound-permission rule: the sender-target pair is only accepted
+    if the target previously sent an outbound SMS to the sender via the relay.
+    """
     if not _gsm_secret_ok(request):
         raise HTTPException(403)
 
@@ -200,7 +205,28 @@ async def inbound_sms(
     if not sender or not target:
         raise HTTPException(404, "User not found")
 
-    # Look up the existing conversation where both users are participants
+    # Enforce authorization: target must have previously contacted sender via relay
+    try:
+        perm_resp = await _get_gsm_client().get(
+            "/has-permission",
+            params={
+                "sapot_phone": payload.target_phone,
+                "external_phone": payload.sender_phone,
+            },
+            headers={"X-GSM-Secret": GSM_SECRET},
+        )
+        if perm_resp.status_code != 200 or not perm_resp.json().get("permitted"):
+            logger.warning(
+                "inbound_sms: unauthorized pair sender=*** target=***"
+            )
+            raise HTTPException(403, "Sender is not authorized to contact this target")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("inbound_sms: permission check failed: %s", exc)
+        raise HTTPException(502, "Permission check failed") from exc
+
+    # Look up or create the shared conversation
     conversation = session.exec(
         select(Conversation)
         .join(ConversationParticipant, Conversation.id == ConversationParticipant.conversation_id)
@@ -212,15 +238,12 @@ async def inbound_sms(
             )
         )
     ).first()
-    print("senderid", sender.id)
-    print("targetId", target.id)
 
     if not conversation:
         convo_id = UUID(sms_conversation_id(str(sender.id), str(target.id)))
         conversation = _create_sms_conversation(session, convo_id, sender.id, target.id)
 
     convo_id = conversation.id
-    print("convoid", convo_id)
 
     msg = Message(
         conversation_id=convo_id,
@@ -229,7 +252,7 @@ async def inbound_sms(
         message_type=MessageType.sms,
     )
     session.add(msg)
-    session.flush()  # get msg.id before commit
+    session.flush()
 
     receipt = MessageReceipt(
         message_id=msg.id,
@@ -241,7 +264,6 @@ async def inbound_sms(
     session.refresh(msg)
 
     is_connected = await manager.is_user_connected(target.id)
-    print(f"[gsm/inbound] sender={sender.username} target={target.username} connected={is_connected} msg_id={msg.id}")
 
     ws_payload = {
         "type": "chat",

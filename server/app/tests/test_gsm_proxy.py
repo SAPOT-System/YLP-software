@@ -382,3 +382,62 @@ def test_failed_send_sms_does_not_grant_permission(client, session, monkeypatch)
     assert response.status_code == 502
     assert len(grant_calls) == 0
 
+
+
+def test_inbound_sms_rejected_when_no_permission(client, session, monkeypatch):
+    """POST /gsm/inbound must 403 when the target has not previously contacted the sender."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    class UnauthorizedPermissionClient:
+        async def get(self, path: str, **kwargs):
+            if path == "/has-permission":
+                return FakeGsmResponse(200, {"permitted": False})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: UnauthorizedPermissionClient())
+
+    response = client.post(
+        "/gsm/inbound",
+        json={
+            "sender_phone": current_user.phone_number,
+            "target_phone": target.phone_number,
+            "body": "Hello",
+        },
+        headers={"X-GSM-Secret": gsm.GSM_SECRET},
+    )
+
+    assert response.status_code == 403
+
+
+def test_inbound_sms_allowed_when_permission_exists(client, session, monkeypatch):
+    """POST /gsm/inbound must 200 when permission exists."""
+    current_user = _authenticated_user(session, phone_verified=True)
+    target = _verified_target(session, current_user)
+    current_user.phone_number = "+639171111111"
+    target.phone_number = "+639172222222"
+    session.commit()
+
+    class AuthorizedPermissionClient:
+        async def get(self, path: str, **kwargs):
+            if path == "/has-permission":
+                return FakeGsmResponse(200, {"permitted": True})
+            return FakeGsmResponse(404, {})
+
+    monkeypatch.setattr(gsm, "_get_gsm_client", lambda: AuthorizedPermissionClient())
+
+    response = client.post(
+        "/gsm/inbound",
+        json={
+            "sender_phone": current_user.phone_number,
+            "target_phone": target.phone_number,
+            "body": "Hello",
+        },
+        headers={"X-GSM-Secret": gsm.GSM_SECRET},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True

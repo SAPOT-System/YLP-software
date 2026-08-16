@@ -497,6 +497,19 @@ def grant_permission(req: GrantPermissionRequest):
     return {"ok": True}
 
 
+@app.get(
+    "/has-permission",
+    tags=["permissions"],
+    dependencies=[Depends(require_gsm_secret)],
+)
+def check_permission(
+    sapot_phone: str = Query(..., pattern=r"^\+\d{7,15}$"),
+    external_phone: str = Query(..., pattern=r"^\+\d{7,15}$"),
+):
+    """Return whether sapot_phone has an active outbound permission for external_phone."""
+    return {"permitted": database.has_outbound_permission(sapot_phone, external_phone)}
+
+
 # ── User endpoints ────────────────────────────────────────────────────────────
 
 @app.get("/users", tags=["users"], dependencies=[Depends(require_gsm_secret)])

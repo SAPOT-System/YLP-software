@@ -275,3 +275,38 @@ def test_set_target_allowed_when_in_permitted_set(monkeypatch):
     )
 
     assert reason == "TARGET_SET"
+
+
+def test_has_permission_endpoint_returns_true_when_granted(monkeypatch):
+    monkeypatch.setattr(
+        "database.has_outbound_permission",
+        lambda sapot, external: sapot == "+639171111111" and external == "+639288888888"
+    )
+    from api import app as gsm_app
+    from fastapi.testclient import TestClient
+    client = TestClient(gsm_app)
+
+    resp = client.get(
+        "/has-permission",
+        params={"sapot_phone": "+639171111111", "external_phone": "+639288888888"},
+        headers={"X-GSM-Secret": "test-gsm-secret"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"permitted": True}
+
+
+def test_has_permission_endpoint_returns_false_when_not_granted(monkeypatch):
+    monkeypatch.setattr("database.has_outbound_permission", lambda *_: False)
+    from api import app as gsm_app
+    from fastapi.testclient import TestClient
+    client = TestClient(gsm_app)
+
+    resp = client.get(
+        "/has-permission",
+        params={"sapot_phone": "+639171111111", "external_phone": "+639299999999"},
+        headers={"X-GSM-Secret": "test-gsm-secret"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"permitted": False}
