@@ -25,7 +25,7 @@ run the API with the command ~uvicorn app.main:app --reload --host=0.0.0.0~
 *** create web socket endpoint for
 - [ ] messaging
   - [ ] group messaging
-  - [ ] end to end encryption (RSA)
+  - [X] end to end encryption (RSA)
 - [ ] peering information
   - [ ] SDP offer
   - [ ] SDP answer
@@ -34,9 +34,9 @@ run the API with the command ~uvicorn app.main:app --reload --host=0.0.0.0~
 - [ ] calling (through the app, no server is needed)
 
 * TODO server features ~/features~
-** SMS messaging
+** [X] SMS messaging
 ** [X] websockets peer to peer initiate
-** [ ] GPS mapping
+** [X] GPS mapping
 ** [ ] Group messaging (tentative)
 
 * Note
@@ -1222,4 +1222,66 @@ use the web socket like:
 
 This public chat can be retrieved through ~/sync/pull~ endpoint. Public chat records must have conversation_id as ~null~.
 
+** Admin Panel & Dashboard API
+The ~/admin~ module contains several endpoints for managing the system and network. These endpoints require admin authentication.
+*** Admin Authentication
+- ~POST /admin/login~: Login for admin users.
+- ~POST /admin/logout~: Logout admin.
+- ~POST /admin/refresh~: Refresh admin token.
+- ~GET /admin/me~: Get current admin information.
+*** User Management
+- ~POST /admin/create/user~, ~POST /admin/create/user/rescuer~, ~POST /admin/create/user/admin~: Create different types of users.
+- ~POST /admin/edit/user~: Edit user details.
+- ~POST /admin/delete/user~: Delete user.
+- ~POST /admin/ban/user~, ~POST /admin/unban/user~: Ban/unban users.
+- ~GET /admin/user-info~: Retrieve user info.
+*** System & Network Monitoring
+- ~GET /admin/get-active-users~: Get currently active websocket users.
+- ~GET /admin/network/usage~, ~GET /admin/network/interfaces~: Get network usage and interfaces details.
+- ~GET /admin/users-activity~: Get recent user activity.
+- ~GET /admin/get-logs~: Retrieve system logs.
+*** Announcements
+- ~POST /admin/post-announcement~: Create announcement.
+- ~GET /admin/get-all-announcements~: List announcements.
+- ~PATCH /admin/announcements/{announcement_id}~: Edit announcement.
+- ~DELETE /admin/announcements/{announcement_id}~: Delete announcement.
 
+** GSM & SMS Functionality
+The ~/gsm~ module provides endpoints for handling SMS messaging, verifying phone numbers, and interfacing with modems.
+*** Real Modem Endpoints
+- ~GET /gsm/health~, ~GET /gsm/health/detailed~: Check modem health status.
+- ~GET /gsm/sms/messages~: Retrieve SMS messages.
+- ~POST /gsm/sms/send~: Send an SMS.
+- ~POST /gsm/inbound~: Webhook for inbound SMS messages.
+*** Verification Flow
+- ~POST /gsm/request~, ~POST /gsm/resend~: Request verification code.
+- ~POST /gsm/verify~: Verify code.
+- ~GET /gsm/phone-is-verified~: Check if phone is verified.
+- ~POST /gsm/migrate-phone-user~: Migrate an existing phone user.
+*** Mock Endpoints
+- The system includes a full suite of mock endpoints for testing (e.g. ~/gsm/mock/health~, ~/gsm/mock/sms/send~, ~/gsm/mock/verify~).
+
+** End-to-End Encryption (E2EE) Key Management
+The API provides endpoints to manage keys for E2EE communications.
+- ~POST /keys/register~: Register a user's signed credentials/public key.
+- ~GET /keys/server-public-key~: Get the server's public key.
+- ~GET /keys/contacts~, ~GET /keys/contacts/{peer_id}~, ~POST /keys/contacts/{peer_id}~: Manage contacts and their public keys.
+- ~GET /keys/{peer_id}~, ~GET /keys/{peer_id}/type~: Get peer key details.
+*** Recovery Keys
+- ~POST /user_keys/recovery-setup~: Set up user recovery key.
+- ~GET /user_keys/recovery-key~: Retrieve recovery key.
+- ~PUT /user_keys/recovery-keys~: Update recovery keys.
+
+** Captive Portal & Network
+- The API includes several endpoints in ~captive_portal.py~ (~POST~, ~PATCH~, ~GET~) for handling captive portal authentication and session management.
+- Additional Mikrotik integration endpoints are present for hardware configuration.
+
+** App Downloads
+- ~GET /download-apk~: Endpoint to serve the mobile application APK download.
+
+** Additional Auth & Recovery Endpoints
+- ~POST /auth/logout~: Logout user.
+- ~POST /auth/reauthenticate~: Reauthenticate a user.
+- ~GET /auth/terms~: Retrieve terms of service.
+- ~POST /auth/forgot-password/phone~, ~POST /auth/forgot-password/phone-code~: Phone OTP flow for password reset.
+- ~POST /auth/forgot-password/email-code~: Email OTP flow for password reset.
