@@ -424,8 +424,8 @@ may not be a registered peer.
 | `ping` | | | ✓ |
 | `pong` | | | ✓ |
 | `profile-info` | ✓ | ✓ | |
-| `server-ack` | | ✓ | |
-| `get-active-users` | | ✓ | |
-| `public-chat` | | ✓ | |
+| `server-ack` | ✓ | | |
+| `get-active-users` | ✓ | | |
+| `public-chat` | ✓ | | |
 
 > **WebSocket** messages are server-relayed. **TCP** messages are direct peer-to-peer. WebSocket uses `from_user`; TCP uses `from`.

@@ -909,6 +909,16 @@ If the onboarding SMS is rejected, the endpoint preserves the gateway error and 
 
 ---
 
+### `POST /gsm/request` — Request Phone Verification OTP
+**Auth:** Required
+
+**Request body:**
+```json
+{ "phone_number": "string" }
+```
+
+---
+
 ### `POST /gsm/verify` — Verify Phone Code
 **Auth:** Required
 

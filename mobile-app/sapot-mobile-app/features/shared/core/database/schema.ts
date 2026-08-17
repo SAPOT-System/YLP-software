@@ -52,11 +52,6 @@ export default appSchema({
           isOptional: true,
         },
         {
-          name: "phone_number_verified",
-          type: "boolean",
-          isOptional: true,
-        },
-        {
           name: "role",
           type: "string",
           isOptional: true,
