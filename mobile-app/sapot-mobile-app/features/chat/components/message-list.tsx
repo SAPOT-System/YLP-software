@@ -402,7 +402,7 @@ const MessageListItemInner = memo(
     const content = useDecryptedContent(message);
     const userStore = useUserStore();
     const theme = useTheme();
-    const isCurrentUserMessage = message.sender?.id === userStore.user?.id;
+    const isCurrentUserMessage = userStore.hasUser && message.sender?.id === userStore.user.id;
     const chatService = useChatService();
     const gsmService = useGsmService();
     const peerService = usePeerService();

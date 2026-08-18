@@ -26,7 +26,7 @@ export default function PublicChat() {
   const { messages, sendMessage, isConnected, isAvailable, isLoadingHistory, hasMoreHistory, loadMoreHistory } = usePublicChat();
   const listRef = useRef<FlatList<PublicChatMessage>>(null);
   const userStore = useUserStore();
-  const myId = userStore.user.id;
+  const myId = userStore.hasUser ? userStore.user.id : "";
   const headerHeight = useHeaderHeight();
   const reducedMotion = useReducedMotion();
   const seenIdsRef = useRef<Set<string> | null>(null);

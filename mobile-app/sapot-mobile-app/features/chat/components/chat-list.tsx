@@ -51,7 +51,7 @@ const ChatList = enhanceChats(
     onRefresh?: () => void;
   }) => {
     const userStore = useUserStore();
-    const currentUserId = userStore.user?.id ?? "";
+    const currentUserId = userStore.hasUser ? userStore.user.id : "";
     const reducedMotion = useReducedMotion();
     return (
       <View style={{ flex: 1 }}>

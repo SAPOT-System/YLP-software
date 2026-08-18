@@ -20,7 +20,7 @@ export function usePeerListData(): PeerListEntry[] {
   const connectionService = useConnectionService();
   const activeUserService = useAcitveUserService();
 
-  const currentUserId = userStore.user.id;
+  const currentUserId = userStore.hasUser ? userStore.user.id : "";
 
   const [allPeers, setAllPeers] = useState<Peer[]>([]);
   useEffect(() => {
