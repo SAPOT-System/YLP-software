@@ -103,7 +103,7 @@ export default function GpsScreen() {
 
   const { data: historyData } = useGpsHistory(pathUserId);
 
-  const currentUserId = userStore.user.id;
+  const currentUserId = userStore.hasUser ? userStore.user.id : "";
   const userLocations = rawLocations.filter(
     (loc) => loc.user_id !== currentUserId
   );

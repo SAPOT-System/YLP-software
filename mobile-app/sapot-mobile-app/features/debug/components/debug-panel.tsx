@@ -53,7 +53,7 @@ function DebugPanelContent() {
 
   const variant = __DEV__ ? "development" : (Updates.channel ?? "unknown");
   const version = Constants.expoConfig?.extra?.displayVersion ?? "unknown";
-  const peerId = userStore.user?.id ?? "—";
+  const peerId = userStore.hasUser ? userStore.user.id : "—";
 
   const handleDismiss = () => {
     setSelectedSection(null);

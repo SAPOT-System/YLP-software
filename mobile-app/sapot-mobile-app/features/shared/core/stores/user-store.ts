@@ -63,6 +63,14 @@ export class UserStore {
     this.emit();
   }
 
+  clearUser() {
+    this._user = undefined;
+    this._isGuest = false;
+    this._isRescuer = false;
+    this._isAdmin = false;
+    this.emit();
+  }
+
   subscribe(listener: UserStoreListener) {
     this.listeners.add(listener);
     return () => {

@@ -152,7 +152,7 @@ const ChatRoom = () => {
 
       if (source === ChatRoomSource.PEER) {
         const resolvedPeerId = id as string;
-        const isSelf = resolvedPeerId === userStore.user?.id;
+        const isSelf = userStore.hasUser && resolvedPeerId === userStore.user.id;
         uiLog.debug("[ChatRoom] peer resolved from PEER source", {
           resolvedPeerId,
           isSelf,
@@ -206,7 +206,7 @@ const ChatRoom = () => {
         const foundPeerId = await chatService.findPeerIdByChatId(id as string);
         if (signal.aborted) return;
 
-        const isSelf = foundPeerId === userStore.user?.id;
+        const isSelf = userStore.hasUser && foundPeerId === userStore.user.id;
         uiLog.debug("[ChatRoom] peer resolved from CHAT source", {
           foundPeerId,
           isSelf,
@@ -482,7 +482,7 @@ const ChatRoom = () => {
   const isSmsEnabled =
     gsmReady &&
     !!peer?.phoneNumberVerified &&
-    !userStore.isGuest &&
+    userStore.hasUser &&
     !!(userStore.user as Peer).phoneNumberVerified;
 
   useEffect(() => {

@@ -124,7 +124,7 @@ export class UserService {
   async logout() {
     try {
       this.log("logout start");
-      this.userStore.setIsRescuer(false);
+      this.userStore.clearUser();
       await deleteItemAsync("userUUID");
       this.sessionStore.setUserId(undefined);
       this.log("logout complete");
@@ -149,7 +149,7 @@ export class UserService {
   async wipeDatabase() {
     try {
       this.log("wipeDatabase start");
-      this.userStore.setIsRescuer(false);
+      this.userStore.clearUser();
       await deleteItemAsync("userUUID");
       this.sessionStore.setUserId(undefined);
       if (this.cleanUpService) {

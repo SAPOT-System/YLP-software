@@ -71,10 +71,11 @@ export default function Chat() {
   const isFabEnabled =
     gsmReady &&
     !userStore.isGuest &&
+    userStore.hasUser &&
     !!(userStore.user as Peer).phoneNumberVerified;
 
   const currentUserPhone = toInternationalPhone(
-    (userStore.user as Peer)?.phoneNumber ?? ""
+    userStore.hasUser ? ((userStore.user as Peer).phoneNumber ?? "") : ""
   );
 
   const isSelfPhone = (phone: string) =>
