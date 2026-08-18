@@ -91,12 +91,12 @@ const withNetworkSecurityConfig: ConfigPlugin = (config) => {
 </network-security-config>`
     : `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-  <domain-config cleartextTrafficPermitted="false">
-    <domain includeSubdomains="false">server.sapot.lan</domain>
+  <base-config cleartextTrafficPermitted="false">
     <trust-anchors>
+      <certificates src="system"/>
       <certificates src="@raw/server_ca"/>
     </trust-anchors>
-  </domain-config>
+  </base-config>
 </network-security-config>`;
 
   // Step 1: write the XML into res/xml/
