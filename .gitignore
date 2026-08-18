@@ -15,3 +15,4 @@ captive-portal/config.js
 .bundle-build.*
 dist/
 docs/superpowers/
+/scripts/generate_release_notes.sh

@@ -24,6 +24,8 @@ jobs:
           fetch-depth: 0
 
       - name: Validate tag and release metadata
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           git fetch --no-tags origin \
             "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME" \

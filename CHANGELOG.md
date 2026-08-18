@@ -16,6 +16,31 @@ git-cliff --tag-pattern '^mobile/v' --include-path 'mobile-app/**' -o CHANGELOG.
 
 ---
 
+## bundle/v0.2.0 — 2026-08-18
+
+**Features**
+
+- **GSM port management:** Added scripts to update the Arduino serial port and automatically restart the GSM API.
+
+---
+
+## mobile/v0.11.0 — 2026-08-18
+
+**Fixes**
+
+- Safely clear user state on logout (#382). Resolves a crash that occurred when background components or UI views attempted to read the user ID of a logged-out user. A new `hasUser` safety guard was added across all chat, map, and debug views, and the UserStore now correctly clears all internal state upon logout.
+
+---
+
+## bundle/v0.1.0 — 2026-08-18
+
+**Features**
+
+- **GSM auto-detection (install):** Automatically detects connected GSM Arduino ports and presents an interactive selection menu during installation (`install.sh`), replacing the manual boolean prompt. The selected port is automatically synchronized to `gsm-arduino.env` and `gsm-fastapi.env`.
+- **GSM upgrade prompt (upgrade):** Added an interactive prompt to `upgrade.sh` to auto-detect the GSM Arduino port if upgrading from bundle versions older than 0.0.8 and GSM hardware isn't already configured.
+
+---
+
 ## server/v0.0.2-beta.1 — 2026-06-26
 
 First tagged server release. All commits represent the initial release of the server component.
