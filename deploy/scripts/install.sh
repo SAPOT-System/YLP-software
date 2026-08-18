@@ -22,8 +22,47 @@ ip=$($target/certs/detect-ip.sh 2>/dev/null || true)
 [ -n "$ip" ] || { read -r -p "LAN IP for TLS certificate: " ip; }
 ca_issue_leaf "$SAPOT_ROOT/shared/certs" "$ip" "$ca_dir" false
 log_info "certificate issued - the CA USB stick can be unplugged now"
-read -r -p "Is the GSM Arduino connected at $(grep '^GSM_ARDUINO_PORT=' "$SAPOT_ROOT/shared/gsm-arduino.env" | cut -d= -f2)? [y/N] " answer
-hardware=false; [[ "$answer" =~ ^[Yy]$ ]] && hardware=true
+shopt -s nullglob
+detected_ports=(/dev/ttyACM* /dev/ttyUSB*)
+shopt -u nullglob
+
+hardware=false
+selected_port=""
+
+if [ ${#detected_ports[@]} -eq 0 ]; then
+  read -r -p "No GSM Arduino detected. Enter port path manually or leave empty to skip: " answer
+  if [ -n "$answer" ]; then
+    selected_port="$answer"
+    hardware=true
+  fi
+elif [ ${#detected_ports[@]} -eq 1 ]; then
+  read -r -p "Found GSM Arduino at ${detected_ports[0]}. Use this? [Y/n/custom] " answer
+  if [[ "$answer" =~ ^[Yy]$ ]] || [ -z "$answer" ]; then
+    selected_port="${detected_ports[0]}"
+    hardware=true
+  elif [[ "$answer" =~ ^[Cc]ustom$ ]]; then
+    read -r -p "Enter custom port path: " selected_port
+    if [ -n "$selected_port" ]; then hardware=true; fi
+  fi
+else
+  echo "Multiple GSM Arduino devices found:"
+  for i in "${!detected_ports[@]}"; do
+    echo "  $((i+1))) ${detected_ports[$i]}"
+  done
+  read -r -p "Select a number, type a custom path, or leave empty to skip: " answer
+  if [[ "$answer" =~ ^[0-9]+$ ]] && [ "$answer" -ge 1 ] && [ "$answer" -le "${#detected_ports[@]}" ]; then
+    selected_port="${detected_ports[$((answer-1))]}"
+    hardware=true
+  elif [ -n "$answer" ]; then
+    selected_port="$answer"
+    hardware=true
+  fi
+fi
+
+if [ "$hardware" = true ] && [ -n "$selected_port" ]; then
+  sed -i "s|^GSM_ARDUINO_PORT=.*|GSM_ARDUINO_PORT=$selected_port|" "$SAPOT_ROOT/shared/gsm-arduino.env"
+  sed -i "s|^SERIAL_PORT=.*|SERIAL_PORT=$selected_port|" "$SAPOT_ROOT/shared/gsm-fastapi.env"
+fi
 for image in "$target"/images/*.tar; do load_image_archive "$image"; done
 "$VERIFY_DIGESTS" "$target/manifest.json"
 compose "$target" up -d db redis; wait_healthy "$target" db; wait_healthy "$target" redis
