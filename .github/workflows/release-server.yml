@@ -19,9 +19,15 @@ jobs:
             echo "app/version.py ($SRC) != tag ($VERSION). Run ./scripts/release.sh before tagging." >&2
             exit 1
           fi
-      - name: Extract notes from the annotated tag
+      - name: Generate release notes
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+          if [[ -n "${GEMINI_API_KEY:-}" ]]; then
+            scripts/generate_release_notes.sh "$GITHUB_REF_NAME" notes.md
+          else
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+          fi
           [ -s notes.md ] || { echo "notes.md is empty — is '$GITHUB_REF_NAME' an annotated tag?" >&2; exit 1; }
       - name: Create GitHub release
         env:

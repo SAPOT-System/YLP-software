@@ -15,6 +15,10 @@ version=${tag#bundle/v}
 if [[ "$version" != *-* ]]; then
   git merge-base --is-ancestor "$tag_commit" "$main_ref" || { echo "Stable bundle tags must point to a commit on main." >&2; exit 1; }
 fi
-git for-each-ref --format='%(contents)' "refs/tags/$tag" > "$notes_file"
+if [[ -n "${GEMINI_API_KEY:-}" ]]; then
+  scripts/generate_release_notes.sh "$tag" "$notes_file"
+else
+  git for-each-ref --format='%(contents)' "refs/tags/$tag" > "$notes_file"
+fi
 [[ -s "$notes_file" ]] || { echo "Release notes are empty. Use an annotated bundle tag." >&2; exit 1; }
 printf '%s\n' "$tag_commit"
